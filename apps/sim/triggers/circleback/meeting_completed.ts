@@ -40,18 +40,6 @@ export const circlebackMeetingCompletedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'circleback_meeting_completed',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'circleback_meeting_completed',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

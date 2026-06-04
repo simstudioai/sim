@@ -1,0 +1,57 @@
+---
+title: HubSpot
+description: Available HubSpot triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="hubspot"
+  color="#FF7A59"
+/>
+
+HubSpot provides 1 trigger for automating workflows based on events.
+
+All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
+
+## Triggers
+
+### HubSpot CRM Trigger
+
+Triggers when HubSpot CRM records (contacts, companies, deals, tickets, custom objects) are created or updated, or when contacts join a list
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Connect a HubSpot account so Sim can poll your CRM on your behalf. |
+| `objectType` | string | Yes | What you want to watch. |
+| `customObjectTypeId` | string | No | HubSpot custom object type ID \(e.g.  |
+| `listId` | string | No | The HubSpot list to watch for new members. |
+| `eventType` | string | No | Created fires once per new record. Updated fires on any modification. Property Changed fires only when the chosen property changes value. |
+| `targetPropertyName` | string | No | Fires only when this specific property changes value on a record. |
+| `properties` | string | No | Properties to include on each record. Leave empty to use sensible defaults. Sim always includes the timestamps it needs internally. |
+| `pipelineId` | string | No | Restrict to a single pipeline. |
+| `stageId` | string | No | Restrict to a single stage within the selected pipeline. |
+| `ownerId` | string | No | Restrict to records owned by a specific HubSpot user. |
+| `filters` | string | No | JSON array of HubSpot search filters, AND-combined. Each item: \{ |
+| `maxRecordsPerPoll` | string | No | Soft cap on records emitted per poll \(default 50, max 1000\). Excess rolls over to the next poll. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objectType` | string | HubSpot object type \(contact, company, deal, ticket, custom object id, or list_membership\) |
+| `eventType` | string | Event type \(created, updated, property_changed, or joined\) |
+| `objectId` | string | HubSpot ID of the affected record \(or contact id for list memberships\) |
+| `occurredAt` | string | ISO timestamp of when the change happened in HubSpot |
+| `properties` | json | HubSpot properties on the record as a key-value object \(property internal name → value\). Default keys per object type \(override via "Properties to Fetch"\): Contact → firstname, lastname, email, phone, company, lifecyclestage, hs_lead_status, hubspot_owner_id, createdate, lastmodifieddate. Company → name, domain, industry, lifecyclestage, hubspot_owner_id, createdate, hs_lastmodifieddate. Deal → dealname, amount, dealstage, pipeline, closedate, hubspot_owner_id, createdate, hs_lastmodifieddate. Ticket → subject, content, hs_pipeline, hs_pipeline_stage, hs_ticket_priority, hubspot_owner_id, createdate, hs_lastmodifieddate. Custom and user-requested properties appear keyed by their HubSpot internal name. |
+| `createdAt` | string | ISO timestamp when the record was created in HubSpot |
+| `updatedAt` | string | ISO timestamp when the record was last updated in HubSpot |
+| `archived` | boolean | Whether the record is archived |
+| `propertyName` | string | Name of the property that changed \(property_changed events only\) |
+| `propertyValue` | string | New value of the changed property \(property_changed events only\) |
+| `previousValue` | string | Previous value before the change \(property_changed events only\) |
+| `listId` | string | HubSpot list ID \(list_membership events only\) |
+| `timestamp` | string | ISO timestamp when Sim emitted the event |
+

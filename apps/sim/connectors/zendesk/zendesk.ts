@@ -1,14 +1,18 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { ZendeskIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('ZendeskConnector')
 
 const ARTICLES_PER_PAGE = 30
 const TICKETS_PER_PAGE = 100
 const DEFAULT_MAX_TICKETS = 500
+const SEARCH_API_RESULT_CAP = 1000
+
+const VALID_TICKET_STATUSES = new Set(['new', 'open', 'pending', 'hold', 'solved', 'closed'])
 
 interface ZendeskArticle {
   id: number
@@ -96,7 +100,7 @@ async function fetchArticles(
 ): Promise<ZendeskArticle[]> {
   const allArticles: ZendeskArticle[] = []
   const baseUrl = buildBaseUrl(subdomain)
-  const localePath = locale ? `/${locale}` : ''
+  const localePath = locale ? `/${encodeURIComponent(locale)}` : ''
   let page = 1
 
   while (true) {
@@ -131,7 +135,22 @@ async function fetchTickets(
   let url: string | null = `${baseUrl}/api/v2/tickets.json?per_page=${TICKETS_PER_PAGE}`
 
   if (statusFilter && statusFilter !== 'all') {
-    url = `${baseUrl}/api/v2/search.json?query=type:ticket status:${statusFilter}&per_page=${TICKETS_PER_PAGE}`
+    if (VALID_TICKET_STATUSES.has(statusFilter)) {
+      if (limit > SEARCH_API_RESULT_CAP) {
+        logger.warn(
+          `Zendesk Search API caps at ${SEARCH_API_RESULT_CAP} results; requested limit ${limit} will be truncated. Remove status filter to use the unbounded tickets endpoint.`
+        )
+      }
+      const params = new URLSearchParams({
+        query: `type:ticket status:${statusFilter}`,
+        per_page: String(TICKETS_PER_PAGE),
+      })
+      url = `${baseUrl}/api/v2/search.json?${params.toString()}`
+    } else {
+      logger.warn(
+        `Invalid Zendesk statusFilter "${statusFilter}"; falling back to all tickets. Valid values: ${[...VALID_TICKET_STATUSES].join(', ')}.`
+      )
+    }
   }
 
   while (url && allTickets.length < limit) {
@@ -207,14 +226,11 @@ function formatTicketContent(ticket: ZendeskTicket, comments: ZendeskComment[]):
 }
 
 /**
- * Converts an article to an ExternalDocument.
+ * Converts an article to an ExternalDocument with inline content.
+ * Articles return body inline from the list API so no deferral is needed.
  */
-async function articleToDocument(
-  article: ZendeskArticle,
-  subdomain: string
-): Promise<ExternalDocument> {
+function articleToDocument(article: ZendeskArticle, subdomain: string): ExternalDocument {
   const content = htmlToPlainText(article.body || '')
-  const contentHash = await computeContentHash(content)
 
   return {
     externalId: `article-${article.id}`,
@@ -222,7 +238,7 @@ async function articleToDocument(
     content,
     mimeType: 'text/plain',
     sourceUrl: article.html_url || `https://${subdomain}.zendesk.com/hc/articles/${article.id}`,
-    contentHash,
+    contentHash: `zendesk:article:${article.id}:${article.updated_at}`,
     metadata: {
       type: 'article',
       articleId: article.id,
@@ -238,23 +254,50 @@ async function articleToDocument(
 }
 
 /**
- * Converts a ticket (with comments) to an ExternalDocument.
+ * Creates a deferred stub for a ticket. Content is not fetched here because
+ * each ticket requires a separate comments API call. Full content is fetched
+ * lazily via getDocument only for new/changed documents.
  */
-async function ticketToDocument(
+function ticketToStub(ticket: ZendeskTicket, subdomain: string): ExternalDocument {
+  return {
+    externalId: `ticket-${ticket.id}`,
+    title: `Ticket #${ticket.id}: ${ticket.subject}`,
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: `https://${subdomain}.zendesk.com/agent/tickets/${ticket.id}`,
+    contentHash: `zendesk:ticket:${ticket.id}:${ticket.updated_at}`,
+    metadata: {
+      type: 'ticket',
+      ticketId: ticket.id,
+      status: ticket.status,
+      priority: ticket.priority,
+      tags: ticket.tags,
+      createdAt: ticket.created_at,
+      updatedAt: ticket.updated_at,
+    },
+  }
+}
+
+/**
+ * Converts a ticket (with comments) to a full ExternalDocument.
+ * Used by getDocument to resolve deferred ticket stubs.
+ */
+function ticketToDocument(
   ticket: ZendeskTicket,
   comments: ZendeskComment[],
   subdomain: string
-): Promise<ExternalDocument> {
+): ExternalDocument {
   const content = formatTicketContent(ticket, comments)
-  const contentHash = await computeContentHash(content)
 
   return {
     externalId: `ticket-${ticket.id}`,
     title: `Ticket #${ticket.id}: ${ticket.subject}`,
     content,
+    contentDeferred: false,
     mimeType: 'text/plain',
     sourceUrl: `https://${subdomain}.zendesk.com/agent/tickets/${ticket.id}`,
-    contentHash,
+    contentHash: `zendesk:ticket:${ticket.id}:${ticket.updated_at}`,
     metadata: {
       type: 'ticket',
       ticketId: ticket.id,
@@ -271,8 +314,7 @@ async function ticketToDocument(
 export const zendeskConnector: ConnectorConfig = {
   id: 'zendesk',
   name: 'Zendesk',
-  description:
-    'Sync Help Center articles and support tickets from Zendesk into your knowledge base',
+  description: 'Sync Help Center articles and support tickets from Zendesk',
   version: '1.0.0',
   icon: ZendeskIcon,
 
@@ -319,8 +361,10 @@ export const zendeskConnector: ConnectorConfig = {
       description: 'Filter tickets by status (applies only when syncing tickets)',
       options: [
         { label: 'All Statuses', id: 'all' },
+        { label: 'New', id: 'new' },
         { label: 'Open', id: 'open' },
         { label: 'Pending', id: 'pending' },
+        { label: 'On Hold', id: 'hold' },
         { label: 'Solved', id: 'solved' },
         { label: 'Closed', id: 'closed' },
       ],
@@ -375,8 +419,7 @@ export const zendeskConnector: ConnectorConfig = {
 
       for (const article of articles) {
         if (!article.body?.trim()) continue
-        const doc = await articleToDocument(article, subdomain)
-        documents.push(doc)
+        documents.push(articleToDocument(article, subdomain))
       }
     }
 
@@ -391,21 +434,8 @@ export const zendeskConnector: ConnectorConfig = {
       )
       logger.info(`Fetched ${tickets.length} tickets from Zendesk`)
 
-      const BATCH_SIZE = 5
-      for (let i = 0; i < tickets.length; i += BATCH_SIZE) {
-        const batch = tickets.slice(i, i + BATCH_SIZE)
-        const batchResults = await Promise.all(
-          batch.map(async (ticket) => {
-            const comments = await fetchTicketComments(
-              subdomain,
-              accessToken,
-              sourceConfig,
-              ticket.id
-            )
-            return ticketToDocument(ticket, comments, subdomain)
-          })
-        )
-        documents.push(...batchResults)
+      for (const ticket of tickets) {
+        documents.push(ticketToStub(ticket, subdomain))
       }
     }
 
@@ -449,7 +479,7 @@ export const zendeskConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Zendesk document', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -485,14 +515,14 @@ export const zendeskConnector: ConnectorConfig = {
       await zendeskApiGet(url, accessToken, sourceConfig, VALIDATE_RETRY_OPTIONS)
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 
   tagDefinitions: [
     { id: 'contentType', displayName: 'Content Type', fieldType: 'text' },
     { id: 'status', displayName: 'Status', fieldType: 'text' },
+    { id: 'priority', displayName: 'Priority', fieldType: 'text' },
     { id: 'labels', displayName: 'Labels', fieldType: 'text' },
     { id: 'tags', displayName: 'Tags', fieldType: 'text' },
     { id: 'updatedAt', displayName: 'Last Updated', fieldType: 'date' },
@@ -508,6 +538,10 @@ export const zendeskConnector: ConnectorConfig = {
 
     if (typeof metadata.status === 'string') {
       result.status = metadata.status
+    }
+
+    if (typeof metadata.priority === 'string') {
+      result.priority = metadata.priority
     }
 
     const labels = joinTagArray(metadata.labels)

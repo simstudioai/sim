@@ -3,19 +3,21 @@
 import { useMemo, useState } from 'react'
 // import { useParams } from 'next/navigation'
 import { createLogger } from '@sim/logger'
-import { Check, Copy, Plus, Search } from 'lucide-react'
+import { formatDate } from '@sim/utils/formatting'
+import { Plus, Search } from 'lucide-react'
 import {
   Button,
   Input as EmcnInput,
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
+  SecretReveal,
   // Switch,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { formatDate } from '@/lib/core/utils/formatting'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import { CopilotKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import {
@@ -58,7 +60,6 @@ export function Copilot() {
   const [newKeyName, setNewKeyName] = useState('')
   const [newKey, setNewKey] = useState<string | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
-  const [copySuccess, setCopySuccess] = useState(false)
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -113,12 +114,6 @@ export function Copilot() {
       logger.error('Failed to generate copilot API key', { error })
       setCreateError('Failed to create API key. Please check your connection and try again.')
     }
-  }
-
-  const copyToClipboard = (key: string) => {
-    navigator.clipboard.writeText(key)
-    setCopySuccess(true)
-    setTimeout(() => setCopySuccess(false), 2000)
   }
 
   const handleDeleteKey = async () => {
@@ -185,7 +180,7 @@ export function Copilot() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <Input
@@ -203,7 +198,7 @@ export function Copilot() {
             variant='primary'
             disabled={isLoading}
           >
-            <Plus className='mr-1.5 h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 size-[13px]' />
             Create
           </Button>
         </div>
@@ -262,10 +257,10 @@ export function Copilot() {
         <ModalContent size='sm'>
           <ModalHeader>Create new API key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               This key will allow access to Copilot features. Make sure to copy it after creation as
               you won't be able to see it again.
-            </p>
+            </ModalDescription>
 
             <div className='mt-4 flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>
@@ -279,7 +274,6 @@ export function Copilot() {
                 }}
                 placeholder='e.g., Development, Production'
                 className='h-9'
-                autoFocus
               />
               {createError && (
                 <p className='text-[var(--text-error)] text-small leading-tight'>{createError}</p>
@@ -317,41 +311,20 @@ export function Copilot() {
           setShowNewKeyDialog(open)
           if (!open) {
             setNewKey(null)
-            setCopySuccess(false)
           }
         }}
       >
         <ModalContent size='sm'>
           <ModalHeader>Your API key has been created</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               This is the only time you will see your API key.{' '}
               <span className='font-semibold text-[var(--text-primary)]'>
                 Copy it now and store it securely.
               </span>
-            </p>
+            </ModalDescription>
 
-            {newKey && (
-              <div className='relative mt-2.5'>
-                <div className='flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5 pr-10'>
-                  <code className='flex-1 truncate font-mono text-[var(--text-primary)] text-sm'>
-                    {newKey}
-                  </code>
-                </div>
-                <Button
-                  variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-sm text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
-                  onClick={() => copyToClipboard(newKey)}
-                >
-                  {copySuccess ? (
-                    <Check className='h-[14px] w-[14px]' />
-                  ) : (
-                    <Copy className='h-[14px] w-[14px]' />
-                  )}
-                  <span className='sr-only'>Copy to clipboard</span>
-                </Button>
-              </div>
-            )}
+            {newKey && <SecretReveal value={newKey} className='mt-2.5' />}
           </ModalBody>
         </ModalContent>
       </Modal>
@@ -361,7 +334,7 @@ export function Copilot() {
         <ModalContent size='sm'>
           <ModalHeader>Delete API key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Deleting{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {deleteKey?.name || 'Unnamed Key'}
@@ -369,8 +342,8 @@ export function Copilot() {
               <span className='text-[var(--text-error)]'>
                 will immediately revoke access for any integrations using it.
               </span>{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
+              This action cannot be undone.
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

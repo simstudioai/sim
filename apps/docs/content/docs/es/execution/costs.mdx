@@ -105,9 +105,108 @@ El desglose del modelo muestra:
   Los precios mostrados reflejan las tarifas a partir del 10 de septiembre de 2025. Consulta la documentación del proveedor para conocer los precios actuales.
 </Callout>
 
+## Precios de herramientas alojadas
+
+Cuando los flujos de trabajo usan bloques de herramientas con las claves API alojadas de Sim, los costos se cobran por operación. Usa tus propias claves a través de BYOK para pagar directamente a los proveedores.
+
+<Tabs items={['Firecrawl', 'Exa', 'Serper', 'Perplexity', 'Linkup', 'Parallel AI', 'Jina AI', 'Google Cloud', 'Brandfetch']}>
+  <Tab>
+    **Firecrawl** - Web scraping, crawling, búsqueda y extracción
+
+    | Operation | Cost |
+    |-----------|------|
+    | Scrape | $0.001 per credit used |
+    | Crawl | $0.001 per credit used |
+    | Search | $0.001 per credit used |
+    | Extract | $0.001 per credit used |
+    | Map | $0.001 per credit used |
+  </Tab>
+
+  <Tab>
+    **Exa** - Búsqueda e investigación impulsada por IA
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | Dynamic (returned by API) |
+    | Get Contents | Dynamic (returned by API) |
+    | Find Similar Links | Dynamic (returned by API) |
+    | Answer | Dynamic (returned by API) |
+  </Tab>
+
+  <Tab>
+    **Serper** - API de búsqueda de Google
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search (≤10 results) | $0.001 |
+    | Search (>10 results) | $0.002 |
+  </Tab>
+
+  <Tab>
+    **Perplexity** - Chat y búsqueda web impulsada por IA
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | $0.005 per request |
+    | Chat | Token-based (varies by model) |
+  </Tab>
+
+  <Tab>
+    **Linkup** - Búsqueda web y recuperación de contenido
+
+    | Operation | Cost |
+    |-----------|------|
+    | Standard search | ~$0.006 |
+    | Deep search | ~$0.055 |
+  </Tab>
+
+  <Tab>
+    **Parallel AI** - Búsqueda web, extracción e investigación profunda
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search (≤10 results) | $0.005 |
+    | Search (>10 results) | $0.005 + $0.001 per additional result |
+    | Extract | $0.001 per URL |
+    | Deep Research | $0.005–$2.40 (varies by processor tier) |
+  </Tab>
+
+  <Tab>
+    **Jina AI** - Lectura y búsqueda web
+
+    | Operation | Cost |
+    |-----------|------|
+    | Read URL | $0.20 per 1M tokens |
+    | Search | $0.20 per 1M tokens (minimum 10K tokens) |
+  </Tab>
+
+  <Tab>
+    **Google Cloud** - APIs de Translate, Maps, PageSpeed y Books
+
+    | Operation | Cost |
+    |-----------|------|
+    | Translate / Detect | $0.00002 per character |
+    | Maps (Geocode, Directions, Distance Matrix, Elevation, Timezone, Reverse Geocode, Geolocate, Validate Address) | $0.005 per request |
+    | Maps (Snap to Roads) | $0.01 per request |
+    | Maps (Place Details) | $0.017 per request |
+    | Maps (Places Search) | $0.032 per request |
+    | PageSpeed | Free |
+    | Books (Search, Details) | Free |
+  </Tab>
+
+  <Tab>
+    **Brandfetch** - Activos de marca, logos, colores e información de empresas
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | Free |
+    | Get Brand | $0.04 per request |
+  </Tab>
+</Tabs>
+
 ## Trae tu propia clave (BYOK)
 
-Puedes usar tus propias claves API para modelos alojados (OpenAI, Anthropic, Google, Mistral) en **Configuración → BYOK** para pagar precios base. Las claves están encriptadas y se aplican a todo el espacio de trabajo.
+Puedes usar tus propias claves API para proveedores compatibles (OpenAI, Anthropic, Google, Mistral, Fireworks, Firecrawl, Exa, Serper, Linkup, Parallel AI, Perplexity, Jina AI, Google Cloud, Brandfetch) en **Configuración → BYOK** para pagar precios base. Las claves están encriptadas y se aplican a todo el espacio de trabajo.
 
 ## Estrategias de optimización de costos
 

@@ -1,9 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { SFTPWrapper } from 'ssh2'
-import { z } from 'zod'
+import { sftpMkdirContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSftpConnection,
   getSftp,
@@ -15,17 +18,6 @@ import {
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SftpMkdirAPI')
-
-const MkdirSchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().int().positive().default(22),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().nullish(),
-  privateKey: z.string().nullish(),
-  passphrase: z.string().nullish(),
-  remotePath: z.string().min(1, 'Remote path is required'),
-  recursive: z.boolean().default(false),
-})
 
 /**
  * Creates directory recursively (like mkdir -p)
@@ -56,7 +48,7 @@ async function mkdirRecursive(sftp: SFTPWrapper, dirPath: string): Promise<void>
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -74,15 +66,9 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const params = MkdirSchema.parse(body)
-
-    if (!params.password && !params.privateKey) {
-      return NextResponse.json(
-        { error: 'Either password or privateKey must be provided' },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(sftpMkdirContract, request, {})
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     if (!isPathSafe(params.remotePath)) {
       logger.warn(`[${requestId}] Path traversal attempt detected in remotePath`)
@@ -152,17 +138,9 @@ export async function POST(request: NextRequest) {
       client.end()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SFTP mkdir failed:`, error)
 
     return NextResponse.json({ error: `SFTP mkdir failed: ${errorMessage}` }, { status: 500 })
   }
-}
+})

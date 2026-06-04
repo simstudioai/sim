@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
 
@@ -102,8 +103,8 @@ export default function ChangelogList({ initialEntries }: Props) {
                 {entry.tag}
               </div>
               {entry.contributors && entry.contributors.length > 0 && (
-                <div className='-space-x-2 flex'>
-                  {entry.contributors.slice(0, 5).map((contributor) => (
+                <div className='flex'>
+                  {entry.contributors.slice(0, 5).map((contributor, index) => (
                     <a
                       key={contributor}
                       href={`https://github.com/${contributor}`}
@@ -111,7 +112,7 @@ export default function ChangelogList({ initialEntries }: Props) {
                       rel='noreferrer noopener'
                       aria-label={`View @${contributor} on GitHub`}
                       title={`@${contributor}`}
-                      className='block'
+                      className={index === 0 ? 'block' : '-ms-2 block'}
                     >
                       <Avatar className='size-6 ring-2 ring-[var(--landing-bg)]'>
                         <AvatarImage
@@ -124,7 +125,7 @@ export default function ChangelogList({ initialEntries }: Props) {
                     </a>
                   ))}
                   {entry.contributors.length > 5 && (
-                    <div className='relative flex size-6 items-center justify-center rounded-full bg-[var(--landing-bg-elevated)] text-[var(--landing-text)] text-micro ring-2 ring-[var(--landing-bg)] hover:z-10'>
+                    <div className='-ms-2 relative flex size-6 items-center justify-center rounded-full bg-[var(--landing-bg-elevated)] text-[var(--landing-text)] text-micro ring-2 ring-[var(--landing-bg)] hover:z-10'>
                       +{entry.contributors.length - 5}
                     </div>
                   )}
@@ -141,7 +142,8 @@ export default function ChangelogList({ initialEntries }: Props) {
           </div>
 
           <div className='max-w-none'>
-            <ReactMarkdown
+            <Streamdown
+              mode='static'
               components={{
                 h2: ({ children, ...props }) =>
                   isContributorsLabel(children) ? null : (
@@ -192,11 +194,8 @@ export default function ChangelogList({ initialEntries }: Props) {
                     {children}
                   </strong>
                 ),
-                code: ({ children, ...props }) => (
-                  <code
-                    className='rounded bg-[var(--landing-bg-elevated)] px-1 py-0.5 font-mono text-[var(--landing-text)] text-xs'
-                    {...props}
-                  >
+                inlineCode: ({ children }) => (
+                  <code className='whitespace-normal rounded bg-[var(--landing-bg-elevated)] px-1 py-0.5 font-mono text-[var(--landing-text)] not-italic'>
                     {children}
                   </code>
                 ),
@@ -212,7 +211,7 @@ export default function ChangelogList({ initialEntries }: Props) {
               }}
             >
               {cleanMarkdown(entry.content)}
-            </ReactMarkdown>
+            </Streamdown>
           </div>
         </div>
       ))}

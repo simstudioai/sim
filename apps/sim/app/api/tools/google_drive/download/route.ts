@@ -1,18 +1,22 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { googleDriveDownloadContract } from '@/lib/api/contracts/tools/google'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { GoogleDriveFile, GoogleDriveRevision } from '@/tools/google_drive/types'
 import {
   ALL_FILE_FIELDS,
   ALL_REVISION_FIELDS,
   DEFAULT_EXPORT_FORMATS,
   GOOGLE_WORKSPACE_MIME_TYPES,
+  VALID_EXPORT_FORMATS,
 } from '@/tools/google_drive/utils'
 
 export const dynamic = 'force-dynamic'
@@ -34,15 +38,7 @@ interface GoogleDriveRevisionsResponse {
   nextPageToken?: string
 }
 
-const GoogleDriveDownloadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  fileId: z.string().min(1, 'File ID is required'),
-  mimeType: z.string().optional().nullable(),
-  fileName: z.string().optional().nullable(),
-  includeRevisions: z.boolean().optional().default(true),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -59,16 +55,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const validatedData = GoogleDriveDownloadSchema.parse(body)
+    const parsed = await parseRequest(
+      googleDriveDownloadContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { success: false, error: getValidationErrorMessage(error, 'Invalid request') },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const {
       accessToken,
       fileId,
-      mimeType: exportMimeType,
+      mimeType: rawExportMimeType,
       fileName,
       includeRevisions,
     } = validatedData
+    const exportMimeType =
+      rawExportMimeType && rawExportMimeType !== 'auto' ? rawExportMimeType : null
     const authHeader = `Bearer ${accessToken}`
 
     logger.info(`[${requestId}] Getting file metadata from Google Drive`, { fileId })
@@ -112,6 +122,24 @@ export async function POST(request: NextRequest) {
 
     if (GOOGLE_WORKSPACE_MIME_TYPES.includes(fileMimeType)) {
       const exportFormat = exportMimeType || DEFAULT_EXPORT_FORMATS[fileMimeType] || 'text/plain'
+
+      const validFormats = VALID_EXPORT_FORMATS[fileMimeType]
+      if (validFormats && !validFormats.includes(exportFormat)) {
+        logger.warn(`[${requestId}] Unsupported export format requested`, {
+          fileId,
+          fileMimeType,
+          requestedFormat: exportFormat,
+          validFormats,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Export format "${exportFormat}" is not supported for this file type. Supported formats: ${validFormats.join(', ')}`,
+          },
+          { status: 400 }
+        )
+      }
+
       finalMimeType = exportFormat
 
       logger.info(`[${requestId}] Exporting Google Workspace file`, {
@@ -244,9 +272,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )
   }
-}
+})

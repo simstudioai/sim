@@ -14,7 +14,8 @@ import {
   User,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 import {
   Breadcrumb,
   Button,
@@ -30,6 +31,13 @@ import {
   Skeleton,
 } from '@/components/emcn'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  listCreatorOrganizationsContract,
+  updateCreatorProfileContract,
+} from '@/lib/api/contracts/creator-profile'
+import { updateTemplateContract, useTemplateContract } from '@/lib/api/contracts/templates'
+import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -88,18 +96,18 @@ function TemplateDetailsLoading({ isWorkspaceContext, workspaceId }: TemplateDet
           {/* Creator and stats row */}
           <div className='mt-4 flex items-center gap-2'>
             {/* Star icon and count */}
-            <Skeleton className='h-[14px] w-[14px] rounded-xs' />
+            <Skeleton className='size-[14px] rounded-xs' />
             <Skeleton className='h-[21px] w-[24px] rounded-sm' />
 
             {/* Views icon and count */}
-            <Skeleton className='h-[16px] w-[16px] rounded-xs' />
+            <Skeleton className='size-[16px] rounded-xs' />
             <Skeleton className='h-[21px] w-[32px] rounded-sm' />
 
             {/* Vertical divider */}
             <div className='mx-1 mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[var(--border)]' />
 
             {/* Creator profile pic */}
-            <Skeleton className='h-[16px] w-[16px] rounded-full' />
+            <Skeleton className='size-[16px] rounded-full' />
             {/* Creator name */}
             <Skeleton className='h-[21px] w-[100px] rounded-sm' />
           </div>
@@ -169,18 +177,15 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       if (!currentUserId) return
 
       try {
-        const response = await fetch('/api/organizations')
-        if (response.ok) {
-          const data = await response.json()
-          const orgs = data.organizations || []
-          const orgIds = orgs.map((org: any) => org.id)
-          const orgRoles = orgs.map((org: any) => ({
+        const data = await requestJson(listCreatorOrganizationsContract, {})
+        const orgs = data.organizations
+        setCurrentUserOrgs(orgs.map((org) => org.id))
+        setCurrentUserOrgRoles(
+          orgs.map((org) => ({
             organizationId: org.id,
             role: org.role,
           }))
-          setCurrentUserOrgs(orgIds)
-          setCurrentUserOrgRoles(orgRoles)
-        }
+        )
       } catch (error) {
         logger.error('Error fetching organizations:', error)
       }
@@ -195,18 +200,13 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     const fetchWorkspaces = async () => {
       try {
         setIsLoadingWorkspaces(true)
-        const response = await fetch('/api/workspaces')
-        if (response.ok) {
-          const data = await response.json()
-          const availableWorkspaces = data.workspaces
-            .filter((ws: any) => ws.permissions === 'write' || ws.permissions === 'admin')
-            .map((ws: any) => ({
-              id: ws.id,
-              name: ws.name,
-              permissions: ws.permissions,
-            }))
-          setWorkspaces(availableWorkspaces)
-        }
+        const data = await requestJson(listWorkspacesContract, { query: { scope: 'active' } })
+        const availableWorkspaces = data.workspaces.flatMap((ws) =>
+          ws.permissions === 'write' || ws.permissions === 'admin'
+            ? [{ id: ws.id, name: ws.name, permissions: ws.permissions }]
+            : []
+        )
+        setWorkspaces(availableWorkspaces)
       } catch (error) {
         logger.error('Error fetching workspaces:', error)
       } finally {
@@ -261,6 +261,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
       }
 
       try {
+        // boundary-raw-fetch: workflow access probe needs HTTP status discrimination (200 vs 403 vs other) without parsing the body
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
         if (checkResponse.status === 403) {
           setHasWorkspaceAccess(false)
@@ -390,6 +391,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     if (isWorkspaceContext && workspaceId && template.workflowId) {
       setIsEditing(true)
       try {
+        // boundary-raw-fetch: workflow access probe needs HTTP status check (200 vs not-ok) without parsing the body
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
 
         if (checkResponse.ok) {
@@ -406,6 +408,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     if (template.workflowId && !isWorkspaceContext) {
       setIsEditing(true)
       try {
+        // boundary-raw-fetch: workflow probe reads passthrough data.workspaceId (not in getWorkflowStateContract typed response) and discriminates 403 vs 200
         const checkResponse = await fetch(`/api/workflows/${template.workflowId}`)
 
         if (checkResponse.status === 403) {
@@ -440,17 +443,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsUsing(true)
     try {
-      const response = await fetch(`/api/templates/${template.id}/use`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+      const { workflowId } = await requestJson(useTemplateContract, {
+        params: { id: template.id },
+        body: { workspaceId },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to use template')
-      }
-
-      const { workflowId } = await response.json()
 
       window.location.href = `/workspace/${workspaceId}/w/${workflowId}`
     } catch (error) {
@@ -466,17 +462,10 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
     setIsUsing(true)
     setShowWorkspaceSelectorForEdit(false)
     try {
-      const response = await fetch(`/api/templates/${template.id}/use`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, connectToTemplate: true }),
+      const { workflowId } = await requestJson(useTemplateContract, {
+        params: { id: template.id },
+        body: { workspaceId, connectToTemplate: true },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to import template for editing')
-      }
-
-      const { workflowId } = await response.json()
 
       window.location.href = `/workspace/${workspaceId}/w/${workflowId}`
     } catch (error) {
@@ -491,18 +480,14 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsApproving(true)
     try {
-      const response = await fetch(`/api/templates/${template.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'approved' }),
+      await requestJson(updateTemplateContract, {
+        params: { id: template.id },
+        body: { status: 'approved' },
       })
-
-      if (response.ok) {
-        if (isWorkspaceContext && workspaceId) {
-          router.push(`/workspace/${workspaceId}/templates`)
-        } else {
-          router.push('/templates')
-        }
+      if (isWorkspaceContext && workspaceId) {
+        router.push(`/workspace/${workspaceId}/templates`)
+      } else {
+        router.push('/templates')
       }
     } catch (error) {
       logger.error('Error approving template:', error)
@@ -516,18 +501,14 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsRejecting(true)
     try {
-      const response = await fetch(`/api/templates/${template.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'rejected' }),
+      await requestJson(updateTemplateContract, {
+        params: { id: template.id },
+        body: { status: 'rejected' },
       })
-
-      if (response.ok) {
-        if (isWorkspaceContext && workspaceId) {
-          router.push(`/workspace/${workspaceId}/templates`)
-        } else {
-          router.push('/templates')
-        }
+      if (isWorkspaceContext && workspaceId) {
+        router.push(`/workspace/${workspaceId}/templates`)
+      } else {
+        router.push('/templates')
       }
     } catch (error) {
       logger.error('Error rejecting template:', error)
@@ -541,23 +522,14 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
     setIsVerifying(true)
     try {
-      const response = await fetch(`/api/creators/${template.creator.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verified: !template.creator.verified }),
+      await requestJson(updateCreatorProfileContract, {
+        params: { id: template.creator.id },
+        body: { verified: !template.creator.verified },
       })
-
-      if (response.ok) {
-        // Refresh page to show updated verification status
-        window.location.reload()
-      } else {
-        const error = await response.json()
-        logger.error('Error toggling verification:', error)
-        alert(`Failed to ${template.creator.verified ? 'unverify' : 'verify'} creator`)
-      }
+      window.location.reload()
     } catch (error) {
       logger.error('Error toggling verification:', error)
-      alert('An error occurred while toggling verification')
+      alert(`Failed to ${template.creator.verified ? 'unverify' : 'verify'} creator`)
     } finally {
       setIsVerifying(false)
     }
@@ -684,7 +656,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                           className='h-[32px] rounded-md'
                         >
                           {isUsing ? 'Importing...' : isLoadingWorkspaces ? 'Loading...' : 'Edit'}
-                          <ChevronDown className='ml-2 h-4 w-4' />
+                          <ChevronDown className='ml-2 size-4' />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align='end'>
@@ -749,17 +721,17 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
               <Popover open={sharePopoverOpen} onOpenChange={setSharePopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant='active' className='h-[32px] rounded-md px-3'>
-                    <Share2 className='h-[14px] w-[14px]' />
+                    <Share2 className='size-[14px]' />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align='end' side='bottom' sideOffset={8}>
                   <PopoverItem onClick={handleCopyLink}>
-                    <Copy className='h-3 w-3' />
+                    <Copy className='size-3' />
                     <span>Copy link</span>
                   </PopoverItem>
                   <PopoverItem onClick={handleShareToTwitter}>
                     <svg
-                      className='h-3 w-3'
+                      className='size-3'
                       viewBox='0 0 24 24'
                       fill='currentColor'
                       xmlns='http://www.w3.org/2000/svg'
@@ -769,7 +741,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     <span>Share on X</span>
                   </PopoverItem>
                   <PopoverItem onClick={handleShareToLinkedIn}>
-                    <Linkedin className='h-3 w-3' />
+                    <Linkedin className='size-3' />
                     <span>Share on LinkedIn</span>
                   </PopoverItem>
                 </PopoverContent>
@@ -800,7 +772,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
             </span>
 
             {/* Users icon and count */}
-            <ChartNoAxesColumn className='h-[16px] w-[16px] text-[var(--text-muted)]' />
+            <ChartNoAxesColumn className='size-[16px] text-[var(--text-muted)]' />
             <span className='font-medium text-[var(--text-muted)] text-sm'>{template.views}</span>
 
             {/* Vertical divider */}
@@ -808,7 +780,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
             {/* Creator profile pic */}
             {template.creator?.profileImageUrl ? (
-              <div className='h-[16px] w-[16px] flex-shrink-0 overflow-hidden rounded-full'>
+              <div className='size-[16px] flex-shrink-0 overflow-hidden rounded-full'>
                 <img
                   src={template.creator.profileImageUrl}
                   alt={template.creator.name}
@@ -816,8 +788,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 />
               </div>
             ) : (
-              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]'>
-                <User className='h-[14px] w-[14px] text-[var(--text-muted)]' />
+              <div className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]'>
+                <User className='size-[14px] text-[var(--text-muted)]' />
               </div>
             )}
             {/* Creator name */}
@@ -875,7 +847,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 About this Workflow
               </h3>
               <div className='max-w-none space-y-2'>
-                <ReactMarkdown
+                <Streamdown
+                  mode='static'
                   components={{
                     p: ({ children }) => (
                       <p className='mb-2 font-sans text-muted-foreground text-sm leading-[1.4rem] last:mb-0'>
@@ -913,16 +886,16 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                       </ol>
                     ),
                     li: ({ children }) => <li className='leading-[1.4rem]'>{children}</li>,
-                    code: ({ inline, children }: any) =>
-                      inline ? (
-                        <code className='rounded bg-muted px-1.5 py-0.5 font-mono text-[var(--caution)] text-xs'>
-                          {children}
-                        </code>
-                      ) : (
-                        <code className='my-2 block overflow-x-auto rounded-md bg-muted p-3 font-mono text-foreground text-xs'>
-                          {children}
-                        </code>
-                      ),
+                    inlineCode: ({ children }) => (
+                      <code className='whitespace-normal rounded bg-muted px-1.5 py-0.5 font-mono text-[var(--caution)] not-italic'>
+                        {children}
+                      </code>
+                    ),
+                    code: ({ children }) => (
+                      <code className='my-2 block overflow-x-auto rounded-md bg-muted p-3 font-mono text-foreground text-xs'>
+                        {children}
+                      </code>
+                    ),
                     a: ({ href, children }) => (
                       <a
                         href={href}
@@ -942,7 +915,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                   }}
                 >
                   {template.details.about}
-                </ReactMarkdown>
+                </Streamdown>
               </div>
             </div>
           )}
@@ -977,7 +950,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 <div className='flex items-start gap-4'>
                   {/* Creator profile image */}
                   {template.creator.profileImageUrl ? (
-                    <div className='h-[48px] w-[48px] flex-shrink-0 overflow-hidden rounded-full'>
+                    <div className='size-[48px] flex-shrink-0 overflow-hidden rounded-full'>
                       <img
                         src={template.creator.profileImageUrl}
                         alt={template.creator.name}
@@ -985,8 +958,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                       />
                     </div>
                   ) : (
-                    <div className='flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]'>
-                      <User className='h-[24px] w-[24px] text-[var(--text-muted)]' />
+                    <div className='flex size-[48px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)]'>
+                      <User className='size-[24px] text-[var(--text-muted)]' />
                     </div>
                   )}
 
@@ -1010,7 +983,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                             className='flex items-center text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
                             aria-label='Website'
                           >
-                            <Globe className='h-[14px] w-[14px]' />
+                            <Globe className='size-[14px]' />
                           </a>
                         )}
                         {template.creator.details?.xUrl && (
@@ -1021,11 +994,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                             className='flex items-center text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
                             aria-label='X (Twitter)'
                           >
-                            <svg
-                              className='h-[14px] w-[14px]'
-                              viewBox='0 0 24 24'
-                              fill='currentColor'
-                            >
+                            <svg className='size-[14px]' viewBox='0 0 24 24' fill='currentColor'>
                               <path d='M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z' />
                             </svg>
                           </a>
@@ -1038,7 +1007,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                             className='flex items-center text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
                             aria-label='LinkedIn'
                           >
-                            <Linkedin className='h-[14px] w-[14px]' />
+                            <Linkedin className='size-[14px]' />
                           </a>
                         )}
                         {template.creator.details?.contactEmail && (
@@ -1047,7 +1016,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                             className='flex items-center text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
                             aria-label='Email'
                           >
-                            <Mail className='h-[14px] w-[14px]' />
+                            <Mail className='size-[14px]' />
                           </a>
                         )}
                       </div>
@@ -1056,7 +1025,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     {/* Creator bio */}
                     {template.creator.details?.about && (
                       <div className='max-w-none'>
-                        <ReactMarkdown
+                        <Streamdown
+                          mode='static'
                           components={{
                             p: ({ children }) => (
                               <p className='mb-2 font-sans text-muted-foreground text-sm leading-[1.4rem] last:mb-0'>
@@ -1081,7 +1051,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                           }}
                         >
                           {template.creator.details.about}
-                        </ReactMarkdown>
+                        </Streamdown>
                       </div>
                     )}
                   </div>

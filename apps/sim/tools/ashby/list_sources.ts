@@ -1,16 +1,15 @@
+import type { AshbySourceSummary } from '@/tools/ashby/types'
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListSourcesParams {
   apiKey: string
+  includeArchived?: boolean
 }
 
 interface AshbyListSourcesResponse extends ToolResponse {
   output: {
-    sources: Array<{
-      id: string
-      title: string
-      isArchived: boolean
-    }>
+    sources: AshbySourceSummary[]
   }
 }
 
@@ -27,33 +26,52 @@ export const listSourcesTool: ToolConfig<AshbyListSourcesParams, AshbyListSource
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    includeArchived: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When true, includes archived sources in results (default false)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/source.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
-    body: () => ({}),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list sources')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list sources'))
     }
 
     return {
       success: true,
       output: {
-        sources: (data.results ?? []).map((s: Record<string, unknown>) => ({
-          id: s.id ?? null,
-          title: s.title ?? null,
-          isArchived: s.isArchived ?? false,
-        })),
+        sources: (data.results ?? []).map(
+          (s: Record<string, unknown> & { sourceType?: Record<string, unknown> }) => {
+            const sourceType = s.sourceType
+            return {
+              id: (s.id as string) ?? '',
+              title: (s.title as string) ?? '',
+              isArchived: (s.isArchived as boolean) ?? false,
+              sourceType: sourceType
+                ? {
+                    id: (sourceType.id as string) ?? '',
+                    title: (sourceType.title as string) ?? '',
+                    isArchived: (sourceType.isArchived as boolean) ?? false,
+                  }
+                : null,
+            }
+          }
+        ),
       },
     }
   },
@@ -68,6 +86,16 @@ export const listSourcesTool: ToolConfig<AshbyListSourcesParams, AshbyListSource
           id: { type: 'string', description: 'Source UUID' },
           title: { type: 'string', description: 'Source title' },
           isArchived: { type: 'boolean', description: 'Whether the source is archived' },
+          sourceType: {
+            type: 'object',
+            description: 'Source type grouping',
+            optional: true,
+            properties: {
+              id: { type: 'string', description: 'Source type UUID' },
+              title: { type: 'string', description: 'Source type title' },
+              isArchived: { type: 'boolean', description: 'Whether archived' },
+            },
+          },
         },
       },
     },

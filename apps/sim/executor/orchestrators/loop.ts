@@ -1,31 +1,36 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
-import { buildLoopIndexCondition, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
+import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
+import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
+import {
+  buildLoopIndexCondition,
+  CONTROL_BACK_EDGE_HANDLES,
+  DEFAULTS,
+  EDGE,
+  PARALLEL,
+} from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
-import {
-  type ExecutionContext,
-  getNextExecutionOrder,
-  type NormalizedBlockOutput,
-} from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
-import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
-import { replaceValidReferences } from '@/executor/utils/reference-validation'
+import { createReferencePattern } from '@/executor/utils/reference-validation'
 import {
   addSubflowErrorLog,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
   buildSentinelEndId,
   buildSentinelStartId,
-  emitEmptySubflowEvents,
+  emitSubflowSuccessEvents,
   extractBaseBlockId,
-  resolveArrayInput,
-  validateMaxCount,
+  extractLoopIdFromSentinel,
+  extractParallelIdFromSentinel,
 } from '@/executor/utils/subflow-utils'
+import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
 
@@ -33,13 +38,31 @@ const logger = createLogger('LoopOrchestrator')
 
 const LOOP_CONDITION_TIMEOUT_MS = 5000
 
+async function replaceLoopConditionReferences(
+  condition: string,
+  replacer: (match: string) => Promise<string>
+): Promise<string> {
+  const pattern = createReferencePattern()
+  let cursor = 0
+  let result = ''
+  for (const match of condition.matchAll(pattern)) {
+    const fullMatch = match[0]
+    const index = match.index ?? 0
+    result += condition.slice(cursor, index)
+    result += isLikelyReferenceSegment(fullMatch) ? await replacer(fullMatch) : fullMatch
+    cursor = index + fullMatch.length
+  }
+  return result + condition.slice(cursor)
+}
+
 export type LoopRoute = typeof EDGE.LOOP_CONTINUE | typeof EDGE.LOOP_EXIT
 
 export interface LoopContinuationResult {
   shouldContinue: boolean
   shouldExit: boolean
   selectedRoute: LoopRoute
-  aggregatedResults?: NormalizedBlockOutput[][]
+  aggregatedResults?: unknown
+  totalIterations?: number
 }
 
 export class LoopOrchestrator {
@@ -90,25 +113,7 @@ export class LoopOrchestrator {
     switch (loopType) {
       case 'for': {
         scope.loopType = 'for'
-        const requestedIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
-
-        const iterationError = validateMaxCount(
-          requestedIterations,
-          DEFAULTS.MAX_LOOP_ITERATIONS,
-          'For loop iterations'
-        )
-        if (iterationError) {
-          logger.error(iterationError, { loopId, requestedIterations })
-          await this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
-            iterations: requestedIterations,
-          })
-          scope.maxIterations = 0
-          scope.validationError = iterationError
-          scope.condition = buildLoopIndexCondition(0)
-          ctx.loopExecutions?.set(loopId, scope)
-          throw new Error(iterationError)
-        }
-
+        const requestedIterations = loopConfig.iterations || DEFAULTS.DEFAULT_LOOP_ITERATIONS
         scope.maxIterations = requestedIterations
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
@@ -136,9 +141,14 @@ export class LoopOrchestrator {
         }
         let items: any[]
         try {
-          items = resolveArrayInput(ctx, loopConfig.forEachItems, this.resolver)
+          items = await resolveArrayInputAsync(
+            ctx,
+            loopConfig.forEachItems,
+            this.resolver,
+            buildSentinelStartId(loopId)
+          )
         } catch (error) {
-          const errorMessage = `ForEach loop resolution failed: ${error instanceof Error ? error.message : String(error)}`
+          const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
           await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
             forEachItems: loopConfig.forEachItems,
@@ -149,25 +159,6 @@ export class LoopOrchestrator {
           scope.condition = buildLoopIndexCondition(0)
           ctx.loopExecutions?.set(loopId, scope)
           throw new Error(errorMessage)
-        }
-
-        const sizeError = validateMaxCount(
-          items.length,
-          DEFAULTS.MAX_FOREACH_ITEMS,
-          'ForEach loop collection size'
-        )
-        if (sizeError) {
-          logger.error(sizeError, { loopId, collectionSize: items.length })
-          await this.addLoopErrorLog(ctx, loopId, loopType, sizeError, {
-            forEachItems: loopConfig.forEachItems,
-            collectionSize: items.length,
-          })
-          scope.items = []
-          scope.maxIterations = 0
-          scope.validationError = sizeError
-          scope.condition = buildLoopIndexCondition(0)
-          ctx.loopExecutions?.set(loopId, scope)
-          throw new Error(sizeError)
         }
 
         scope.items = items
@@ -187,25 +178,7 @@ export class LoopOrchestrator {
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
         } else {
-          const requestedIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
-
-          const iterationError = validateMaxCount(
-            requestedIterations,
-            DEFAULTS.MAX_LOOP_ITERATIONS,
-            'Do-While loop iterations'
-          )
-          if (iterationError) {
-            logger.error(iterationError, { loopId, requestedIterations })
-            await this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
-              iterations: requestedIterations,
-            })
-            scope.maxIterations = 0
-            scope.validationError = iterationError
-            scope.condition = buildLoopIndexCondition(0)
-            ctx.loopExecutions?.set(loopId, scope)
-            throw new Error(iterationError)
-          }
-
+          const requestedIterations = loopConfig.iterations || DEFAULTS.DEFAULT_LOOP_ITERATIONS
           scope.maxIterations = requestedIterations
           scope.condition = buildLoopIndexCondition(scope.maxIterations)
         }
@@ -282,16 +255,35 @@ export class LoopOrchestrator {
       return await this.createExitResult(ctx, loopId, scope)
     }
 
+    if (scope.skippedAtStart) {
+      scope.skippedAtStart = false
+      return await this.createExitResult(ctx, loopId, scope)
+    }
+
     const iterationResults: NormalizedBlockOutput[] = []
     for (const blockOutput of scope.currentIterationOutputs.values()) {
       iterationResults.push(blockOutput)
     }
 
     if (iterationResults.length > 0) {
-      scope.allIterationOutputs.push(iterationResults)
+      const compactedIterationResults = await compactSubflowResults(iterationResults, {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        largeValueExecutionIds: ctx.largeValueExecutionIds,
+        largeValueKeys: ctx.largeValueKeys,
+        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+        userId: ctx.userId,
+        requireDurable: true,
+      })
+      scope.allIterationOutputs.push(compactedIterationResults)
     }
 
     scope.currentIterationOutputs.clear()
+
+    if (this.hasReachedConfiguredIterationLimit(scope, scope.iteration + 1)) {
+      return await this.createExitResult(ctx, loopId, scope)
+    }
 
     if (!(await this.evaluateCondition(ctx, scope, scope.iteration + 1))) {
       return await this.createExitResult(ctx, loopId, scope)
@@ -310,46 +302,42 @@ export class LoopOrchestrator {
     }
   }
 
+  private hasReachedConfiguredIterationLimit(scope: LoopScope, nextIteration: number): boolean {
+    if (scope.loopType !== 'doWhile' || scope.maxIterations === undefined) {
+      return false
+    }
+    return nextIteration >= scope.maxIterations
+  }
+
   private async createExitResult(
     ctx: ExecutionContext,
     loopId: string,
     scope: LoopScope
   ): Promise<LoopContinuationResult> {
     const results = scope.allIterationOutputs
-    const output = { results }
+    const totalIterations = results.length
+    const compactedResults = await compactSubflowResults(results, {
+      workspaceId: ctx.workspaceId,
+      workflowId: ctx.workflowId,
+      executionId: ctx.executionId,
+      largeValueExecutionIds: ctx.largeValueExecutionIds,
+      largeValueKeys: ctx.largeValueKeys,
+      allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+      userId: ctx.userId,
+      requireDurable: true,
+    })
+    const output = { results: compactedResults }
     this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
+    scope.allIterationOutputs = []
 
-    if (this.contextExtensions?.onBlockComplete) {
-      const now = new Date().toISOString()
-      const iterationContext = buildContainerIterationContext(ctx, loopId)
-
-      try {
-        await this.contextExtensions.onBlockComplete(
-          loopId,
-          'Loop',
-          'loop',
-          {
-            output,
-            executionTime: DEFAULTS.EXECUTION_TIME,
-            startedAt: now,
-            executionOrder: getNextExecutionOrder(ctx),
-            endedAt: now,
-          },
-          iterationContext
-        )
-      } catch (error) {
-        logger.warn('Loop completion callback failed', {
-          loopId,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
+    await emitSubflowSuccessEvents(ctx, loopId, 'loop', output, this.contextExtensions)
 
     return {
       shouldContinue: false,
       shouldExit: true,
       selectedRoute: EDGE.LOOP_EXIT,
-      aggregatedResults: results,
+      aggregatedResults: output.results,
+      totalIterations,
     }
   }
 
@@ -608,17 +596,42 @@ export class LoopOrchestrator {
 
         for (const [, edge] of potentialSourceNode.outgoingEdges) {
           if (edge.target === nodeId) {
-            const isBackwardEdge =
-              edge.sourceHandle === EDGE.LOOP_CONTINUE ||
-              edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
-
-            if (!isBackwardEdge) {
+            if (
+              !this.isSubflowStartExitBypassEdge(potentialSourceId, nodeId, edge.sourceHandle) &&
+              (edge.sourceHandle === undefined || !CONTROL_BACK_EDGE_HANDLES.has(edge.sourceHandle))
+            ) {
               nodeToRestore.incomingEdges.add(potentialSourceId)
             }
           }
         }
       }
     }
+  }
+
+  private isSubflowStartExitBypassEdge(
+    sourceId: string,
+    targetId: string,
+    sourceHandle?: string
+  ): boolean {
+    if (sourceHandle === EDGE.LOOP_EXIT) {
+      const loopId = extractLoopIdFromSentinel(sourceId)
+      return (
+        !!loopId &&
+        sourceId === buildSentinelStartId(loopId) &&
+        targetId === buildSentinelEndId(loopId)
+      )
+    }
+
+    if (sourceHandle === EDGE.PARALLEL_EXIT) {
+      const parallelId = extractParallelIdFromSentinel(sourceId)
+      return (
+        !!parallelId &&
+        sourceId === buildParallelSentinelStartId(parallelId) &&
+        targetId === buildParallelSentinelEndId(parallelId)
+      )
+    }
+
+    return false
   }
 
   getLoopScope(ctx: ExecutionContext, loopId: string): LoopScope | undefined {
@@ -644,8 +657,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'forEach') {
       if (!scope.items || scope.items.length === 0) {
         logger.info('ForEach loop has empty collection, skipping loop body', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        scope.skippedAtStart = true
         return false
       }
       return true
@@ -654,8 +666,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'for') {
       if (scope.maxIterations === 0) {
         logger.info('For loop has 0 iterations, skipping loop body', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        scope.skippedAtStart = true
         return false
       }
       return true
@@ -668,8 +679,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'while') {
       if (!scope.condition) {
         logger.warn('No condition defined for while loop', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        scope.skippedAtStart = true
         return false
       }
 
@@ -681,8 +691,8 @@ export class LoopOrchestrator {
       })
 
       if (!result) {
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        logger.info('While loop initial condition is false, skipping loop body', { loopId })
+        scope.skippedAtStart = true
       }
 
       return result
@@ -704,14 +714,14 @@ export class LoopOrchestrator {
       logger.info('Evaluating loop condition', {
         originalCondition: condition,
         iteration: scope.iteration,
-        workflowVariables: ctx.workflowVariables,
+        workflowVariableCount: Object.keys(ctx.workflowVariables ?? {}).length,
       })
 
-      const evaluatedCondition = replaceValidReferences(condition, (match) => {
-        const resolved = this.resolver.resolveSingleReference(ctx, '', match, scope)
+      const evaluatedCondition = await replaceLoopConditionReferences(condition, async (match) => {
+        const resolved = await this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.debug('Resolved variable reference in loop condition', {
           reference: match,
-          resolvedValue: resolved,
+          resolvedType: resolved === null ? 'null' : typeof resolved,
         })
         if (resolved !== undefined) {
           if (typeof resolved === 'boolean' || typeof resolved === 'number') {
@@ -744,10 +754,13 @@ export class LoopOrchestrator {
       })
 
       if (vmResult.error) {
-        logger.error('Failed to evaluate loop condition', {
+        const isSystemError = vmResult.error.isSystemError === true
+        const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+        logFn('Failed to evaluate loop condition', {
           condition,
           evaluatedCondition,
           error: vmResult.error,
+          isSystemError,
         })
         return false
       }

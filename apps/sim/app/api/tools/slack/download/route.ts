@@ -1,24 +1,21 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { slackDownloadContract } from '@/lib/api/contracts/tools/communication/slack'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackDownloadAPI')
 
-const SlackDownloadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  fileId: z.string().min(1, 'File ID is required'),
-  fileName: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -39,10 +36,9 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = SlackDownloadSchema.parse(body)
-
-    const { accessToken, fileId, fileName } = validatedData
+    const parsed = await parseRequest(slackDownloadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { accessToken, fileId, fileName } = parsed.data.body
 
     logger.info(`[${requestId}] Getting file info from Slack`, { fileId })
 
@@ -162,9 +158,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )
   }
-}
+})

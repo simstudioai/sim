@@ -14,10 +14,17 @@ import {
   type Client,
   ClientFactory,
   ClientFactoryOptions,
+  DefaultAgentCardResolver,
+  JsonRpcTransportFactory,
+  RestTransportFactory,
 } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
-import { generateId } from '@/lib/core/utils/uuid'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
 
@@ -59,13 +66,76 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
     throw new Error(validation.error || 'Agent URL validation failed')
   }
 
+  const resolvedIP = validation.resolvedIP!
+
+  const pinnedFetch = async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1]
+  ): Promise<Response> => {
+    const url = input instanceof Request ? input.url : input.toString()
+    const method = init?.method ?? (input instanceof Request ? input.method : undefined)
+
+    const rawHeaders = init?.headers ?? (input instanceof Request ? input.headers : undefined)
+    const headers =
+      rawHeaders instanceof Headers
+        ? Object.fromEntries(rawHeaders.entries())
+        : Array.isArray(rawHeaders)
+          ? Object.fromEntries(rawHeaders as string[][])
+          : (rawHeaders as Record<string, string> | undefined)
+
+    let body: string | Buffer | Uint8Array | undefined
+    if (init?.body !== undefined && init.body !== null) {
+      if (typeof init.body === 'string' || Buffer.isBuffer(init.body)) {
+        body = init.body as string | Buffer
+      } else if (init.body instanceof Uint8Array) {
+        body = init.body
+      } else if (init.body instanceof ArrayBuffer) {
+        body = new Uint8Array(init.body)
+      } else {
+        const text = await new Response(init.body as BodyInit).text()
+        if (text) body = text
+      }
+    } else if (init?.body === undefined && input instanceof Request && !input.bodyUsed) {
+      const text = await input.text()
+      if (text) body = text
+    }
+
+    const signal =
+      init?.signal instanceof AbortSignal
+        ? init.signal
+        : input instanceof Request && input.signal instanceof AbortSignal
+          ? input.signal
+          : undefined
+
+    const res = await secureFetchWithPinnedIP(url, resolvedIP, { method, headers, body, signal })
+    const resHeaders = new Headers(res.headers.toRecord())
+    return new Response(res.body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: resHeaders,
+    })
+  }
+
+  const pinnedTransports = [
+    new JsonRpcTransportFactory({ fetchImpl: pinnedFetch }),
+    new RestTransportFactory({ fetchImpl: pinnedFetch }),
+  ]
+
+  const pinnedCardResolver = new DefaultAgentCardResolver({ fetchImpl: pinnedFetch })
+
+  const baseOptions = ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
+    transports: pinnedTransports,
+    cardResolver: pinnedCardResolver,
+  })
+
   const factoryOptions = apiKey
-    ? ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
+    ? ClientFactoryOptions.createFrom(baseOptions, {
         clientConfig: {
           interceptors: [new ApiKeyInterceptor(apiKey)],
         },
       })
-    : ClientFactoryOptions.default
+    : baseOptions
+
   const factory = new ClientFactory(factoryOptions)
 
   // Try standard A2A path first (/.well-known/agent.json)
@@ -74,7 +144,7 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
   } catch (standardError) {
     logger.debug('Standard agent card path failed, trying root URL', {
       agentUrl,
-      error: standardError instanceof Error ? standardError.message : String(standardError),
+      error: toError(standardError).message,
     })
   }
 
@@ -98,31 +168,41 @@ export function extractDataContent(message: Message): Record<string, unknown> {
   return dataParts.reduce((acc, part) => ({ ...acc, ...part.data }), {})
 }
 
-export interface A2AFile {
+interface A2AFile {
   name?: string
   mimeType?: string
   uri?: string
   bytes?: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+}
+
+function getStringField(source: Record<string, unknown>, key: string): string | undefined {
+  const value = source[key]
+  return typeof value === 'string' ? value : undefined
+}
+
 export function extractFileContent(message: Message): A2AFile[] {
   return message.parts
     .filter((part): part is FilePart => part.kind === 'file')
     .map((part) => {
-      const file = part.file as unknown as Record<string, unknown>
-      const uri = (file.url as string) || (file.uri as string)
-      const hasBytes = Boolean(file.bytes)
+      const file = isRecord(part.file) ? part.file : {}
+      const uri = getStringField(file, 'url') || getStringField(file, 'uri')
+      const bytes = getStringField(file, 'bytes')
+      const hasBytes = Boolean(bytes)
       const canUseUri = Boolean(uri) && (!hasBytes || (uri ? !isInternalFileUrl(uri) : true))
       return {
-        name: file.name as string | undefined,
-        mimeType: file.mimeType as string | undefined,
+        name: getStringField(file, 'name'),
+        mimeType: getStringField(file, 'mimeType'),
         ...(canUseUri ? { uri } : {}),
-        ...(hasBytes ? { bytes: file.bytes as string } : {}),
+        ...(hasBytes ? { bytes } : {}),
       }
     })
 }
 
-export interface ExecutionFileInput {
+interface ExecutionFileInput {
   type: 'file' | 'url'
   data: string
   name: string

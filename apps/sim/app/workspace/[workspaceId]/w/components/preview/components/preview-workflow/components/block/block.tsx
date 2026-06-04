@@ -319,11 +319,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
       if (effectiveTrigger) {
         const isValidTriggerSubblock = isPureTriggerBlock
-          ? subBlock.mode === 'trigger' || !subBlock.mode
-          : subBlock.mode === 'trigger'
+          ? subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced' || !subBlock.mode
+          : subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
         if (!isValidTriggerSubblock) return false
       } else {
-        if (subBlock.mode === 'trigger') return false
+        if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') return false
       }
 
       /** Skip value-dependent visibility checks in lightweight mode */
@@ -478,10 +478,10 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
           {!isNoteBlock && (
             <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
+              className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
             >
-              <IconComponent className='h-[16px] w-[16px] text-white' />
+              <IconComponent className='size-[16px] text-white' />
             </div>
           )}
           <span

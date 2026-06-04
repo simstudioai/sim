@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
+import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
-import { mergeSubblockStateWithValues } from '@/lib/workflows/subblocks'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -70,5 +70,8 @@ export function useChangeDetection({
     return hasWorkflowChanged(currentState, deployedState)
   }, [currentState, deployedState, isLoadingDeployedState])
 
-  return { changeDetected }
+  return {
+    changeDetected,
+    isChangeDetectionSettling: Boolean(workflowId && isLoadingDeployedState),
+  }
 }

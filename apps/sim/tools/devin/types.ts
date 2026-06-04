@@ -2,26 +2,78 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 export interface DevinCreateSessionParams {
   apiKey: string
+  orgId: string
   prompt: string
   playbookId?: string
   maxAcuLimit?: number
-  tags?: string
+  tags?: string | string[]
 }
 
 export interface DevinGetSessionParams {
   apiKey: string
+  orgId: string
   sessionId: string
 }
 
 export interface DevinListSessionsParams {
   apiKey: string
+  orgId: string
   limit?: number
+  after?: string
 }
 
 export interface DevinSendMessageParams {
   apiKey: string
+  orgId: string
   sessionId: string
   message: string
+}
+
+export interface DevinListSessionMessagesParams {
+  apiKey: string
+  orgId: string
+  sessionId: string
+  limit?: number
+  after?: string
+}
+
+export interface DevinListSessionAttachmentsParams {
+  apiKey: string
+  orgId: string
+  sessionId: string
+}
+
+export interface DevinGetSessionTagsParams {
+  apiKey: string
+  orgId: string
+  sessionId: string
+}
+
+export interface DevinAppendSessionTagsParams {
+  apiKey: string
+  orgId: string
+  sessionId: string
+  tags: string | string[]
+}
+
+export interface DevinReplaceSessionTagsParams {
+  apiKey: string
+  orgId: string
+  sessionId: string
+  tags: string | string[]
+}
+
+export interface DevinArchiveSessionParams {
+  apiKey: string
+  orgId: string
+  sessionId: string
+}
+
+export interface DevinTerminateSessionParams {
+  apiKey: string
+  orgId: string
+  sessionId: string
+  archive?: boolean
 }
 
 export const DEVIN_SESSION_OUTPUT_PROPERTIES = {
@@ -65,13 +117,11 @@ export const DEVIN_SESSION_OUTPUT_PROPERTIES = {
   },
   tags: {
     type: 'json',
-    description: 'Tags associated with the session',
-    optional: true,
+    description: 'Tags associated with the session (array of strings)',
   },
   pullRequests: {
     type: 'json',
-    description: 'Pull requests created during the session',
-    optional: true,
+    description: 'Pull requests created during the session ([{pr_url, pr_state}])',
   },
   structuredOutput: {
     type: 'json',
@@ -81,6 +131,11 @@ export const DEVIN_SESSION_OUTPUT_PROPERTIES = {
   playbookId: {
     type: 'string',
     description: 'Associated playbook ID',
+    optional: true,
+  },
+  isArchived: {
+    type: 'boolean',
+    description: 'Whether the session is archived',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -120,12 +175,74 @@ export const DEVIN_SESSION_LIST_ITEM_PROPERTIES = {
   },
   tags: {
     type: 'json',
-    description: 'Session tags',
+    description: 'Session tags (array of strings)',
+  },
+  acusConsumed: {
+    type: 'number',
+    description: 'ACUs consumed by the session',
+    optional: true,
+  },
+  pullRequests: {
+    type: 'json',
+    description: 'Pull requests created during the session ([{pr_url, pr_state}])',
+  },
+  playbookId: {
+    type: 'string',
+    description: 'Associated playbook ID',
+    optional: true,
+  },
+  isArchived: {
+    type: 'boolean',
+    description: 'Whether the session is archived',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
-export interface DevinSessionOutput {
+export const DEVIN_SESSION_MESSAGE_PROPERTIES = {
+  eventId: {
+    type: 'string',
+    description: 'Unique identifier for the message event',
+  },
+  source: {
+    type: 'string',
+    description: 'Origin of the message (devin or user)',
+  },
+  message: {
+    type: 'string',
+    description: 'The message content',
+  },
+  createdAt: {
+    type: 'number',
+    description: 'Unix timestamp when the message was created',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const DEVIN_SESSION_ATTACHMENT_PROPERTIES = {
+  attachmentId: {
+    type: 'string',
+    description: 'Unique identifier for the attachment',
+  },
+  name: {
+    type: 'string',
+    description: 'Attachment file name',
+  },
+  url: {
+    type: 'string',
+    description: 'URL to download the attachment',
+  },
+  source: {
+    type: 'string',
+    description: 'Origin of the attachment (devin or user)',
+  },
+  contentType: {
+    type: 'string',
+    description: 'MIME type of the attachment',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+interface DevinSessionOutput {
   sessionId: string
   url: string
   status: string
@@ -134,10 +251,11 @@ export interface DevinSessionOutput {
   createdAt: number | null
   updatedAt: number | null
   acusConsumed: number | null
-  tags: string[] | null
-  pullRequests: Array<{ pr_url: string; pr_state: string | null }> | null
+  tags: string[]
+  pullRequests: Array<{ pr_url: string; pr_state: string | null }>
   structuredOutput: Record<string, unknown> | null
   playbookId: string | null
+  isArchived: boolean
 }
 
 export interface DevinCreateSessionResponse extends ToolResponse {
@@ -158,11 +276,58 @@ export interface DevinListSessionsResponse extends ToolResponse {
       title: string | null
       createdAt: number | null
       updatedAt: number | null
-      tags: string[] | null
+      tags: string[]
+      acusConsumed: number | null
+      pullRequests: Array<{ pr_url: string; pr_state: string | null }>
+      playbookId: string | null
+      isArchived: boolean
     }>
+    endCursor: string | null
+    hasNextPage: boolean
+    total: number | null
   }
 }
 
 export interface DevinSendMessageResponse extends ToolResponse {
+  output: DevinSessionOutput
+}
+
+export interface DevinListSessionMessagesResponse extends ToolResponse {
+  output: {
+    messages: Array<{
+      eventId: string
+      source: string
+      message: string
+      createdAt: number | null
+    }>
+    endCursor: string | null
+    hasNextPage: boolean
+    total: number | null
+  }
+}
+
+export interface DevinListSessionAttachmentsResponse extends ToolResponse {
+  output: {
+    attachments: Array<{
+      attachmentId: string
+      name: string
+      url: string
+      source: string
+      contentType: string | null
+    }>
+  }
+}
+
+export interface DevinSessionTagsResponse extends ToolResponse {
+  output: {
+    tags: string[]
+  }
+}
+
+export interface DevinArchiveSessionResponse extends ToolResponse {
+  output: DevinSessionOutput
+}
+
+export interface DevinTerminateSessionResponse extends ToolResponse {
   output: DevinSessionOutput
 }

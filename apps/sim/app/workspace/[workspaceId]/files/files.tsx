@@ -1,35 +1,36 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
+import { toError } from '@sim/utils/errors'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Button,
   Columns2,
   Combobox,
   type ComboboxOption,
   Download,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   Eye,
+  File as FilesIcon,
+  Folder,
+  FolderPlus,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Pencil,
-  Skeleton,
-  Trash,
+  Trash2,
+  toast,
   Upload,
 } from '@/components/emcn'
-import { File as FilesIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import {
-  downloadWorkspaceFile,
   formatFileSize,
   getFileExtension,
   getMimeTypeFromExtension,
@@ -41,23 +42,30 @@ import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
+  SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 import type {
+  BreadcrumbItem,
   FilterTag,
   HeaderAction,
   ResourceColumn,
   ResourceRow,
+  RowDragDropConfig,
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
+  EMPTY_CELL_PLACEHOLDER,
   InlineRenameInput,
   ownerCell,
   Resource,
   ResourceHeader,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
+import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
+import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
+import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   FileViewer,
@@ -65,9 +73,18 @@ import {
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
+import {
+  useBulkArchiveWorkspaceFileItems,
+  useCreateWorkspaceFileFolder,
+  useMoveWorkspaceFileItems,
+  useUpdateWorkspaceFileFolder,
+  useWorkspaceFileFolders,
+  type WorkspaceFileFolderApi,
+} from '@/hooks/queries/workspace-file-folders'
 import {
   useDeleteWorkspaceFile,
   useRenameWorkspaceFile,
@@ -79,6 +96,9 @@ import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+type FileResourceItem =
+  | { kind: 'file'; id: string; file: WorkspaceFileRecord }
+  | { kind: 'folder'; id: string; folder: WorkspaceFileFolderApi }
 
 const logger = createLogger('Files')
 
@@ -87,16 +107,18 @@ const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_CODE_EXTENSIONS,
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS,
 ] as const
 
 const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
 
 const COLUMNS: ResourceColumn[] = [
-  { id: 'name', header: 'Name' },
-  { id: 'size', header: 'Size' },
-  { id: 'type', header: 'Type' },
+  { id: 'name', header: 'Name', widthMultiplier: 1.15 },
+  { id: 'size', header: 'Size', widthMultiplier: 0.85 },
+  { id: 'type', header: 'Type', widthMultiplier: 1.0 },
   { id: 'created', header: 'Created' },
   { id: 'owner', header: 'Owner' },
+  { id: 'updated', header: 'Last Updated' },
 ]
 
 const MIME_TYPE_LABELS: Record<string, string> = {
@@ -115,6 +137,20 @@ const MIME_TYPE_LABELS: Record<string, string> = {
   'text/markdown': 'Markdown',
 }
 
+const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
+const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
+
+const fileRowId = (id: string) => `file:${id}`
+const folderRowId = (id: string) => `folder:${id}`
+const parseRowId = (rowId: string): { kind: 'file' | 'folder'; id: string } => {
+  if (rowId.startsWith('folder:')) return { kind: 'folder', id: rowId.slice('folder:'.length) }
+  if (rowId.startsWith('file:')) return { kind: 'file', id: rowId.slice('file:'.length) }
+  return { kind: 'file', id: rowId }
+}
+
+const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
+  dataTransfer.types.includes('Files')
+
 function formatFileType(mimeType: string | null, filename: string): string {
   if (mimeType && MIME_TYPE_LABELS[mimeType]) {
     return MIME_TYPE_LABELS[mimeType]
@@ -122,6 +158,7 @@ function formatFileType(mimeType: string | null, filename: string): string {
 
   if (mimeType?.startsWith('audio/')) return 'Audio'
   if (mimeType?.startsWith('video/')) return 'Video'
+  if (mimeType?.startsWith('image/')) return 'Image'
 
   const ext = getFileExtension(filename)
   if (ext) return ext.toUpperCase()
@@ -135,10 +172,15 @@ export function Files() {
 
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isNewFile = searchParams.get('new') === '1'
+  const currentFolderId = searchParams.get('folderId')
   const workspaceId = params?.workspaceId as string
+
   const fileIdFromRoute =
     typeof params?.fileId === 'string' && params.fileId.length > 0 ? params.fileId : null
   const userPermissions = useUserPermissionsContext()
+  const canEdit = userPermissions.canEdit === true
   const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
@@ -147,11 +189,17 @@ export function Files() {
     }
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
-  const { data: files = [], isLoading, error } = useWorkspaceFiles(workspaceId)
+  const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
+  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS, isLoading: foldersLoading } =
+    useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
+  const createFolder = useCreateWorkspaceFileFolder()
+  const updateFolder = useUpdateWorkspaceFileFolder()
+  const moveItems = useMoveWorkspaceFileItems()
+  const bulkArchiveItems = useBulkArchiveWorkspaceFileItems()
 
   const {
     isOpen: isContextMenuOpen,
@@ -174,9 +222,17 @@ export function Files() {
   const justCreatedFileIdRef = useRef<string | null>(null)
   const filesRef = useRef(files)
   filesRef.current = files
+  const foldersRef = useRef(folders)
+  foldersRef.current = folders
 
   const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
+  const [uploadProgress, setUploadProgress] = useState({
+    completed: 0,
+    total: 0,
+    currentPercent: 0,
+  })
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const dragCounterRef = useRef(0)
   const [inputValue, setInputValue] = useState('')
   const debouncedSearchTerm = useDebounce(inputValue, 200)
   const [activeSort, setActiveSort] = useState<{
@@ -190,7 +246,11 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set())
+  const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
+  const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => new Set())
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
+    if (isNewFile) return 'editor'
     if (fileIdFromRoute) {
       const file = files.find((f) => f.id === fileIdFromRoute)
       if (file && isPreviewable(file)) return 'preview'
@@ -200,16 +260,36 @@ export function Files() {
   })
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
-  const [deleteTargetFile, setDeleteTargetFile] = useState<WorkspaceFileRecord | null>(null)
+  const contextMenuItemRef = useRef<FileResourceItem | null>(null)
+  const lastSelectedIndexRef = useRef<number>(-1)
+  const draggedRowIdsRef = useRef<string[]>([])
+  const dragGhostRef = useRef<HTMLElement | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    fileIds: string[]
+    folderIds: string[]
+    name: string
+  } | null>(null)
 
   const listRename = useInlineRename({
-    onSave: (fileId, name) => renameFile.mutate({ workspaceId, fileId, name }),
+    onSave: (rowId, name) => {
+      const parsed = parseRowId(rowId)
+      if (parsed.kind === 'folder') {
+        updateFolder.mutate({ workspaceId, folderId: parsed.id, updates: { name } })
+        return
+      }
+      renameFile.mutate({ workspaceId, fileId: parsed.id, name })
+    },
   })
 
   const headerRename = useInlineRename({
     onSave: (fileId, name) => {
       renameFile.mutate({ workspaceId, fileId, name })
+    },
+  })
+
+  const breadcrumbRename = useInlineRename({
+    onSave: (folderId, name) => {
+      updateFolder.mutate({ workspaceId, folderId, updates: { name } })
     },
   })
 
@@ -220,10 +300,60 @@ export function Files() {
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
 
+  const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
+  const currentFolder = currentFolderId ? (folderById.get(currentFolderId) ?? null) : null
+
+  const folderSizeMap = useMemo(() => {
+    const directSize = new Map<string, number>()
+    for (const file of files) {
+      if (file.folderId) {
+        directSize.set(file.folderId, (directSize.get(file.folderId) ?? 0) + file.size)
+      }
+    }
+    const totalSize = new Map<string, number>()
+    const getTotal = (folderId: string): number => {
+      if (totalSize.has(folderId)) return totalSize.get(folderId)!
+      const children = folders.filter((f) => f.parentId === folderId)
+      const size =
+        (directSize.get(folderId) ?? 0) + children.reduce((s, c) => s + getTotal(c.id), 0)
+      totalSize.set(folderId, size)
+      return size
+    }
+    for (const folder of folders) getTotal(folder.id)
+    return totalSize
+  }, [files, folders])
+  const currentFolderPath = currentFolder?.path ?? null
+
+  const visibleFolders = useMemo(() => {
+    const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
+    const searched = debouncedSearchTerm
+      ? siblings.filter((folder) =>
+          folder.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+        )
+      : siblings
+    const col = activeSort?.column ?? 'name'
+    const dir = activeSort?.direction ?? 'asc'
+    return [...searched].sort((a, b) => {
+      let cmp = 0
+      if (col === 'updated') {
+        cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+      } else if (col === 'created') {
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      } else {
+        cmp = a.name.localeCompare(b.name)
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
+
   const filteredFiles = useMemo(() => {
     let result = debouncedSearchTerm
-      ? files.filter((f) => f.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
-      : files
+      ? files.filter(
+          (f) =>
+            (f.folderId ?? null) === currentFolderId &&
+            f.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+        )
+      : files.filter((f) => (f.folderId ?? null) === currentFolderId)
 
     if (typeFilter.length > 0) {
       result = result.filter((f) => {
@@ -231,6 +361,7 @@ export function Files() {
         if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
         if (typeFilter.includes('audio') && isAudioFileType(f.type)) return true
         if (typeFilter.includes('video') && isVideoFileType(f.type)) return true
+        if (typeFilter.includes('image') && f.type?.startsWith('image/')) return true
         return false
       })
     }
@@ -249,7 +380,7 @@ export function Files() {
       result = result.filter((f) => uploadedByFilter.includes(f.uploadedBy))
     }
 
-    const col = activeSort?.column ?? 'created'
+    const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
       let cmp = 0
@@ -266,6 +397,9 @@ export function Files() {
         case 'created':
           cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
           break
+        case 'updated':
+          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+          break
         case 'owner':
           cmp = (members?.find((m) => m.userId === a.uploadedBy)?.name ?? '').localeCompare(
             members?.find((m) => m.userId === b.uploadedBy)?.name ?? ''
@@ -274,59 +408,91 @@ export function Files() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [files, debouncedSearchTerm, typeFilter, sizeFilter, uploadedByFilter, activeSort, members])
-
-  const rowCacheRef = useRef(
-    new Map<string, { row: ResourceRow; file: WorkspaceFileRecord; members: typeof members }>()
-  )
+  }, [
+    files,
+    currentFolderId,
+    debouncedSearchTerm,
+    typeFilter,
+    sizeFilter,
+    uploadedByFilter,
+    activeSort,
+    members,
+  ])
 
   const baseRows: ResourceRow[] = useMemo(() => {
-    const prevCache = rowCacheRef.current
-    const nextCache = new Map<
-      string,
-      { row: ResourceRow; file: WorkspaceFileRecord; members: typeof members }
-    >()
+    const folderRows = visibleFolders.map((folder) => ({
+      id: folderRowId(folder.id),
+      cells: {
+        name: {
+          icon: <Folder className='size-[14px]' />,
+          label: folder.name,
+        },
+        size: {
+          label:
+            (folderSizeMap.get(folder.id) ?? 0) > 0
+              ? formatFileSize(folderSizeMap.get(folder.id)!, { includeBytes: true })
+              : EMPTY_CELL_PLACEHOLDER,
+        },
+        type: {
+          icon: <Folder className='size-[14px]' />,
+          label: 'Folder',
+        },
+        created: timeCell(folder.createdAt),
+        owner: ownerCell(folder.userId, members),
+        updated: timeCell(folder.updatedAt),
+      },
+      sortValues: {
+        name: folder.name,
+        size: folderSizeMap.get(folder.id) ?? -1,
+        type: 'Folder',
+        created: new Date(folder.createdAt).getTime(),
+        updated: new Date(folder.updatedAt).getTime(),
+        owner: members?.find((m) => m.userId === folder.userId)?.name ?? '',
+      },
+    }))
 
-    const result = filteredFiles.map((file) => {
-      const cached = prevCache.get(file.id)
-      if (cached && cached.file === file && cached.members === members) {
-        nextCache.set(file.id, cached)
-        return cached.row
-      }
+    const fileRows = filteredFiles.map((file) => {
       const Icon = getDocumentIcon(file.type || '', file.name)
       const row: ResourceRow = {
-        id: file.id,
+        id: fileRowId(file.id),
         cells: {
           name: {
-            icon: <Icon className='h-[14px] w-[14px]' />,
+            icon: <Icon className='size-[14px]' />,
             label: file.name,
           },
           size: {
             label: formatFileSize(file.size, { includeBytes: true }),
           },
           type: {
-            icon: <Icon className='h-[14px] w-[14px]' />,
+            icon: <Icon className='size-[14px]' />,
             label: formatFileType(file.type, file.name),
           },
           created: timeCell(file.uploadedAt),
           owner: ownerCell(file.uploadedBy, members),
+          updated: timeCell(file.updatedAt),
+        },
+        sortValues: {
+          name: file.name,
+          size: file.size,
+          type: formatFileType(file.type, file.name),
+          created: new Date(file.uploadedAt).getTime(),
+          updated: new Date(file.updatedAt).getTime(),
+          owner: members?.find((m) => m.userId === file.uploadedBy)?.name ?? '',
         },
       }
-      nextCache.set(file.id, { row, file, members })
       return row
     })
 
-    rowCacheRef.current = nextCache
-    return result
-  }, [filteredFiles, members])
+    return [...folderRows, ...fileRows]
+  }, [visibleFolders, filteredFiles, members, folderSizeMap])
 
   const rows: ResourceRow[] = useMemo(() => {
     if (!listRename.editingId) return baseRows
     return baseRows.map((row) => {
       if (row.id !== listRename.editingId) return row
-      const file = filteredFiles.find((f) => f.id === row.id)
-      if (!file) return row
-      const Icon = getDocumentIcon(file.type || '', file.name)
+      const parsed = parseRowId(row.id)
+      const file = parsed.kind === 'file' ? filteredFiles.find((f) => f.id === parsed.id) : null
+      const Icon = file ? getDocumentIcon(file.type || '', file.name) : Folder
       return {
         ...row,
         cells: {
@@ -336,7 +502,7 @@ export function Files() {
             content: (
               <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
                 <span className='flex-shrink-0 text-[var(--text-icon)]'>
-                  <Icon className='h-[14px] w-[14px]' />
+                  <Icon className='size-[14px]' />
                 </span>
                 <InlineRenameInput
                   value={listRename.editValue}
@@ -350,43 +516,199 @@ export function Files() {
         },
       }
     })
-  }, [
-    baseRows,
-    listRename.editingId,
-    listRename.editValue,
-    listRename.setEditValue,
-    listRename.submitRename,
-    listRename.cancelRename,
-    filteredFiles,
-  ])
+  }, [baseRows, listRename.editingId, listRename.editValue, filteredFiles])
 
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const list = e.target.files
-      if (!list || list.length === 0 || !workspaceId) return
+  const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
+
+  const prevVisibleRowIdsRef = useRef(visibleRowIds)
+  useEffect(() => {
+    if (prevVisibleRowIdsRef.current === visibleRowIds) return
+    prevVisibleRowIdsRef.current = visibleRowIds
+    lastSelectedIndexRef.current = -1
+    const visible = new Set(visibleRowIds)
+    setSelectedRowIds((prev) => {
+      if (prev.size === 0) return prev
+      const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [visibleRowIds])
+
+  const isAllSelected =
+    visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
+  const selectedFileIds = useMemo(
+    () =>
+      Array.from(selectedRowIds)
+        .map(parseRowId)
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.id),
+    [selectedRowIds]
+  )
+  const selectedFolderIds = useMemo(
+    () =>
+      Array.from(selectedRowIds)
+        .map(parseRowId)
+        .filter((item) => item.kind === 'folder')
+        .map((item) => item.id),
+    [selectedRowIds]
+  )
+
+  const selectableConfig = useMemo(
+    () => ({
+      selectedIds: selectedRowIds,
+      isAllSelected,
+      onSelectRow: (rowId: string, checked: boolean, shiftKey?: boolean) => {
+        const currentIndex = visibleRowIds.indexOf(rowId)
+        if (shiftKey && lastSelectedIndexRef.current !== -1 && currentIndex !== -1) {
+          const start = Math.min(lastSelectedIndexRef.current, currentIndex)
+          const end = Math.max(lastSelectedIndexRef.current, currentIndex)
+          setSelectedRowIds((prev) => {
+            const next = new Set(prev)
+            for (let i = start; i <= end; i++) next.add(visibleRowIds[i])
+            return next
+          })
+          lastSelectedIndexRef.current = currentIndex
+        } else {
+          setSelectedRowIds((prev) => {
+            const next = new Set(prev)
+            if (checked) next.add(rowId)
+            else next.delete(rowId)
+            return next
+          })
+          if (checked) lastSelectedIndexRef.current = currentIndex
+          else lastSelectedIndexRef.current = -1
+        }
+      },
+      onSelectAll: (checked: boolean) => {
+        lastSelectedIndexRef.current = -1
+        setSelectedRowIds((prev) => {
+          const next = new Set(prev)
+          for (const rowId of visibleRowIds) {
+            if (checked) next.add(rowId)
+            else next.delete(rowId)
+          }
+          return next
+        })
+      },
+      disabled: false,
+    }),
+    [selectedRowIds, isAllSelected, visibleRowIds]
+  )
+
+  const descendantFolderIdsByFolderId = useMemo(() => {
+    const childrenByParent = new Map<string, string[]>()
+    for (const folder of folders) {
+      if (!folder.parentId) continue
+      const children = childrenByParent.get(folder.parentId) ?? []
+      children.push(folder.id)
+      childrenByParent.set(folder.parentId, children)
+    }
+
+    const result = new Map<string, Set<string>>()
+    const collect = (folderId: string, seen = new Set<string>()): Set<string> => {
+      const cached = result.get(folderId)
+      if (cached) return cached
+      if (seen.has(folderId)) return new Set<string>()
+
+      const nextSeen = new Set(seen)
+      nextSeen.add(folderId)
+      const descendants = new Set<string>()
+      for (const childId of childrenByParent.get(folderId) ?? []) {
+        if (nextSeen.has(childId)) continue
+        descendants.add(childId)
+        for (const nestedId of collect(childId, nextSeen)) {
+          descendants.add(nestedId)
+        }
+      }
+      result.set(folderId, descendants)
+      return descendants
+    }
+
+    for (const folder of folders) {
+      collect(folder.id)
+    }
+    return result
+  }, [folders])
+
+  const isInvalidDropTarget = useCallback(
+    (targetRowId: string, sourceRowIds: string[]) => {
+      const target = parseRowId(targetRowId)
+      if (target.kind !== 'folder') return true
+
+      for (const sourceRowId of sourceRowIds) {
+        const source = parseRowId(sourceRowId)
+        if (source.kind !== 'folder') continue
+        if (source.id === target.id) return true
+        if (descendantFolderIdsByFolderId.get(source.id)?.has(target.id)) return true
+      }
+
+      // Reject drop if every dragged item is already a direct child of the target
+      const allAlreadyInTarget = sourceRowIds.every((sourceRowId) => {
+        const source = parseRowId(sourceRowId)
+        if (source.kind === 'file') {
+          return filesRef.current.find((f) => f.id === source.id)?.folderId === target.id
+        }
+        return (foldersRef.current.find((f) => f.id === source.id)?.parentId ?? null) === target.id
+      })
+      if (allAlreadyInTarget) return true
+
+      return false
+    },
+    [descendantFolderIdsByFolderId]
+  )
+
+  const uploadFiles = useCallback(
+    async (filesToUpload: File[], targetFolderId = currentFolderId) => {
+      if (!workspaceId || filesToUpload.length === 0 || !canEdit) return
+
+      const oversized: string[] = []
+      const sizeFiltered = filesToUpload.filter((f) => {
+        if (f.size > MAX_WORKSPACE_FILE_SIZE) {
+          oversized.push(f.name)
+          return false
+        }
+        return true
+      })
+      if (oversized.length > 0) {
+        toast.error(
+          oversized.length === 1
+            ? `${oversized[0]} exceeds the 5 GiB upload limit`
+            : `${oversized.length} files exceed the 5 GiB upload limit`
+        )
+      }
+
+      const unsupported: string[] = []
+      const allowedFiles = sizeFiltered.filter((f) => {
+        const ext = getFileExtension(f.name)
+        const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
+        if (!ok) unsupported.push(f.name)
+        return ok
+      })
+
+      if (unsupported.length > 0) {
+        logger.warn('Unsupported file types skipped:', unsupported)
+      }
+
+      if (allowedFiles.length === 0) return
 
       try {
         setUploading(true)
-
-        const filesToUpload = Array.from(list)
-        const unsupported: string[] = []
-        const allowedFiles = filesToUpload.filter((f) => {
-          const ext = getFileExtension(f.name)
-          const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
-          if (!ok) unsupported.push(f.name)
-          return ok
-        })
-
-        if (unsupported.length > 0) {
-          logger.warn('Unsupported file types skipped:', unsupported)
-        }
-
-        setUploadProgress({ completed: 0, total: allowedFiles.length })
+        setUploadProgress({ completed: 0, total: allowedFiles.length, currentPercent: 0 })
 
         for (let i = 0; i < allowedFiles.length; i++) {
           try {
-            await uploadFile.mutateAsync({ workspaceId, file: allowedFiles[i] })
-            setUploadProgress({ completed: i + 1, total: allowedFiles.length })
+            await uploadFile.mutateAsync({
+              workspaceId,
+              file: allowedFiles[i],
+              folderId: targetFolderId,
+              onProgress: ({ percent }) => {
+                setUploadProgress((prev) => ({ ...prev, currentPercent: percent }))
+              },
+            })
+            setUploadProgress({
+              completed: i + 1,
+              total: allowedFiles.length,
+              currentPercent: 0,
+            })
           } catch (err) {
             logger.error('Error uploading file:', err)
           }
@@ -395,67 +717,269 @@ export function Files() {
         logger.error('Error uploading file:', err)
       } finally {
         setUploading(false)
-        setUploadProgress({ completed: 0, total: 0 })
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-        }
+        setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
       }
     },
-    [workspaceId, uploadFile]
+    [workspaceId, canEdit, currentFolderId]
   )
+
+  const rowDragDropConfig = useMemo<RowDragDropConfig>(
+    () => ({
+      activeDropTargetId,
+      draggedRowIds,
+      isAnyDragActive: draggedRowIds.size > 0,
+      isRowDraggable: (rowId) => canEdit && listRename.editingId !== rowId,
+      isRowDropTarget: (rowId) => canEdit && parseRowId(rowId).kind === 'folder',
+      onDragStart: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+        if (!canEdit || listRename.editingId === rowId) {
+          e.preventDefault()
+          return
+        }
+
+        const sourceRowIds = selectedRowIds.has(rowId)
+          ? visibleRowIds.filter((visibleRowId) => selectedRowIds.has(visibleRowId))
+          : [rowId]
+
+        draggedRowIdsRef.current = sourceRowIds
+        setDraggedRowIds(new Set(sourceRowIds))
+        if (!selectedRowIds.has(rowId)) {
+          setSelectedRowIds(new Set([rowId]))
+        }
+
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData(
+          'application/x-sim-workspace-file-rows',
+          JSON.stringify(sourceRowIds)
+        )
+        e.dataTransfer.setData('text/plain', sourceRowIds.join(','))
+
+        const count = sourceRowIds.length
+        const firstParsed = parseRowId(sourceRowIds[0])
+        const firstName =
+          firstParsed.kind === 'file'
+            ? filesRef.current.find((f) => f.id === firstParsed.id)?.name
+            : foldersRef.current.find((f) => f.id === firstParsed.id)?.name
+        const ghostLabel =
+          count > 1 ? `${firstName ?? 'Items'} +${count - 1} more` : (firstName ?? 'Item')
+        const ghost = document.createElement('div')
+        ghost.style.cssText =
+          'position:fixed;top:-500px;left:0;display:inline-flex;align-items:center;padding:4px 10px;background:var(--surface-active);border:1px solid var(--border);border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:var(--text-body);white-space:nowrap;pointer-events:none;box-shadow:var(--shadow-medium);z-index:var(--z-toast)'
+        const text = document.createElement('span')
+        text.style.cssText = 'max-width:200px;overflow:hidden;text-overflow:ellipsis'
+        text.textContent = ghostLabel
+        ghost.appendChild(text)
+        document.body.appendChild(ghost)
+        void ghost.offsetHeight
+        e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+        dragGhostRef.current = ghost
+      },
+      onDragOver: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+        const sourceRowIds = draggedRowIdsRef.current
+        const isExternalFileDrag = hasExternalFiles(e.dataTransfer)
+        if (!isExternalFileDrag && isInvalidDropTarget(rowId, sourceRowIds)) return
+
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
+        setActiveDropTargetId(rowId)
+      },
+      onDragLeave: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+        const relatedTarget = e.relatedTarget
+        if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
+        setActiveDropTargetId((current) => (current === rowId ? null : current))
+      },
+      onDrop: (e: DragEvent<HTMLTableRowElement>, rowId) => {
+        e.preventDefault()
+        e.stopPropagation()
+        dragCounterRef.current = 0
+        setIsDraggingOver(false)
+        setActiveDropTargetId(null)
+        const target = parseRowId(rowId)
+        if (target.kind !== 'folder') return
+
+        const droppedFiles = Array.from(e.dataTransfer.files ?? [])
+        if (droppedFiles.length > 0) {
+          void uploadFiles(droppedFiles, target.id)
+          return
+        }
+
+        let sourceRowIds = draggedRowIdsRef.current
+        const rawSource = e.dataTransfer.getData('application/x-sim-workspace-file-rows')
+        if (rawSource) {
+          try {
+            const parsedSource = JSON.parse(rawSource)
+            if (Array.isArray(parsedSource)) {
+              sourceRowIds = parsedSource.filter(
+                (source): source is string => typeof source === 'string' && source.length > 0
+              )
+            }
+          } catch {
+            sourceRowIds = draggedRowIdsRef.current
+          }
+        }
+
+        if (isInvalidDropTarget(rowId, sourceRowIds)) return
+
+        const fileIds = sourceRowIds
+          .map(parseRowId)
+          .filter((source) => source.kind === 'file')
+          .map((source) => source.id)
+        const folderIds = sourceRowIds
+          .map(parseRowId)
+          .filter((source) => source.kind === 'folder')
+          .map((source) => source.id)
+
+        if (fileIds.length === 0 && folderIds.length === 0) return
+
+        void moveItems
+          .mutateAsync({
+            workspaceId,
+            fileIds,
+            folderIds,
+            targetFolderId: target.id,
+          })
+          .then(() => {
+            setSelectedRowIds(new Set())
+          })
+          .catch((error) => {
+            logger.error('Failed to move items via drag and drop:', error)
+          })
+      },
+      onDragEnd: () => {
+        if (dragGhostRef.current) {
+          dragGhostRef.current.remove()
+          dragGhostRef.current = null
+        }
+        dragCounterRef.current = 0
+        draggedRowIdsRef.current = []
+        setDraggedRowIds(new Set())
+        setIsDraggingOver(false)
+        setActiveDropTargetId(null)
+      },
+    }),
+    [
+      activeDropTargetId,
+      draggedRowIds,
+      canEdit,
+      listRename.editingId,
+      selectedRowIds,
+      visibleRowIds,
+      isInvalidDropTarget,
+      uploadFiles,
+      workspaceId,
+    ]
+  )
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files
+    if (!list || list.length === 0) return
+    await uploadFiles(Array.from(list))
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!hasExternalFiles(e.dataTransfer)) return
+    e.preventDefault()
+    dragCounterRef.current++
+    setIsDraggingOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!hasExternalFiles(e.dataTransfer)) return
+    dragCounterRef.current--
+    if (dragCounterRef.current === 0) setIsDraggingOver(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!hasExternalFiles(e.dataTransfer)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    if (!hasExternalFiles(e.dataTransfer)) return
+    e.preventDefault()
+    dragCounterRef.current = 0
+    setIsDraggingOver(false)
+    const dropped = Array.from(e.dataTransfer.files)
+    if (dropped.length > 0) await uploadFiles(dropped)
+  }
 
   const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {
     try {
-      await downloadWorkspaceFile(file)
+      await triggerFileDownload(file)
     } catch (err) {
       logger.error('Failed to download file:', err)
     }
   }, [])
 
-  const deleteTargetFileRef = useRef(deleteTargetFile)
-  deleteTargetFileRef.current = deleteTargetFile
+  const deleteTargetRef = useRef(deleteTarget)
+  deleteTargetRef.current = deleteTarget
   const fileIdFromRouteRef = useRef(fileIdFromRoute)
   fileIdFromRouteRef.current = fileIdFromRoute
 
   const handleDelete = useCallback(async () => {
-    const target = deleteTargetFileRef.current
+    const target = deleteTargetRef.current
     if (!target) return
 
     try {
-      await deleteFile.mutateAsync({
-        workspaceId,
-        fileId: target.id,
-      })
+      if (target.folderIds.length > 0 || target.fileIds.length > 1) {
+        await bulkArchiveItems.mutateAsync({
+          workspaceId,
+          fileIds: target.fileIds,
+          folderIds: target.folderIds,
+        })
+      } else if (target.fileIds.length === 1) {
+        await deleteFile.mutateAsync({
+          workspaceId,
+          fileId: target.fileIds[0],
+        })
+      } else {
+        setShowDeleteConfirm(false)
+        setDeleteTarget(null)
+        return
+      }
       setShowDeleteConfirm(false)
-      setDeleteTargetFile(null)
-      if (fileIdFromRouteRef.current === target.id) {
+      setDeleteTarget(null)
+      setSelectedRowIds(new Set())
+      if (target.fileIds.includes(fileIdFromRouteRef.current ?? '')) {
         setIsDirty(false)
         setSaveStatus('idle')
-        router.push(`/workspace/${workspaceId}/files`)
+        router.push(
+          currentFolderId
+            ? `/workspace/${workspaceId}/files?folderId=${currentFolderId}`
+            : `/workspace/${workspaceId}/files`
+        )
       }
     } catch (err) {
       logger.error('Failed to delete file:', err)
     }
-  }, [workspaceId, router])
+  }, [workspaceId, router, currentFolderId])
 
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
   const saveStatusRef = useRef(saveStatus)
   saveStatusRef.current = saveStatus
+  const pendingFileNavigationUrlRef = useRef<string | null>(null)
 
   const handleSave = useCallback(async () => {
     if (!saveRef.current || !isDirtyRef.current || saveStatusRef.current === 'saving') return
     await saveRef.current()
   }, [])
 
-  const handleBackAttempt = useCallback(() => {
-    if (isDirtyRef.current) {
-      setShowUnsavedChangesAlert(true)
-    } else {
+  const handleNavigateFromFileDetail = useCallback(
+    (url: string) => {
+      if (isDirtyRef.current) {
+        pendingFileNavigationUrlRef.current = url
+        setShowUnsavedChangesAlert(true)
+        return
+      }
+
       setPreviewMode('editor')
-      router.push(`/workspace/${workspaceId}/files`)
-    }
-  }, [router, workspaceId])
+      router.push(url)
+    },
+    [router]
+  )
 
   const handleStartHeaderRename = useCallback(() => {
     const file = selectedFileRef.current
@@ -470,65 +994,116 @@ export function Files() {
   const handleDeleteSelected = useCallback(() => {
     const file = selectedFileRef.current
     if (file) {
-      setDeleteTargetFile(file)
+      setDeleteTarget({ fileIds: [file.id], folderIds: [], name: file.name })
       setShowDeleteConfirm(true)
     }
   }, [])
 
-  const fileDetailBreadcrumbs = useMemo(
-    () =>
-      selectedFile
-        ? [
-            { label: 'Files', onClick: handleBackAttempt },
-            {
-              label: selectedFile.name,
-              editing: headerRename.editingId
-                ? {
-                    isEditing: true,
-                    value: headerRename.editValue,
-                    onChange: headerRename.setEditValue,
-                    onSubmit: headerRename.submitRename,
-                    onCancel: headerRename.cancelRename,
-                  }
-                : undefined,
-              dropdownItems: [
-                {
-                  label: 'Rename',
-                  icon: Pencil,
-                  onClick: handleStartHeaderRename,
-                },
-                {
-                  label: 'Download',
-                  icon: Download,
-                  onClick: handleDownloadSelected,
-                },
-                {
-                  label: 'Delete',
-                  icon: Trash,
-                  onClick: handleDeleteSelected,
-                },
-              ],
-            },
-          ]
-        : [],
-    [
-      selectedFile,
-      handleBackAttempt,
-      headerRename.editingId,
-      headerRename.editValue,
-      handleStartHeaderRename,
-      handleDownloadSelected,
-      handleDeleteSelected,
-    ]
-  )
+  const handleBulkDelete = useCallback(() => {
+    if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
+    setDeleteTarget({
+      fileIds: selectedFileIds,
+      folderIds: selectedFolderIds,
+      name:
+        selectedFileIds.length + selectedFolderIds.length === 1
+          ? (files.find((file) => file.id === selectedFileIds[0])?.name ??
+            folders.find((folder) => folder.id === selectedFolderIds[0])?.name ??
+            'selected item')
+          : `${selectedFileIds.length + selectedFolderIds.length} selected items`,
+    })
+    setShowDeleteConfirm(true)
+  }, [selectedFileIds, selectedFolderIds, files, folders])
 
-  const handleDiscardChanges = useCallback(() => {
+  const handleBulkDownload = useCallback(() => {
+    const selectedFiles = files.filter((file) => selectedFileIds.includes(file.id))
+    if (selectedFiles.length === 1 && selectedFolderIds.length === 0) {
+      handleDownload(selectedFiles[0])
+      return
+    }
+
+    const query = new URLSearchParams()
+    for (const fileId of selectedFileIds) query.append('fileIds', fileId)
+    for (const folderId of selectedFolderIds) query.append('folderIds', folderId)
+
+    if (query.size === 0) return
+    window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
+  }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
+
+  const fileDetailBreadcrumbs = useMemo(() => {
+    if (!selectedFile) return []
+
+    const folderBreadcrumbs: BreadcrumbItem[] = []
+    const visitedFolderIds = new Set<string>()
+    let folderId = selectedFile.folderId
+
+    while (folderId && !visitedFolderIds.has(folderId)) {
+      visitedFolderIds.add(folderId)
+      const folder = folderById.get(folderId)
+      if (!folder) break
+
+      folderBreadcrumbs.unshift({
+        label: folder.name,
+        onClick: () =>
+          handleNavigateFromFileDetail(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
+      })
+      folderId = folder.parentId
+    }
+
+    return [
+      {
+        label: 'Files',
+        onClick: () => handleNavigateFromFileDetail(`/workspace/${workspaceId}/files`),
+      },
+      ...folderBreadcrumbs,
+      {
+        label: selectedFile.name,
+        editing: headerRename.editingId
+          ? {
+              isEditing: true,
+              value: headerRename.editValue,
+              onChange: headerRename.setEditValue,
+              onSubmit: headerRename.submitRename,
+              onCancel: headerRename.cancelRename,
+            }
+          : undefined,
+        dropdownItems: [
+          { label: 'Download', icon: Download, onClick: handleDownloadSelected },
+          ...(canEdit
+            ? [
+                { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
+                { label: 'Delete', icon: Trash2, onClick: handleDeleteSelected },
+              ]
+            : []),
+        ],
+      },
+    ]
+  }, [
+    selectedFile,
+    folderById,
+    handleNavigateFromFileDetail,
+    workspaceId,
+    canEdit,
+    headerRename.editingId,
+    headerRename.editValue,
+    handleStartHeaderRename,
+    handleDownloadSelected,
+    handleDeleteSelected,
+  ])
+
+  const handleDiscardChanges = () => {
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
     setSaveStatus('idle')
     setPreviewMode('editor')
-    router.push(`/workspace/${workspaceId}/files`)
-  }, [router, workspaceId])
+    const folderId = selectedFileRef.current?.folderId
+    const targetUrl =
+      pendingFileNavigationUrlRef.current ??
+      (folderId
+        ? `/workspace/${workspaceId}/files?folderId=${folderId}`
+        : `/workspace/${workspaceId}/files`)
+    pendingFileNavigationUrlRef.current = null
+    router.push(targetUrl)
+  }
 
   const creatingFileRef = useRef(creatingFile)
   creatingFileRef.current = creatingFile
@@ -538,7 +1113,9 @@ export function Files() {
     setCreatingFile(true)
 
     try {
-      const existingNames = new Set(filesRef.current.map((f) => f.name))
+      const existingNames = new Set(
+        filesRef.current.filter((f) => (f.folderId ?? null) === currentFolderId).map((f) => f.name)
+      )
       let name = 'untitled.md'
       let counter = 1
       while (existingNames.has(name)) {
@@ -549,60 +1126,152 @@ export function Files() {
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })
       const file = new File([blob], name, { type: mimeType })
-      const result = await uploadFile.mutateAsync({ workspaceId, file })
+      const result = await uploadFile.mutateAsync({
+        workspaceId,
+        file,
+        folderId: currentFolderId,
+        skipToast: true,
+      })
       const fileId = result.file?.id
       if (fileId) {
         justCreatedFileIdRef.current = fileId
-        router.push(`/workspace/${workspaceId}/files/${fileId}`)
+        const params = new URLSearchParams({ new: '1' })
+        if (currentFolderId) params.set('folderId', currentFolderId)
+        router.push(`/workspace/${workspaceId}/files/${fileId}?${params.toString()}`)
       }
     } catch (err) {
       logger.error('Failed to create file:', err)
     } finally {
       setCreatingFile(false)
     }
-  }, [workspaceId, router])
+  }, [workspaceId, router, currentFolderId])
+
+  const handleCreateFolder = useCallback(async () => {
+    if (!workspaceId) return
+    const existingNames = new Set(
+      folders
+        .filter((folder) => (folder.parentId ?? null) === currentFolderId)
+        .map((folder) => folder.name)
+    )
+    let name = 'New folder'
+    let counter = 1
+    while (existingNames.has(name)) {
+      name = `New folder (${counter})`
+      counter++
+    }
+
+    try {
+      const folder = await createFolder.mutateAsync({
+        workspaceId,
+        name,
+        parentId: currentFolderId,
+      })
+      listRename.startRename(folderRowId(folder.id), folder.name)
+    } catch (error) {
+      logger.error('Failed to create folder:', error)
+      toast.error(toError(error).message)
+    }
+  }, [workspaceId, folders, currentFolderId, listRename.startRename])
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
-      const file = filesRef.current.find((f) => f.id === rowId)
-      if (file) {
-        setContextMenuFile(file)
-        openContextMenu(e)
+      const parsed = parseRowId(rowId)
+      const item =
+        parsed.kind === 'folder'
+          ? folders.find((folder) => folder.id === parsed.id)
+          : filesRef.current.find((file) => file.id === parsed.id)
+      if (!item) return
+      contextMenuItemRef.current =
+        parsed.kind === 'folder'
+          ? { kind: 'folder', id: parsed.id, folder: item as WorkspaceFileFolderApi }
+          : { kind: 'file', id: parsed.id, file: item as WorkspaceFileRecord }
+      if (!selectedRowIds.has(rowId)) {
+        lastSelectedIndexRef.current = visibleRowIds.indexOf(rowId)
+        setSelectedRowIds(new Set([rowId]))
       }
+      openContextMenu(e)
     },
-    [openContextMenu]
+    [folders, openContextMenu, selectedRowIds, visibleRowIds]
   )
 
-  const contextMenuFileRef = useRef(contextMenuFile)
-  contextMenuFileRef.current = contextMenuFile
-
   const handleContextMenuOpen = useCallback(() => {
-    const file = contextMenuFileRef.current
-    if (!file) return
-    router.push(`/workspace/${workspaceId}/files/${file.id}`)
+    const item = contextMenuItemRef.current
+    if (!item) return
+    if (item.kind === 'folder') {
+      router.push(`/workspace/${workspaceId}/files?folderId=${item.folder.id}`)
+      closeContextMenu()
+      return
+    }
+    router.push(
+      item.file.folderId
+        ? `/workspace/${workspaceId}/files/${item.file.id}?folderId=${item.file.folderId}`
+        : `/workspace/${workspaceId}/files/${item.file.id}`
+    )
     closeContextMenu()
   }, [closeContextMenu, router, workspaceId])
 
   const handleContextMenuDownload = useCallback(() => {
-    const file = contextMenuFileRef.current
-    if (!file) return
-    handleDownload(file)
+    const item = contextMenuItemRef.current
+    if (!item) return
+    const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
+    if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
+      handleBulkDownload()
+      closeContextMenu()
+      return
+    }
+    if (item.kind === 'folder') {
+      window.location.href = `/api/workspaces/${workspaceId}/files/download?folderIds=${encodeURIComponent(item.folder.id)}`
+      closeContextMenu()
+      return
+    }
+    handleDownload(item.file)
     closeContextMenu()
-  }, [handleDownload, closeContextMenu])
+  }, [selectedRowIds, handleBulkDownload, closeContextMenu, workspaceId, handleDownload])
 
   const handleContextMenuRename = useCallback(() => {
-    const file = contextMenuFileRef.current
-    if (file) listRename.startRename(file.id, file.name)
+    const item = contextMenuItemRef.current
+    if (item?.kind === 'file') listRename.startRename(fileRowId(item.file.id), item.file.name)
+    if (item?.kind === 'folder')
+      listRename.startRename(folderRowId(item.folder.id), item.folder.name)
     closeContextMenu()
   }, [listRename.startRename, closeContextMenu])
 
   const handleContextMenuDelete = useCallback(() => {
-    const file = contextMenuFileRef.current
-    if (!file) return
-    setDeleteTargetFile(file)
+    const item = contextMenuItemRef.current
+    if (!item) return
+    const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
+    if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
+      handleBulkDelete()
+      closeContextMenu()
+      return
+    }
+    setDeleteTarget(
+      item.kind === 'file'
+        ? { fileIds: [item.file.id], folderIds: [], name: item.file.name }
+        : { fileIds: [], folderIds: [item.folder.id], name: item.folder.name }
+    )
     setShowDeleteConfirm(true)
     closeContextMenu()
-  }, [closeContextMenu])
+  }, [selectedRowIds, handleBulkDelete, closeContextMenu])
+
+  const handleContextMenuMove = useCallback(
+    async (optionValue: string) => {
+      const targetFolderId = optionValue === '__root__' ? null : optionValue
+      try {
+        await moveItems.mutateAsync({
+          workspaceId,
+          fileIds: selectedFileIds,
+          folderIds: selectedFolderIds,
+          targetFolderId,
+        })
+        setSelectedRowIds(new Set())
+        closeContextMenu()
+      } catch (error) {
+        logger.error('Failed to move items:', error)
+      }
+    },
+    [workspaceId, selectedFileIds, selectedFolderIds, closeContextMenu]
+  )
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -619,15 +1288,17 @@ export function Files() {
   )
 
   const handleListUploadFile = useCallback(() => {
+    if (!canEdit || uploading) return
     fileInputRef.current?.click()
     closeListContextMenu()
-  }, [closeListContextMenu])
+  }, [canEdit, uploading, closeListContextMenu])
 
   const prevFileIdRef = useRef(fileIdFromRoute)
-  if (fileIdFromRoute !== prevFileIdRef.current) {
+  useEffect(() => {
+    if (fileIdFromRoute === prevFileIdRef.current) return
     prevFileIdRef.current = fileIdFromRoute
     const isJustCreated =
-      fileIdFromRoute != null && justCreatedFileIdRef.current === fileIdFromRoute
+      isNewFile || (fileIdFromRoute != null && justCreatedFileIdRef.current === fileIdFromRoute)
     if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
@@ -639,10 +1310,18 @@ export function Files() {
             : null
           return file && isPreviewable(file) ? 'preview' : 'editor'
         })()
-    if (nextMode !== previewMode) {
-      setPreviewMode(nextMode)
+    setPreviewMode((current) => (nextMode === current ? current : nextMode))
+  }, [fileIdFromRoute, isNewFile])
+
+  useEffect(() => {
+    if (isNewFile && fileIdFromRoute) {
+      router.replace(
+        currentFolderId
+          ? `/workspace/${workspaceId}/files/${fileIdFromRoute}?folderId=${currentFolderId}`
+          : `/workspace/${workspaceId}/files/${fileIdFromRoute}`
+      )
     }
-  }
+  }, [isNewFile, fileIdFromRoute, router, workspaceId, currentFolderId])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -663,6 +1342,49 @@ export function Files() {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, [handleSave])
+
+  const selectedRowIdsRef = useRef(selectedRowIds)
+  selectedRowIdsRef.current = selectedRowIds
+  const visibleRowIdsRef = useRef(visibleRowIds)
+  visibleRowIdsRef.current = visibleRowIds
+  const listRenameActiveRef = useRef(listRename.editingId)
+  listRenameActiveRef.current = listRename.editingId
+  const handleBulkDeleteRef = useRef(handleBulkDelete)
+  handleBulkDeleteRef.current = handleBulkDelete
+
+  useEffect(() => {
+    const handleListKeyDown = (e: KeyboardEvent) => {
+      if (fileIdFromRouteRef.current) return
+      const active = document.activeElement
+      if (
+        active &&
+        (active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          (active as HTMLElement).isContentEditable)
+      )
+        return
+      if (listRenameActiveRef.current) return
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRowIdsRef.current.size > 0) {
+        e.preventDefault()
+        handleBulkDeleteRef.current()
+        return
+      }
+
+      if (e.key === 'Escape' && selectedRowIdsRef.current.size > 0) {
+        e.preventDefault()
+        setSelectedRowIds(new Set())
+        return
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a' && visibleRowIdsRef.current.length > 0) {
+        e.preventDefault()
+        setSelectedRowIds(new Set(visibleRowIdsRef.current))
+      }
+    }
+    window.addEventListener('keydown', handleListKeyDown)
+    return () => window.removeEventListener('keydown', handleListKeyDown)
+  }, [])
 
   const handleCyclePreviewMode = useCallback(() => {
     setPreviewMode((prev) => {
@@ -731,14 +1453,19 @@ export function Files() {
         icon: Download,
         onClick: handleDownloadSelected,
       },
-      {
-        label: 'Delete',
-        icon: Trash,
-        onClick: handleDeleteSelected,
-      },
+      ...(canEdit
+        ? [
+            {
+              label: 'Delete',
+              icon: Trash2,
+              onClick: handleDeleteSelected,
+            },
+          ]
+        : []),
     ]
   }, [
     selectedFile,
+    canEdit,
     saveStatus,
     previewMode,
     isDirty,
@@ -755,48 +1482,49 @@ export function Files() {
   headerRenameRef.current = headerRename
 
   const handleRowClick = useCallback(
-    (id: string) => {
-      if (listRenameRef.current.editingId !== id && !headerRenameRef.current.editingId) {
-        router.push(`/workspace/${workspaceId}/files/${id}`)
+    (rowId: string) => {
+      if (listRenameRef.current.editingId !== rowId && !headerRenameRef.current.editingId) {
+        const parsed = parseRowId(rowId)
+        if (parsed.kind === 'folder') {
+          router.push(`/workspace/${workspaceId}/files?folderId=${parsed.id}`)
+          return
+        }
+        router.push(
+          currentFolderId
+            ? `/workspace/${workspaceId}/files/${parsed.id}?folderId=${currentFolderId}`
+            : `/workspace/${workspaceId}/files/${parsed.id}`
+        )
       }
     },
-    [router, workspaceId]
+    [router, workspaceId, currentFolderId]
   )
 
   const handleUploadClick = useCallback(() => {
+    if (!canEdit || uploading) return
     fileInputRef.current?.click()
-  }, [])
+  }, [canEdit, uploading])
 
-  const canEdit = userPermissions.canEdit === true
+  const searchConfig: SearchConfig = {
+    value: inputValue,
+    onChange: setInputValue,
+    onClearAll: () => setInputValue(''),
+    placeholder: 'Search files...',
+  }
 
-  const searchConfig: SearchConfig = useMemo(
-    () => ({
-      value: inputValue,
-      onChange: setInputValue,
-      onClearAll: () => setInputValue(''),
-      placeholder: 'Search files...',
-    }),
-    [inputValue]
-  )
+  const createConfig = {
+    label: 'New file',
+    onClick: handleCreateFile,
+    disabled: uploading || creatingFile || !canEdit,
+  }
 
-  const createConfig = useMemo(
-    () => ({
-      label: 'New file',
-      onClick: handleCreateFile,
-      disabled: uploading || creatingFile || !canEdit,
-    }),
-    [handleCreateFile, uploading, creatingFile, canEdit]
-  )
-
-  const uploadButtonLabel = useMemo(
-    () =>
-      uploading && uploadProgress.total > 0
-        ? `${uploadProgress.completed}/${uploadProgress.total}`
-        : uploading
-          ? 'Uploading...'
-          : 'Upload',
-    [uploading, uploadProgress.completed, uploadProgress.total]
-  )
+  const uploadButtonLabel =
+    uploading && uploadProgress.total > 0
+      ? uploadProgress.currentPercent > 0 && uploadProgress.currentPercent < 100
+        ? `${uploadProgress.completed}/${uploadProgress.total} · ${uploadProgress.currentPercent}%`
+        : `${uploadProgress.completed}/${uploadProgress.total}`
+      : uploading
+        ? 'Uploading...'
+        : 'Upload'
 
   const headerActionsConfig = useMemo(
     () => [
@@ -804,9 +1532,16 @@ export function Files() {
         label: uploadButtonLabel,
         icon: Upload,
         onClick: handleUploadClick,
+        disabled: uploading || !canEdit,
+      },
+      {
+        label: 'New folder',
+        icon: FolderPlus,
+        onClick: handleCreateFolder,
+        disabled: createFolder.isPending || !canEdit,
       },
     ],
-    [uploadButtonLabel, handleUploadClick]
+    [uploadButtonLabel, handleUploadClick, handleCreateFolder, createFolder.isPending, canEdit]
   )
 
   const handleNavigateToFiles = useCallback(() => {
@@ -818,34 +1553,63 @@ export function Files() {
     [handleNavigateToFiles]
   )
 
-  const typeDisplayLabel = useMemo(() => {
-    if (typeFilter.length === 0) return 'All'
-    if (typeFilter.length === 1) {
-      const labels: Record<string, string> = {
-        document: 'Documents',
-        audio: 'Audio',
-        video: 'Video',
-      }
-      return labels[typeFilter[0]] ?? typeFilter[0]
-    }
-    return `${typeFilter.length} selected`
-  }, [typeFilter])
+  const breadcrumbRenameRef = useRef(breadcrumbRename)
+  breadcrumbRenameRef.current = breadcrumbRename
 
-  const sizeDisplayLabel = useMemo(() => {
-    if (sizeFilter.length === 0) return 'All'
-    if (sizeFilter.length === 1) {
-      const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' }
-      return labels[sizeFilter[0]] ?? sizeFilter[0]
-    }
-    return `${sizeFilter.length} selected`
-  }, [sizeFilter])
+  const listBreadcrumbs = useMemo(() => {
+    const breadcrumbs: BreadcrumbItem[] = [{ label: 'Files', onClick: handleNavigateToFiles }]
+    if (!currentFolderPath) return breadcrumbs
 
-  const uploadedByDisplayLabel = useMemo(() => {
-    if (uploadedByFilter.length === 0) return 'All'
-    if (uploadedByFilter.length === 1)
-      return members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member'
-    return `${uploadedByFilter.length} members`
-  }, [uploadedByFilter, members])
+    const segments = currentFolderPath.split('/')
+    let parentId: string | null = null
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i]
+      const folder = folders.find(
+        (item) => item.name === segment && (item.parentId ?? null) === parentId
+      )
+      if (!folder) continue
+      const isCurrentFolder = folder.id === currentFolderId
+      breadcrumbs.push({
+        label: folder.name,
+        onClick: isCurrentFolder
+          ? undefined
+          : () => router.push(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
+        editing:
+          isCurrentFolder && breadcrumbRenameRef.current.editingId === folder.id
+            ? {
+                isEditing: true,
+                value: breadcrumbRenameRef.current.editValue,
+                onChange: breadcrumbRenameRef.current.setEditValue,
+                onSubmit: breadcrumbRenameRef.current.submitRename,
+                onCancel: breadcrumbRenameRef.current.cancelRename,
+              }
+            : undefined,
+        dropdownItems:
+          isCurrentFolder && (canEdit || userPermissions.isLoading)
+            ? [
+                {
+                  label: 'Rename',
+                  disabled: !canEdit,
+                  onClick: () => breadcrumbRenameRef.current.startRename(folder.id, folder.name),
+                },
+              ]
+            : undefined,
+      })
+      parentId = folder.id
+    }
+    return breadcrumbs
+  }, [
+    currentFolderPath,
+    currentFolderId,
+    folders,
+    handleNavigateToFiles,
+    router,
+    workspaceId,
+    canEdit,
+    userPermissions.isLoading,
+    breadcrumbRename.editingId,
+    breadcrumbRename.editValue,
+  ])
 
   const memberOptions: ComboboxOption[] = useMemo(
     () =>
@@ -857,16 +1621,32 @@ export function Files() {
             src={m.image}
             alt={m.name}
             referrerPolicy='no-referrer'
-            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
           />
         ) : (
-          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
             {m.name.charAt(0).toUpperCase()}
           </span>
         ),
       })),
     [members]
   )
+
+  const contextMenuMoveOptions = useMemo((): MoveOptionNode[] => {
+    const buildSubtree = (parentId: string | null): MoveOptionNode[] =>
+      folders
+        .filter((f) => {
+          if ((f.parentId ?? null) !== parentId) return false
+          if (selectedFolderIds.includes(f.id)) return false
+          return selectedFolderIds.every(
+            (sid) => !descendantFolderIdsByFolderId.get(sid)?.has(f.id)
+          )
+        })
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+        .map((f) => ({ value: f.id, label: f.name, children: buildSubtree(f.id) }))
+
+    return [{ value: '__root__', label: 'Files', children: [] }, ...buildSubtree(null)]
+  }, [folders, selectedFolderIds, descendantFolderIdsByFolderId])
 
   const sortConfig: SortConfig = useMemo(
     () => ({
@@ -875,6 +1655,7 @@ export function Files() {
         { id: 'size', label: 'Size' },
         { id: 'type', label: 'Type' },
         { id: 'created', label: 'Created' },
+        { id: 'updated', label: 'Last Updated' },
         { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
@@ -887,14 +1668,51 @@ export function Files() {
   const hasActiveFilters =
     typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
 
-  const filterContent = useMemo(
-    () => (
+  const emptyMessage = debouncedSearchTerm
+    ? `No files match "${debouncedSearchTerm}"`
+    : hasActiveFilters
+      ? 'No files match the active filters'
+      : undefined
+
+  const filterContent = useMemo(() => {
+    const typeDisplayLabel =
+      typeFilter.length === 0
+        ? 'All'
+        : typeFilter.length === 1
+          ? ((
+              {
+                document: 'Documents',
+                image: 'Images',
+                audio: 'Audio',
+                video: 'Video',
+              } as Record<string, string>
+            )[typeFilter[0]] ?? typeFilter[0])
+          : `${typeFilter.length} selected`
+
+    const sizeDisplayLabel =
+      sizeFilter.length === 0
+        ? 'All'
+        : sizeFilter.length === 1
+          ? (({ small: 'Small', medium: 'Medium', large: 'Large' } as Record<string, string>)[
+              sizeFilter[0]
+            ] ?? sizeFilter[0])
+          : `${sizeFilter.length} selected`
+
+    const uploadedByDisplayLabel =
+      uploadedByFilter.length === 0
+        ? 'All'
+        : uploadedByFilter.length === 1
+          ? (members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member')
+          : `${uploadedByFilter.length} members`
+
+    return (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
           <Combobox
             options={[
               { value: 'document', label: 'Documents' },
+              { value: 'image', label: 'Images' },
               { value: 'audio', label: 'Audio' },
               { value: 'video', label: 'Video' },
             ]}
@@ -955,37 +1773,28 @@ export function Files() {
           </div>
         )}
         {hasActiveFilters && (
-          <button
-            type='button'
+          <Button
+            variant='ghost'
             onClick={() => {
               setTypeFilter([])
               setSizeFilter([])
               setUploadedByFilter([])
             }}
-            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+            className='h-[32px] w-full text-caption hover-hover:bg-[var(--surface-active)]'
           >
             Clear all filters
-          </button>
+          </Button>
         )}
       </div>
-    ),
-    [
-      typeFilter,
-      sizeFilter,
-      uploadedByFilter,
-      memberOptions,
-      typeDisplayLabel,
-      sizeDisplayLabel,
-      uploadedByDisplayLabel,
-      hasActiveFilters,
-    ]
-  )
+    )
+  }, [typeFilter, sizeFilter, uploadedByFilter, memberOptions, members, hasActiveFilters])
 
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
     if (typeFilter.length > 0) {
       const typeLabels: Record<string, string> = {
         document: 'Documents',
+        image: 'Images',
         audio: 'Audio',
         video: 'Video',
       }
@@ -1017,12 +1826,12 @@ export function Files() {
     return tags
   }, [typeFilter, sizeFilter, uploadedByFilter, members])
 
-  if (fileIdFromRoute && !selectedFile) {
+  if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
         <ResourceHeader icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
-        <div className='flex flex-1 items-center justify-center'>
-          <Skeleton className='h-[16px] w-[200px]' />
+        <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
+          <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
       </div>
     )
@@ -1043,7 +1852,6 @@ export function Files() {
             workspaceId={workspaceId}
             canEdit={canEdit}
             previewMode={previewMode}
-            autoFocus={justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
             onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
@@ -1053,9 +1861,9 @@ export function Files() {
             <ModalContent size='sm'>
               <ModalHeader>Unsaved Changes</ModalHeader>
               <ModalBody>
-                <p className='text-[var(--text-secondary)]'>
+                <ModalDescription className='text-[var(--text-secondary)]'>
                   You have unsaved changes. Are you sure you want to discard them?
-                </p>
+                </ModalDescription>
               </ModalBody>
               <ModalFooter>
                 <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
@@ -1072,19 +1880,28 @@ export function Files() {
         <DeleteConfirmModal
           open={showDeleteConfirm}
           onOpenChange={setShowDeleteConfirm}
-          fileName={deleteTargetFile?.name}
+          fileName={deleteTarget?.name}
+          fileCount={deleteTarget?.fileIds.length ?? 0}
+          folderCount={deleteTarget?.folderIds.length ?? 0}
           onDelete={handleDelete}
-          isPending={deleteFile.isPending}
+          isPending={deleteFile.isPending || bulkArchiveItems.isPending}
         />
       </>
     )
   }
 
   return (
-    <>
+    <div
+      className='relative flex h-full flex-col overflow-hidden'
+      onDragEnter={canEdit ? handleDragEnter : undefined}
+      onDragLeave={canEdit ? handleDragLeave : undefined}
+      onDragOver={canEdit ? handleDragOver : undefined}
+      onDrop={canEdit ? handleDrop : undefined}
+    >
       <Resource
         icon={FilesIcon}
         title='Files'
+        breadcrumbs={listBreadcrumbs}
         create={createConfig}
         search={searchConfig}
         sort={sortConfig}
@@ -1093,10 +1910,38 @@ export function Files() {
         headerActions={headerActionsConfig}
         columns={COLUMNS}
         rows={rows}
+        selectable={selectableConfig}
+        rowDragDrop={rowDragDropConfig}
         onRowClick={handleRowClick}
         onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading}
+        isLoading={isLoading || foldersLoading}
         onContextMenu={handleContentContextMenu}
+        emptyMessage={emptyMessage}
+        overlay={
+          <>
+            <FilesActionBar
+              selectedCount={selectedRowIds.size}
+              onDownload={handleBulkDownload}
+              onMove={canEdit ? handleContextMenuMove : undefined}
+              moveOptions={canEdit ? contextMenuMoveOptions : undefined}
+              onDelete={canEdit ? handleBulkDelete : undefined}
+              isLoading={bulkArchiveItems.isPending || moveItems.isPending}
+            />
+            {isDraggingOver ? (
+              <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
+                <Upload className='size-5 text-[var(--brand-secondary)]' />
+                <div className='flex flex-col gap-0.5 text-center'>
+                  <p className='font-medium text-[14px] text-[var(--brand-secondary)]'>
+                    Drop to upload
+                  </p>
+                  <p className='text-[11px] text-[var(--text-tertiary)]'>
+                    Release files here to add them to this workspace
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </>
+        }
       />
 
       <FilesListContextMenu
@@ -1104,8 +1949,10 @@ export function Files() {
         position={listContextMenuPosition}
         onClose={closeListContextMenu}
         onCreateFile={handleCreateFile}
+        onCreateFolder={handleCreateFolder}
         onUploadFile={handleListUploadFile}
         disableCreate={uploading || creatingFile || !canEdit}
+        disableCreateFolder={createFolder.isPending || !canEdit}
         disableUpload={uploading || !canEdit}
       />
 
@@ -1117,15 +1964,20 @@ export function Files() {
         onDownload={handleContextMenuDownload}
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
+        onMove={handleContextMenuMove}
+        moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
+        selectedCount={selectedRowIds.size}
       />
 
       <DeleteConfirmModal
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
-        fileName={deleteTargetFile?.name}
+        fileName={deleteTarget?.name}
+        fileCount={deleteTarget?.fileIds.length ?? 0}
+        folderCount={deleteTarget?.folderIds.length ?? 0}
         onDelete={handleDelete}
-        isPending={deleteFile.isPending}
+        isPending={deleteFile.isPending || bulkArchiveItems.isPending}
       />
 
       <input
@@ -1133,120 +1985,10 @@ export function Files() {
         type='file'
         className='hidden'
         onChange={handleFileChange}
-        disabled={uploading}
+        disabled={uploading || !canEdit}
         accept={ACCEPT_ATTR}
         multiple
       />
-    </>
+    </div>
   )
 }
-
-interface FileRowContextMenuProps {
-  isOpen: boolean
-  position: { x: number; y: number }
-  onClose: () => void
-  onOpen: () => void
-  onDownload: () => void
-  onRename: () => void
-  onDelete: () => void
-  canEdit: boolean
-}
-
-const FileRowContextMenu = memo(function FileRowContextMenu({
-  isOpen,
-  position,
-  onClose,
-  onOpen,
-  onDownload,
-  onRename,
-  onDelete,
-  canEdit,
-}: FileRowContextMenuProps) {
-  return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        <DropdownMenuItem onSelect={onOpen}>
-          <Eye />
-          Open
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onDownload}>
-          <Download />
-          Download
-        </DropdownMenuItem>
-        {canEdit && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onRename}>
-              <Pencil />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onDelete}>
-              <Trash />
-              Delete
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-})
-
-interface DeleteConfirmModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  fileName?: string
-  onDelete: () => void
-  isPending: boolean
-}
-
-const DeleteConfirmModal = memo(function DeleteConfirmModal({
-  open,
-  onOpenChange,
-  fileName,
-  onDelete,
-  isPending,
-}: DeleteConfirmModalProps) {
-  return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='sm'>
-        <ModalHeader>Delete File</ModalHeader>
-        <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>?{' '}
-            <span className='text-[var(--text-tertiary)]'>
-              You can restore it from Recently Deleted in Settings.
-            </span>
-          </p>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => onOpenChange(false)} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button variant='destructive' onClick={onDelete} disabled={isPending}>
-            {isPending ? 'Deleting...' : 'Delete'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  )
-})

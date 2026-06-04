@@ -1,32 +1,29 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsDynamodbIntrospectContract } from '@/lib/api/contracts/tools/aws/dynamodb-introspect'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createRawDynamoDBClient, describeTable, listTables } from '@/app/api/tools/dynamodb/utils'
 
 const logger = createLogger('DynamoDBIntrospectAPI')
 
-const IntrospectSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  tableName: z.string().optional(),
-})
-
-export async function POST(request: NextRequest) {
-  const requestId = generateId().slice(0, 8)
-
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const params = IntrospectSchema.parse(body)
+    const parsed = await parseToolRequest(awsDynamodbIntrospectContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
-    logger.info(`[${requestId}] Introspecting DynamoDB in region ${params.region}`)
+    logger.info(`Introspecting DynamoDB in region ${params.region}`)
 
     const client = createRawDynamoDBClient({
       region: params.region,
@@ -38,10 +35,10 @@ export async function POST(request: NextRequest) {
       const { tables } = await listTables(client)
 
       if (params.tableName) {
-        logger.info(`[${requestId}] Describing table: ${params.tableName}`)
+        logger.info(`Describing table: ${params.tableName}`)
         const { tableDetails } = await describeTable(client, params.tableName)
 
-        logger.info(`[${requestId}] Table description completed for '${params.tableName}'`)
+        logger.info(`Table description completed for '${params.tableName}'`)
 
         return NextResponse.json({
           message: `Table '${params.tableName}' described successfully.`,
@@ -50,7 +47,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      logger.info(`[${requestId}] Listed ${tables.length} tables`)
+      logger.info(`Listed ${tables.length} tables`)
 
       return NextResponse.json({
         message: `Found ${tables.length} table(s) in region '${params.region}'.`,
@@ -60,20 +57,12 @@ export async function POST(request: NextRequest) {
       client.destroy()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    logger.error(`[${requestId}] DynamoDB introspection failed:`, error)
+    const errorMessage = toError(error).message || 'Unknown error occurred'
+    logger.error('DynamoDB introspection failed:', error)
 
     return NextResponse.json(
       { error: `DynamoDB introspection failed: ${errorMessage}` },
       { status: 500 }
     )
   }
-}
+})

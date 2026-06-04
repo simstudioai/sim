@@ -1,14 +1,15 @@
 import { db } from '@sim/db'
 import { workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { createScheduleContract, scheduleQuerySchema } from '@/lib/api/contracts/schedules'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { validateCronExpression } from '@/lib/workflows/schedules/utils'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { performCreateJob } from '@/lib/workflows/schedules/orchestration'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ScheduledAPI')
@@ -20,12 +21,14 @@ const logger = createLogger('ScheduledAPI')
  *   - workflowId + optional blockId  → single schedule for one workflow
  *   - workspaceId                    → all schedules across the workspace
  */
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const url = new URL(req.url)
-  const workflowId = url.searchParams.get('workflowId')
-  const workspaceId = url.searchParams.get('workspaceId')
-  const blockId = url.searchParams.get('blockId')
+  const queryValidation = scheduleQuerySchema.safeParse(
+    Object.fromEntries(url.searchParams.entries())
+  )
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+  const { workflowId, workspaceId, blockId } = queryValidation.data
 
   try {
     const session = await getSession()
@@ -115,7 +118,7 @@ export async function GET(req: NextRequest) {
     logger.error(`[${requestId}] Error retrieving workflow schedule`, error)
     return NextResponse.json({ error: 'Failed to retrieve workflow schedule' }, { status: 500 })
   }
-}
+})
 
 async function handleWorkspaceSchedules(requestId: string, userId: string, workspaceId: string) {
   const hasPermission = await verifyWorkspaceMembership(userId, workspaceId)
@@ -190,7 +193,7 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
  *
  * Body: { workspaceId, title, prompt, cronExpression, timezone, lifecycle?, maxRuns?, startDate? }
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -200,98 +203,69 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const {
-      workspaceId,
-      title,
-      prompt,
-      cronExpression,
-      timezone = 'UTC',
-      lifecycle = 'persistent',
-      maxRuns,
-      startDate,
-    } = body as {
-      workspaceId: string
-      title: string
-      prompt: string
-      cronExpression: string
-      timezone?: string
-      lifecycle?: 'persistent' | 'until_complete'
-      maxRuns?: number
-      startDate?: string
-    }
+    const parsed = await parseRequest(
+      createScheduleContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: 'Invalid request body', details: error.issues },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!workspaceId || !title?.trim() || !prompt?.trim() || !cronExpression?.trim()) {
-      return NextResponse.json(
-        { error: 'Missing required fields: workspaceId, title, prompt, cronExpression' },
-        { status: 400 }
-      )
-    }
+    const { workspaceId, title, prompt, cronExpression, timezone, lifecycle, maxRuns, startDate } =
+      parsed.data.body
 
-    const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
-    if (!hasPermission) {
+    const permission = await verifyWorkspaceMembership(session.user.id, workspaceId)
+    if (permission !== 'admin' && permission !== 'write') {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
-    const validation = validateCronExpression(cronExpression, timezone)
-    if (!validation.isValid) {
+    const result = await performCreateJob({
+      workspaceId,
+      userId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      title,
+      prompt,
+      cronExpression,
+      timezone,
+      lifecycle,
+      maxRuns,
+      startDate,
+      request: req,
+    })
+    if (!result.success || !result.schedule) {
       return NextResponse.json(
-        { error: validation.error || 'Invalid cron expression' },
-        { status: 400 }
+        { error: result.error || 'Failed to create schedule' },
+        { status: result.errorCode === 'validation' ? 400 : 500 }
       )
     }
 
-    let nextRunAt = validation.nextRun!
-    if (startDate) {
-      const start = new Date(startDate)
-      if (start > new Date()) {
-        nextRunAt = start
-      }
-    }
-
-    const now = new Date()
-    const id = generateId()
-
-    await db.insert(workflowSchedule).values({
-      id,
-      cronExpression,
-      triggerType: 'schedule',
-      sourceType: 'job',
-      status: 'active',
-      timezone,
-      nextRunAt,
-      createdAt: now,
-      updatedAt: now,
-      failedCount: 0,
-      jobTitle: title.trim(),
-      prompt: prompt.trim(),
-      lifecycle,
-      maxRuns: maxRuns ?? null,
-      runCount: 0,
-      sourceWorkspaceId: workspaceId,
-      sourceUserId: session.user.id,
-    })
-
-    logger.info(`[${requestId}] Created job schedule ${id}`, {
+    logger.info(`[${requestId}] Created job schedule ${result.schedule.id}`, {
       title,
       cronExpression,
       timezone,
       lifecycle,
     })
 
-    captureServerEvent(
-      session.user.id,
-      'scheduled_task_created',
-      { workspace_id: workspaceId },
-      { groups: { workspace: workspaceId } }
-    )
-
     return NextResponse.json(
-      { schedule: { id, status: 'active', cronExpression, nextRunAt } },
+      {
+        schedule: {
+          id: result.schedule.id,
+          status: result.schedule.status,
+          cronExpression: result.schedule.cronExpression,
+          nextRunAt: result.schedule.nextRunAt,
+        },
+      },
       { status: 201 }
     )
   } catch (error) {
     logger.error(`[${requestId}] Error creating schedule`, error)
     return NextResponse.json({ error: 'Failed to create schedule' }, { status: 500 })
   }
-}
+})

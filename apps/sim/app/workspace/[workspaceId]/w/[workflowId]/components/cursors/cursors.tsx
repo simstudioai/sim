@@ -5,6 +5,7 @@ import { useViewport } from 'reactflow'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CursorPoint {
   x: number
@@ -19,11 +20,16 @@ interface CursorRenderData {
 }
 
 const CursorsComponent = () => {
-  const { presenceUsers, currentSocketId } = useSocket()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const { currentWorkflowId, presenceUsers, currentSocketId } = useSocket()
   const viewport = useViewport()
   const preventZoomRef = usePreventZoom()
 
   const cursors = useMemo<CursorRenderData[]>(() => {
+    if (!activeWorkflowId || currentWorkflowId !== activeWorkflowId) {
+      return []
+    }
+
     return presenceUsers
       .filter((user): user is typeof user & { cursor: CursorPoint } => Boolean(user.cursor))
       .filter((user) => user.socketId !== currentSocketId)
@@ -33,7 +39,7 @@ const CursorsComponent = () => {
         cursor: user.cursor,
         color: getUserColor(user.userId),
       }))
-  }, [currentSocketId, presenceUsers])
+  }, [activeWorkflowId, currentSocketId, currentWorkflowId, presenceUsers])
 
   if (!cursors.length) {
     return null

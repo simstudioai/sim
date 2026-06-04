@@ -1,3 +1,9 @@
+import {
+  normalizeRecord,
+  normalizeRecordMap,
+  normalizeStringRecord,
+  normalizeWorkflowVariables,
+} from '@/lib/core/utils/records'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import type { CodeExecutionInput, CodeExecutionOutput } from '@/tools/function/types'
@@ -7,7 +13,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   id: 'function_execute',
   name: 'Function Execute',
   description:
-    'Execute JavaScript code. fetch() is available. Code runs in async IIFE wrapper automatically. CRITICAL: Write plain statements with await/return, NOT wrapped in functions. Example for API call: const res = await fetch(url); const data = await res.json(); return data;',
+    'Execute JavaScript, Python, or shell scripts in a secure sandbox. For JS: fetch() is available, code runs in async IIFE wrapper. For shell: workspace env vars available as $VAR_NAME, pre-installed CLI tools (jq, curl, awscli, psql, gh, etc.). Use outputPath/outputTable to persist returned data, or outputSandboxPath + outputPath to export a file created inside the sandbox into the workspace.',
   version: '1.0.0',
 
   params: {
@@ -22,7 +28,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Language to execute (javascript or python)',
+      description: 'Language to execute (javascript, python, or shell)',
       default: DEFAULT_CODE_LANGUAGE,
     },
     timeout: {
@@ -31,6 +37,40 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       visibility: 'hidden',
       description: 'Execution timeout in milliseconds',
       default: DEFAULT_EXECUTION_TIMEOUT_MS,
+    },
+    outputPath: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Write the tool result back to a workspace file, e.g. "files/result.json" or "files/report.csv". Use for text/JSON/CSV/markdown/html outputs.',
+    },
+    outputFormat: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Optional format override for outputPath (json, csv, txt, md, html).',
+    },
+    outputTable: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Overwrite a workspace table with the code result. The code must return an array of objects.',
+    },
+    outputSandboxPath: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Export a file created inside the sandbox to the workspace. Provide the sandbox file path here and also set outputPath to the workspace destination.',
+    },
+    outputMimeType: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'MIME type for the exported file. Required for binary files (e.g. "image/png", "application/pdf"). If omitted, inferred from outputPath extension for text formats.',
     },
     envVars: {
       type: 'object',
@@ -82,15 +122,28 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
 
       const body: Record<string, unknown> = {
         code: codeContent,
+        sourceCode: params.sourceCode,
         language: params.language || DEFAULT_CODE_LANGUAGE,
         timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
-        envVars: params.envVars || {},
-        workflowVariables: params.workflowVariables || {},
-        blockData: params.blockData || {},
-        blockNameMapping: params.blockNameMapping || {},
-        blockOutputSchemas: params.blockOutputSchemas || {},
+        outputPath: params.outputPath,
+        outputFormat: params.outputFormat,
+        outputTable: params.outputTable,
+        outputSandboxPath: params.outputSandboxPath,
+        outputMimeType: params.outputMimeType,
+        envVars: normalizeStringRecord(params.envVars),
+        workflowVariables: normalizeWorkflowVariables(params.workflowVariables),
+        blockData: normalizeRecord(params.blockData),
+        blockNameMapping: normalizeStringRecord(params.blockNameMapping),
+        blockOutputSchemas: normalizeRecordMap(params.blockOutputSchemas),
+        contextVariables: normalizeRecord(params.contextVariables),
         workflowId: params._context?.workflowId,
+        executionId: params._context?.executionId,
+        largeValueExecutionIds: params._context?.largeValueExecutionIds,
+        largeValueKeys: params._context?.largeValueKeys,
+        fileKeys: params._context?.fileKeys,
+        allowLargeValueWorkflowScope: params._context?.allowLargeValueWorkflowScope,
         userId: params._context?.userId,
+        workspaceId: params._context?.workspaceId,
         isCustomTool: params.isCustomTool || false,
       }
 
@@ -113,6 +166,9 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
           stdout: result.output?.stdout || '',
         },
         error: result.error,
+        resources: result.resources,
+        largeValueKeys: result.largeValueKeys,
+        fileKeys: result.fileKeys,
       }
     }
 
@@ -122,6 +178,9 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         result: result.output.result,
         stdout: result.output.stdout,
       },
+      resources: result.resources,
+      largeValueKeys: result.largeValueKeys,
+      fileKeys: result.fileKeys,
     }
   },
 

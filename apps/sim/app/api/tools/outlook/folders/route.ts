@@ -1,16 +1,27 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { toError } from '@sim/utils/errors'
+import { type NextRequest, NextResponse } from 'next/server'
+import { outlookFoldersSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OutlookFoldersAPI')
+
+/**
+ * Microsoft Graph paginates `mailFolders` via the `@odata.nextLink` absolute
+ * URL in the response body (default page size is ~10). Bound the drain so a
+ * pathological account can't loop unbounded; `$top` is capped at 999 by Graph.
+ * See https://learn.microsoft.com/en-us/graph/paging
+ */
+const OUTLOOK_FOLDERS_PAGE_SIZE = 999
+const MAX_OUTLOOK_FOLDERS_PAGES = 20
 
 interface OutlookFolder {
   id: string
@@ -19,16 +30,11 @@ interface OutlookFolder {
   unreadItemCount?: number
 }
 
-export async function GET(request: Request) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
-    const session = await getSession()
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-
-    if (!credentialId) {
-      logger.error('Missing credentialId in request')
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(outlookFoldersSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credentialId } = parsed.data.query
 
     const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId')
     if (!credentialIdValidation.isValid) {
@@ -37,49 +43,29 @@ export async function GET(request: Request) {
     }
 
     try {
-      const sessionUserId = session?.user?.id || ''
-
-      if (!sessionUserId) {
-        logger.error('No user ID found in session')
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-
-      const resolved = await resolveOAuthAccountId(credentialId)
-      if (!resolved) {
-        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-      }
-
-      if (resolved.workspaceId) {
-        const { getUserEntityPermissions } = await import('@/lib/workspaces/permissions/utils')
-        const perm = await getUserEntityPermissions(
-          session!.user!.id,
-          'workspace',
-          resolved.workspaceId
+      const credAccess = await authorizeCredentialUse(request, {
+        credentialId,
+        requireWorkflowIdForInternal: false,
+      })
+      if (!credAccess.ok || !credAccess.credentialOwnerUserId) {
+        logger.warn('Credential access denied', { error: credAccess.error })
+        return NextResponse.json(
+          { error: credAccess.error || 'Authentication required' },
+          { status: 401 }
         )
-        if (perm === null) {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-        }
       }
-
-      const creds = await db
-        .select()
-        .from(account)
-        .where(eq(account.id, resolved.accountId))
-        .limit(1)
-      if (!creds.length) {
-        logger.warn('Credential not found', { credentialId })
-        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-      }
-      const credentialOwnerUserId = creds[0].userId
 
       const accessToken = await refreshAccessTokenIfNeeded(
-        resolved.accountId,
-        credentialOwnerUserId,
+        credentialId,
+        credAccess.credentialOwnerUserId,
         generateRequestId()
       )
 
       if (!accessToken) {
-        logger.error('Failed to get access token', { credentialId, userId: credentialOwnerUserId })
+        logger.error('Failed to get access token', {
+          credentialId,
+          userId: credAccess.credentialOwnerUserId,
+        })
         return NextResponse.json(
           {
             error: 'Could not retrieve access token',
@@ -89,37 +75,53 @@ export async function GET(request: Request) {
         )
       }
 
-      const response = await fetch('https://graph.microsoft.com/v1.0/me/mailFolders', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      })
+      const folders: OutlookFolder[] = []
+      let nextUrl: string | undefined =
+        `https://graph.microsoft.com/v1.0/me/mailFolders?$top=${OUTLOOK_FOLDERS_PAGE_SIZE}`
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        logger.error('Microsoft Graph API error getting folders', {
-          status: response.status,
-          error: errorData,
-          endpoint: 'https://graph.microsoft.com/v1.0/me/mailFolders',
+      for (let page = 0; page < MAX_OUTLOOK_FOLDERS_PAGES && nextUrl; page++) {
+        const response = await fetch(nextUrl, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
         })
 
-        if (response.status === 401) {
-          return NextResponse.json(
-            {
-              error: 'Authentication failed. Please reconnect your Outlook account.',
-              authRequired: true,
-            },
-            { status: 401 }
-          )
+        if (!response.ok) {
+          const errorData = await response.json()
+          logger.error('Microsoft Graph API error getting folders', {
+            status: response.status,
+            error: errorData,
+            endpoint: nextUrl,
+          })
+
+          if (response.status === 401) {
+            return NextResponse.json(
+              {
+                error: 'Authentication failed. Please reconnect your Outlook account.',
+                authRequired: true,
+              },
+              { status: 401 }
+            )
+          }
+
+          throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
         }
 
-        throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
-      }
+        const data = await response.json()
+        folders.push(...((data.value as OutlookFolder[]) || []))
 
-      const data = await response.json()
-      const folders = data.value || []
+        const nextLink = getGraphNextPageUrl(data)
+        nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+
+        if (nextUrl && page === MAX_OUTLOOK_FOLDERS_PAGES - 1) {
+          logger.warn('Outlook mailFolders hit pagination cap; folder list may be incomplete', {
+            pages: MAX_OUTLOOK_FOLDERS_PAGES,
+            collected: folders.length,
+          })
+        }
+      }
 
       const transformedFolders = folders.map((folder: OutlookFolder) => ({
         id: folder.id,
@@ -135,7 +137,7 @@ export async function GET(request: Request) {
     } catch (innerError) {
       logger.error('Error during API requests:', innerError)
 
-      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError)
+      const errorMessage = toError(innerError).message
       if (
         errorMessage.includes('auth') ||
         errorMessage.includes('token') ||
@@ -164,4 +166,4 @@ export async function GET(request: Request) {
       { status: 500 }
     )
   }
-}
+})

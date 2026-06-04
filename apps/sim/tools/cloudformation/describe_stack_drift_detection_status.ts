@@ -11,7 +11,7 @@ export const describeStackDriftDetectionStatusTool: ToolConfig<
   id: 'cloudformation_describe_stack_drift_detection_status',
   name: 'CloudFormation Describe Stack Drift Detection Status',
   description: 'Check the status of a stack drift detection operation',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

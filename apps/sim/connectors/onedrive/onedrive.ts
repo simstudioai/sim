@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -135,7 +136,7 @@ function buildListUrl(folderPath?: string): string {
 export const onedriveConnector: ConnectorConfig = {
   id: 'onedrive',
   name: 'OneDrive',
-  description: 'Sync documents from Microsoft OneDrive into your knowledge base',
+  description: 'Sync documents from Microsoft OneDrive',
   version: '1.0.0',
   icon: MicrosoftOneDriveIcon,
 
@@ -298,7 +299,7 @@ export const onedriveConnector: ConnectorConfig = {
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
       logger.warn(`Failed to fetch content for file: ${item.name} (${item.id})`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -371,7 +372,7 @@ export const onedriveConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

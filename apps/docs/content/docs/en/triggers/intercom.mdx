@@ -1,0 +1,163 @@
+---
+title: Intercom
+description: Available Intercom triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="intercom"
+  color="#E0E0E0"
+/>
+
+Intercom provides 6 triggers for automating workflows based on events.
+
+## Triggers
+
+### Intercom Contact Created
+
+Trigger workflow when a new lead is created in Intercom
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Your app |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom Conversation Closed
+
+Trigger workflow when a conversation is closed in Intercom
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Your app |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom Conversation Created
+
+Trigger workflow when a new conversation is created in Intercom
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Your app |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom Conversation Reply
+
+Trigger workflow when someone replies to an Intercom conversation
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Your app |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom User Created
+
+Trigger workflow when a new user is created in Intercom
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Your app |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+
+
+---
+
+### Intercom Webhook (All Events)
+
+Trigger workflow on any Intercom webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Your app |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
+| `id` | string | Unique notification ID |
+| `app_id` | string | Your Intercom app ID |
+| `created_at` | number | Unix timestamp when the event occurred |
+| `delivery_attempts` | number | Number of delivery attempts for this notification |
+| `first_sent_at` | number | Unix timestamp of first delivery attempt |
+| `data` | json | data output from the tool |
+

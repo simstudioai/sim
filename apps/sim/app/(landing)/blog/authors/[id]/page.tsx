@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 export const revalidate = 3600
 
@@ -13,7 +14,29 @@ export async function generateMetadata({
   const { id } = await params
   const posts = (await getAllPostMeta()).filter((p) => p.author.id === id)
   const author = posts[0]?.author
-  return { title: author?.name ?? 'Author' }
+  const name = author?.name ?? 'Author'
+  return {
+    title: `${name} — Sim Blog`,
+    description: `Read articles by ${name} on the Sim blog.`,
+    alternates: { canonical: `${SITE_URL}/blog/authors/${id}` },
+    openGraph: {
+      title: `${name} — Sim Blog`,
+      description: `Read articles by ${name} on the Sim blog.`,
+      url: `${SITE_URL}/blog/authors/${id}`,
+      siteName: 'Sim',
+      type: 'profile',
+      ...(author?.avatarUrl
+        ? { images: [{ url: author.avatarUrl, width: 400, height: 400, alt: name }] }
+        : {}),
+    },
+    twitter: {
+      card: 'summary',
+      title: `${name} — Sim Blog`,
+      description: `Read articles by ${name} on the Sim blog.`,
+      site: '@simdotai',
+      ...(author?.xHandle ? { creator: `@${author.xHandle}` } : {}),
+    },
+  }
 }
 
 export default async function AuthorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,19 +50,41 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
       </main>
     )
   }
-  const personJsonLd = {
+  const graphJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Person',
-    name: author.name,
-    url: `https://sim.ai/blog/authors/${author.id}`,
-    sameAs: author.url ? [author.url] : [],
-    image: author.avatarUrl,
+    '@graph': [
+      {
+        '@type': 'Person',
+        name: author.name,
+        url: `${SITE_URL}/blog/authors/${author.id}`,
+        sameAs: author.url ? [author.url] : [],
+        image: author.avatarUrl,
+        worksFor: {
+          '@type': 'Organization',
+          name: 'Sim',
+          url: SITE_URL,
+        },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: author.name,
+            item: `${SITE_URL}/blog/authors/${author.id}`,
+          },
+        ],
+      },
+    ],
   }
   return (
     <main className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
       <script
         type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }}
       />
       <div className='mb-6 flex items-center gap-3'>
         {author.avatarUrl ? (

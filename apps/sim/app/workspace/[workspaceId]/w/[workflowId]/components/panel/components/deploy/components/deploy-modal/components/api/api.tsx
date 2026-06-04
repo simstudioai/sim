@@ -38,7 +38,6 @@ type AsyncExampleType = 'execute' | 'status' | 'rate-limits'
 type CodeLanguage = 'curl' | 'python' | 'javascript' | 'typescript'
 
 type CopiedState = {
-  endpoint: boolean // @remark: not used
   sync: boolean
   stream: boolean
   async: boolean
@@ -70,7 +69,6 @@ export function ApiDeploy({
   const [asyncExampleType, setAsyncExampleType] = useState<AsyncExampleType>('execute')
   const [language, setLanguage] = useState<CodeLanguage>('curl')
   const [copied, setCopied] = useState<CopiedState>({
-    endpoint: false, // @remark: not used
     sync: false,
     stream: false,
     async: false,
@@ -455,7 +453,7 @@ console.log(limits);`
                 aria-label='Copy command'
                 className='!p-1.5 -my-1.5'
               >
-                {copied.sync ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+                {copied.sync ? <Check className='size-3' /> : <Clipboard className='size-3' />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>
@@ -485,11 +483,7 @@ console.log(limits);`
                   aria-label='Copy command'
                   className='!p-1.5 -my-1.5'
                 >
-                  {copied.stream ? (
-                    <Check className='h-3 w-3' />
-                  ) : (
-                    <Clipboard className='h-3 w-3' />
-                  )}
+                  {copied.stream ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
@@ -528,7 +522,7 @@ console.log(limits);`
                   aria-label='Copy command'
                   className='!p-1.5 -my-1.5'
                 >
-                  {copied.async ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+                  {copied.async ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>

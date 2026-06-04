@@ -1,11 +1,9 @@
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge } from '@/executor/dag/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { EdgeManager } from './edge-manager'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 function createMockBlock(id: string): SerializedBlock {
   return {
@@ -162,6 +160,33 @@ describe('EdgeManager', () => {
 
       ready = edgeManager.processOutgoingEdges(block4Node, {})
       expect(ready).toEqual([])
+    })
+  })
+
+  describe('Subflow control edges', () => {
+    it('does not activate loop exit edge without matching selected route', () => {
+      const loopStartId = 'loop-loop-1-sentinel-start'
+      const bodyId = 'body'
+      const afterLoopId = 'after-loop'
+      const loopStartNode = createMockNode(loopStartId, [
+        { target: bodyId },
+        { target: afterLoopId, sourceHandle: EDGE.LOOP_EXIT },
+      ])
+      const bodyNode = createMockNode(bodyId, [], [loopStartId])
+      const afterLoopNode = createMockNode(afterLoopId, [], [loopStartId])
+      const dag = createMockDAG(
+        new Map<string, DAGNode>([
+          [loopStartId, loopStartNode],
+          [bodyId, bodyNode],
+          [afterLoopId, afterLoopNode],
+        ])
+      )
+      const edgeManager = new EdgeManager(dag)
+
+      const readyNodes = edgeManager.processOutgoingEdges(loopStartNode, { sentinelStart: true })
+
+      expect(readyNodes).toContain(bodyId)
+      expect(readyNodes).not.toContain(afterLoopId)
     })
   })
 
@@ -600,6 +625,199 @@ describe('EdgeManager', () => {
       })
       expect(readyNodes).toContain(function1Id)
     })
+
+    it('does not clear deactivated edges from prefix-sharing source node IDs', () => {
+      const shortSourceId = 'a'
+      const longSourceId = 'a-b'
+      const targetId = 'target'
+
+      const shortSourceNode = createMockNode(shortSourceId)
+      const longSourceNode = createMockNode(longSourceId, [
+        { target: targetId, sourceHandle: 'condition-if' },
+      ])
+      const targetNode = createMockNode(targetId, [], [longSourceId])
+
+      const dag = createMockDAG(
+        new Map<string, DAGNode>([
+          [shortSourceId, shortSourceNode],
+          [longSourceId, longSourceNode],
+          [targetId, targetNode],
+        ])
+      )
+      const edgeManager = new EdgeManager(dag)
+
+      edgeManager.processOutgoingEdges(longSourceNode, { selectedOption: 'else' })
+      expect(edgeManager.isNodeReady(targetNode)).toBe(true)
+
+      edgeManager.clearDeactivatedEdgesForNodes(new Set([shortSourceId]))
+
+      expect(edgeManager.isNodeReady(targetNode)).toBe(true)
+    })
+
+    /**
+     * Regression for the substring-match bug in clearDeactivatedEdgesForNodes.
+     *
+     * Reproduces the real workflow pattern where an empty upstream loop (e.g. KG) cascade
+     * deactivates its `loop_exit` edge into the next loop's sentinel-start (e.g. SBJ). When
+     * SBJ iterates and resets its state between iterations, the old buggy `includes(\`-${nodeId}-\`)`
+     * check matched edge keys where the sentinel was the TARGET (not the source), wrongly
+     * reactivating that external edge. That made countActiveIncomingEdges see a phantom pending
+     * upstream and SBJ's sentinel-start stopped being ready, stalling the loop after iteration 1.
+     */
+    it('should not re-activate external cascade-deactivated edges pointing INTO a loop node', () => {
+      const externalNodeId = 'external-node'
+      const sbjSentinelStartId = 'loop-sbj-sentinel-start'
+      const sbjSentinelEndId = 'loop-sbj-sentinel-end'
+      const bodyNodeId = 'body-node'
+
+      const externalNode = createMockNode(externalNodeId, [
+        { target: sbjSentinelStartId, sourceHandle: 'condition-if' },
+      ])
+      const sbjSentinelStartNode = createMockNode(
+        sbjSentinelStartId,
+        [{ target: bodyNodeId }],
+        [externalNodeId]
+      )
+      const bodyNode = createMockNode(
+        bodyNodeId,
+        [{ target: sbjSentinelEndId }],
+        [sbjSentinelStartId]
+      )
+      const sbjSentinelEndNode = createMockNode(sbjSentinelEndId, [], [bodyNodeId])
+
+      const nodes = new Map<string, DAGNode>([
+        [externalNodeId, externalNode],
+        [sbjSentinelStartId, sbjSentinelStartNode],
+        [bodyNodeId, bodyNode],
+        [sbjSentinelEndId, sbjSentinelEndNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      edgeManager.processOutgoingEdges(externalNode, { selectedOption: 'else' })
+
+      expect(edgeManager.isNodeReady(sbjSentinelStartNode)).toBe(true)
+
+      edgeManager.clearDeactivatedEdgesForNodes(
+        new Set([sbjSentinelStartId, sbjSentinelEndId, bodyNodeId])
+      )
+
+      expect(edgeManager.isNodeReady(sbjSentinelStartNode)).toBe(true)
+    })
+
+    /**
+     * End-to-end regression: after a loop reset while an external edge is cascade-deactivated,
+     * the backwards `loop_continue` edge from sentinel-end must still mark sentinel-start as
+     * ready. The old code removed the external edge's deactivation entry, leaving a phantom
+     * active incoming and producing the exact "loop stops after 1 iteration" symptom the user
+     * hit on the Group A workflow.
+     */
+    it('should leave sbjSentinelStart ready after loop reset when external edge is cascade-deactivated', () => {
+      const externalNodeId = 'external-node'
+      const sbjSentinelStartId = 'loop-sbj-sentinel-start'
+      const sbjSentinelEndId = 'loop-sbj-sentinel-end'
+      const bodyNodeId = 'body-node'
+
+      const externalNode = createMockNode(externalNodeId, [
+        { target: sbjSentinelStartId, sourceHandle: 'condition-if' },
+      ])
+      const sbjSentinelStartNode = createMockNode(
+        sbjSentinelStartId,
+        [{ target: bodyNodeId }],
+        [externalNodeId]
+      )
+      const bodyNode = createMockNode(
+        bodyNodeId,
+        [{ target: sbjSentinelEndId }],
+        [sbjSentinelStartId]
+      )
+      const sbjSentinelEndNode = createMockNode(
+        sbjSentinelEndId,
+        [{ target: sbjSentinelStartId, sourceHandle: 'loop_continue' }],
+        [bodyNodeId]
+      )
+
+      const nodes = new Map<string, DAGNode>([
+        [externalNodeId, externalNode],
+        [sbjSentinelStartId, sbjSentinelStartNode],
+        [bodyNodeId, bodyNode],
+        [sbjSentinelEndId, sbjSentinelEndNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      edgeManager.processOutgoingEdges(externalNode, { selectedOption: 'else' })
+
+      edgeManager.clearDeactivatedEdgesForNodes(
+        new Set([sbjSentinelStartId, sbjSentinelEndId, bodyNodeId])
+      )
+
+      const readyNodes = edgeManager.processOutgoingEdges(sbjSentinelEndNode, {
+        selectedRoute: 'loop_continue',
+      })
+
+      expect(readyNodes).toContain(sbjSentinelStartId)
+    })
+
+    /**
+     * Guard against an overly narrow fix: edges whose SOURCE is inside the loop (e.g. a body
+     * node that deactivated its outgoing edge during the previous iteration) must still be
+     * cleared on reset so the next iteration can traverse them.
+     */
+    it('should re-activate internal loop edges (source inside loop) when resetting loop state', () => {
+      const sbjSentinelStartId = 'loop-sbj-sentinel-start'
+      const sbjSentinelEndId = 'loop-sbj-sentinel-end'
+      const conditionInLoopId = 'condition-in-loop'
+      const thenBranchId = 'then-branch'
+
+      const sbjSentinelStartNode = createMockNode(sbjSentinelStartId, [
+        { target: conditionInLoopId },
+      ])
+      const conditionInLoopNode = createMockNode(
+        conditionInLoopId,
+        [
+          { target: thenBranchId, sourceHandle: 'condition-if' },
+          { target: sbjSentinelEndId, sourceHandle: 'condition-else' },
+        ],
+        [sbjSentinelStartId]
+      )
+      const thenBranchNode = createMockNode(
+        thenBranchId,
+        [{ target: sbjSentinelEndId }],
+        [conditionInLoopId]
+      )
+      const sbjSentinelEndNode = createMockNode(
+        sbjSentinelEndId,
+        [],
+        [conditionInLoopId, thenBranchId]
+      )
+
+      const nodes = new Map<string, DAGNode>([
+        [sbjSentinelStartId, sbjSentinelStartNode],
+        [conditionInLoopId, conditionInLoopNode],
+        [thenBranchId, thenBranchNode],
+        [sbjSentinelEndId, sbjSentinelEndNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      edgeManager.processOutgoingEdges(conditionInLoopNode, { selectedOption: 'else' })
+
+      edgeManager.clearDeactivatedEdgesForNodes(
+        new Set([sbjSentinelStartId, sbjSentinelEndId, conditionInLoopId, thenBranchId])
+      )
+
+      thenBranchNode.incomingEdges.add(conditionInLoopId)
+
+      const readyNodes = edgeManager.processOutgoingEdges(conditionInLoopNode, {
+        selectedOption: 'if',
+      })
+
+      expect(readyNodes).toContain(thenBranchId)
+    })
   })
 
   describe('restoreIncomingEdge', () => {
@@ -623,6 +841,37 @@ describe('EdgeManager', () => {
       edgeManager.restoreIncomingEdge(targetId, sourceId)
 
       expect(targetNode.incomingEdges.has(sourceId)).toBe(true)
+    })
+  })
+
+  describe('restoreDeactivatedEdges', () => {
+    it('restores activated target state used by convergent routing after resume', () => {
+      const edgeManager = new EdgeManager(createMockDAG(new Map()))
+
+      edgeManager.restoreDeactivatedEdges([], ['join'])
+
+      expect(edgeManager.getNodesWithActivatedEdge()).toEqual(['join'])
+    })
+
+    it('normalizes legacy deactivated edge keys on restore', () => {
+      const sourceNode = createMockNode('source-node', [
+        { target: 'target-node', sourceHandle: 'condition-if' },
+      ])
+      const targetNode = createMockNode('target-node', [], ['source-node'])
+      const edgeManager = new EdgeManager(
+        createMockDAG(
+          new Map<string, DAGNode>([
+            [sourceNode.id, sourceNode],
+            [targetNode.id, targetNode],
+          ])
+        )
+      )
+
+      edgeManager.restoreDeactivatedEdges(['source-node-target-node-condition-if'])
+
+      expect(edgeManager.getDeactivatedEdges()).toEqual([
+        JSON.stringify(['source-node', 'target-node', 'condition-if']),
+      ])
     })
   })
 
@@ -1044,7 +1293,11 @@ describe('EdgeManager', () => {
       const edgeManager = new EdgeManager(dag)
 
       // Process without skipping backwards edges
-      const readyNodes = edgeManager.processOutgoingEdges(loopBodyNode, {}, false)
+      const readyNodes = edgeManager.processOutgoingEdges(
+        loopBodyNode,
+        { selectedRoute: EDGE.LOOP_CONTINUE },
+        false
+      )
 
       // Loop start should be activated
       expect(readyNodes).toContain(loopStartId)
@@ -1139,6 +1392,107 @@ describe('EdgeManager', () => {
       expect(readyNodes).not.toContain(target1Id)
       expect(readyNodes).not.toContain(target2Id)
       expect(readyNodes).toHaveLength(0)
+    })
+
+    it('should handle no matching router route without queuing downstream sentinels', () => {
+      const routerId = 'router-1'
+      const routeTargetId = 'route-target'
+      const downstreamSentinelId = 'loop-downstream-sentinel-end'
+      const afterLoopId = 'after-loop'
+
+      const routerNode = createMockNode(routerId, [
+        { target: routeTargetId, sourceHandle: 'router-route1' },
+      ])
+      const routeTargetNode = createMockNode(
+        routeTargetId,
+        [{ target: downstreamSentinelId }],
+        [routerId]
+      )
+      const downstreamSentinelNode = createMockNode(
+        downstreamSentinelId,
+        [{ target: afterLoopId, sourceHandle: EDGE.LOOP_EXIT }],
+        [routeTargetId]
+      )
+      downstreamSentinelNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: 'downstream',
+        subflowType: 'loop',
+      }
+      const afterLoopNode = createMockNode(afterLoopId, [], [downstreamSentinelId])
+
+      const nodes = new Map<string, DAGNode>([
+        [routerId, routerNode],
+        [routeTargetId, routeTargetNode],
+        [downstreamSentinelId, downstreamSentinelNode],
+        [afterLoopId, afterLoopNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+      const readyNodes = edgeManager.processOutgoingEdges(routerNode, {
+        selectedRoute: 'missing-route',
+      })
+
+      expect(readyNodes).not.toContain(routeTargetId)
+      expect(readyNodes).not.toContain(downstreamSentinelId)
+      expect(readyNodes).toHaveLength(0)
+    })
+
+    it('should allow no matching router route to queue an enclosing subflow sentinel', () => {
+      const loopId = 'loop-1'
+      const routerId = 'router-1'
+      const routeTargetId = 'route-target'
+      const loopEndId = `loop-${loopId}-sentinel-end`
+      const loopStartId = `loop-${loopId}-sentinel-start`
+
+      const routerNode = createMockNode(
+        routerId,
+        [{ target: routeTargetId, sourceHandle: 'router-route1' }],
+        [loopStartId]
+      )
+      routerNode.metadata = {
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
+      const routeTargetNode = createMockNode(routeTargetId, [{ target: loopEndId }], [routerId])
+      routeTargetNode.metadata = {
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
+      const loopEndNode = createMockNode(
+        loopEndId,
+        [
+          { target: loopStartId, sourceHandle: EDGE.LOOP_CONTINUE },
+          { target: 'after-loop', sourceHandle: EDGE.LOOP_EXIT },
+        ],
+        [routeTargetId]
+      )
+      loopEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
+      const loopStartNode = createMockNode(loopStartId, [{ target: routerId }], [loopEndId])
+      const afterLoopNode = createMockNode('after-loop', [], [loopEndId])
+
+      const nodes = new Map<string, DAGNode>([
+        [routerId, routerNode],
+        [routeTargetId, routeTargetNode],
+        [loopEndId, loopEndNode],
+        [loopStartId, loopStartNode],
+        ['after-loop', afterLoopNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+      const readyNodes = edgeManager.processOutgoingEdges(routerNode, {
+        selectedRoute: 'missing-route',
+      })
+
+      expect(readyNodes).not.toContain(routeTargetId)
+      expect(readyNodes).toContain(loopEndId)
     })
   })
 
@@ -1266,6 +1620,35 @@ describe('EdgeManager', () => {
         selectedRoute: 'parallel_exit',
       })
       expect(readyAfterParallelEnd).toContain(afterParallelId)
+    })
+
+    it('should route parallel_continue back to parallel start without activating exit', () => {
+      const parallelStartId = 'parallel-start'
+      const parallelEndId = 'parallel-end'
+      const afterParallelId = 'after-parallel'
+
+      const parallelStartNode = createMockNode(parallelStartId)
+      const parallelEndNode = createMockNode(parallelEndId, [
+        { target: parallelStartId, sourceHandle: 'parallel_continue' },
+        { target: afterParallelId, sourceHandle: 'parallel_exit' },
+      ])
+      const afterParallelNode = createMockNode(afterParallelId, [], [parallelEndId])
+
+      const nodes = new Map<string, DAGNode>([
+        [parallelStartId, parallelStartNode],
+        [parallelEndId, parallelEndNode],
+        [afterParallelId, afterParallelNode],
+      ])
+
+      const dag = createMockDAG(nodes)
+      const edgeManager = new EdgeManager(dag)
+
+      const readyAfterParallelContinue = edgeManager.processOutgoingEdges(parallelEndNode, {
+        selectedRoute: 'parallel_continue',
+      })
+
+      expect(readyAfterParallelContinue).toContain(parallelStartId)
+      expect(readyAfterParallelContinue).not.toContain(afterParallelId)
     })
 
     it('should handle condition with null selectedOption inside loop (dead-end branch)', () => {
@@ -1670,20 +2053,25 @@ describe('EdgeManager', () => {
       const func2Id = 'func2'
 
       const sentinelStartNode = createMockNode(sentinelStartId, [{ target: func1Id }])
-      sentinelStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId }
+      sentinelStartNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
 
       const func1Node = createMockNode(func1Id, [{ target: conditionId }], [sentinelStartId])
-      func1Node.metadata = { loopId, isLoopNode: true }
+      func1Node.metadata = { subflowId: loopId, subflowType: 'loop', isLoopNode: true }
 
       const conditionNode = createMockNode(
         conditionId,
         [{ target: func2Id, sourceHandle: 'condition-if' }],
         [func1Id]
       )
-      conditionNode.metadata = { loopId, isLoopNode: true }
+      conditionNode.metadata = { subflowId: loopId, subflowType: 'loop', isLoopNode: true }
 
       const func2Node = createMockNode(func2Id, [{ target: sentinelEndId }], [conditionId])
-      func2Node.metadata = { loopId, isLoopNode: true }
+      func2Node.metadata = { subflowId: loopId, subflowType: 'loop', isLoopNode: true }
 
       const sentinelEndNode = createMockNode(
         sentinelEndId,
@@ -1693,7 +2081,12 @@ describe('EdgeManager', () => {
         ],
         [func2Id]
       )
-      sentinelEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId }
+      sentinelEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
 
       const afterLoopNode = createMockNode('after-loop', [], [sentinelEndId])
 
@@ -1801,31 +2194,41 @@ describe('EdgeManager', () => {
       const funcId = 'func'
 
       const sentinelStartNode = createMockNode(sentinelStartId, [{ target: condition1Id }])
-      sentinelStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId }
+      sentinelStartNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
 
       const condition1Node = createMockNode(
         condition1Id,
         [{ target: condition2Id, sourceHandle: 'condition-if' }],
         [sentinelStartId]
       )
-      condition1Node.metadata = { loopId, isLoopNode: true }
+      condition1Node.metadata = { subflowId: loopId, subflowType: 'loop', isLoopNode: true }
 
       const condition2Node = createMockNode(
         condition2Id,
         [{ target: funcId, sourceHandle: 'condition-if' }],
         [condition1Id]
       )
-      condition2Node.metadata = { loopId, isLoopNode: true }
+      condition2Node.metadata = { subflowId: loopId, subflowType: 'loop', isLoopNode: true }
 
       const funcNode = createMockNode(funcId, [{ target: sentinelEndId }], [condition2Id])
-      funcNode.metadata = { loopId, isLoopNode: true }
+      funcNode.metadata = { subflowId: loopId, subflowType: 'loop', isLoopNode: true }
 
       const sentinelEndNode = createMockNode(
         sentinelEndId,
         [{ target: sentinelStartId, sourceHandle: 'loop_continue' }],
         [funcId]
       )
-      sentinelEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId }
+      sentinelEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
 
       const nodes = new Map<string, DAGNode>([
         [sentinelStartId, sentinelStartNode],
@@ -1874,34 +2277,62 @@ describe('EdgeManager', () => {
       const innerEndId = 'inner-end'
 
       const outerStartNode = createMockNode(outerStartId, [{ target: conditionId }])
-      outerStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId: outerLoopId }
+      outerStartNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: outerLoopId,
+        subflowType: 'loop',
+      }
 
       const conditionNode = createMockNode(
         conditionId,
         [{ target: innerStartId, sourceHandle: 'condition-if' }],
         [outerStartId]
       )
-      conditionNode.metadata = { loopId: outerLoopId, isLoopNode: true }
+      conditionNode.metadata = {
+        subflowId: outerLoopId,
+        subflowType: 'loop',
+        isLoopNode: true,
+      }
 
       const innerStartNode = createMockNode(innerStartId, [{ target: innerBodyId }], [conditionId])
-      innerStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId: innerLoopId }
+      innerStartNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: innerLoopId,
+        subflowType: 'loop',
+      }
 
       const innerBodyNode = createMockNode(innerBodyId, [{ target: innerEndId }], [innerStartId])
-      innerBodyNode.metadata = { loopId: innerLoopId, isLoopNode: true }
+      innerBodyNode.metadata = {
+        subflowId: innerLoopId,
+        subflowType: 'loop',
+        isLoopNode: true,
+      }
 
       const innerEndNode = createMockNode(
         innerEndId,
         [{ target: outerEndId, sourceHandle: 'loop_exit' }],
         [innerBodyId]
       )
-      innerEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId: innerLoopId }
+      innerEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: innerLoopId,
+        subflowType: 'loop',
+      }
 
       const outerEndNode = createMockNode(
         outerEndId,
         [{ target: outerStartId, sourceHandle: 'loop_continue' }],
         [innerEndId]
       )
-      outerEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId: outerLoopId }
+      outerEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: outerLoopId,
+        subflowType: 'loop',
+      }
 
       const nodes = new Map<string, DAGNode>([
         [outerStartId, outerStartNode],

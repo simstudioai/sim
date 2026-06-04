@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { getCostMultiplier } from '@/lib/core/config/feature-flags'
 import type { StreamingExecution } from '@/executor/types'
@@ -54,6 +55,74 @@ function isReadableStream(response: any): response is ReadableStream {
   return response instanceof ReadableStream
 }
 
+const ZERO_COST = Object.freeze({
+  input: 0,
+  output: 0,
+  total: 0,
+  pricing: Object.freeze({ input: 0, output: 0, updatedAt: new Date(0).toISOString() }),
+})
+
+const ZERO_SEGMENT_COST = Object.freeze({ input: 0, output: 0, total: 0 })
+
+/**
+ * Zeroes per-segment model cost on already-populated time segments so that
+ * `calculateCostSummary` (which sums `span.children[].cost.total` from the
+ * trace-spans pipeline) does not re-introduce the gross hosted-rate cost
+ * after the provider response's block-level cost was correctly zeroed for
+ * BYOK. Tool-segment costs are intentionally left intact.
+ */
+function zeroModelSegmentCosts(
+  segments: { type?: string; cost?: { input?: number; output?: number; total?: number } }[]
+): void {
+  for (const segment of segments) {
+    if (segment.type === 'model' && segment.cost) {
+      segment.cost = { ...ZERO_SEGMENT_COST }
+    }
+  }
+}
+
+/**
+ * Prevents streaming callbacks from writing non-zero model cost for BYOK users
+ * while preserving tool costs. The property is frozen via defineProperty because
+ * providers set cost inside streaming callbacks that fire after this function returns.
+ *
+ * Also zeroes any per-segment model cost already written by trace enrichers
+ * (which run synchronously before streaming begins for all current providers).
+ */
+function zeroCostForBYOK(response: StreamingExecution): void {
+  const output = response.execution?.output as
+    | (Record<string, unknown> & {
+        providerTiming?: {
+          timeSegments?: Array<{
+            type?: string
+            cost?: { input?: number; output?: number; total?: number }
+          }>
+        }
+      })
+    | undefined
+  if (!output || typeof output !== 'object') {
+    logger.warn('zeroCostForBYOK: output not available at intercept time; cost may not be zeroed')
+    return
+  }
+
+  let toolCost = 0
+  Object.defineProperty(output, 'cost', {
+    get: () => (toolCost > 0 ? { ...ZERO_COST, toolCost, total: toolCost } : ZERO_COST),
+    set: (value: Record<string, unknown>) => {
+      if (value?.toolCost && typeof value.toolCost === 'number') {
+        toolCost = value.toolCost
+      }
+    },
+    configurable: true,
+    enumerable: true,
+  })
+
+  const segments = output.providerTiming?.timeSegments
+  if (Array.isArray(segments)) {
+    zeroModelSegmentCosts(segments)
+  }
+}
+
 export async function executeProviderRequest(
   providerId: string,
   request: ProviderRequest
@@ -80,11 +149,17 @@ export async function executeProviderRequest(
       )
       resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
       isBYOK = result.isBYOK
+      logger.info('API key resolved', {
+        provider: providerId,
+        model: request.model,
+        workspaceId: request.workspaceId,
+        isBYOK,
+      })
     } catch (error) {
       logger.error('Failed to resolve API key:', {
         provider: providerId,
         model: request.model,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       throw error
     }
@@ -118,7 +193,10 @@ export async function executeProviderRequest(
   const response = await provider.executeRequest(sanitizedRequest)
 
   if (isStreamingExecution(response)) {
-    logger.info('Provider returned StreamingExecution')
+    logger.info('Provider returned StreamingExecution', { isBYOK })
+    if (isBYOK) {
+      zeroCostForBYOK(response)
+    }
     return response
   }
 
@@ -154,13 +232,21 @@ export async function executeProviderRequest(
         },
       }
       if (isBYOK) {
-        logger.debug(`Not billing model usage for ${response.model} - workspace BYOK key used`)
+        logger.info(`Not billing model usage for ${response.model} - workspace BYOK key used`)
       } else {
-        logger.debug(
+        logger.info(
           `Not billing model usage for ${response.model} - user provided API key or not hosted model`
         )
       }
     }
+  }
+
+  // Per-segment model costs are written by trace enrichers regardless of BYOK
+  // status. Zero them here so the trace-spans aggregator (which sums child
+  // span cost) does not re-introduce the gross hosted-rate cost after the
+  // block-level response.cost was already set to zero above.
+  if (isBYOK && response.timing?.timeSegments) {
+    zeroModelSegmentCosts(response.timing.timeSegments)
   }
 
   const toolCost = sumToolCosts(response.toolResults)

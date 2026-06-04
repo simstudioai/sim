@@ -1,0 +1,259 @@
+---
+title: Resend
+description: Available Resend triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="resend"
+  color="#181C1E"
+/>
+
+Resend provides 8 triggers for automating workflows based on events.
+
+## Triggers
+
+### Resend Email Bounced
+
+Trigger workflow when an email bounces
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Resend. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+| `bounceType` | string | Bounce type \(e.g., Permanent\) |
+| `bounceSubType` | string | Bounce sub-type \(e.g., Suppressed\) |
+| `bounceMessage` | string | Bounce error message |
+
+
+---
+
+### Resend Email Clicked
+
+Trigger workflow when a link in an email is clicked
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Resend. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+| `clickIpAddress` | string | IP address of the click |
+| `clickLink` | string | URL that was clicked |
+| `clickTimestamp` | string | Click timestamp \(ISO 8601\) |
+| `clickUserAgent` | string | Browser user agent string |
+
+
+---
+
+### Resend Email Complained
+
+Trigger workflow when an email is marked as spam
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Resend. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Email Delivered
+
+Trigger workflow when an email is delivered
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Resend. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Email Failed
+
+Trigger workflow when an email fails to send
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Resend. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Email Opened
+
+Trigger workflow when an email is opened
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Resend. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Email Sent
+
+Trigger workflow when an email is sent
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Resend. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+
+
+---
+
+### Resend Webhook (All Events)
+
+Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Resend. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., email.sent, email.delivered\) |
+| `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
+| `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
+| `email_id` | string | Unique email identifier |
+| `broadcast_id` | string | Broadcast ID associated with the email, when sent as part of a broadcast |
+| `template_id` | string | Template ID used to send the email, when applicable |
+| `tags` | json | Tag key/value metadata attached to the email \(payload `data.tags`\) |
+| `from` | string | Sender email address |
+| `subject` | string | Email subject line |
+| `to` | json | Array of recipient email addresses |
+| `data` | json | Raw event `data` from Resend \(shape varies by event type: email, contact, domain, etc.\) |
+| `bounceType` | string | Bounce type \(e.g., Permanent\) |
+| `bounceSubType` | string | Bounce sub-type \(e.g., Suppressed\) |
+| `bounceMessage` | string | Bounce error message |
+| `clickIpAddress` | string | IP address of the click |
+| `clickLink` | string | URL that was clicked |
+| `clickTimestamp` | string | Click timestamp \(ISO 8601\) |
+| `clickUserAgent` | string | Browser user agent string |
+

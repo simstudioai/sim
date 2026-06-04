@@ -1,3 +1,36 @@
+# values-copilot.yaml
+#
+# When to use: enable the Sim Copilot service (the chat / Mothership backend)
+# alongside the main app. Provisions a dedicated Copilot Deployment, its own
+# Postgres StatefulSet, and a migration Job for the Copilot schema.
+#
+# Prerequisites: same as the base install. Merge this file with your main
+# values file (e.g. values-production.yaml) using multiple --values flags.
+#
+# Install:
+#   helm install sim ./helm/sim \
+#     --namespace sim --create-namespace \
+#     --values ./helm/sim/examples/values-production.yaml \
+#     --values ./helm/sim/examples/values-copilot.yaml \
+#     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+#     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set app.env.CRON_SECRET="$CRON_SECRET" \
+#     --set postgresql.auth.password="$POSTGRES_PASSWORD" \
+#     --set copilot.postgresql.auth.password="$COPILOT_POSTGRES_PASSWORD" \
+#     --set copilot.server.env.AGENT_API_DB_ENCRYPTION_KEY="$AGENT_API_DB_ENCRYPTION_KEY" \
+#     --set copilot.server.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set copilot.server.env.LICENSE_KEY="$COPILOT_LICENSE_KEY" \
+#     --set copilot.server.env.SIM_BASE_URL="https://sim.example.com" \
+#     --set copilot.server.env.SIM_AGENT_API_KEY="$SIM_AGENT_API_KEY" \
+#     --set copilot.server.env.REDIS_URL="redis://default:password@redis:6379" \
+#     --set copilot.server.env.OPENAI_API_KEY_1="$OPENAI_API_KEY"
+#
+# All copilot.server.env.* keys above are required when copilot.enabled=true,
+# plus at least one model provider key (OPENAI_API_KEY_1 or ANTHROPIC_API_KEY_1).
+# LICENSE_KEY is issued by the Sim team. SIM_AGENT_API_KEY must equal the
+# COPILOT_API_KEY value on the main app side. SIM_BASE_URL is the public app URL.
+
 # Enable the copilot service
 copilot:
   enabled: true
@@ -6,8 +39,8 @@ copilot:
   server:
     image:
       repository: simstudioai/copilot
-      tag: latest
-      pullPolicy: Always
+      tag: ""  # defaults to Chart.AppVersion; override to pin a specific release
+      pullPolicy: IfNotPresent
     
     replicaCount: 2
     

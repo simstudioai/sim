@@ -1,6 +1,4 @@
-import type { NextResponse } from 'next/server'
-import { createMcpProtectedResourceMetadataResponse } from '@/lib/mcp/oauth-discovery'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { copilotMcpDeprecatedResponse } from '@/lib/mcp/copilot-deprecated'
 
-export async function GET(): Promise<NextResponse> {
-  return createMcpProtectedResourceMetadataResponse()
-}
+export const GET = withRouteHandler(async () => copilotMcpDeprecatedResponse())

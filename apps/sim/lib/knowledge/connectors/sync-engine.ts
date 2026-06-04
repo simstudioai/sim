@@ -7,12 +7,12 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { randomInt } from '@sim/utils/random'
 import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
-import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import {
   hardDeleteDocuments,
@@ -21,6 +21,7 @@ import {
 } from '@/lib/knowledge/documents/service'
 import { StorageService } from '@/lib/uploads'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { knowledgeConnectorSync } from '@/background/knowledge-connector-sync'
@@ -46,6 +47,7 @@ const MAX_PAGES = 500
 const MAX_SAFE_TITLE_LENGTH = 200
 const STALE_PROCESSING_MINUTES = 45
 const RETRY_WINDOW_DAYS = 7
+const MAX_CONSECUTIVE_FAILURES = 10
 
 /** Sanitizes a document title for use in S3 storage keys. */
 function sanitizeStorageTitle(title: string): string {
@@ -57,22 +59,30 @@ type DocOp =
   | { type: 'add'; extDoc: ExternalDocument }
   | { type: 'update'; existingId: string; extDoc: ExternalDocument }
 
-async function isConnectorDeleted(connectorId: string): Promise<boolean> {
+/** Single-roundtrip liveness check used between batches. */
+async function checkSyncLiveness(
+  connectorId: string,
+  knowledgeBaseId: string
+): Promise<{ connectorDeleted: boolean; knowledgeBaseDeleted: boolean }> {
   const rows = await db
-    .select({ archivedAt: knowledgeConnector.archivedAt, deletedAt: knowledgeConnector.deletedAt })
+    .select({
+      connectorArchivedAt: knowledgeConnector.archivedAt,
+      connectorDeletedAt: knowledgeConnector.deletedAt,
+      kbDeletedAt: knowledgeBase.deletedAt,
+    })
     .from(knowledgeConnector)
-    .where(eq(knowledgeConnector.id, connectorId))
+    .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+    .where(and(eq(knowledgeConnector.id, connectorId), eq(knowledgeBase.id, knowledgeBaseId)))
     .limit(1)
-  return rows.length === 0 || rows[0].archivedAt !== null || rows[0].deletedAt !== null
-}
 
-async function isKnowledgeBaseDeleted(knowledgeBaseId: string): Promise<boolean> {
-  const rows = await db
-    .select({ deletedAt: knowledgeBase.deletedAt })
-    .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
-    .limit(1)
-  return rows.length === 0 || rows[0].deletedAt !== null
+  if (rows.length === 0) {
+    return { connectorDeleted: true, knowledgeBaseDeleted: true }
+  }
+  const row = rows[0]
+  return {
+    connectorDeleted: row.connectorArchivedAt !== null || row.connectorDeletedAt !== null,
+    knowledgeBaseDeleted: row.kbDeletedAt !== null,
+  }
 }
 
 async function isKnowledgeBaseActiveInTx(
@@ -93,7 +103,7 @@ async function isKnowledgeBaseActiveInTx(
 function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
   if (syncIntervalMinutes <= 0) return null
   const now = Date.now()
-  const jitterMs = Math.floor(Math.random() * Math.min(syncIntervalMinutes * 6_000, 300_000))
+  const jitterMs = randomInt(0, Math.min(syncIntervalMinutes * 6_000, 300_000))
   return new Date(now + syncIntervalMinutes * 60_000 + jitterMs)
 }
 
@@ -156,8 +166,11 @@ export async function dispatchSync(
     const connectorRows = await db
       .select({
         knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+        connectorArchivedAt: knowledgeConnector.archivedAt,
+        connectorDeletedAt: knowledgeConnector.deletedAt,
         workspaceId: knowledgeBase.workspaceId,
         userId: knowledgeBase.userId,
+        kbDeletedAt: knowledgeBase.deletedAt,
       })
       .from(knowledgeConnector)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -165,10 +178,39 @@ export async function dispatchSync(
       .limit(1)
 
     const row = connectorRows[0]
+    if (!row) {
+      logger.warn(`Skipping sync dispatch: connector not found`, { connectorId, requestId })
+      return
+    }
+    if (row.kbDeletedAt) {
+      logger.warn(`Skipping sync dispatch: knowledge base is deleted`, {
+        connectorId,
+        knowledgeBaseId: row.knowledgeBaseId,
+        requestId,
+      })
+      await db
+        .update(knowledgeConnector)
+        .set({
+          status: 'error',
+          nextSyncAt: null,
+          lastSyncError: 'Knowledge base deleted',
+          updatedAt: new Date(),
+        })
+        .where(eq(knowledgeConnector.id, connectorId))
+      return
+    }
+    if (row.connectorArchivedAt || row.connectorDeletedAt) {
+      logger.warn(`Skipping sync dispatch: connector is archived or deleted`, {
+        connectorId,
+        requestId,
+      })
+      return
+    }
+
     const tags = [`connectorId:${connectorId}`]
-    if (row?.knowledgeBaseId) tags.push(`knowledgeBaseId:${row.knowledgeBaseId}`)
-    if (row?.workspaceId) tags.push(`workspaceId:${row.workspaceId}`)
-    if (row?.userId) tags.push(`userId:${row.userId}`)
+    if (row.knowledgeBaseId) tags.push(`knowledgeBaseId:${row.knowledgeBaseId}`)
+    if (row.workspaceId) tags.push(`workspaceId:${row.workspaceId}`)
+    if (row.userId) tags.push(`userId:${row.userId}`)
 
     await knowledgeConnectorSync.trigger(
       {
@@ -179,42 +221,10 @@ export async function dispatchSync(
       { tags }
     )
     logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
-  } else if (isBullMQEnabled()) {
-    const connectorRows = await db
-      .select({
-        workspaceId: knowledgeBase.workspaceId,
-        userId: knowledgeBase.userId,
-      })
-      .from(knowledgeConnector)
-      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
-      .where(eq(knowledgeConnector.id, connectorId))
-      .limit(1)
-
-    const workspaceId = connectorRows[0]?.workspaceId
-    const userId = connectorRows[0]?.userId
-    if (!workspaceId || !userId) {
-      throw new Error(`No workspace found for connector ${connectorId}`)
-    }
-
-    await enqueueWorkspaceDispatch({
-      workspaceId,
-      lane: 'knowledge',
-      queueName: 'knowledge-connector-sync',
-      bullmqJobName: 'knowledge-connector-sync',
-      bullmqPayload: createBullMQJobData({
-        connectorId,
-        fullSync: options?.fullSync,
-        requestId,
-      }),
-      metadata: {
-        userId,
-      },
-    })
-    logger.info(`Dispatched connector sync to BullMQ`, { connectorId, requestId })
   } else {
     executeSync(connectorId, { fullSync: options?.fullSync }).catch((error) => {
       logger.error(`Sync failed for connector ${connectorId}`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         requestId,
       })
     })
@@ -230,7 +240,7 @@ async function resolveAccessToken(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
   connectorConfig: { auth: ConnectorAuthConfig },
   userId: string
-): Promise<string | null> {
+): Promise<string> {
   if (connectorConfig.auth.mode === 'apiKey') {
     if (!connector.encryptedApiKey) {
       throw new Error('API key connector is missing encrypted API key')
@@ -243,11 +253,22 @@ async function resolveAccessToken(
     throw new Error('OAuth connector is missing credential ID')
   }
 
-  return refreshAccessTokenIfNeeded(
-    connector.credentialId,
-    userId,
-    `sync-${connector.credentialId}`
-  )
+  const requestId = `sync-${connector.credentialId}`
+  const token = await refreshAccessTokenIfNeeded(connector.credentialId, userId, requestId)
+
+  if (!token) {
+    logger.error(`[${requestId}] refreshAccessTokenIfNeeded returned null`, {
+      credentialId: connector.credentialId,
+      userId,
+      authMode: connectorConfig.auth.mode,
+      authProvider: connectorConfig.auth.provider,
+    })
+    throw new Error(
+      `Failed to obtain access token for credential ${connector.credentialId} (provider: ${connectorConfig.auth.provider})`
+    )
+  }
+
+  return token
 }
 
 /**
@@ -282,7 +303,8 @@ export async function executeSync(
     .limit(1)
 
   if (connectorRows.length === 0) {
-    throw new Error(`Connector not found: ${connectorId}`)
+    logger.warn(`Skipping sync: connector ${connectorId} not found, archived, or deleted`)
+    return { ...result, error: 'connector_unavailable' }
   }
 
   const connector = connectorRows[0]
@@ -293,23 +315,32 @@ export async function executeSync(
   }
 
   const kbRows = await db
-    .select({ userId: knowledgeBase.userId })
+    .select({ userId: knowledgeBase.userId, workspaceId: knowledgeBase.workspaceId })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, connector.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
   if (kbRows.length === 0) {
-    throw new Error(`Knowledge base not found: ${connector.knowledgeBaseId}`)
+    logger.warn(
+      `Skipping sync: knowledge base ${connector.knowledgeBaseId} is deleted (connector ${connectorId})`
+    )
+    await db
+      .update(knowledgeConnector)
+      .set({
+        status: 'error',
+        nextSyncAt: null,
+        lastSyncError: 'Knowledge base deleted',
+        updatedAt: new Date(),
+      })
+      .where(eq(knowledgeConnector.id, connectorId))
+    return { ...result, error: 'knowledge_base_deleted' }
   }
 
   const userId = kbRows[0].userId
+  // Resolved once per sync and threaded into add/updateDocument so every synced
+  // kb/ object records a trusted ownership binding without an N+1 KB lookup.
+  const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRows[0].workspaceId, userId }
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
-
-  let accessToken = await resolveAccessToken(connector, connectorConfig, userId)
-
-  if (!accessToken) {
-    throw new Error('Failed to obtain access token')
-  }
 
   const lockResult = await db
     .update(knowledgeConnector)
@@ -341,6 +372,8 @@ export async function executeSync(
   let syncExitedCleanly = false
 
   try {
+    let accessToken = await resolveAccessToken(connector, connectorConfig, userId)
+
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
     let hasMore = true
@@ -357,8 +390,7 @@ export async function executeSync(
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
       if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
-        const refreshed = await resolveAccessToken(connector, connectorConfig, userId)
-        if (refreshed) accessToken = refreshed
+        accessToken = await resolveAccessToken(connector, connectorConfig, userId)
       }
 
       const page = await connectorConfig.listDocuments(
@@ -482,10 +514,11 @@ export async function executeSync(
     }
 
     for (let i = 0; i < pendingOps.length; i += SYNC_BATCH_SIZE) {
-      if (await isConnectorDeleted(connectorId)) {
+      const liveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
+      if (liveness.connectorDeleted) {
         throw new ConnectorDeletedException(connectorId)
       }
-      if (await isKnowledgeBaseDeleted(connector.knowledgeBaseId)) {
+      if (liveness.knowledgeBaseDeleted) {
         throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
       }
 
@@ -496,8 +529,7 @@ export async function executeSync(
 
       if (deferredOps.length > 0) {
         if (connectorConfig.auth.mode === 'oauth') {
-          const refreshed = await resolveAccessToken(connector, connectorConfig, userId)
-          if (refreshed) accessToken = refreshed
+          accessToken = await resolveAccessToken(connector, connectorConfig, userId)
         }
 
         const hydrated = await Promise.allSettled(
@@ -556,6 +588,7 @@ export async function executeSync(
               connectorId,
               connector.connectorType,
               op.extDoc,
+              kbOwner,
               sourceConfig
             )
           }
@@ -565,6 +598,7 @@ export async function executeSync(
             connectorId,
             connector.connectorType,
             op.extDoc,
+            kbOwner,
             sourceConfig
           )
         })
@@ -595,7 +629,7 @@ export async function executeSync(
           logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
             connectorId,
             count: batchDocs.length,
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
         }
       }
@@ -623,11 +657,12 @@ export async function executeSync(
       }
     }
 
-    // Check if connector was deleted before retrying stuck documents
-    if (await isConnectorDeleted(connectorId)) {
+    // Check if connector/KB were deleted before retrying stuck documents
+    const postBatchLiveness = await checkSyncLiveness(connectorId, connector.knowledgeBaseId)
+    if (postBatchLiveness.connectorDeleted) {
       throw new ConnectorDeletedException(connectorId)
     }
-    if (await isKnowledgeBaseDeleted(connector.knowledgeBaseId)) {
+    if (postBatchLiveness.knowledgeBaseDeleted) {
       throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
     }
 
@@ -705,7 +740,7 @@ export async function executeSync(
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
           connectorId,
           count: stuckDocs.length,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
@@ -772,7 +807,7 @@ export async function executeSync(
       } catch (cleanupError) {
         logger.error('Failed to clean up after connector deletion', {
           connectorId,
-          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          error: toError(cleanupError).message,
         })
       }
 
@@ -781,7 +816,7 @@ export async function executeSync(
       return result
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     logger.error('Sync failed', { connectorId, error: errorMessage })
 
     try {
@@ -789,15 +824,25 @@ export async function executeSync(
 
       const now = new Date()
       const failures = (connector.consecutiveFailures ?? 0) + 1
+      const disabled = failures >= MAX_CONSECUTIVE_FAILURES
       const backoffMinutes = Math.min(failures * 30, 1440)
-      const nextSync = new Date(now.getTime() + backoffMinutes * 60 * 1000)
+      const nextSync = disabled ? null : new Date(now.getTime() + backoffMinutes * 60 * 1000)
+
+      if (disabled) {
+        logger.warn('Connector disabled after repeated failures', {
+          connectorId,
+          consecutiveFailures: failures,
+        })
+      }
 
       await db
         .update(knowledgeConnector)
         .set({
-          status: 'error',
+          status: disabled ? 'disabled' : 'error',
           lastSyncAt: now,
-          lastSyncError: errorMessage,
+          lastSyncError: disabled
+            ? 'Connector disabled after repeated sync failures. Please reconnect.'
+            : errorMessage,
           nextSyncAt: nextSync,
           consecutiveFailures: failures,
           updatedAt: now,
@@ -812,7 +857,7 @@ export async function executeSync(
     } catch (recoveryError) {
       logger.error('Failed to record sync failure', {
         connectorId,
-        error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+        error: toError(recoveryError).message,
       })
     }
 
@@ -834,11 +879,31 @@ export async function executeSync(
       } catch (finallyError) {
         logger.warn('Failed to reset syncing status in finally block', {
           connectorId,
-          error: finallyError instanceof Error ? finallyError.message : String(finallyError),
+          error: toError(finallyError).message,
         })
       }
     }
   }
+}
+
+/** Owning workspace + user for a knowledge base, resolved once per sync. */
+interface KnowledgeBaseOwner {
+  workspaceId: string | null
+  userId: string
+}
+
+/**
+ * Build the storage `metadata` that records a trusted ownership binding for a
+ * synced `kb/` object. Returns `undefined` for legacy null-workspace KBs (no
+ * workspace-scoped ownership to bind), which `uploadFile` treats as "no binding".
+ */
+function kbOwnershipMetadata(
+  kbOwner: KnowledgeBaseOwner,
+  originalName: string
+): { workspaceId: string; userId: string; originalName: string } | undefined {
+  return kbOwner.workspaceId
+    ? { workspaceId: kbOwner.workspaceId, userId: kbOwner.userId, originalName }
+    : undefined
 }
 
 /**
@@ -850,11 +915,9 @@ async function addDocument(
   connectorId: string,
   connectorType: string,
   extDoc: ExternalDocument,
+  kbOwner: KnowledgeBaseOwner,
   sourceConfig?: Record<string, unknown>
 ): Promise<DocumentData> {
-  if (await isKnowledgeBaseDeleted(knowledgeBaseId)) {
-    throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
-  }
   const documentId = generateId()
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
   const safeTitle = sanitizeStorageTitle(extDoc.title)
@@ -867,6 +930,7 @@ async function addDocument(
     context: 'knowledge-base',
     customKey,
     preserveKey: true,
+    metadata: kbOwnershipMetadata(kbOwner, `${safeTitle}.txt`),
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -889,6 +953,7 @@ async function addDocument(
         knowledgeBaseId,
         filename: extDoc.title,
         fileUrl,
+        storageKey: fileInfo.key,
         fileSize: contentBuffer.length,
         mimeType: 'text/plain',
         chunkCount: 0,
@@ -909,6 +974,7 @@ async function addDocument(
     const storageKey = extractStorageKey(urlPath)
     if (storageKey && storageKey !== urlPath) {
       await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
+      await deleteFileMetadata(storageKey).catch(() => undefined)
     }
     throw error
   }
@@ -932,11 +998,9 @@ async function updateDocument(
   connectorId: string,
   connectorType: string,
   extDoc: ExternalDocument,
+  kbOwner: KnowledgeBaseOwner,
   sourceConfig?: Record<string, unknown>
 ): Promise<DocumentData> {
-  if (await isKnowledgeBaseDeleted(knowledgeBaseId)) {
-    throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
-  }
   // Fetch old file URL before uploading replacement
   const existingRows = await db
     .select({ fileUrl: document.fileUrl })
@@ -956,6 +1020,7 @@ async function updateDocument(
     context: 'knowledge-base',
     customKey,
     preserveKey: true,
+    metadata: kbOwnershipMetadata(kbOwner, `${safeTitle}.txt`),
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -978,6 +1043,7 @@ async function updateDocument(
         .set({
           filename: extDoc.title,
           fileUrl,
+          storageKey: fileInfo.key,
           fileSize: contentBuffer.length,
           contentHash: extDoc.contentHash,
           sourceUrl: extDoc.sourceUrl ?? null,
@@ -1004,22 +1070,24 @@ async function updateDocument(
     const storageKey = extractStorageKey(urlPath)
     if (storageKey && storageKey !== urlPath) {
       await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
+      await deleteFileMetadata(storageKey).catch(() => undefined)
     }
     throw error
   }
 
-  // Clean up old storage file
+  // Clean up old storage file and its ownership binding
   if (oldFileUrl) {
     try {
       const urlPath = new URL(oldFileUrl, 'http://localhost').pathname
       const storageKey = extractStorageKey(urlPath)
       if (storageKey && storageKey !== urlPath) {
         await deleteFile({ key: storageKey, context: 'knowledge-base' })
+        await deleteFileMetadata(storageKey)
       }
     } catch (error) {
       logger.warn('Failed to delete old storage file', {
         documentId: existingDocId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Copy } from 'lucide-react'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   ButtonGroup,
@@ -11,8 +11,10 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
+  SecretReveal,
 } from '@/components/emcn'
 import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
@@ -30,6 +32,8 @@ interface CreateApiKeyModalProps {
   onKeyCreated?: (key: ApiKey) => void
 }
 
+const EMPTY_KEY_NAMES: string[] = []
+
 /**
  * Reusable modal for creating API keys.
  * Used in both the API keys settings page and the deploy modal.
@@ -38,7 +42,7 @@ export function CreateApiKeyModal({
   open,
   onOpenChange,
   workspaceId,
-  existingKeyNames = [],
+  existingKeyNames = EMPTY_KEY_NAMES,
   allowPersonalApiKeys = true,
   canManageWorkspaceKeys = false,
   defaultKeyType = 'personal',
@@ -50,8 +54,6 @@ export function CreateApiKeyModal({
   const [createError, setCreateError] = useState<string | null>(null)
   const [newKey, setNewKey] = useState<ApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
-  const [copySuccess, setCopySuccess] = useState(false)
-
   const createApiKeyMutation = useCreateApiKey()
 
   const handleCreateKey = async () => {
@@ -88,8 +90,7 @@ export function CreateApiKeyModal({
       onKeyCreated?.(data.key)
     } catch (error: unknown) {
       logger.error('API key creation failed:', { error })
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to create Sim key. Please try again.'
+      const errorMessage = getErrorMessage(error, 'Failed to create Sim key. Please try again.')
       if (errorMessage.toLowerCase().includes('already exists')) {
         setCreateError(errorMessage)
       } else {
@@ -105,12 +106,6 @@ export function CreateApiKeyModal({
     setCreateError(null)
   }
 
-  const copyToClipboard = (key: string) => {
-    navigator.clipboard.writeText(key)
-    setCopySuccess(true)
-    setTimeout(() => setCopySuccess(false), 2000)
-  }
-
   return (
     <>
       {/* Create API Key Dialog */}
@@ -118,11 +113,11 @@ export function CreateApiKeyModal({
         <ModalContent size='md'>
           <ModalHeader>Create new Sim key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               {keyType === 'workspace'
                 ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
                 : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
-            </p>
+            </ModalDescription>
 
             <div className='mt-4 flex flex-col gap-4.5'>
               {canManageWorkspaceKeys && (
@@ -168,7 +163,6 @@ export function CreateApiKeyModal({
                   }}
                   placeholder='e.g., Development, Production'
                   className='h-9'
-                  autoFocus
                   name='api_key_label'
                   autoComplete='off'
                   autoCorrect='off'
@@ -210,41 +204,20 @@ export function CreateApiKeyModal({
           setShowNewKeyDialog(dialogOpen)
           if (!dialogOpen) {
             setNewKey(null)
-            setCopySuccess(false)
           }
         }}
       >
         <ModalContent size='sm'>
           <ModalHeader>Your Sim key has been created</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               This is the only time you will see your Sim key.{' '}
               <span className='font-semibold text-[var(--text-primary)]'>
                 Copy it now and store it securely.
               </span>
-            </p>
+            </ModalDescription>
 
-            {newKey && (
-              <div className='relative mt-2.5'>
-                <div className='flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5 pr-10'>
-                  <code className='flex-1 truncate font-mono text-[var(--text-primary)] text-sm'>
-                    {newKey.key}
-                  </code>
-                </div>
-                <Button
-                  variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-sm text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
-                  onClick={() => copyToClipboard(newKey.key)}
-                >
-                  {copySuccess ? (
-                    <Check className='h-[14px] w-[14px]' />
-                  ) : (
-                    <Copy className='h-[14px] w-[14px]' />
-                  )}
-                  <span className='sr-only'>Copy to clipboard</span>
-                </Button>
-              </div>
-            )}
+            {newKey && <SecretReveal value={newKey.key} className='mt-2.5' />}
           </ModalBody>
         </ModalContent>
       </Modal>

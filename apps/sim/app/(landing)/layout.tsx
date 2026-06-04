@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://sim.ai'),
+  metadataBase: new URL(SITE_URL),
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }],

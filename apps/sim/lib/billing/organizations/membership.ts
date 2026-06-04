@@ -7,20 +7,30 @@
 
 import { db } from '@sim/db'
 import {
+  credential,
+  credentialMember,
+  invitation,
   member,
   organization,
+  permissionGroupMember,
+  permissions,
   subscription as subscriptionTable,
   user,
   userStats,
+  workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { isOrgPlan, sqlIsPro } from '@/lib/billing/plan-helpers'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
-import { generateId } from '@/lib/core/utils/uuid'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrganizationMembership')
 
@@ -104,12 +114,25 @@ export interface RestoreProResult {
 }
 
 /**
- * Restore a user's personal Pro subscription if it was paused (cancelAtPeriodEnd=true).
- * Also restores any snapshotted Pro usage from when they joined a team.
+ * Restore a user's personal Pro subscription if it was paused
+ * (`cancelAtPeriodEnd = true`) and merge any snapshotted Pro usage back
+ * into their current-period usage.
+ *
+ * All DB mutations run inside a single transaction so partial progress
+ * cannot be committed: either both the subscription un-pause and the
+ * usage snapshot merge succeed, or neither does. Errors propagate to
+ * the caller so webhook handlers can rely on Stripe retry semantics.
+ *
+ * Idempotent:
+ *   - Early returns when the user has no paused Pro subscription, so
+ *     re-runs after a successful restore are no-ops.
+ *   - The snapshot merge only runs when `proPeriodCostSnapshot > 0`,
+ *     so a second call after a prior success (which zeroes the
+ *     snapshot) does nothing.
  *
  * Called when:
- * - A member leaves a team (via removeUserFromOrganization)
- * - A team subscription ends (members stay but get Pro restored)
+ *   - A member leaves a team (via `removeUserFromOrganization`).
+ *   - A team subscription ends (members stay but get Pro restored).
  */
 export async function restoreUserProSubscription(userId: string): Promise<RestoreProResult> {
   const result: RestoreProResult = {
@@ -117,106 +140,84 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
     usageRestored: false,
   }
 
-  try {
-    const [personalPro] = await db
-      .select()
-      .from(subscriptionTable)
-      .where(
-        and(
-          eq(subscriptionTable.referenceId, userId),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
-          sqlIsPro(subscriptionTable.plan)
-        )
+  const [personalPro] = await db
+    .select()
+    .from(subscriptionTable)
+    .where(
+      and(
+        eq(subscriptionTable.referenceId, userId),
+        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+        sqlIsPro(subscriptionTable.plan)
       )
+    )
+    .limit(1)
+
+  if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) {
+    return result
+  }
+
+  result.subscriptionId = personalPro.id
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(subscriptionTable)
+      .set({ cancelAtPeriodEnd: false })
+      .where(eq(subscriptionTable.id, personalPro.id))
+
+    await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      stripeSubscriptionId: personalPro.stripeSubscriptionId,
+      subscriptionId: personalPro.id,
+      reason: 'member-left-paid-org',
+    })
+
+    result.restored = true
+
+    const [stats] = await tx
+      .select({
+        currentPeriodCost: userStats.currentPeriodCost,
+        proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
+      })
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
       .limit(1)
 
-    if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) {
-      return result
+    if (!stats) {
+      return
     }
 
-    result.subscriptionId = personalPro.id
+    const currentNum = toNumber(toDecimal(stats.currentPeriodCost))
+    const snapshotNum = toNumber(toDecimal(stats.proPeriodCostSnapshot))
 
-    try {
-      const stripe = requireStripeClient()
-      await stripe.subscriptions.update(personalPro.stripeSubscriptionId, {
-        cancel_at_period_end: false,
-      })
-    } catch (stripeError) {
-      logger.error('Stripe restore cancel_at_period_end failed for personal Pro', {
-        userId,
-        stripeSubscriptionId: personalPro.stripeSubscriptionId,
-        error: stripeError,
-      })
+    if (snapshotNum <= 0) {
+      return
     }
 
-    try {
-      await db
-        .update(subscriptionTable)
-        .set({ cancelAtPeriodEnd: false })
-        .where(eq(subscriptionTable.id, personalPro.id))
+    const restoredUsage = (currentNum + snapshotNum).toString()
 
-      result.restored = true
-      logger.info('Restored personal Pro subscription', {
-        userId,
-        subscriptionId: personalPro.id,
+    await tx
+      .update(userStats)
+      .set({
+        currentPeriodCost: restoredUsage,
+        proPeriodCostSnapshot: '0',
+        proPeriodCostSnapshotAt: null,
       })
-    } catch (dbError) {
-      logger.error('DB update failed when restoring personal Pro', {
-        userId,
-        subscriptionId: personalPro.id,
-        error: dbError,
-      })
-    }
+      .where(eq(userStats.userId, userId))
 
-    try {
-      const [stats] = await db
-        .select({
-          currentPeriodCost: userStats.currentPeriodCost,
-          proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
-        })
-        .from(userStats)
-        .where(eq(userStats.userId, userId))
-        .limit(1)
+    result.usageRestored = true
 
-      if (stats) {
-        const currentUsage = stats.currentPeriodCost || '0'
-        const snapshotUsage = stats.proPeriodCostSnapshot || '0'
-        const snapshotNum = Number.parseFloat(snapshotUsage)
-
-        if (snapshotNum > 0) {
-          const currentNum = Number.parseFloat(currentUsage)
-          const restoredUsage = (currentNum + snapshotNum).toString()
-
-          await db
-            .update(userStats)
-            .set({
-              currentPeriodCost: restoredUsage,
-              proPeriodCostSnapshot: '0',
-            })
-            .where(eq(userStats.userId, userId))
-
-          result.usageRestored = true
-
-          logger.info('Restored Pro usage snapshot', {
-            userId,
-            previousUsage: currentUsage,
-            snapshotUsage,
-            restoredUsage,
-          })
-        }
-      }
-    } catch (usageRestoreError) {
-      logger.error('Failed to restore Pro usage snapshot', {
-        userId,
-        error: usageRestoreError,
-      })
-    }
-  } catch (error) {
-    logger.error('Failed to restore user Pro subscription', {
+    logger.info('Restored Pro usage snapshot', {
       userId,
-      error,
+      previousUsage: currentNum,
+      snapshotUsage: snapshotNum,
+      restoredUsage,
     })
-  }
+  })
+
+  logger.info('Restored personal Pro subscription (DB committed, Stripe queued)', {
+    userId,
+    subscriptionId: personalPro.id,
+    usageRestored: result.usageRestored,
+  })
 
   return result
 }
@@ -229,21 +230,29 @@ export interface AddMemberParams {
   skipBillingLogic?: boolean
   /** Skip seat validation (default: false) */
   skipSeatValidation?: boolean
+  /** When provided, the acceptor's own pending invitation is excluded from the seat count during validation. */
+  acceptingInvitationId?: string
 }
 
 export interface AddMemberResult {
   success: boolean
   memberId?: string
   error?: string
+  failureCode?: MembershipAdditionFailureCode
   billingActions: {
     proUsageSnapshotted: boolean
+    /**
+     * True when this function marked the user's personal Pro for
+     * cancellation at period end AND enqueued the Stripe sync via
+     * the outbox. Callers should NOT make a Stripe call themselves.
+     */
     proCancelledAtPeriodEnd: boolean
-    /** If Pro was cancelled, contains info for Stripe update (caller can optionally call Stripe) */
-    proSubscriptionToCancel?: {
-      subscriptionId: string
-      stripeSubscriptionId: string | null
-    }
   }
+}
+
+export interface EnsureMemberResult extends AddMemberResult {
+  alreadyMember: boolean
+  existingOrgId?: string
 }
 
 export interface RemoveMemberParams {
@@ -261,12 +270,201 @@ export interface RemoveMemberResult {
     usageCaptured: number
     proRestored: boolean
     usageRestored: boolean
+    workspaceAccessRevoked: number
+    pendingInvitationsCancelled: number
   }
 }
 
-export interface MembershipValidationResult {
+export interface RemoveExternalWorkspaceAccessResult {
+  success: boolean
+  error?: string
+  workspaceAccessRevoked: number
+  permissionGroupsRevoked: number
+  credentialMembershipsRevoked: number
+  pendingInvitationsCancelled: number
+}
+
+export type MembershipAdditionFailureCode =
+  | 'user-not-found'
+  | 'organization-not-found'
+  | 'already-member'
+  | 'already-in-other-organization'
+  | 'no-seats-available'
+
+async function reassignOwnedOrganizationWorkspacesTx({
+  tx,
+  userId,
+  organizationId,
+  workspaceIds,
+}: {
+  tx: DbOrTx
+  userId: string
+  organizationId: string
+  workspaceIds: string[]
+}) {
+  const [ownerMembership] = await tx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+    .limit(1)
+
+  const ownerId = ownerMembership?.userId
+  if (!ownerId || ownerId === userId || workspaceIds.length === 0) return 0
+
+  const reassignedWorkspaces = await tx
+    .update(workspace)
+    .set({ ownerId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(workspace.organizationId, organizationId),
+        eq(workspace.ownerId, userId),
+        inArray(workspace.id, workspaceIds)
+      )
+    )
+    .returning({ id: workspace.id })
+
+  if (reassignedWorkspaces.length === 0) return 0
+
+  const now = new Date()
+  await tx
+    .update(permissions)
+    .set({ permissionType: 'admin', updatedAt: now })
+    .where(
+      and(
+        eq(permissions.userId, ownerId),
+        eq(permissions.entityType, 'workspace'),
+        inArray(
+          permissions.entityId,
+          reassignedWorkspaces.map((row) => row.id)
+        )
+      )
+    )
+
+  await tx
+    .insert(permissions)
+    .values(
+      reassignedWorkspaces.map((row) => ({
+        id: generateId(),
+        userId: ownerId,
+        entityType: 'workspace',
+        entityId: row.id,
+        permissionType: 'admin' as const,
+        createdAt: now,
+        updatedAt: now,
+      }))
+    )
+    .onConflictDoNothing()
+
+  return reassignedWorkspaces.length
+}
+
+async function revokeWorkspaceCredentialMembershipsTx({
+  tx,
+  workspaceIds,
+  userId,
+}: {
+  tx: DbOrTx
+  workspaceIds: string[]
+  userId: string
+}) {
+  if (workspaceIds.length === 0) return 0
+
+  const workspaceCredentialRows = await tx
+    .select({
+      credentialId: credential.id,
+      workspaceId: credential.workspaceId,
+      ownerId: workspace.ownerId,
+    })
+    .from(credential)
+    .innerJoin(workspace, eq(credential.workspaceId, workspace.id))
+    .where(inArray(credential.workspaceId, workspaceIds))
+
+  if (workspaceCredentialRows.length === 0) return 0
+
+  const credentialIds = workspaceCredentialRows.map((row) => row.credentialId)
+  const ownerByCredentialId = new Map(
+    workspaceCredentialRows.map((row) => [row.credentialId, row.ownerId])
+  )
+
+  const userAdminMemberships = await tx
+    .select({ credentialId: credentialMember.credentialId })
+    .from(credentialMember)
+    .where(
+      and(
+        eq(credentialMember.userId, userId),
+        eq(credentialMember.role, 'admin'),
+        eq(credentialMember.status, 'active'),
+        inArray(credentialMember.credentialId, credentialIds)
+      )
+    )
+
+  for (const { credentialId } of userAdminMemberships) {
+    const ownerId = ownerByCredentialId.get(credentialId)
+    if (!ownerId || ownerId === userId) continue
+
+    const otherAdmins = await tx
+      .select({ id: credentialMember.id })
+      .from(credentialMember)
+      .where(
+        and(
+          eq(credentialMember.credentialId, credentialId),
+          eq(credentialMember.role, 'admin'),
+          eq(credentialMember.status, 'active'),
+          ne(credentialMember.userId, userId)
+        )
+      )
+      .limit(1)
+
+    if (otherAdmins.length > 0) continue
+
+    const now = new Date()
+    const [existingOwnerMembership] = await tx
+      .select({ id: credentialMember.id })
+      .from(credentialMember)
+      .where(
+        and(eq(credentialMember.credentialId, credentialId), eq(credentialMember.userId, ownerId))
+      )
+      .limit(1)
+
+    if (existingOwnerMembership) {
+      await tx
+        .update(credentialMember)
+        .set({ role: 'admin', status: 'active', updatedAt: now })
+        .where(eq(credentialMember.id, existingOwnerMembership.id))
+    } else {
+      await tx.insert(credentialMember).values({
+        id: generateId(),
+        credentialId,
+        userId: ownerId,
+        role: 'admin',
+        status: 'active',
+        joinedAt: now,
+        invitedBy: ownerId,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+  }
+
+  const revokedMemberships = await tx
+    .update(credentialMember)
+    .set({ status: 'revoked', updatedAt: new Date() })
+    .where(
+      and(
+        eq(credentialMember.userId, userId),
+        eq(credentialMember.status, 'active'),
+        inArray(credentialMember.credentialId, credentialIds)
+      )
+    )
+    .returning({ credentialId: credentialMember.credentialId })
+
+  return revokedMemberships.length
+}
+
+interface MembershipValidationResult {
   canAdd: boolean
   reason?: string
+  failureCode?: MembershipAdditionFailureCode
   existingOrgId?: string
   seatValidation?: {
     currentSeats: number
@@ -275,18 +473,59 @@ export interface MembershipValidationResult {
   }
 }
 
+export async function ensureUserInOrganization(
+  params: AddMemberParams
+): Promise<EnsureMemberResult> {
+  const existingMembership = await getUserOrganization(params.userId)
+
+  if (existingMembership?.organizationId === params.organizationId) {
+    return {
+      success: true,
+      memberId: existingMembership.memberId,
+      alreadyMember: true,
+      billingActions: {
+        proUsageSnapshotted: false,
+        proCancelledAtPeriodEnd: false,
+      },
+    }
+  }
+
+  if (existingMembership) {
+    return {
+      success: false,
+      alreadyMember: false,
+      existingOrgId: existingMembership.organizationId,
+      failureCode: 'already-in-other-organization',
+      error:
+        'User is already a member of another organization. Users can only belong to one organization at a time.',
+      billingActions: {
+        proUsageSnapshotted: false,
+        proCancelledAtPeriodEnd: false,
+      },
+    }
+  }
+
+  const result = await addUserToOrganization(params)
+
+  return {
+    ...result,
+    alreadyMember: false,
+  }
+}
+
 /**
  * Validate if a user can be added to an organization.
  * Checks single-org constraint and seat availability.
  */
-export async function validateMembershipAddition(
+async function validateMembershipAddition(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options: { acceptingInvitationId?: string } = {}
 ): Promise<MembershipValidationResult> {
   const [userData] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1)
 
   if (!userData) {
-    return { canAdd: false, reason: 'User not found' }
+    return { canAdd: false, reason: 'User not found', failureCode: 'user-not-found' }
   }
 
   const [orgData] = await db
@@ -296,7 +535,11 @@ export async function validateMembershipAddition(
     .limit(1)
 
   if (!orgData) {
-    return { canAdd: false, reason: 'Organization not found' }
+    return {
+      canAdd: false,
+      reason: 'Organization not found',
+      failureCode: 'organization-not-found',
+    }
   }
 
   const existingMemberships = await db
@@ -310,22 +553,30 @@ export async function validateMembershipAddition(
     )
 
     if (isAlreadyMemberOfThisOrg) {
-      return { canAdd: false, reason: 'User is already a member of this organization' }
+      return {
+        canAdd: false,
+        reason: 'User is already a member of this organization',
+        failureCode: 'already-member',
+      }
     }
 
     return {
       canAdd: false,
       reason:
         'User is already a member of another organization. Users can only belong to one organization at a time.',
+      failureCode: 'already-in-other-organization',
       existingOrgId: existingMemberships[0].organizationId,
     }
   }
 
-  const seatValidation = await validateSeatAvailability(organizationId, 1)
+  const seatValidation = await validateSeatAvailability(organizationId, 1, {
+    excludePendingInvitationId: options.acceptingInvitationId,
+  })
   if (!seatValidation.canInvite) {
     return {
       canAdd: false,
       reason: seatValidation.reason || 'No seats available',
+      failureCode: 'no-seats-available',
       seatValidation: {
         currentSeats: seatValidation.currentSeats,
         maxSeats: seatValidation.maxSeats,
@@ -342,6 +593,157 @@ export async function validateMembershipAddition(
       availableSeats: seatValidation.availableSeats,
     },
   }
+}
+
+interface PaidOrgJoinBillingActions {
+  proUsageSnapshotted: boolean
+  proCancelledAtPeriodEnd: boolean
+}
+
+/**
+ * Applies the billing side-effects of a user joining a paid (Team/Enterprise)
+ * organization inside an existing transaction:
+ *   - snapshots current Pro usage so new usage attributes to the org;
+ *   - marks personal Pro subscription `cancelAtPeriodEnd=true` and enqueues
+ *     the Stripe sync via the outbox;
+ *   - transfers personal storage bytes into the org's pool.
+ *
+ * Idempotent: re-running is a no-op when Pro is already flagged cancel-at-period-end
+ * and the user's storage is already transferred (zeroed).
+ */
+async function applyPaidOrgJoinBillingTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  userId: string,
+  organizationId: string
+): Promise<PaidOrgJoinBillingActions> {
+  const actions: PaidOrgJoinBillingActions = {
+    proUsageSnapshotted: false,
+    proCancelledAtPeriodEnd: false,
+  }
+
+  const [personalPro] = await tx
+    .select()
+    .from(subscriptionTable)
+    .where(
+      and(
+        eq(subscriptionTable.referenceId, userId),
+        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+        sqlIsPro(subscriptionTable.plan)
+      )
+    )
+    .limit(1)
+
+  if (personalPro && !personalPro.cancelAtPeriodEnd) {
+    const [userStatsRow] = await tx
+      .select({ currentPeriodCost: userStats.currentPeriodCost })
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1)
+
+    if (userStatsRow) {
+      const currentProUsage = userStatsRow.currentPeriodCost || '0'
+
+      await tx
+        .update(userStats)
+        .set({
+          proPeriodCostSnapshot: currentProUsage,
+          proPeriodCostSnapshotAt: new Date(),
+          currentPeriodCost: '0',
+          currentPeriodCopilotCost: '0',
+        })
+        .where(eq(userStats.userId, userId))
+
+      actions.proUsageSnapshotted = true
+
+      logger.info('Snapshotted Pro usage when joining paid org', {
+        userId,
+        proUsageSnapshot: currentProUsage,
+        organizationId,
+      })
+    }
+
+    await tx
+      .update(subscriptionTable)
+      .set({ cancelAtPeriodEnd: true })
+      .where(eq(subscriptionTable.id, personalPro.id))
+
+    if (personalPro.stripeSubscriptionId) {
+      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+        stripeSubscriptionId: personalPro.stripeSubscriptionId,
+        subscriptionId: personalPro.id,
+        reason: 'joined-paid-org',
+      })
+    }
+
+    actions.proCancelledAtPeriodEnd = true
+
+    logger.info('Marked personal Pro for cancellation at period end (Stripe queued)', {
+      userId,
+      subscriptionId: personalPro.id,
+      organizationId,
+    })
+  }
+
+  const storageRows = await tx
+    .select({ storageUsedBytes: userStats.storageUsedBytes })
+    .from(userStats)
+    .where(eq(userStats.userId, userId))
+    .for('update')
+    .limit(1)
+
+  const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
+  if (bytesToTransfer > 0) {
+    await tx
+      .update(organization)
+      .set({
+        storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytesToTransfer}`,
+      })
+      .where(eq(organization.id, organizationId))
+
+    await tx.update(userStats).set({ storageUsedBytes: 0 }).where(eq(userStats.userId, userId))
+
+    logger.info('Transferred personal storage bytes to org pool on join', {
+      userId,
+      organizationId,
+      bytes: bytesToTransfer,
+    })
+  }
+
+  return actions
+}
+
+/**
+ * Re-applies paid-org join billing for a user who is already a member of
+ * the organization. Used on re-upgrade after a dormant transition: members
+ * kept their org membership but had their personal Pro subscriptions
+ * restored (`cancelAtPeriodEnd=false`) during the cancel/downgrade. When
+ * the org becomes paid again, those Pros must be re-paused so the user
+ * isn't double-billed.
+ *
+ * No-op when the org has no active Team/Enterprise subscription.
+ */
+export async function reapplyPaidOrgJoinBillingForExistingMember(
+  userId: string,
+  organizationId: string
+): Promise<PaidOrgJoinBillingActions> {
+  return db.transaction(async (tx) => {
+    const [orgSub] = await tx
+      .select({ plan: subscriptionTable.plan })
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, organizationId),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1)
+
+    if (!orgSub || !isPaid(orgSub.plan)) {
+      return { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false }
+    }
+
+    return applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+  })
 }
 
 /**
@@ -362,6 +764,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
     role,
     skipBillingLogic = false,
     skipSeatValidation = false,
+    acceptingInvitationId,
   } = params
 
   const billingActions: AddMemberResult['billingActions'] = {
@@ -371,9 +774,16 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
 
   try {
     if (!skipSeatValidation) {
-      const validation = await validateMembershipAddition(userId, organizationId)
+      const validation = await validateMembershipAddition(userId, organizationId, {
+        acceptingInvitationId,
+      })
       if (!validation.canAdd) {
-        return { success: false, error: validation.reason, billingActions }
+        return {
+          success: false,
+          error: validation.reason,
+          failureCode: validation.failureCode,
+          billingActions,
+        }
       }
     } else {
       const existingMemberships = await db
@@ -390,6 +800,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
           return {
             success: false,
             error: 'User is already a member of this organization',
+            failureCode: 'already-member',
             billingActions,
           }
         }
@@ -398,23 +809,11 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
           success: false,
           error:
             'User is already a member of another organization. Users can only belong to one organization at a time.',
+          failureCode: 'already-in-other-organization',
           billingActions,
         }
       }
     }
-
-    const [orgSub] = await db
-      .select()
-      .from(subscriptionTable)
-      .where(
-        and(
-          eq(subscriptionTable.referenceId, organizationId),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
-
-    const orgIsPaid = orgSub && isOrgPlan(orgSub.plan)
 
     let memberId = ''
 
@@ -428,72 +827,28 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
         createdAt: new Date(),
       })
 
-      // Handle Pro subscription if org is paid and we're not skipping billing logic
-      if (orgIsPaid && !skipBillingLogic) {
-        // Find user's active personal Pro subscription
-        const [personalPro] = await tx
-          .select()
-          .from(subscriptionTable)
-          .where(
-            and(
-              eq(subscriptionTable.referenceId, userId),
-              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
-              sqlIsPro(subscriptionTable.plan)
-            )
-          )
-          .limit(1)
-
-        if (personalPro) {
-          // Snapshot the current Pro usage before resetting
-          const [userStatsRow] = await tx
-            .select({ currentPeriodCost: userStats.currentPeriodCost })
-            .from(userStats)
-            .where(eq(userStats.userId, userId))
-            .limit(1)
-
-          if (userStatsRow) {
-            const currentProUsage = userStatsRow.currentPeriodCost || '0'
-
-            // Snapshot Pro usage and reset currentPeriodCost so new usage goes to team
-            await tx
-              .update(userStats)
-              .set({
-                proPeriodCostSnapshot: currentProUsage,
-                currentPeriodCost: '0',
-                currentPeriodCopilotCost: '0',
-              })
-              .where(eq(userStats.userId, userId))
-
-            billingActions.proUsageSnapshotted = true
-
-            logger.info('Snapshotted Pro usage when adding to team', {
-              userId,
-              proUsageSnapshot: currentProUsage,
-              organizationId,
-            })
-          }
-
-          // Mark Pro for cancellation at period end
-          if (!personalPro.cancelAtPeriodEnd) {
-            await tx
-              .update(subscriptionTable)
-              .set({ cancelAtPeriodEnd: true })
-              .where(eq(subscriptionTable.id, personalPro.id))
-
-            billingActions.proCancelledAtPeriodEnd = true
-            billingActions.proSubscriptionToCancel = {
-              subscriptionId: personalPro.id,
-              stripeSubscriptionId: personalPro.stripeSubscriptionId,
-            }
-
-            logger.info('Marked personal Pro for cancellation at period end', {
-              userId,
-              subscriptionId: personalPro.id,
-              organizationId,
-            })
-          }
-        }
+      if (skipBillingLogic) {
+        return
       }
+
+      const [orgSub] = await tx
+        .select({ plan: subscriptionTable.plan })
+        .from(subscriptionTable)
+        .where(
+          and(
+            eq(subscriptionTable.referenceId, organizationId),
+            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
+        .limit(1)
+
+      if (!orgSub || !isPaid(orgSub.plan)) {
+        return
+      }
+
+      const joinBillingActions = await applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+      billingActions.proUsageSnapshotted = joinBillingActions.proUsageSnapshotted
+      billingActions.proCancelledAtPeriodEnd = joinBillingActions.proCancelledAtPeriodEnd
     })
 
     logger.info('Added user to organization', {
@@ -532,10 +887,11 @@ export async function removeUserFromOrganization(
     usageCaptured: 0,
     proRestored: false,
     usageRestored: false,
+    workspaceAccessRevoked: 0,
+    pendingInvitationsCancelled: 0,
   }
 
   try {
-    // Check member exists and get their details
     const [existingMember] = await db
       .select({
         id: member.id,
@@ -550,63 +906,163 @@ export async function removeUserFromOrganization(
       return { success: false, error: 'Member not found', billingActions }
     }
 
-    // Prevent removing owner
     if (existingMember.role === 'owner') {
       return { success: false, error: 'Cannot remove organization owner', billingActions }
     }
 
-    // STEP 1: Capture departed member's usage (add to org's departedMemberUsage)
-    if (!skipBillingLogic) {
-      try {
-        const [departingUserStats] = await db
+    const {
+      workspaceIdsToRevoke,
+      usageCaptured,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
+    } = await db.transaction(async (tx) => {
+      const deletedMember = await tx
+        .delete(member)
+        .where(and(eq(member.id, memberId), ne(member.role, 'owner')))
+        .returning({ id: member.id })
+
+      if (deletedMember.length === 0) {
+        throw new Error(
+          'Member could not be removed — they may have been promoted to owner concurrently'
+        )
+      }
+
+      const [targetUser] = await tx
+        .select({ email: user.email })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1)
+
+      const cancelledInvitations = targetUser?.email
+        ? await tx
+            .update(invitation)
+            .set({ status: 'cancelled', updatedAt: new Date() })
+            .where(
+              and(
+                eq(invitation.organizationId, organizationId),
+                eq(invitation.status, 'pending'),
+                sql`lower(${invitation.email}) = lower(${targetUser.email})`
+              )
+            )
+            .returning({ id: invitation.id })
+        : []
+
+      const orgWorkspaces = await tx
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(eq(workspace.organizationId, organizationId))
+
+      const captureDepartedUsage = async () => {
+        if (skipBillingLogic) return 0
+
+        await tx
+          .select({ id: organization.id })
+          .from(organization)
+          .where(eq(organization.id, organizationId))
+          .for('update')
+          .limit(1)
+
+        const [departingUserStats] = await tx
           .select({ currentPeriodCost: userStats.currentPeriodCost })
           .from(userStats)
           .where(eq(userStats.userId, userId))
+          .for('update')
           .limit(1)
 
-        if (departingUserStats?.currentPeriodCost) {
-          const usage = Number.parseFloat(departingUserStats.currentPeriodCost)
-          if (usage > 0) {
-            await db
-              .update(organization)
-              .set({
-                departedMemberUsage: sql`${organization.departedMemberUsage} + ${usage}`,
-              })
-              .where(eq(organization.id, organizationId))
+        const usage = toNumber(toDecimal(departingUserStats?.currentPeriodCost))
+        if (usage <= 0) return 0
 
-            await db
-              .update(userStats)
-              .set({ currentPeriodCost: '0' })
-              .where(eq(userStats.userId, userId))
+        await tx
+          .update(organization)
+          .set({
+            departedMemberUsage: sql`${organization.departedMemberUsage} + ${usage}`,
+          })
+          .where(eq(organization.id, organizationId))
 
-            billingActions.usageCaptured = usage
+        await tx
+          .update(userStats)
+          .set({ currentPeriodCost: '0' })
+          .where(eq(userStats.userId, userId))
 
-            logger.info('Captured departed member usage', {
-              organizationId,
-              userId,
-              usage,
-            })
-          }
-        }
-      } catch (usageCaptureError) {
-        logger.error('Failed to capture departed member usage', {
-          organizationId,
-          userId,
-          error: usageCaptureError,
-        })
+        return usage
       }
-    }
 
-    // STEP 2: Delete the member record
-    await db.delete(member).where(eq(member.id, memberId))
+      if (orgWorkspaces.length === 0) {
+        const capturedUsage = await captureDepartedUsage()
+
+        return {
+          workspaceIdsToRevoke: [] as string[],
+          usageCaptured: capturedUsage,
+          credentialMembershipsRevoked: 0,
+          pendingInvitationsCancelled: cancelledInvitations.length,
+        }
+      }
+
+      const workspaceIds = orgWorkspaces.map((w) => w.id)
+
+      await reassignOwnedOrganizationWorkspacesTx({
+        tx,
+        userId,
+        organizationId,
+        workspaceIds,
+      })
+
+      const deletedPerms = await tx
+        .delete(permissions)
+        .where(
+          and(
+            eq(permissions.userId, userId),
+            eq(permissions.entityType, 'workspace'),
+            inArray(permissions.entityId, workspaceIds)
+          )
+        )
+        .returning({ entityId: permissions.entityId })
+
+      await tx
+        .delete(permissionGroupMember)
+        .where(
+          and(
+            eq(permissionGroupMember.userId, userId),
+            inArray(permissionGroupMember.workspaceId, workspaceIds)
+          )
+        )
+
+      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx({
+        tx,
+        workspaceIds,
+        userId,
+      })
+      const capturedUsage = await captureDepartedUsage()
+
+      return {
+        workspaceIdsToRevoke: deletedPerms.map((row) => row.entityId),
+        usageCaptured: capturedUsage,
+        credentialMembershipsRevoked,
+        pendingInvitationsCancelled: cancelledInvitations.length,
+      }
+    })
+
+    billingActions.usageCaptured = usageCaptured
+    billingActions.workspaceAccessRevoked = workspaceIdsToRevoke.length
+    billingActions.pendingInvitationsCancelled = pendingInvitationsCancelled
+
+    if (usageCaptured > 0) {
+      logger.info('Captured departed member usage', {
+        organizationId,
+        userId,
+        usage: usageCaptured,
+      })
+    }
 
     logger.info('Removed member from organization', {
       organizationId,
       userId,
       memberId,
+      workspaceAccessRevoked: workspaceIdsToRevoke.length,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
     })
 
-    // STEP 3: Restore personal Pro if user has no remaining paid team memberships
     if (!skipBillingLogic) {
       try {
         const remainingPaidTeams = await db
@@ -627,7 +1083,7 @@ export async function removeUserFromOrganization(
               )
             )
 
-          hasAnyPaidTeam = orgPaidSubs.some((s) => isOrgPlan(s.plan))
+          hasAnyPaidTeam = orgPaidSubs.some((s) => isPaid(s.plan))
         }
 
         if (!hasAnyPaidTeam) {
@@ -659,8 +1115,450 @@ export async function removeUserFromOrganization(
 }
 
 /**
- * Check if a user is a member of a specific organization.
+ * Removes a non-member's access from every workspace owned by an organization.
+ * External workspace members have workspace permissions but no organization member row.
  */
+export async function removeExternalUserFromOrganizationWorkspaces(params: {
+  userId: string
+  organizationId: string
+}): Promise<RemoveExternalWorkspaceAccessResult> {
+  const { userId, organizationId } = params
+
+  try {
+    const [existingMember] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+      .limit(1)
+
+    if (existingMember) {
+      return {
+        success: false,
+        error: 'User is an organization member',
+        workspaceAccessRevoked: 0,
+        permissionGroupsRevoked: 0,
+        credentialMembershipsRevoked: 0,
+        pendingInvitationsCancelled: 0,
+      }
+    }
+
+    const {
+      workspaceAccessRevoked,
+      permissionGroupsRevoked,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
+    } = await db.transaction(async (tx) => {
+      const orgWorkspaces = await tx
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(eq(workspace.organizationId, organizationId))
+
+      if (orgWorkspaces.length === 0) {
+        return {
+          workspaceAccessRevoked: 0,
+          permissionGroupsRevoked: 0,
+          credentialMembershipsRevoked: 0,
+          pendingInvitationsCancelled: 0,
+        }
+      }
+
+      const workspaceIds = orgWorkspaces.map((w) => w.id)
+      const [targetUser] = await tx
+        .select({ email: user.email })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1)
+
+      await reassignOwnedOrganizationWorkspacesTx({
+        tx,
+        userId,
+        organizationId,
+        workspaceIds,
+      })
+
+      const deletedPermissions = await tx
+        .delete(permissions)
+        .where(
+          and(
+            eq(permissions.userId, userId),
+            eq(permissions.entityType, 'workspace'),
+            inArray(permissions.entityId, workspaceIds)
+          )
+        )
+        .returning({ entityId: permissions.entityId })
+
+      const deletedPermissionGroups = await tx
+        .delete(permissionGroupMember)
+        .where(
+          and(
+            eq(permissionGroupMember.userId, userId),
+            inArray(permissionGroupMember.workspaceId, workspaceIds)
+          )
+        )
+        .returning({ id: permissionGroupMember.id })
+
+      const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx({
+        tx,
+        workspaceIds,
+        userId,
+      })
+
+      const cancelledInvitations = targetUser?.email
+        ? await tx
+            .update(invitation)
+            .set({ status: 'cancelled', updatedAt: new Date() })
+            .where(
+              and(
+                eq(invitation.organizationId, organizationId),
+                eq(invitation.status, 'pending'),
+                eq(invitation.membershipIntent, 'external'),
+                sql`lower(${invitation.email}) = lower(${targetUser.email})`
+              )
+            )
+            .returning({ id: invitation.id })
+        : []
+
+      return {
+        workspaceAccessRevoked: deletedPermissions.length,
+        permissionGroupsRevoked: deletedPermissionGroups.length,
+        credentialMembershipsRevoked,
+        pendingInvitationsCancelled: cancelledInvitations.length,
+      }
+    })
+
+    if (
+      workspaceAccessRevoked === 0 &&
+      permissionGroupsRevoked === 0 &&
+      credentialMembershipsRevoked === 0 &&
+      pendingInvitationsCancelled === 0
+    ) {
+      return {
+        success: false,
+        error: 'External workspace member not found',
+        workspaceAccessRevoked,
+        permissionGroupsRevoked,
+        credentialMembershipsRevoked,
+        pendingInvitationsCancelled,
+      }
+    }
+
+    logger.info('Removed external workspace member from organization workspaces', {
+      organizationId,
+      userId,
+      workspaceAccessRevoked,
+      permissionGroupsRevoked,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
+    })
+
+    return {
+      success: true,
+      workspaceAccessRevoked,
+      permissionGroupsRevoked,
+      credentialMembershipsRevoked,
+      pendingInvitationsCancelled,
+    }
+  } catch (error) {
+    logger.error('Failed to remove external workspace member from organization workspaces', {
+      organizationId,
+      userId,
+      error,
+    })
+    return {
+      success: false,
+      error: 'Failed to remove external workspace member',
+      workspaceAccessRevoked: 0,
+      permissionGroupsRevoked: 0,
+      credentialMembershipsRevoked: 0,
+      pendingInvitationsCancelled: 0,
+    }
+  }
+}
+
+export interface TransferOwnershipParams {
+  organizationId: string
+  currentOwnerUserId: string
+  newOwnerUserId: string
+}
+
+export interface TransferOwnershipResult {
+  success: boolean
+  error?: string
+  workspacesReassigned: number
+  billedAccountReassigned: number
+  overageMigrated: string
+  billingBlockInherited: boolean
+}
+
+export async function transferOrganizationOwnership(
+  params: TransferOwnershipParams
+): Promise<TransferOwnershipResult> {
+  const { organizationId, currentOwnerUserId, newOwnerUserId } = params
+
+  const result: TransferOwnershipResult = {
+    success: false,
+    workspacesReassigned: 0,
+    billedAccountReassigned: 0,
+    overageMigrated: '0',
+    billingBlockInherited: false,
+  }
+
+  if (currentOwnerUserId === newOwnerUserId) {
+    return { ...result, success: false, error: 'New owner must differ from current owner' }
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const [currentOwnerMember] = await tx
+        .select({ id: member.id, role: member.role })
+        .from(member)
+        .where(
+          and(
+            eq(member.organizationId, organizationId),
+            eq(member.userId, currentOwnerUserId),
+            eq(member.role, 'owner')
+          )
+        )
+        .limit(1)
+
+      if (!currentOwnerMember) {
+        throw new Error('Current user is not the owner of this organization')
+      }
+
+      const [newOwnerMember] = await tx
+        .select({ id: member.id, role: member.role })
+        .from(member)
+        .where(and(eq(member.organizationId, organizationId), eq(member.userId, newOwnerUserId)))
+        .limit(1)
+
+      if (!newOwnerMember) {
+        throw new Error('Target user is not a member of this organization')
+      }
+
+      await tx.update(member).set({ role: 'admin' }).where(eq(member.id, currentOwnerMember.id))
+
+      await tx.update(member).set({ role: 'owner' }).where(eq(member.id, newOwnerMember.id))
+
+      const billedUpdate = await tx
+        .update(workspace)
+        .set({ billedAccountUserId: newOwnerUserId })
+        .where(
+          and(
+            eq(workspace.organizationId, organizationId),
+            eq(workspace.billedAccountUserId, currentOwnerUserId)
+          )
+        )
+        .returning({ id: workspace.id })
+
+      result.billedAccountReassigned = billedUpdate.length
+
+      const ownerUpdate = await tx
+        .update(workspace)
+        .set({ ownerId: newOwnerUserId })
+        .where(
+          and(
+            eq(workspace.organizationId, organizationId),
+            eq(workspace.ownerId, currentOwnerUserId)
+          )
+        )
+        .returning({ id: workspace.id })
+
+      result.workspacesReassigned = ownerUpdate.length
+
+      const reassignedWorkspaceIds = Array.from(
+        new Set([...billedUpdate.map((w) => w.id), ...ownerUpdate.map((w) => w.id)])
+      )
+
+      if (reassignedWorkspaceIds.length > 0) {
+        const now = new Date()
+        await tx
+          .insert(permissions)
+          .values(
+            reassignedWorkspaceIds.map((workspaceId) => ({
+              id: generateId(),
+              userId: newOwnerUserId,
+              entityType: 'workspace' as const,
+              entityId: workspaceId,
+              permissionType: 'admin' as const,
+              createdAt: now,
+              updatedAt: now,
+            }))
+          )
+          .onConflictDoUpdate({
+            target: [permissions.userId, permissions.entityType, permissions.entityId],
+            set: { permissionType: 'admin', updatedAt: now },
+          })
+      }
+
+      const [oldStats] = await tx
+        .select({
+          billedOverageThisPeriod: userStats.billedOverageThisPeriod,
+          billingBlocked: userStats.billingBlocked,
+          billingBlockedReason: userStats.billingBlockedReason,
+        })
+        .from(userStats)
+        .where(eq(userStats.userId, currentOwnerUserId))
+        .limit(1)
+
+      if (oldStats) {
+        await tx
+          .insert(userStats)
+          .values({
+            id: generateId(),
+            userId: newOwnerUserId,
+            usageLimitUpdatedAt: new Date(),
+          })
+          .onConflictDoNothing({ target: userStats.userId })
+
+        const overage = oldStats.billedOverageThisPeriod || '0'
+        const overageNum = toNumber(toDecimal(overage))
+        if (overageNum > 0) {
+          await tx
+            .update(userStats)
+            .set({
+              billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${overage}`,
+            })
+            .where(eq(userStats.userId, newOwnerUserId))
+
+          await tx
+            .update(userStats)
+            .set({ billedOverageThisPeriod: '0' })
+            .where(eq(userStats.userId, currentOwnerUserId))
+
+          result.overageMigrated = overage
+        }
+
+        if (oldStats.billingBlocked) {
+          const [newOwnerStats] = await tx
+            .select({
+              billingBlocked: userStats.billingBlocked,
+              billingBlockedReason: userStats.billingBlockedReason,
+            })
+            .from(userStats)
+            .where(eq(userStats.userId, newOwnerUserId))
+            .limit(1)
+
+          const newOwnerAlreadyBlocked = !!newOwnerStats?.billingBlocked
+          const newOwnerReason = newOwnerStats?.billingBlockedReason ?? null
+          const inheritedReason = oldStats.billingBlockedReason
+
+          const shouldUpgradeReason =
+            !newOwnerAlreadyBlocked ||
+            (newOwnerReason === 'payment_failed' && inheritedReason === 'dispute')
+
+          if (!newOwnerAlreadyBlocked) {
+            await tx
+              .update(userStats)
+              .set({
+                billingBlocked: true,
+                billingBlockedReason: inheritedReason,
+              })
+              .where(eq(userStats.userId, newOwnerUserId))
+            result.billingBlockInherited = true
+          } else if (shouldUpgradeReason) {
+            await tx
+              .update(userStats)
+              .set({ billingBlockedReason: inheritedReason })
+              .where(eq(userStats.userId, newOwnerUserId))
+            result.billingBlockInherited = true
+          }
+        }
+      }
+
+      const [orgSub] = await tx
+        .select({
+          id: subscriptionTable.id,
+          stripeCustomerId: subscriptionTable.stripeCustomerId,
+        })
+        .from(subscriptionTable)
+        .where(
+          and(
+            eq(subscriptionTable.referenceId, organizationId),
+            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
+        .limit(1)
+
+      if (orgSub?.stripeCustomerId) {
+        await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CUSTOMER_CONTACT, {
+          subscriptionId: orgSub.id,
+          reason: 'ownership-transfer',
+        })
+      }
+    })
+
+    logger.info('Transferred organization ownership', {
+      organizationId,
+      currentOwnerUserId,
+      newOwnerUserId,
+      workspacesReassigned: result.workspacesReassigned,
+      billedAccountReassigned: result.billedAccountReassigned,
+      overageMigrated: result.overageMigrated,
+      billingBlockInherited: result.billingBlockInherited,
+    })
+
+    return { ...result, success: true }
+  } catch (error) {
+    logger.error('Failed to transfer organization ownership', {
+      organizationId,
+      currentOwnerUserId,
+      newOwnerUserId,
+      error,
+    })
+
+    return {
+      ...result,
+      success: false,
+      error: getErrorMessage(error, 'Failed to transfer ownership'),
+    }
+  }
+}
+
+export async function isSoleOwnerOfPaidOrganization(userId: string): Promise<{
+  isBlocker: boolean
+  organizationId?: string
+  organizationName?: string
+  plan?: string | null
+}> {
+  const [ownerMembership] = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.role, 'owner')))
+    .limit(1)
+
+  if (!ownerMembership) {
+    return { isBlocker: false }
+  }
+
+  const [orgSub] = await db
+    .select({ plan: subscriptionTable.plan })
+    .from(subscriptionTable)
+    .where(
+      and(
+        eq(subscriptionTable.referenceId, ownerMembership.organizationId),
+        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+      )
+    )
+    .limit(1)
+
+  if (!orgSub || !isPaid(orgSub.plan)) {
+    return { isBlocker: false }
+  }
+
+  const [orgRow] = await db
+    .select({ name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, ownerMembership.organizationId))
+    .limit(1)
+
+  return {
+    isBlocker: true,
+    organizationId: ownerMembership.organizationId,
+    organizationName: orgRow?.name,
+    plan: orgSub.plan,
+  }
+}
+
 export async function isUserMemberOfOrganization(
   userId: string,
   organizationId: string

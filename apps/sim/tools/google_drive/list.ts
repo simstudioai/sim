@@ -66,9 +66,12 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       const escapeQueryValue = (value: string): string =>
         value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 
-      // Build the query conditions
-      const conditions = ['trashed = false'] // Always exclude trashed files
-      const folderId = params.folderId || params.folderSelector
+      // Build the query conditions. `params.query` here is a plain-text name
+      // search term (wrapped in `name contains '...'` below), not Google Drive
+      // query syntax — so there's no caller-supplied `trashed` predicate to
+      // honour. Always exclude trashed files.
+      const conditions: string[] = ['trashed = false']
+      const folderId = (params.folderId || params.folderSelector)?.trim()
       if (folderId) {
         const escapedFolderId = escapeQueryValue(folderId)
         conditions.push(`'${escapedFolderId}' in parents`)
@@ -108,7 +111,7 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
     return {
       success: true,
       output: {
-        files: data.files,
+        files: data.files ?? [],
         nextPageToken: data.nextPageToken,
       },
     }

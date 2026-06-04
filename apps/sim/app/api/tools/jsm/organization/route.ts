@@ -1,12 +1,17 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { jsmOrganizationContract } from '@/lib/api/contracts/selectors/jsm'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   validateAlphanumericId,
   validateEnum,
   validateJiraCloudId,
 } from '@/lib/core/security/input-validation'
-import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,14 +19,16 @@ const logger = createLogger('JsmOrganizationAPI')
 
 const VALID_ACTIONS = ['create', 'add_to_service_desk'] as const
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(jsmOrganizationContract, request, {})
+    if (!parsed.success) return parsed.response
+
     const {
       domain,
       accessToken,
@@ -30,7 +37,7 @@ export async function POST(request: NextRequest) {
       name,
       serviceDeskId,
       organizationId,
-    } = body
+    } = parsed.data.body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -86,7 +93,10 @@ export async function POST(request: NextRequest) {
         })
 
         return NextResponse.json(
-          { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+          {
+            error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+            details: errorText,
+          },
           { status: response.status }
         )
       }
@@ -124,6 +134,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: organizationIdValidation.error }, { status: 400 })
       }
 
+      const orgIdNumeric = Number.parseInt(String(organizationId).trim(), 10)
+      if (!Number.isFinite(orgIdNumeric) || orgIdNumeric <= 0) {
+        return NextResponse.json(
+          { error: 'organizationId must be a positive integer' },
+          { status: 400 }
+        )
+      }
+
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/organization`
 
       logger.info('Adding organization to service desk:', { serviceDeskId, organizationId })
@@ -131,7 +149,7 @@ export async function POST(request: NextRequest) {
       const response = await fetch(url, {
         method: 'POST',
         headers: getJsmHeaders(accessToken),
-        body: JSON.stringify({ organizationId: Number.parseInt(organizationId, 10) }),
+        body: JSON.stringify({ organizationId: orgIdNumeric }),
       })
 
       if (response.status === 204 || response.ok) {
@@ -154,7 +172,10 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }
@@ -162,16 +183,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (error) {
     logger.error('Error in organization operation:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
         success: false,
       },
       { status: 500 }
     )
   }
-}
+})

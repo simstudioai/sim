@@ -1,7 +1,7 @@
 import '@sim/testing/mocks/executor'
 
+import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { BlockType } from '@/executor/constants'
 import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
 import type { ExecutionContext } from '@/executor/types'
@@ -10,13 +10,11 @@ import { executeTool } from '@/tools'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const mockGetTool = vi.mocked(getTool)
 const mockExecuteTool = executeTool as Mock
-const mockValidateUrlWithDNS = vi.mocked(validateUrlWithDNS)
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 
 describe('ApiBlockHandler', () => {
   let handler: ApiBlockHandler
@@ -118,8 +116,7 @@ describe('ApiBlockHandler', () => {
         body: { key: 'value' }, // Expect parsed body
         _context: { workflowId: 'test-workflow-id' },
       },
-      false, // skipPostProcess
-      mockContext // execution context
+      { executionContext: mockContext }
     )
     expect(result).toEqual(expectedOutput)
   })
@@ -179,8 +176,7 @@ describe('ApiBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
       expect.objectContaining({ body: expectedParsedBody }),
-      false, // skipPostProcess
-      mockContext // execution context
+      { executionContext: mockContext }
     )
   })
 
@@ -195,8 +191,7 @@ describe('ApiBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
       expect.objectContaining({ body: 'This is plain text' }),
-      false, // skipPostProcess
-      mockContext // execution context
+      { executionContext: mockContext }
     )
   })
 
@@ -211,8 +206,7 @@ describe('ApiBlockHandler', () => {
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'http_request',
       expect.objectContaining({ body: undefined }),
-      false, // skipPostProcess
-      mockContext // execution context
+      { executionContext: mockContext }
     )
   })
 

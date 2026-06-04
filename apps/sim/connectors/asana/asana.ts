@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { AsanaIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('AsanaConnector')
 
@@ -132,7 +133,7 @@ async function listWorkspaceProjects(
 export const asanaConnector: ConnectorConfig = {
   id: 'asana',
   name: 'Asana',
-  description: 'Sync tasks from Asana into your knowledge base',
+  description: 'Sync tasks from Asana',
   version: '1.0.0',
   icon: AsanaIcon,
 
@@ -240,7 +241,6 @@ export const asanaConnector: ConnectorConfig = {
 
       for (const task of result.data) {
         const content = buildTaskContent(task)
-        const contentHash = await computeContentHash(content)
         const tagNames = task.tags?.map((t) => t.name).filter(Boolean) || []
 
         documents.push({
@@ -249,7 +249,7 @@ export const asanaConnector: ConnectorConfig = {
           content,
           mimeType: 'text/plain',
           sourceUrl: task.permalink_url || undefined,
-          contentHash,
+          contentHash: `asana:${task.gid}:${task.modified_at ?? ''}`,
           metadata: {
             project: currentProjectGid,
             assignee: task.assignee?.name,
@@ -315,7 +315,6 @@ export const asanaConnector: ConnectorConfig = {
       if (!task) return null
 
       const content = buildTaskContent(task)
-      const contentHash = await computeContentHash(content)
       const tagNames = task.tags?.map((t) => t.name).filter(Boolean) || []
 
       return {
@@ -324,7 +323,7 @@ export const asanaConnector: ConnectorConfig = {
         content,
         mimeType: 'text/plain',
         sourceUrl: task.permalink_url || undefined,
-        contentHash,
+        contentHash: `asana:${task.gid}:${task.modified_at ?? ''}`,
         metadata: {
           assignee: task.assignee?.name,
           completed: task.completed,
@@ -335,7 +334,7 @@ export const asanaConnector: ConnectorConfig = {
     } catch (error) {
       logger.error('Failed to get Asana task', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -363,7 +362,7 @@ export const asanaConnector: ConnectorConfig = {
       )
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

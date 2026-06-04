@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 export const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
 
 // Shared attendee interface that matches Google Calendar API specification
-export interface CalendarAttendee {
+interface CalendarAttendee {
   id?: string
   email: string
   displayName?: string
@@ -75,13 +75,13 @@ export interface GoogleCalendarInviteParams extends BaseGoogleCalendarParams {
   replaceExisting?: boolean // Whether to replace existing attendees or add to them
 }
 
-export interface GoogleCalendarMoveParams extends BaseGoogleCalendarParams {
+interface GoogleCalendarMoveParams extends BaseGoogleCalendarParams {
   eventId: string
   destinationCalendarId: string
   sendUpdates?: 'all' | 'externalOnly' | 'none'
 }
 
-export interface GoogleCalendarInstancesParams extends BaseGoogleCalendarParams {
+interface GoogleCalendarInstancesParams extends BaseGoogleCalendarParams {
   eventId: string
   timeMin?: string
   timeMax?: string
@@ -98,7 +98,7 @@ export interface GoogleCalendarFreeBusyParams {
   timeZone?: string // IANA time zone (e.g., "UTC", "America/New_York")
 }
 
-export interface GoogleCalendarListCalendarsParams {
+interface GoogleCalendarListCalendarsParams {
   accessToken: string
   minAccessRole?: 'freeBusyReader' | 'reader' | 'writer' | 'owner'
   maxResults?: number
@@ -155,7 +155,7 @@ interface ListMetadata {
   timeZone: string
 }
 
-export interface GoogleCalendarToolResponse extends ToolResponse {
+interface GoogleCalendarToolResponse extends ToolResponse {
   output: {
     content: string
     metadata: EventMetadata | ListMetadata
@@ -205,7 +205,7 @@ export interface GoogleCalendarInviteResponse extends ToolResponse {
   }
 }
 
-export interface GoogleCalendarEvent {
+interface GoogleCalendarEvent {
   id: string
   status: string
   htmlLink: string
@@ -313,7 +313,7 @@ export interface GoogleCalendarApiListResponse {
   items: GoogleCalendarApiEventResponse[]
 }
 
-export interface GoogleCalendarDeleteResponse extends ToolResponse {
+interface GoogleCalendarDeleteResponse extends ToolResponse {
   output: {
     content: string
     metadata: {
@@ -323,14 +323,14 @@ export interface GoogleCalendarDeleteResponse extends ToolResponse {
   }
 }
 
-export interface GoogleCalendarMoveResponse extends ToolResponse {
+interface GoogleCalendarMoveResponse extends ToolResponse {
   output: {
     content: string
     metadata: EventMetadata
   }
 }
 
-export interface GoogleCalendarInstancesResponse extends ToolResponse {
+interface GoogleCalendarInstancesResponse extends ToolResponse {
   output: {
     content: string
     metadata: {
@@ -380,7 +380,7 @@ export interface GoogleCalendarApiFreeBusyResponse {
   >
 }
 
-export interface GoogleCalendarListCalendarsResponse extends ToolResponse {
+interface GoogleCalendarListCalendarsResponse extends ToolResponse {
   output: {
     content: string
     metadata: {

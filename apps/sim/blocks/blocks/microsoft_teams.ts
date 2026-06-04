@@ -70,7 +70,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       canonicalParamId: 'teamId',
       serviceId: 'microsoft-teams',
       selectorKey: 'microsoft.teams',
-      selectorAllowSearch: false,
       requiredScopes: [],
       placeholder: 'Select a team',
       dependsOn: ['credential'],
@@ -95,6 +94,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'short-input',
       canonicalParamId: 'teamId',
       placeholder: 'Enter team ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -117,7 +117,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       canonicalParamId: 'chatId',
       serviceId: 'microsoft-teams',
       selectorKey: 'microsoft.chats',
-      selectorAllowSearch: false,
       requiredScopes: [],
       placeholder: 'Select a chat',
       dependsOn: ['credential'],
@@ -134,6 +133,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'short-input',
       canonicalParamId: 'chatId',
       placeholder: 'Enter chat ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -148,7 +148,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       canonicalParamId: 'channelId',
       serviceId: 'microsoft-teams',
       selectorKey: 'microsoft.channels',
-      selectorAllowSearch: false,
       requiredScopes: [],
       placeholder: 'Select a channel',
       dependsOn: ['credential', 'teamSelector'],
@@ -172,6 +171,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'short-input',
       canonicalParamId: 'channelId',
       placeholder: 'Enter channel ID',
+      dependsOn: ['credential', 'teamId'],
       mode: 'advanced',
       condition: {
         field: 'operation',

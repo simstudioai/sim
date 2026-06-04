@@ -66,7 +66,7 @@ export function getStartDateFromTimeRange(timeRange: TimeRange, startDate?: stri
   if (timeRange === 'Custom range') {
     if (startDate) {
       const date = new Date(startDate)
-      date.setHours(0, 0, 0, 0)
+      if (!startDate.includes('T')) date.setHours(0, 0, 0, 0)
       return date
     }
     return null
@@ -111,7 +111,11 @@ export function getEndDateFromTimeRange(timeRange: TimeRange, endDate?: string):
 
   if (endDate) {
     const date = new Date(endDate)
-    date.setHours(23, 59, 59, 999)
+    if (!endDate.includes('T')) {
+      date.setHours(23, 59, 59, 999)
+    } else {
+      date.setMilliseconds(999)
+    }
     return date
   }
 
@@ -191,7 +195,8 @@ function buildSearchConditions(params: {
 }
 
 function buildCostCondition(operator: ComparisonOperator, value: number): SQL {
-  const costField = sql`(${workflowExecutionLogs.cost}->>'total')::numeric`
+  // Indexed projection of the usage_log ledger (dollars); no live aggregation.
+  const costField = sql`${workflowExecutionLogs.costTotal}`
 
   switch (operator) {
     case '=':

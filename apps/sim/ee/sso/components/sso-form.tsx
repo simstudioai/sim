@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button, Input, Label } from '@/components/emcn'
+import { Button, Input, Label, Loader } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { env, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
@@ -163,7 +162,6 @@ export default function SSOForm() {
               autoCapitalize='none'
               autoComplete='email'
               autoCorrect='off'
-              autoFocus
               value={email}
               onChange={handleEmailChange}
               className={cn(
@@ -174,8 +172,8 @@ export default function SSOForm() {
             />
             {showEmailValidationError && emailErrors.length > 0 && (
               <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                {emailErrors.map((error, index) => (
-                  <p key={index}>{error}</p>
+                {emailErrors.map((error) => (
+                  <p key={error}>{error}</p>
                 ))}
               </div>
             )}
@@ -185,8 +183,8 @@ export default function SSOForm() {
         <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
           {isLoading ? (
             <span className='flex items-center gap-2'>
-              <Loader2 className='h-4 w-4 animate-spin' />
-              Redirecting to SSO provider...
+              <Loader className='size-4' animate />
+              Redirecting to SSO provider…
             </span>
           ) : (
             'Continue with SSO'

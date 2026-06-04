@@ -1,10 +1,14 @@
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import type {
+  AuthContext,
   FormatInputContext,
   FormatInputResult,
   WebhookProviderHandler,
@@ -44,7 +48,7 @@ async function resolveSlackFileInfo(
   } catch (error) {
     logger.error('Error calling Slack files.info', {
       fileId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }
@@ -134,7 +138,7 @@ async function downloadSlackFiles(
     } catch (error) {
       logger.error('Error downloading Slack file, skipping', {
         fileId: f.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -171,9 +175,44 @@ async function fetchSlackMessageText(
     logger.warn('Error fetching Slack message text', {
       channel,
       messageTs,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return ''
+  }
+}
+
+/** Maximum allowed timestamp skew (5 minutes) per Slack docs. */
+const SLACK_TIMESTAMP_MAX_SKEW = 300
+
+/**
+ * Validate Slack request signature using HMAC-SHA256.
+ * Basestring format: `v0:{timestamp}:{rawBody}`
+ * Signature header format: `v0={hex}`
+ */
+function validateSlackSignature(
+  signingSecret: string,
+  signature: string,
+  timestamp: string,
+  rawBody: string
+): boolean {
+  try {
+    if (!signingSecret || !signature || !rawBody) {
+      return false
+    }
+
+    if (!signature.startsWith('v0=')) {
+      logger.warn('Slack signature has invalid format (missing v0= prefix)')
+      return false
+    }
+
+    const providedSignature = signature.substring(3)
+    const basestring = `v0:${timestamp}:${rawBody}`
+    const computedHash = hmacSha256Hex(basestring, signingSecret)
+
+    return safeCompare(computedHash, providedSignature)
+  } catch (error) {
+    logger.error('Error validating Slack signature:', error)
+    return false
   }
 }
 
@@ -190,6 +229,44 @@ export function handleSlackChallenge(body: unknown): NextResponse | null {
 }
 
 export const slackHandler: WebhookProviderHandler = {
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
+    const signingSecret = providerConfig.signingSecret as string | undefined
+    if (!signingSecret) {
+      return null
+    }
+
+    const signature = request.headers.get('x-slack-signature')
+    const timestamp = request.headers.get('x-slack-request-timestamp')
+
+    if (!signature || !timestamp) {
+      logger.warn(`[${requestId}] Slack webhook missing signature or timestamp header`)
+      return new NextResponse('Unauthorized - Missing Slack signature', { status: 401 })
+    }
+
+    const now = Math.floor(Date.now() / 1000)
+    const parsedTimestamp = Number(timestamp)
+    if (Number.isNaN(parsedTimestamp)) {
+      logger.warn(`[${requestId}] Slack webhook timestamp is not a valid number`, { timestamp })
+      return new NextResponse('Unauthorized - Invalid timestamp', { status: 401 })
+    }
+    const skew = Math.abs(now - parsedTimestamp)
+    if (skew > SLACK_TIMESTAMP_MAX_SKEW) {
+      logger.warn(`[${requestId}] Slack webhook timestamp too old`, {
+        timestamp,
+        now,
+        skew,
+      })
+      return new NextResponse('Unauthorized - Request timestamp too old', { status: 401 })
+    }
+
+    if (!validateSlackSignature(signingSecret, signature, timestamp, rawBody)) {
+      logger.warn(`[${requestId}] Slack signature verification failed`)
+      return new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
+    }
+
+    return null
+  },
+
   handleChallenge(body: unknown) {
     return handleSlackChallenge(body)
   },
@@ -262,10 +339,13 @@ export const slackHandler: WebhookProviderHandler = {
       input: {
         event: {
           event_type: eventType,
+          subtype: (rawEvent?.subtype as string) ?? '',
           channel,
           channel_name: '',
+          channel_type: (rawEvent?.channel_type as string) ?? '',
           user: (rawEvent?.user as string) || '',
           user_name: '',
+          bot_id: (rawEvent?.bot_id as string) ?? '',
           text,
           timestamp: messageTs,
           thread_ts: (rawEvent?.thread_ts as string) || '',

@@ -1,1 +1,1 @@
-export { UserInput } from './user-input'
+export { UserInput, type UserInputHandle } from './user-input'

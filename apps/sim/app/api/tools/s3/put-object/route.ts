@@ -1,36 +1,27 @@
 import { type ObjectCannedACL, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsS3PutObjectContract } from '@/lib/api/contracts/tools/aws/s3-put-object'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('S3PutObjectAPI')
 
-const S3PutObjectSchema = z.object({
-  accessKeyId: z.string().min(1, 'Access Key ID is required'),
-  secretAccessKey: z.string().min(1, 'Secret Access Key is required'),
-  region: z.string().min(1, 'Region is required'),
-  bucketName: z.string().min(1, 'Bucket name is required'),
-  objectKey: z.string().min(1, 'Object key is required'),
-  file: RawFileInputSchema.optional().nullable(),
-  content: z.string().optional().nullable(),
-  contentType: z.string().optional().nullable(),
-  acl: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized S3 put object attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -45,8 +36,12 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = S3PutObjectSchema.parse(body)
+    const parsed = await parseToolRequest(awsS3PutObjectContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Uploading to S3`, {
       bucket: validatedData.bucketName,
@@ -77,11 +72,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to process file',
+            error: getErrorMessage(error, 'Failed to process file'),
           },
           { status: 400 }
         )
       }
+
+      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+      if (denied) return denied
 
       const buffer = await downloadFileFromStorage(userFile, requestId, logger)
 
@@ -132,26 +130,14 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error uploading to S3:`, error)
 
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )
   }
-}
+})

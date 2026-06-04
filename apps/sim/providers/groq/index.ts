@@ -1,9 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { Groq } from 'groq-sdk'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -58,6 +61,7 @@ export const groqProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'groq')
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -72,7 +76,7 @@ export const groqProvider: ProviderConfig = {
 
     const payload: any = {
       model: request.model.replace('groq/', ''),
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -161,7 +165,7 @@ export const groqProvider: ProviderConfig = {
               timeSegments: [
                 {
                   type: 'model',
-                  name: 'Streaming response',
+                  name: request.model,
                   startTime: providerStartTime,
                   endTime: Date.now(),
                   duration: Date.now() - providerStartTime,
@@ -203,7 +207,7 @@ export const groqProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
       let modelTime = firstResponseTime
       let toolsTime = 0
@@ -211,7 +215,7 @@ export const groqProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -225,6 +229,14 @@ export const groqProvider: ProviderConfig = {
           }
 
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            toolCallsInResponse,
+            { model: request.model, provider: 'groq' }
+          )
+
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             break
           }
@@ -242,7 +254,9 @@ export const groqProvider: ProviderConfig = {
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams)
+              const result = await executeTool(toolName, executionParams, {
+                signal: request.abortSignal,
+              })
               const toolCallEndTime = Date.now()
 
               return {
@@ -265,7 +279,7 @@ export const groqProvider: ProviderConfig = {
                 result: {
                   success: false,
                   output: undefined,
-                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                  error: getErrorMessage(error, 'Tool execution failed'),
                 },
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -301,6 +315,7 @@ export const groqProvider: ProviderConfig = {
               startTime: startTime,
               endTime: endTime,
               duration: duration,
+              toolCallId: toolCall.id,
             })
 
             let resultContent: any
@@ -372,7 +387,7 @@ export const groqProvider: ProviderConfig = {
 
           timeSegments.push({
             type: 'model',
-            name: `Model response (iteration ${iterationCount + 1})`,
+            name: request.model,
             startTime: nextModelStartTime,
             endTime: nextModelEndTime,
             duration: thisModelTime,
@@ -391,6 +406,15 @@ export const groqProvider: ProviderConfig = {
           }
 
           iterationCount++
+        }
+
+        if (iterationCount === MAX_TOOL_ITERATIONS) {
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            currentResponse.choices[0]?.message?.tool_calls,
+            { model: request.model, provider: 'groq' }
+          )
         }
       } catch (error) {
         logger.error('Error in Groq request:', { error })
@@ -513,7 +537,7 @@ export const groqProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

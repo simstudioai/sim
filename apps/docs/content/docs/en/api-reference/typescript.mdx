@@ -78,16 +78,15 @@ new SimStudioClient(config: SimStudioConfig)
 Execute a workflow with optional input data.
 
 ```typescript
-const result = await client.executeWorkflow('workflow-id', {
-  input: { message: 'Hello, world!' },
+const result = await client.executeWorkflow('workflow-id', { message: 'Hello, world!' }, {
   timeout: 30000 // 30 seconds
 });
 ```
 
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
+- `input` (any, optional): Input data to pass to the workflow
 - `options` (ExecutionOptions, optional):
-  - `input` (any): Input data to pass to the workflow
   - `timeout` (number): Timeout in milliseconds (default: 30000)
   - `stream` (boolean): Enable streaming responses (default: false)
   - `selectedOutputs` (string[]): Block outputs to stream in `blockName.attribute` format (e.g., `["agent1.content"]`)
@@ -95,7 +94,7 @@ const result = await client.executeWorkflow('workflow-id', {
 
 **Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
 
-When `async: true`, returns immediately with a task ID for polling. Otherwise, waits for completion.
+When `async: true`, returns immediately with a `jobId` and `statusUrl` for polling. Otherwise, waits for completion.
 
 ##### getWorkflowStatus()
 
@@ -132,7 +131,7 @@ if (isReady) {
 Get the status of an async job execution.
 
 ```typescript
-const status = await client.getJobStatus('task-id-from-async-execution');
+const status = await client.getJobStatus('job-id-from-async-execution');
 console.log('Status:', status.status); // 'queued', 'processing', 'completed', 'failed'
 if (status.status === 'completed') {
   console.log('Output:', status.output);
@@ -140,13 +139,13 @@ if (status.status === 'completed') {
 ```
 
 **Parameters:**
-- `taskId` (string): The task ID returned from async execution
+- `jobId` (string): The job ID returned from async execution
 
 **Returns:** `Promise<JobStatus>`
 
 **Response fields:**
 - `success` (boolean): Whether the request was successful
-- `taskId` (string): The task ID
+- `taskId` (string): The job ID
 - `status` (string): One of `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
 - `metadata` (object): Contains `startedAt`, `completedAt`, and `duration`
 - `output` (any, optional): The workflow output (when completed)
@@ -158,8 +157,7 @@ if (status.status === 'completed') {
 Execute a workflow with automatic retry on rate limit errors using exponential backoff.
 
 ```typescript
-const result = await client.executeWithRetry('workflow-id', {
-  input: { message: 'Hello' },
+const result = await client.executeWithRetry('workflow-id', { message: 'Hello' }, {
   timeout: 30000
 }, {
   maxRetries: 3,           // Maximum number of retries
@@ -171,6 +169,7 @@ const result = await client.executeWithRetry('workflow-id', {
 
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
+- `input` (any, optional): Input data to pass to the workflow
 - `options` (ExecutionOptions, optional): Same as `executeWorkflow()`
 - `retryOptions` (RetryOptions, optional):
   - `maxRetries` (number): Maximum number of retries (default: 3)
@@ -279,12 +278,11 @@ interface WorkflowExecutionResult {
 ```typescript
 interface AsyncExecutionResult {
   success: boolean;
-  taskId: string;
-  status: 'queued';
-  createdAt: string;
-  links: {
-    status: string;  // e.g., "/api/jobs/{taskId}"
-  };
+  jobId: string;
+  statusUrl: string;
+  executionId?: string;
+  message: string;
+  async: true;
 }
 ```
 
@@ -389,10 +387,8 @@ async function runWorkflow() {
 
     // Execute the workflow
     const result = await client.executeWorkflow('my-workflow-id', {
-      input: {
         message: 'Process this data',
         userId: '12345'
-      }
     });
 
     if (result.success) {
@@ -508,8 +504,7 @@ app.post('/execute-workflow', async (req, res) => {
   try {
     const { workflowId, input } = req.body;
     
-    const result = await client.executeWorkflow(workflowId, {
-      input,
+    const result = await client.executeWorkflow(workflowId, input, {
       timeout: 60000
     });
 
@@ -555,8 +550,7 @@ export default async function handler(
   try {
     const { workflowId, input } = req.body;
 
-    const result = await client.executeWorkflow(workflowId, {
-      input,
+    const result = await client.executeWorkflow(workflowId, input, {
       timeout: 30000
     });
 
@@ -586,9 +580,7 @@ const client = new SimStudioClient({
 async function executeClientSideWorkflow() {
   try {
     const result = await client.executeWorkflow('workflow-id', {
-      input: {
         userInput: 'Hello from browser'
-      }
     });
 
     console.log('Workflow result:', result);
@@ -642,10 +634,8 @@ Alternatively, you can manually provide files using the URL format:
 
       // Include files under the field name from your API trigger's input format
       const result = await client.executeWorkflow('workflow-id', {
-        input: {
           documents: files,  // Must match your workflow's "files" field name
           instructions: 'Analyze these documents'
-        }
       });
 
       console.log('Result:', result);
@@ -669,10 +659,8 @@ Alternatively, you can manually provide files using the URL format:
 
     // Include files under the field name from your API trigger's input format
     const result = await client.executeWorkflow('workflow-id', {
-      input: {
         documents: [file],  // Must match your workflow's "files" field name
         query: 'Summarize this document'
-      }
     });
     ```
   </Tab>
@@ -712,8 +700,7 @@ export function useWorkflow(): UseWorkflowResult {
     setResult(null);
 
     try {
-      const workflowResult = await client.executeWorkflow(workflowId, {
-        input,
+      const workflowResult = await client.executeWorkflow(workflowId, input, {
         timeout: 30000
       });
       setResult(workflowResult);
@@ -774,23 +761,22 @@ const client = new SimStudioClient({
 async function executeAsync() {
   try {
     // Start async execution
-    const result = await client.executeWorkflow('workflow-id', {
-      input: { data: 'large dataset' },
+    const result = await client.executeWorkflow('workflow-id', { data: 'large dataset' }, {
       async: true  // Execute asynchronously
     });
 
     // Check if result is an async execution
-    if ('taskId' in result) {
-      console.log('Task ID:', result.taskId);
-      console.log('Status endpoint:', result.links.status);
+    if ('jobId' in result) {
+      console.log('Job ID:', result.jobId);
+      console.log('Status endpoint:', result.statusUrl);
 
       // Poll for completion
-      let status = await client.getJobStatus(result.taskId);
+      let status = await client.getJobStatus(result.jobId);
 
       while (status.status === 'queued' || status.status === 'processing') {
         console.log('Current status:', status.status);
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-        status = await client.getJobStatus(result.taskId);
+        status = await client.getJobStatus(result.jobId);
       }
 
       if (status.status === 'completed') {
@@ -823,9 +809,7 @@ const client = new SimStudioClient({
 async function executeWithRetryHandling() {
   try {
     // Automatically retries on rate limit
-    const result = await client.executeWithRetry('workflow-id', {
-      input: { message: 'Process this' }
-    }, {
+    const result = await client.executeWithRetry('workflow-id', { message: 'Process this' }, {}, {
       maxRetries: 5,
       initialDelay: 1000,
       maxDelay: 60000,
@@ -908,8 +892,7 @@ const client = new SimStudioClient({
 async function executeWithStreaming() {
   try {
     // Enable streaming for specific block outputs
-    const result = await client.executeWorkflow('workflow-id', {
-      input: { message: 'Count to five' },
+    const result = await client.executeWorkflow('workflow-id', { message: 'Count to five' }, {
       stream: true,
       selectedOutputs: ['agent1.content'] // Use blockName.attribute format
     });
@@ -1033,3 +1016,14 @@ function StreamingWorkflow() {
 ## License
 
 Apache-2.0
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "Do I need to deploy a workflow before I can execute it via the SDK?", answer: "Yes. Workflows must be deployed before they can be executed through the SDK. You can use the validateWorkflow() method to check whether a workflow is deployed and ready. If it returns false, deploy the workflow from the Sim UI first and create or select an API key during deployment." },
+  { question: "What is the difference between sync and async execution?", answer: "Sync execution (the default) blocks until the workflow completes and returns the full result. Async execution returns immediately with a job ID and status URL that you can poll using getJobStatus(). Use async mode for long-running workflows to avoid request timeouts. Async job statuses include queued, processing, completed, failed, and cancelled." },
+  { question: "How does streaming work with the SDK?", answer: "Enable streaming by setting stream: true and specifying selectedOutputs with block names and attributes in blockName.attribute format (e.g., ['agent1.content']). The response uses Server-Sent Events (SSE) format, sending incremental chunks as the workflow executes. Each chunk includes the blockId and the text content. A final done event includes the execution metadata." },
+  { question: "How does the SDK handle rate limiting?", answer: "The SDK provides built-in rate limiting support through the executeWithRetry() method. It uses exponential backoff (1s, 2s, 4s, 8s...) with 25% jitter to avoid thundering herd problems. If the API returns a retry-after header, that value is used instead. You can configure maxRetries, initialDelay, maxDelay, and backoffMultiplier. Use getRateLimitInfo() to check your current rate limit status." },
+  { question: "Is it safe to use the SDK in browser-side code?", answer: "You can use the SDK in the browser, but you should not expose your API key in client-side code. In production, use a backend proxy server to handle SDK calls, or use a public API key with limited permissions. The SDK works with both Node.js and browser environments, but sensitive keys should stay server-side." },
+  { question: "How do I send files to a workflow through the SDK?", answer: "File objects are automatically detected and converted to base64 format. Include them in the input object under the field name that matches your workflow's API trigger input format. In the browser, pass File objects directly from file inputs. In Node.js, create File objects from buffers. You can also provide files as URL references with type, data, name, and mime fields." },
+]} />

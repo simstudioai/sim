@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Common location type
  */
-export interface LatLng {
+interface LatLng {
   lat: number
   lng: number
 }
@@ -11,7 +11,7 @@ export interface LatLng {
 /**
  * Address component from geocoding
  */
-export interface AddressComponent {
+interface AddressComponent {
   longName: string
   shortName: string
   types: string[]
@@ -20,7 +20,7 @@ export interface AddressComponent {
 /**
  * Snapped point from Roads API
  */
-export interface SnappedPoint {
+interface SnappedPoint {
   location: LatLng
   originalIndex?: number
   placeId: string
@@ -29,7 +29,7 @@ export interface SnappedPoint {
 /**
  * Speed limit info from Roads API
  */
-export interface SpeedLimit {
+interface SpeedLimit {
   placeId: string
   speedLimit: number
   units: 'KPH' | 'MPH'
@@ -38,7 +38,7 @@ export interface SpeedLimit {
 /**
  * Cell tower info for geolocation
  */
-export interface CellTower {
+interface CellTower {
   cellId: number
   locationAreaCode: number
   mobileCountryCode: number
@@ -51,7 +51,7 @@ export interface CellTower {
 /**
  * WiFi access point info for geolocation
  */
-export interface WifiAccessPoint {
+interface WifiAccessPoint {
   macAddress: string
   signalStrength?: number
   age?: number
@@ -62,7 +62,7 @@ export interface WifiAccessPoint {
 /**
  * Air quality index info
  */
-export interface AirQualityIndex {
+interface AirQualityIndex {
   code: string
   displayName: string
   aqi: number
@@ -79,7 +79,7 @@ export interface AirQualityIndex {
 /**
  * Pollutant concentration info
  */
-export interface Pollutant {
+interface Pollutant {
   code: string
   displayName: string
   fullName: string
@@ -139,7 +139,7 @@ export interface GoogleMapsReverseGeocodeResponse extends ToolResponse {
 // Directions
 // ============================================================================
 
-export interface DirectionsStep {
+interface DirectionsStep {
   instruction: string
   distanceText: string
   distanceMeters: number
@@ -151,7 +151,7 @@ export interface DirectionsStep {
   maneuver: string | null
 }
 
-export interface DirectionsLeg {
+interface DirectionsLeg {
   startAddress: string
   endAddress: string
   startLocation: LatLng
@@ -163,7 +163,7 @@ export interface DirectionsLeg {
   steps: DirectionsStep[]
 }
 
-export interface DirectionsRoute {
+interface DirectionsRoute {
   summary: string
   legs: DirectionsLeg[]
   overviewPolyline: string
@@ -200,7 +200,7 @@ export interface GoogleMapsDirectionsResponse extends ToolResponse {
 // Distance Matrix
 // ============================================================================
 
-export interface DistanceMatrixElement {
+interface DistanceMatrixElement {
   distanceText: string
   distanceMeters: number
   durationText: string
@@ -210,7 +210,7 @@ export interface DistanceMatrixElement {
   status: string
 }
 
-export interface DistanceMatrixRow {
+interface DistanceMatrixRow {
   elements: DistanceMatrixElement[]
 }
 
@@ -236,7 +236,7 @@ export interface GoogleMapsDistanceMatrixResponse extends ToolResponse {
 // Places Search
 // ============================================================================
 
-export interface PlaceResult {
+interface PlaceResult {
   placeId: string
   name: string
   formattedAddress: string
@@ -272,7 +272,7 @@ export interface GoogleMapsPlacesSearchResponse extends ToolResponse {
 // Place Details
 // ============================================================================
 
-export interface PlaceReview {
+interface PlaceReview {
   authorName: string
   authorUrl: string | null
   profilePhotoUrl: string | null
@@ -282,7 +282,7 @@ export interface PlaceReview {
   relativeTimeDescription: string
 }
 
-export interface PlacePhoto {
+interface PlacePhoto {
   photoReference: string
   height: number
   width: number

@@ -27,6 +27,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Read Issue', id: 'read' },
+        { label: 'Read Bulk Issues', id: 'read-bulk' },
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
         { label: 'Delete Issue', id: 'delete' },
@@ -91,7 +92,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
-      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
+      required: { field: 'operation', value: ['write', 'read-bulk'] },
     },
     // Manual project ID input (advanced mode)
     {
@@ -102,7 +103,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
-      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
+      required: { field: 'operation', value: ['write', 'read-bulk'] },
     },
     // Issue selector (basic mode)
     {
@@ -167,7 +168,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'short-input',
       canonicalParamId: 'issueKey',
       placeholder: 'Enter Jira issue key',
-      dependsOn: ['credential', 'domain'],
+      dependsOn: ['credential', 'domain', 'projectId'],
       condition: {
         field: 'operation',
         value: [
@@ -218,9 +219,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       id: 'summary',
       title: 'New Summary',
       type: 'short-input',
-      required: true,
+      required: { field: 'operation', value: 'write' },
       placeholder: 'Enter new summary for the issue',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
       wandConfig: {
         enabled: true,
@@ -240,7 +240,6 @@ Return ONLY the summary text - no explanations.`,
       title: 'New Description',
       type: 'long-input',
       placeholder: 'Enter new description for the issue',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
       wandConfig: {
         enabled: true,
@@ -272,6 +271,7 @@ Return ONLY the description text - no explanations.`,
       placeholder: 'Parent issue key for subtasks (e.g., PROJ-123)',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: 'write' },
+      mode: 'advanced',
     },
     // Write/Update Issue additional fields
     {
@@ -279,7 +279,6 @@ Return ONLY the description text - no explanations.`,
       title: 'Assignee Account ID',
       type: 'short-input',
       placeholder: 'Assignee account ID (e.g., 5b109f2e9729b51b54dc274d)',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -287,7 +286,6 @@ Return ONLY the description text - no explanations.`,
       title: 'Priority',
       type: 'short-input',
       placeholder: 'Priority ID or name (e.g., "10000" or "High")',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -295,7 +293,6 @@ Return ONLY the description text - no explanations.`,
       title: 'Labels',
       type: 'short-input',
       placeholder: 'Comma-separated labels (e.g., bug, urgent)',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -303,7 +300,6 @@ Return ONLY the description text - no explanations.`,
       title: 'Due Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (e.g., 2024-12-31)',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
       wandConfig: {
         enabled: true,
@@ -326,46 +322,47 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       placeholder: 'Reporter account ID',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: 'write' },
+      mode: 'advanced',
     },
     {
       id: 'environment',
       title: 'Environment',
       type: 'long-input',
       placeholder: 'Environment information (e.g., Production, Staging)',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'customFieldId',
       title: 'Custom Field ID',
       type: 'short-input',
       placeholder: 'e.g., customfield_10001 or 10001',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'customFieldValue',
       title: 'Custom Field Value',
       type: 'short-input',
       placeholder: 'Value for the custom field',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'components',
       title: 'Components',
       type: 'short-input',
       placeholder: 'Comma-separated component names',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'fixVersions',
       title: 'Fix Versions',
       type: 'short-input',
       placeholder: 'Comma-separated fix version names',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
+      mode: 'advanced',
     },
     {
       id: 'notifyUsers',
@@ -377,6 +374,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       ],
       value: () => 'true',
       condition: { field: 'operation', value: 'update' },
+      mode: 'advanced',
     },
     // Delete Issue fields
     {
@@ -389,6 +387,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       ],
       value: () => 'false',
       condition: { field: 'operation', value: 'delete' },
+      mode: 'advanced',
     },
     // Assign Issue fields
     {
@@ -432,6 +431,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Resolution name (e.g., "Fixed", "Won\'t Fix")',
       condition: { field: 'operation', value: 'transition' },
+      mode: 'advanced',
     },
     // Search Issues fields
     {
@@ -464,6 +464,7 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       type: 'short-input',
       placeholder: 'Cursor token for next page (omit for first page)',
       condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
     },
     {
       id: 'startAt',
@@ -471,6 +472,7 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       type: 'short-input',
       placeholder: 'Pagination start index (default: 0)',
       condition: { field: 'operation', value: ['get_comments', 'get_worklogs'] },
+      mode: 'advanced',
     },
     {
       id: 'maxResults',
@@ -478,6 +480,15 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       type: 'short-input',
       placeholder: 'Maximum results to return (default: 50)',
       condition: { field: 'operation', value: ['search', 'get_comments', 'get_worklogs'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'fields',
+      title: 'Fields',
+      type: 'short-input',
+      placeholder: 'Comma-separated fields to return (e.g., key,summary,status)',
+      condition: { field: 'operation', value: 'search' },
+      mode: 'advanced',
     },
     // Comment fields
     {
@@ -633,6 +644,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'long-input',
       placeholder: 'Add optional comment for the link',
       condition: { field: 'operation', value: 'create_link' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a comment for a Jira issue link based on the user's description.
@@ -661,6 +673,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Enter account ID for specific user',
       condition: { field: 'operation', value: 'get_users' },
+      mode: 'advanced',
     },
     {
       id: 'usersStartAt',
@@ -668,6 +681,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Pagination start index (default: 0)',
       condition: { field: 'operation', value: 'get_users' },
+      mode: 'advanced',
     },
     {
       id: 'usersMaxResults',
@@ -675,6 +689,7 @@ Return ONLY the comment text - no explanations.`,
       type: 'short-input',
       placeholder: 'Maximum users to return (default: 50)',
       condition: { field: 'operation', value: 'get_users' },
+      mode: 'advanced',
     },
     // Search Users fields
     {
@@ -706,7 +721,16 @@ Return ONLY the comment text - no explanations.`,
     ...getTrigger('jira_issue_updated').subBlocks,
     ...getTrigger('jira_issue_deleted').subBlocks,
     ...getTrigger('jira_issue_commented').subBlocks,
+    ...getTrigger('jira_comment_updated').subBlocks,
+    ...getTrigger('jira_comment_deleted').subBlocks,
     ...getTrigger('jira_worklog_created').subBlocks,
+    ...getTrigger('jira_worklog_updated').subBlocks,
+    ...getTrigger('jira_worklog_deleted').subBlocks,
+    ...getTrigger('jira_sprint_created').subBlocks,
+    ...getTrigger('jira_sprint_started').subBlocks,
+    ...getTrigger('jira_sprint_closed').subBlocks,
+    ...getTrigger('jira_project_created').subBlocks,
+    ...getTrigger('jira_version_released').subBlocks,
     ...getTrigger('jira_webhook').subBlocks,
   ],
   tools: {
@@ -739,16 +763,8 @@ Return ONLY the comment text - no explanations.`,
     ],
     config: {
       tool: (params) => {
-        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
-        const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
-        const effectiveIssueKey = params.issueKey ? String(params.issueKey).trim() : ''
-
         switch (params.operation) {
           case 'read':
-            // If a project is selected but no issue is chosen, route to bulk read
-            if (effectiveProjectId && !effectiveIssueKey) {
-              return 'jira_bulk_read'
-            }
             return 'jira_retrieve'
           case 'update':
             return 'jira_update'
@@ -872,7 +888,12 @@ Return ONLY the comment text - no explanations.`,
               environment: params.environment || undefined,
               customFieldId: params.customFieldId || undefined,
               customFieldValue: params.customFieldValue || undefined,
-              notifyUsers: params.notifyUsers === 'false' ? false : undefined,
+              notifyUsers:
+                params.notifyUsers === 'false'
+                  ? false
+                  : params.notifyUsers === 'true'
+                    ? true
+                    : undefined,
             }
             return {
               ...baseParams,
@@ -922,6 +943,12 @@ Return ONLY the comment text - no explanations.`,
               jql: params.jql,
               nextPageToken: params.nextPageToken || undefined,
               maxResults: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              fields: params.fields
+                ? params.fields
+                    .split(',')
+                    .map((f: string) => f.trim())
+                    .filter(Boolean)
+                : undefined,
             }
           }
           case 'add_comment': {
@@ -978,12 +1005,20 @@ Return ONLY the comment text - no explanations.`,
             }
           }
           case 'add_worklog': {
+            const rawTime = params.timeSpentSeconds
+            const parsedTime =
+              rawTime !== undefined && rawTime !== null && String(rawTime).trim() !== ''
+                ? Number(String(rawTime).trim())
+                : undefined
+            if (parsedTime !== undefined && (!Number.isFinite(parsedTime) || parsedTime <= 0)) {
+              throw new Error(
+                'Time Spent (seconds) must be a positive number of seconds (e.g., 3600 for 1 hour)'
+              )
+            }
             return {
               ...baseParams,
               issueKey: effectiveIssueKey,
-              timeSpentSeconds: params.timeSpentSeconds
-                ? Number.parseInt(params.timeSpentSeconds)
-                : undefined,
+              timeSpentSeconds: parsedTime,
               comment: params.worklogComment,
               started: params.started,
             }
@@ -1001,9 +1036,17 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueKey: effectiveIssueKey,
               worklogId: params.worklogId,
-              timeSpentSeconds: params.timeSpentSecondsUpdate
-                ? Number.parseInt(params.timeSpentSecondsUpdate)
-                : undefined,
+              timeSpentSeconds: (() => {
+                const raw = params.timeSpentSecondsUpdate
+                if (raw === undefined || raw === null || String(raw).trim() === '') return undefined
+                const n = Number(String(raw).trim())
+                if (!Number.isFinite(n) || n <= 0) {
+                  throw new Error(
+                    'Time Spent (seconds) must be a positive number of seconds (e.g., 3600 for 1 hour)'
+                  )
+                }
+                return n
+              })(),
               comment: params.worklogComment,
               started: params.started,
             }
@@ -1114,6 +1157,10 @@ Return ONLY the comment text - no explanations.`,
     startAt: { type: 'string', description: 'Pagination start index' },
     jql: { type: 'string', description: 'JQL (Jira Query Language) search query' },
     maxResults: { type: 'string', description: 'Maximum number of results to return' },
+    fields: {
+      type: 'string',
+      description: 'Comma-separated field names to return (e.g., key,summary,status)',
+    },
     // Comment operation inputs
     commentBody: { type: 'string', description: 'Text content for comment operations' },
     commentId: { type: 'string', description: 'Comment ID for update/delete operations' },
@@ -1262,6 +1309,9 @@ Return ONLY the comment text - no explanations.`,
     time_spent: { type: 'string', description: 'Time spent (for worklog events)' },
     changelog: { type: 'json', description: 'Changelog object (for update events)' },
     issue: { type: 'json', description: 'Complete issue object from webhook' },
+    sprint: { type: 'json', description: 'Sprint object (for sprint events)' },
+    project: { type: 'json', description: 'Project object (for project events)' },
+    version: { type: 'json', description: 'Version object (for version events)' },
     jira: { type: 'json', description: 'Complete webhook payload' },
     user: { type: 'json', description: 'User object who triggered the event' },
     webhook: { type: 'json', description: 'Webhook metadata' },
@@ -1273,7 +1323,16 @@ Return ONLY the comment text - no explanations.`,
       'jira_issue_updated',
       'jira_issue_deleted',
       'jira_issue_commented',
+      'jira_comment_updated',
+      'jira_comment_deleted',
       'jira_worklog_created',
+      'jira_worklog_updated',
+      'jira_worklog_deleted',
+      'jira_sprint_created',
+      'jira_sprint_started',
+      'jira_sprint_closed',
+      'jira_project_created',
+      'jira_version_released',
       'jira_webhook',
     ],
   },

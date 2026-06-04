@@ -29,7 +29,6 @@ const SUBFLOW_CONFIG = {
     },
     typeKey: 'loopType' as const,
     storeKey: 'loops' as const,
-    maxIterations: 1000,
     configKeys: {
       iterations: 'iterations' as const,
       items: 'forEachItems' as const,
@@ -40,7 +39,6 @@ const SUBFLOW_CONFIG = {
     typeLabels: { count: 'Parallel Count', collection: 'Parallel Each' },
     typeKey: 'parallelType' as const,
     storeKey: 'parallels' as const,
-    maxIterations: 20,
     configKeys: {
       iterations: 'count' as const,
       items: 'distribution' as const,
@@ -61,9 +59,17 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
-  const [tempInputValue, setTempInputValue] = useState<string | null>(null)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
+  /**
+   * In-flight string buffers for the numeric inputs. These let the user
+   * temporarily clear or mid-type the field (e.g. backspace to empty before
+   * typing a new value) without React snapping the value back from the store.
+   * Persistence still happens on every keystroke that parses to a number;
+   * the buffer is cleared on blur so the input rebinds to the store value.
+   */
+  const [iterationsBuffer, setIterationsBuffer] = useState<string | null>(null)
+  const [batchSizeBuffer, setBatchSizeBuffer] = useState<string | null>(null)
 
   const isSubflow =
     currentBlock && (currentBlock.type === 'loop' || currentBlock.type === 'parallel')
@@ -97,6 +103,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
   const {
     collaborativeUpdateLoopType,
     collaborativeUpdateParallelType,
+    collaborativeUpdateParallelBatchSize,
     collaborativeUpdateIterationCount,
     collaborativeUpdateIterationCollection,
   } = useCollaborativeWorkflow()
@@ -218,47 +225,54 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
   )
 
   /**
-   * Handle iterations input change
+   * Persist iterations on every keystroke that parses to a number. The
+   * visible string is buffered so transient states (empty, "0", partial typing)
+   * render correctly without snapping back to the persisted value.
    */
   const handleSubflowIterationsChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!subflowConfig) return
+      if (!currentBlockId || !isSubflow || !subflowConfig || !currentBlock) return
       const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
+      setIterationsBuffer(sanitizedValue)
       const numValue = Number.parseInt(sanitizedValue)
-
-      if (!Number.isNaN(numValue)) {
-        setTempInputValue(Math.min(subflowConfig.maxIterations, numValue).toString())
-      } else {
-        setTempInputValue(sanitizedValue)
-      }
-    },
-    [subflowConfig]
-  )
-
-  /**
-   * Save iterations value
-   */
-  const handleSubflowIterationsSave = useCallback(() => {
-    if (!currentBlockId || !isSubflow || !subflowConfig || !currentBlock) return
-    const value = Number.parseInt(tempInputValue ?? '5')
-
-    if (!Number.isNaN(value)) {
-      const newValue = Math.min(subflowConfig.maxIterations, Math.max(1, value))
+      if (Number.isNaN(numValue)) return
       collaborativeUpdateIterationCount(
         currentBlockId,
         currentBlock.type as 'loop' | 'parallel',
-        newValue
+        Math.max(1, numValue)
       )
-    }
-    setTempInputValue(null)
-  }, [
-    tempInputValue,
-    currentBlockId,
-    isSubflow,
-    subflowConfig,
-    currentBlock,
-    collaborativeUpdateIterationCount,
-  ])
+    },
+    [currentBlockId, isSubflow, subflowConfig, currentBlock, collaborativeUpdateIterationCount]
+  )
+
+  /**
+   * Clears the iterations buffer on blur so the field re-binds to the
+   * canonical store value (e.g. if the user left it empty, it snaps back
+   * to the last persisted count).
+   */
+  const handleSubflowIterationsBlur = useCallback(() => {
+    setIterationsBuffer(null)
+  }, [])
+
+  /**
+   * Persist parallel batch size on every keystroke that parses to a number,
+   * clamped to 1..20. Buffered the same way as iterations.
+   */
+  const handleParallelBatchSizeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!currentBlockId || currentBlock?.type !== 'parallel') return
+      const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
+      setBatchSizeBuffer(sanitizedValue)
+      const numValue = Number.parseInt(sanitizedValue)
+      if (Number.isNaN(numValue)) return
+      collaborativeUpdateParallelBatchSize(currentBlockId, Math.min(20, Math.max(1, numValue)))
+    },
+    [currentBlockId, currentBlock, collaborativeUpdateParallelBatchSize]
+  )
+
+  const handleParallelBatchSizeBlur = useCallback(() => {
+    setBatchSizeBuffer(null)
+  }, [])
 
   /**
    * Handle editor value change (collection/condition)
@@ -342,11 +356,16 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       : ''
 
   const iterations = configIterations
+  const parallelBatchSize =
+    isSubflow && currentBlock?.type === 'parallel'
+      ? ((nodeConfig as any)?.batchSize ?? (blockData as any)?.batchSize ?? 20)
+      : 20
   const collectionString =
     typeof configCollection === 'string' ? configCollection : JSON.stringify(configCollection) || ''
   const conditionString = typeof configCondition === 'string' ? configCondition : ''
 
-  const inputValue = tempInputValue ?? iterations.toString()
+  const inputValue = iterationsBuffer ?? iterations.toString()
+  const batchSizeValue = batchSizeBuffer ?? parallelBatchSize.toString()
   const editorValue = isConditionMode ? conditionString : collectionString
 
   // Type options for combobox
@@ -366,6 +385,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
     isCountMode,
     isConditionMode,
     inputValue,
+    batchSizeValue,
     editorValue,
     typeOptions,
     showTagDropdown,
@@ -376,7 +396,9 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
     // Handlers
     handleSubflowTypeChange,
     handleSubflowIterationsChange,
-    handleSubflowIterationsSave,
+    handleSubflowIterationsBlur,
+    handleParallelBatchSizeChange,
+    handleParallelBatchSizeBlur,
     handleSubflowEditorChange,
     handleSubflowTagSelect,
     highlightWithReferences,

@@ -1,8 +1,9 @@
-import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { truncate } from '@sim/utils/string'
+import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -12,6 +13,7 @@ export function serializeWorkflowMeta(wf: {
   id: string
   name: string
   description?: string | null
+  folderId?: string | null
   isDeployed: boolean
   deployedAt?: Date | null
   runCount: number
@@ -24,6 +26,7 @@ export function serializeWorkflowMeta(wf: {
       id: wf.id,
       name: wf.name,
       description: wf.description || undefined,
+      folderId: wf.folderId || undefined,
       isDeployed: wf.isDeployed,
       deployedAt: wf.deployedAt?.toISOString(),
       runCount: wf.runCount,
@@ -267,6 +270,9 @@ export function serializeConnectorOverview(connectors: SerializableConnectorConf
 export function serializeFileMeta(file: {
   id: string
   name: string
+  folderId?: string | null
+  folderPath?: string | null
+  vfsPath?: string
   contentType: string
   size: number
   uploadedAt: Date
@@ -275,6 +281,9 @@ export function serializeFileMeta(file: {
     {
       id: file.id,
       name: file.name,
+      folderId: file.folderId || undefined,
+      folderPath: file.folderPath || undefined,
+      vfsPath: file.vfsPath,
       contentType: file.contentType,
       size: file.size,
       uploadedAt: file.uploadedAt.toISOString(),
@@ -318,24 +327,38 @@ export function serializeTableMeta(table: {
  * Excludes dynamic providers (ollama, vllm, openrouter) whose models are user-configured.
  * Includes provider ID and whether the model is hosted by Sim (no API key required).
  */
-function getStaticModelOptionsForVFS(): Array<{
+interface StaticModelOption {
   id: string
   provider: string
   hosted: boolean
-}> {
-  const hostedProviders = new Set(['openai', 'anthropic', 'google'])
-  const dynamicProviders = new Set(['ollama', 'vllm', 'openrouter', 'fireworks'])
+  recommended?: boolean
+  speedOptimized?: boolean
+  deprecated?: boolean
+}
 
-  const models: Array<{ id: string; provider: string; hosted: boolean }> = []
+const DYNAMIC_PROVIDERS_NOTE = {
+  note: 'The options array above lists Sim\'s static provider catalog. These providers also accept user-configured models that are NOT enumerated here: the user may have additional ids available at runtime (e.g. local Ollama tags). To reference one, prefix the model id with the provider slash below — for example "ollama/llama3.1:8b" instead of the bare "llama3.1:8b". The server rejects bare ids that are not in the catalog; always use the prefix for user-configured models.',
+  prefixes: DYNAMIC_MODEL_PROVIDERS.map((p) => `${p}/`),
+} as const
+
+function getStaticModelOptionsForVFS(): StaticModelOption[] {
+  const hostedProviders = new Set(['openai', 'anthropic', 'google'])
+  const dynamicProviders = new Set<string>(DYNAMIC_MODEL_PROVIDERS)
+
+  const models: StaticModelOption[] = []
 
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue
     for (const model of def.models) {
-      models.push({
+      const option: StaticModelOption = {
         id: model.id,
         provider: providerId,
         hosted: hostedProviders.has(providerId),
-      })
+      }
+      if (model.recommended) option.recommended = true
+      if (model.speedOptimized) option.speedOptimized = true
+      if (model.deprecated) option.deprecated = true
+      models.push(option)
     }
   }
 
@@ -376,9 +399,9 @@ export function serializeBlockSchema(block: BlockConfig): string {
     .map((sb) => {
       const serialized = serializeSubBlock(sb)
 
-      // For model comboboxes with function options, inject static model data with hosting info
       if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
         serialized.options = getStaticModelOptionsForVFS()
+        serialized.dynamicProviders = DYNAMIC_PROVIDERS_NOTE
       }
 
       return serialized
@@ -420,13 +443,14 @@ export function serializeBlockSchema(block: BlockConfig): string {
 
 /**
  * Serialize OAuth credentials for VFS environment/credentials.json.
- * Shows which integrations are connected — IDs and scopes, NOT tokens.
+ * Shows which integrations are connected — IDs, roles, and scopes, NOT tokens.
  */
 export function serializeCredentials(
   accounts: Array<{
     id?: string
     providerId: string
     displayName?: string | null
+    role?: string | null
     scope: string | null
     createdAt: Date
   }>
@@ -436,6 +460,7 @@ export function serializeCredentials(
       id: a.id || undefined,
       provider: a.providerId,
       displayName: a.displayName || undefined,
+      role: a.role || undefined,
       scope: a.scope || undefined,
       connectedAt: a.createdAt.toISOString(),
     })),
@@ -559,7 +584,7 @@ export function serializeDeployments(data: DeploymentData): string {
     result.api = {
       isDeployed: true,
       deployedAt: data.deployedAt?.toISOString(),
-      apiEndpoint: `/api/workflows/${data.workflowId}/run`,
+      apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
       ...(data.api ? { version: data.api.version } : {}),
     }
   }
@@ -658,7 +683,7 @@ export function serializeCustomTool(tool: {
       id: tool.id,
       title: tool.title,
       schema: tool.schema,
-      codePreview: tool.code.length > 500 ? `${tool.code.slice(0, 500)}...` : tool.code,
+      codePreview: truncate(tool.code, 500),
     },
     null,
     2
@@ -705,7 +730,7 @@ export function serializeSkill(s: {
       id: s.id,
       name: s.name,
       description: s.description,
-      contentPreview: s.content.length > 500 ? `${s.content.slice(0, 500)}...` : s.content,
+      contentPreview: truncate(s.content, 500),
       createdAt: s.createdAt.toISOString(),
     },
     null,
@@ -748,7 +773,7 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
                 type: 'string',
                 required: false,
                 description:
-                  'Optional credential ID to use when multiple accounts are connected for this provider. Get IDs from environment/credentials.json. If omitted, auto-selects the first available credential.',
+                  'Credential ID to use for this OAuth tool call. For Copilot/Superagent execution, pass this explicitly. Get valid IDs from environment/credentials.json.',
               },
             }),
           }

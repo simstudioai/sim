@@ -38,9 +38,7 @@ export function WorkflowSelector({
    * When allWorkflows is true, pass empty array so the "All" option is selected.
    * Otherwise, pass the selected workflow IDs.
    */
-  const currentValues = useMemo(() => {
-    return allWorkflows ? [] : selectedIds
-  }, [allWorkflows, selectedIds])
+  const currentValues = allWorkflows ? [] : selectedIds
 
   /**
    * Handle multi-select changes from Combobox.
@@ -86,7 +84,7 @@ export function WorkflowSelector({
             onMouseDown={(e) => handleRemove(e, w.id)}
           >
             {w.name}
-            <X className='!text-[var(--text-primary)] h-4 w-4 flex-shrink-0 opacity-50' />
+            <X className='!text-[var(--text-primary)] size-4 flex-shrink-0 opacity-50' />
           </Badge>
         ))}
         {selectedWorkflows.length > 2 && (
@@ -126,5 +124,3 @@ export function WorkflowSelector({
     </div>
   )
 }
-
-export default WorkflowSelector

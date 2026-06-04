@@ -25,6 +25,7 @@ export function InlineRenameInput({ value, onChange, onSubmit, onCancel }: Inlin
       ref={inputRef}
       type='text'
       value={value}
+      size={Math.max(value.length + 2, 5)}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === 'Enter') onSubmit()
@@ -32,7 +33,7 @@ export function InlineRenameInput({ value, onChange, onSubmit, onCancel }: Inlin
       }}
       onBlur={onSubmit}
       onClick={(e) => e.stopPropagation()}
-      className='min-w-0 flex-1 truncate border-0 bg-transparent p-0 font-medium text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0'
+      className='min-w-0 border-0 bg-transparent p-0 font-medium text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0'
     />
   )
 }

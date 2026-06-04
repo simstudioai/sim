@@ -2,10 +2,35 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type {
+  WorkflowSearchRange,
+  WorkflowSearchTarget,
+  WorkflowSearchValuePath,
+} from '@/lib/workflows/search-replace/types'
 import { EDITOR_CONNECTIONS_HEIGHT } from '@/stores/constants'
 import { usePanelStore } from '../store'
 
 let renameCallback: (() => void) | null = null
+
+export type ActiveSearchTargetKind = WorkflowSearchTarget['kind']
+
+export interface ActiveSearchTarget {
+  matchId: string
+  blockId: string
+  subBlockId: string
+  canonicalSubBlockId: string
+  valuePath: WorkflowSearchValuePath
+  kind: string
+  targetKind: ActiveSearchTargetKind
+  subBlockType: string
+  rawValue: string
+  searchText: string
+  query: string
+  range?: WorkflowSearchRange
+  structuredOccurrenceIndex?: number
+  displayLabel?: string
+  resourceGroupKey?: string
+}
 
 /**
  * State for the Editor panel.
@@ -30,6 +55,23 @@ interface PanelEditorState {
   triggerRename: () => void
 }
 
+interface PanelEditorSearchState {
+  /** Ephemeral workflow search target used for scrolling/highlighting editor fields */
+  activeSearchTarget: ActiveSearchTarget | null
+  /** Sets an active search target to highlight in the editor */
+  setActiveSearchTarget: (target: ActiveSearchTarget | null) => void
+}
+
+export const usePanelEditorSearchStore = create<PanelEditorSearchState>()((set) => ({
+  activeSearchTarget: null,
+  setActiveSearchTarget: (target) => {
+    set({ activeSearchTarget: target })
+    if (target) {
+      usePanelStore.getState().setActiveTab('editor')
+    }
+  },
+}))
+
 /**
  * Editor panel store.
  * Persisted to preserve selection across navigations/refreshes.
@@ -53,6 +95,7 @@ export const usePanelEditorStore = create<PanelEditorState>()(
       },
       clearCurrentBlock: () => {
         set({ currentBlockId: null })
+        usePanelEditorSearchStore.getState().setActiveSearchTarget(null)
       },
       setConnectionsHeight: (height) => {
         const clampedHeight = Math.max(

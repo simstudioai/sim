@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { upsertWorkspaceCredentialMemberContract } from '@/lib/api/contracts/credentials'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialMembersAPI')
@@ -40,7 +42,7 @@ async function requireWorkspaceAdminMembership(credentialId: string, userId: str
   return membership
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+export const GET = withRouteHandler(async (_request: NextRequest, context: RouteContext) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -56,7 +58,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       .limit(1)
 
     if (!cred) {
-      return NextResponse.json({ members: [] }, { status: 200 })
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     const callerPerm = await getUserEntityPermissions(
@@ -65,7 +67,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       cred.workspaceId
     )
     if (callerPerm === null) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     const members = await db
@@ -87,14 +89,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     logger.error('Failed to fetch credential members', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-const addMemberSchema = z.object({
-  userId: z.string().min(1),
-  role: z.enum(['admin', 'member']).default('member'),
 })
 
-export async function POST(request: NextRequest, context: RouteContext) {
+export const POST = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -108,13 +105,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const body = await request.json()
-    const parsed = addMemberSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-    }
+    const parsed = await parseRequest(upsertWorkspaceCredentialMemberContract, request, context)
+    if (!parsed.success) return parsed.response
 
-    const { userId, role } = parsed.data
+    const { userId, role } = parsed.data.body
     const now = new Date()
 
     const [existing] = await db
@@ -126,10 +120,36 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .limit(1)
 
     if (existing) {
-      await db
-        .update(credentialMember)
-        .set({ role, status: 'active', updatedAt: now })
-        .where(eq(credentialMember.id, existing.id))
+      const ok = await db.transaction(async (tx) => {
+        const [current] = await tx
+          .select({ role: credentialMember.role, status: credentialMember.status })
+          .from(credentialMember)
+          .where(eq(credentialMember.id, existing.id))
+          .limit(1)
+          .for('update')
+        if (current?.role === 'admin' && current?.status === 'active' && role !== 'admin') {
+          const activeAdmins = await tx
+            .select({ id: credentialMember.id })
+            .from(credentialMember)
+            .where(
+              and(
+                eq(credentialMember.credentialId, credentialId),
+                eq(credentialMember.role, 'admin'),
+                eq(credentialMember.status, 'active')
+              )
+            )
+            .for('update')
+          if (activeAdmins.length <= 1) return false
+        }
+        await tx
+          .update(credentialMember)
+          .set({ role, status: 'active', updatedAt: now })
+          .where(eq(credentialMember.id, existing.id))
+        return true
+      })
+      if (!ok) {
+        return NextResponse.json({ error: 'Cannot demote the last admin' }, { status: 400 })
+      }
       return NextResponse.json({ success: true })
     }
 
@@ -150,9 +170,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     logger.error('Failed to add credential member', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export const DELETE = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -201,6 +221,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
               eq(credentialMember.status, 'active')
             )
           )
+          .for('update')
 
         if (activeAdmins.length <= 1) {
           return false
@@ -224,4 +245,4 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     logger.error('Failed to remove credential member', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -131,6 +131,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing apiKey for Lemlist webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Lemlist apiKey for webhook deletion')
         return
       }
 
@@ -142,6 +143,7 @@ export const lemlistHandler: WebhookProviderHandler = {
           logger.warn(`[${requestId}] Invalid Lemlist hook ID format, skipping deletion`, {
             id: id.substring(0, 30),
           })
+          if (ctx.strict) throw new Error('Invalid Lemlist hook ID for deletion')
           return
         }
 
@@ -159,6 +161,9 @@ export const lemlistHandler: WebhookProviderHandler = {
             `[${requestId}] Failed to delete Lemlist webhook (non-fatal): ${lemlistResponse.status}`,
             { response: responseBody }
           )
+          if (ctx.strict) {
+            throw new Error(`Failed to delete Lemlist webhook: ${lemlistResponse.status}`)
+          }
         } else {
           logger.info(`[${requestId}] Successfully deleted Lemlist webhook ${id}`)
         }
@@ -167,6 +172,14 @@ export const lemlistHandler: WebhookProviderHandler = {
       if (externalId) {
         await deleteById(externalId)
         return
+      }
+
+      if (ctx.strict) {
+        logger.warn(
+          `[${requestId}] Missing Lemlist externalId during strict cleanup; skipping unsafe URL-based remote deletion`,
+          { webhookId: webhook.id }
+        )
+        throw new Error('Missing Lemlist externalId for strict cleanup')
       }
 
       const notificationUrl = getNotificationUrl(webhook)
@@ -181,6 +194,7 @@ export const lemlistHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Failed to list Lemlist webhooks for cleanup ${webhook.id}`, {
           status: listResponse.status,
         })
+        if (ctx.strict) throw new Error(`Failed to list Lemlist webhooks: ${listResponse.status}`)
         return
       }
 
@@ -213,6 +227,7 @@ export const lemlistHandler: WebhookProviderHandler = {
       }
     } catch (error) {
       logger.warn(`[${requestId}] Error deleting Lemlist webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }

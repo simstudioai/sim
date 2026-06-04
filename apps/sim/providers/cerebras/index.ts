@@ -1,10 +1,13 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import type { CerebrasResponse } from '@/providers/cerebras/types'
 import { createReadableStreamFromCerebrasStream } from '@/providers/cerebras/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -62,6 +65,7 @@ export const cerebrasProvider: ProviderConfig = {
       if (request.messages) {
         allMessages.push(...request.messages)
       }
+      const formattedMessages = formatMessagesForProvider(allMessages, 'cerebras')
 
       const tools = request.tools?.length
         ? request.tools.map((tool) => ({
@@ -76,7 +80,7 @@ export const cerebrasProvider: ProviderConfig = {
 
       const payload: any = {
         model: request.model.replace('cerebras/', ''),
-        messages: allMessages,
+        messages: formattedMessages,
       }
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
@@ -160,7 +164,7 @@ export const cerebrasProvider: ProviderConfig = {
                 timeSegments: [
                   {
                     type: 'model',
-                    name: 'Streaming response',
+                    name: request.model,
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -197,7 +201,7 @@ export const cerebrasProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
 
       let modelTime = firstResponseTime
@@ -205,7 +209,7 @@ export const cerebrasProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -217,6 +221,13 @@ export const cerebrasProvider: ProviderConfig = {
       try {
         while (iterationCount < MAX_TOOL_ITERATIONS) {
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            toolCallsInResponse,
+            { model: request.model, provider: 'cerebras' }
+          )
 
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             if (currentResponse.choices[0]?.message?.content) {
@@ -252,7 +263,9 @@ export const cerebrasProvider: ProviderConfig = {
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams)
+              const result = await executeTool(toolName, executionParams, {
+                signal: request.abortSignal,
+              })
               const toolCallEndTime = Date.now()
 
               return {
@@ -267,7 +280,7 @@ export const cerebrasProvider: ProviderConfig = {
             } catch (error) {
               const toolCallEndTime = Date.now()
               logger.error('Error processing tool call (Cerebras):', {
-                error: error instanceof Error ? error.message : String(error),
+                error: toError(error).message,
                 toolName,
               })
 
@@ -278,7 +291,7 @@ export const cerebrasProvider: ProviderConfig = {
                 result: {
                   success: false,
                   output: undefined,
-                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                  error: getErrorMessage(error, 'Tool execution failed'),
                 },
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -312,6 +325,7 @@ export const cerebrasProvider: ProviderConfig = {
               startTime: startTime,
               endTime: endTime,
               duration: duration,
+              toolCallId: toolCall.id,
             })
             let resultContent: any
             if (result.success && result.output) {
@@ -381,7 +395,7 @@ export const cerebrasProvider: ProviderConfig = {
 
             timeSegments.push({
               type: 'model',
-              name: 'Final response',
+              name: request.model,
               startTime: nextModelStartTime,
               endTime: nextModelEndTime,
               duration: thisModelTime,
@@ -397,6 +411,13 @@ export const cerebrasProvider: ProviderConfig = {
               tokens.output += finalResponse.usage.completion_tokens || 0
               tokens.total += finalResponse.usage.total_tokens || 0
             }
+
+            enrichLastModelSegmentFromChatCompletions(
+              timeSegments,
+              finalResponse,
+              finalResponse.choices[0]?.message?.tool_calls,
+              { model: request.model, provider: 'cerebras' }
+            )
 
             break
           }
@@ -418,7 +439,7 @@ export const cerebrasProvider: ProviderConfig = {
 
             timeSegments.push({
               type: 'model',
-              name: `Model response (iteration ${iterationCount + 1})`,
+              name: request.model,
               startTime: nextModelStartTime,
               endTime: nextModelEndTime,
               duration: thisModelTime,
@@ -433,6 +454,15 @@ export const cerebrasProvider: ProviderConfig = {
 
             iterationCount++
           }
+        }
+
+        if (iterationCount === MAX_TOOL_ITERATIONS) {
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            currentResponse.choices[0]?.message?.tool_calls,
+            { model: request.model, provider: 'cerebras' }
+          )
         }
       } catch (error) {
         logger.error('Error in Cerebras tool processing:', { error })
@@ -555,7 +585,7 @@ export const cerebrasProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
@@ -563,3 +593,8 @@ export const cerebrasProvider: ProviderConfig = {
     }
   },
 }
+
+/**
+ * Enriches the last model segment with per-iteration content from a Chat
+ * Completions response: assistant text, tool calls, finish reason, token usage.
+ */

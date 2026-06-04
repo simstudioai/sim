@@ -1,25 +1,32 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { jsmRequestContract } from '@/lib/api/contracts/selectors/jsm'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   validateAlphanumericId,
   validateJiraCloudId,
   validateJiraIssueKey,
 } from '@/lib/core/security/input-validation'
-import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmRequestAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(jsmRequestContract, request, {})
+    if (!parsed.success) return parsed.response
+
     const {
       domain,
       accessToken,
@@ -31,10 +38,11 @@ export async function POST(request: NextRequest) {
       description,
       raiseOnBehalfOf,
       requestFieldValues,
+      formAnswers,
       requestParticipants,
       channel,
       expand,
-    } = body
+    } = parsed.data.body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const isCreateOperation = serviceDeskId && requestTypeId && summary
+    const isCreateOperation = serviceDeskId && requestTypeId && (summary || formAnswers)
 
     if (isCreateOperation) {
       const serviceDeskIdValidation = validateAlphanumericId(serviceDeskId, 'serviceDeskId')
@@ -69,15 +77,37 @@ export async function POST(request: NextRequest) {
       }
       const url = `${baseUrl}/request`
 
-      logger.info('Creating request at:', url)
+      logger.info('Creating request at:', { url, serviceDeskId, requestTypeId })
 
       const requestBody: Record<string, unknown> = {
         serviceDeskId,
         requestTypeId,
-        requestFieldValues: requestFieldValues || {
-          summary,
-          ...(description && { description }),
-        },
+      }
+
+      if (formAnswers && typeof formAnswers === 'object') {
+        // When form answers are provided, use them as the primary data source.
+        // Per Atlassian docs, fields linked to form questions must NOT also appear
+        // in requestFieldValues — doing so causes a 400 error.
+        requestBody.form = { answers: formAnswers }
+
+        // Only include explicit requestFieldValues if the caller provided them
+        // (they know which fields are safe to include alongside form answers).
+        if (requestFieldValues && typeof requestFieldValues === 'object') {
+          requestBody.requestFieldValues = requestFieldValues
+        }
+      } else if (summary || description || requestFieldValues) {
+        const fieldValues =
+          requestFieldValues && typeof requestFieldValues === 'object'
+            ? {
+                ...(!requestFieldValues.summary && summary ? { summary } : {}),
+                ...(!requestFieldValues.description && description ? { description } : {}),
+                ...requestFieldValues,
+              }
+            : {
+                ...(summary && { summary }),
+                ...(description && { description }),
+              }
+        requestBody.requestFieldValues = fieldValues
       }
 
       if (raiseOnBehalfOf) {
@@ -112,7 +142,10 @@ export async function POST(request: NextRequest) {
         })
 
         return NextResponse.json(
-          { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+          {
+            error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+            details: errorText,
+          },
           { status: response.status }
         )
       }
@@ -178,7 +211,10 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }
@@ -220,16 +256,16 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     logger.error('Error with request operation:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
         success: false,
       },
       { status: 500 }
     )
   }
-}
+})

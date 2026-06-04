@@ -1,8 +1,5 @@
-import { loggerMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/logger', () => loggerMock)
-
+import { sleep } from '@sim/utils/helpers'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { McpTool } from '@/lib/mcp/types'
 import { MemoryMcpCache } from './memory-cache'
 
@@ -47,7 +44,7 @@ describe('MemoryMcpCache', () => {
       await cache.set('key-1', tools, 0)
 
       // Wait a tiny bit to ensure expiry
-      await new Promise((resolve) => setTimeout(resolve, 5))
+      await sleep(5)
 
       const result = await cache.get('key-1')
       expect(result).toBeNull()
@@ -58,7 +55,7 @@ describe('MemoryMcpCache', () => {
       await cache.set('key-1', tools, 1) // 1ms TTL
 
       // Wait for expiry
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await sleep(10)
 
       // First get should return null and remove entry
       await cache.get('key-1')
@@ -246,7 +243,7 @@ describe('MemoryMcpCache', () => {
       await cache.set('key-1', tools, 1) // 1 millisecond
 
       // Wait past expiry
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await sleep(10)
 
       const result = await cache.get('key-1')
       expect(result).toBeNull()

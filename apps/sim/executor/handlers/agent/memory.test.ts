@@ -1,10 +1,7 @@
-import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MEMORY } from '@/executor/constants'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { Message } from '@/executor/handlers/agent/types'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/tokenization/estimators', () => ({
   getAccurateTokenCount: vi.fn((text: string) => {
@@ -178,6 +175,35 @@ describe('Memory', () => {
       expect(() => {
         ;(memoryService as any).validateContent(content)
       }).not.toThrow()
+    })
+  })
+
+  describe('sanitizeMessageForStorage', () => {
+    it('should strip file payloads but preserve tool-call fields before memory persistence', () => {
+      const message: Message = {
+        role: 'user',
+        content: 'Analyze this file',
+        executionId: 'exec-1',
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
+            size: 128,
+            type: 'image/png',
+            base64: 'iVBORw0KGgo=',
+          },
+        ],
+        tool_calls: [{ id: 'call-1' }],
+      }
+
+      expect((memoryService as any).sanitizeMessageForStorage(message)).toEqual({
+        role: 'user',
+        content: 'Analyze this file',
+        executionId: 'exec-1',
+        tool_calls: [{ id: 'call-1' }],
+      })
     })
   })
 

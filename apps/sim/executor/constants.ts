@@ -67,11 +67,26 @@ export const EDGE = {
   LOOP_CONTINUE: 'loop_continue',
   LOOP_CONTINUE_ALT: 'loop-continue-source',
   LOOP_EXIT: 'loop_exit',
+  PARALLEL_CONTINUE: 'parallel_continue',
   PARALLEL_EXIT: 'parallel_exit',
   ERROR: 'error',
   SOURCE: 'source',
   DEFAULT: 'default',
 } as const
+
+export const SUBFLOW_CONTROL_EDGE_HANDLES = new Set<string>([
+  EDGE.LOOP_CONTINUE,
+  EDGE.LOOP_CONTINUE_ALT,
+  EDGE.LOOP_EXIT,
+  EDGE.PARALLEL_CONTINUE,
+  EDGE.PARALLEL_EXIT,
+])
+
+export const CONTROL_BACK_EDGE_HANDLES = new Set<string>([
+  EDGE.LOOP_CONTINUE,
+  EDGE.LOOP_CONTINUE_ALT,
+  EDGE.PARALLEL_CONTINUE,
+])
 
 export const LOOP = {
   TYPE: {
@@ -158,8 +173,7 @@ export const DEFAULTS = {
   BLOCK_TYPE: 'unknown',
   BLOCK_TITLE: 'Untitled Block',
   WORKFLOW_NAME: 'Workflow',
-  MAX_LOOP_ITERATIONS: 1000,
-  MAX_FOREACH_ITEMS: 1000,
+  DEFAULT_LOOP_ITERATIONS: 1000,
   MAX_PARALLEL_BRANCHES: 20,
   MAX_NESTING_DEPTH: 10,
   /** Maximum child workflow depth for propagating SSE callbacks (block:started, block:completed). */
@@ -282,7 +296,7 @@ export const PARSING = {
 
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
 
-export interface ConditionConfig {
+interface ConditionConfig {
   id: string
   label?: string
   condition: string

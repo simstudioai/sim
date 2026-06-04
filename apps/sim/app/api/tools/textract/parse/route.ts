@@ -1,71 +1,30 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { textractParseContract } from '@/lib/api/contracts/tools/media/document-parse'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import { validateAwsRegion, validateS3BucketName } from '@/lib/core/security/input-validation'
+import { validateS3BucketName } from '@/lib/core/security/input-validation'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for large multi-page PDF processing
 
 const logger = createLogger('TextractParseAPI')
-
-const QuerySchema = z.object({
-  Text: z.string().min(1),
-  Alias: z.string().optional(),
-  Pages: z.array(z.string()).optional(),
-})
-
-const TextractParseSchema = z
-  .object({
-    accessKeyId: z.string().min(1, 'AWS Access Key ID is required'),
-    secretAccessKey: z.string().min(1, 'AWS Secret Access Key is required'),
-    region: z.string().min(1, 'AWS region is required'),
-    processingMode: z.enum(['sync', 'async']).optional().default('sync'),
-    filePath: z.string().optional(),
-    file: RawFileInputSchema.optional(),
-    s3Uri: z.string().optional(),
-    featureTypes: z
-      .array(z.enum(['TABLES', 'FORMS', 'QUERIES', 'SIGNATURES', 'LAYOUT']))
-      .optional(),
-    queries: z.array(QuerySchema).optional(),
-  })
-  .superRefine((data, ctx) => {
-    const regionValidation = validateAwsRegion(data.region, 'AWS region')
-    if (!regionValidation.isValid) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: regionValidation.error,
-        path: ['region'],
-      })
-    }
-    if (data.processingMode === 'async' && !data.s3Uri) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'S3 URI is required for multi-page processing (s3://bucket/key)',
-        path: ['s3Uri'],
-      })
-    }
-    if (data.processingMode !== 'async' && !data.file && !data.filePath) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'File input is required for single-page processing',
-        path: ['filePath'],
-      })
-    }
-  })
 
 function getSignatureKey(
   key: string,
@@ -167,10 +126,6 @@ function parseS3Uri(s3Uri: string): { bucket: string; key: string } {
   }
 
   return { bucket, key }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function callTextractAsync(
@@ -311,7 +266,7 @@ async function pollForJobCompletion(
   )
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -331,8 +286,28 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.userId
-    const body = await request.json()
-    const validatedData = TextractParseSchema.parse(body)
+
+    const parsed = await parseRequest(
+      textractParseContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid request data`, { errors: error.issues })
+          return NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     const processingMode = validatedData.processingMode || 'sync'
     const featureTypes = validatedData.featureTypes ?? []
@@ -449,12 +424,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to process file',
+            error: getErrorMessage(error, 'Failed to process file'),
           },
           { status: 400 }
         )
       }
 
+      const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+      if (denied) return denied
       const buffer = await downloadFileFromStorage(userFile, requestId, logger)
       bytes = buffer.toString('base64')
       contentType = userFile.type || 'application/octet-stream'
@@ -634,26 +611,14 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error in Textract parse:`, error)
 
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )
   }
-}
+})

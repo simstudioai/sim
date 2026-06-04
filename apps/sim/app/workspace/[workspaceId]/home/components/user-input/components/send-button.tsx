@@ -32,7 +32,7 @@ export const SendButton = React.memo(function SendButton({
         title='Stop generation'
       >
         <svg
-          className='block h-[14px] w-[14px] fill-white dark:fill-black'
+          className='block size-[14px] fill-white dark:fill-black'
           viewBox='0 0 24 24'
           xmlns='http://www.w3.org/2000/svg'
         >
@@ -48,7 +48,7 @@ export const SendButton = React.memo(function SendButton({
       disabled={!canSubmit}
       className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
     >
-      <ArrowUp className='block h-[16px] w-[16px] text-white dark:text-black' strokeWidth={2.25} />
+      <ArrowUp className='block size-[16px] text-white dark:text-black' strokeWidth={2.25} />
     </Button>
   )
 })

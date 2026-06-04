@@ -1,0 +1,295 @@
+---
+title: Greenhouse
+description: Available Greenhouse triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="greenhouse"
+  color="#469776"
+/>
+
+Greenhouse provides 8 triggers for automating workflows based on events.
+
+## Triggers
+
+### Greenhouse Candidate Hired
+
+Trigger workflow when a candidate is hired
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | No | When set, requests must include a valid Signature header \(HMAC-SHA256\). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(hire_candidate\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `application` | object | application output from the tool |
+|     ↳ `id` | number | Application ID |
+|     ↳ `status` | string | Application status |
+|     ↳ `prospect` | boolean | Whether the applicant is a prospect |
+|     ↳ `applied_at` | string | When the application was submitted |
+|     ↳ `url` | string | Application URL in Greenhouse |
+|     ↳ `current_stage` | object | current_stage output from the tool |
+|       ↳ `id` | number | Current stage ID |
+|       ↳ `name` | string | Current stage name |
+|     ↳ `candidate` | object | candidate output from the tool |
+|       ↳ `id` | number | Candidate ID |
+|       ↳ `first_name` | string | First name |
+|       ↳ `last_name` | string | Last name |
+|       ↳ `title` | string | Current title |
+|       ↳ `company` | string | Current company |
+|       ↳ `email_addresses` | json | Email addresses |
+|       ↳ `phone_numbers` | json | Phone numbers |
+|       ↳ `recruiter` | json | Assigned recruiter |
+|       ↳ `coordinator` | json | Assigned coordinator |
+|     ↳ `jobs` | json | Associated jobs \(array\) |
+|     ↳ `offer` | object | offer output from the tool |
+|       ↳ `id` | number | Offer ID |
+|       ↳ `version` | number | Offer version |
+|       ↳ `starts_at` | string | Offer start date |
+|       ↳ `custom_fields` | json | Offer custom fields |
+|     ↳ `custom_fields` | json | Application custom fields |
+
+
+---
+
+### Greenhouse Candidate Rejected
+
+Trigger workflow when a candidate is rejected
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | No | When set, requests must include a valid Signature header \(HMAC-SHA256\). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(reject_candidate\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `application` | object | application output from the tool |
+|     ↳ `id` | number | Application ID |
+|     ↳ `status` | string | Application status \(rejected\) |
+|     ↳ `prospect` | boolean | Whether the applicant is a prospect |
+|     ↳ `applied_at` | string | When the application was submitted |
+|     ↳ `rejected_at` | string | When the candidate was rejected |
+|     ↳ `url` | string | Application URL in Greenhouse |
+|     ↳ `current_stage` | object | current_stage output from the tool |
+|       ↳ `id` | number | Stage ID where rejected |
+|       ↳ `name` | string | Stage name where rejected |
+|     ↳ `candidate` | object | candidate output from the tool |
+|       ↳ `id` | number | Candidate ID |
+|       ↳ `first_name` | string | First name |
+|       ↳ `last_name` | string | Last name |
+|       ↳ `email_addresses` | json | Email addresses |
+|       ↳ `phone_numbers` | json | Phone numbers |
+|     ↳ `jobs` | json | Associated jobs \(array\) |
+|     ↳ `rejection_reason` | json | Rejection reason object with id, name, and type fields |
+|     ↳ `rejection_details` | json | Rejection details with custom fields |
+|     ↳ `custom_fields` | json | Application custom fields |
+
+
+---
+
+### Greenhouse Candidate Stage Change
+
+Trigger workflow when a candidate changes interview stages
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | No | When set, requests must include a valid Signature header \(HMAC-SHA256\). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(candidate_stage_change\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `application` | object | application output from the tool |
+|     ↳ `id` | number | Application ID |
+|     ↳ `status` | string | Application status |
+|     ↳ `prospect` | boolean | Whether the applicant is a prospect |
+|     ↳ `applied_at` | string | When the application was submitted |
+|     ↳ `url` | string | Application URL in Greenhouse |
+|     ↳ `current_stage` | object | current_stage output from the tool |
+|       ↳ `id` | number | Current stage ID |
+|       ↳ `name` | string | Current stage name |
+|       ↳ `interviews` | json | Interviews in this stage |
+|     ↳ `candidate` | object | candidate output from the tool |
+|       ↳ `id` | number | Candidate ID |
+|       ↳ `first_name` | string | First name |
+|       ↳ `last_name` | string | Last name |
+|       ↳ `title` | string | Current title |
+|       ↳ `company` | string | Current company |
+|       ↳ `email_addresses` | json | Email addresses |
+|       ↳ `phone_numbers` | json | Phone numbers |
+|     ↳ `jobs` | json | Associated jobs \(array\) |
+|     ↳ `custom_fields` | json | Application custom fields |
+
+
+---
+
+### Greenhouse Job Created
+
+Trigger workflow when a new job is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | No | When set, requests must include a valid Signature header \(HMAC-SHA256\). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(job_created\) |
+
+
+---
+
+### Greenhouse Job Updated
+
+Trigger workflow when a job is updated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | No | When set, requests must include a valid Signature header \(HMAC-SHA256\). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(job_updated\) |
+
+
+---
+
+### Greenhouse New Application
+
+Trigger workflow when a new application is submitted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | No | When set, requests must include a valid Signature header \(HMAC-SHA256\). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(new_candidate_application\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `application` | object | application output from the tool |
+|     ↳ `id` | number | Application ID |
+|     ↳ `status` | string | Application status |
+|     ↳ `prospect` | boolean | Whether the applicant is a prospect |
+|     ↳ `applied_at` | string | When the application was submitted |
+|     ↳ `url` | string | Application URL in Greenhouse |
+|     ↳ `current_stage` | object | current_stage output from the tool |
+|       ↳ `id` | number | Current stage ID |
+|       ↳ `name` | string | Current stage name |
+|     ↳ `candidate` | object | candidate output from the tool |
+|       ↳ `id` | number | Candidate ID |
+|       ↳ `first_name` | string | First name |
+|       ↳ `last_name` | string | Last name |
+|       ↳ `title` | string | Current title |
+|       ↳ `company` | string | Current company |
+|       ↳ `created_at` | string | When the candidate was created |
+|       ↳ `email_addresses` | json | Email addresses |
+|       ↳ `phone_numbers` | json | Phone numbers |
+|       ↳ `tags` | json | Candidate tags |
+|     ↳ `jobs` | json | Associated jobs \(array\) |
+|     ↳ `answers` | json | Application question answers |
+|     ↳ `attachments` | json | Application attachments |
+|     ↳ `custom_fields` | json | Application custom fields |
+
+
+---
+
+### Greenhouse Offer Created
+
+Trigger workflow when a new offer is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | No | When set, requests must include a valid Signature header \(HMAC-SHA256\). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(offer_created\) |
+| `payload` | object | payload output from the tool |
+|   ↳ `id` | number | Offer ID |
+|   ↳ `application_id` | number | Associated application ID |
+|   ↳ `job_id` | number | Associated job ID |
+|   ↳ `user_id` | number | User who created the offer |
+|   ↳ `version` | number | Offer version number |
+|   ↳ `sent_on` | string | When the offer was sent |
+|   ↳ `resolved_at` | string | When the offer was resolved |
+|   ↳ `start_date` | string | Offer start date |
+|   ↳ `notes` | string | Offer notes |
+|   ↳ `offer_status` | string | Offer status |
+|   ↳ `custom_fields` | json | Custom field values |
+
+
+---
+
+### Greenhouse Webhook (Endpoint Events)
+
+Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `secretKey` | string | No | When set, requests must include a valid Signature header \(HMAC-SHA256\). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type |
+| `payload` | json | Full event payload |
+

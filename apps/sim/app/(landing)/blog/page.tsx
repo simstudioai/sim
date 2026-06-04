@@ -1,11 +1,61 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
 import { getAllPostMeta } from '@/lib/blog/registry'
+import { buildCollectionPageJsonLd } from '@/lib/blog/seo'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
-export const metadata: Metadata = {
-  title: 'Blog',
-  description: 'Announcements, insights, and guides from the Sim team.',
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; tag?: string }>
+}): Promise<Metadata> {
+  const { page, tag } = await searchParams
+  const pageNum = Math.max(1, Number(page || 1))
+
+  const titleParts = ['Blog']
+  if (tag) titleParts.push(tag)
+  if (pageNum > 1) titleParts.push(`Page ${pageNum}`)
+  const title = titleParts.join(' — ')
+
+  const description = tag
+    ? `Sim blog posts tagged "${tag}" — insights and guides for building AI agents.`
+    : 'Announcements, insights, and guides for building AI agents.'
+
+  const canonicalParams = new URLSearchParams()
+  if (tag) canonicalParams.set('tag', tag)
+  if (pageNum > 1) canonicalParams.set('page', String(pageNum))
+  const qs = canonicalParams.toString()
+  const canonical = `${SITE_URL}/blog${qs ? `?${qs}` : ''}`
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title: `${title} | Sim`,
+      description,
+      url: canonical,
+      siteName: 'Sim',
+      locale: 'en_US',
+      type: 'website',
+      images: [
+        {
+          url: `${SITE_URL}/logo/primary/medium.png`,
+          width: 1200,
+          height: 630,
+          alt: 'Sim Blog',
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${title} | Sim`,
+      description,
+      site: '@simdotai',
+    },
+  }
 }
 
 export const revalidate = 3600
@@ -37,19 +87,13 @@ export default async function BlogIndex({
   const featured = pageNum === 1 ? posts.slice(0, 3) : []
   const remaining = pageNum === 1 ? posts.slice(3) : posts
 
-  const blogJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Blog',
-    name: 'Sim Blog',
-    url: 'https://sim.ai/blog',
-    description: 'Announcements, insights, and guides for building AI agent workflows.',
-  }
+  const collectionJsonLd = buildCollectionPageJsonLd()
 
   return (
     <section className='bg-[var(--landing-bg)]'>
       <script
         type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
       />
 
       {/* Section header */}
@@ -67,7 +111,7 @@ export default async function BlogIndex({
           <h1 className='text-balance font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'>
             Latest from Sim
           </h1>
-          <p className='max-w-[360px] font-[430] font-season text-[#F6F6F0]/50 text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+          <p className='max-w-[540px] font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
             Announcements, insights, and guides for building AI agent workflows.
           </p>
         </div>
@@ -81,19 +125,22 @@ export default async function BlogIndex({
         {/* Featured posts */}
         {featured.length > 0 && (
           <>
-            <div className='flex'>
+            <nav aria-label='Featured posts' className='flex flex-col sm:flex-row'>
               {featured.map((p, index) => (
                 <Link
                   key={p.slug}
                   href={`/blog/${p.slug}`}
-                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] p-6 transition-colors hover:bg-[var(--landing-bg-elevated)] md:border-l md:first:border-l-0'
+                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
                 >
                   <div className='relative aspect-video w-full overflow-hidden rounded-[5px]'>
-                    <img
+                    <Image
                       src={p.ogImage}
                       alt={p.title}
-                      className='h-full w-full object-cover'
-                      loading={index < 3 ? 'eager' : 'lazy'}
+                      fill
+                      sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                      className='object-cover'
+                      priority={index < 3}
+                      unoptimized
                     />
                   </div>
                   <div className='flex flex-col gap-2'>
@@ -106,13 +153,13 @@ export default async function BlogIndex({
                     <h3 className='font-[430] font-season text-lg text-white leading-tight tracking-[-0.01em]'>
                       {p.title}
                     </h3>
-                    <p className='line-clamp-2 text-[#F6F6F0]/50 text-sm leading-[150%]'>
+                    <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
                       {p.description}
                     </p>
                   </div>
                 </Link>
               ))}
-            </div>
+            </nav>
 
             <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
           </>
@@ -122,7 +169,7 @@ export default async function BlogIndex({
           <div key={p.slug}>
             <Link
               href={`/blog/${p.slug}`}
-              className='group flex items-start gap-6 px-6 py-6 transition-colors hover:bg-[var(--landing-bg-elevated)] md:items-center'
+              className='group flex items-start gap-6 p-6 transition-colors hover:bg-[var(--landing-bg-elevated)] md:items-center'
             >
               {/* Date */}
               <span className='hidden w-[120px] shrink-0 pt-1 font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em] md:block'>
@@ -145,18 +192,20 @@ export default async function BlogIndex({
                 <h3 className='font-[430] font-season text-base text-white leading-tight tracking-[-0.01em] lg:text-lg'>
                   {p.title}
                 </h3>
-                <p className='line-clamp-2 text-[#F6F6F0]/40 text-sm leading-[150%]'>
+                <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
                   {p.description}
                 </p>
               </div>
 
               {/* Image */}
-              <div className='hidden h-[80px] w-[140px] shrink-0 overflow-hidden rounded-[5px] sm:block'>
-                <img
+              <div className='relative hidden h-[80px] w-[140px] shrink-0 overflow-hidden rounded-[5px] sm:block'>
+                <Image
                   src={p.ogImage}
                   alt={p.title}
-                  className='h-full w-full object-cover'
-                  loading='lazy'
+                  fill
+                  sizes='140px'
+                  className='object-cover'
+                  unoptimized
                 />
               </div>
             </Link>
@@ -166,11 +215,12 @@ export default async function BlogIndex({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className='px-6 py-8'>
+          <nav aria-label='Pagination' className='px-6 py-8'>
             <div className='flex items-center justify-center gap-3'>
               {pageNum > 1 && (
                 <Link
                   href={`/blog?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
+                  rel='prev'
                   className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
                 >
                   Previous
@@ -182,13 +232,14 @@ export default async function BlogIndex({
               {pageNum < totalPages && (
                 <Link
                   href={`/blog?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
+                  rel='next'
                   className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
                 >
                   Next
                 </Link>
               )}
             </div>
-          </div>
+          </nav>
         )}
       </div>
 

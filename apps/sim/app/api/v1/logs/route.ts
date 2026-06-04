@@ -1,40 +1,26 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { generateId } from '@/lib/core/utils/uuid'
+import { v1ListLogsContract } from '@/lib/api/contracts/v1/logs'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1LogsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const QueryParamsSchema = z.object({
-  workspaceId: z.string(),
-  workflowIds: z.string().optional(),
-  folderIds: z.string().optional(),
-  triggers: z.string().optional(),
-  level: z.enum(['info', 'error']).optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  executionId: z.string().optional(),
-  minDurationMs: z.coerce.number().optional(),
-  maxDurationMs: z.coerce.number().optional(),
-  minCost: z.coerce.number().optional(),
-  maxCost: z.coerce.number().optional(),
-  model: z.string().optional(),
-  details: z.enum(['basic', 'full']).optional().default('basic'),
-  includeTraceSpans: z.coerce.boolean().optional().default(false),
-  includeFinalOutput: z.coerce.boolean().optional().default(false),
-  limit: z.coerce.number().optional().default(100),
-  cursor: z.string().optional(),
-  order: z.enum(['desc', 'asc']).optional().default('desc'),
-})
 
 interface CursorData {
   startedAt: string
@@ -53,7 +39,7 @@ function decodeCursor(cursor: string): CursorData | null {
   }
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -63,18 +49,27 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = rateLimit.userId!
-    const { searchParams } = new URL(request.url)
-    const rawParams = Object.fromEntries(searchParams.entries())
+    const parsed = await parseRequest(
+      v1ListLogsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              error: getValidationErrorMessage(error, 'Invalid parameters'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const validationResult = QueryParamsSchema.safeParse(rawParams)
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid parameters', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
+    const params = parsed.data.query
 
-    const params = validationResult.data
+    const scopeError = checkWorkspaceScope(rateLimit, params.workspaceId)
+    if (scopeError) return scopeError
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
       userId,
@@ -110,6 +105,7 @@ export async function GET(request: NextRequest) {
       .select({
         id: workflowExecutionLogs.id,
         workflowId: workflowExecutionLogs.workflowId,
+        workspaceId: workflowExecutionLogs.workspaceId,
         executionId: workflowExecutionLogs.executionId,
         deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
         level: workflowExecutionLogs.level,
@@ -117,7 +113,7 @@ export async function GET(request: NextRequest) {
         startedAt: workflowExecutionLogs.startedAt,
         endedAt: workflowExecutionLogs.endedAt,
         totalDurationMs: workflowExecutionLogs.totalDurationMs,
-        cost: workflowExecutionLogs.cost,
+        costTotal: workflowExecutionLogs.costTotal,
         files: workflowExecutionLogs.files,
         executionData: params.details === 'full' ? workflowExecutionLogs.executionData : sql`null`,
         workflowName: workflow.name,
@@ -151,7 +147,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const formattedLogs = data.map((log) => {
+    // Only materialize externalized execution data when the response actually
+    // needs it (details=full + finalOutput/traceSpans requested).
+    const needsMaterialize =
+      params.details === 'full' && (params.includeFinalOutput || params.includeTraceSpans)
+
+    const buildBase = (log: (typeof data)[number]) => {
       const result: any = {
         id: log.id,
         workflowId: log.workflowId,
@@ -162,7 +163,7 @@ export async function GET(request: NextRequest) {
         startedAt: log.startedAt.toISOString(),
         endedAt: log.endedAt?.toISOString() || null,
         totalDurationMs: log.totalDurationMs,
-        cost: log.cost ? { total: (log.cost as any).total } : null,
+        cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
         files: log.files || null,
       }
 
@@ -173,24 +174,36 @@ export async function GET(request: NextRequest) {
           description: log.workflowDescription,
           deleted: !log.workflowName,
         }
-
-        if (log.cost) {
-          result.cost = log.cost
-        }
-
-        if (log.executionData) {
-          const execData = log.executionData as any
-          if (params.includeFinalOutput && execData.finalOutput) {
-            result.finalOutput = execData.finalOutput
-          }
-          if (params.includeTraceSpans && execData.traceSpans) {
-            result.traceSpans = execData.traceSpans
-          }
-        }
       }
 
       return result
-    })
+    }
+
+    // Only run the bounded-concurrency materialization when the response actually
+    // needs object-storage reads; otherwise a plain synchronous map avoids the
+    // per-row worker/promise overhead.
+    const formattedLogs = needsMaterialize
+      ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
+          const result = buildBase(log)
+          if (log.executionData) {
+            const execData = (await materializeExecutionData(
+              log.executionData as Record<string, unknown> | null,
+              {
+                workspaceId: log.workspaceId,
+                workflowId: log.workflowId,
+                executionId: log.executionId,
+              }
+            )) as any
+            if (params.includeFinalOutput && execData.finalOutput) {
+              result.finalOutput = execData.finalOutput
+            }
+            if (params.includeTraceSpans && execData.traceSpans) {
+              result.traceSpans = execData.traceSpans
+            }
+          }
+          return result
+        })
+      : data.map(buildBase)
 
     const limits = await getUserLimits(userId)
 
@@ -208,4 +221,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Logs fetch error`, { error: error.message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

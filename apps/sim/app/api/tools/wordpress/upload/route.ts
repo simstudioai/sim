@@ -1,15 +1,18 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { wordpressUploadContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,24 +20,13 @@ const logger = createLogger('WordPressUploadAPI')
 
 const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
 
-const WordPressUploadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  siteId: z.string().min(1, 'Site ID is required'),
-  file: RawFileInputSchema.optional().nullable(),
-  filename: z.string().optional().nullable(),
-  title: z.string().optional().nullable(),
-  caption: z.string().optional().nullable(),
-  altText: z.string().optional().nullable(),
-  description: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized WordPress upload attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -52,8 +44,9 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const body = await request.json()
-    const validatedData = WordPressUploadSchema.parse(body)
+    const parsed = await parseRequest(wordpressUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Uploading file to WordPress`, {
       siteId: validatedData.siteId,
@@ -71,7 +64,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Process file - convert to UserFile format if needed
     const fileData = validatedData.file
 
     let userFile
@@ -81,11 +73,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to process file',
+          error: getErrorMessage(error, 'Failed to process file'),
         },
         { status: 400 }
       )
     }
+
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
 
     logger.info(`[${requestId}] Downloading file from storage`, {
       fileName: userFile.name,
@@ -102,13 +97,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error: `Failed to download file: ${getErrorMessage(error, 'Unknown error')}`,
         },
         { status: 500 }
       )
     }
 
-    // Use provided filename or fall back to the original file name
     const filename = validatedData.filename || userFile.name
     const mimeType = userFile.type || getMimeTypeFromExtension(getFileExtension(filename))
 
@@ -119,14 +113,11 @@ export async function POST(request: NextRequest) {
       size: fileBuffer.length,
     })
 
-    // Upload to WordPress using multipart form data
     const formData = new FormData()
-    // Convert Buffer to Uint8Array for Blob compatibility
     const uint8Array = new Uint8Array(fileBuffer)
     const blob = new Blob([uint8Array], { type: mimeType })
     formData.append('file', blob, filename)
 
-    // Add optional metadata
     if (validatedData.title) {
       formData.append('title', validatedData.title)
     }
@@ -200,26 +191,14 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error uploading file to WordPress:`, error)
 
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )
   }
-}
+})

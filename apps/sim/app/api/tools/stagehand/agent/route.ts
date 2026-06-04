@@ -1,27 +1,20 @@
+import type { Stagehand as StagehandType } from '@browserbasehq/stagehand'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { stagehandAgentContract } from '@/lib/api/contracts/tools/stagehand'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { isSensitiveKey, REDACTED_MARKER } from '@/lib/core/security/redaction'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandAgentAPI')
 
-type StagehandType = import('@browserbasehq/stagehand').Stagehand
-
 const BROWSERBASE_API_KEY = env.BROWSERBASE_API_KEY
 const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID
-
-const requestSchema = z.object({
-  task: z.string().min(1),
-  startUrl: z.string().url(),
-  outputSchema: z.any(),
-  variables: z.any(),
-  provider: z.enum(['openai', 'anthropic']).optional().default('openai'),
-  apiKey: z.string(),
-})
 
 /**
  * Extracts the inner schema object from a potentially nested schema structure
@@ -92,7 +85,7 @@ function substituteVariables(text: string, variables: Record<string, string> | u
   return result
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -101,26 +94,34 @@ export async function POST(request: NextRequest) {
   let stagehand: StagehandType | null = null
 
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(
+      stagehandAgentContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.error('Invalid request body', { errors: error.issues })
+          return NextResponse.json(
+            {
+              error: getValidationErrorMessage(error, 'Invalid request parameters'),
+              details: error.issues,
+            },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
+
     logger.info('Received Stagehand agent request', {
-      startUrl: body.startUrl,
-      hasTask: !!body.task,
-      hasVariables: !!body.variables,
-      hasSchema: !!body.outputSchema,
+      startUrl: params.startUrl,
+      hasTask: !!params.task,
+      hasVariables: !!params.variables,
+      hasSchema: !!params.outputSchema,
     })
 
-    const validationResult = requestSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.error('Invalid request body', { errors: validationResult.error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request parameters', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
-
-    const params = validationResult.data
-    const { task, startUrl: rawStartUrl, outputSchema, provider, apiKey } = params
+    const { task, startUrl: rawStartUrl, outputSchema, provider, apiKey, mode, maxSteps } = params
     const variablesObject = processVariables(params.variables)
 
     const startUrl = normalizeUrl(rawStartUrl)
@@ -164,8 +165,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid Anthropic API key format' }, { status: 400 })
     }
 
-    const modelName =
-      provider === 'anthropic' ? 'anthropic/claude-sonnet-4-5-20250929' : 'openai/gpt-5'
+    const modelName = provider === 'anthropic' ? 'anthropic/claude-sonnet-4-6' : 'openai/gpt-5'
+
+    let sessionId: string | null = null
+    let liveViewUrl: string | null = null
 
     try {
       logger.info('Initializing Stagehand with Browserbase (v3)', { provider, modelName })
@@ -188,6 +191,35 @@ export async function POST(request: NextRequest) {
       logger.info('Starting stagehand.init()')
       await stagehand.init()
       logger.info('Stagehand initialized successfully')
+
+      sessionId = stagehand.browserbaseSessionID ?? null
+      if (sessionId) {
+        try {
+          const debugResponse = await fetch(
+            `https://api.browserbase.com/v1/sessions/${sessionId}/debug`,
+            {
+              method: 'GET',
+              headers: {
+                'X-BB-API-Key': BROWSERBASE_API_KEY,
+              },
+            }
+          )
+          if (debugResponse.ok) {
+            const debugData = (await debugResponse.json()) as {
+              debuggerFullscreenUrl?: string
+              debuggerUrl?: string
+            }
+            liveViewUrl = debugData.debuggerFullscreenUrl ?? debugData.debuggerUrl ?? null
+            if (liveViewUrl) {
+              logger.info(`Browserbase live view URL: ${liveViewUrl}`)
+            }
+          } else {
+            logger.warn(`Failed to fetch Browserbase debug URL: ${debugResponse.statusText}`)
+          }
+        } catch (debugError) {
+          logger.warn('Error fetching Browserbase debug URL', { error: debugError })
+        }
+      }
 
       const page = stagehand.context.pages()[0]
       logger.info(`Navigating to ${startUrl}`)
@@ -222,13 +254,14 @@ export async function POST(request: NextRequest) {
           apiKey: apiKey,
         },
         systemPrompt: agentInstructions,
+        mode,
       })
 
-      logger.info('Executing agent task', { task: taskWithVariables })
+      logger.info('Executing agent task', { task: taskWithVariables, mode, maxSteps })
 
       const agentExecutionResult = await agent.execute({
         instruction: taskWithVariables,
-        maxSteps: 20,
+        maxSteps,
       })
 
       const agentResult = {
@@ -292,11 +325,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         agentResult,
         structuredOutput,
+        liveViewUrl,
+        sessionId,
       })
     } catch (error) {
       logger.error('Stagehand agent execution error', {
         error,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: getErrorMessage(error, 'Unknown error'),
         stack: error instanceof Error ? error.stack : undefined,
       })
 
@@ -326,6 +361,8 @@ export async function POST(request: NextRequest) {
         {
           error: errorMessage,
           details: errorDetails,
+          liveViewUrl,
+          sessionId,
         },
         { status: 500 }
       )
@@ -333,13 +370,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Unexpected error in agent API route', {
       error,
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json(
       {
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }
     )
@@ -353,4 +390,4 @@ export async function POST(request: NextRequest) {
       }
     }
   }
-}
+})

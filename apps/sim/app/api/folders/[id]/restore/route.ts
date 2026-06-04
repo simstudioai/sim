@@ -1,27 +1,29 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { restoreFolderContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performRestoreFolder } from '@/lib/workflows/orchestration/folder-lifecycle'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreFolderAPI')
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: folderId } = await params
+type RouteContext = { params: Promise<{ id: string }> }
 
+export const POST = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json().catch(() => ({}))
-    const workspaceId = body.workspaceId as string | undefined
-
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(restoreFolderContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: folderId } = parsed.data.params
+    const { workspaceId } = parsed.data.body
 
     const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
@@ -49,10 +51,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ success: true, restoredItems: result.restoredItems })
   } catch (error) {
-    logger.error(`Error restoring folder ${folderId}`, error)
+    logger.error('Error restoring folder', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: getErrorMessage(error, 'Internal server error') },
       { status: 500 }
     )
   }
-}
+})

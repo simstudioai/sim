@@ -13,7 +13,7 @@ export interface GeminiUsage {
 /**
  * Parsed function call from Gemini response
  */
-export interface ParsedFunctionCall {
+interface ParsedFunctionCall {
   name: string
   args: Record<string, unknown>
 }
@@ -38,7 +38,7 @@ export interface ExecutionState {
 /**
  * Result from forced tool usage check
  */
-export interface ForcedToolResult {
+interface ForcedToolResult {
   hasUsedForcedTool: boolean
   usedForcedTools: string[]
   nextToolConfig: ToolConfig | undefined
@@ -47,7 +47,7 @@ export interface ForcedToolResult {
 /**
  * Configuration for creating a Gemini client
  */
-export interface GeminiClientConfig {
+interface GeminiClientConfig {
   /** For Google Gemini API */
   apiKey?: string
   /** For Vertex AI */

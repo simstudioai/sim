@@ -1,40 +1,35 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { visionAnalyzeContract } from '@/lib/api/contracts/tools/media/vision'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { convertUsageMetadata, extractTextContent } from '@/providers/google/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('VisionAnalyzeAPI')
 
-const VisionAnalyzeSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  imageUrl: z.string().optional().nullable(),
-  imageFile: RawFileInputSchema.optional().nullable(),
-  model: z.string().optional().default('gpt-5.2'),
-  prompt: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Vision analyze attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -50,8 +45,11 @@ export async function POST(request: NextRequest) {
     })
 
     const userId = authResult.userId
-    const body = await request.json()
-    const validatedData = VisionAnalyzeSchema.parse(body)
+
+    const parsed = await parseRequest(visionAnalyzeContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     if (!validatedData.imageUrl && !validatedData.imageFile) {
       return NextResponse.json(
@@ -82,7 +80,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to process image file',
+            error: getErrorMessage(error, 'Failed to process image file'),
           },
           { status: 400 }
         )
@@ -91,6 +89,13 @@ export async function POST(request: NextRequest) {
       let base64 = userFile.base64
       let bufferLength = 0
       if (!base64) {
+        const denied = await assertToolFileAccess(
+          userFile.key,
+          authResult.userId,
+          requestId,
+          logger
+        )
+        if (denied) return denied
         const buffer = await downloadFileFromStorage(userFile, requestId, logger)
         base64 = buffer.toString('base64')
         bufferLength = buffer.length
@@ -356,9 +361,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )
   }
-}
+})

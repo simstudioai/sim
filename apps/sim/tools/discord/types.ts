@@ -1,7 +1,7 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolFileData } from '@/tools/types'
 
-export interface DiscordMessage {
+interface DiscordMessage {
   id: string
   content: string
   channel_id: string
@@ -20,7 +20,7 @@ export interface DiscordMessage {
   mention_everyone: boolean
 }
 
-export interface DiscordAPIError {
+interface DiscordAPIError {
   code: number
   message: string
   errors?: Record<string, any>
@@ -48,7 +48,7 @@ export interface DiscordUser {
   verified?: boolean
 }
 
-export interface DiscordAuthParams {
+interface DiscordAuthParams {
   botToken: string
   serverId: string
 }

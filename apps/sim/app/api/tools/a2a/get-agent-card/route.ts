@@ -1,20 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { createA2AClient } from '@/lib/a2a/utils'
+import { a2aGetAgentCardContract } from '@/lib/api/contracts/tools/a2a'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('A2AGetAgentCardAPI')
 
-const A2AGetAgentCardSchema = z.object({
-  agentUrl: z.string().min(1, 'Agent URL is required'),
-  apiKey: z.string().optional(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -31,6 +29,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const rateLimited = await enforceUserOrIpRateLimit(
+      'a2a-get-agent-card',
+      authResult.userId,
+      request
+    )
+    if (rateLimited) return rateLimited
+
     logger.info(
       `[${requestId}] Authenticated A2A get agent card request via ${authResult.authType}`,
       {
@@ -38,8 +43,24 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const body = await request.json()
-    const validatedData = A2AGetAgentCardSchema.parse(body)
+    const parsed = await parseRequest(
+      a2aGetAgentCardContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Fetching Agent Card`, {
       agentUrl: validatedData.agentUrl,
@@ -67,18 +88,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error fetching Agent Card:`, error)
 
     return NextResponse.json(
@@ -89,4 +98,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

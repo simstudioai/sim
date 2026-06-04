@@ -22,6 +22,10 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
 }))
 
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('user1'),
+}))
+
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
   processDocument: vi.fn().mockResolvedValue({
     chunks: [
@@ -82,16 +86,21 @@ vi.stubGlobal(
   })
 )
 
-vi.mock('@sim/db', () => {
+vi.mock('@sim/db', async () => {
+  const { schemaMock } = (await import('@sim/testing')) as typeof import('@sim/testing')
+  const tableNameFor = (table: any) => {
+    if (table === schemaMock.knowledgeBase) return 'knowledge_base'
+    if (table === schemaMock.document) return 'document'
+    if (table === schemaMock.embedding) return 'embedding'
+    return ''
+  }
   const selectBuilder = {
     from(table: any) {
       return {
         where() {
           return {
             limit(n: number) {
-              const tableSymbols = Object.getOwnPropertySymbols(table || {})
-              const baseNameSymbol = tableSymbols.find((s) => s.toString().includes('BaseName'))
-              const tableName = baseNameSymbol ? table[baseNameSymbol] : ''
+              const tableName = tableNameFor(table)
 
               if (tableName === 'knowledge_base') {
                 return Promise.resolve(kbRows.slice(0, n))
@@ -107,6 +116,32 @@ vi.mock('@sim/db', () => {
             },
           }
         },
+        innerJoin() {
+          // document × knowledge_base context JOIN — return the first kb and
+          // doc row merged (covers processDocumentAsync's prefetch).
+          return {
+            leftJoin: () => ({
+              where: () => ({
+                limit: (n: number) =>
+                  Promise.resolve(
+                    kbRows.length > 0 && docRows.length > 0
+                      ? [
+                          { ...kbRows[0], ...docRows[0], billedAccountUserId: 'billing-user-1' },
+                        ].slice(0, n)
+                      : []
+                  ),
+              }),
+            }),
+            where: () => ({
+              limit: (n: number) =>
+                Promise.resolve(
+                  kbRows.length > 0 && docRows.length > 0
+                    ? [{ ...kbRows[0], ...docRows[0] }].slice(0, n)
+                    : []
+                ),
+            }),
+          }
+        },
       }
     },
   }
@@ -117,9 +152,7 @@ vi.mock('@sim/db', () => {
       update: (table: any) => ({
         set: (payload: any) => ({
           where: () => {
-            const tableSymbols = Object.getOwnPropertySymbols(table || {})
-            const baseNameSymbol = tableSymbols.find((s) => s.toString().includes('BaseName'))
-            const tableName = baseNameSymbol ? table[baseNameSymbol] : ''
+            const tableName = tableNameFor(table)
             if (tableName === 'knowledge_base') {
               dbOps.order.push('updateKb')
               dbOps.updatePayloads.push(payload)
@@ -208,7 +241,8 @@ describe('Knowledge Utils', () => {
       kbRows.push({
         id: 'kb1',
         userId: 'user1',
-        workspaceId: null,
+        workspaceId: 'workspace1',
+        embeddingModel: 'text-embedding-3-small',
         chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 200 },
       })
       docRows.push({ id: 'doc1', knowledgeBaseId: 'kb1' })
@@ -225,7 +259,12 @@ describe('Knowledge Utils', () => {
         {}
       )
 
-      expect(dbOps.order).toEqual(['insert', 'updateDoc'])
+      // Embeddings are inserted first, then the document counter update. A
+      // usage_log billing insert (recordUsage) may trail after updateDoc and is
+      // irrelevant to this ordering invariant, so assert position rather than
+      // exact array equality.
+      expect(dbOps.order[0]).toBe('insert')
+      expect(dbOps.order.indexOf('updateDoc')).toBeGreaterThan(0)
 
       expect(dbOps.updatePayloads[0]).toMatchObject({
         processingStatus: 'completed',
@@ -367,7 +406,7 @@ describe('Knowledge Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateEmbeddings(['test text'])).rejects.toThrow(
-        'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
+        'OPENAI_API_KEY is not configured'
       )
     })
   })

@@ -63,19 +63,19 @@ export interface InfisicalDeleteSecretParams {
   type?: string
 }
 
-export interface InfisicalTag {
+interface InfisicalTag {
   id: string
   slug: string
   color: string | null
   name: string
 }
 
-export interface InfisicalSecretMetadata {
+interface InfisicalSecretMetadata {
   key: string
   value: string
 }
 
-export interface InfisicalSecret {
+interface InfisicalSecret {
   id: string
   workspace: string | null
   secretKey: string

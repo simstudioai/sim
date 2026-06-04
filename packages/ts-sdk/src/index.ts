@@ -5,6 +5,18 @@ export interface SimStudioConfig {
   baseUrl?: string
 }
 
+export interface LargeValueRef {
+  __simLargeValueRef: true
+  version: 1
+  id: string
+  kind: 'array' | 'object' | 'string' | 'json'
+  size: number
+  /** Opaque execution-scoped server storage key. This is not a download URL. */
+  key?: string
+  executionId?: string
+  preview?: unknown
+}
+
 export interface WorkflowExecutionResult {
   success: boolean
   output?: any
@@ -21,6 +33,7 @@ export interface WorkflowExecutionResult {
 
 export interface WorkflowStatus {
   isDeployed: boolean
+  isPublished?: boolean
   deployedAt?: string
   needsRedeployment: boolean
 }
@@ -34,12 +47,19 @@ export interface ExecutionOptions {
 
 export interface AsyncExecutionResult {
   success: boolean
+  jobId: string
+  statusUrl: string
+  executionId?: string
+  message: string
+  async: true
+}
+
+export interface JobStatusResult {
   taskId: string
-  status: 'queued'
-  createdAt: string
-  links: {
-    status: string
-  }
+  status: string
+  metadata?: Record<string, unknown>
+  output?: unknown
+  error?: string
 }
 
 export interface RateLimitInfo {
@@ -61,13 +81,15 @@ export interface UsageLimits {
   rateLimit: {
     sync: {
       isLimited: boolean
-      limit: number
+      requestsPerMinute: number
+      maxBurst: number
       remaining: number
       resetAt: string
     }
     async: {
       isLimited: boolean
-      limit: number
+      requestsPerMinute: number
+      maxBurst: number
       remaining: number
       resetAt: string
     }
@@ -77,6 +99,11 @@ export interface UsageLimits {
     currentPeriodCost: number
     limit: number
     plan: string
+  }
+  storage: {
+    usedBytes: number
+    limitBytes: number
+    percentUsed: number
   }
 }
 
@@ -330,9 +357,9 @@ export class SimStudioClient {
 
   /**
    * Get the status of an async job
-   * @param taskId The task ID returned from async execution
+   * @param taskId The job ID returned from async execution
    */
-  async getJobStatus(taskId: string): Promise<any> {
+  async getJobStatus(taskId: string): Promise<JobStatusResult> {
     const url = `${this.baseUrl}/api/jobs/${taskId}`
 
     try {
@@ -355,7 +382,7 @@ export class SimStudioClient {
       }
 
       const result = await response.json()
-      return result
+      return result as JobStatusResult
     } catch (error: any) {
       if (error instanceof SimStudioError) {
         throw error
@@ -407,6 +434,7 @@ export class SimStudioClient {
             ? this.rateLimitInfo.retryAfter
             : Math.min(delay, maxDelay)
 
+        // standalone package — cannot depend on @sim/utils
         const jitter = waitTime * (0.75 + Math.random() * 0.5)
 
         await new Promise((resolve) => setTimeout(resolve, jitter))
@@ -435,11 +463,17 @@ export class SimStudioClient {
     const reset = response.headers.get('x-ratelimit-reset')
     const retryAfter = response.headers.get('retry-after')
 
+    const resetTime = reset
+      ? /^\d+$/.test(reset)
+        ? Number.parseInt(reset, 10)
+        : Date.parse(reset)
+      : Number.NaN
+
     if (limit || remaining || reset) {
       this.rateLimitInfo = {
         limit: limit ? Number.parseInt(limit, 10) : 0,
         remaining: remaining ? Number.parseInt(remaining, 10) : 0,
-        reset: reset ? Number.parseInt(reset, 10) : 0,
+        reset: Number.isNaN(resetTime) ? 0 : resetTime,
         retryAfter: retryAfter ? Number.parseInt(retryAfter, 10) * 1000 : undefined,
       }
     }

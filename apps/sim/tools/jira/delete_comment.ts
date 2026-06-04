@@ -52,7 +52,7 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
     request: {
       url: (params: JiraDeleteCommentParams) => {
         if (params.cloudId) {
-          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/comment/${params.commentId}`
+          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/comment/${params.commentId?.trim() ?? ''}`
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
@@ -69,7 +69,7 @@ export const jiraDeleteCommentTool: ToolConfig<JiraDeleteCommentParams, JiraDele
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
         // Make the actual request with the resolved cloudId
-        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey}/comment/${params?.commentId}`
+        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params?.issueKey?.trim() ?? ''}/comment/${params?.commentId?.trim() ?? ''}`
         const commentResponse = await fetch(commentUrl, {
           method: 'DELETE',
           headers: {

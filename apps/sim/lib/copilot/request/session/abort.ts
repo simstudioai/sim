@@ -1,0 +1,398 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { AbortBackend } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { withCopilotSpan } from '@/lib/copilot/request/otel'
+import { acquireLock, extendLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
+import { AbortReason } from './abort-reason'
+import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
+
+const logger = createLogger('SessionAbort')
+
+const activeStreams = new Map<string, AbortController>()
+const pendingChatStreams = new Map<
+  string,
+  { promise: Promise<void>; resolve: () => void; streamId: string }
+>()
+
+const DEFAULT_ABORT_POLL_MS = 250
+
+/**
+ * TTL for the per-chat stream lock. Kept short so that if the Sim pod
+ * holding the lock dies (SIGKILL, OOM, a SIGTERM drain that doesn't
+ * reach the release path), the lock self-heals inside a minute rather
+ * than stranding the chat for hours. A live stream keeps the lock alive
+ * via `CHAT_STREAM_LOCK_HEARTBEAT_INTERVAL_MS` heartbeats.
+ */
+const CHAT_STREAM_LOCK_TTL_SECONDS = 60
+
+/**
+ * Heartbeat cadence for extending the per-chat stream lock. Set to a
+ * third of the TTL so one missed beat still leaves room for recovery
+ * before the lock expires under a still-live stream.
+ */
+const CHAT_STREAM_LOCK_HEARTBEAT_INTERVAL_MS = 20_000
+
+export interface ChatStreamLockOwnersResult {
+  status: 'verified' | 'unknown'
+  ownersByChatId: Map<string, string>
+}
+
+function registerPendingChatStream(chatId: string, streamId: string): void {
+  let resolve!: () => void
+  const promise = new Promise<void>((r) => {
+    resolve = r
+  })
+  pendingChatStreams.set(chatId, { promise, resolve, streamId })
+}
+
+function resolvePendingChatStream(chatId: string, streamId: string): void {
+  const entry = pendingChatStreams.get(chatId)
+  if (entry && entry.streamId === streamId) {
+    entry.resolve()
+    pendingChatStreams.delete(chatId)
+  }
+}
+
+function getChatStreamLockKey(chatId: string): string {
+  return `copilot:chat-stream-lock:${chatId}`
+}
+
+export function registerActiveStream(streamId: string, controller: AbortController): void {
+  activeStreams.set(streamId, controller)
+}
+
+export function unregisterActiveStream(streamId: string): void {
+  activeStreams.delete(streamId)
+}
+
+export async function waitForPendingChatStream(
+  chatId: string,
+  timeoutMs = 5_000,
+  expectedStreamId?: string
+): Promise<boolean> {
+  const redis = getRedisClient()
+  const deadline = Date.now() + timeoutMs
+
+  for (;;) {
+    const entry = pendingChatStreams.get(chatId)
+    const localPending = !!entry && (!expectedStreamId || entry.streamId === expectedStreamId)
+
+    if (redis) {
+      try {
+        const ownerStreamId = await redis.get(getChatStreamLockKey(chatId))
+        const lockReleased =
+          !ownerStreamId || (expectedStreamId !== undefined && ownerStreamId !== expectedStreamId)
+        if (!localPending && lockReleased) {
+          return true
+        }
+      } catch (error) {
+        logger.warn('Failed to inspect chat stream lock while waiting', {
+          chatId,
+          expectedStreamId,
+          error: toError(error).message,
+        })
+      }
+    } else if (!localPending) {
+      return true
+    }
+
+    if (Date.now() >= deadline) {
+      return false
+    }
+    await sleep(200)
+  }
+}
+
+export async function getPendingChatStreamId(chatId: string): Promise<string | null> {
+  const localEntry = pendingChatStreams.get(chatId)
+  if (localEntry?.streamId) {
+    return localEntry.streamId
+  }
+
+  const redis = getRedisClient()
+  if (!redis) {
+    return null
+  }
+
+  try {
+    return (await redis.get(getChatStreamLockKey(chatId))) || null
+  } catch (error) {
+    logger.warn('Failed to load chat stream lock owner', {
+      chatId,
+      error: toError(error).message,
+    })
+    return null
+  }
+}
+
+/**
+ * Loads canonical stream lock owners for chat IDs.
+ *
+ * `status: 'verified'` means Redis was queried successfully, so a missing
+ * owner is authoritative. `status: 'unknown'` means only the process-local
+ * pending map is known, which is not enough to declare remote streams inactive
+ * in a multi-pod deployment.
+ */
+export async function getChatStreamLockOwners(
+  chatIds: string[]
+): Promise<ChatStreamLockOwnersResult> {
+  const localOwnersByChatId = new Map<string, string>()
+  if (chatIds.length === 0) {
+    return { status: 'verified', ownersByChatId: localOwnersByChatId }
+  }
+
+  for (const chatId of chatIds) {
+    const entry = pendingChatStreams.get(chatId)
+    if (entry?.streamId) localOwnersByChatId.set(chatId, entry.streamId)
+  }
+
+  const redis = getRedisClient()
+  if (!redis) {
+    return { status: 'unknown', ownersByChatId: localOwnersByChatId }
+  }
+
+  try {
+    const keys = chatIds.map(getChatStreamLockKey)
+    const values = await redis.mget(keys)
+    const redisOwnersByChatId = new Map<string, string>()
+    for (let i = 0; i < chatIds.length; i++) {
+      const owner = values[i]
+      if (owner) redisOwnersByChatId.set(chatIds[i], owner)
+    }
+    return { status: 'verified', ownersByChatId: redisOwnersByChatId }
+  } catch (error) {
+    logger.warn('Failed to load chat stream lock owners (batch)', {
+      count: chatIds.length,
+      error: toError(error).message,
+    })
+    return { status: 'unknown', ownersByChatId: localOwnersByChatId }
+  }
+}
+
+export async function releasePendingChatStream(chatId: string, streamId: string): Promise<void> {
+  try {
+    await releaseLock(getChatStreamLockKey(chatId), streamId)
+  } catch (error) {
+    logger.warn('Failed to release chat stream lock', {
+      chatId,
+      streamId,
+      error: toError(error).message,
+    })
+  } finally {
+    resolvePendingChatStream(chatId, streamId)
+  }
+}
+
+export async function acquirePendingChatStream(
+  chatId: string,
+  streamId: string,
+  timeoutMs = 5_000
+): Promise<boolean> {
+  // Span records wall time spent waiting for the per-chat stream lock.
+  // Typical case: sub-10ms uncontested acquire. Worst case: up to
+  // `timeoutMs` spent polling while a prior stream finishes. Previously
+  // this time looked like "unexplained gap before llm.stream".
+  return withCopilotSpan(
+    TraceSpan.CopilotChatAcquirePendingStreamLock,
+    {
+      [TraceAttr.ChatId]: chatId,
+      [TraceAttr.StreamId]: streamId,
+      [TraceAttr.LockTimeoutMs]: timeoutMs,
+    },
+    async (span) => {
+      const redis = getRedisClient()
+      span.setAttribute(TraceAttr.LockBackend, redis ? AbortBackend.Redis : AbortBackend.InProcess)
+      if (redis) {
+        const deadline = Date.now() + timeoutMs
+        for (;;) {
+          try {
+            const acquired = await acquireLock(
+              getChatStreamLockKey(chatId),
+              streamId,
+              CHAT_STREAM_LOCK_TTL_SECONDS
+            )
+            if (acquired) {
+              registerPendingChatStream(chatId, streamId)
+              span.setAttribute(TraceAttr.LockAcquired, true)
+              return true
+            }
+            if (!pendingChatStreams.has(chatId)) {
+              const ownerStreamId = await redis.get(getChatStreamLockKey(chatId))
+              if (ownerStreamId) {
+                const settled = await waitForPendingChatStream(chatId, 0, ownerStreamId)
+                if (settled) {
+                  continue
+                }
+              }
+            }
+          } catch (error) {
+            logger.warn('Failed to acquire chat stream lock', {
+              chatId,
+              streamId,
+              error: toError(error).message,
+            })
+          }
+
+          if (Date.now() >= deadline) {
+            span.setAttribute(TraceAttr.LockAcquired, false)
+            span.setAttribute(TraceAttr.LockTimedOut, true)
+            return false
+          }
+          await sleep(200)
+        }
+      }
+
+      for (;;) {
+        const existing = pendingChatStreams.get(chatId)
+        if (!existing) {
+          registerPendingChatStream(chatId, streamId)
+          span.setAttribute(TraceAttr.LockAcquired, true)
+          return true
+        }
+
+        const settled = await Promise.race([
+          existing.promise.then(() => true),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
+        ])
+        if (!settled) {
+          span.setAttribute(TraceAttr.LockAcquired, false)
+          span.setAttribute(TraceAttr.LockTimedOut, true)
+          return false
+        }
+      }
+    }
+  )
+}
+
+/**
+ * Returns `true` if it aborted an in-process controller,
+ * `false` if it only wrote the marker (no local controller found).
+ *
+ * Spanned because the two operations inside can stall independently
+ * — Redis latency on `writeAbortMarker` was previously invisible, and
+ * the "no local controller" branch (happens when the stream handler
+ * is on a different Sim box than the one receiving /chat/abort) is
+ * a subtle but important outcome to distinguish from "aborted a live
+ * controller" in dashboards.
+ */
+export async function abortActiveStream(streamId: string): Promise<boolean> {
+  return withCopilotSpan(
+    TraceSpan.CopilotChatAbortActiveStream,
+    { [TraceAttr.StreamId]: streamId },
+    async (span) => {
+      await writeAbortMarker(streamId)
+      span.setAttribute(TraceAttr.CopilotAbortMarkerWritten, true)
+      const controller = activeStreams.get(streamId)
+      if (!controller) {
+        span.setAttribute(TraceAttr.CopilotAbortControllerFired, false)
+        return false
+      }
+      controller.abort(AbortReason.UserStop)
+      activeStreams.delete(streamId)
+      span.setAttribute(TraceAttr.CopilotAbortControllerFired, true)
+      return true
+    }
+  )
+}
+
+export type { AbortReasonValue } from './abort-reason'
+/**
+ * `AbortReason` vocabulary and the `isExplicitStopReason` classifier
+ * live in a sibling zero-dependency module so the telemetry layer
+ * (`request/otel.ts`) can import them without creating a circular
+ * import back through `session/abort.ts`'s OTel-wrapped helpers.
+ *
+ * Context on why the distinction matters: when the user clicks Stop,
+ * we fire `abortController.abort(AbortReason.UserStop)` from
+ * `abortActiveStream()`. That causes Sim's SSE writer to close,
+ * which in turn makes the BROWSER's SSE reader see the stream end
+ * — which fires the browser-side fetch AbortController and
+ * propagates back to Sim as `publisher.markDisconnected()`. So on
+ * an explicit Stop you observe BOTH "explicit reason" AND
+ * "client disconnected" — the discriminator is the reason string,
+ * not the client flag.
+ *
+ * For any NEW abort path, add its reason in `./abort-reason.ts` and
+ * update `isExplicitStopReason` if it should be classified as a user
+ * stop.
+ */
+export { AbortReason, isExplicitStopReason } from './abort-reason'
+
+const pollingStreams = new Set<string>()
+
+export function startAbortPoller(
+  streamId: string,
+  abortController: AbortController,
+  options?: { pollMs?: number; requestId?: string; chatId?: string }
+): ReturnType<typeof setInterval> {
+  const pollMs = options?.pollMs ?? DEFAULT_ABORT_POLL_MS
+  const requestId = options?.requestId
+  const chatId = options?.chatId
+
+  let lastHeartbeatAt = Date.now()
+  let heartbeatOwnershipLost = false
+
+  return setInterval(() => {
+    if (pollingStreams.has(streamId)) return
+    pollingStreams.add(streamId)
+
+    void (async () => {
+      try {
+        const shouldAbort = await hasAbortMarker(streamId)
+        if (shouldAbort && !abortController.signal.aborted) {
+          abortController.abort(AbortReason.RedisPoller)
+          await clearAbortMarker(streamId)
+        }
+      } catch (error) {
+        logger.warn('Failed to poll stream abort marker', {
+          streamId,
+          ...(requestId ? { requestId } : {}),
+          error: toError(error).message,
+        })
+      } finally {
+        pollingStreams.delete(streamId)
+      }
+
+      if (!chatId || heartbeatOwnershipLost) return
+      if (Date.now() - lastHeartbeatAt < CHAT_STREAM_LOCK_HEARTBEAT_INTERVAL_MS) return
+
+      try {
+        const owned = await extendLock(
+          getChatStreamLockKey(chatId),
+          streamId,
+          CHAT_STREAM_LOCK_TTL_SECONDS
+        )
+        lastHeartbeatAt = Date.now()
+        if (!owned) {
+          heartbeatOwnershipLost = true
+          logger.warn('Lost ownership of chat stream lock — stopping heartbeat', {
+            chatId,
+            streamId,
+            ...(requestId ? { requestId } : {}),
+          })
+        }
+      } catch (error) {
+        logger.warn('Failed to extend chat stream lock TTL', {
+          chatId,
+          streamId,
+          ...(requestId ? { requestId } : {}),
+          error: toError(error).message,
+        })
+      }
+    })()
+  }, pollMs)
+}
+
+export async function cleanupAbortMarker(streamId: string): Promise<void> {
+  try {
+    await clearAbortMarker(streamId)
+  } catch (error) {
+    logger.warn('Failed to clear stream abort marker during cleanup', {
+      streamId,
+      error: toError(error).message,
+    })
+  }
+}

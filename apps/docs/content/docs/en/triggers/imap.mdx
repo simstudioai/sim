@@ -1,0 +1,54 @@
+---
+title: IMAP
+description: Available IMAP triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="imap"
+  color="#6366F1"
+/>
+
+IMAP provides 1 trigger for automating workflows based on events.
+
+All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
+
+## Triggers
+
+### IMAP Email Trigger
+
+Triggers when new emails are received via IMAP (works with any email provider)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | IMAP server hostname \(e.g., imap.gmail.com, outlook.office365.com\) |
+| `port` | string | Yes | IMAP port \(993 for SSL/TLS, 143 for STARTTLS\) |
+| `secure` | boolean | No | Enable SSL/TLS encryption \(recommended for port 993\) |
+| `username` | string | Yes | Email address or username for authentication |
+| `password` | string | Yes | Password or app-specific password \(for Gmail, use an App Password\) |
+| `mailbox` | string | No | Choose which mailbox/folder\(s\) to monitor for new emails. Leave empty to monitor INBOX. |
+| `searchCriteria` | string | No | ImapFlow search criteria as JSON object. Default: unseen messages only. |
+| `markAsRead` | boolean | No | Automatically mark emails as read \(SEEN\) after processing |
+| `includeAttachments` | boolean | No | Download and include email attachments in the trigger payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | object | email output from the tool |
+|   ↳ `messageId` | string | RFC Message-ID header |
+|   ↳ `subject` | string | Email subject line |
+|   ↳ `from` | string | Sender email address |
+|   ↳ `to` | string | Recipient email address |
+|   ↳ `cc` | string | CC recipients |
+|   ↳ `date` | string | Email date in ISO format |
+|   ↳ `bodyText` | string | Plain text email body |
+|   ↳ `bodyHtml` | string | HTML email body |
+|   ↳ `mailbox` | string | Mailbox/folder where email was received |
+|   ↳ `hasAttachments` | boolean | Whether email has attachments |
+|   ↳ `attachments` | file[] | Array of email attachments as files \(if includeAttachments is enabled\) |
+| `timestamp` | string | Event timestamp |
+

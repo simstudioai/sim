@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { generateId } from '@sim/utils/id'
 import {
   Button,
   Input,
@@ -9,12 +10,12 @@ import {
   ModalBody,
   ModalClose,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
 import { dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
-import { generateId } from '@/lib/core/utils/uuid'
 import { usePurchaseCredits } from '@/hooks/queries/subscription'
 
 interface CreditBalanceProps {
@@ -143,6 +144,9 @@ export function CreditBalance({
           <ModalContent size='sm'>
             <ModalHeader>Add Credits</ModalHeader>
             <ModalBody>
+              <ModalDescription className='sr-only'>
+                Purchase additional credits by entering a dollar amount.
+              </ModalDescription>
               {purchaseCredits.isSuccess ? (
                 <p className='text-center text-[var(--text-primary)] text-small'>
                   Credits added successfully!

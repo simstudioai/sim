@@ -1,21 +1,29 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { createLogger } from '@sim/logger'
+import { Paperclip } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
-import { getDocumentIcon } from '@/components/icons/document-icons'
+import { Button, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
+import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
-import type {
-  PlusMenuHandle,
-  SpeechRecognitionErrorEvent,
-  SpeechRecognitionEvent,
-  SpeechRecognitionInstance,
-  WindowWithSpeech,
-} from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import {
   AnimatedPlaceholderEffect,
   AttachedFilesList,
@@ -27,12 +35,12 @@ import {
   OVERLAY_CLASSES,
   PlusMenuDropdown,
   SendButton,
-  SPEECH_RECOGNITION_LANG,
   TEXTAREA_BASE_CLASSES,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import type {
   FileAttachmentForApi,
   MothershipResource,
+  QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import {
   useContextManagement,
@@ -46,9 +54,14 @@ import {
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
+
+const logger = createLogger('UserInput')
 
 function getCaretAnchor(
   textarea: HTMLTextAreaElement,
@@ -81,6 +94,7 @@ function getCaretAnchor(
   marker.style.width = '0px'
   marker.style.padding = '0'
   marker.style.border = '0'
+  marker.style.verticalAlign = 'text-top'
   mirror.appendChild(marker)
 
   document.body.appendChild(mirror)
@@ -96,8 +110,7 @@ function getCaretAnchor(
 
 interface UserInputProps {
   defaultValue?: string
-  editValue?: string
-  onEditValueConsumed?: () => void
+  draftScopeKey?: string
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -108,25 +121,41 @@ interface UserInputProps {
   isInitialView?: boolean
   userId?: string
   onContextAdd?: (context: ChatContext) => void
-  onEnterWhileEmpty?: () => boolean
+  onContextRemove?: (context: ChatContext) => void
+  onSendQueuedHead?: () => void
+  onEditQueuedTail?: () => void
 }
 
-export function UserInput({
-  defaultValue = '',
-  editValue,
-  onEditValueConsumed,
-  onSubmit,
-  isSending,
-  onStopGeneration,
-  isInitialView = true,
-  userId,
-  onContextAdd,
-  onEnterWhileEmpty,
-}: UserInputProps) {
+export interface UserInputHandle {
+  loadQueuedMessage: (msg: QueuedMessage) => void
+}
+
+export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
+  {
+    defaultValue = '',
+    draftScopeKey,
+    onSubmit,
+    isSending,
+    onStopGeneration,
+    isInitialView = true,
+    userId,
+    onContextAdd,
+    onContextRemove,
+    onSendQueuedHead,
+    onEditQueuedTail,
+  },
+  ref
+) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { navigateToSettings } = useSettingsNavigation()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
   const { data: session } = useSession()
-  const [value, setValue] = useState(defaultValue)
+  const [value, setValue] = useState(() => {
+    if (defaultValue) return defaultValue
+    if (!draftScopeKey) return ''
+    const text = useMothershipDraftsStore.getState().drafts[draftScopeKey]?.text
+    return typeof text === 'string' ? text : ''
+  })
   const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
 
@@ -138,18 +167,6 @@ export function UserInput({
     setPrevDefaultValue(defaultValue)
   }
 
-  const [prevEditValue, setPrevEditValue] = useState(editValue)
-  if (editValue && editValue !== prevEditValue) {
-    setPrevEditValue(editValue)
-    setValue(editValue)
-  } else if (!editValue && prevEditValue) {
-    setPrevEditValue(editValue)
-  }
-
-  useEffect(() => {
-    if (editValue) onEditValueConsumed?.()
-  }, [editValue, onEditValueConsumed])
-
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
     workspaceId,
@@ -157,6 +174,7 @@ export function UserInput({
     isLoading: isSending,
   })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
+  const hasUploadingFiles = files.attachedFiles.some((f) => f.uploading)
 
   const contextManagement = useContextManagement({ message: value })
 
@@ -170,6 +188,111 @@ export function UserInput({
     [addContext, onContextAdd]
   )
 
+  const draftScopeKeyRef = useRef(draftScopeKey)
+  draftScopeKeyRef.current = draftScopeKey
+
+  const hasRestoredDraftRef = useRef(false)
+  useEffect(() => {
+    if (hasRestoredDraftRef.current || !draftScopeKey) return
+    hasRestoredDraftRef.current = true
+    let restoredContexts: ChatContext[] | null = null
+    let restoredFiles: AttachedFile[] | null = null
+    let caretText: string | null = null
+    try {
+      const draft = useMothershipDraftsStore.getState().drafts[draftScopeKey]
+      if (!draft) return
+      if (draft.contexts?.length) {
+        restoredContexts = draft.contexts
+      }
+      if (draft.fileAttachments?.length) {
+        restoredFiles = draft.fileAttachments.map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.size,
+          type: a.media_type,
+          path: a.path ?? '',
+          key: a.key,
+          uploading: false,
+          previewUrl: getMothershipAttachmentPreviewUrl(a),
+        }))
+      }
+      if (typeof draft.text === 'string' && draft.text.length > 0) {
+        caretText = draft.text
+      }
+    } catch (err) {
+      logger.error('Failed to read draft, clearing', { err })
+      useMothershipDraftsStore.getState().clearDraft(draftScopeKey)
+      return
+    }
+    if (restoredContexts) contextManagement.setSelectedContexts(restoredContexts)
+    if (restoredFiles) files.restoreAttachedFiles(restoredFiles)
+    if (caretText !== null) {
+      const textarea = textareaRef.current
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(caretText.length, caretText.length)
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only restore
+
+  const isFirstSaveRef = useRef(true)
+  useEffect(() => {
+    if (isFirstSaveRef.current) {
+      isFirstSaveRef.current = false
+      return
+    }
+    if (!draftScopeKeyRef.current) return
+    const fileAttachments = files.attachedFiles
+      .filter((f) => !f.uploading && f.key)
+      .map((f) => ({
+        id: f.id,
+        key: f.key!,
+        filename: f.name,
+        media_type: f.type,
+        size: f.size,
+        ...(f.path ? { path: f.path } : {}),
+      }))
+    useMothershipDraftsStore.getState().setDraft(draftScopeKeyRef.current, {
+      text: value,
+      fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
+      contexts:
+        contextManagement.selectedContexts.length > 0
+          ? contextManagement.selectedContexts
+          : undefined,
+    })
+  }, [value, files.attachedFiles, contextManagement.selectedContexts])
+
+  const onContextRemoveRef = useRef(onContextRemove)
+  onContextRemoveRef.current = onContextRemove
+
+  const prevSelectedContextsRef = useRef<ChatContext[]>([])
+  useEffect(() => {
+    const prev = prevSelectedContextsRef.current
+    const curr = contextManagement.selectedContexts
+    const contextId = (ctx: ChatContext): string => {
+      switch (ctx.kind) {
+        case 'workflow':
+        case 'current_workflow':
+          return `${ctx.kind}:${ctx.workflowId}`
+        case 'knowledge':
+          return `knowledge:${ctx.knowledgeId ?? ''}`
+        case 'table':
+          return `table:${ctx.tableId}`
+        case 'file':
+          return `file:${ctx.fileId}`
+        case 'folder':
+          return `folder:${ctx.folderId}`
+        case 'past_chat':
+          return `past_chat:${ctx.chatId}`
+        default:
+          return `${ctx.kind}:${ctx.label}`
+      }
+    }
+    const removed = prev.filter((p) => !curr.some((c) => contextId(c) === contextId(p)))
+    if (removed.length > 0) removed.forEach((ctx) => onContextRemoveRef.current?.(ctx))
+    prevSelectedContextsRef.current = curr
+  }, [contextManagement.selectedContexts])
+
   const existingResourceKeys = useMemo(() => {
     const keys = new Set<string>()
     for (const ctx of contextManagement.selectedContexts) {
@@ -178,6 +301,7 @@ export function UserInput({
       if (ctx.kind === 'table' && ctx.tableId) keys.add(`table:${ctx.tableId}`)
       if (ctx.kind === 'file' && ctx.fileId) keys.add(`file:${ctx.fileId}`)
       if (ctx.kind === 'folder' && ctx.folderId) keys.add(`folder:${ctx.folderId}`)
+      if (ctx.kind === 'past_chat' && ctx.chatId) keys.add(`task:${ctx.chatId}`)
     }
     return keys
   }, [contextManagement.selectedContexts])
@@ -199,36 +323,86 @@ export function UserInput({
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
-  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending
+  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
 
-  const [isListening, setIsListening] = useState(false)
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
-  const prefixRef = useRef('')
   const valueRef = useRef(value)
+  valueRef.current = value
+  const sttPrefixRef = useRef('')
+
+  function handleTranscript(text: string) {
+    const prefix = sttPrefixRef.current
+    const newVal = prefix ? `${prefix} ${text}` : text
+    setValue(newVal)
+    valueRef.current = newVal
+  }
+
+  function handleUsageLimitExceeded() {
+    navigateToSettings({ section: 'subscription' })
+  }
+
+  const {
+    isListening,
+    isSupported: isSttSupported,
+    toggleListening: rawToggle,
+    resetTranscript,
+  } = useSpeechToText({
+    onTranscript: handleTranscript,
+    onUsageLimitExceeded: handleUsageLimitExceeded,
+  })
+
+  const toggleListening = useCallback(() => {
+    if (!isListening) {
+      sttPrefixRef.current = valueRef.current
+    }
+    rawToggle()
+  }, [isListening, rawToggle])
 
   const filesRef = useRef(files)
   filesRef.current = files
   const contextRef = useRef(contextManagement)
   contextRef.current = contextManagement
-  const onEnterWhileEmptyRef = useRef(onEnterWhileEmpty)
-  onEnterWhileEmptyRef.current = onEnterWhileEmpty
+  const onSendQueuedHeadRef = useRef(onSendQueuedHead)
+  onSendQueuedHeadRef.current = onSendQueuedHead
+  const onEditQueuedTailRef = useRef(onEditQueuedTail)
+  onEditQueuedTailRef.current = onEditQueuedTail
   const isSendingRef = useRef(isSending)
   isSendingRef.current = isSending
-
-  useEffect(() => {
-    return () => {
-      recognitionRef.current?.abort()
-    }
-  }, [])
-
-  useEffect(() => {
-    valueRef.current = value
-  }, [value])
 
   const textareaRef = mentionMenu.textareaRef
   const wasSendingRef = useRef(false)
   const atInsertPosRef = useRef<number | null>(null)
   const pendingCursorRef = useRef<number | null>(null)
+  const mentionRangeRef = useRef<{ start: number; end: number } | null>(null)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      loadQueuedMessage: (msg: QueuedMessage) => {
+        setValue(msg.content)
+        const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.size,
+          type: a.media_type,
+          path: a.path ?? '',
+          key: a.key,
+          uploading: false,
+          previewUrl: getMothershipAttachmentPreviewUrl(a),
+        }))
+        files.restoreAttachedFiles(restored)
+        contextManagement.setSelectedContexts(msg.contexts ?? [])
+        requestAnimationFrame(() => {
+          const textarea = textareaRef.current
+          if (!textarea) return
+          textarea.focus()
+          const end = textarea.value.length
+          textarea.setSelectionRange(end, end)
+        })
+      },
+    }),
+    [files.restoreAttachedFiles, contextManagement.setSelectedContexts, textareaRef]
+  )
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current
@@ -246,16 +420,35 @@ export function UserInput({
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
-        const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
-        atInsertPosRef.current = null
+        const range = mentionRangeRef.current
+        let before: string
+        let after: string
+        let insertText: string
+        let newPos: number
 
-        const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-        const insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
-        const before = currentValue.slice(0, insertAt)
-        const after = currentValue.slice(insertAt)
-        const newPos = before.length + insertText.length
+        if (range) {
+          before = currentValue.slice(0, range.start)
+          after = currentValue.slice(range.end)
+          const needsSpaceBefore =
+            range.start > 0 && !/\s/.test(currentValue.charAt(range.start - 1))
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          newPos = before.length + insertText.length
+        } else {
+          const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
+          const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          before = currentValue.slice(0, insertAt)
+          after = currentValue.slice(insertAt)
+          newPos = before.length + insertText.length
+        }
+
+        const newValue = `${before}${insertText}${after}`
         pendingCursorRef.current = newPos
-        setValue(`${before}${insertText}${after}`)
+        valueRef.current = newValue
+        atInsertPosRef.current = newPos
+        mentionRangeRef.current = null
+        setMentionQuery(null)
+        setValue(newValue)
       }
 
       const context = mapResourceToContext(resource)
@@ -266,6 +459,8 @@ export function UserInput({
 
   const handlePlusMenuClose = useCallback(() => {
     atInsertPosRef.current = null
+    mentionRangeRef.current = null
+    setMentionQuery(null)
   }, [])
 
   const handleFileSelectStable = useCallback(() => {
@@ -281,7 +476,10 @@ export function UserInput({
   }, [])
 
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/x-sim-resource')) {
+    if (
+      e.dataTransfer.types.includes(SIM_RESOURCE_DRAG_TYPE) ||
+      e.dataTransfer.types.includes(SIM_RESOURCES_DRAG_TYPE)
+    ) {
       e.preventDefault()
       e.stopPropagation()
       e.dataTransfer.dropEffect = 'copy'
@@ -292,29 +490,51 @@ export function UserInput({
 
   const handleContainerDrop = useCallback(
     (e: React.DragEvent) => {
-      const resourceJson = e.dataTransfer.getData('application/x-sim-resource')
+      const resourcesJson = e.dataTransfer.getData(SIM_RESOURCES_DRAG_TYPE)
+      if (resourcesJson) {
+        e.preventDefault()
+        e.stopPropagation()
+        try {
+          const resources = JSON.parse(resourcesJson) as MothershipResource[]
+          for (const resource of resources) {
+            handleResourceSelect(resource)
+          }
+          // Reset after batch so the next non-drop insert uses the cursor position
+          atInsertPosRef.current = null
+        } catch {}
+        textareaRef.current?.focus()
+        return
+      }
+      const resourceJson = e.dataTransfer.getData(SIM_RESOURCE_DRAG_TYPE)
       if (resourceJson) {
         e.preventDefault()
         e.stopPropagation()
         try {
           const resource = JSON.parse(resourceJson) as MothershipResource
           handleResourceSelect(resource)
-        } catch {
-          // Invalid JSON — ignore
-        }
+          atInsertPosRef.current = null
+        } catch {}
+        textareaRef.current?.focus()
         return
       }
       filesRef.current.handleDrop(e)
+      requestAnimationFrame(() => textareaRef.current?.focus())
     },
-    [handleResourceSelect]
+    [handleResourceSelect, textareaRef]
   )
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
-    filesRef.current.handleDragEnter(e)
+    const isResourceDrag =
+      e.dataTransfer.types.includes(SIM_RESOURCE_DRAG_TYPE) ||
+      e.dataTransfer.types.includes(SIM_RESOURCES_DRAG_TYPE)
+    if (!isResourceDrag) filesRef.current.handleDragEnter(e)
   }, [])
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    filesRef.current.handleDragLeave(e)
+    const isResourceDrag =
+      e.dataTransfer.types.includes(SIM_RESOURCE_DRAG_TYPE) ||
+      e.dataTransfer.types.includes(SIM_RESOURCES_DRAG_TYPE)
+    if (!isResourceDrag) filesRef.current.handleDragLeave(e)
   }, [])
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -323,16 +543,31 @@ export function UserInput({
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending) {
-      textareaRef.current?.focus()
+      const active = document.activeElement
+      const isEditingElsewhere =
+        active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
+      if (!isEditingElsewhere) {
+        textareaRef.current?.focus()
+      }
     }
     wasSendingRef.current = isSending
   }, [isSending, textareaRef])
 
   useEffect(() => {
-    if (isInitialView) {
-      textareaRef.current?.focus()
-    }
-  }, [isInitialView, textareaRef])
+    const raf = window.requestAnimationFrame(() => {
+      const active = document.activeElement
+      const isEditingElsewhere =
+        active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
+      if (!isEditingElsewhere) {
+        textareaRef.current?.focus()
+      }
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [textareaRef])
+
+  const focusTextarea = useCallback(() => {
+    textareaRef.current?.focus()
+  }, [textareaRef])
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -341,84 +576,6 @@ export function UserInput({
     },
     [textareaRef]
   )
-
-  const startRecognition = useCallback((): boolean => {
-    const w = window as WindowWithSpeech
-    const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition
-    if (!SpeechRecognitionAPI) return false
-
-    const recognition = new SpeechRecognitionAPI()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = SPEECH_RECOGNITION_LANG
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let transcript = ''
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
-      }
-      const prefix = prefixRef.current
-      const newVal = prefix ? `${prefix} ${transcript}` : transcript
-      setValue(newVal)
-      valueRef.current = newVal
-    }
-
-    recognition.onend = () => {
-      if (recognitionRef.current === recognition) {
-        prefixRef.current = valueRef.current
-        try {
-          recognition.start()
-        } catch {
-          recognitionRef.current = null
-          setIsListening(false)
-        }
-      }
-    }
-
-    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
-      if (recognitionRef.current !== recognition) return
-      if (e.error === 'aborted' || e.error === 'not-allowed') {
-        recognitionRef.current = null
-        setIsListening(false)
-      }
-    }
-
-    recognitionRef.current = recognition
-    try {
-      recognition.start()
-      return true
-    } catch {
-      recognitionRef.current = null
-      return false
-    }
-  }, [])
-
-  const restartRecognition = useCallback(
-    (newPrefix: string) => {
-      if (!recognitionRef.current) return
-      prefixRef.current = newPrefix
-      recognitionRef.current.abort()
-      recognitionRef.current = null
-      if (!startRecognition()) {
-        setIsListening(false)
-      }
-    },
-    [startRecognition]
-  )
-
-  const toggleListening = useCallback(() => {
-    if (isListening) {
-      recognitionRef.current?.stop()
-      recognitionRef.current = null
-      setIsListening(false)
-      return
-    }
-
-    prefixRef.current = valueRef.current
-    if (startRecognition()) {
-      setIsListening(true)
-    }
-  }, [isListening, startRecognition])
 
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current
@@ -433,6 +590,7 @@ export function UserInput({
         filename: f.name,
         media_type: f.type,
         size: f.size,
+        ...(f.path ? { path: f.path } : {}),
       }))
 
     onSubmit(
@@ -441,21 +599,69 @@ export function UserInput({
       currentContext.selectedContexts.length > 0 ? currentContext.selectedContexts : undefined
     )
     setValue('')
-    restartRecognition('')
+    valueRef.current = ''
+    sttPrefixRef.current = ''
+    if (draftScopeKeyRef.current) {
+      useMothershipDraftsStore.getState().clearDraft(draftScopeKeyRef.current)
+    }
+    resetTranscript()
     currentFiles.clearAttachedFiles()
+    prevSelectedContextsRef.current = []
     currentContext.clearContexts()
+    // Programmatic close() bypasses Radix's onOpenChange, so handlePlusMenuClose won't
+    // fire — clear mention state inline so ArrowUp etc. aren't intercepted post-submit.
+    plusMenuRef.current?.close()
+    mentionRangeRef.current = null
+    setMentionQuery(null)
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [onSubmit, restartRecognition, textareaRef])
+  }, [onSubmit, textareaRef, resetTranscript])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (mentionRangeRef.current && !e.nativeEvent.isComposing) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          plusMenuRef.current?.moveActive(1)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          plusMenuRef.current?.moveActive(-1)
+          return
+        }
+        if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey) {
+          // Confirm the highlighted match if there is one. If no items match, fall
+          // through so Enter still submits and Tab still does its default thing.
+          if (plusMenuRef.current?.selectActive()) {
+            e.preventDefault()
+            return
+          }
+        }
+      }
+
+      if (e.key === 'ArrowUp' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const isEmpty = valueRef.current.length === 0 && filesRef.current.attachedFiles.length === 0
+        if (isEmpty && onEditQueuedTailRef.current) {
+          e.preventDefault()
+          onEditQueuedTailRef.current()
+          return
+        }
+      }
+
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
-        if (isSendingRef.current && !valueRef.current.trim()) {
-          onEnterWhileEmptyRef.current?.()
+        // Mirror canSubmit's uploading guard; Enter reads refs, not rendered state.
+        if (filesRef.current.attachedFiles.some((f) => f.uploading)) return
+        const hasSubmitPayload =
+          valueRef.current.trim().length > 0 ||
+          filesRef.current.attachedFiles.some((file) => !file.uploading && file.key)
+        if (!hasSubmitPayload) {
+          if (isSendingRef.current) {
+            onSendQueuedHeadRef.current?.()
+          }
           return
         }
         handleSubmit()
@@ -527,31 +733,44 @@ export function UserInput({
     [handleSubmit, mentionTokensWithContext, value, textareaRef]
   )
 
+  const getActiveMentionAtRef = useRef(mentionMenu.getActiveMentionQueryAtPosition)
+  getActiveMentionAtRef.current = mentionMenu.getActiveMentionQueryAtPosition
+
+  const syncMentionState = useCallback(
+    (textarea: HTMLTextAreaElement, text: string, caret: number) => {
+      const active = getActiveMentionAtRef.current(caret, text)
+      // Treat any whitespace inside the query as a closer — typing a space
+      // after `@foo` should leave the raw `@foo` text and dismiss the menu.
+      const isOpenable = active && !/\s/.test(active.query)
+      if (!isOpenable) {
+        if (mentionRangeRef.current !== null) {
+          mentionRangeRef.current = null
+          setMentionQuery(null)
+          plusMenuRef.current?.close()
+        }
+        return
+      }
+
+      const wasActive = mentionRangeRef.current !== null
+      mentionRangeRef.current = { start: active.start, end: active.end }
+      setMentionQuery(active.query)
+      if (!wasActive) {
+        // Anchor at the caret so the menu floats above the user's cursor.
+        const anchor = getCaretAnchor(textarea, active.start)
+        plusMenuRef.current?.open(anchor, { mention: true })
+      }
+    },
+    []
+  )
+
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const newValue = e.target.value
       const caret = e.target.selectionStart ?? newValue.length
-
-      if (
-        caret > 0 &&
-        newValue.charAt(caret - 1) === '@' &&
-        (caret === 1 || /\s/.test(newValue.charAt(caret - 2)))
-      ) {
-        const before = newValue.slice(0, caret - 1)
-        const after = newValue.slice(caret)
-        const adjusted = `${before}${after}`
-        setValue(adjusted)
-        atInsertPosRef.current = caret - 1
-        const anchor = getCaretAnchor(e.target, caret - 1)
-        plusMenuRef.current?.open(anchor)
-        restartRecognition(adjusted)
-        return
-      }
-
       setValue(newValue)
-      restartRecognition(newValue)
+      syncMentionState(e.target, newValue, caret)
     },
-    [restartRecognition]
+    [syncMentionState]
   )
 
   const handleSelectAdjust = useCallback(() => {
@@ -564,8 +783,10 @@ export function UserInput({
       setTimeout(() => {
         textarea.setSelectionRange(snapPos, snapPos)
       }, 0)
+      return
     }
-  }, [textareaRef, mentionTokensWithContext])
+    syncMentionState(textarea, textarea.value, pos)
+  }, [textareaRef, mentionTokensWithContext, syncMentionState])
 
   const handleInput = useCallback(
     (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -643,42 +864,17 @@ export function UserInput({
           : range.token
       const matchingCtx = contexts.find((c) => c.label === mentionLabel)
 
-      let mentionIconNode: React.ReactNode = null
-      if (matchingCtx) {
-        const iconClasses = 'absolute inset-0 m-auto h-[12px] w-[12px] text-[var(--text-icon)]'
-        switch (matchingCtx.kind) {
-          case 'workflow':
-          case 'current_workflow': {
-            const wfId = (matchingCtx as { workflowId: string }).workflowId
-            const wfColor = workflowsById[wfId]?.color ?? '#888'
-            mentionIconNode = (
-              <div
-                className='absolute inset-0 m-auto h-[12px] w-[12px] rounded-[3px] border-[2px]'
-                style={{
-                  backgroundColor: wfColor,
-                  borderColor: `${wfColor}60`,
-                  backgroundClip: 'padding-box',
-                }}
-              />
-            )
-            break
-          }
-          case 'knowledge':
-            mentionIconNode = <Database className={iconClasses} />
-            break
-          case 'table':
-            mentionIconNode = <TableIcon className={iconClasses} />
-            break
-          case 'file': {
-            const FileDocIcon = getDocumentIcon('', mentionLabel)
-            mentionIconNode = <FileDocIcon className={iconClasses} />
-            break
-          }
-          case 'folder':
-            mentionIconNode = <FolderIcon className={iconClasses} />
-            break
-        }
-      }
+      const wfId =
+        matchingCtx?.kind === 'workflow' || matchingCtx?.kind === 'current_workflow'
+          ? matchingCtx.workflowId
+          : undefined
+      const mentionIconNode = matchingCtx ? (
+        <ContextMentionIcon
+          context={matchingCtx}
+          workflowColor={wfId ? (workflowsById[wfId]?.color ?? null) : null}
+          className='absolute inset-0 m-auto size-[12px] text-[var(--text-icon)]'
+        />
+      ) : null
 
       elements.push(
         <span
@@ -709,7 +905,13 @@ export function UserInput({
 
   return (
     <div
+      role='group'
+      aria-label='Message input'
       onClick={handleContainerClick}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, focusTextarea)
+      }}
       className={cn(
         'relative z-10 mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-sm'
@@ -759,14 +961,28 @@ export function UserInput({
             ref={plusMenuRef}
             availableResources={availableResources}
             onResourceSelect={handleResourceSelect}
-            onFileSelect={handleFileSelectStable}
             onClose={handlePlusMenuClose}
             textareaRef={textareaRef}
             pendingCursorRef={pendingCursorRef}
+            mentionQuery={mentionQuery ?? undefined}
           />
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={handleFileSelectStable}
+                aria-label='Attach file'
+                className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+              >
+                <Paperclip className='size-[14px] text-[var(--text-icon)]' strokeWidth={2} />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+          </Tooltip.Root>
         </div>
         <div className='flex items-center gap-1.5'>
-          <MicButton isListening={isListening} onToggle={toggleListening} />
+          {isSttSupported && <MicButton isListening={isListening} onToggle={toggleListening} />}
           <SendButton
             isSending={isSending}
             canSubmit={canSubmit}
@@ -788,4 +1004,4 @@ export function UserInput({
       {files.isDragging && <DropOverlay />}
     </div>
   )
-}
+})

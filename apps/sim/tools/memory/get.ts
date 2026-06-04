@@ -35,12 +35,8 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       if (!conversationId) {
         throw new Error('conversationId or id is required')
       }
-      const query = conversationId
-
-      const url = new URL('/api/memory', 'http://dummy')
+      const url = new URL(`/api/memory/${encodeURIComponent(conversationId)}`, 'http://dummy')
       url.searchParams.set('workspaceId', workspaceId)
-      url.searchParams.set('query', query)
-      url.searchParams.set('limit', '1000')
 
       return url.pathname + url.search
     },
@@ -52,9 +48,9 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
 
   transformResponse: async (response): Promise<MemoryResponse> => {
     const result = await response.json()
-    const memories = result.data?.memories || []
+    const memory = result.data
 
-    if (!Array.isArray(memories) || memories.length === 0) {
+    if (!memory) {
       return {
         success: true,
         output: {
@@ -67,8 +63,8 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
     return {
       success: true,
       output: {
-        memories,
-        message: `Found ${memories.length} memories`,
+        memories: [memory],
+        message: 'Found 1 memory',
       },
     }
   },

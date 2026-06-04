@@ -42,20 +42,20 @@ const Trigger = TooltipPrimitive.Trigger
 const Content = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 6, ...props }, ref) => (
+>(({ className, sideOffset = 6, children, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
       collisionPadding={8}
-      avoidCollisions={true}
+      avoidCollisions
       className={cn(
         'z-[var(--z-tooltip)] max-w-[260px] rounded-[4px] bg-[var(--tooltip-bg)] px-2 py-[3.5px] font-base text-white text-xs shadow-sm dark:text-black',
         className
       )}
       {...props}
     >
-      {props.children}
+      {children}
       <TooltipPrimitive.Arrow className='fill-[var(--tooltip-bg)]' />
     </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
@@ -120,22 +120,35 @@ const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg', '.mov'] as const
 const Preview = ({ src, alt = '', width = 240, height, loop = true, className }: PreviewProps) => {
   const pathname = src.toLowerCase().split('?')[0].split('#')[0]
   const isVideo = VIDEO_EXTENSIONS.some((ext) => pathname.endsWith(ext))
+  const [isReady, setIsReady] = React.useState(!isVideo)
 
   return (
-    <div className={cn('-mx-2 -mb-[3.5px] mt-1 overflow-hidden rounded-b-[4px]', className)}>
+    <div className={cn('-mx-[6px] -mb-[1.5px] mt-1.5 overflow-hidden rounded-[4px]', className)}>
       {isVideo ? (
-        <video
-          src={src}
-          width={width}
-          height={height}
-          className='block w-full'
-          autoPlay
-          loop={loop}
-          muted
-          playsInline
-          preload='none'
-          aria-label={alt}
-        />
+        <div className='relative'>
+          {!isReady && (
+            <div
+              className='animate-pulse bg-white/5'
+              style={{ aspectRatio: height ? `${width}/${height}` : '16/9' }}
+            />
+          )}
+          <video
+            src={src}
+            width={width}
+            height={height}
+            className={cn(
+              'block w-full transition-opacity duration-200',
+              isReady ? 'opacity-100' : 'absolute inset-0 opacity-0'
+            )}
+            autoPlay
+            loop={loop}
+            muted
+            playsInline
+            preload='auto'
+            aria-label={alt}
+            onCanPlay={() => setIsReady(true)}
+          />
+        </div>
       ) : (
         <img
           src={src}

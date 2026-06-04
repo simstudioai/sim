@@ -6,7 +6,7 @@ export default function ChatLoading() {
       <div className='border-[var(--border-1)] border-b px-4 py-3'>
         <div className='mx-auto flex max-w-3xl items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
-            <Skeleton className='h-[28px] w-[28px] rounded-[6px]' />
+            <Skeleton className='size-[28px] rounded-[6px]' />
             <Skeleton className='h-[18px] w-[120px] rounded-[4px]' />
           </div>
           <Skeleton className='h-[28px] w-[80px] rounded-[6px]' />

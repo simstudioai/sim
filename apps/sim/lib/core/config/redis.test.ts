@@ -1,4 +1,4 @@
-import { createEnvMock, createMockRedis, loggerMock } from '@sim/testing'
+import { createEnvMock, createMockRedis } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { MockRedisConstructor } = vi.hoisted(() => ({
@@ -6,9 +6,14 @@ const { MockRedisConstructor } = vi.hoisted(() => ({
 }))
 
 const mockRedisInstance = createMockRedis()
-MockRedisConstructor.mockImplementation(() => mockRedisInstance)
+MockRedisConstructor.mockImplementation(
+  class {
+    constructor() {
+      Object.assign(this, mockRedisInstance)
+    }
+  }
+)
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/core/config/env', () => createEnvMock({ REDIS_URL: 'redis://localhost:6379' }))
 vi.mock('ioredis', () => ({
   default: MockRedisConstructor,
@@ -16,6 +21,7 @@ vi.mock('ioredis', () => ({
 
 import {
   closeRedisConnection,
+  extendLock,
   getRedisClient,
   onRedisReconnect,
   resetForTesting,
@@ -26,7 +32,13 @@ describe('redis config', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     resetForTesting()
-    MockRedisConstructor.mockImplementation(() => mockRedisInstance)
+    MockRedisConstructor.mockImplementation(
+      class {
+        constructor() {
+          Object.assign(this, mockRedisInstance)
+        }
+      }
+    )
   })
 
   afterEach(() => {
@@ -90,6 +102,37 @@ describe('redis config', () => {
       expect(mockRedisInstance.disconnect).toHaveBeenCalledWith(true)
     })
 
+    it('should drop the cached client so the next getRedisClient() builds a fresh one', async () => {
+      getRedisClient()
+      const callsBefore = MockRedisConstructor.mock.calls.length
+
+      mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(mockRedisInstance.disconnect).toHaveBeenCalledWith(true)
+
+      getRedisClient()
+      expect(MockRedisConstructor.mock.calls.length).toBe(callsBefore + 1)
+    })
+
+    it('should restart the PING health check against the new client', async () => {
+      getRedisClient()
+
+      mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(mockRedisInstance.disconnect).toHaveBeenCalledTimes(1)
+
+      getRedisClient()
+
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(mockRedisInstance.disconnect).toHaveBeenCalledTimes(2)
+    })
+
     it('should handle listener errors gracefully without breaking health check', async () => {
       const badListener = vi.fn(() => {
         throw new Error('listener crashed')
@@ -121,13 +164,59 @@ describe('redis config', () => {
     })
   })
 
+  describe('extendLock', () => {
+    const lockKey = 'copilot:chat-stream-lock:chat-1'
+    const value = 'stream-abc'
+    const ttlSeconds = 60
+
+    it('returns true when the caller still owns the lock and EXPIRE succeeds', async () => {
+      mockRedisInstance.eval.mockResolvedValueOnce(1)
+
+      const extended = await extendLock(lockKey, value, ttlSeconds)
+
+      expect(extended).toBe(true)
+      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
+        expect.stringContaining('expire'),
+        1,
+        lockKey,
+        value,
+        ttlSeconds
+      )
+    })
+
+    it('returns false when the value does not match (lock owned by another)', async () => {
+      mockRedisInstance.eval.mockResolvedValueOnce(0)
+
+      const extended = await extendLock(lockKey, value, ttlSeconds)
+
+      expect(extended).toBe(false)
+    })
+
+    it('returns true as a no-op when Redis is unavailable', async () => {
+      vi.resetModules()
+      vi.doMock('@/lib/core/config/env', () =>
+        createEnvMock({ REDIS_URL: undefined as unknown as string })
+      )
+      const { extendLock: extendLockNoRedis } = await import('@/lib/core/config/redis')
+
+      const extended = await extendLockNoRedis(lockKey, value, ttlSeconds)
+
+      expect(extended).toBe(true)
+      vi.doUnmock('@/lib/core/config/env')
+    })
+  })
+
   describe('retryStrategy', () => {
     function captureRetryStrategy(): (times: number) => number {
       let capturedConfig: Record<string, unknown> = {}
-      MockRedisConstructor.mockImplementation((_url: string, config: Record<string, unknown>) => {
-        capturedConfig = config
-        return { ping: vi.fn(), on: vi.fn() }
-      })
+      MockRedisConstructor.mockImplementation(
+        class {
+          constructor(_url: string, config: Record<string, unknown>) {
+            capturedConfig = config
+            Object.assign(this, { ping: vi.fn(), on: vi.fn() })
+          }
+        }
+      )
 
       getRedisClient()
 

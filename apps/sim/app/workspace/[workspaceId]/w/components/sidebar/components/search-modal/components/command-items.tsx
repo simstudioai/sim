@@ -4,7 +4,9 @@ import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { Command } from 'cmdk'
 import { Blimp } from '@/components/emcn'
+import { File } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { CommandItemProps } from '../utils'
 import { COMMAND_ITEM_CLASSNAME } from '../utils'
 
@@ -20,7 +22,7 @@ export const MemoizedCommandItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <div
-          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: showColoredIcon ? bgColor : 'transparent' }}
         >
           <Icon
@@ -50,28 +52,43 @@ export const MemoizedWorkflowItem = memo(
     onSelect,
     color,
     name,
+    folderPath,
     isCurrent,
   }: {
     value: string
     onSelect: () => void
     color: string
     name: string
+    folderPath?: string[]
     isCurrent?: boolean
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <div
-          className='h-[14px] w-[14px] flex-shrink-0 rounded-sm border-[2px]'
+          className='size-[14px] flex-shrink-0 rounded-sm border-[2px]'
           style={{
             backgroundColor: color,
-            borderColor: `${color}60`,
+            borderColor: workflowBorderColor(color),
             backgroundClip: 'padding-box',
           }}
         />
-        <span className='truncate font-base text-[var(--text-body)]'>
-          {name}
-          {isCurrent && ' (current)'}
+        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 font-base text-[var(--text-body)]'>
+          <span className='truncate'>{name}</span>
+          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
+        {folderPath && folderPath.length > 0 && (
+          <span className='ml-auto flex min-w-0 pl-2 font-base text-[var(--text-subtle)] text-small'>
+            {folderPath.length > 1 && (
+              <>
+                <span className='min-w-0 truncate [flex-shrink:9999]'>
+                  {folderPath.slice(0, -1).join(' / ')}
+                </span>
+                <span className='flex-shrink-0 whitespace-pre'> / </span>
+              </>
+            )}
+            <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
+          </span>
+        )}
       </Command.Item>
     )
   },
@@ -79,7 +96,54 @@ export const MemoizedWorkflowItem = memo(
     prev.value === next.value &&
     prev.color === next.color &&
     prev.name === next.name &&
-    prev.isCurrent === next.isCurrent
+    prev.isCurrent === next.isCurrent &&
+    (prev.folderPath === next.folderPath ||
+      (prev.folderPath?.length === next.folderPath?.length &&
+        (prev.folderPath ?? []).every((segment, i) => segment === next.folderPath?.[i])))
+)
+
+export const MemoizedFileItem = memo(
+  function FileItem({
+    value,
+    onSelect,
+    name,
+    folderPath,
+  }: {
+    value: string
+    onSelect: () => void
+    name: string
+    folderPath?: string[]
+  }) {
+    return (
+      <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <File className='size-[14px] text-[var(--text-icon)]' />
+        </div>
+        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 font-base text-[var(--text-body)]'>
+          <span className='truncate'>{name}</span>
+        </span>
+        {folderPath && folderPath.length > 0 && (
+          <span className='ml-auto flex min-w-0 pl-2 font-base text-[var(--text-subtle)] text-small'>
+            {folderPath.length > 1 && (
+              <>
+                <span className='min-w-0 truncate [flex-shrink:9999]'>
+                  {folderPath.slice(0, -1).join(' / ')}
+                </span>
+                <span className='flex-shrink-0 whitespace-pre'> / </span>
+              </>
+            )}
+            <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
+          </span>
+        )}
+      </Command.Item>
+    )
+  },
+  (prev, next) =>
+    prev.value === next.value &&
+    prev.name === next.name &&
+    (prev.folderPath === next.folderPath ||
+      (prev.folderPath?.length === next.folderPath?.length &&
+        (prev.folderPath ?? []).every((segment, i) => segment === next.folderPath?.[i])))
 )
 
 export const MemoizedTaskItem = memo(
@@ -94,8 +158,8 @@ export const MemoizedTaskItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <Blimp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <Blimp className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
       </Command.Item>
@@ -118,9 +182,9 @@ export const MemoizedWorkspaceItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <span className='truncate font-base text-[var(--text-body)]'>
-          {name}
-          {isCurrent && ' (current)'}
+        <span className='flex min-w-0 font-base text-[var(--text-body)]'>
+          <span className='truncate'>{name}</span>
+          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
       </Command.Item>
     )
@@ -145,8 +209,8 @@ export const MemoizedPageItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <Icon className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
         {shortcut && (
@@ -178,8 +242,8 @@ export const MemoizedIconItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <Icon className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
       </Command.Item>

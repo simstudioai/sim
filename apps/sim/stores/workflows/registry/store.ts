@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { generateRandomHex } from '@sim/utils/random'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { requestJson } from '@/lib/api/client/request'
+import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
@@ -23,7 +26,7 @@ const initialHydration: HydrationState = {
   error: null,
 }
 
-const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
+const createRequestId = () => `${Date.now()}-${generateRandomHex(8)}`
 
 function resetWorkflowStores() {
   useWorkflowStore.setState({
@@ -91,35 +94,36 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }))
 
         try {
-          const response = await fetch(`/api/workflows/${workflowId}`, { method: 'GET' })
-          if (!response.ok) {
-            throw new Error(`Failed to load workflow ${workflowId}`)
-          }
+          const { data: workflowData } = await requestJson(getWorkflowStateContract, {
+            params: { id: workflowId },
+          })
 
-          const workflowData = (await response.json()).data
+          const deployedAt = workflowData.deployedAt ? workflowData.deployedAt.toISOString() : null
 
-          if (workflowData?.isDeployed !== undefined) {
-            getQueryClient().setQueryData<WorkflowDeploymentInfo>(
-              deploymentKeys.info(workflowId),
-              (prev) => ({
-                isDeployed: workflowData.isDeployed ?? false,
-                deployedAt: workflowData.deployedAt ?? null,
-                apiKey: workflowData.apiKey ?? prev?.apiKey ?? null,
-                needsRedeployment: prev?.needsRedeployment ?? false,
-                isPublicApi: prev?.isPublicApi ?? false,
-              })
-            )
-          }
+          getQueryClient().setQueryData<WorkflowDeploymentInfo>(
+            deploymentKeys.info(workflowId),
+            (prev) => ({
+              isDeployed: workflowData.isDeployed,
+              deployedAt,
+              apiKey: prev?.apiKey ?? null,
+              needsRedeployment: prev?.needsRedeployment ?? false,
+              isPublicApi: workflowData.isPublicApi,
+            })
+          )
 
           let workflowState: WorkflowState
 
           if (workflowData?.state) {
+            const wireState = workflowData.state as Pick<
+              WorkflowState,
+              'blocks' | 'edges' | 'loops' | 'parallels'
+            >
             workflowState = {
               currentWorkflowId: workflowId,
-              blocks: workflowData.state.blocks || {},
-              edges: workflowData.state.edges || [],
-              loops: workflowData.state.loops || {},
-              parallels: workflowData.state.parallels || {},
+              blocks: wireState.blocks || {},
+              edges: wireState.edges || [],
+              loops: wireState.loops || {},
+              parallels: wireState.parallels || {},
               lastSaved: Date.now(),
             }
           } else {
@@ -152,7 +156,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           useWorkflowStore.getState().replaceWorkflowState(workflowState)
           useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks || {})
 
-          if (workflowData?.variables && typeof workflowData.variables === 'object') {
+          const wireVariables = workflowData.variables
+          if (wireVariables) {
             useVariablesStore.setState((state) => {
               const withoutWorkflow = Object.fromEntries(
                 Object.entries(state.variables).filter(
@@ -160,7 +165,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 )
               )
               return {
-                variables: { ...withoutWorkflow, ...workflowData.variables },
+                variables: {
+                  ...withoutWorkflow,
+                  ...(wireVariables as Record<string, Variable>),
+                },
               }
             })
           }
@@ -319,11 +327,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         blockIdSet.forEach((blockId) => {
           const block = workflowStore.blocks[blockId]
           if (block) {
-            copiedBlocks[blockId] = JSON.parse(JSON.stringify(block))
+            copiedBlocks[blockId] = structuredClone(block)
             if (activeWorkflowId) {
               const blockValues = subBlockStore.workflowValues[activeWorkflowId]?.[blockId]
               if (blockValues) {
-                copiedSubBlockValues[blockId] = JSON.parse(JSON.stringify(blockValues))
+                copiedSubBlockValues[blockId] = structuredClone(blockValues)
               }
             }
           }
@@ -336,14 +344,14 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const copiedLoops: Record<string, Loop> = {}
         Object.entries(workflowStore.loops).forEach(([loopId, loop]) => {
           if (blockIdSet.has(loopId)) {
-            copiedLoops[loopId] = JSON.parse(JSON.stringify(loop))
+            copiedLoops[loopId] = structuredClone(loop)
           }
         })
 
         const copiedParallels: Record<string, Parallel> = {}
         Object.entries(workflowStore.parallels).forEach(([parallelId, parallel]) => {
           if (blockIdSet.has(parallelId)) {
-            copiedParallels[parallelId] = JSON.parse(JSON.stringify(parallel))
+            copiedParallels[parallelId] = structuredClone(parallel)
           }
         })
 

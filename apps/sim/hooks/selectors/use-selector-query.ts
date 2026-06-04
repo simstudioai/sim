@@ -1,9 +1,15 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo } from 'react'
+import { createLogger } from '@sim/logger'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { usePersonalEnvironment } from '@/hooks/queries/environment'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
-import type { SelectorKey, SelectorOption, SelectorQueryArgs } from '@/hooks/selectors/types'
+import type {
+  SelectorKey,
+  SelectorOption,
+  SelectorPage,
+  SelectorQueryArgs,
+} from '@/hooks/selectors/types'
 
 interface SelectorHookArgs extends Omit<SelectorQueryArgs, 'key'> {
   search?: string
@@ -11,7 +17,44 @@ interface SelectorHookArgs extends Omit<SelectorQueryArgs, 'key'> {
   enabled?: boolean
 }
 
-export function useSelectorOptions(key: SelectorKey, args: SelectorHookArgs) {
+export interface SelectorOptionsResult {
+  data: SelectorOption[] | undefined
+  isLoading: boolean
+  isFetching: boolean
+  /**
+   * True while paginated selectors are draining remaining pages in the
+   * background. Always false for non-paginated selectors.
+   */
+  isFetchingMore: boolean
+  /**
+   * True when the paginated selector still has more pages queued. Always false
+   * for non-paginated selectors.
+   */
+  hasMore: boolean
+  /**
+   * True when the paginated drain stopped at {@link MAX_AUTO_DRAIN_PAGES} with
+   * pages still remaining, so the option list is a partial view. Always false
+   * for non-paginated selectors.
+   */
+  truncated: boolean
+  error: Error | null
+}
+
+const logger = createLogger('SelectorQuery')
+
+const EMPTY_PAGE: SelectorPage = { items: [], nextCursor: undefined }
+
+/**
+ * Safety bound on the background auto-drain. Real dropdowns settle in a handful
+ * of pages; this only trips for pathological result sets and prevents an
+ * unbounded request loop when a provider keeps handing back cursors.
+ */
+const MAX_AUTO_DRAIN_PAGES = 50
+
+export function useSelectorOptions(
+  key: SelectorKey,
+  args: SelectorHookArgs
+): SelectorOptionsResult {
   const definition = getSelectorDefinition(key)
   const queryArgs: SelectorQueryArgs = {
     key,
@@ -19,12 +62,88 @@ export function useSelectorOptions(key: SelectorKey, args: SelectorHookArgs) {
     search: args.search,
   }
   const isEnabled = args.enabled ?? (definition.enabled ? definition.enabled(queryArgs) : true)
-  return useQuery<SelectorOption[]>({
+  const supportsPagination = Boolean(definition.fetchPage)
+
+  const flatQuery = useQuery<SelectorOption[]>({
     queryKey: definition.getQueryKey(queryArgs),
-    queryFn: ({ signal }) => definition.fetchList({ ...queryArgs, signal }),
-    enabled: isEnabled,
+    queryFn: ({ signal }) =>
+      definition.fetchList?.({ ...queryArgs, signal }) ?? Promise.resolve([]),
+    enabled: !supportsPagination && isEnabled,
     staleTime: definition.staleTime ?? 30_000,
   })
+
+  const pagedQuery = useInfiniteQuery<SelectorPage>({
+    queryKey: [...definition.getQueryKey(queryArgs), 'paged'],
+    queryFn: ({ pageParam, signal }) => {
+      if (!definition.fetchPage) return Promise.resolve(EMPTY_PAGE)
+      return definition.fetchPage({
+        ...queryArgs,
+        cursor: pageParam as string | undefined,
+        signal,
+      })
+    },
+    getNextPageParam: (last) => last.nextCursor,
+    initialPageParam: undefined as string | undefined,
+    enabled: supportsPagination && isEnabled,
+    staleTime: definition.staleTime ?? 30_000,
+  })
+
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = pagedQuery
+  const pageCount = pagedQuery.data?.pages.length ?? 0
+  const reachedDrainCap = pageCount >= MAX_AUTO_DRAIN_PAGES
+  useEffect(() => {
+    if (!supportsPagination) return
+    if (isError) return
+    if (reachedDrainCap) {
+      if (hasNextPage) {
+        logger.warn('Selector hit auto-drain cap; option list is truncated', {
+          key,
+          pages: pageCount,
+        })
+      }
+      return
+    }
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage()
+    }
+  }, [
+    supportsPagination,
+    hasNextPage,
+    isFetchingNextPage,
+    isError,
+    fetchNextPage,
+    reachedDrainCap,
+    pageCount,
+    key,
+  ])
+
+  const pagedOptions = useMemo<SelectorOption[] | undefined>(() => {
+    if (!supportsPagination) return undefined
+    if (!pagedQuery.data) return undefined
+    return pagedQuery.data.pages.flatMap((page) => page.items)
+  }, [supportsPagination, pagedQuery.data])
+
+  if (supportsPagination) {
+    return {
+      data: pagedOptions,
+      isLoading: pagedQuery.isLoading,
+      isFetching: pagedQuery.isFetching,
+      isFetchingMore: pagedQuery.isFetchingNextPage,
+      hasMore: (pagedQuery.hasNextPage ?? false) && !reachedDrainCap,
+      truncated: reachedDrainCap && (pagedQuery.hasNextPage ?? false),
+      error: (pagedQuery.error as Error | null) ?? null,
+    }
+  }
+
+  return {
+    data: flatQuery.data,
+    isLoading: flatQuery.isLoading,
+    isFetching: flatQuery.isFetching,
+    isFetchingMore: false,
+    hasMore: false,
+    truncated: false,
+    error: (flatQuery.error as Error | null) ?? null,
+  }
 }
 
 export function useSelectorOptionDetail(

@@ -2,6 +2,7 @@
   "title": "API Reference",
   "root": true,
   "pages": [
+    "---Getting Started---",
     "getting-started",
     "authentication",
     "---SDKs---",
@@ -9,6 +10,7 @@
     "typescript",
     "---Endpoints---",
     "(generated)/workflows",
+    "(generated)/human-in-the-loop",
     "(generated)/logs",
     "(generated)/usage",
     "(generated)/audit-logs",

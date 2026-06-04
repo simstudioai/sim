@@ -31,7 +31,7 @@ export interface GuardrailsValidateOutput {
   output: {
     passed: boolean
     validationType: string
-    content: string
+    input?: string
     error?: string
     score?: number
     reasoning?: string
@@ -199,7 +199,7 @@ export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, Guardra
           output: {
             passed: false,
             validationType: 'unknown',
-            content: '',
+            input: '',
             error: result.error || `Validation failed with status ${response.status}`,
           },
         }

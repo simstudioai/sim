@@ -5,9 +5,10 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
-import { type PlanName, TABLE_PLAN_LIMITS, type TablePlanLimits } from './constants'
+import { getTablePlanLimits, type PlanName, type TablePlanLimits } from './constants'
 
 const logger = createLogger('TableBilling')
 
@@ -21,18 +22,20 @@ const logger = createLogger('TableBilling')
  * @returns Table limits based on the workspace's billing plan
  */
 export async function getWorkspaceTableLimits(workspaceId: string): Promise<TablePlanLimits> {
+  const planLimits = getTablePlanLimits()
+
   try {
     const billedAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
 
     if (!billedAccountUserId) {
       logger.warn('No billed account found for workspace, using free tier limits', { workspaceId })
-      return TABLE_PLAN_LIMITS.free
+      return planLimits.free
     }
 
-    const subscriptionState = await getUserSubscriptionState(billedAccountUserId)
-    const planName = subscriptionState.planName as PlanName
+    const subscription = await getHighestPrioritySubscription(billedAccountUserId)
+    const planName = getPlanTypeForLimits(subscription?.plan) as PlanName
 
-    const limits = TABLE_PLAN_LIMITS[planName] ?? TABLE_PLAN_LIMITS.free
+    const limits = planLimits[planName] ?? planLimits.free
 
     logger.info('Retrieved workspace table limits', {
       workspaceId,
@@ -47,7 +50,7 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
       workspaceId,
       error,
     })
-    return TABLE_PLAN_LIMITS.free
+    return planLimits.free
   }
 }
 
@@ -58,7 +61,7 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
  * @param currentTableCount - The current number of tables in the workspace
  * @returns Object with canCreate boolean and limit info
  */
-export async function canCreateTable(
+async function canCreateTable(
   workspaceId: string,
   currentTableCount: number
 ): Promise<{ canCreate: boolean; maxTables: number; currentCount: number }> {
@@ -77,7 +80,7 @@ export async function canCreateTable(
  * @param workspaceId - The workspace ID
  * @returns Maximum rows per table (-1 for unlimited)
  */
-export async function getMaxRowsPerTable(workspaceId: string): Promise<number> {
+async function getMaxRowsPerTable(workspaceId: string): Promise<number> {
   const limits = await getWorkspaceTableLimits(workspaceId)
   return limits.maxRowsPerTable
 }

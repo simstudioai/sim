@@ -1,8 +1,10 @@
+import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { prefetchGeneralSettings, prefetchUserProfile } from './prefetch'
+import { prefetchGeneralSettings, prefetchSubscriptionData, prefetchUserProfile } from './prefetch'
 import { SettingsPage } from './settings'
 
 const SECTION_TITLES: Record<string, string> = {
@@ -11,17 +13,20 @@ const SECTION_TITLES: Record<string, string> = {
   secrets: 'Secrets',
   'template-profile': 'Template Profile',
   'access-control': 'Access Control',
+  'audit-logs': 'Audit Logs',
   apikeys: 'Sim Keys',
   byok: 'BYOK',
   subscription: 'Subscription',
   team: 'Team',
   sso: 'Single Sign-On',
+  whitelabeling: 'Whitelabeling',
   copilot: 'Copilot Keys',
   mcp: 'MCP Tools',
   'custom-tools': 'Custom Tools',
   skills: 'Skills',
   'workflow-mcp-servers': 'MCP Servers',
   'credential-sets': 'Email Polling',
+  'data-retention': 'Data Retention',
   'recently-deleted': 'Recently Deleted',
   debug: 'Debug',
 } as const
@@ -45,10 +50,13 @@ export default async function SettingsSectionPage({
 
   void prefetchGeneralSettings(queryClient)
   void prefetchUserProfile(queryClient)
+  if (isBillingEnabled) void prefetchSubscriptionData(queryClient)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <SettingsPage section={section as SettingsSection} />
+      <Suspense fallback={null}>
+        <SettingsPage section={section as SettingsSection} />
+      </Suspense>
     </HydrationBoundary>
   )
 }

@@ -1,48 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { telemetryContract } from '@/lib/api/contracts/telemetry'
+import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
+import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TelemetryAPI')
 
-const ALLOWED_CATEGORIES = [
-  'page_view',
-  'feature_usage',
-  'performance',
-  'error',
-  'workflow',
-  'consent',
-  'batch',
-]
-
-const DEFAULT_TIMEOUT = 5000 // 5 seconds timeout
-
-/**
- * Validates telemetry data to ensure it doesn't contain sensitive information
- */
-function validateTelemetryData(data: any): boolean {
-  if (!data || typeof data !== 'object') {
-    return false
-  }
-
-  if (!data.category || !data.action) {
-    return false
-  }
-
-  if (!ALLOWED_CATEGORIES.includes(data.category)) {
-    return false
-  }
-
-  const jsonStr = JSON.stringify(data).toLowerCase()
-  const sensitivePatterns = [/password/, /token/, /secret/, /key/, /auth/, /credential/, /private/]
-
-  return !sensitivePatterns.some((pattern) => pattern.test(jsonStr))
-}
+const DEFAULT_TIMEOUT = 5000
 
 /**
  * Safely converts a value to string, handling undefined and null values
  */
-function safeStringValue(value: any): string {
+function safeStringValue(value: unknown): string {
   if (value === undefined || value === null) {
     return ''
   }
@@ -58,7 +30,7 @@ function safeStringValue(value: any): string {
  * Creates a safe attribute object for OpenTelemetry
  */
 function createSafeAttributes(
-  data: Record<string, any>
+  data: Record<string, unknown>
 ): Array<{ key: string; value: { stringValue: string } }> {
   if (!data || typeof data !== 'object') {
     return []
@@ -81,7 +53,7 @@ function createSafeAttributes(
 /**
  * Forwards telemetry data to OpenTelemetry collector
  */
-async function forwardToCollector(data: any): Promise<boolean> {
+async function forwardToCollector(data: Record<string, unknown>): Promise<boolean> {
   if (!data || typeof data !== 'object') {
     logger.error('Invalid telemetry data format')
     return false
@@ -176,23 +148,19 @@ async function forwardToCollector(data: any): Promise<boolean> {
 /**
  * Endpoint that receives telemetry events and forwards them to OpenTelemetry collector
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
+  const rateLimited = await enforceIpRateLimit('telemetry', req, {
+    maxTokens: 60,
+    refillRate: 30,
+    refillIntervalMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   try {
-    let eventData
-    try {
-      eventData = await req.json()
-    } catch (_parseError) {
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
-    }
+    const parsed = await parseRequest(telemetryContract, req, {})
+    if (!parsed.success) return parsed.response
 
-    if (!validateTelemetryData(eventData)) {
-      return NextResponse.json(
-        { error: 'Invalid telemetry data format or contains sensitive information' },
-        { status: 400 }
-      )
-    }
-
-    const forwarded = await forwardToCollector(eventData)
+    const forwarded = await forwardToCollector(parsed.data.body)
 
     return NextResponse.json({
       success: true,
@@ -202,4 +170,4 @@ export async function POST(req: NextRequest) {
     logger.error('Error processing telemetry event', error)
     return NextResponse.json({ error: 'Failed to process telemetry event' }, { status: 500 })
   }
-}
+})

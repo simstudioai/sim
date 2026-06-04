@@ -73,18 +73,6 @@ export const githubWebhookTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'github_webhook',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_webhook',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

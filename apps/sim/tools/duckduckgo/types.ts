@@ -8,7 +8,7 @@ export interface DuckDuckGoSearchParams {
   skipDisambig?: boolean
 }
 
-export interface DuckDuckGoRelatedTopic {
+interface DuckDuckGoRelatedTopic {
   FirstURL?: string
   Text?: string
   Result?: string
@@ -19,7 +19,7 @@ export interface DuckDuckGoRelatedTopic {
   }
 }
 
-export interface DuckDuckGoResult {
+interface DuckDuckGoResult {
   FirstURL?: string
   Text?: string
   Result?: string
@@ -30,7 +30,7 @@ export interface DuckDuckGoResult {
   }
 }
 
-export interface DuckDuckGoSearchOutput {
+interface DuckDuckGoSearchOutput {
   heading: string
   abstract: string
   abstractText: string

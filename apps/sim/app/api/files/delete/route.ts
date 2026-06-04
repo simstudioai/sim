@@ -1,15 +1,17 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
 import { deleteFile, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
-  createOptionsResponse,
   createSuccessResponse,
   extractFilename,
   FileNotFoundError,
@@ -23,7 +25,7 @@ const logger = createLogger('FilesDeleteAPI')
 /**
  * Main API route handler for file deletion
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
@@ -35,8 +37,21 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.userId
-    const requestData = await request.json()
-    const { filePath, context } = requestData
+
+    const parsed = await parseRequest(
+      fileDeleteContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createErrorResponse(
+            new InvalidRequestError(getValidationErrorMessage(error, 'Invalid request data'))
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { filePath, context } = parsed.data.body
 
     logger.info('File delete request received:', { filePath, context, userId })
 
@@ -49,13 +64,21 @@ export async function POST(request: NextRequest) {
 
       const storageContext: StorageContext = context || inferContextFromKey(key)
 
-      const hasAccess = await verifyFileAccess(
-        key,
-        userId,
-        undefined, // customConfig
-        storageContext, // context
-        !hasCloudStorage() // isLocal
-      )
+      // Deletes require write/admin on the owning workspace (owner-scoped files
+      // like copilot/regular uploads still authorize by ownership). KB deletes
+      // are binding-only and never use the transitional read fallback that file
+      // serving allows.
+      const hasAccess =
+        storageContext === 'knowledge-base'
+          ? await verifyKBFileWriteAccess(key, userId)
+          : await verifyFileAccess(
+              key,
+              userId,
+              undefined, // customConfig
+              storageContext, // context
+              !hasCloudStorage(), // isLocal
+              { requireWrite: true }
+            )
 
       if (!hasAccess) {
         logger.warn('Unauthorized file delete attempt', { userId, key, context: storageContext })
@@ -91,7 +114,7 @@ export async function POST(request: NextRequest) {
     logger.error('Error parsing request:', error)
     return createErrorResponse(error instanceof Error ? error : new Error('Invalid request'))
   }
-}
+})
 
 /**
  * Extract storage key from file path
@@ -102,11 +125,4 @@ function extractStorageKeyFromPath(filePath: string): string {
   }
 
   return extractFilename(filePath)
-}
-
-/**
- * Handle CORS preflight requests
- */
-export async function OPTIONS() {
-  return createOptionsResponse()
 }

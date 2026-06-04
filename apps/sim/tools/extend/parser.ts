@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import type {
   ExtendParserInput,
@@ -108,7 +109,7 @@ export const extendParserTool: ToolConfig<ExtendParserInput, ExtendParserOutput>
               )
             }
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(
               `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a document.`
             )
@@ -192,7 +193,7 @@ export const extendParserV2Tool: ToolConfig<ExtendParserV2Input, ExtendParserOut
   directExecution: undefined,
   transformResponse: extendParserTool.transformResponse
     ? (response: Response, params?: ExtendParserV2Input) =>
-        extendParserTool.transformResponse!(response, params as unknown as ExtendParserInput)
+        extendParserTool.transformResponse!(response, params)
     : undefined,
   params: {
     file: {

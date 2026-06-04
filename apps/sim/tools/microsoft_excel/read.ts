@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   ExcelCellValue,
   MicrosoftExcelReadResponse,
@@ -6,16 +7,27 @@ import type {
   MicrosoftExcelV2ToolParams,
 } from '@/tools/microsoft_excel/types'
 import {
+  getItemBasePath,
   getSpreadsheetWebUrl,
+  parseGraphErrorMessage,
   trimTrailingEmptyRowsAndColumns,
 } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const EXCEL_RETRY_CONFIG = {
+  enabled: true,
+  maxRetries: 3,
+  initialDelayMs: 500,
+  maxDelayMs: 30000,
+  retryIdempotentOnly: true,
+} as const
 
 export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadResponse> = {
   id: 'microsoft_excel_read',
   name: 'Read from Microsoft Excel',
   description: 'Read data from a Microsoft Excel spreadsheet',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -35,6 +47,13 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       visibility: 'user-or-llm',
       description: 'The ID of the spreadsheet/workbook to read from (e.g., "01ABC123DEF456")',
     },
+    driveId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+    },
     range: {
       type: 'string',
       required: false,
@@ -51,18 +70,17 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         throw new Error('Spreadsheet ID is required')
       }
 
+      const basePath = getItemBasePath(spreadsheetId, params.driveId)
+
       if (!params.range) {
-        // When no range is provided, first fetch the first worksheet name (to avoid hardcoding "Sheet1")
-        // We'll read its default range after in transformResponse
-        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets?$select=name&$orderby=position&$top=1`
+        return `${basePath}/workbook/worksheets?$select=name&$orderby=position&$top=1`
       }
 
       const rangeInput = params.range.trim()
 
-      // If the input contains no '!', treat it as a sheet name only and fetch usedRange
       if (!rangeInput.includes('!')) {
         const sheetOnly = encodeURIComponent(rangeInput)
-        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('${sheetOnly}')/usedRange(valuesOnly=true)`
+        return `${basePath}/workbook/worksheets('${sheetOnly}')/usedRange(valuesOnly=true)`
       }
 
       const match = rangeInput.match(/^([^!]+)!(.+)$/)
@@ -76,7 +94,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       const sheetName = encodeURIComponent(match[1])
       const address = encodeURIComponent(match[2])
 
-      return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('${sheetName}')/range(address='${address}')`
+      return `${basePath}/workbook/worksheets('${sheetName}')/range(address='${address}')`
     },
     method: 'GET',
     headers: (params) => {
@@ -88,9 +106,13 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
+    retry: EXCEL_RETRY_CONFIG,
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
+    const spreadsheetId = params?.spreadsheetId?.trim() || ''
+    const driveId = params?.driveId
+
     // If we came from the worksheets listing (no range provided), resolve first sheet name then fetch range
     if (response.url.includes('/workbook/worksheets?')) {
       const listData = await response.json()
@@ -100,44 +122,34 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         throw new Error('No worksheets found in the Excel workbook')
       }
 
-      const spreadsheetIdFromUrl = response.url.split('/drive/items/')[1]?.split('/')[0] || ''
       const accessToken = params?.accessToken
       if (!accessToken) {
         throw new Error('Access token is required to read Excel range')
       }
 
-      // Use usedRange(valuesOnly=true) to fetch only populated cells, avoiding thousands of empty rows
-      const rangeUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(
-        spreadsheetIdFromUrl
-      )}/workbook/worksheets('${encodeURIComponent(firstSheetName)}')/usedRange(valuesOnly=true)`
+      const basePath = getItemBasePath(spreadsheetId, driveId)
+      const rangeUrl = `${basePath}/workbook/worksheets('${encodeURIComponent(firstSheetName)}')/usedRange(valuesOnly=true)`
 
       const rangeResp = await fetch(rangeUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
 
       if (!rangeResp.ok) {
-        // Normalize Microsoft Graph sheet/range errors to a friendly message
+        const errorText = await rangeResp.text().catch(() => '')
+        const detail = parseGraphErrorMessage(rangeResp.status, rangeResp.statusText, errorText)
         throw new Error(
-          'Invalid range provided or worksheet not found. Provide a range like "Sheet1!A1:B2" or just the sheet name to read the whole sheet'
+          `Failed to read worksheet "${firstSheetName}": ${detail}. Provide a range like "Sheet1!A1:B2" or just the sheet name to read the whole sheet.`
         )
       }
 
       const data = await rangeResp.json()
 
-      // usedRange returns an address (A1 notation) and values matrix
       const address: string = data.address || data.addressLocal || `${firstSheetName}!A1`
       const rawValues: ExcelCellValue[][] = data.values || []
 
       const values = trimTrailingEmptyRowsAndColumns(rawValues)
 
-      // Fetch the browser-accessible web URL
-      const webUrl = await getSpreadsheetWebUrl(spreadsheetIdFromUrl, accessToken)
-
-      const metadata = {
-        spreadsheetId: spreadsheetIdFromUrl,
-        properties: {},
-        spreadsheetUrl: webUrl,
-      }
+      const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
 
       const result: MicrosoftExcelReadResponse = {
         success: true,
@@ -147,8 +159,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
             values,
           },
           metadata: {
-            spreadsheetId: metadata.spreadsheetId,
-            spreadsheetUrl: metadata.spreadsheetUrl,
+            spreadsheetId,
+            spreadsheetUrl: webUrl,
           },
         },
       }
@@ -159,21 +171,11 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     // Normal path: caller supplied a range; just return the parsed result
     const data = await response.json()
 
-    const urlParts = response.url.split('/drive/items/')
-    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
-
-    // Fetch the browser-accessible web URL
     const accessToken = params?.accessToken
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken)
-
-    const metadata = {
-      spreadsheetId,
-      properties: {},
-      spreadsheetUrl: webUrl,
-    }
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
 
     const address: string = data.address || data.addressLocal || data.range || ''
     const rawValues: ExcelCellValue[][] = data.values || []
@@ -187,8 +189,8 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
           values,
         },
         metadata: {
-          spreadsheetId: metadata.spreadsheetId,
-          spreadsheetUrl: metadata.spreadsheetUrl,
+          spreadsheetId,
+          spreadsheetUrl: webUrl,
         },
       },
     }
@@ -221,6 +223,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
   name: 'Read from Microsoft Excel V2',
   description: 'Read data from a specific sheet in a Microsoft Excel spreadsheet',
   version: '2.0.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -239,6 +242,13 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
       required: true,
       visibility: 'user-or-llm',
       description: 'The ID of the spreadsheet/workbook to read from (e.g., "01ABC123DEF456")',
+    },
+    driveId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
     },
     sheetName: {
       type: 'string',
@@ -267,17 +277,17 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
         throw new Error('Sheet name is required')
       }
 
+      const basePath = getItemBasePath(spreadsheetId, params.driveId)
       const encodedSheetName = encodeURIComponent(sheetName)
 
-      // If no cell range specified, fetch usedRange
       if (!params.cellRange) {
-        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('${encodedSheetName}')/usedRange(valuesOnly=true)`
+        return `${basePath}/workbook/worksheets('${encodedSheetName}')/usedRange(valuesOnly=true)`
       }
 
       const cellRange = params.cellRange.trim()
       const encodedAddress = encodeURIComponent(cellRange)
 
-      return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('${encodedSheetName}')/range(address='${encodedAddress}')`
+      return `${basePath}/workbook/worksheets('${encodedSheetName}')/range(address='${encodedAddress}')`
     },
     method: 'GET',
     headers: (params) => {
@@ -289,25 +299,25 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
+    retry: EXCEL_RETRY_CONFIG,
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelV2ToolParams) => {
     const data = await response.json()
 
-    const urlParts = response.url.split('/drive/items/')
-    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
+    const spreadsheetId = params?.spreadsheetId?.trim() || ''
+    const driveId = params?.driveId
 
     const accessToken = params?.accessToken
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
 
     const address: string = data.address || data.addressLocal || ''
     const rawValues: ExcelCellValue[][] = data.values || []
     const values = trimTrailingEmptyRowsAndColumns(rawValues)
 
-    // Extract sheet name from address (format: SheetName!A1:B2)
     const sheetName = params?.sheetName || address.split('!')[0] || ''
 
     return {

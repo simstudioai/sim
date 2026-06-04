@@ -247,13 +247,15 @@ export interface StagehandAgentParams {
   variables?: Record<string, string>
   provider?: 'openai' | 'anthropic'
   apiKey: string
+  mode?: 'dom' | 'hybrid' | 'cua'
+  maxSteps?: number
   options?: {
     useTextExtract?: boolean
     selector?: string
   }
 }
 
-export interface StagehandAgentAction {
+interface StagehandAgentAction {
   type: string
   reasoning?: string
   taskCompleted?: boolean
@@ -266,7 +268,7 @@ export interface StagehandAgentAction {
   [key: string]: unknown
 }
 
-export interface StagehandAgentUsage {
+interface StagehandAgentUsage {
   input_tokens: number
   output_tokens: number
   reasoning_tokens?: number
@@ -274,7 +276,7 @@ export interface StagehandAgentUsage {
   inference_time_ms: number
 }
 
-export interface StagehandAgentResult {
+interface StagehandAgentResult {
   success: boolean
   completed: boolean
   message: string
@@ -286,6 +288,8 @@ export interface StagehandAgentResponse extends ToolResponse {
   output: {
     agentResult: StagehandAgentResult
     structuredOutput?: Record<string, any>
+    liveViewUrl?: string | null
+    sessionId?: string | null
   }
 }
 

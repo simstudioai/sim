@@ -19,6 +19,8 @@
  * 2. Add the ID to ErrorExtractorId constant at the bottom of this file
  */
 
+import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
+
 export interface ErrorInfo {
   status?: number
   statusText?: string
@@ -27,7 +29,7 @@ export interface ErrorInfo {
 
 export type ErrorExtractor = (errorInfo?: ErrorInfo) => string | null | undefined
 
-export interface ErrorExtractorConfig {
+interface ErrorExtractorConfig {
   /** Unique identifier for this extractor */
   id: string
   /** Human-readable description of what API/pattern this handles */
@@ -39,6 +41,44 @@ export interface ErrorExtractorConfig {
 }
 
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
+  {
+    id: 'atlassian-errors',
+    description:
+      'Atlassian REST API error formats (errorMessage, errorMessages, errors[].title, message)',
+    examples: ['Jira', 'Jira Service Management', 'Confluence', 'JSM Forms/ProForma'],
+    extract: (errorInfo) => {
+      // JSM Service Desk: singular errorMessage string
+      if (errorInfo?.data?.errorMessage) {
+        return errorInfo.data.errorMessage
+      }
+      // Jira Platform: errorMessages array
+      if (
+        Array.isArray(errorInfo?.data?.errorMessages) &&
+        errorInfo.data.errorMessages.length > 0
+      ) {
+        return errorInfo.data.errorMessages.join(', ')
+      }
+      // Confluence v2 / Forms API: RFC 7807 errors array with title/detail
+      if (Array.isArray(errorInfo?.data?.errors) && errorInfo.data.errors.length > 0) {
+        const err = errorInfo.data.errors[0]
+        if (err?.title) {
+          return err.detail ? `${err.title}: ${err.detail}` : err.title
+        }
+      }
+      // Jira Platform field-level errors object
+      if (errorInfo?.data?.errors && !Array.isArray(errorInfo.data.errors)) {
+        const fieldErrors = Object.entries(errorInfo.data.errors)
+          .map(([field, msg]) => `${field}: ${msg}`)
+          .join(', ')
+        if (fieldErrors) return fieldErrors
+      }
+      // Generic message fallback (auth/gateway errors)
+      if (errorInfo?.data?.message) {
+        return errorInfo.data.message
+      }
+      return undefined
+    },
+  },
   {
     id: 'graphql-errors',
     description: 'GraphQL errors array with message field',
@@ -147,6 +187,13 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.error_description,
   },
   {
+    id: 'microsoft-graph-errors',
+    description:
+      'Microsoft Graph error format with nested innerError chain and details[] (Excel, OneDrive, SharePoint, Outlook). See https://learn.microsoft.com/en-us/graph/errors',
+    examples: ['Microsoft Excel', 'Microsoft OneDrive', 'Microsoft SharePoint'],
+    extract: (errorInfo) => parseGraphErrorFromData(errorInfo?.data),
+  },
+  {
     id: 'nested-error-object',
     description: 'Error field containing nested object or string',
     examples: ['Airtable', 'Google APIs'],
@@ -221,6 +268,8 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 }
 
 export const ErrorExtractorId = {
+  ATLASSIAN_ERRORS: 'atlassian-errors',
+  MICROSOFT_GRAPH_ERRORS: 'microsoft-graph-errors',
   GRAPHQL_ERRORS: 'graphql-errors',
   TWITTER_ERRORS: 'twitter-errors',
   DETAILS_ARRAY: 'details-array',

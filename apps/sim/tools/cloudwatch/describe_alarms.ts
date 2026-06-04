@@ -11,7 +11,7 @@ export const describeAlarmsTool: ToolConfig<
   id: 'cloudwatch_describe_alarms',
   name: 'CloudWatch Describe Alarms',
   description: 'List and filter CloudWatch alarms',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {
@@ -94,6 +94,25 @@ export const describeAlarmsTool: ToolConfig<
     alarms: {
       type: 'array',
       description: 'List of CloudWatch alarms with state and configuration',
+      items: {
+        type: 'object',
+        properties: {
+          alarmName: { type: 'string', description: 'Alarm name' },
+          alarmArn: { type: 'string', description: 'Alarm ARN' },
+          stateValue: {
+            type: 'string',
+            description: 'Current state (OK, ALARM, INSUFFICIENT_DATA)',
+          },
+          stateReason: { type: 'string', description: 'Human-readable reason for the state' },
+          metricName: { type: 'string', description: 'Metric name (MetricAlarm only)' },
+          namespace: { type: 'string', description: 'Metric namespace (MetricAlarm only)' },
+          threshold: { type: 'number', description: 'Threshold value (MetricAlarm only)' },
+          stateUpdatedTimestamp: {
+            type: 'number',
+            description: 'Epoch ms when state last changed',
+          },
+        },
+      },
     },
   },
 }

@@ -1,16 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  getDemoRequestCompanySizeLabel,
+  submitDemoRequestContract,
+} from '@/lib/api/contracts/demo-requests'
+import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import {
-  demoRequestSchema,
-  getDemoRequestCompanySizeLabel,
-} from '@/app/(landing)/components/demo-request/consts'
 
 const logger = createLogger('DemoRequestAPI')
 const rateLimiter = new RateLimiter()
@@ -21,11 +23,11 @@ const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(req)
     const storageKey = `public:demo-request:${ip}`
 
     const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
@@ -44,21 +46,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const body = await req.json()
-    const validationResult = demoRequestSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.warn(`[${requestId}] Invalid demo request data`, {
-        errors: validationResult.error.format(),
-      })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: validationResult.error.format() },
-        { status: 400 }
-      )
+    const parsed = await parseRequest(submitDemoRequestContract, req, {})
+    if (!parsed.success) {
+      logger.warn(`[${requestId}] Invalid demo request data`)
+      return parsed.response
     }
 
     const { firstName, lastName, companyEmail, phoneNumber, companySize, details } =
-      validationResult.data
+      parsed.data.body
 
     logger.info(`[${requestId}] Processing demo request`, {
       email: `${companyEmail.substring(0, 3)}***`,
@@ -100,4 +95,4 @@ ${details}
     logger.error(`[${requestId}] Error processing demo request`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

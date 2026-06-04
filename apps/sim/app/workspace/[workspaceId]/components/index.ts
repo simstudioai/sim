@@ -1,13 +1,11 @@
 export { ConversationListItem } from './conversation-list-item'
-export { ErrorState, type ErrorStateProps } from './error'
+export { ErrorState } from './error'
 export { InlineRenameInput } from './inline-rename-input'
 export { MessageActions } from './message-actions'
 export { ownerCell } from './resource/components/owner-cell/owner-cell'
 export type {
-  BreadcrumbEditing,
   BreadcrumbItem,
   CreateAction,
-  DropdownOption,
   HeaderAction,
 } from './resource/components/resource-header'
 export { ResourceHeader } from './resource/components/resource-header'
@@ -24,7 +22,7 @@ export type {
   ResourceCell,
   ResourceColumn,
   ResourceRow,
-  ResourceTableProps,
+  RowDragDropConfig,
   SelectableConfig,
 } from './resource/resource'
-export { Resource, ResourceTable } from './resource/resource'
+export { EMPTY_CELL_PLACEHOLDER, Resource, ResourceTable } from './resource/resource'

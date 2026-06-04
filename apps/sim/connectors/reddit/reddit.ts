@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { RedditIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('RedditConnector')
 
@@ -107,7 +108,7 @@ async function fetchPostComments(
   } catch (error) {
     logger.warn('Failed to fetch comments for post', {
       postId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return []
   }
@@ -244,7 +245,7 @@ function resolveSortConfig(sourceConfig: Record<string, unknown>): {
 export const redditConnector: ConnectorConfig = {
   id: 'reddit',
   name: 'Reddit',
-  description: 'Sync subreddit posts and comments from Reddit into your knowledge base',
+  description: 'Sync subreddit posts and comments from Reddit',
   version: '1.0.0',
   icon: RedditIcon,
 
@@ -338,29 +339,23 @@ export const redditConnector: ConnectorConfig = {
       afterToken
     )
 
-    const documents: ExternalDocument[] = []
-
-    for (const post of posts) {
-      const content = await formatPostContent(accessToken, post, COMMENTS_PER_POST)
-      const contentHash = await computeContentHash(content)
-
-      documents.push({
-        externalId: post.id,
-        title: post.title,
-        content,
-        mimeType: 'text/plain',
-        sourceUrl: `https://www.reddit.com${post.permalink}`,
-        contentHash,
-        metadata: {
-          author: post.author,
-          score: post.score,
-          commentCount: post.num_comments,
-          flair: post.link_flair_text ?? undefined,
-          postDate: new Date(post.created_utc * 1000).toISOString(),
-          subreddit: post.subreddit,
-        },
-      })
-    }
+    const documents: ExternalDocument[] = posts.map((post) => ({
+      externalId: post.id,
+      title: post.title,
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/plain',
+      sourceUrl: `https://www.reddit.com${post.permalink}`,
+      contentHash: `reddit:${post.id}:${post.created_utc}`,
+      metadata: {
+        author: post.author,
+        score: post.score,
+        commentCount: post.num_comments,
+        flair: post.link_flair_text ?? undefined,
+        postDate: new Date(post.created_utc * 1000).toISOString(),
+        subreddit: post.subreddit,
+      },
+    }))
 
     const totalCollected = collectedSoFar + documents.length
     const hasMore = after !== null && totalCollected < maxPosts
@@ -397,15 +392,15 @@ export const redditConnector: ConnectorConfig = {
       const comments =
         data.length >= 2 ? extractComments(data[1] as RedditListing, COMMENTS_PER_POST) : []
       const content = await formatPostContent(accessToken, post, COMMENTS_PER_POST, comments)
-      const contentHash = await computeContentHash(content)
 
       return {
         externalId: post.id,
         title: post.title,
         content,
+        contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: `https://www.reddit.com${post.permalink}`,
-        contentHash,
+        contentHash: `reddit:${post.id}:${post.created_utc}`,
         metadata: {
           author: post.author,
           score: post.score,
@@ -418,7 +413,7 @@ export const redditConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Reddit post document', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -455,7 +450,7 @@ export const redditConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       if (message.includes('404') || message.includes('403')) {
         return {
           valid: false,

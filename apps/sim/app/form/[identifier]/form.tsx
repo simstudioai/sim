@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2 } from 'lucide-react'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Loader } from '@/components/emcn'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import {
+  EmailAuth,
   FormErrorState,
   FormField,
   FormLoadingState,
@@ -71,6 +73,7 @@ export default function Form({ identifier }: { identifier: string }) {
         setIsLoading(true)
         setError(null)
 
+        // boundary-raw-fetch: GET /api/form/[identifier] is a polymorphic form-discovery endpoint that returns either a form config OR a 401 envelope carrying `error: 'auth_required_password' | 'auth_required_email'` plus partial title/customizations for the auth gate; modelling this as a contract requires a discriminated response schema and a custom error path that surfaces 401-as-data without throwing
         const response = await fetch(`/api/form/${identifier}`, { signal })
         if (signal?.aborted) return
 
@@ -136,7 +139,7 @@ export default function Form({ identifier }: { identifier: string }) {
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return
         logger.error('Error fetching form config:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load form')
+        setError(getErrorMessage(err, 'Failed to load form'))
       } finally {
         setIsLoading(false)
       }
@@ -165,6 +168,7 @@ export default function Form({ identifier }: { identifier: string }) {
         setIsSubmitting(true)
         setError(null)
 
+        // boundary-raw-fetch: POST /api/form/[identifier] is the public form submission endpoint; the same route also accepts `{ password }` or `{ email }` auth gate bodies (handled by fetchFormConfig/handlePasswordAuth) and runs workflow execution with CORS headers/streaming envelopes that don't fit the current `requestJson` contract surface
         const response = await fetch(`/api/form/${identifier}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -187,7 +191,7 @@ export default function Form({ identifier }: { identifier: string }) {
         setIsSubmitted(true)
       } catch (err: unknown) {
         logger.error('Error submitting form:', err)
-        setError(err instanceof Error ? err.message : 'Failed to submit form')
+        setError(getErrorMessage(err, 'Failed to submit form'))
       } finally {
         setIsSubmitting(false)
       }
@@ -201,6 +205,7 @@ export default function Form({ identifier }: { identifier: string }) {
         setIsLoading(true)
         setError(null)
 
+        // boundary-raw-fetch: POST /api/form/[identifier] doubles as the password auth gate; same polymorphic route as the form submission above (separate `{ password }` body branch on the server)
         const response = await fetch(`/api/form/${identifier}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -216,7 +221,7 @@ export default function Form({ identifier }: { identifier: string }) {
         await fetchFormConfig()
       } catch (err: unknown) {
         logger.error('Error authenticating:', err)
-        setError(err instanceof Error ? err.message : 'Invalid password')
+        setError(getErrorMessage(err, 'Invalid password'))
         setIsLoading(false)
       }
     },
@@ -235,6 +240,10 @@ export default function Form({ identifier }: { identifier: string }) {
 
   if (authRequired === 'password') {
     return <PasswordAuth onSubmit={handlePasswordAuth} error={error} />
+  }
+
+  if (authRequired === 'email') {
+    return <EmailAuth identifier={identifier} onAuthenticated={() => fetchFormConfig()} />
   }
 
   if (isSubmitted && thankYouData) {
@@ -326,8 +335,8 @@ export default function Form({ identifier }: { identifier: string }) {
                 <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
                   {isSubmitting ? (
                     <span className='flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                      Submitting...
+                      <Loader className='size-4' animate />
+                      Submitting…
                     </span>
                   ) : (
                     'Submit'

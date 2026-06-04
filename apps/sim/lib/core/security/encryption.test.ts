@@ -1,4 +1,4 @@
-import { createEnvMock, loggerMock } from '@sim/testing'
+import { createEnvMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () =>
@@ -6,8 +6,6 @@ vi.mock('@/lib/core/config/env', () =>
     ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   })
 )
-
-vi.mock('@sim/logger', () => loggerMock)
 
 import { env } from '@/lib/core/config/env'
 import { decryptSecret, encryptSecret, generatePassword } from './encryption'

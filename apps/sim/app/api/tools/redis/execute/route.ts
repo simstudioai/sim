@@ -1,19 +1,16 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import Redis from 'ioredis'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { redisExecuteContract } from '@/lib/api/contracts/tools/databases/redis'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('RedisAPI')
 
-const RequestSchema = z.object({
-  url: z.string().min(1, 'Redis connection URL is required'),
-  command: z.string().min(1, 'Redis command is required'),
-  args: z.array(z.union([z.string(), z.number()])).default([]),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   let client: Redis | null = null
 
   try {
@@ -22,8 +19,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { url, command, args } = RequestSchema.parse(body)
+    const parsed = await parseToolRequest(redisExecuteContract, request, {
+      errorFormat: 'firstError',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const { url, command, args } = parsed.data.body
 
     const parsedUrl = new URL(url)
     const hostname =
@@ -35,7 +36,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: hostValidation.error }, { status: 400 })
     }
 
-    client = new Redis(url, {
+    const resolvedIP = hostValidation.resolvedIP ?? hostname
+    const tlsEnabled = parsedUrl.protocol === 'rediss:'
+    const port = parsedUrl.port ? Number(parsedUrl.port) : 6379
+    const username = parsedUrl.username ? decodeURIComponent(parsedUrl.username) : undefined
+    const password = parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined
+
+    let db = 0
+    if (parsedUrl.pathname && parsedUrl.pathname.length > 1) {
+      const dbSegment = parsedUrl.pathname.slice(1)
+      const parsedDb = Number.parseInt(dbSegment, 10)
+      if (!Number.isFinite(parsedDb) || String(parsedDb) !== dbSegment) {
+        return NextResponse.json(
+          { error: `Invalid Redis database index in URL path: '${dbSegment}'` },
+          { status: 400 }
+        )
+      }
+      db = parsedDb
+    }
+
+    client = new Redis({
+      host: resolvedIP,
+      port,
+      username,
+      password,
+      db,
+      family: resolvedIP.includes(':') ? 6 : 4,
+      tls: tlsEnabled ? { servername: hostname } : undefined,
       connectTimeout: 10000,
       commandTimeout: 10000,
       maxRetriesPerRequest: 1,
@@ -54,7 +81,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ result })
   } catch (error) {
     logger.error('Redis command failed', { error })
-    const errorMessage = error instanceof Error ? error.message : 'Redis command failed'
+    const errorMessage = getErrorMessage(error, 'Redis command failed')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   } finally {
     if (client) {
@@ -65,4 +92,4 @@ export async function POST(request: NextRequest) {
       }
     }
   }
-}
+})

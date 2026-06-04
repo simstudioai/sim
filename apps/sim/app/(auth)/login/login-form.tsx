@@ -1,25 +1,30 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { getErrorMessage } from '@sim/utils/errors'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
   ModalDescription,
   ModalHeader,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { captureClientEvent } from '@/lib/posthog/client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
@@ -112,6 +117,10 @@ export default function LoginPage({
       ? 'Password reset successful. Please sign in with your new password.'
       : null
   )
+
+  useEffect(() => {
+    captureClientEvent('login_page_viewed', {})
+  }, [])
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
@@ -276,20 +285,15 @@ export default function LoginPage({
       setIsSubmittingReset(true)
       setResetStatus({ type: null, message: '' })
 
-      const response = await fetch('/api/auth/forget-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: forgotPasswordEmail,
-          redirectTo: `${getBaseUrl()}/reset-password`,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        let errorMessage = errorData.message || 'Failed to request password reset'
+      try {
+        await requestJson(forgetPasswordContract, {
+          body: {
+            email: forgotPasswordEmail,
+            redirectTo: `${getBaseUrl()}/reset-password`,
+          },
+        })
+      } catch (requestError) {
+        let errorMessage = getErrorMessage(requestError, 'Failed to request password reset')
 
         if (
           errorMessage.includes('Invalid body parameters') ||
@@ -321,7 +325,7 @@ export default function LoginPage({
       logger.error('Error requesting password reset:', { error })
       setResetStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Failed to request password reset',
+        message: getErrorMessage(error, 'Failed to request password reset'),
       })
     } finally {
       setIsSubmittingReset(false)
@@ -380,8 +384,8 @@ export default function LoginPage({
               />
               {showEmailValidationError && emailErrors.length > 0 && (
                 <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {emailErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
+                  {emailErrors.map((error) => (
+                    <p key={error}>{error}</p>
                   ))}
                 </div>
               )}
@@ -427,8 +431,8 @@ export default function LoginPage({
               </div>
               {showValidationError && passwordErrors.length > 0 && (
                 <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {passwordErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
+                  {passwordErrors.map((error) => (
+                    <p key={error}>{error}</p>
                   ))}
                 </div>
               )}
@@ -450,8 +454,8 @@ export default function LoginPage({
           <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader2 className='h-4 w-4 animate-spin' />
-                Signing in...
+                <Loader className='size-4' animate />
+                Signing in…
               </span>
             ) : (
               'Sign in'
@@ -565,8 +569,8 @@ export default function LoginPage({
                 <button type='submit' disabled={isSubmittingReset} className={AUTH_SUBMIT_BTN}>
                   {isSubmittingReset ? (
                     <span className='flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                      Sending...
+                      <Loader className='size-4' animate />
+                      Sending…
                     </span>
                   ) : (
                     'Send Reset Link'

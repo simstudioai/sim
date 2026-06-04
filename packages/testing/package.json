@@ -49,12 +49,14 @@
     "format:check": "biome format ."
   },
   "peerDependencies": {
-    "vitest": "^3.0.0"
+    "vitest": "^3.0.0 || >=4.1.0 <5.0.0"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.8"
+    "vitest": "^4.1.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@sim/utils": "workspace:*"
+  }
 }

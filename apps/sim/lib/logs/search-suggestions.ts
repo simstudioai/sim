@@ -57,25 +57,25 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
   {
     key: 'cost',
     label: 'Cost',
-    description: 'Filter by execution cost',
+    description: 'Filter by run cost',
     options: [
       {
         value: '>0.01',
         label: 'Over 2 credits',
-        description: 'Executions costing more than 2 credits',
+        description: 'Runs costing more than 2 credits',
       },
       {
         value: '<0.005',
         label: 'Under 1 credit',
-        description: 'Executions costing less than 1 credit',
+        description: 'Runs costing less than 1 credit',
       },
       {
         value: '>0.05',
         label: 'Over 10 credits',
-        description: 'Executions costing more than 10 credits',
+        description: 'Runs costing more than 10 credits',
       },
-      { value: '=0', label: 'Free', description: 'Free executions' },
-      { value: '>0', label: 'Paid', description: 'Executions with cost' },
+      { value: '=0', label: 'Free', description: 'Free runs' },
+      { value: '>0', label: 'Paid', description: 'Runs with cost' },
     ],
   },
   {
@@ -104,13 +104,13 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
   {
     key: 'duration',
     label: 'Duration',
-    description: 'Filter by execution duration',
+    description: 'Filter by run duration',
     options: [
-      { value: '>5s', label: 'Over 5s', description: 'Executions longer than 5 seconds' },
-      { value: '<1s', label: 'Under 1s', description: 'Executions shorter than 1 second' },
-      { value: '>10s', label: 'Over 10s', description: 'Executions longer than 10 seconds' },
-      { value: '>30s', label: 'Over 30s', description: 'Executions longer than 30 seconds' },
-      { value: '<500ms', label: 'Under 0.5s', description: 'Very fast executions' },
+      { value: '>5s', label: 'Over 5s', description: 'Runs longer than 5 seconds' },
+      { value: '<1s', label: 'Under 1s', description: 'Runs shorter than 1 second' },
+      { value: '>10s', label: 'Over 10s', description: 'Runs longer than 10 seconds' },
+      { value: '>30s', label: 'Over 30s', description: 'Runs longer than 30 seconds' },
+      { value: '<500ms', label: 'Under 0.5s', description: 'Very fast runs' },
     ],
   },
 ]
@@ -225,8 +225,8 @@ export class SearchSuggestions {
     suggestions.push({
       id: 'filter-key-executionId',
       value: 'executionId:',
-      label: 'Execution ID',
-      description: 'Filter by execution ID',
+      label: 'Run ID',
+      description: 'Filter by run ID',
       category: 'filters',
     })
 
@@ -283,7 +283,7 @@ export class SearchSuggestions {
           id: `filter-value-trigger-${t.value}`,
           value: `trigger:${t.value}`,
           label: t.label,
-          description: `${t.label}-triggered executions`,
+          description: `${t.label}-triggered runs`,
           category: 'trigger' as const,
           color: t.color,
         }))
@@ -604,7 +604,7 @@ export class SearchSuggestions {
         id: `trigger-match-${trigger.value}`,
         value: `trigger:${trigger.value}`,
         label: trigger.label,
-        description: `${trigger.label}-triggered executions`,
+        description: `${trigger.label}-triggered runs`,
         category: 'trigger' as const,
         color: trigger.color,
       }))

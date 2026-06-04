@@ -1,109 +1,87 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { chatIdParamsSchema, updateChatContract } from '@/lib/api/contracts/chats'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
-import { performChatUndeploy } from '@/lib/workflows/orchestration'
-import { deployWorkflow } from '@/lib/workflows/persistence/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { performChatUndeploy, performFullDeploy } from '@/lib/workflows/orchestration'
 import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 const logger = createLogger('ChatDetailAPI')
-
-const chatUpdateSchema = z.object({
-  workflowId: z.string().min(1, 'Workflow ID is required').optional(),
-  identifier: z
-    .string()
-    .min(1, 'Identifier is required')
-    .regex(/^[a-z0-9-]+$/, 'Identifier can only contain lowercase letters, numbers, and hyphens')
-    .optional(),
-  title: z.string().min(1, 'Title is required').optional(),
-  description: z.string().optional(),
-  customizations: z
-    .object({
-      primaryColor: z.string(),
-      welcomeMessage: z.string(),
-      imageUrl: z.string().optional(),
-    })
-    .optional(),
-  authType: z.enum(['public', 'password', 'email', 'sso']).optional(),
-  password: z.string().optional(),
-  allowedEmails: z.array(z.string()).optional(),
-  outputConfigs: z
-    .array(
-      z.object({
-        blockId: z.string(),
-        path: z.string(),
-      })
-    )
-    .optional(),
-})
 
 /**
  * GET endpoint to fetch a specific chat deployment by ID
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const chatId = id
+export const GET = withRouteHandler(
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const { id } = chatIdParamsSchema.parse(await params)
+    const chatId = id
 
-  try {
-    const session = await getSession()
+    try {
+      const session = await getSession()
 
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
+      }
+
+      const { hasAccess, chat: chatRecord } = await checkChatAccess(chatId, session.user.id)
+
+      if (!hasAccess || !chatRecord) {
+        return createErrorResponse('Chat not found or access denied', 404)
+      }
+
+      const { password, ...safeData } = chatRecord
+
+      const baseDomain = getEmailDomain()
+      const protocol = isDev ? 'http' : 'https'
+      const chatUrl = `${protocol}://${baseDomain}/chat/${chatRecord.identifier}`
+
+      const result = {
+        ...safeData,
+        chatUrl,
+        hasPassword: !!password,
+      }
+
+      return createSuccessResponse(result)
+    } catch (error) {
+      logger.error('Error fetching chat deployment:', error)
+      return createErrorResponse(getErrorMessage(error, 'Failed to fetch chat deployment'), 500)
     }
-
-    const { hasAccess, chat: chatRecord } = await checkChatAccess(chatId, session.user.id)
-
-    if (!hasAccess || !chatRecord) {
-      return createErrorResponse('Chat not found or access denied', 404)
-    }
-
-    const { password, ...safeData } = chatRecord
-
-    const baseDomain = getEmailDomain()
-    const protocol = isDev ? 'http' : 'https'
-    const chatUrl = `${protocol}://${baseDomain}/chat/${chatRecord.identifier}`
-
-    const result = {
-      ...safeData,
-      chatUrl,
-      hasPassword: !!password,
-    }
-
-    return createSuccessResponse(result)
-  } catch (error: any) {
-    logger.error('Error fetching chat deployment:', error)
-    return createErrorResponse(error.message || 'Failed to fetch chat deployment', 500)
   }
-}
+)
 
 /**
  * PATCH endpoint to update an existing chat deployment
  */
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const chatId = id
-
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    const body = await request.json()
-
+export const PATCH = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
-      const validatedData = chatUpdateSchema.parse(body)
+      const session = await getSession()
+
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
+      }
+
+      const parsed = await parseRequest(updateChatContract, request, context, {
+        validationErrorResponse: (error) =>
+          createErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id: chatId } = parsed.data.params
+      const validatedData = parsed.data.body
 
       const {
         hasAccess,
@@ -129,6 +107,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         outputConfigs,
       } = validatedData
 
+      if (workflowId && workflowId !== existingChat[0].workflowId) {
+        return createErrorResponse('Changing the workflow of a chat deployment is not allowed', 400)
+      }
+
       if (identifier && identifier !== existingChat[0].identifier) {
         const existingIdentifier = await db
           .select()
@@ -139,22 +121,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (existingIdentifier.length > 0 && existingIdentifier[0].id !== chatId) {
           return createErrorResponse('Identifier already in use', 400)
         }
-      }
-
-      // Redeploy the workflow to ensure latest version is active
-      const deployResult = await deployWorkflow({
-        workflowId: existingChat[0].workflowId,
-        deployedBy: session.user.id,
-      })
-
-      if (!deployResult.success) {
-        logger.warn(
-          `Failed to redeploy workflow for chat update: ${deployResult.error}, continuing with chat update`
-        )
-      } else {
-        logger.info(
-          `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
-        )
       }
 
       let encryptedPassword
@@ -170,11 +136,31 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         logger.info('Keeping existing password')
       }
 
-      const updateData: any = {
+      // Redeploy the workflow to ensure latest version is active
+      const deployResult = await performFullDeploy({
+        workflowId: existingChat[0].workflowId,
+        userId: session.user.id,
+        request,
+      })
+
+      if (!deployResult.success) {
+        logger.warn(`Failed to redeploy workflow for chat update: ${deployResult.error}`)
+        const status =
+          deployResult.errorCode === 'validation'
+            ? 400
+            : deployResult.errorCode === 'not_found'
+              ? 404
+              : 500
+        return createErrorResponse(deployResult.error || 'Failed to redeploy workflow', status)
+      }
+      logger.info(
+        `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
+      )
+
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date(),
       }
 
-      if (workflowId) updateData.workflowId = workflowId
       if (identifier) updateData.identifier = identifier
       if (title) updateData.title = title
       if (description !== undefined) updateData.description = description
@@ -205,12 +191,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         updateData.outputConfigs = outputConfigs
       }
 
+      const emailCount = Array.isArray(updateData.allowedEmails)
+        ? updateData.allowedEmails.length
+        : undefined
+      const outputConfigsCount = Array.isArray(updateData.outputConfigs)
+        ? updateData.outputConfigs.length
+        : undefined
+
       logger.info('Updating chat deployment with values:', {
         chatId,
         authType: updateData.authType,
         hasPassword: updateData.password !== undefined,
-        emailCount: updateData.allowedEmails?.length,
-        outputConfigsCount: updateData.outputConfigs ? updateData.outputConfigs.length : undefined,
+        emailCount,
+        outputConfigsCount,
       })
 
       await db.update(chat).set(updateData).where(eq(chat.id, chatId))
@@ -233,6 +226,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         resourceId: chatId,
         resourceName: title || existingChatRecord.title,
         description: `Updated chat deployment "${title || existingChatRecord.title}"`,
+        metadata: {
+          identifier: updatedIdentifier,
+          authType: updateData.authType || existingChatRecord.authType,
+          workflowId: workflowId || existingChatRecord.workflowId,
+          chatUrl,
+        },
         request,
       })
 
@@ -241,60 +240,53 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         chatUrl,
         message: 'Chat deployment updated successfully',
       })
-    } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
-        const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
-        return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
-      }
-      throw validationError
+    } catch (error) {
+      logger.error('Error updating chat deployment:', error)
+      return createErrorResponse(getErrorMessage(error, 'Failed to update chat deployment'), 500)
     }
-  } catch (error: any) {
-    logger.error('Error updating chat deployment:', error)
-    return createErrorResponse(error.message || 'Failed to update chat deployment', 500)
   }
-}
+)
 
 /**
  * DELETE endpoint to remove a chat deployment
  */
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const chatId = id
+export const DELETE = withRouteHandler(
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const { id } = chatIdParamsSchema.parse(await params)
+    const chatId = id
 
-  try {
-    const session = await getSession()
+    try {
+      const session = await getSession()
 
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
+      }
+
+      const { hasAccess, workspaceId: chatWorkspaceId } = await checkChatAccess(
+        chatId,
+        session.user.id
+      )
+
+      if (!hasAccess) {
+        return createErrorResponse('Chat not found or access denied', 404)
+      }
+
+      const result = await performChatUndeploy({
+        chatId,
+        userId: session.user.id,
+        workspaceId: chatWorkspaceId,
+      })
+
+      if (!result.success) {
+        return createErrorResponse(result.error || 'Failed to delete chat', 500)
+      }
+
+      return createSuccessResponse({
+        message: 'Chat deployment deleted successfully',
+      })
+    } catch (error) {
+      logger.error('Error deleting chat deployment:', error)
+      return createErrorResponse(getErrorMessage(error, 'Failed to delete chat deployment'), 500)
     }
-
-    const { hasAccess, workspaceId: chatWorkspaceId } = await checkChatAccess(
-      chatId,
-      session.user.id
-    )
-
-    if (!hasAccess) {
-      return createErrorResponse('Chat not found or access denied', 404)
-    }
-
-    const result = await performChatUndeploy({
-      chatId,
-      userId: session.user.id,
-      workspaceId: chatWorkspaceId,
-    })
-
-    if (!result.success) {
-      return createErrorResponse(result.error || 'Failed to delete chat', 500)
-    }
-
-    return createSuccessResponse({
-      message: 'Chat deployment deleted successfully',
-    })
-  } catch (error: any) {
-    logger.error('Error deleting chat deployment:', error)
-    return createErrorResponse(error.message || 'Failed to delete chat deployment', 500)
   }
-}
+)

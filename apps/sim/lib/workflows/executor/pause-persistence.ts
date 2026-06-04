@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { describeError, toError } from '@sim/utils/errors'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import type { ExecutionResult } from '@/executor/types'
@@ -44,20 +46,24 @@ export async function handlePostExecutionPauseState({
       } catch (pauseError) {
         logger.error('Failed to persist pause result', {
           executionId,
-          error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+          error: toError(pauseError).message,
+          cause: describeError(pauseError),
+          retryable: isRetryableInfrastructureError(pauseError),
         })
         await loggingSession.markAsFailed(
-          `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+          `Failed to persist pause state: ${toError(pauseError).message}`
         )
       }
     }
   } else {
     try {
-      await PauseResumeManager.processQueuedResumes(executionId)
+      await PauseResumeManager.processQueuedResumes(executionId, workflowId)
     } catch (resumeError) {
       logger.error('Failed to process queued resumes', {
         executionId,
-        error: resumeError instanceof Error ? resumeError.message : String(resumeError),
+        error: toError(resumeError).message,
+        cause: describeError(resumeError),
+        retryable: isRetryableInfrastructureError(resumeError),
       })
     }
   }

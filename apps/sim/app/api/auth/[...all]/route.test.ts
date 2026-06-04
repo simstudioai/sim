@@ -8,11 +8,9 @@ const handlerMocks = vi.hoisted(() => ({
   betterAuthGET: vi.fn(),
   betterAuthPOST: vi.fn(),
   ensureAnonymousUserExists: vi.fn(),
-  createAnonymousGetSessionResponse: vi.fn(() => ({
-    data: {
-      user: { id: 'anon' },
-      session: { id: 'anon-session' },
-    },
+  createAnonymousSession: vi.fn(() => ({
+    user: { id: 'anon' },
+    session: { id: 'anon-session' },
   })),
   isAuthDisabled: false,
 }))
@@ -30,7 +28,7 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/auth/anonymous', () => ({
   ensureAnonymousUserExists: handlerMocks.ensureAnonymousUserExists,
-  createAnonymousGetSessionResponse: handlerMocks.createAnonymousGetSessionResponse,
+  createAnonymousSession: handlerMocks.createAnonymousSession,
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -39,7 +37,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   },
 }))
 
-import { GET } from '@/app/api/auth/[...all]/route'
+import { GET, POST } from '@/app/api/auth/[...all]/route'
 
 describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
   beforeEach(() => {
@@ -63,10 +61,8 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
     expect(handlerMocks.ensureAnonymousUserExists).toHaveBeenCalledTimes(1)
     expect(handlerMocks.betterAuthGET).not.toHaveBeenCalled()
     expect(json).toEqual({
-      data: {
-        user: { id: 'anon' },
-        session: { id: 'anon-session' },
-      },
+      user: { id: 'anon' },
+      session: { id: 'anon-session' },
     })
   })
 
@@ -92,6 +88,52 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
 
     expect(handlerMocks.ensureAnonymousUserExists).not.toHaveBeenCalled()
     expect(handlerMocks.betterAuthGET).toHaveBeenCalledTimes(1)
+    expect(json).toEqual({ data: { ok: true } })
+  })
+})
+
+describe('auth catch-all route organization mutations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('blocks Better Auth organization mutation endpoints that bypass app lifecycle rules', async () => {
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/organization/create'
+    )
+
+    const res = await POST(req as any)
+    const json = await res.json()
+
+    expect(res.status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+    expect(json).toEqual({
+      error: 'Organization mutations are handled by application API routes.',
+    })
+  })
+
+  it('allows safe Better Auth organization session endpoints', async () => {
+    const { NextResponse } = await import('next/server')
+    handlerMocks.betterAuthPOST.mockResolvedValueOnce(
+      new NextResponse(JSON.stringify({ data: { ok: true } }), {
+        headers: { 'content-type': 'application/json' },
+      }) as any
+    )
+
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/organization/set-active'
+    )
+
+    const res = await POST(req as any)
+    const json = await res.json()
+
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
     expect(json).toEqual({ data: { ok: true } })
   })
 })

@@ -1,10 +1,16 @@
 import { createLogger, type Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/feature-flags'
+import {
+  normalizeRecord,
+  normalizeStringRecord,
+  normalizeWorkflowVariables,
+} from '@/lib/core/utils/records'
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
@@ -125,7 +131,9 @@ function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
 
 export const providers: Record<ProviderId, ProviderMetadata> = {
   ollama: buildProviderMetadata('ollama'),
+  'ollama-cloud': buildProviderMetadata('ollama-cloud'),
   vllm: buildProviderMetadata('vllm'),
+  litellm: buildProviderMetadata('litellm'),
   openai: {
     ...buildProviderMetadata('openai'),
     computerUseModels: ['computer-use-preview'],
@@ -149,6 +157,8 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   openrouter: buildProviderMetadata('openrouter'),
   fireworks: buildProviderMetadata('fireworks'),
   avian: buildProviderMetadata('avian'),
+  together: buildProviderMetadata('together'),
+  baseten: buildProviderMetadata('baseten'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -160,6 +170,12 @@ export function updateVLLMProviderModels(models: string[]): void {
   const { updateVLLMModels } = require('@/providers/models')
   updateVLLMModels(models)
   providers.vllm.models = getProviderModelsFromDefinitions('vllm')
+}
+
+export function updateLiteLLMProviderModels(models: string[]): void {
+  const { updateLiteLLMModels } = require('@/providers/models')
+  updateLiteLLMModels(models)
+  providers.litellm.models = getProviderModelsFromDefinitions('litellm')
 }
 
 export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
@@ -174,14 +190,36 @@ export async function updateFireworksProviderModels(models: string[]): Promise<v
   providers.fireworks.models = getProviderModelsFromDefinitions('fireworks')
 }
 
+export async function updateOllamaCloudProviderModels(models: string[]): Promise<void> {
+  const { updateOllamaCloudModels } = await import('@/providers/models')
+  updateOllamaCloudModels(models)
+  providers['ollama-cloud'].models = getProviderModelsFromDefinitions('ollama-cloud')
+}
+
+export async function updateTogetherProviderModels(models: string[]): Promise<void> {
+  const { updateTogetherModels } = await import('@/providers/models')
+  updateTogetherModels(models)
+  providers.together.models = getProviderModelsFromDefinitions('together')
+}
+
+export async function updateBasetenProviderModels(models: string[]): Promise<void> {
+  const { updateBasetenModels } = await import('@/providers/models')
+  updateBasetenModels(models)
+  providers.baseten.models = getProviderModelsFromDefinitions('baseten')
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
         providerId !== 'ollama' &&
+        providerId !== 'ollama-cloud' &&
         providerId !== 'vllm' &&
+        providerId !== 'litellm' &&
         providerId !== 'openrouter' &&
-        providerId !== 'fireworks'
+        providerId !== 'fireworks' &&
+        providerId !== 'together' &&
+        providerId !== 'baseten'
     )
     .reduce(
       (map, [providerId, config]) => {
@@ -282,14 +320,8 @@ export function getProviderModels(providerId: ProviderId): string[] {
   return getProviderModelsFromDefinitions(providerId)
 }
 
-function getBlacklistedProviders(): string[] {
-  if (!env.BLACKLISTED_PROVIDERS) return []
-  return env.BLACKLISTED_PROVIDERS.split(',').map((p) => p.trim().toLowerCase())
-}
-
 export function isProviderBlacklisted(providerId: string): boolean {
-  const blacklist = getBlacklistedProviders()
-  return blacklist.includes(providerId.toLowerCase())
+  return getBlacklistedProvidersFromEnv().includes(providerId.toLowerCase())
 }
 
 /**
@@ -432,11 +464,11 @@ export function extractAndParseJSON(content: string): any {
         contentLength: content.length,
         extractedLength: jsonStr.length,
         cleanedLength: cleaned.length,
-        error: innerError instanceof Error ? innerError.message : 'Unknown error',
+        error: getErrorMessage(innerError, 'Unknown error'),
       })
 
       throw new Error(
-        `Failed to parse JSON after cleanup: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`
+        `Failed to parse JSON after cleanup: ${getErrorMessage(innerError, 'Unknown error')}`
       )
     }
   }
@@ -663,6 +695,59 @@ export function calculateCost(
 }
 
 /**
+ * Recursively enforces OpenAI strict-mode requirements on a JSON schema:
+ * - Sets `additionalProperties: false` on every object type.
+ * - Forces `required` to include ALL property keys.
+ *
+ * Required for any OpenAI-compatible backend that validates strict structured
+ * outputs (OpenAI, Azure OpenAI, and OpenAI routes behind proxies like LiteLLM),
+ * which reject schemas missing these constraints with an HTTP 400.
+ */
+export function enforceStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  if (!schema || typeof schema !== 'object') return schema
+
+  const result = { ...schema }
+
+  if (result.type === 'object') {
+    result.additionalProperties = false
+
+    if (result.properties && typeof result.properties === 'object') {
+      const propKeys = Object.keys(result.properties as Record<string, unknown>)
+      result.required = propKeys
+      result.properties = Object.fromEntries(
+        Object.entries(result.properties as Record<string, unknown>).map(([key, value]) => [
+          key,
+          enforceStrictSchema(value as Record<string, unknown>),
+        ])
+      )
+    }
+  }
+
+  if (result.type === 'array' && result.items) {
+    result.items = enforceStrictSchema(result.items as Record<string, unknown>)
+  }
+
+  for (const keyword of ['anyOf', 'oneOf', 'allOf']) {
+    if (Array.isArray(result[keyword])) {
+      result[keyword] = (result[keyword] as Record<string, unknown>[]).map(enforceStrictSchema)
+    }
+  }
+
+  for (const defKey of ['$defs', 'definitions']) {
+    if (result[defKey] && typeof result[defKey] === 'object') {
+      result[defKey] = Object.fromEntries(
+        Object.entries(result[defKey] as Record<string, unknown>).map(([key, value]) => [
+          key,
+          enforceStrictSchema(value as Record<string, unknown>),
+        ])
+      )
+    }
+  }
+
+  return result
+}
+
+/**
  * Sums the `cost.total` from each tool result returned during a provider tool loop.
  * Tool results may carry a `cost` object injected by `applyHostedKeyCostToResult`.
  */
@@ -693,11 +778,7 @@ export function getModelPricing(modelId: string): any {
  * @returns Formatted credit string (e.g. "200 credits", "<1 credit", "0 credits")
  */
 export function formatCost(cost: number): string {
-  if (cost === undefined || cost === null) return '—'
-  const credits = dollarsToCredits(cost)
-  if (credits <= 0 && cost > 0) return '<1 credit'
-  if (credits <= 0) return '0 credits'
-  return `${credits.toLocaleString()} credits`
+  return formatCreditCost(cost) ?? '—'
 }
 
 /**
@@ -742,6 +823,12 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const isVllmModel =
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
+    return userProvidedKey || 'empty'
+  }
+
+  const isLitellmModel =
+    provider === 'litellm' || useProvidersStore.getState().providers.litellm.models.includes(model)
+  if (isLitellmModel) {
     return userProvidedKey || 'empty'
   }
 
@@ -1071,6 +1158,11 @@ export function isDeepResearchModel(model: string): boolean {
   return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
+export function isGemini3Model(model: string): boolean {
+  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  return normalized.startsWith('gemini-3')
+}
+
 /**
  * Get the maximum temperature value for a model
  * @returns Maximum temperature value (1 or 2) or undefined if temperature not supported
@@ -1168,10 +1260,16 @@ export function prepareToolExecution(
           },
         }
       : {}),
-    ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-    ...(request.workflowVariables ? { workflowVariables: request.workflowVariables } : {}),
-    ...(request.blockData ? { blockData: request.blockData } : {}),
-    ...(request.blockNameMapping ? { blockNameMapping: request.blockNameMapping } : {}),
+    ...(request.environmentVariables
+      ? { envVars: normalizeStringRecord(request.environmentVariables) }
+      : {}),
+    ...(request.workflowVariables
+      ? { workflowVariables: normalizeWorkflowVariables(request.workflowVariables) }
+      : {}),
+    ...(request.blockData ? { blockData: normalizeRecord(request.blockData) } : {}),
+    ...(request.blockNameMapping
+      ? { blockNameMapping: normalizeStringRecord(request.blockNameMapping) }
+      : {}),
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
   }
 

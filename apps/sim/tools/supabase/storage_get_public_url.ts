@@ -2,6 +2,7 @@ import type {
   SupabaseStorageGetPublicUrlParams,
   SupabaseStorageGetPublicUrlResponse,
 } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageGetPublicUrlTool: ToolConfig<
@@ -47,7 +48,7 @@ export const storageGetPublicUrlTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://${params.projectId}.supabase.co/storage/v1/bucket/${params.bucket}`,
+    url: (params) => `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket/${params.bucket}`,
     method: 'GET',
     headers: (params) => ({
       apikey: params.apiKey,
@@ -56,7 +57,10 @@ export const storageGetPublicUrlTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params?: SupabaseStorageGetPublicUrlParams) => {
-    let publicUrl = `https://${params?.projectId}.supabase.co/storage/v1/object/public/${params?.bucket}/${params?.path}`
+    if (!params?.projectId) {
+      throw new Error('projectId is required to construct the public URL')
+    }
+    let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${params.bucket}/${params.path}`
 
     if (params?.download) {
       publicUrl += '?download=true'

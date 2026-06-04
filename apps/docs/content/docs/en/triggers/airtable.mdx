@@ -1,0 +1,60 @@
+---
+title: Airtable
+description: Available Airtable triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="airtable"
+  color="#E0E0E0"
+/>
+
+Airtable provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Airtable Webhook
+
+Trigger workflow from Airtable record changes like create, update, and delete events (requires Airtable credentials)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | This trigger requires airtable credentials to access your account. |
+| `baseId` | string | Yes | The ID of the Airtable Base this webhook will monitor. |
+| `tableId` | string | Yes | The ID of the table within the Base that the webhook will monitor. |
+| `includeCellValues` | boolean | No | Enable to receive the complete record data in the payload, not just changes. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payloads` | array | The payloads of the Airtable changes |
+|   ↳ `timestamp` | string | Timestamp of the change |
+|   ↳ `baseTransactionNumber` | number | Transaction number |
+| `latestPayload` | object | The most recent payload from Airtable |
+|   ↳ `timestamp` | string | ISO 8601 timestamp of the change |
+|   ↳ `baseTransactionNumber` | number | Transaction number |
+|   ↳ `payloadFormat` | string | Payload format version \(e.g., v0\) |
+|   ↳ `actionMetadata` | object | Metadata about who made the change |
+|     ↳ `source` | string | Source of the change \(e.g., client, publicApi\) |
+|     ↳ `sourceMetadata` | object | Source metadata including user info |
+|       ↳ `user` | object | User who made the change |
+|         ↳ `id` | string | User ID |
+|         ↳ `email` | string | User email |
+|         ↳ `name` | string | User name |
+|         ↳ `permissionLevel` | string | User permission level |
+|   ↳ `changedTablesById` | object | Tables that were changed \(keyed by table ID\) |
+|     ↳ `changedRecordsById` | object | Changed records keyed by record ID |
+|       ↳ `current` | object | Current state of the record |
+|         ↳ `cellValuesByFieldId` | object | Cell values keyed by field ID |
+|     ↳ `createdRecordsById` | object | Created records by ID |
+|     ↳ `destroyedRecordIds` | array | Array of destroyed record IDs |
+| `airtableChanges` | array | Changes made to the Airtable table |
+|   ↳ `tableId` | string | Table ID |
+|   ↳ `recordId` | string | Record ID |
+|   ↳ `changeType` | string | Type of change \(created, changed, destroyed\) |
+|   ↳ `cellValuesByFieldId` | object | Cell values by field ID |
+

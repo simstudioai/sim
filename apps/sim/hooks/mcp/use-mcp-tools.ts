@@ -5,12 +5,13 @@
  * using TanStack Query for optimal caching and performance
  */
 
-import type React from 'react'
+import type { ComponentType, SVGProps } from 'react'
 import { useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { McpIcon } from '@/components/icons'
 import { createMcpToolId } from '@/lib/mcp/shared'
+import type { McpToolSchema } from '@/lib/mcp/types'
 import { mcpKeys, useMcpToolsQuery } from '@/hooks/queries/mcp'
 
 const logger = createLogger('useMcpTools')
@@ -22,23 +23,23 @@ export interface McpToolForUI {
   serverId: string
   serverName: string
   type: 'mcp'
-  inputSchema: any
+  inputSchema: McpToolSchema
   bgColor: string
-  icon: React.ComponentType<any>
+  icon: ComponentType<SVGProps<SVGSVGElement>>
 }
 
 export interface UseMcpToolsResult {
   mcpTools: McpToolForUI[]
   isLoading: boolean
   error: string | null
-  refreshTools: (forceRefresh?: boolean) => Promise<void>
+  refreshTools: () => Promise<void>
   getToolsByServer: (serverId: string) => McpToolForUI[]
 }
 
 export function useMcpTools(workspaceId: string): UseMcpToolsResult {
   const queryClient = useQueryClient()
 
-  const { data: mcpToolsData = [], isLoading, error: queryError } = useMcpToolsQuery(workspaceId)
+  const { data: mcpToolsData, isLoading, error: queryError } = useMcpToolsQuery(workspaceId)
 
   const mcpTools = useMemo<McpToolForUI[]>(() => {
     return mcpToolsData.map((tool) => ({
@@ -54,22 +55,17 @@ export function useMcpTools(workspaceId: string): UseMcpToolsResult {
     }))
   }, [mcpToolsData])
 
-  const refreshTools = useCallback(
-    async (forceRefresh = false) => {
-      if (!workspaceId) {
-        logger.warn('Cannot refresh tools: no workspaceId provided')
-        return
-      }
+  // Soft refresh — invalidate per-server entries. For cache-bypass, use `useForceRefreshMcpTools`.
+  const refreshTools = useCallback(async () => {
+    if (!workspaceId) {
+      logger.warn('Cannot refresh tools: no workspaceId provided')
+      return
+    }
 
-      logger.info('Refreshing MCP tools', { forceRefresh, workspaceId })
-
-      await queryClient.invalidateQueries({
-        queryKey: mcpKeys.tools(workspaceId),
-        refetchType: forceRefresh ? 'active' : 'all',
-      })
-    },
-    [workspaceId, queryClient]
-  )
+    await queryClient.invalidateQueries({
+      queryKey: mcpKeys.serverToolsWorkspace(workspaceId),
+    })
+  }, [workspaceId, queryClient])
 
   const getToolsByServer = useCallback(
     (serverId: string): McpToolForUI[] => {

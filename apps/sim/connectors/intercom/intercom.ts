@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { z } from 'zod'
 import { IntercomIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('IntercomConnector')
 
@@ -11,56 +13,92 @@ const DEFAULT_MAX_ITEMS = 500
 const ARTICLES_PER_PAGE = 50
 const CONVERSATIONS_PER_PAGE = 50
 
-/** Intercom article as returned by GET /articles */
-interface IntercomArticle {
-  type: string
-  id: string
-  title: string
-  description: string | null
-  body: string | null
-  author_id: number
-  state: 'published' | 'draft'
-  created_at: number
-  updated_at: number
-  url?: string
-  parent_id?: number | null
-  parent_type?: string | null
-}
+const IntercomAuthorSchema = z
+  .object({
+    type: z.string(),
+    id: z.string(),
+    name: z.string().optional(),
+  })
+  .passthrough()
 
-/** Intercom conversation as returned by GET /conversations */
-interface IntercomConversation {
-  type: string
-  id: string
-  created_at: number
-  updated_at: number
-  title: string | null
-  state: string
-  open: boolean
-  source: {
-    type: string
-    id: string
-    subject: string
-    body: string
-    author: { type: string; id: string; name?: string }
-    delivered_as: string
-  }
-  tags: { type: string; tags: { id: string; name: string }[] }
-  conversation_parts?: {
-    type: string
-    conversation_parts: IntercomConversationPart[]
-    total_count: number
-  }
-}
+const IntercomArticleSchema = z
+  .object({
+    type: z.string().optional(),
+    id: z.string(),
+    title: z.string().optional(),
+    description: z.string().nullable().optional(),
+    body: z.string().nullable().optional(),
+    author_id: z.union([z.number(), z.string()]).optional(),
+    state: z.string(),
+    created_at: z.number(),
+    updated_at: z.number(),
+    url: z.string().optional(),
+    parent_id: z.number().nullable().optional(),
+    parent_type: z.string().nullable().optional(),
+  })
+  .passthrough()
 
-/** A single part within a conversation */
-interface IntercomConversationPart {
-  type: string
-  id: string
-  part_type: string
-  body: string | null
-  created_at: number
-  author: { type: string; id: string; name?: string }
-}
+type IntercomArticle = z.infer<typeof IntercomArticleSchema>
+
+const IntercomConversationPartSchema = z
+  .object({
+    type: z.string().optional(),
+    id: z.string(),
+    part_type: z.string().optional(),
+    body: z.string().nullable().optional(),
+    created_at: z.number(),
+    author: IntercomAuthorSchema.optional(),
+  })
+  .passthrough()
+
+const IntercomConversationSchema = z
+  .object({
+    type: z.string().optional(),
+    id: z.string(),
+    created_at: z.number(),
+    updated_at: z.number(),
+    title: z.string().nullable().optional(),
+    state: z.string(),
+    open: z.boolean().optional(),
+    source: z
+      .object({
+        type: z.string(),
+        id: z.string(),
+        subject: z.string().optional(),
+        body: z.string().nullable().optional(),
+        author: IntercomAuthorSchema,
+        delivered_as: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+    tags: z
+      .object({
+        type: z.string().optional(),
+        tags: z
+          .array(
+            z
+              .object({
+                id: z.string(),
+                name: z.string(),
+              })
+              .passthrough()
+          )
+          .default([]),
+      })
+      .passthrough()
+      .optional(),
+    conversation_parts: z
+      .object({
+        type: z.string(),
+        conversation_parts: z.array(IntercomConversationPartSchema),
+        total_count: z.number(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough()
+
+type IntercomConversation = z.infer<typeof IntercomConversationSchema>
 
 /**
  * Makes a GET request to the Intercom API with Bearer token auth.
@@ -116,7 +154,7 @@ async function fetchArticles(
       per_page: String(ARTICLES_PER_PAGE),
     })
 
-    const articles = (data.data as IntercomArticle[]) || []
+    const articles = z.array(IntercomArticleSchema).parse(data.data ?? [])
     if (articles.length === 0) break
 
     for (const article of articles) {
@@ -153,7 +191,7 @@ async function fetchConversations(
     }
 
     const data = await intercomApiGet('/conversations', accessToken, params)
-    const conversations = (data.conversations as IntercomConversation[]) || []
+    const conversations = z.array(IntercomConversationSchema).parse(data.conversations ?? [])
     if (conversations.length === 0) break
 
     for (const conversation of conversations) {
@@ -179,7 +217,7 @@ async function fetchConversationDetail(
   conversationId: string
 ): Promise<IntercomConversation> {
   const data = await intercomApiGet(`/conversations/${conversationId}`, accessToken)
-  return data as unknown as IntercomConversation
+  return IntercomConversationSchema.parse(data)
 }
 
 /**
@@ -192,10 +230,10 @@ function formatConversation(conversation: IntercomConversation): string {
     lines.push(`Subject: ${conversation.title}`)
   }
 
-  const sourceBody = conversation.source?.body
+  const source = conversation.source
+  const sourceBody = source?.body
   if (sourceBody) {
-    const authorName =
-      conversation.source.author?.name || conversation.source.author?.type || 'unknown'
+    const authorName = source.author?.name || source.author?.type || 'unknown'
     const timestamp = new Date(conversation.created_at * 1000).toISOString()
     lines.push(`[${timestamp}] ${authorName}: ${htmlToPlainText(sourceBody)}`)
   }
@@ -231,7 +269,7 @@ function formatArticle(article: IntercomArticle): string {
 export const intercomConnector: ConnectorConfig = {
   id: 'intercom',
   name: 'Intercom',
-  description: 'Sync Help Center articles and conversations from Intercom into your knowledge base',
+  description: 'Sync Help Center articles and conversations from Intercom',
   version: '1.0.0',
   icon: IntercomIcon,
 
@@ -309,7 +347,6 @@ export const intercomConnector: ConnectorConfig = {
         const content = formatArticle(article)
         if (!content.trim()) continue
 
-        const contentHash = await computeContentHash(content)
         const updatedAt = new Date(article.updated_at * 1000).toISOString()
 
         documents.push({
@@ -318,7 +355,7 @@ export const intercomConnector: ConnectorConfig = {
           content,
           mimeType: 'text/plain',
           sourceUrl: `https://app.intercom.com/a/apps/_/articles/articles/${article.id}/show`,
-          contentHash,
+          contentHash: `intercom:article-${article.id}:${article.updated_at}`,
           metadata: {
             type: 'article',
             state: article.state,
@@ -337,28 +374,23 @@ export const intercomConnector: ConnectorConfig = {
       const conversations = await fetchConversations(accessToken, maxItems, conversationState)
 
       for (const conversation of conversations) {
-        const detail = await fetchConversationDetail(accessToken, conversation.id)
-        const content = formatConversation(detail)
-        if (!content.trim()) continue
-
-        const contentHash = await computeContentHash(content)
         const updatedAt = new Date(conversation.updated_at * 1000).toISOString()
         const tags = conversation.tags?.tags?.map((t) => t.name) || []
 
         documents.push({
           externalId: `conversation-${conversation.id}`,
           title: conversation.title || `Conversation #${conversation.id}`,
-          content,
+          content: '',
+          contentDeferred: true,
           mimeType: 'text/plain',
           sourceUrl: `https://app.intercom.com/a/apps/_/inbox/inbox/all/conversations/${conversation.id}`,
-          contentHash,
+          contentHash: `intercom:conversation-${conversation.id}:${conversation.updated_at}`,
           metadata: {
             type: 'conversation',
             state: conversation.state,
             tags: tags.join(', '),
             updatedAt,
             createdAt: new Date(conversation.created_at * 1000).toISOString(),
-            messageCount: (detail.conversation_parts?.total_count ?? 0) + 1,
           },
         })
       }
@@ -378,12 +410,11 @@ export const intercomConnector: ConnectorConfig = {
       if (externalId.startsWith('article-')) {
         const articleId = externalId.replace('article-', '')
         const data = await intercomApiGet(`/articles/${articleId}`, accessToken)
-        const article = data as unknown as IntercomArticle
+        const article = IntercomArticleSchema.parse(data)
 
         const content = formatArticle(article)
         if (!content.trim()) return null
 
-        const contentHash = await computeContentHash(content)
         const updatedAt = new Date(article.updated_at * 1000).toISOString()
 
         return {
@@ -392,7 +423,7 @@ export const intercomConnector: ConnectorConfig = {
           content,
           mimeType: 'text/plain',
           sourceUrl: `https://app.intercom.com/a/apps/_/articles/articles/${article.id}/show`,
-          contentHash,
+          contentHash: `intercom:article-${article.id}:${article.updated_at}`,
           metadata: {
             type: 'article',
             state: article.state,
@@ -410,7 +441,6 @@ export const intercomConnector: ConnectorConfig = {
         const content = formatConversation(detail)
         if (!content.trim()) return null
 
-        const contentHash = await computeContentHash(content)
         const updatedAt = new Date(detail.updated_at * 1000).toISOString()
         const tags = detail.tags?.tags?.map((t) => t.name) || []
 
@@ -418,9 +448,10 @@ export const intercomConnector: ConnectorConfig = {
           externalId,
           title: detail.title || `Conversation #${detail.id}`,
           content,
+          contentDeferred: false,
           mimeType: 'text/plain',
           sourceUrl: `https://app.intercom.com/a/apps/_/inbox/inbox/all/conversations/${detail.id}`,
-          contentHash,
+          contentHash: `intercom:conversation-${detail.id}:${detail.updated_at}`,
           metadata: {
             type: 'conversation',
             state: detail.state,
@@ -437,7 +468,7 @@ export const intercomConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Intercom document', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -480,7 +511,7 @@ export const intercomConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

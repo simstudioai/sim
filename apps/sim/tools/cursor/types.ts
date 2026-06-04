@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface BaseCursorParams {
+interface BaseCursorParams {
   apiKey: string
 }
 
@@ -44,6 +44,12 @@ export interface DeleteAgentParams extends BaseCursorParams {
   agentId: string
 }
 
+export type ListModelsParams = BaseCursorParams
+
+export type ListRepositoriesParams = BaseCursorParams
+
+export type GetApiKeyInfoParams = BaseCursorParams
+
 interface AgentSource {
   repository: string
   ref: string
@@ -54,14 +60,14 @@ interface AgentTarget {
   url: string
   prUrl?: string
   autoCreatePr: boolean
-  openAsCursorGithubApp: boolean
-  skipReviewerRequest: boolean
+  openAsCursorGithubApp?: boolean
+  skipReviewerRequest?: boolean
 }
 
 interface AgentMetadata {
   id: string
   name: string
-  status: 'CREATING' | 'RUNNING' | 'FINISHED' | 'STOPPED' | 'FAILED'
+  status: string
   source: AgentSource
   target: AgentTarget
   summary?: string
@@ -179,7 +185,7 @@ export interface ListArtifactsParams extends BaseCursorParams {
   agentId: string
 }
 
-export interface ArtifactMetadata {
+interface ArtifactMetadata {
   path: string
   size?: number
 }
@@ -201,7 +207,12 @@ export interface DownloadArtifactParams extends BaseCursorParams {
 export interface DownloadArtifactResponse extends ToolResponse {
   output: {
     content: string
-    metadata: Record<string, unknown>
+    metadata: {
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }
   }
 }
 

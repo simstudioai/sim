@@ -1,45 +1,28 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { z } from 'zod'
+import { smtpSendContract } from '@/lib/api/contracts/tools/communication/email'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SmtpSendAPI')
 
-const SmtpSendSchema = z.object({
-  smtpHost: z.string().min(1, 'SMTP host is required'),
-  smtpPort: z.number().min(1).max(65535, 'Port must be between 1 and 65535'),
-  smtpUsername: z.string().min(1, 'SMTP username is required'),
-  smtpPassword: z.string().min(1, 'SMTP password is required'),
-  smtpSecure: z.enum(['TLS', 'SSL', 'None']),
-
-  from: z.string().email('Invalid from email address').min(1, 'From address is required'),
-  to: z.string().min(1, 'To email is required'),
-  subject: z.string().min(1, 'Subject is required'),
-  body: z.string().min(1, 'Email body is required'),
-  contentType: z.enum(['text', 'html']).optional().nullable(),
-
-  fromName: z.string().optional().nullable(),
-  cc: z.string().optional().nullable(),
-  bcc: z.string().optional().nullable(),
-  replyTo: z.string().optional().nullable(),
-  attachments: RawFileInputArraySchema.optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized SMTP send attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -50,12 +33,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const userId = authResult.userId
     logger.info(`[${requestId}] Authenticated SMTP request via ${authResult.authType}`, {
-      userId: authResult.userId,
+      userId,
     })
 
-    const body = await request.json()
-    const validatedData = SmtpSendSchema.parse(body)
+    const parsed = await parseRequest(smtpSendContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const hostValidation = await validateDatabaseHost(validatedData.smtpHost, 'smtpHost')
     if (!hostValidation.isValid) {
@@ -136,28 +121,33 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        const attachmentBuffers = await Promise.all(
+        const accessResults = await Promise.all(
+          attachments.map((file) => assertToolFileAccess(file.key, userId, requestId, logger))
+        )
+        const denied = accessResults.find((r) => r !== null)
+        if (denied) return denied
+
+        const buffers = await Promise.all(
           attachments.map(async (file) => {
             try {
               logger.info(
                 `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
               )
-
-              const buffer = await downloadFileFromStorage(file, requestId, logger)
-
-              return {
-                filename: file.name,
-                content: buffer,
-                contentType: file.type || 'application/octet-stream',
-              }
+              return await downloadFileFromStorage(file, requestId, logger)
             } catch (error) {
               logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
               throw new Error(
-                `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+                `Failed to download attachment "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
               )
             }
           })
         )
+
+        const attachmentBuffers = attachments.map((file, i) => ({
+          filename: file.name,
+          content: buffers[i],
+          contentType: file.type || 'application/octet-stream',
+        }))
 
         logger.info(`[${requestId}] Processed ${attachmentBuffers.length} attachment(s)`)
         mailOptions.attachments = attachmentBuffers
@@ -178,18 +168,6 @@ export async function POST(request: NextRequest) {
       subject: validatedData.subject,
     })
   } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     // Type guard for error objects with code property
     const isNodeError = (err: unknown): err is NodeJS.ErrnoException => {
       return err instanceof Error && 'code' in err
@@ -223,7 +201,7 @@ export async function POST(request: NextRequest) {
     }
 
     logger.error(`[${requestId}] Error sending email via SMTP:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       code: isNodeError(error) ? error.code : undefined,
       responseCode: hasResponseCode(error) ? error.responseCode : undefined,
     })
@@ -236,4 +214,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -2,7 +2,9 @@ import { db } from '@sim/db'
 import { jobExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
+import { GetJobLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import type { TraceSpan } from '@/lib/logs/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('GetJobLogsServerTool')
@@ -37,29 +39,68 @@ interface JobLogEntry {
   tokens?: unknown
 }
 
-function extractToolCalls(traceSpan: any): ToolCallDetail[] {
-  if (!traceSpan?.toolCalls || !Array.isArray(traceSpan.toolCalls)) return []
+/**
+ * Walks the trace-span tree and collects tool invocations from both data shapes:
+ *   - New: `type: 'tool'` spans nested under agent blocks in `children`.
+ *   - Legacy: a `toolCalls` array hanging off the agent span directly (pre-unification).
+ */
+function collectToolCalls(spans: TraceSpan[] | undefined): ToolCallDetail[] {
+  if (!spans?.length) return []
+  const collected: ToolCallDetail[] = []
 
-  return traceSpan.toolCalls.map((tc: any) => ({
-    name: tc.name || 'unknown',
-    input: tc.input || tc.arguments || {},
-    output: tc.output || tc.result || undefined,
-    error: tc.error || undefined,
-    duration: tc.duration || 0,
-  }))
+  const visit = (span: TraceSpan) => {
+    if (span.type === 'tool') {
+      const output = span.output as { result?: unknown } | undefined
+      collected.push({
+        name: span.name || 'unknown',
+        input: span.input ?? {},
+        output: output?.result ?? span.output,
+        error: span.status === 'error' ? errorMessageFromSpan(span) : undefined,
+        duration: span.duration || 0,
+      })
+      return
+    }
+
+    if (span.toolCalls?.length) {
+      for (const tc of span.toolCalls) {
+        collected.push({
+          name: tc.name || 'unknown',
+          input: tc.input ?? {},
+          output: tc.output ?? undefined,
+          error: tc.error || undefined,
+          duration: tc.duration || 0,
+        })
+      }
+    }
+
+    if (span.children?.length) {
+      for (const child of span.children) visit(child)
+    }
+  }
+
+  for (const span of spans) visit(span)
+  return collected
 }
 
-function extractOutputAndError(executionData: any): {
+function errorMessageFromSpan(span: TraceSpan): string | undefined {
+  const out = span.output as { error?: unknown } | undefined
+  if (typeof out?.error === 'string') return out.error
+  return undefined
+}
+
+function extractOutputAndError(
+  executionData: { traceSpans?: TraceSpan[] } & Record<string, unknown>
+): {
   output: unknown
   error: string | undefined
   toolCalls: ToolCallDetail[]
   cost: unknown
   tokens: unknown
 } {
-  const traceSpans = executionData?.traceSpans || []
+  const traceSpans = executionData?.traceSpans ?? []
   const mainSpan = traceSpans[0]
 
-  const toolCalls = mainSpan ? extractToolCalls(mainSpan) : []
+  const toolCalls = collectToolCalls(traceSpans)
   const output = mainSpan?.output || executionData?.finalOutput || undefined
   const cost = mainSpan?.cost || executionData?.cost || undefined
   const tokens = mainSpan?.tokens || undefined
@@ -83,9 +124,10 @@ function extractOutputAndError(executionData: any): {
 }
 
 export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]> = {
-  name: 'get_job_logs',
+  name: GetJobLogs.id,
   async execute(rawArgs: GetJobLogsArgs, context?: ServerToolContext): Promise<JobLogEntry[]> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     const {
       jobId,
@@ -103,23 +145,27 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
     }
 
     const wsId = workspaceId || context.workspaceId
-    if (wsId) {
-      const access = await checkWorkspaceAccess(wsId, context.userId)
-      if (!access.hasAccess) {
-        throw new Error('Unauthorized workspace access')
-      }
+    if (!wsId) {
+      throw new Error('Workspace context required')
+    }
+    const access = await checkWorkspaceAccess(wsId, context.userId)
+    if (!access.hasAccess) {
+      throw new Error('Unauthorized workspace access')
     }
 
     const clampedLimit = Math.min(Math.max(1, limit), 5)
 
-    reqLogger.info('Fetching job logs', {
+    logger.info('Fetching job logs', {
       jobId,
       executionId,
       limit: clampedLimit,
       includeDetails,
     })
 
-    const conditions = [eq(jobExecutionLogs.scheduleId, jobId)]
+    const conditions = [
+      eq(jobExecutionLogs.scheduleId, jobId),
+      eq(jobExecutionLogs.workspaceId, wsId),
+    ]
     if (executionId) {
       conditions.push(eq(jobExecutionLogs.executionId, executionId))
     }
@@ -171,7 +217,7 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
       return entry
     })
 
-    reqLogger.info('Job logs prepared', {
+    logger.info('Job logs prepared', {
       jobId,
       count: entries.length,
       resultSizeKB: Math.round(JSON.stringify(entries).length / 1024),

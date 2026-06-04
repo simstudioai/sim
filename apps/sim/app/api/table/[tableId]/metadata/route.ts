@@ -1,30 +1,23 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateTableMetadataContract } from '@/lib/api/contracts/tables'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { TableMetadata } from '@/lib/table'
 import { updateTableMetadata } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableMetadataAPI')
 
-const MetadataSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  metadata: z.object({
-    columnWidths: z.record(z.number().positive()).optional(),
-    columnOrder: z.array(z.string()).optional(),
-  }),
-})
-
 interface TableRouteParams {
   params: Promise<{ tableId: string }>
 }
 
 /** PUT /api/table/[tableId]/metadata - Update table UI metadata (column widths, etc.) */
-export async function PUT(request: NextRequest, { params }: TableRouteParams) {
+export const PUT = withRouteHandler(async (request: NextRequest, context: TableRouteParams) => {
   const requestId = generateRequestId()
-  const { tableId } = await params
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -33,8 +26,13 @@ export async function PUT(request: NextRequest, { params }: TableRouteParams) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validated = MetadataSchema.parse(body)
+    const parsed = await parseRequest(updateTableMetadataContract, request, context, {
+      validationErrorResponse: (error) => validationErrorResponse(error),
+    })
+    if (!parsed.success) return parsed.response
+
+    const { tableId } = parsed.data.params
+    const validated = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -53,14 +51,7 @@ export async function PUT(request: NextRequest, { params }: TableRouteParams) {
 
     return NextResponse.json({ success: true, data: { metadata: updated } })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error updating table metadata:`, error)
     return NextResponse.json({ error: 'Failed to update metadata' }, { status: 500 })
   }
-}
+})

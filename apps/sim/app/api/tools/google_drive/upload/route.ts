@@ -1,11 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { googleDriveUploadContract } from '@/lib/api/contracts/tools/google'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   GOOGLE_WORKSPACE_MIME_TYPES,
   handleSheetsFormat,
@@ -17,14 +21,6 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('GoogleDriveUploadAPI')
 
 const GOOGLE_DRIVE_API_BASE = 'https://www.googleapis.com/upload/drive/v3/files'
-
-const GoogleDriveUploadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  fileName: z.string().min(1, 'File name is required'),
-  file: RawFileInputSchema.optional().nullable(),
-  mimeType: z.string().optional().nullable(),
-  folderId: z.string().optional().nullable(),
-})
 
 /**
  * Build multipart upload body for Google Drive API
@@ -53,13 +49,13 @@ function buildMultipartBody(
   return parts.join('\r\n')
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Google Drive upload attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -77,8 +73,9 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const body = await request.json()
-    const validatedData = GoogleDriveUploadSchema.parse(body)
+    const parsed = await parseRequest(googleDriveUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Uploading file to Google Drive`, {
       fileName: validatedData.fileName,
@@ -107,7 +104,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to process file',
+          error: getErrorMessage(error, 'Failed to process file'),
         },
         { status: 400 }
       )
@@ -119,6 +116,9 @@ export async function POST(request: NextRequest) {
       size: userFile.size,
     })
 
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
+
     let fileBuffer: Buffer
 
     try {
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error: `Failed to download file: ${getErrorMessage(error, 'Unknown error')}`,
         },
         { status: 500 }
       )
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
       metadata.parents = [validatedData.folderId.trim()]
     }
 
-    const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(7)}`
+    const boundary = `boundary_${Date.now()}_${generateShortId(7)}`
 
     const multipartBody = buildMultipartBody(metadata, fileBuffer, uploadMimeType, boundary)
 
@@ -275,26 +275,14 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error uploading file to Google Drive:`, error)
 
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )
   }
-}
+})

@@ -1,19 +1,27 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { v1ListFilesContract, v1UploadFileFormFieldsSchema } from '@/lib/api/contracts/v1/files'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  isPayloadSizeLimitError,
+  readFileToBufferWithLimit,
+  readFormDataWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   FileConflictError,
   getWorkspaceFile,
   listWorkspaceFiles,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  validateWorkspaceAccess,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1FilesAPI')
@@ -22,13 +30,10 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
-
-const ListFilesSchema = z.object({
-  workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
-})
+const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 /** GET /api/v1/files — List all files in a workspace. */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -38,27 +43,13 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = rateLimit.userId!
-    const { searchParams } = new URL(request.url)
+    const parsed = await parseRequest(v1ListFilesContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validation = ListFilesSchema.safeParse({
-      workspaceId: searchParams.get('workspaceId'),
-    })
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Validation error', details: validation.error.errors },
-        { status: 400 }
-      )
-    }
+    const { workspaceId } = parsed.data.query
 
-    const { workspaceId } = validation.data
-
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
-    if (scopeError) return scopeError
-
-    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    if (permission === null) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
+    if (accessError) return accessError
 
     const files = await listWorkspaceFiles(workspaceId)
 
@@ -82,10 +73,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error listing files:`, error)
     return NextResponse.json({ error: 'Failed to list files' }, { status: 500 })
   }
-}
+})
 
 /** POST /api/v1/files — Upload a file to a workspace. */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -98,8 +89,14 @@ export async function POST(request: NextRequest) {
 
     let formData: FormData
     try {
-      formData = await request.formData()
-    } catch {
+      formData = await readFormDataWithLimit(request, {
+        maxBytes: MAX_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES,
+        label: 'workspace file upload body',
+      })
+    } catch (error) {
+      if (isPayloadSizeLimitError(error)) {
+        return NextResponse.json({ error: error.message }, { status: 413 })
+      }
       return NextResponse.json(
         { error: 'Request body must be valid multipart form data' },
         { status: 400 }
@@ -108,11 +105,17 @@ export async function POST(request: NextRequest) {
     const rawFile = formData.get('file')
     const file = rawFile instanceof File ? rawFile : null
     const rawWorkspaceId = formData.get('workspaceId')
-    const workspaceId = typeof rawWorkspaceId === 'string' ? rawWorkspaceId : null
+    const formFieldsResult = v1UploadFileFormFieldsSchema.safeParse({
+      workspaceId: typeof rawWorkspaceId === 'string' ? rawWorkspaceId : '',
+    })
 
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId form field is required' }, { status: 400 })
+    if (!formFieldsResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(formFieldsResult.error, 'Invalid form data') },
+        { status: 400 }
+      )
     }
+    const { workspaceId } = formFieldsResult.data
 
     const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
@@ -126,16 +129,17 @@ export async function POST(request: NextRequest) {
         {
           error: `File size exceeds 100MB limit (${(file.size / (1024 * 1024)).toFixed(2)}MB)`,
         },
-        { status: 400 }
+        { status: 413 }
       )
     }
 
-    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    if (permission === null || permission === 'read') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
+    if (accessError) return accessError
 
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const buffer = await readFileToBufferWithLimit(file, {
+      maxBytes: MAX_FILE_SIZE,
+      label: 'workspace upload file',
+    })
 
     const userFile = await uploadWorkspaceFile(
       workspaceId,
@@ -155,6 +159,7 @@ export async function POST(request: NextRequest) {
       resourceId: userFile.id,
       resourceName: file.name,
       description: `Uploaded file "${file.name}" via API`,
+      metadata: { fileSize: file.size, fileType: file.type || 'application/octet-stream' },
       request,
     })
 
@@ -182,7 +187,11 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
+    if (isPayloadSizeLimitError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 413 })
+    }
+
+    const errorMessage = getErrorMessage(error, 'Failed to upload file')
     const isDuplicate =
       error instanceof FileConflictError || errorMessage.includes('already exists')
 
@@ -193,4 +202,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error uploading file:`, error)
     return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
   }
-}
+})

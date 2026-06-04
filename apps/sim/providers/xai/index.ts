@@ -1,9 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   Message,
   ProviderConfig,
@@ -74,6 +77,7 @@ export const xAIProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'xai') as Message[]
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
           type: 'function',
@@ -91,7 +95,7 @@ export const xAIProvider: ProviderConfig = {
     }
     const basePayload: any = {
       model: request.model,
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) basePayload.temperature = request.temperature
@@ -155,7 +159,7 @@ export const xAIProvider: ProviderConfig = {
               timeSegments: [
                 {
                   type: 'model',
-                  name: 'Streaming response',
+                  name: request.model,
                   startTime: providerStartTime,
                   endTime: Date.now(),
                   duration: Date.now() - providerStartTime,
@@ -217,7 +221,7 @@ export const xAIProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
 
       let hasUsedForcedTool = false
@@ -226,7 +230,7 @@ export const xAIProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -250,6 +254,14 @@ export const xAIProvider: ProviderConfig = {
           }
 
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            toolCallsInResponse,
+            { model: request.model, provider: 'xai' }
+          )
+
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             break
           }
@@ -269,7 +281,9 @@ export const xAIProvider: ProviderConfig = {
               }
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams)
+              const result = await executeTool(toolName, executionParams, {
+                signal: request.abortSignal,
+              })
               const toolCallEndTime = Date.now()
 
               return {
@@ -284,7 +298,7 @@ export const xAIProvider: ProviderConfig = {
             } catch (error) {
               const toolCallEndTime = Date.now()
               logger.error('XAI Provider - Error processing tool call:', {
-                error: error instanceof Error ? error.message : String(error),
+                error: toError(error).message,
                 toolCall: toolCall.function.name,
               })
 
@@ -295,7 +309,7 @@ export const xAIProvider: ProviderConfig = {
                 result: {
                   success: false,
                   output: undefined,
-                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                  error: getErrorMessage(error, 'Tool execution failed'),
                 },
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -330,6 +344,7 @@ export const xAIProvider: ProviderConfig = {
               startTime: startTime,
               endTime: endTime,
               duration: duration,
+              toolCallId: toolCall.id,
             })
             let resultContent: any
             if (result.success && result.output) {
@@ -440,7 +455,7 @@ export const xAIProvider: ProviderConfig = {
           const thisModelTime = nextModelEndTime - nextModelStartTime
           timeSegments.push({
             type: 'model',
-            name: `Model response (iteration ${iterationCount + 1})`,
+            name: request.model,
             startTime: nextModelStartTime,
             endTime: nextModelEndTime,
             duration: thisModelTime,
@@ -460,9 +475,18 @@ export const xAIProvider: ProviderConfig = {
 
           iterationCount++
         }
+
+        if (iterationCount === MAX_TOOL_ITERATIONS) {
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            currentResponse.choices[0]?.message?.tool_calls,
+            { model: request.model, provider: 'xai' }
+          )
+        }
       } catch (error) {
         logger.error('XAI Provider - Error in tool processing loop:', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
           iterationCount,
         })
       }
@@ -599,13 +623,13 @@ export const xAIProvider: ProviderConfig = {
       const totalDuration = providerEndTime - providerStartTime
 
       logger.error('XAI Provider - Request failed:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         duration: totalDuration,
         hasTools: !!tools?.length,
         hasResponseFormat: !!request.responseFormat,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
@@ -613,3 +637,8 @@ export const xAIProvider: ProviderConfig = {
     }
   },
 }
+
+/**
+ * Enriches the last model segment with per-iteration content from a Chat
+ * Completions response: assistant text, tool calls, finish reason, token usage.
+ */

@@ -33,6 +33,8 @@ export interface LoopPauseScope {
   iteration: number
 }
 
+export type PauseKind = 'human' | 'time'
+
 export interface PauseMetadata {
   contextId: string
   blockId: string
@@ -47,6 +49,9 @@ export interface PauseMetadata {
     executionId: string
     workflowId: string
   }
+  pauseKind: PauseKind
+  /** ISO timestamp at which a `pauseKind: 'time'` pause becomes due for automatic resume. */
+  resumeAt?: string
 }
 
 export type ResumeStatus = 'paused' | 'resumed' | 'failed' | 'queued' | 'resuming'
@@ -67,6 +72,8 @@ export interface PausePoint {
     executionId: string
     workflowId: string
   }
+  pauseKind: PauseKind
+  resumeAt?: string
 }
 
 export interface SerializedSnapshot {
@@ -74,19 +81,118 @@ export interface SerializedSnapshot {
   triggerIds: string[]
 }
 
+/**
+ * Identifies a tool call emitted by a model iteration. Matches the
+ * `tool_call.id` convention used by OpenAI, Anthropic, and the OTel GenAI
+ * spec so tool segments can be correlated back to the iteration that issued
+ * them.
+ */
+export interface IterationToolCall {
+  id: string
+  name: string
+  arguments: Record<string, unknown> | string
+}
+
+/**
+ * A single phase of provider execution (model call or tool invocation).
+ *
+ * Providers emit these per iteration. Model segments carry the assistant's
+ * output for that iteration (text, thinking, tool_calls, tokens, finish
+ * reason) so the trace reveals *why* each tool was invoked — not just that
+ * it was. All content fields are optional; providers fill in what they have.
+ */
+export interface ProviderTimingSegment {
+  type: 'model' | 'tool'
+  name?: string
+  startTime: number
+  endTime: number
+  duration: number
+  assistantContent?: string
+  thinkingContent?: string
+  toolCalls?: IterationToolCall[]
+  toolCallId?: string
+  finishReason?: string
+  tokens?: BlockTokens
+  /** Cost for this segment in USD, derived from tokens + model pricing. */
+  cost?: { input?: number; output?: number; total?: number }
+  /** Time-to-first-token in ms (streaming only; first segment typically). */
+  ttft?: number
+  /** Provider system identifier (anthropic, openai, gemini, etc.) — `gen_ai.system`. */
+  provider?: string
+  /** Structured error class (e.g. `rate_limit`, `context_length`). */
+  errorType?: string
+  /** Human-readable error message when this segment failed. */
+  errorMessage?: string
+}
+
+/** Timing info reported by an LLM provider for a single block execution. */
+interface BlockProviderTiming {
+  startTime: string
+  endTime: string
+  duration: number
+  modelTime?: number
+  toolsTime?: number
+  firstResponseTime?: number
+  iterations?: number
+  timeSegments?: ProviderTimingSegment[]
+}
+
+/** Cost breakdown from provider usage. */
+interface BlockCost {
+  input: number
+  output: number
+  total: number
+  toolCost?: number
+  pricing?: {
+    input: number
+    output: number
+    cachedInput?: number
+    updatedAt: string
+  }
+}
+
+/** Token usage from provider. `prompt`/`completion` are legacy aliases. */
+export interface BlockTokens {
+  input?: number
+  output?: number
+  total?: number
+  prompt?: number
+  completion?: number
+  /** Input tokens served from the provider's prompt cache. */
+  cacheRead?: number
+  /** Input tokens newly written to the provider's prompt cache. */
+  cacheWrite?: number
+  /** Output tokens consumed by reasoning/thinking (o-series, Claude, Gemini). */
+  reasoning?: number
+}
+
+/** A single tool invocation recorded by an agent-type block. */
+export interface BlockToolCall {
+  name: string
+  duration?: number
+  startTime?: string
+  endTime?: string
+  error?: string
+  arguments?: Record<string, unknown>
+  input?: Record<string, unknown>
+  result?: Record<string, unknown>
+  output?: Record<string, unknown>
+}
+
+/** Normalized tool-call container emitted by providers. */
+interface BlockToolCalls {
+  list: BlockToolCall[]
+  count: number
+}
+
 export interface NormalizedBlockOutput {
   [key: string]: any
   content?: string
   model?: string
-  tokens?: {
-    input?: number
-    output?: number
-    total?: number
-  }
-  toolCalls?: {
-    list: any[]
-    count: number
-  }
+  tokens?: BlockTokens
+  toolCalls?: BlockToolCalls
+  providerTiming?: BlockProviderTiming
+  cost?: BlockCost
   files?: UserFile[]
   selectedPath?: {
     blockId: string
@@ -107,6 +213,15 @@ export interface NormalizedBlockOutput {
   _pauseMetadata?: PauseMetadata
 }
 
+export const EXECUTION_CONTROL_OUTPUT_FIELD_NAMES = [
+  'error',
+  'selectedOption',
+  'selectedRoute',
+  '_pauseMetadata',
+] as const
+
+export type ExecutionControlOutputFieldName = (typeof EXECUTION_CONTROL_OUTPUT_FIELD_NAMES)[number]
+
 export interface BlockLog {
   blockId: string
   blockName?: string
@@ -115,8 +230,8 @@ export interface BlockLog {
   endedAt: string
   durationMs: number
   success: boolean
-  output?: any
-  input?: any
+  output?: NormalizedBlockOutput
+  input?: Record<string, unknown>
   error?: string
   /** Whether this error was handled by an error handler path (error port) */
   errorHandled?: boolean
@@ -138,7 +253,7 @@ export interface BlockLog {
   childTraceSpans?: TraceSpan[]
 }
 
-export interface ExecutionMetadata {
+interface ExecutionMetadata {
   requestId?: string
   workflowId?: string
   workspaceId?: string
@@ -150,6 +265,8 @@ export interface ExecutionMetadata {
   context?: ExecutionContext
   workflowConnections?: Array<{ source: string; target: string }>
   credentialAccountUserId?: string
+  largeValueKeys?: string[]
+  fileKeys?: string[]
   status?: 'running' | 'paused' | 'completed'
   pausePoints?: string[]
   resumeChain?: {
@@ -162,6 +279,7 @@ export interface ExecutionMetadata {
   triggerBlockId?: string
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
+  resumeTerminalNoop?: boolean
 }
 
 export interface BlockState {
@@ -174,9 +292,14 @@ export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
   executionId?: string
+  largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
+  allowLargeValueWorkflowScope?: boolean
   userId?: string
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
+  copilotToolExecution?: boolean
 
   permissionConfig?: PermissionGroupConfig | null
   permissionConfigLoaded?: boolean
@@ -218,6 +341,7 @@ export interface ExecutionContext {
       items?: any[]
       condition?: string
       skipFirstConditionCheck?: boolean
+      skippedAtStart?: boolean
       loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
     }
   >
@@ -227,11 +351,15 @@ export interface ExecutionContext {
     {
       parallelId: string
       totalBranches: number
+      batchSize?: number
+      currentBatchStart?: number
+      currentBatchSize?: number
+      accumulatedOutputs?: Map<number, any[]>
       branchOutputs: Map<number, any[]>
-      completedCount: number
-      totalExpectedNodes: number
       parallelType?: 'count' | 'collection'
       items?: any[]
+      validationError?: string
+      isEmpty?: boolean
     }
   >
 
@@ -280,8 +408,9 @@ export interface ExecutionContext {
     blockId: string,
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
-    executionOrder?: number
-  ) => void
+    executionOrder?: number,
+    childWorkflowContext?: ChildWorkflowContext
+  ) => Promise<void>
 
   /**
    * AbortSignal for cancellation support.
@@ -289,9 +418,6 @@ export interface ExecutionContext {
    * This is triggered when the SSE client disconnects.
    */
   abortSignal?: AbortSignal
-
-  // Dynamically added nodes that need to be scheduled (e.g., from parallel expansion)
-  pendingDynamicNodes?: string[]
 
   /**
    * When true, UserFile objects in block outputs will be hydrated with base64 content
@@ -360,9 +486,15 @@ export interface ExecutionResult {
 export interface StreamingExecution {
   stream: ReadableStream
   execution: ExecutionResult & { isStreaming?: boolean }
+  /**
+   * Invoked with the assembled response text after the stream drains. Lets agent
+   * blocks persist the full response without interposing a TransformStream on a
+   * fetch-backed source — that pattern amplifies memory on Bun via #28035.
+   */
+  onFullContent?: (content: string) => void | Promise<void>
 }
 
-export interface BlockExecutor {
+interface BlockExecutor {
   canExecute(block: SerializedBlock): boolean
 
   execute(
@@ -398,7 +530,7 @@ export interface BlockHandler {
   ) => Promise<BlockOutput | StreamingExecution>
 }
 
-export interface Tool<P = any, O = Record<string, any>> {
+interface Tool<P = any, O = Record<string, any>> {
   id: string
   name: string
   description: string
@@ -427,7 +559,7 @@ export interface Tool<P = any, O = Record<string, any>> {
   }>
 }
 
-export interface ToolRegistry {
+interface ToolRegistry {
   [key: string]: Tool
 }
 

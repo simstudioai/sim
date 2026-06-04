@@ -4,8 +4,7 @@ This directory contains scripts to automatically generate documentation for all 
 
 ## Available Scripts
 
-- `generate-docs.sh`: Generates documentation for all blocks
-- `setup-doc-generator.sh`: Installs dependencies required for the documentation generator
+- `generate-docs.ts`: Generates documentation for all blocks. Run via `bun run generate-docs` from `apps/sim`, or directly with `bun run scripts/generate-docs.ts` from the repo root.
 
 ## How It Works
 
@@ -21,32 +20,12 @@ The documentation generator:
 
 ## Running the Generator
 
-To generate documentation manually:
-
 ```bash
-# From the project root
-./scripts/generate-docs.sh
+# From the repo root
+bun run scripts/generate-docs.ts
 ```
 
-## Troubleshooting TypeScript Errors
-
-If you encounter TypeScript errors when running the documentation generator, run the setup script to install the necessary dependencies:
-
-```bash
-./scripts/setup-doc-generator.sh
-```
-
-This will:
-
-1. Install TypeScript, ts-node, and necessary type definitions
-2. Create a proper tsconfig.json for the scripts directory
-3. Configure the scripts directory to use ES modules
-
-### Common Issues
-
-1. **Missing Type Declarations**: Run the setup script to install @types/node and @types/react
-2. **JSX Errors in block-info-card.tsx**: These don't affect functionality and can be ignored if you've run the setup script
-3. **Module Resolution**: The setup script configures proper ES module support
+Dependencies are managed by Bun workspaces — `bun install` at the repo root installs everything needed.
 
 ## CI Integration
 

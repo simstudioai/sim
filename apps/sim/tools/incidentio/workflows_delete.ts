@@ -23,7 +23,7 @@ export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDel
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/workflows/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/workflows/${params.id.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',

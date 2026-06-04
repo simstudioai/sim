@@ -1,36 +1,27 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { dropboxUploadContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { httpHeaderSafeJson } from '@/lib/core/utils/validation'
-import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('DropboxUploadAPI')
 
-const DropboxUploadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  path: z.string().min(1, 'Destination path is required'),
-  file: FileInputSchema.optional().nullable(),
-  // Legacy field for backwards compatibility
-  fileContent: z.string().optional().nullable(),
-  fileName: z.string().optional().nullable(),
-  mode: z.enum(['add', 'overwrite']).optional().nullable(),
-  autorename: z.boolean().optional().nullable(),
-  mute: z.boolean().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Dropbox upload attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
@@ -40,8 +31,9 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Authenticated Dropbox upload request via ${authResult.authType}`)
 
-    const body = await request.json()
-    const validatedData = DropboxUploadSchema.parse(body)
+    const parsed = await parseRequest(dropboxUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     let fileBuffer: Buffer
     let fileName: string
@@ -62,6 +54,8 @@ export async function POST(request: NextRequest) {
       const userFile = userFiles[0]
       logger.info(`[${requestId}] Downloading file: ${userFile.name} (${userFile.size} bytes)`)
 
+      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+      if (denied) return denied
       fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
       fileName = userFile.name
     } else if (validatedData.fileContent) {
@@ -115,18 +109,10 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Validation error:`, error.errors)
-      return NextResponse.json(
-        { success: false, error: error.errors[0]?.message || 'Validation failed' },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Unexpected error:`, error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: getErrorMessage(error, 'Unknown error') },
       { status: 500 }
     )
   }
-}
+})

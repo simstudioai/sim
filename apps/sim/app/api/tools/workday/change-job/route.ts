@@ -1,29 +1,18 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { workdayChangeJobContract } from '@/lib/api/contracts/tools/workday'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkdaySoapClient, extractRefId, wdRef } from '@/tools/workday/soap'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkdayChangeJobAPI')
 
-const RequestSchema = z.object({
-  tenantUrl: z.string().min(1),
-  tenant: z.string().min(1),
-  username: z.string().min(1),
-  password: z.string().min(1),
-  workerId: z.string().min(1),
-  effectiveDate: z.string().min(1),
-  newPositionId: z.string().optional(),
-  newJobProfileId: z.string().optional(),
-  newLocationId: z.string().optional(),
-  newSupervisoryOrgId: z.string().optional(),
-  reason: z.string().min(1, 'Reason is required for job changes'),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -32,8 +21,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const data = RequestSchema.parse(body)
+    const parsed = await parseRequest(workdayChangeJobContract, request, {})
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     const changeJobDetailData: Record<string, unknown> = {
       Reason_Reference: wdRef('Change_Job_Subcategory_ID', data.reason),
@@ -87,8 +77,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error(`[${requestId}] Workday change job failed`, { error })
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: getErrorMessage(error, 'Unknown error') },
       { status: 500 }
     )
   }
-}
+})

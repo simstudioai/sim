@@ -1,34 +1,9 @@
-import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import type {
+  ShopifyCollectionsResponse,
+  ShopifyListCollectionsParams,
+} from '@/tools/shopify/types'
 import { COLLECTION_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface ShopifyListCollectionsParams extends ShopifyBaseParams {
-  first?: number
-  query?: string
-}
-
-interface ShopifyCollectionsResponse extends ToolResponse {
-  output: {
-    collections?: Array<{
-      id: string
-      title: string
-      handle: string
-      description: string | null
-      descriptionHtml: string | null
-      productsCount: number
-      sortOrder: string
-      updatedAt: string
-      image: {
-        url: string
-        altText: string | null
-      } | null
-    }>
-    pageInfo?: {
-      hasNextPage: boolean
-      hasPreviousPage: boolean
-    }
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const shopifyListCollectionsTool: ToolConfig<
   ShopifyListCollectionsParams,
@@ -100,6 +75,7 @@ export const shopifyListCollectionsTool: ToolConfig<
                   sortOrder
                   updatedAt
                   image {
+                    id
                     url
                     altText
                   }
@@ -151,7 +127,7 @@ export const shopifyListCollectionsTool: ToolConfig<
           productsCount: { count: number }
           sortOrder: string
           updatedAt: string
-          image: { url: string; altText: string | null } | null
+          image: { id: string; url: string; altText: string | null } | null
         }
       }) => ({
         id: edge.node.id,

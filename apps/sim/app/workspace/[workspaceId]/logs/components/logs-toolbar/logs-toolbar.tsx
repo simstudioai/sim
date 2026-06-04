@@ -9,18 +9,23 @@ import {
   Button,
   Combobox,
   type ComboboxOption,
+  DatePicker,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   Loader,
 } from '@/components/emcn'
-import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { captureEvent } from '@/lib/posthog/client'
-import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
+import {
+  formatDateShort,
+  type LogStatus,
+  STATUS_CONFIG,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -41,28 +46,6 @@ const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'Past 30 days', label: 'Past 30 days' },
   { value: 'Custom range', label: 'Custom range' },
 ] as const
-
-/**
- * Formats a date string (YYYY-MM-DD) for display.
- */
-function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
-}
 
 type ViewMode = 'logs' | 'dashboard'
 
@@ -124,7 +107,7 @@ function getColorIcon(
         width: 10,
         height: 10,
         ...(withRing && {
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box' as const,
         }),
       }}
@@ -223,6 +206,7 @@ export const LogsToolbar = memo(function LogsToolbar({
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
+  const dateRangeAppliedRef = useRef(false)
   const { data: folders = {} } = useFolderMap(workspaceId)
 
   const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
@@ -248,11 +232,13 @@ export const LogsToolbar = memo(function LogsToolbar({
 
   const statusOptions: ComboboxOption[] = useMemo(
     () =>
-      (Object.keys(STATUS_CONFIG) as LogStatus[]).map((status) => ({
-        value: status,
-        label: STATUS_CONFIG[status].label,
-        icon: getColorIcon(STATUS_CONFIG[status].color),
-      })),
+      (Object.keys(STATUS_CONFIG) as LogStatus[])
+        .filter((status) => STATUS_CONFIG[status].filterable)
+        .map((status) => ({
+          value: status,
+          label: STATUS_CONFIG[status].label,
+          icon: getColorIcon(STATUS_CONFIG[status].color),
+        })),
     []
   )
 
@@ -304,34 +290,29 @@ export const LogsToolbar = memo(function LogsToolbar({
     [setTriggers, workspaceId]
   )
 
-  const statusDisplayLabel = useMemo(() => {
-    if (selectedStatuses.length === 0) return 'Status'
-    if (selectedStatuses.length === 1) {
-      const status = statusOptions.find((s) => s.value === selectedStatuses[0])
-      return status?.label || '1 selected'
-    }
-    return `${selectedStatuses.length} selected`
-  }, [selectedStatuses, statusOptions])
+  const statusDisplayLabel =
+    selectedStatuses.length === 0
+      ? 'Status'
+      : selectedStatuses.length === 1
+        ? (statusOptions.find((s) => s.value === selectedStatuses[0])?.label ?? '1 selected')
+        : `${selectedStatuses.length} selected`
 
-  const selectedStatusColor = useMemo(() => {
-    if (selectedStatuses.length !== 1) return null
-    const status = selectedStatuses[0] as LogStatus
-    return STATUS_CONFIG[status]?.color ?? null
-  }, [selectedStatuses])
+  const selectedStatusColor =
+    selectedStatuses.length === 1
+      ? (STATUS_CONFIG[selectedStatuses[0] as LogStatus]?.color ?? null)
+      : null
 
   const workflowOptions: ComboboxOption[] = useMemo(
     () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color, true) })),
     [workflows]
   )
 
-  const workflowDisplayLabel = useMemo(() => {
-    if (workflowIds.length === 0) return 'Workflow'
-    if (workflowIds.length === 1) {
-      const workflow = workflows.find((w) => w.id === workflowIds[0])
-      return workflow?.name || '1 selected'
-    }
-    return `${workflowIds.length} workflows`
-  }, [workflowIds, workflows])
+  const workflowDisplayLabel =
+    workflowIds.length === 0
+      ? 'Workflow'
+      : workflowIds.length === 1
+        ? (workflows.find((w) => w.id === workflowIds[0])?.name ?? '1 selected')
+        : `${workflowIds.length} workflows`
 
   const selectedWorkflow =
     workflowIds.length === 1 ? workflows.find((w) => w.id === workflowIds[0]) : null
@@ -341,14 +322,12 @@ export const LogsToolbar = memo(function LogsToolbar({
     [folderList]
   )
 
-  const folderDisplayLabel = useMemo(() => {
-    if (folderIds.length === 0) return 'Folder'
-    if (folderIds.length === 1) {
-      const folder = folderList.find((f) => f.id === folderIds[0])
-      return folder?.name || '1 selected'
-    }
-    return `${folderIds.length} folders`
-  }, [folderIds, folderList])
+  const folderDisplayLabel =
+    folderIds.length === 0
+      ? 'Folder'
+      : folderIds.length === 1
+        ? (folderList.find((f) => f.id === folderIds[0])?.name ?? '1 selected')
+        : `${folderIds.length} folders`
 
   const triggerOptions: ComboboxOption[] = useMemo(
     () =>
@@ -360,23 +339,21 @@ export const LogsToolbar = memo(function LogsToolbar({
     []
   )
 
-  const triggerDisplayLabel = useMemo(() => {
-    if (triggers.length === 0) return 'Trigger'
-    if (triggers.length === 1) {
-      const trigger = triggerOptions.find((t) => t.value === triggers[0])
-      return trigger?.label || '1 selected'
-    }
-    return `${triggers.length} triggers`
-  }, [triggers, triggerOptions])
+  const triggerDisplayLabel =
+    triggers.length === 0
+      ? 'Trigger'
+      : triggers.length === 1
+        ? (triggerOptions.find((t) => t.value === triggers[0])?.label ?? '1 selected')
+        : `${triggers.length} triggers`
 
-  const timeDisplayLabel = useMemo(() => {
-    if (timeRange === 'All time') return 'Time'
-    if (timeRange === 'Custom range' && startDate && endDate) {
-      return `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`
-    }
-    if (timeRange === 'Custom range') return 'Custom range'
-    return timeRange
-  }, [timeRange, startDate, endDate])
+  const timeDisplayLabel =
+    timeRange === 'All time'
+      ? 'Time'
+      : timeRange === 'Custom range' && startDate && endDate
+        ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`
+        : timeRange === 'Custom range'
+          ? 'Custom range'
+          : timeRange
 
   /**
    * Handles time range selection from combobox.
@@ -402,27 +379,25 @@ export const LogsToolbar = memo(function LogsToolbar({
   /**
    * Handles date range selection from DatePicker.
    */
-  const handleDateRangeApply = useCallback(
-    (start: string, end: string) => {
-      setDateRange(start, end)
-      setDatePickerOpen(false)
-      captureEvent(posthogRef.current, 'logs_filter_applied', {
-        filter_type: 'time',
-        workspace_id: workspaceId,
-      })
-    },
-    [setDateRange, workspaceId]
-  )
+  function handleDateRangeApply(start: string, end: string) {
+    dateRangeAppliedRef.current = true
+    setDateRange(start, end)
+    setDatePickerOpen(false)
+    captureEvent(posthogRef.current, 'logs_filter_applied', {
+      filter_type: 'time',
+      workspace_id: workspaceId,
+    })
+  }
 
   /**
    * Handles date picker cancel.
    */
-  const handleDatePickerCancel = useCallback(() => {
+  function handleDatePickerCancel() {
     if (timeRange === 'Custom range' && !startDate) {
       setTimeRange(previousTimeRange)
     }
     setDatePickerOpen(false)
-  }, [timeRange, startDate, previousTimeRange, setTimeRange])
+  }
 
   const filtersActive = useMemo(
     () =>
@@ -437,18 +412,18 @@ export const LogsToolbar = memo(function LogsToolbar({
     [timeRange, level, workflowIds, folderIds, triggers, searchQuery]
   )
 
-  const handleClearFilters = useCallback(() => {
+  function handleClearFilters() {
     resetFilters()
     onSearchQueryChange('')
-  }, [resetFilters, onSearchQueryChange])
+  }
 
   return (
     <div className='flex flex-col gap-[19px]'>
       {/* Header Section */}
       <div className='flex items-start justify-between'>
         <div className='flex items-start gap-3'>
-          <div className='flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
-            <Library className='h-[14px] w-[14px] text-[#D4A843] dark:text-[#FBBC04]' />
+          <div className='flex size-[26px] items-center justify-center rounded-md border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
+            <Library className='size-[14px] text-[#D4A843] dark:text-[#FBBC04]' />
           </div>
           <h1 className='font-medium text-lg'>Logs</h1>
         </div>
@@ -456,18 +431,18 @@ export const LogsToolbar = memo(function LogsToolbar({
           {/* More options menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant='default' className='h-[32px] w-[32px] rounded-md p-0'>
-                <MoreHorizontal className='h-[14px] w-[14px]' />
+              <Button variant='default' className='size-[32px] rounded-md p-0'>
+                <MoreHorizontal className='size-[14px]' />
                 <span className='sr-only'>More options</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end' sideOffset={4}>
               <DropdownMenuItem onSelect={onExport} disabled={!canEdit || isExporting || !hasLogs}>
-                <ArrowUp className='h-3 w-3' />
+                <ArrowUp className='size-3' />
                 <span>Export as CSV</span>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={onOpenNotificationSettings}>
-                <Bell className='h-3 w-3' />
+                <Bell className='size-3' />
                 <span>Configure Notifications</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -481,9 +456,9 @@ export const LogsToolbar = memo(function LogsToolbar({
             disabled={isRefreshing}
           >
             {isRefreshing ? (
-              <Loader className='h-[14px] w-[14px]' animate />
+              <Loader className='size-[14px]' animate />
             ) : (
-              <RefreshCw className='h-[14px] w-[14px]' />
+              <RefreshCw className='size-[14px]' />
             )}
           </Button>
 
@@ -500,16 +475,14 @@ export const LogsToolbar = memo(function LogsToolbar({
           </Button>
 
           {/* View mode toggle */}
-          <div
-            className='flex h-[32px] cursor-pointer items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-0.5'
-            onClick={() => onViewModeChange(isDashboardView ? 'logs' : 'dashboard')}
-          >
+          <div className='flex h-[32px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-0.5'>
             <Button
               variant={!isDashboardView ? 'active' : 'ghost'}
               className={cn(
                 'h-[26px] rounded-sm px-2.5',
                 isDashboardView && 'border border-transparent'
               )}
+              onClick={() => onViewModeChange('logs')}
             >
               Logs
             </Button>
@@ -519,6 +492,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                 'h-[26px] rounded-sm px-2.5',
                 !isDashboardView && 'border border-transparent'
               )}
+              onClick={() => onViewModeChange('dashboard')}
             >
               Dashboard
             </Button>
@@ -601,10 +575,10 @@ export const LogsToolbar = memo(function LogsToolbar({
                       <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                         {selectedWorkflow && (
                           <div
-                            className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
+                            className='size-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                             style={{
                               backgroundColor: selectedWorkflow.color,
-                              borderColor: `${selectedWorkflow.color}60`,
+                              borderColor: workflowBorderColor(selectedWorkflow.color),
                               backgroundClip: 'padding-box',
                             }}
                           />
@@ -677,7 +651,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     Time Range
                   </span>
                   <Combobox
-                    options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
+                    options={TIME_RANGE_OPTIONS}
                     value={timeRange}
                     onChange={handleTimeRangeChange}
                     placeholder='All time'
@@ -732,10 +706,10 @@ export const LogsToolbar = memo(function LogsToolbar({
                 <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                   {selectedWorkflow && (
                     <div
-                      className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
+                      className='size-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                       style={{
                         backgroundColor: selectedWorkflow.color,
-                        borderColor: `${selectedWorkflow.color}60`,
+                        borderColor: workflowBorderColor(selectedWorkflow.color),
                         backgroundClip: 'padding-box',
                       }}
                     />
@@ -791,42 +765,40 @@ export const LogsToolbar = memo(function LogsToolbar({
             />
 
             {/* Timeline Filter */}
-            <DropdownMenu open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-              <DropdownMenuTrigger asChild>
-                <div>
-                  <Combobox
-                    options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
-                    value={timeRange}
-                    onChange={handleTimeRangeChange}
-                    placeholder='Time'
-                    overlayContent={
-                      <span className='truncate text-[var(--text-primary)]'>
-                        {timeDisplayLabel}
-                      </span>
-                    }
-                    size='sm'
-                    align='end'
-                    className='h-[32px] w-[120px] rounded-md'
-                  />
-                </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side='bottom'
+            <div className='relative'>
+              <Combobox
+                options={TIME_RANGE_OPTIONS}
+                value={timeRange}
+                onChange={handleTimeRangeChange}
+                placeholder='Time'
+                overlayContent={
+                  <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+                }
+                size='sm'
                 align='end'
-                sideOffset={4}
-                collisionPadding={16}
-                className='w-auto p-0'
-              >
-                <DatePicker
-                  mode='range'
-                  startDate={startDate}
-                  endDate={endDate}
-                  onRangeChange={handleDateRangeApply}
-                  onCancel={handleDatePickerCancel}
-                  inline
-                />
-              </DropdownMenuContent>
-            </DropdownMenu>
+                className='h-[32px] w-[160px] rounded-md'
+                maxHeight={320}
+              />
+              <DatePicker
+                mode='range'
+                showTrigger={false}
+                showTime
+                open={datePickerOpen}
+                onOpenChange={(isOpen) => {
+                  if (!isOpen) {
+                    if (dateRangeAppliedRef.current) {
+                      dateRangeAppliedRef.current = false
+                    } else {
+                      handleDatePickerCancel()
+                    }
+                  }
+                }}
+                startDate={startDate}
+                endDate={endDate}
+                onRangeChange={handleDateRangeApply}
+                onCancel={handleDatePickerCancel}
+              />
+            </div>
           </div>
         </div>
       </div>

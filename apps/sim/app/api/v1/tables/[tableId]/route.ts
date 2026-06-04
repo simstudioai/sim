@@ -1,7 +1,10 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { v1DeleteTableContract, v1GetTableContract } from '@/lib/api/contracts/v1/tables'
+import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteTable, type TableSchema } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
 import {
@@ -20,7 +23,7 @@ interface TableRouteParams {
 }
 
 /** GET /api/v1/tables/[tableId] — Get table details. */
-export async function GET(request: NextRequest, { params }: TableRouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, context: TableRouteParams) => {
   const requestId = generateRequestId()
 
   try {
@@ -30,16 +33,23 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
     }
 
     const userId = rateLimit.userId!
-    const { tableId } = await params
-    const { searchParams } = new URL(request.url)
-    const workspaceId = searchParams.get('workspaceId')
+    const parsed = await parseRequest(v1GetTableContract, request, context, {
+      validationErrorResponse: (error) => {
+        const hasInvalidTableId = error.issues.some((issue) => issue.path.includes('tableId'))
+        return NextResponse.json(
+          {
+            error: hasInvalidTableId
+              ? 'Invalid table ID'
+              : 'workspaceId query parameter is required',
+          },
+          { status: 400 }
+        )
+      },
+    })
+    if (!parsed.success) return parsed.response
 
-    if (!workspaceId) {
-      return NextResponse.json(
-        { error: 'workspaceId query parameter is required' },
-        { status: 400 }
-      )
-    }
+    const { tableId } = parsed.data.params
+    const { workspaceId } = parsed.data.query
 
     const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
@@ -82,10 +92,10 @@ export async function GET(request: NextRequest, { params }: TableRouteParams) {
     logger.error(`[${requestId}] Error getting table:`, error)
     return NextResponse.json({ error: 'Failed to get table' }, { status: 500 })
   }
-}
+})
 
 /** DELETE /api/v1/tables/[tableId] — Archive a table. */
-export async function DELETE(request: NextRequest, { params }: TableRouteParams) {
+export const DELETE = withRouteHandler(async (request: NextRequest, context: TableRouteParams) => {
   const requestId = generateRequestId()
 
   try {
@@ -95,16 +105,23 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
     }
 
     const userId = rateLimit.userId!
-    const { tableId } = await params
-    const { searchParams } = new URL(request.url)
-    const workspaceId = searchParams.get('workspaceId')
+    const parsed = await parseRequest(v1DeleteTableContract, request, context, {
+      validationErrorResponse: (error) => {
+        const hasInvalidTableId = error.issues.some((issue) => issue.path.includes('tableId'))
+        return NextResponse.json(
+          {
+            error: hasInvalidTableId
+              ? 'Invalid table ID'
+              : 'workspaceId query parameter is required',
+          },
+          { status: 400 }
+        )
+      },
+    })
+    if (!parsed.success) return parsed.response
 
-    if (!workspaceId) {
-      return NextResponse.json(
-        { error: 'workspaceId query parameter is required' },
-        { status: 400 }
-      )
-    }
+    const { tableId } = parsed.data.params
+    const { workspaceId } = parsed.data.query
 
     const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
@@ -139,4 +156,4 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
     logger.error(`[${requestId}] Error deleting table:`, error)
     return NextResponse.json({ error: 'Failed to delete table' }, { status: 500 })
   }
-}
+})

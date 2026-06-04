@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { EventEmitter } from 'node:events'
-import { loggerMock } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+  redisConfigMock,
+  redisConfigMockFns,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -77,6 +82,54 @@ function createReadyProcWithDelay(delayMs: number): MockProc {
   return proc
 }
 
+type ControllableReadyProc = {
+  spawn: SpawnFactory
+  dispatched: Promise<void>
+  release: (result?: unknown) => void
+}
+
+/**
+ * A ready worker whose execution is held open until {@link ControllableReadyProc.release}
+ * is called. {@link ControllableReadyProc.dispatched} resolves the moment the worker
+ * receives its `execute` message — i.e. once the scheduler has counted the execution as
+ * active — giving tests a deterministic, event-driven signal that the concurrency slot is
+ * occupied without relying on wall-clock delays. The proc is built inside {@link spawn} so
+ * its `ready` event is emitted only after the module attaches its listeners.
+ */
+function createControllableReadyProc(): ControllableReadyProc {
+  let markDispatched: () => void = () => {}
+  const dispatched = new Promise<void>((resolve) => {
+    markDispatched = resolve
+  })
+  let proc: MockProc | undefined
+  let lastExecutionId = 0
+
+  const spawn: SpawnFactory = () => {
+    const current = createBaseProc()
+    current.send = (message: unknown) => {
+      const msg = message as { type?: string; executionId?: number }
+      if (msg.type === 'execute') {
+        lastExecutionId = msg.executionId ?? 0
+        markDispatched()
+      }
+      return true
+    }
+    setImmediate(() => current.emit('message', { type: 'ready' }))
+    proc = current
+    return current
+  }
+
+  const release = (result: unknown = 'released') => {
+    proc?.emit('message', {
+      type: 'result',
+      executionId: lastExecutionId,
+      result: { result, stdout: '' },
+    })
+  }
+
+  return { spawn, dispatched, release }
+}
+
 function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: string }): MockProc {
   const proc = createBaseProc()
   let currentExecutionId = 0
@@ -117,54 +170,41 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
   return proc
 }
 
-const { mockSpawn, mockExecSync, mockSecureFetch, mockSanitizeUrl, mockGetRedisClient, mockEnv } =
-  vi.hoisted(() => ({
-    mockSpawn: vi.fn(),
-    mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
-    mockSecureFetch: vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: new Map<string, string>(),
-      text: async () => '',
-      json: async () => ({}),
-      arrayBuffer: async () => new ArrayBuffer(0),
-    })),
-    mockSanitizeUrl: vi.fn((url: string) => url),
-    mockGetRedisClient: vi.fn(() => null),
-    mockEnv: {
-      IVM_POOL_SIZE: '1',
-      IVM_MAX_CONCURRENT: '100',
-      IVM_MAX_PER_WORKER: '100',
-      IVM_WORKER_IDLE_TIMEOUT_MS: '60000',
-      IVM_MAX_QUEUE_SIZE: '10',
-      IVM_MAX_ACTIVE_PER_OWNER: '100',
-      IVM_MAX_QUEUED_PER_OWNER: '10',
-      IVM_MAX_OWNER_WEIGHT: '5',
-      IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
-      IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
-      IVM_QUEUE_TIMEOUT_MS: '1000',
-      IVM_MAX_FETCH_RESPONSE_BYTES: '',
-      IVM_MAX_FETCH_RESPONSE_CHARS: '',
-      IVM_MAX_FETCH_URL_LENGTH: '',
-      IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
-      REDIS_URL: '',
-    } as Record<string, string>,
-  }))
-
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetch,
+const { mockSpawn, mockExecSync, mockSanitizeUrl, mockEnv } = vi.hoisted(() => ({
+  mockSpawn: vi.fn(),
+  mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
+  mockSanitizeUrl: vi.fn((url: string) => url),
+  mockEnv: {
+    IVM_POOL_SIZE: '1',
+    IVM_MAX_CONCURRENT: '100',
+    IVM_MAX_PER_WORKER: '100',
+    IVM_WORKER_IDLE_TIMEOUT_MS: '60000',
+    IVM_MAX_QUEUE_SIZE: '10',
+    IVM_MAX_ACTIVE_PER_OWNER: '100',
+    IVM_MAX_QUEUED_PER_OWNER: '10',
+    IVM_MAX_OWNER_WEIGHT: '5',
+    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
+    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
+    IVM_QUEUE_TIMEOUT_MS: '1000',
+    IVM_MAX_FETCH_RESPONSE_BYTES: '',
+    IVM_MAX_FETCH_RESPONSE_CHARS: '',
+    IVM_MAX_FETCH_URL_LENGTH: '',
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
+    REDIS_URL: '',
+  } as Record<string, string>,
 }))
+
+const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/core/utils/logging', () => ({
   sanitizeUrlForLog: mockSanitizeUrl,
 }))
 vi.mock('@/lib/core/config/env', () => ({
   env: mockEnv,
 }))
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
   spawn: mockSpawn,
@@ -263,15 +303,31 @@ describe('isolated-vm scheduler', () => {
   })
 
   it('rejects new requests when the queue is full', async () => {
+    const holder = createControllableReadyProc()
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
+        IVM_MAX_CONCURRENT: '1',
         IVM_MAX_QUEUE_SIZE: '1',
-        IVM_QUEUE_TIMEOUT_MS: '200',
+        IVM_QUEUE_TIMEOUT_MS: '50',
       },
-      spawns: [createStartupFailureProc, createStartupFailureProc, createStartupFailureProc],
+      spawns: [holder.spawn],
     })
 
-    const firstPromise = executeInIsolatedVM({
+    // Occupy the single global concurrency slot with an active execution. Awaiting
+    // `dispatched` is event-driven, so the queue state below is fully deterministic.
+    const holderPromise = executeInIsolatedVM({
+      code: 'return "holder"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 1000,
+      requestId: 'req-holder',
+      ownerKey: 'user:holder',
+    })
+    await holder.dispatched
+
+    // With the slot held, this request lands in the queue (size 1, now full)...
+    const queuedPromise = executeInIsolatedVM({
       code: 'return 1',
       params: {},
       envVars: {},
@@ -281,9 +337,8 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:a',
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 1))
-
-    const second = await executeInIsolatedVM({
+    // ...and this one overflows it and is rejected immediately.
+    const rejected = await executeInIsolatedVM({
       code: 'return 2',
       params: {},
       envVars: {},
@@ -293,22 +348,41 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:b',
     })
 
-    expect(second.error?.message).toContain('at capacity')
+    expect(rejected.error?.message).toContain('at capacity')
 
-    const first = await firstPromise
-    expect(first.error?.message).toContain('timed out waiting')
+    const queued = await queuedPromise
+    expect(queued.error?.message).toContain('timed out waiting')
+
+    holder.release()
+    await holderPromise
   })
 
   it('enforces per-owner queued limit', async () => {
+    const holder = createControllableReadyProc()
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
+        IVM_MAX_CONCURRENT: '1',
         IVM_MAX_QUEUED_PER_OWNER: '1',
-        IVM_QUEUE_TIMEOUT_MS: '200',
+        IVM_QUEUE_TIMEOUT_MS: '50',
       },
-      spawns: [createStartupFailureProc, createStartupFailureProc, createStartupFailureProc],
+      spawns: [holder.spawn],
     })
 
-    const firstPromise = executeInIsolatedVM({
+    // Hold the single global slot with one of the owner's executions so the next
+    // requests deterministically queue instead of dispatching.
+    const holderPromise = executeInIsolatedVM({
+      code: 'return "holder"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 1000,
+      requestId: 'req-holder',
+      ownerKey: 'user:hog',
+    })
+    await holder.dispatched
+
+    // First queued request for the owner fills their per-owner queue allowance...
+    const queuedPromise = executeInIsolatedVM({
       code: 'return 1',
       params: {},
       envVars: {},
@@ -318,9 +392,8 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:hog',
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 1))
-
-    const second = await executeInIsolatedVM({
+    // ...so the second is rejected for exceeding the per-owner queued limit.
+    const rejected = await executeInIsolatedVM({
       code: 'return 2',
       params: {},
       envVars: {},
@@ -330,10 +403,13 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:hog',
     })
 
-    expect(second.error?.message).toContain('Too many concurrent')
+    expect(rejected.error?.message).toContain('Too many concurrent')
 
-    const first = await firstPromise
-    expect(first.error?.message).toContain('timed out waiting')
+    const queued = await queuedPromise
+    expect(queued.error?.message).toContain('timed out waiting')
+
+    holder.release()
+    await holderPromise
   })
 
   it('enforces distributed owner in-flight lease limit when Redis is configured', async () => {

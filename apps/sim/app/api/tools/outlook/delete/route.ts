@@ -1,19 +1,17 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { outlookDeleteContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OutlookDeleteAPI')
 
-const OutlookDeleteSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  messageId: z.string().min(1, 'Message ID is required'),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -34,8 +32,9 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = OutlookDeleteSchema.parse(body)
+    const parsed = await parseRequest(outlookDeleteContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Deleting Outlook email`, {
       messageId: validatedData.messageId,
@@ -77,25 +76,13 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error deleting Outlook email:`, error)
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )
   }
-}
+})

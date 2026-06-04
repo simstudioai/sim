@@ -58,7 +58,6 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       canonicalParamId: 'workspace',
       serviceId: 'asana',
       selectorKey: 'asana.workspaces',
-      selectorAllowSearch: false,
       placeholder: 'Select Asana workspace',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -75,6 +74,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       canonicalParamId: 'workspace',
       required: true,
       placeholder: 'Enter Asana workspace GID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -110,7 +110,6 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       canonicalParamId: 'getTasks_workspace',
       serviceId: 'asana',
       selectorKey: 'asana.workspaces',
-      selectorAllowSearch: false,
       placeholder: 'Select Asana workspace',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -125,6 +124,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
       type: 'short-input',
       canonicalParamId: 'getTasks_workspace',
       placeholder: 'Enter workspace GID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',

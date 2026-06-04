@@ -8,8 +8,7 @@
       "properties": {
         "imageRegistry": {
           "type": "string",
-          "format": "hostname",
-          "description": "Global Docker image registry"
+          "description": "Global Docker image registry (host[:port][/path]). Supports plain hosts (registry.example.com), host:port (registry.example.com:5000), and host+path forms used by Artifactory virtual repos, Harbor projects, GCR (gcr.io/project-id), and ECR-with-namespace."
         },
         "useRegistryForAllImages": {
           "type": "boolean",
@@ -117,8 +116,8 @@
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Public application URL"
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "Public application URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "INTERNAL_API_BASE_URL": {
               "type": "string",
@@ -134,8 +133,8 @@
             },
             "BETTER_AUTH_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Authentication service URL"
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "Authentication service URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "SOCKET_SERVER_URL": {
               "type": "string",
@@ -144,8 +143,23 @@
             },
             "NEXT_PUBLIC_SOCKET_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Public socket URL"
+              "anyOf": [
+                {
+                  "format": "uri"
+                },
+                {
+                  "const": ""
+                }
+              ],
+              "description": "Public socket URL; leave empty to default to the page origin (assumes reverse proxy routes /socket.io)"
+            },
+            "TRUSTED_ORIGINS": {
+              "type": "string",
+              "description": "Comma-separated additional public origins to trust for auth (e.g. 'https://app.example.com,https://www.example.com'). Merged into Better Auth trustedOrigins."
+            },
+            "SSO_TRUSTED_PROVIDER_IDS": {
+              "type": "string",
+              "description": "Comma-separated SSO provider IDs to trust for automatic account linking when an SSO sign-in matches an existing account's email. Only needed for IdPs that do not assert email_verified. Merged into Better Auth accountLinking.trustedProviders."
             },
             "NODE_ENV": {
               "type": "string",
@@ -168,6 +182,30 @@
               "type": "string",
               "description": "Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)"
             },
+            "AWS_SES_REGION": {
+              "type": "string",
+              "description": "AWS region for SES (e.g., 'us-east-1'). Credentials are resolved via the standard AWS provider chain (env vars, IRSA, EC2/ECS task role, SSO)."
+            },
+            "SMTP_HOST": {
+              "type": "string",
+              "description": "SMTP server hostname. When set together with SMTP_PORT, enables the SMTP mail provider."
+            },
+            "SMTP_PORT": {
+              "type": "string",
+              "description": "SMTP server port. 465 = implicit TLS, 587 = STARTTLS, 25 = plain."
+            },
+            "SMTP_USER": {
+              "type": "string",
+              "description": "SMTP username (optional — leave empty for unauthenticated relays like MailHog)."
+            },
+            "SMTP_PASS": {
+              "type": "string",
+              "description": "SMTP password (optional — leave empty for unauthenticated relays)."
+            },
+            "SMTP_SECURE": {
+              "type": "string",
+              "description": "Set to 'true' to force TLS on connect. Defaults to true when SMTP_PORT=465."
+            },
             "GOOGLE_CLIENT_ID": {
               "type": "string",
               "description": "Google OAuth client ID"
@@ -183,6 +221,14 @@
             "GITHUB_CLIENT_SECRET": {
               "type": "string",
               "description": "GitHub OAuth client secret"
+            },
+            "DISABLE_GOOGLE_AUTH": {
+              "type": "string",
+              "description": "Set to 'true' to hide Google OAuth login even when credentials are configured"
+            },
+            "DISABLE_GITHUB_AUTH": {
+              "type": "string",
+              "description": "Set to 'true' to hide GitHub OAuth login even when credentials are configured"
             },
             "OPENAI_API_KEY": {
               "type": "string",
@@ -282,8 +328,8 @@
             },
             "NEXT_PUBLIC_SUPPORT_EMAIL": {
               "type": "string",
-              "format": "email",
-              "description": "Support email address"
+              "anyOf": [{ "format": "email" }, { "const": "" }],
+              "description": "Support email address (default help@sim.ai via envDefaults; set explicitly here to override in Secret)"
             },
             "NEXT_PUBLIC_DOCUMENTATION_URL": {
               "type": "string",
@@ -366,18 +412,13 @@
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Public application URL"
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "Public application URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "BETTER_AUTH_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Authentication service URL"
-            },
-            "NEXT_PUBLIC_SOCKET_URL": {
-              "type": "string",
-              "format": "uri",
-              "description": "Public socket URL"
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "Authentication service URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "ALLOWED_ORIGINS": {
               "type": "string",
@@ -675,6 +716,24 @@
           "minimum": 1,
           "description": "Number of telemetry collector replicas"
         }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "description": "Helm test hook configuration (helm test)",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+            "pullSecrets": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "resources": { "type": "object" }
       }
     },
     "sharedStorage": {

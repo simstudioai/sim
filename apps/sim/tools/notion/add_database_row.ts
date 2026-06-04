@@ -17,7 +17,7 @@ export const notionAddDatabaseRowTool: ToolConfig<
   NotionAddDatabaseRowParams,
   NotionAddDatabaseRowResponse
 > = {
-  id: 'notion_add_database_row_v2',
+  id: 'notion_add_database_row',
   name: 'Add Notion Database Row',
   description: 'Add a new row to a Notion database with specified properties',
   version: '1.0.0',
@@ -106,4 +106,13 @@ export const notionAddDatabaseRowTool: ToolConfig<
     created_time: PAGE_OUTPUT_PROPERTIES.created_time,
     last_edited_time: PAGE_OUTPUT_PROPERTIES.last_edited_time,
   },
+}
+
+export const notionAddDatabaseRowV2Tool: ToolConfig<
+  NotionAddDatabaseRowParams,
+  NotionAddDatabaseRowResponse
+> = {
+  ...notionAddDatabaseRowTool,
+  id: 'notion_add_database_row_v2',
+  version: '2.0.0',
 }

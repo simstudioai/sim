@@ -110,8 +110,8 @@ export const shopifyUpdateProductTool: ToolConfig<
 
       return {
         query: `
-          mutation productUpdate($input: ProductInput!) {
-            productUpdate(input: $input) {
+          mutation productUpdate($product: ProductUpdateInput!) {
+            productUpdate(product: $product) {
               product {
                 id
                 title
@@ -153,7 +153,7 @@ export const shopifyUpdateProductTool: ToolConfig<
           }
         `,
         variables: {
-          input,
+          product: input,
         },
       }
     },

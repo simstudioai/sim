@@ -242,9 +242,13 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
             })
             break
           case 'Enter':
-            e.preventDefault()
-            e.stopPropagation()
-            handleEnvVarSelect(filteredEnvVars[selectedIndex])
+          case 'Tab':
+            if (e.key === 'Tab' && e.shiftKey) break
+            if (filteredEnvVars[selectedIndex]) {
+              e.preventDefault()
+              e.stopPropagation()
+              handleEnvVarSelect(filteredEnvVars[selectedIndex])
+            }
             break
           case 'Escape':
             e.preventDefault()
@@ -309,7 +313,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
                 openEnvironmentSettings()
               }}
             >
-              <Plus className='h-3 w-3' />
+              <Plus className='size-3' />
               <span>Create Secret</span>
             </PopoverItem>
           </PopoverScrollArea>

@@ -323,14 +323,14 @@ export const PARTICIPANT_PAGE_INFO_OUTPUT: OutputProperty = {
 }
 
 // Common parameters for all Zoom tools
-export interface ZoomBaseParams {
+interface ZoomBaseParams {
   accessToken: string
 }
 
 // Meeting types
 export type ZoomMeetingType = 1 | 2 | 3 | 8 // 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time
 
-export interface ZoomMeetingSettings {
+interface ZoomMeetingSettings {
   host_video?: boolean
   participant_video?: boolean
   join_before_host?: boolean
@@ -343,7 +343,7 @@ export interface ZoomMeetingSettings {
   approval_type?: 0 | 1 | 2 // 0=auto, 1=manual, 2=none
 }
 
-export interface ZoomMeeting {
+interface ZoomMeeting {
   id: number
   uuid: string
   host_id: string
@@ -381,7 +381,7 @@ export interface ZoomMeeting {
   }>
 }
 
-export interface ZoomMeetingListResponse {
+interface ZoomMeetingListResponse {
   page_count: number
   page_number: number
   page_size: number
@@ -498,7 +498,7 @@ export interface ZoomGetMeetingInvitationResponse extends ToolResponse {
 }
 
 // Recording types
-export interface ZoomRecordingFile {
+interface ZoomRecordingFile {
   id: string
   meeting_id: string
   recording_start: string
@@ -512,7 +512,7 @@ export interface ZoomRecordingFile {
   recording_type: string
 }
 
-export interface ZoomRecording {
+interface ZoomRecording {
   uuid: string
   id: number
   account_id: string
@@ -580,7 +580,7 @@ export interface ZoomDeleteRecordingResponse extends ToolResponse {
 }
 
 // Participant types
-export interface ZoomParticipant {
+interface ZoomParticipant {
   id: string
   user_id?: string
   name: string

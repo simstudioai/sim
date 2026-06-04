@@ -29,7 +29,8 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
     filter: {
       type: 'object',
       required: true,
-      description: 'Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $in, etc.',
+      description:
+        'Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc.',
       visibility: 'user-or-llm',
     },
     limit: {

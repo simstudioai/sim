@@ -1,5 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type ForgetPasswordBody,
+  forgetPasswordContract,
+  getUserProfileContract,
+  type UpdateUserProfileBody,
+  type UserProfileApiUser,
+  updateUserProfileContract,
+} from '@/lib/api/contracts'
 
 const logger = createLogger('UserProfileQuery')
 
@@ -12,29 +21,21 @@ export const userProfileKeys = {
 }
 
 /**
- * User profile type
+ * User profile type, derived from the contract response shape minus
+ * the auth-only `emailVerified` field which is not displayed in the UI.
  */
-export interface UserProfile {
-  id: string
-  name: string
-  email: string
-  image: string | null
-  createdAt: string
-  updatedAt: string
-}
+export type UserProfile = Omit<UserProfileApiUser, 'emailVerified'>
 
 /**
  * Map raw API response user object to UserProfile.
  * Shared by both client fetch and server prefetch to prevent shape drift.
  */
-export function mapUserProfileResponse(user: Record<string, unknown>): UserProfile {
+export function mapUserProfileResponse(user: UserProfileApiUser): UserProfile {
   return {
-    id: user.id as string,
-    name: (user.name as string) || '',
-    email: (user.email as string) || '',
-    image: (user.image as string) || null,
-    createdAt: user.createdAt as string,
-    updatedAt: user.updatedAt as string,
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    image: user.image,
   }
 }
 
@@ -42,13 +43,7 @@ export function mapUserProfileResponse(user: Record<string, unknown>): UserProfi
  * Fetch user profile from API
  */
 async function fetchUserProfile(signal?: AbortSignal): Promise<UserProfile> {
-  const response = await fetch('/api/users/me/profile', { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch user profile')
-  }
-
-  const { user } = await response.json()
+  const { user } = await requestJson(getUserProfileContract, { signal })
   return mapUserProfileResponse(user)
 }
 
@@ -66,28 +61,14 @@ export function useUserProfile() {
 /**
  * Update user profile mutation
  */
-interface UpdateProfileParams {
-  name?: string
-  image?: string | null
-}
+type UpdateProfileParams = UpdateUserProfileBody
 
 export function useUpdateUserProfile() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (updates: UpdateProfileParams) => {
-      const response = await fetch('/api/users/me/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update profile')
-      }
-
-      return response.json()
+      return requestJson(updateUserProfileContract, { body: updates })
     },
     onMutate: async (updates) => {
       await queryClient.cancelQueries({ queryKey: userProfileKeys.profile() })
@@ -98,7 +79,6 @@ export function useUpdateUserProfile() {
         queryClient.setQueryData<UserProfile>(userProfileKeys.profile(), {
           ...previousProfile,
           ...updates,
-          updatedAt: new Date().toISOString(),
         })
       }
 
@@ -119,26 +99,14 @@ export function useUpdateUserProfile() {
 /**
  * Reset password mutation
  */
-interface ResetPasswordParams {
-  email: string
+type ResetPasswordParams = Pick<ForgetPasswordBody, 'email' | 'redirectTo'> & {
   redirectTo: string
 }
 
 export function useResetPassword() {
   return useMutation({
     mutationFn: async ({ email, redirectTo }: ResetPasswordParams) => {
-      const response = await fetch('/api/auth/forget-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, redirectTo }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to send reset password email')
-      }
-
-      return response.json()
+      return requestJson(forgetPasswordContract, { body: { email, redirectTo } })
     },
   })
 }

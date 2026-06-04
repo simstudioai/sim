@@ -16,15 +16,44 @@ export interface PostHogEventMap {
 
   landing_cta_clicked: {
     label: string
-    section: 'hero' | 'navbar' | 'footer_cta' | 'pricing'
-    destination: string
+    section:
+      | 'hero'
+      | 'navbar'
+      | 'footer_cta'
+      | 'pricing'
+      | 'features'
+      | 'collaboration'
+      | 'templates'
+      | 'landing_preview'
+      | 'integrations'
+    destination: 'auth_modal' | 'demo_modal' | '/signup' | '/login' | '/workspace' | (string & {})
+  }
+
+  auth_modal_opened: {
+    view: 'login' | 'signup'
+    source:
+      | 'hero'
+      | 'navbar'
+      | 'mobile_navbar'
+      | 'footer_cta'
+      | 'pricing'
+      | 'features'
+      | 'collaboration'
+      | 'landing_preview'
+      | 'integrations'
   }
 
   landing_demo_request_submitted: {
     company_size: string
   }
 
+  landing_contact_submitted: {
+    topic: string
+  }
+
   landing_prompt_submitted: Record<string, never>
+
+  login_page_viewed: Record<string, never>
 
   signup_page_viewed: Record<string, never>
 
@@ -52,11 +81,14 @@ export interface PostHogEventMap {
   workspace_created: {
     workspace_id: string
     name: string
+    workspace_mode?: string
+    organization_id?: string | null
   }
 
   workspace_member_invited: {
     workspace_id: string
     invitee_role: string
+    membership_intent?: string
   }
 
   workspace_member_removed: {
@@ -257,6 +289,20 @@ export interface PostHogEventMap {
     file_type: string
   }
 
+  file_deleted: {
+    workspace_id: string
+  }
+
+  file_renamed: {
+    workspace_id: string
+  }
+
+  file_moved: {
+    workspace_id: string
+    file_count: number
+    folder_count: number
+  }
+
   api_key_created: {
     workspace_id: string
     key_name: string
@@ -333,6 +379,36 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  /**
+   * A table-workflow run was dispatched from the grid.
+   * `source` distinguishes the gesture: a single row's gutter Play (`row`),
+   * a multi-row selection across every workflow column (`rows`), or a single
+   * workflow column header / column-scoped selection (`column`).
+   */
+  table_workflow_run: {
+    table_id: string
+    workspace_id: string
+    source: 'row' | 'rows' | 'column'
+    run_mode: 'all' | 'incomplete'
+    group_count: number
+    /** Number of explicitly targeted rows; `null` when the run targets all rows in scope. */
+    row_count: number | null
+    has_limit: boolean
+  }
+
+  /**
+   * Running table workflows were cancelled.
+   * `scope` is `all` (every running row), `row` (one row's gutter Stop), or
+   * `rows` (a multi-row selection).
+   */
+  table_workflow_stopped: {
+    table_id: string
+    workspace_id: string
+    scope: 'all' | 'row' | 'rows'
+    /** Number of rows targeted; `null` for the `all` scope. */
+    row_count: number | null
+  }
+
   custom_tool_saved: {
     tool_id: string
     workspace_id: string
@@ -374,8 +450,27 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  task_forked: {
+    workspace_id: string
+    source_chat_id: string
+  }
+
   task_marked_unread: {
     workspace_id: string
+  }
+
+  task_pinned: {
+    workspace_id: string
+  }
+
+  task_unpinned: {
+    workspace_id: string
+  }
+
+  task_generation_aborted: {
+    workspace_id: string
+    view: 'mothership' | 'copilot'
+    request_id?: string
   }
 
   task_message_sent: {
@@ -383,6 +478,14 @@ export interface PostHogEventMap {
     has_attachments: boolean
     has_contexts: boolean
     is_new_task: boolean
+  }
+
+  /** Pairs with `task_message_sent` via `request_id` for correlation with server-side logs. */
+  task_request_started: {
+    workspace_id: string
+    view: 'mothership' | 'copilot'
+    request_id: string
+    user_message_id: string
   }
 
   tour_started: {
@@ -441,6 +544,22 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  folder_renamed: {
+    workspace_id: string
+  }
+
+  folder_moved: {
+    workspace_id: string
+    file_count: number
+    folder_count: number
+  }
+
+  file_bulk_deleted: {
+    workspace_id: string
+    file_count: number
+    folder_count: number
+  }
+
   folder_restored: {
     folder_id: string
     workspace_id: string
@@ -462,6 +581,12 @@ export interface PostHogEventMap {
 
   scheduled_task_deleted: {
     workspace_id: string
+  }
+
+  workspace_logo_uploaded: {
+    workspace_id: string
+    file_name: string
+    file_size: number
   }
 }
 

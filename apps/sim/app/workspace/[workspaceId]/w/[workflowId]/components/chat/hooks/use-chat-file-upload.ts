@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 
 export interface ChatFile {
   id: string

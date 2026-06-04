@@ -1,14 +1,17 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
   supportsNativeStructuredOutputs,
 } from '@/providers/fireworks/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
   Message,
@@ -31,7 +34,7 @@ const logger = createLogger('FireworksProvider')
 
 /**
  * Applies structured output configuration to a payload based on model capabilities.
- * Uses json_schema with strict mode for supported models, falls back to json_object with prompt instructions.
+ * Uses native json_schema for supported models, falls back to json_object with prompt instructions.
  */
 async function applyResponseFormat(
   targetPayload: any,
@@ -48,7 +51,6 @@ async function applyResponseFormat(
       json_schema: {
         name: responseFormat.name || 'response_schema',
         schema: responseFormat.schema || responseFormat,
-        strict: responseFormat.strict !== false,
       },
     }
     return messages
@@ -106,6 +108,7 @@ export const fireworksProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'fireworks') as Message[]
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -120,7 +123,7 @@ export const fireworksProvider: ProviderConfig = {
 
     const payload: any = {
       model: requestedModel,
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -208,7 +211,7 @@ export const fireworksProvider: ProviderConfig = {
                 timeSegments: [
                   {
                     type: 'model',
-                    name: 'Streaming response',
+                    name: request.model,
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -248,7 +251,7 @@ export const fireworksProvider: ProviderConfig = {
       }
       const toolCalls: FunctionCallResponse[] = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
       let modelTime = firstResponseTime
       let toolsTime = 0
@@ -256,7 +259,7 @@ export const fireworksProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -278,6 +281,14 @@ export const fireworksProvider: ProviderConfig = {
         }
 
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          toolCallsInResponse,
+          { model: request.model, provider: 'fireworks' }
+        )
+
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
@@ -295,7 +306,9 @@ export const fireworksProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams)
+            const result = await executeTool(toolName, executionParams, {
+              signal: request.abortSignal,
+            })
             const toolCallEndTime = Date.now()
 
             return {
@@ -310,7 +323,7 @@ export const fireworksProvider: ProviderConfig = {
           } catch (error) {
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call (Fireworks):', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
               toolName,
             })
 
@@ -321,7 +334,7 @@ export const fireworksProvider: ProviderConfig = {
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
@@ -357,6 +370,7 @@ export const fireworksProvider: ProviderConfig = {
             startTime: startTime,
             endTime: endTime,
             duration: duration,
+            toolCallId: toolCall.id,
           })
 
           let resultContent: any
@@ -422,7 +436,7 @@ export const fireworksProvider: ProviderConfig = {
         const thisModelTime = nextModelEndTime - nextModelStartTime
         timeSegments.push({
           type: 'model',
-          name: `Model response (iteration ${iterationCount + 1})`,
+          name: request.model,
           startTime: nextModelStartTime,
           endTime: nextModelEndTime,
           duration: thisModelTime,
@@ -439,13 +453,22 @@ export const fireworksProvider: ProviderConfig = {
         iterationCount++
       }
 
+      if (iterationCount === MAX_TOOL_ITERATIONS) {
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          currentResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'fireworks' }
+        )
+      }
+
       if (request.stream) {
         const accumulatedCost = calculateCost(requestedModel, tokens.input, tokens.output)
 
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: [...currentMessages],
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -571,6 +594,13 @@ export const fireworksProvider: ProviderConfig = {
           tokens.output += finalResponse.usage.completion_tokens || 0
           tokens.total += finalResponse.usage.total_tokens || 0
         }
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          finalResponse,
+          finalResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'fireworks' }
+        )
       }
 
       const providerEndTime = Date.now()
@@ -600,7 +630,7 @@ export const fireworksProvider: ProviderConfig = {
       const totalDuration = providerEndTime - providerStartTime
 
       const errorDetails: Record<string, any> = {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         duration: totalDuration,
       }
       if (error && typeof error === 'object') {
@@ -613,7 +643,7 @@ export const fireworksProvider: ProviderConfig = {
       }
 
       logger.error('Error in Fireworks request:', errorDetails)
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

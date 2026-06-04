@@ -1,0 +1,208 @@
+---
+title: Salesforce
+description: Available Salesforce triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="salesforce"
+  color="#E0E0E0"
+/>
+
+Salesforce provides 6 triggers for automating workflows based on events.
+
+## Triggers
+
+### Salesforce Case Status Changed
+
+Trigger workflow when a case status changes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(Case\) |
+| `recordId` | string | Case ID |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Case ID |
+|   ↳ `Subject` | string | Case subject |
+|   ↳ `Status` | string | Current case status |
+|   ↳ `Priority` | string | Case priority |
+|   ↳ `CaseNumber` | string | Case number |
+|   ↳ `AccountId` | string | Related Account ID |
+|   ↳ `ContactId` | string | Related Contact ID |
+|   ↳ `OwnerId` | string | Case owner ID |
+| `previousStatus` | string | Previous case status |
+| `newStatus` | string | New case status |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Opportunity Stage Changed
+
+Trigger workflow when an opportunity stage changes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(Opportunity\) |
+| `recordId` | string | Opportunity ID |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Opportunity ID |
+|   ↳ `Name` | string | Opportunity name |
+|   ↳ `StageName` | string | Current stage name |
+|   ↳ `Amount` | string | Deal amount |
+|   ↳ `CloseDate` | string | Expected close date |
+|   ↳ `Probability` | string | Win probability |
+|   ↳ `AccountId` | string | Related Account ID \(standard Opportunity field\) |
+|   ↳ `OwnerId` | string | Opportunity owner ID |
+| `previousStage` | string | Previous stage name |
+| `newStage` | string | New stage name |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Record Created
+
+Trigger workflow when a Salesforce record is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | No | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Record ID |
+|   ↳ `Name` | string | Record name |
+|   ↳ `CreatedDate` | string | Record creation date |
+|   ↳ `LastModifiedDate` | string | Last modification date |
+|   ↳ `OwnerId` | string | Record owner ID \(standard field when sent in the Flow body\) |
+|   ↳ `SystemModstamp` | string | System modstamp from the record \(ISO 8601\) when included in the payload |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Record Deleted
+
+Trigger workflow when a Salesforce record is deleted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | No | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Record ID |
+|   ↳ `Name` | string | Record name |
+|   ↳ `CreatedDate` | string | Record creation date |
+|   ↳ `LastModifiedDate` | string | Last modification date |
+|   ↳ `OwnerId` | string | Record owner ID \(standard field when sent in the Flow body\) |
+|   ↳ `SystemModstamp` | string | System modstamp from the record \(ISO 8601\) when included in the payload |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Record Updated
+
+Trigger workflow when a Salesforce record is updated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | No | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | object | record output from the tool |
+|   ↳ `Id` | string | Record ID |
+|   ↳ `Name` | string | Record name |
+|   ↳ `CreatedDate` | string | Record creation date |
+|   ↳ `LastModifiedDate` | string | Last modification date |
+|   ↳ `OwnerId` | string | Record owner ID \(standard field when sent in the Flow body\) |
+|   ↳ `SystemModstamp` | string | System modstamp from the record \(ISO 8601\) when included in the payload |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+### Salesforce Webhook (All Events)
+
+Trigger workflow on any Salesforce webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | No | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | json | Full record data |
+| `payload` | json | Full webhook payload |
+

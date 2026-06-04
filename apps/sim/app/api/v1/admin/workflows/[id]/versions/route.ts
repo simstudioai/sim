@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
+import { getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { adminV1ListWorkflowVersionsContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listWorkflowVersions } from '@/lib/workflows/persistence/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -15,33 +18,38 @@ interface RouteParams {
   id: string
 }
 
-export const GET = withAdminAuthParams<RouteParams>(async (request, context) => {
-  const { id: workflowId } = await context.params
+export const GET = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1ListWorkflowVersionsContract, request, context)
+    if (!parsed.success) return parsed.response
 
-  try {
-    const workflowRecord = await getActiveWorkflowRecord(workflowId)
+    const { id: workflowId } = parsed.data.params
 
-    if (!workflowRecord) {
-      return notFoundResponse('Workflow')
+    try {
+      const workflowRecord = await getActiveWorkflowRecord(workflowId)
+
+      if (!workflowRecord) {
+        return notFoundResponse('Workflow')
+      }
+
+      const { versions } = await listWorkflowVersions(workflowId)
+
+      const response: AdminDeploymentVersion[] = versions.map((v) => ({
+        id: v.id,
+        version: v.version,
+        name: v.name,
+        isActive: v.isActive,
+        createdAt: v.createdAt.toISOString(),
+        createdBy: v.createdBy,
+        deployedByName: v.deployedByName ?? (v.createdBy === 'admin-api' ? 'Admin' : null),
+      }))
+
+      logger.info(`Admin API: Listed ${versions.length} versions for workflow ${workflowId}`)
+
+      return singleResponse({ versions: response })
+    } catch (error) {
+      logger.error(`Admin API: Failed to list versions for workflow ${workflowId}`, { error })
+      return internalErrorResponse('Failed to list deployment versions')
     }
-
-    const { versions } = await listWorkflowVersions(workflowId)
-
-    const response: AdminDeploymentVersion[] = versions.map((v) => ({
-      id: v.id,
-      version: v.version,
-      name: v.name,
-      isActive: v.isActive,
-      createdAt: v.createdAt.toISOString(),
-      createdBy: v.createdBy,
-      deployedByName: v.deployedByName ?? (v.createdBy === 'admin-api' ? 'Admin' : null),
-    }))
-
-    logger.info(`Admin API: Listed ${versions.length} versions for workflow ${workflowId}`)
-
-    return singleResponse({ versions: response })
-  } catch (error) {
-    logger.error(`Admin API: Failed to list versions for workflow ${workflowId}`, { error })
-    return internalErrorResponse('Failed to list deployment versions')
-  }
-})
+  })
+)

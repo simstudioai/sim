@@ -28,6 +28,7 @@ export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'html',
   'htm',
   'json',
+  'jsonl',
   'yaml',
   'yml',
 ] as const
@@ -76,6 +77,7 @@ export const SUPPORTED_CODE_EXTENSIONS = [
   'editorconfig',
   'prettierrc',
   'eslintrc',
+  'mmd',
 ] as const
 
 export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
@@ -93,13 +95,31 @@ export const SUPPORTED_AUDIO_EXTENSIONS = [
 
 export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'webm'] as const
 
+export const SUPPORTED_IMAGE_EXTENSIONS = [
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'svg',
+  'bmp',
+  'tif',
+  'tiff',
+  'heic',
+  'heif',
+  'avif',
+  'ico',
+] as const
+
 export type SupportedDocumentExtension = (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
 export type SupportedAudioExtension = (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]
 export type SupportedVideoExtension = (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]
+export type SupportedImageExtension = (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]
 export type SupportedMediaExtension =
   | SupportedDocumentExtension
   | SupportedAudioExtension
   | SupportedVideoExtension
+  | SupportedImageExtension
 
 export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> = {
   pdf: ['application/pdf', 'application/x-pdf'],
@@ -135,6 +155,7 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
   html: ['text/html', 'application/xhtml+xml'],
   htm: ['text/html', 'application/xhtml+xml'],
   json: ['application/json', 'text/json', 'application/x-json'],
+  jsonl: ['application/jsonl', 'application/x-jsonlines', 'text/jsonl', 'application/octet-stream'],
   yaml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
   yml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
 }
@@ -177,20 +198,56 @@ const SUPPORTED_IMAGE_MIME_TYPES = [
   'image/gif',
   'image/webp',
   'image/svg+xml',
+  'image/bmp',
+  'image/tiff',
+  'image/heic',
+  'image/heif',
+  'image/avif',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
 ]
-
-const SUPPORTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
 
 export const CHAT_ACCEPT_ATTRIBUTE = [
   ACCEPT_ATTRIBUTE,
   ...SUPPORTED_IMAGE_MIME_TYPES,
-  ...SUPPORTED_IMAGE_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS.map((ext) => `.${ext}`),
 ].join(',')
 
 export interface FileValidationError {
   code: 'UNSUPPORTED_FILE_TYPE' | 'MIME_TYPE_MISMATCH'
   message: string
   supportedTypes: string[]
+}
+
+export const SUPPORTED_ATTACHMENT_EXTENSIONS = Array.from(
+  new Set<string>([
+    ...SUPPORTED_DOCUMENT_EXTENSIONS,
+    ...SUPPORTED_CODE_EXTENSIONS,
+    ...SUPPORTED_IMAGE_EXTENSIONS,
+    ...SUPPORTED_AUDIO_EXTENSIONS,
+    ...SUPPORTED_VIDEO_EXTENSIONS,
+  ])
+) as readonly string[]
+
+/**
+ * Validate that a file's extension is allowed as a chat/mothership attachment.
+ *
+ * Permits documents, code, images, audio, and video — anything users would
+ * reasonably attach to a chat message. Rejects executables and unknown types.
+ */
+export function validateAttachmentFileType(fileName: string): FileValidationError | null {
+  const raw = extractExtension(fileName)
+  const extension = isAlphanumericExtension(raw) ? raw : ''
+
+  if (!SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension)) {
+    return {
+      code: 'UNSUPPORTED_FILE_TYPE',
+      message: `Unsupported file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported types include documents, code, images, audio, and video.`,
+      supportedTypes: [...SUPPORTED_ATTACHMENT_EXTENSIONS],
+    }
+  }
+
+  return null
 }
 
 /**

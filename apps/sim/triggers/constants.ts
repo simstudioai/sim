@@ -42,7 +42,16 @@ export const MAX_CONSECUTIVE_FAILURES = 100
  * Used to route execution: polling providers use the full job queue
  * (Trigger.dev), non-polling providers execute inline.
  */
-export const POLLING_PROVIDERS = new Set(['gmail', 'outlook', 'rss', 'imap'])
+export const POLLING_PROVIDERS = new Set([
+  'gmail',
+  'google-calendar',
+  'google-drive',
+  'google-sheets',
+  'hubspot',
+  'imap',
+  'outlook',
+  'rss',
+])
 
 export function isPollingWebhookProvider(provider: string): boolean {
   return POLLING_PROVIDERS.has(provider)

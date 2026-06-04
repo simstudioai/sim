@@ -2,8 +2,11 @@
 
 import { Suspense, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { requestJson } from '@/lib/api/client/request'
+import { resetPasswordContract } from '@/lib/api/contracts'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')
@@ -27,25 +30,17 @@ function ResetPasswordContent() {
     : null
 
   const handleResetPassword = async (password: string) => {
+    if (!token) return
     try {
       setIsSubmitting(true)
       setStatusMessage({ type: null, text: '' })
 
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      await requestJson(resetPasswordContract, {
+        body: {
           token,
           newPassword: password,
-        }),
+        },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to reset password')
-      }
 
       setStatusMessage({
         type: 'success',
@@ -59,7 +54,7 @@ function ResetPasswordContent() {
       logger.error('Error resetting password:', { error })
       setStatusMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Failed to reset password',
+        text: getErrorMessage(error, 'Failed to reset password'),
       })
     } finally {
       setIsSubmitting(false)
@@ -101,9 +96,7 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense
-      fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}
-    >
+    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
       <ResetPasswordContent />
     </Suspense>
   )

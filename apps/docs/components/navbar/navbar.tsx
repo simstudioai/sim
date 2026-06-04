@@ -21,7 +21,6 @@ const NAV_TABS = [
     match: (p: string) => p.includes('/api-reference'),
     external: false,
   },
-  { label: 'Mothership', href: 'https://sim.ai', external: true },
 ] as const
 
 export function Navbar() {
@@ -34,12 +33,12 @@ export function Navbar() {
         <div
           className='relative flex h-[52px] w-full items-center justify-between'
           style={{
-            paddingLeft: 'calc(var(--sidebar-offset) + 32px)',
-            paddingRight: 'calc(var(--toc-offset) + 60px)',
+            paddingLeft: 'calc(var(--sidebar-offset) + var(--nav-inset))',
+            paddingRight: 'calc(var(--toc-offset) + var(--nav-inset))',
           }}
         >
           <Link href='/' className='flex min-w-[100px] items-center'>
-            <SimLogoFull className='h-7 w-auto' />
+            <SimLogoFull className='h-[20px] w-auto' />
           </Link>
 
           <div className='-translate-x-1/2 absolute left-1/2 flex items-center justify-center'>
@@ -49,24 +48,20 @@ export function Navbar() {
           <div className='flex items-center gap-1'>
             <LanguageDropdown />
             <ThemeToggle />
+            <Link
+              href='https://sim.ai'
+              className='ml-1 flex items-center rounded-[8px] bg-[#33c482] px-2.5 py-1.5 text-[13px] text-white transition-colors duration-200 hover:bg-[#2DAC72]'
+            >
+              Get started
+            </Link>
           </div>
         </div>
-
-        {/* Divider — only spans content width */}
-        <div
-          className='border-b'
-          style={{
-            marginLeft: 'calc(var(--sidebar-offset) + 32px)',
-            marginRight: 'calc(var(--toc-offset) + 60px)',
-            borderColor: 'rgba(128, 128, 128, 0.1)',
-          }}
-        />
 
         {/* Bottom row: navigation tabs — border on row, tabs overlap it */}
         <div
           className='flex h-[40px] items-stretch gap-6 border-border/20 border-b'
           style={{
-            paddingLeft: 'calc(var(--sidebar-offset) + 32px)',
+            paddingLeft: 'calc(var(--sidebar-offset) + var(--nav-inset))',
           }}
         >
           {NAV_TABS.map((tab) => {
@@ -79,12 +74,12 @@ export function Navbar() {
                 className={cn(
                   '-mb-px relative flex items-center border-b text-[14px] tracking-[-0.01em] transition-colors',
                   isActive
-                    ? 'border-neutral-400 font-[550] text-neutral-800 dark:border-neutral-500 dark:text-neutral-200'
-                    : 'border-transparent font-medium text-fd-muted-foreground hover:border-neutral-300 hover:text-neutral-600 dark:hover:border-neutral-600 dark:hover:text-neutral-400'
+                    ? 'border-neutral-400 font-[480] text-neutral-800 dark:border-neutral-500 dark:text-neutral-200'
+                    : 'border-transparent font-[430] text-neutral-500 hover:border-neutral-300 hover:text-neutral-600 dark:text-neutral-400 dark:hover:border-neutral-600 dark:hover:text-neutral-300'
                 )}
               >
                 {/* Invisible bold text reserves width to prevent layout shift */}
-                <span className='invisible font-[550]'>{tab.label}</span>
+                <span className='invisible font-[480]'>{tab.label}</span>
                 <span className='absolute'>{tab.label}</span>
               </Link>
             )

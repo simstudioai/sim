@@ -1,7 +1,3 @@
 export { useNotificationStore } from './store'
-export type {
-  AddNotificationParams,
-  Notification,
-  NotificationAction,
-} from './types'
+export type { Notification, NotificationAction } from './types'
 export { sendMothershipMessage } from './utils'

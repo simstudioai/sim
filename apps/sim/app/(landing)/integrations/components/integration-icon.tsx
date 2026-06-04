@@ -41,9 +41,7 @@ export function IntegrationIcon({
       {Icon ? (
         <Icon className={cn(iconClassName, 'text-white')} />
       ) : (
-        <span className={cn('font-[500] text-white leading-none', fallbackClassName)}>
-          {name.charAt(0)}
-        </span>
+        <span className={cn('text-white leading-none', fallbackClassName)}>{name.charAt(0)}</span>
       )}
     </Tag>
   )

@@ -70,7 +70,7 @@ export function WorkflowNotificationEmail({
   const message = alertReason
     ? 'An alert was triggered for your workflow.'
     : isError
-      ? 'Your workflow execution failed.'
+      ? 'Your workflow run failed.'
       : 'Your workflow completed successfully.'
 
   return (
@@ -102,7 +102,7 @@ export function WorkflowNotificationEmail({
       </Section>
 
       <Link href={logUrl} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>View Execution Log</Text>
+        <Text style={baseStyles.button}>View Run Log</Text>
       </Link>
 
       {rateLimits && (rateLimits.sync || rateLimits.async) ? (

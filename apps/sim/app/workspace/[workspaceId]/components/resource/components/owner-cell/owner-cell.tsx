@@ -14,13 +14,13 @@ const OwnerAvatar = memo(function OwnerAvatar({ name, image }: OwnerAvatarProps)
         src={image}
         alt={name}
         referrerPolicy='no-referrer'
-        className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+        className='size-[14px] rounded-full border border-[var(--border)] object-cover'
       />
     )
   }
 
   return (
-    <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+    <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
       {name.charAt(0).toUpperCase()}
     </span>
   )

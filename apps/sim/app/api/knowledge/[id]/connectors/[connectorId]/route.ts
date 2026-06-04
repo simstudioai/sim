@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   document,
@@ -9,12 +10,13 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateKnowledgeConnectorContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { decryptApiKey } from '@/lib/api-key/crypto'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -26,16 +28,10 @@ const logger = createLogger('KnowledgeConnectorByIdAPI')
 
 type RouteParams = { params: Promise<{ id: string; connectorId: string }> }
 
-const UpdateConnectorSchema = z.object({
-  sourceConfig: z.record(z.unknown()).optional(),
-  syncIntervalMinutes: z.number().int().min(0).optional(),
-  status: z.enum(['active', 'paused']).optional(),
-})
-
 /**
  * GET /api/knowledge/[id]/connectors/[connectorId] - Get connector details with recent sync logs
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -87,14 +83,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error fetching connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * PATCH /api/knowledge/[id]/connectors/[connectorId] - Update a connector
  */
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   const requestId = generateRequestId()
-  const { id: knowledgeBaseId, connectorId } = await params
+  const { id: knowledgeBaseId, connectorId } = await context.params
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -108,19 +104,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: status === 404 ? 'Not found' : 'Unauthorized' }, { status })
     }
 
-    const body = await request.json()
-    const parsed = UpdateConnectorSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(updateKnowledgeConnectorContract, request, context)
+    if (!parsed.success) return parsed.response
+    const body = parsed.data.body
 
     if (
-      parsed.data.syncIntervalMinutes !== undefined &&
-      parsed.data.syncIntervalMinutes > 0 &&
-      parsed.data.syncIntervalMinutes < 60
+      body.syncIntervalMinutes !== undefined &&
+      body.syncIntervalMinutes > 0 &&
+      body.syncIntervalMinutes < 60
     ) {
       const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
       if (!canUseLiveSync) {
@@ -131,7 +122,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    if (parsed.data.sourceConfig !== undefined) {
+    if (body.sourceConfig !== undefined) {
       const existingRows = await db
         .select()
         .from(knowledgeConnector)
@@ -199,7 +190,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         )
       }
 
-      const validation = await connectorConfig.validateConfig(accessToken, parsed.data.sourceConfig)
+      const validation = await connectorConfig.validateConfig(accessToken, body.sourceConfig)
       if (!validation.valid) {
         return NextResponse.json(
           { error: validation.error || 'Invalid source configuration' },
@@ -209,19 +200,26 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() }
-    if (parsed.data.sourceConfig !== undefined) {
-      updates.sourceConfig = parsed.data.sourceConfig
+    if (body.sourceConfig !== undefined) {
+      updates.sourceConfig = body.sourceConfig
     }
-    if (parsed.data.syncIntervalMinutes !== undefined) {
-      updates.syncIntervalMinutes = parsed.data.syncIntervalMinutes
-      if (parsed.data.syncIntervalMinutes > 0) {
-        updates.nextSyncAt = new Date(Date.now() + parsed.data.syncIntervalMinutes * 60 * 1000)
+    if (body.syncIntervalMinutes !== undefined) {
+      updates.syncIntervalMinutes = body.syncIntervalMinutes
+      if (body.syncIntervalMinutes > 0) {
+        updates.nextSyncAt = new Date(Date.now() + body.syncIntervalMinutes * 60 * 1000)
       } else {
         updates.nextSyncAt = null
       }
     }
-    if (parsed.data.status !== undefined) {
-      updates.status = parsed.data.status
+    if (body.status !== undefined) {
+      updates.status = body.status
+      if (body.status === 'active') {
+        updates.consecutiveFailures = 0
+        updates.lastSyncError = null
+        if (updates.nextSyncAt === undefined) {
+          updates.nextSyncAt = new Date()
+        }
+      }
     }
 
     await db
@@ -261,7 +259,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       resourceId: connectorId,
       resourceName: updatedData.connectorType,
       description: `Updated connector for knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId, updatedFields: Object.keys(parsed.data) },
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        connectorType: updatedData.connectorType,
+        updatedFields: Object.keys(parsed.data),
+        ...(body.syncIntervalMinutes !== undefined && {
+          syncIntervalMinutes: body.syncIntervalMinutes,
+        }),
+        ...(body.status !== undefined && { newStatus: body.status }),
+      },
       request,
     })
 
@@ -270,12 +277,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error updating connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * DELETE /api/knowledge/[id]/connectors/[connectorId] - Hard-delete a connector
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -352,10 +359,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return { deletedDocs: deleteDocuments ? docs : [], docCount: docs.length }
     })
 
+    const kbWorkspaceId = writeCheck.knowledgeBase?.workspaceId ?? null
+
     if (deleteDocuments) {
       await Promise.all([
         deletedDocs.length > 0
-          ? deleteDocumentStorageFiles(deletedDocs, requestId)
+          ? deleteDocumentStorageFiles(
+              deletedDocs.map((doc) => ({ ...doc, workspaceId: kbWorkspaceId })),
+              requestId
+            )
           : Promise.resolve(),
         cleanupUnusedTagDefinitions(knowledgeBaseId, requestId).catch((error) => {
           logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
@@ -367,13 +379,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
     )
 
-    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
     captureServerEvent(
       auth.userId,
       'knowledge_base_connector_removed',
       {
         knowledge_base_id: knowledgeBaseId,
-        workspace_id: kbWorkspaceId,
+        workspace_id: kbWorkspaceId ?? '',
         connector_type: existingConnector[0].connectorType,
         documents_deleted: deleteDocuments ? docCount : 0,
       },
@@ -392,6 +403,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       description: `Deleted connector from knowledge base "${writeCheck.knowledgeBase.name}"`,
       metadata: {
         knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        connectorType: existingConnector[0].connectorType,
+        deleteDocuments,
         documentsDeleted: deleteDocuments ? docCount : 0,
         documentsKept: deleteDocuments ? 0 : docCount,
       },
@@ -403,4 +417,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error deleting connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

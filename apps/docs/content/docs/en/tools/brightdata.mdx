@@ -1,0 +1,201 @@
+---
+title: Bright Data
+description: Scrape websites, search engines, and extract structured data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="brightdata"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate Bright Data into the workflow. Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.
+
+
+
+## Tools
+
+### `brightdata_scrape_url`
+
+Fetch content from any URL using Bright Data Web Unlocker. Bypasses anti-bot protections, CAPTCHAs, and IP blocks automatically.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Bright Data API token |
+| `zone` | string | Yes | Web Unlocker zone name from your Bright Data dashboard \(e.g., "web_unlocker1"\) |
+| `url` | string | Yes | The URL to scrape \(e.g., "https://example.com/page"\) |
+| `format` | string | No | Response format: "raw" for HTML or "json" for parsed content. Defaults to "raw" |
+| `country` | string | No | Two-letter country code for geo-targeting \(e.g., "us", "gb"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | The scraped page content \(HTML or JSON depending on format\) |
+| `url` | string | The URL that was scraped |
+| `statusCode` | number | HTTP status code of the response |
+
+### `brightdata_serp_search`
+
+Search Google, Bing, DuckDuckGo, or Yandex and get structured search results using Bright Data SERP API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Bright Data API token |
+| `zone` | string | Yes | SERP API zone name from your Bright Data dashboard \(e.g., "serp_api1"\) |
+| `query` | string | Yes | The search query \(e.g., "best project management tools"\) |
+| `searchEngine` | string | No | Search engine to use: "google", "bing", "duckduckgo", or "yandex". Defaults to "google" |
+| `country` | string | No | Two-letter country code for localized results \(e.g., "us", "gb"\) |
+| `language` | string | No | Two-letter language code \(e.g., "en", "es"\) |
+| `numResults` | number | No | Number of results to return \(e.g., 10, 20\). Defaults to 10 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Array of search results |
+|   ↳ `title` | string | Title of the search result |
+|   ↳ `url` | string | URL of the search result |
+|   ↳ `description` | string | Snippet or description of the result |
+|   ↳ `rank` | number | Position in search results |
+| `query` | string | The search query that was executed |
+| `searchEngine` | string | The search engine that was used |
+
+### `brightdata_discover`
+
+AI-powered web discovery that finds and ranks results by intent. Returns up to 1,000 results with optional cleaned page content for RAG and verification.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Bright Data API token |
+| `query` | string | Yes | The search query \(e.g., "competitor pricing changes enterprise plan"\) |
+| `numResults` | number | No | Number of results to return, up to 1000. Defaults to 10 |
+| `intent` | string | No | Describes what the agent is trying to accomplish, used to rank results by relevance \(e.g., "find official pricing pages and change notes"\) |
+| `includeContent` | boolean | No | Whether to include cleaned page content in results |
+| `format` | string | No | Response format: "json" or "markdown". Defaults to "json" |
+| `language` | string | No | Search language code \(e.g., "en", "es", "fr"\). Defaults to "en" |
+| `country` | string | No | Two-letter ISO country code for localized results \(e.g., "us", "gb"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Array of discovered web results ranked by intent relevance |
+|   ↳ `url` | string | URL of the discovered page |
+|   ↳ `title` | string | Page title |
+|   ↳ `description` | string | Page description or snippet |
+|   ↳ `relevanceScore` | number | AI-calculated relevance score for intent-based ranking |
+|   ↳ `content` | string | Cleaned page content in the requested format \(when includeContent is true\) |
+| `query` | string | The search query that was executed |
+| `totalResults` | number | Total number of results returned |
+
+### `brightdata_sync_scrape`
+
+Scrape URLs synchronously using a Bright Data pre-built scraper and get structured results directly. Supports up to 20 URLs with a 1-minute timeout.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Bright Data API token |
+| `datasetId` | string | Yes | Dataset scraper ID from your Bright Data dashboard \(e.g., "gd_l1viktl72bvl7bjuj0"\) |
+| `urls` | string | Yes | JSON array of URL objects to scrape, up to 20 \(e.g., \[\{"url": "https://example.com/product"\}\]\) |
+| `format` | string | No | Output format: "json", "ndjson", or "csv". Defaults to "json" |
+| `includeErrors` | boolean | No | Whether to include error reports in results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Array of scraped result objects with fields specific to the dataset scraper used |
+| `snapshotId` | string | Snapshot ID returned if the request exceeded the 1-minute timeout and switched to async processing |
+| `isAsync` | boolean | Whether the request fell back to async mode \(true means use snapshot ID to retrieve results\) |
+
+### `brightdata_scrape_dataset`
+
+Trigger a Bright Data pre-built scraper to extract structured data from URLs. Supports 660+ scrapers for platforms like Amazon, LinkedIn, Instagram, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Bright Data API token |
+| `datasetId` | string | Yes | Dataset scraper ID from your Bright Data dashboard \(e.g., "gd_l1viktl72bvl7bjuj0"\) |
+| `urls` | string | Yes | JSON array of URL objects to scrape \(e.g., \[\{"url": "https://example.com/product"\}\]\) |
+| `format` | string | No | Output format: "json" or "csv". Defaults to "json" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshotId` | string | The snapshot ID to retrieve results later |
+| `status` | string | Status of the scraping job \(e.g., "triggered", "running"\) |
+
+### `brightdata_snapshot_status`
+
+Check the progress of an async Bright Data scraping job. Returns status: starting, running, ready, or failed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Bright Data API token |
+| `snapshotId` | string | Yes | The snapshot ID returned when the collection was triggered \(e.g., "s_m4x7enmven8djfqak"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshotId` | string | The snapshot ID that was queried |
+| `datasetId` | string | The dataset ID associated with this snapshot |
+| `status` | string | Current status of the snapshot: "starting", "running", "ready", or "failed" |
+
+### `brightdata_download_snapshot`
+
+Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Bright Data API token |
+| `snapshotId` | string | Yes | The snapshot ID returned when the collection was triggered \(e.g., "s_m4x7enmven8djfqak"\) |
+| `format` | string | No | Output format: "json", "ndjson", "jsonl", or "csv". Defaults to "json" |
+| `compress` | boolean | No | Whether to compress the results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | array | Array of scraped result records |
+| `format` | string | The content type of the downloaded data |
+| `snapshotId` | string | The snapshot ID that was downloaded |
+
+### `brightdata_cancel_snapshot`
+
+Cancel an active Bright Data scraping job using its snapshot ID. Terminates data collection in progress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Bright Data API token |
+| `snapshotId` | string | Yes | The snapshot ID of the collection to cancel \(e.g., "s_m4x7enmven8djfqak"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `snapshotId` | string | The snapshot ID that was cancelled |
+| `cancelled` | boolean | Whether the cancellation was successful |
+
+

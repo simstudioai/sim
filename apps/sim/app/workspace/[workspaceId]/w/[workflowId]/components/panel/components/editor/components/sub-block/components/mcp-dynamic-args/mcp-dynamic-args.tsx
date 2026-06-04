@@ -1,13 +1,16 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Combobox, Label, Slider, Switch } from '@/components/emcn/components'
+import { Combobox, FieldDivider, Label, Slider, Switch } from '@/components/emcn/components'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('McpDynamicArgs')
@@ -19,6 +22,7 @@ interface McpDynamicArgsProps {
   isPreview?: boolean
   previewValue?: any
   previewContextValues?: Record<string, unknown>
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -49,6 +53,7 @@ export function McpDynamicArgs({
   isPreview = false,
   previewValue,
   previewContextValues,
+  activeSearchTarget,
 }: McpDynamicArgsProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -137,7 +142,7 @@ export function McpDynamicArgs({
     switch (inputType) {
       case 'switch':
         return (
-          <div key={`${paramName}-switch`} className='flex items-center space-x-3'>
+          <div key={`${paramName}-switch`} className='flex items-center gap-x-3'>
             <Switch
               id={`${paramName}-switch`}
               checked={!!value}
@@ -158,6 +163,14 @@ export function McpDynamicArgs({
           label: String(option),
           value: String(option),
         }))
+        const selectedLabel = value ? String(value) : ''
+        const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+          activeSearchTarget,
+          blockId,
+          subBlockId,
+          valuePath: [paramName],
+          label: selectedLabel,
+        })
 
         return (
           <div key={`${paramName}-dropdown`}>
@@ -177,6 +190,13 @@ export function McpDynamicArgs({
               disabled={disabled}
               editable={false}
               filterOptions={true}
+              overlayContent={
+                workflowSearchHighlight ? (
+                  <span className='truncate text-[var(--text-primary)]'>
+                    {formatDisplayText(selectedLabel, { workflowSearchHighlight })}
+                  </span>
+                ) : undefined
+              }
             />
           </div>
         )
@@ -226,7 +246,7 @@ export function McpDynamicArgs({
           <LongInput
             key={`${paramName}-long`}
             blockId={blockId}
-            subBlockId={`_mcp_${paramName}`}
+            subBlockId={subBlockId}
             config={config}
             placeholder={config.placeholder}
             rows={4}
@@ -234,6 +254,8 @@ export function McpDynamicArgs({
             onChange={(newValue) => updateParameter(paramName, newValue)}
             isPreview={isPreview}
             disabled={disabled}
+            activeSearchTarget={activeSearchTarget}
+            workflowSearchValuePath={[paramName]}
           />
         )
       }
@@ -250,7 +272,7 @@ export function McpDynamicArgs({
           <ShortInput
             key={`${paramName}-short`}
             blockId={blockId}
-            subBlockId={`_mcp_${paramName}`}
+            subBlockId={subBlockId}
             config={config}
             placeholder={config.placeholder}
             password={isPassword}
@@ -273,6 +295,8 @@ export function McpDynamicArgs({
             }}
             isPreview={isPreview}
             disabled={disabled}
+            activeSearchTarget={activeSearchTarget}
+            workflowSearchValuePath={[paramName]}
           />
         )
       }
@@ -295,7 +319,7 @@ export function McpDynamicArgs({
   ) {
     return (
       <div className='rounded-lg border p-8 text-center'>
-        <p className='text-muted-foreground text-sm'>Loading tool schema...</p>
+        <p className='text-muted-foreground text-sm'>Loading tool schema…</p>
       </div>
     )
   }
@@ -357,17 +381,7 @@ export function McpDynamicArgs({
                   )}
                   {renderParameterInput(paramName, paramSchema as any)}
                 </div>
-                {showDivider && (
-                  <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                    <div
-                      className='h-[1.25px]'
-                      style={{
-                        backgroundImage:
-                          'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                      }}
-                    />
-                  </div>
-                )}
+                {showDivider && <FieldDivider subblockMarker />}
               </div>
             )
           })}

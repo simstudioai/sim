@@ -11,7 +11,7 @@ export const getLogEventsTool: ToolConfig<
   id: 'cloudwatch_get_log_events',
   name: 'CloudWatch Get Log Events',
   description: 'Retrieve log events from a specific CloudWatch log stream',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {
@@ -101,6 +101,14 @@ export const getLogEventsTool: ToolConfig<
     events: {
       type: 'array',
       description: 'Log events with timestamp, message, and ingestion time',
+      items: {
+        type: 'object',
+        properties: {
+          timestamp: { type: 'number', description: 'Event timestamp in epoch milliseconds' },
+          message: { type: 'string', description: 'Log event message' },
+          ingestionTime: { type: 'number', description: 'Ingestion time in epoch milliseconds' },
+        },
+      },
     },
   },
 }

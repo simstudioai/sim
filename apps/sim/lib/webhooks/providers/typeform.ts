@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -23,7 +23,7 @@ function validateTypeformSignature(secret: string, signature: string, body: stri
       return false
     }
     const providedSignature = signature.substring(7)
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64')
+    const computedHash = hmacSha256Base64(body, secret)
     return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Typeform signature:', error)
@@ -186,6 +186,7 @@ export const typeformHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Missing formId or apiKey for Typeform webhook deletion ${ctx.webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Typeform webhook deletion credentials')
         return
       }
 
@@ -203,11 +204,15 @@ export const typeformHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Failed to delete Typeform webhook (non-fatal): ${typeformResponse.status}`
         )
+        if (ctx.strict) {
+          throw new Error(`Failed to delete Typeform webhook: ${typeformResponse.status}`)
+        }
       } else {
         logger.info(`[${ctx.requestId}] Successfully deleted Typeform webhook with tag ${tag}`)
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Typeform webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }

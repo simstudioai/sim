@@ -3,15 +3,14 @@
  *
  * @vitest-environment node
  */
+import { hybridAuthMockFns, storageServiceMock, storageServiceMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckSessionOrInternalAuth,
   mockVerifyFileAccess,
   mockReadFile,
   mockIsUsingCloudStorage,
-  mockDownloadFile,
   mockDownloadCopilotFile,
   mockInferContextFromKey,
   mockGetContentType,
@@ -27,11 +26,9 @@ const {
     }
   }
   return {
-    mockCheckSessionOrInternalAuth: vi.fn(),
     mockVerifyFileAccess: vi.fn(),
     mockReadFile: vi.fn(),
     mockIsUsingCloudStorage: vi.fn(),
-    mockDownloadFile: vi.fn(),
     mockDownloadCopilotFile: vi.fn(),
     mockInferContextFromKey: vi.fn(),
     mockGetContentType: vi.fn(),
@@ -48,11 +45,6 @@ vi.mock('fs/promises', () => ({
   stat: vi.fn().mockResolvedValue({ isFile: () => true, size: 100 }),
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
 vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,
 }))
@@ -64,16 +56,25 @@ vi.mock('@/lib/uploads', () => ({
   isUsingCloudStorage: mockIsUsingCloudStorage,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  hasCloudStorage: vi.fn().mockReturnValue(true),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/utils/file-utils', () => ({
   inferContextFromKey: mockInferContextFromKey,
 }))
 
 vi.mock('@/lib/uploads/setup.server', () => ({}))
+
+vi.mock('@/lib/execution/sandbox/run-task', () => ({
+  runSandboxTask: vi
+    .fn()
+    .mockImplementation(async (taskId: string) =>
+      taskId === 'pdf-generate' ? Buffer.from('%PDF-compiled') : Buffer.from('PK\x03\x04compiled')
+    ),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  parseWorkspaceFileKey: vi.fn().mockReturnValue(undefined),
+}))
 
 vi.mock('@/app/api/files/utils', () => ({
   FileNotFoundError,
@@ -91,13 +92,14 @@ describe('File Serve API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockCheckSessionOrInternalAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'test-user-id',
     })
     mockVerifyFileAccess.mockResolvedValue(true)
     mockReadFile.mockResolvedValue(Buffer.from('test content'))
     mockIsUsingCloudStorage.mockReturnValue(false)
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     mockInferContextFromKey.mockReturnValue('workspace')
     mockGetContentType.mockReturnValue('text/plain')
     mockFindLocalFile.mockReturnValue('/test/uploads/test-file.txt')
@@ -155,7 +157,7 @@ describe('File Serve API Route', () => {
 
   it('should serve cloud file by downloading and proxying', async () => {
     mockIsUsingCloudStorage.mockReturnValue(true)
-    mockDownloadFile.mockResolvedValue(Buffer.from('test cloud file content'))
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('test cloud file content'))
     mockGetContentType.mockReturnValue('image/png')
 
     const req = new NextRequest(
@@ -168,7 +170,7 @@ describe('File Serve API Route', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
 
-    expect(mockDownloadFile).toHaveBeenCalledWith({
+    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
       key: 'workspace/test-workspace-id/1234567890-image.png',
       context: 'workspace',
     })

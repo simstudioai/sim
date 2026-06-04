@@ -6,7 +6,7 @@ export const introspectTool: ToolConfig<DynamoDBIntrospectParams, DynamoDBIntros
   name: 'DynamoDB Introspect',
   description:
     'Introspect DynamoDB to list tables or get detailed schema information for a specific table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -72,8 +72,9 @@ export const introspectTool: ToolConfig<DynamoDBIntrospectParams, DynamoDBIntros
     message: { type: 'string', description: 'Operation status message' },
     tables: { type: 'array', description: 'List of table names in the region' },
     tableDetails: {
-      type: 'object',
+      type: 'json',
       description: 'Detailed schema information for a specific table',
+      optional: true,
     },
   },
 }

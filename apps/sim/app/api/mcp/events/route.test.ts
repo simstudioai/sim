@@ -3,26 +3,22 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMockFns, permissionsMock, permissionsMockFns } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-}))
+function createNextRequest(url: string): NextRequest {
+  return new NextRequest(new URL(url))
+}
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/events/sse-endpoint', () => ({
   createWorkspaceSSE: (_config: any) => {
     return async (request: any) => {
-      const session = await mockGetSession()
+      const session = await authMockFns.mockGetSession()
       if (!session?.user?.id) {
         return new Response('Unauthorized', { status: 401 })
       }
@@ -72,16 +68,11 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 401 when session is missing', async () => {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
 
-    const request = createMockRequest(
-      'GET',
-      undefined,
-      {},
-      'http://localhost:3000/api/mcp/events?workspaceId=ws-123'
-    )
+    const request = createNextRequest('http://localhost:3000/api/mcp/events?workspaceId=ws-123')
 
-    const response = await GET(request as any)
+    const response = await GET(request)
 
     expect(response.status).toBe(401)
     const text = await response.text()
@@ -89,11 +80,11 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 400 when workspaceId is missing', async () => {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
 
-    const request = createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/mcp/events')
+    const request = createNextRequest('http://localhost:3000/api/mcp/events')
 
-    const response = await GET(request as any)
+    const response = await GET(request)
 
     expect(response.status).toBe(400)
     const text = await response.text()
@@ -101,17 +92,12 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 403 when user lacks workspace access', async () => {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
     mockGetUserEntityPermissions.mockResolvedValue(null)
 
-    const request = createMockRequest(
-      'GET',
-      undefined,
-      {},
-      'http://localhost:3000/api/mcp/events?workspaceId=ws-123'
-    )
+    const request = createNextRequest('http://localhost:3000/api/mcp/events?workspaceId=ws-123')
 
-    const response = await GET(request as any)
+    const response = await GET(request)
 
     expect(response.status).toBe(403)
     const text = await response.text()
@@ -120,17 +106,12 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns SSE stream when authorized', async () => {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
     mockGetUserEntityPermissions.mockResolvedValue({ read: true })
 
-    const request = createMockRequest(
-      'GET',
-      undefined,
-      {},
-      'http://localhost:3000/api/mcp/events?workspaceId=ws-123'
-    )
+    const request = createNextRequest('http://localhost:3000/api/mcp/events?workspaceId=ws-123')
 
-    const response = await GET(request as any)
+    const response = await GET(request)
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('text/event-stream')

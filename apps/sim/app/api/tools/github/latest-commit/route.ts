@@ -1,12 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { githubLatestCommitContract } from '@/lib/api/contracts/tools/github'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,14 +42,7 @@ interface GitHubCommitResponse {
   }>
 }
 
-const GitHubLatestCommitSchema = z.object({
-  owner: z.string().min(1, 'Owner is required'),
-  repo: z.string().min(1, 'Repo is required'),
-  branch: z.string().optional().nullable(),
-  apiKey: z.string().min(1, 'API key is required'),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -63,10 +59,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const validatedData = GitHubLatestCommitSchema.parse(body)
+    const parsed = await parseRequest(githubLatestCommitContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const { owner, repo, branch, apiKey } = validatedData
+    const { owner, repo, branch, apiKey } = parsed.data.body
 
     const baseUrl = `https://api.github.com/repos/${owner}/${repo}`
     const commitUrl = branch ? `${baseUrl}/commits/${branch}` : `${baseUrl}/commits/HEAD`
@@ -187,9 +183,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )
   }
-}
+})

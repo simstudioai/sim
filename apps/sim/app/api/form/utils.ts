@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { form, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import {
@@ -9,7 +10,6 @@ import {
   validateAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('FormAuthUtils')
 
@@ -159,7 +159,7 @@ export async function validateFormAuth(
       const allowedEmails: string[] = deployment.allowedEmails || []
 
       if (isEmailAllowed(email, allowedEmails)) {
-        return { authorized: true }
+        return { authorized: false, error: 'otp_required' }
       }
 
       return { authorized: false, error: 'Email not authorized for this form' }

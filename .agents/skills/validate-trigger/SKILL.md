@@ -44,6 +44,20 @@ Fetch the service's official webhook documentation. This is the **source of trut
 - Webhook subscription API (create/delete endpoints, if applicable)
 - Retry behavior and delivery guarantees
 
+### Hard Rule: No Guessed Webhook Payload Schemas
+
+If the official docs do not clearly show the webhook payload JSON for an event, you MUST tell the user instead of guessing.
+
+- Do NOT invent payload field names
+- Do NOT infer nested payload paths without evidence
+- Do NOT treat likely event shapes as verified
+- Do NOT accept `formatInput` mappings that are not backed by docs or live payloads
+
+If a payload schema is unknown, validation must explicitly recommend:
+1. sample webhook payloads,
+2. a live test webhook source, or
+3. trimming the trigger to only documented outputs.
+
 ## Step 3: Validate Trigger Definitions
 
 ### utils.ts
@@ -93,6 +107,7 @@ Fetch the service's official webhook documentation. This is the **source of trut
 - [ ] Nested output paths exist at the correct depth (e.g., `resource.id` actually has `resource: { id: ... }`)
 - [ ] `null` is used for missing optional fields (not empty strings or empty objects)
 - [ ] Returns `{ input: { ... } }` — not a bare object
+- [ ] Every mapped payload field is backed by official docs or live-verified webhook payloads
 
 ### Idempotency
 - [ ] `extractIdempotencyId` returns a stable, unique key per delivery
@@ -195,6 +210,7 @@ After fixing, confirm:
 1. `bun run type-check` passes
 2. Re-read all modified files to verify fixes are correct
 3. Provider handler tests pass (if they exist): `bun test {service}`
+4. Any remaining unknown webhook payload schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 

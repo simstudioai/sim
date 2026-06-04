@@ -1,5 +1,13 @@
-import type { HunterDomainSearchParams, HunterDomainSearchResponse } from '@/tools/hunter/types'
-import { EMAILS_OUTPUT } from '@/tools/hunter/types'
+import type {
+  HunterDomainSearchParams,
+  HunterDomainSearchResponse,
+  HunterEmail,
+} from '@/tools/hunter/types'
+import {
+  EMAILS_OUTPUT,
+  HUNTER_API_KEY_PREFIX,
+  HUNTER_SEARCH_CREDIT_USD,
+} from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomainSearchResponse> = {
@@ -7,6 +15,28 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
   name: 'Hunter Domain Search',
   description: 'Returns all the email addresses found using one given domain name, with sources.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: HUNTER_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'hunter',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const emails = output.emails
+        if (!Array.isArray(emails)) {
+          throw new Error('Hunter domain search response missing emails, cannot determine cost')
+        }
+        // Hunter counts one search credit only when a call returns at least one result.
+        const cost = emails.length > 0 ? HUNTER_SEARCH_CREDIT_USD : 0
+        return { cost, metadata: { credits: cost > 0 ? 1 : 0, emails: emails.length } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
 
   params: {
     domain: {
@@ -77,45 +107,35 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const d = data.data ?? {}
 
     return {
       success: true,
       output: {
-        domain: data.data?.domain || '',
-        disposable: data.data?.disposable || false,
-        webmail: data.data?.webmail || false,
-        accept_all: data.data?.accept_all || false,
-        pattern: data.data?.pattern || '',
-        organization: data.data?.organization || '',
-        description: data.data?.description || '',
-        industry: data.data?.industry || '',
-        twitter: data.data?.twitter || '',
-        facebook: data.data?.facebook || '',
-        linkedin: data.data?.linkedin || '',
-        instagram: data.data?.instagram || '',
-        youtube: data.data?.youtube || '',
-        technologies: data.data?.technologies || [],
-        country: data.data?.country || '',
-        state: data.data?.state || '',
-        city: data.data?.city || '',
-        postal_code: data.data?.postal_code || '',
-        street: data.data?.street || '',
+        domain: d.domain ?? '',
+        disposable: d.disposable ?? false,
+        webmail: d.webmail ?? false,
+        accept_all: d.accept_all ?? false,
+        pattern: d.pattern ?? '',
+        organization: d.organization ?? '',
+        linked_domains: d.linked_domains ?? [],
         emails:
-          data.data?.emails?.map((email: any) => ({
-            value: email.value || '',
-            type: email.type || '',
-            confidence: email.confidence || 0,
-            sources: email.sources || [],
-            first_name: email.first_name || '',
-            last_name: email.last_name || '',
-            position: email.position || '',
-            seniority: email.seniority || '',
-            department: email.department || '',
-            linkedin: email.linkedin || '',
-            twitter: email.twitter || '',
-            phone_number: email.phone_number || '',
-            verification: email.verification || {},
-          })) || [],
+          d.emails?.map((email: Partial<HunterEmail>) => ({
+            value: email.value ?? '',
+            type: email.type ?? '',
+            confidence: email.confidence ?? 0,
+            sources: email.sources ?? [],
+            first_name: email.first_name ?? null,
+            last_name: email.last_name ?? null,
+            position: email.position ?? null,
+            position_raw: email.position_raw ?? null,
+            seniority: email.seniority ?? null,
+            department: email.department ?? null,
+            linkedin: email.linkedin ?? null,
+            twitter: email.twitter ?? null,
+            phone_number: email.phone_number ?? null,
+            verification: email.verification ?? { date: null, status: 'unknown' },
+          })) ?? [],
       },
     }
   },
@@ -145,61 +165,10 @@ export const domainSearchTool: ToolConfig<HunterDomainSearchParams, HunterDomain
       type: 'string',
       description: 'The organization/company name',
     },
-    description: {
-      type: 'string',
-      description: 'Description of the organization',
-    },
-    industry: {
-      type: 'string',
-      description: 'Industry classification of the organization',
-    },
-    twitter: {
-      type: 'string',
-      description: 'Twitter handle of the organization',
-    },
-    facebook: {
-      type: 'string',
-      description: 'Facebook page URL of the organization',
-    },
-    linkedin: {
-      type: 'string',
-      description: 'LinkedIn company page URL',
-    },
-    instagram: {
-      type: 'string',
-      description: 'Instagram profile of the organization',
-    },
-    youtube: {
-      type: 'string',
-      description: 'YouTube channel of the organization',
-    },
-    technologies: {
+    linked_domains: {
       type: 'array',
-      description: 'Technologies used by the organization',
-      items: {
-        type: 'string',
-        description: 'Technology name',
-      },
-    },
-    country: {
-      type: 'string',
-      description: 'Country where the organization is headquartered',
-    },
-    state: {
-      type: 'string',
-      description: 'State/province where the organization is located',
-    },
-    city: {
-      type: 'string',
-      description: 'City where the organization is located',
-    },
-    postal_code: {
-      type: 'string',
-      description: 'Postal code of the organization',
-    },
-    street: {
-      type: 'string',
-      description: 'Street address of the organization',
+      description: 'Other domains linked to the organization',
+      items: { type: 'string', description: 'Domain name' },
     },
     emails: EMAILS_OUTPUT,
   },

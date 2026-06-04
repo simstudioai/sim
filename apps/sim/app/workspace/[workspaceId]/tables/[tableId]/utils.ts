@@ -3,6 +3,21 @@ import type { ColumnDefinition } from '@/lib/table'
 type BadgeVariant = 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray'
 
 /**
+ * Pick a fresh "untitled[_N]" name not already taken by `columns`. Used by
+ * both the page-header and inline-header "New column" dropdowns.
+ */
+export function generateColumnName(columns: ReadonlyArray<{ name: string }>): string {
+  const existing = new Set(columns.map((c) => c.name.toLowerCase()))
+  let name = 'untitled'
+  let i = 2
+  while (existing.has(name.toLowerCase())) {
+    name = `untitled_${i}`
+    i++
+  }
+  return name
+}
+
+/**
  * Returns the appropriate badge color variant for a column type
  */
 export function getTypeBadgeVariant(type: string): BadgeVariant {
@@ -30,7 +45,7 @@ export function cleanCellValue(value: unknown, column: ColumnDefinition): unknow
   if (column.type === 'number') {
     if (value === '') return null
     const num = Number(value)
-    return Number.isNaN(num) ? 0 : num
+    return Number.isNaN(num) ? null : num
   }
   if (column.type === 'json') {
     if (typeof value === 'string') {
@@ -51,7 +66,11 @@ export function cleanCellValue(value: unknown, column: ColumnDefinition): unknow
 }
 
 /**
- * Format a stored value for display in an input field.
+ * Format a stored value for display in an input field. Defensive against
+ * shape drift: a column whose declared type lags its actual data (e.g. a
+ * workflow column mid-remap, where the schema cache hasn't refetched but
+ * row data already has the new mapping's value) would otherwise render
+ * `[object Object]` via `String(value)`.
  */
 export function formatValueForInput(value: unknown, type: string): string {
   if (value === null || value === undefined) return ''
@@ -69,6 +88,7 @@ export function formatValueForInput(value: unknown, type: string): string {
       return str
     }
   }
+  if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
 }
 

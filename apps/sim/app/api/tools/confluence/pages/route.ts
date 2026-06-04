@@ -1,36 +1,29 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { confluencePagesSelectorContract } from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluencePagesAPI')
 
 export const dynamic = 'force-dynamic'
 
 // List pages or search pages
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const {
-      domain,
-      accessToken,
-      title,
-      cloudId: providedCloudId,
-      limit = 50,
-    } = await request.json()
+    const parsed = await parseRequest(confluencePagesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
-    }
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
+    const { domain, accessToken, title, cloudId: providedCloudId, limit } = parsed.data.body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -66,26 +59,16 @@ export async function POST(request: NextRequest) {
     logger.info('Response status:', response.status, response.statusText)
 
     if (!response.ok) {
-      logger.error(`Confluence API error: ${response.status} ${response.statusText}`)
-      let errorMessage
-
-      try {
-        const errorData = await response.json()
-        logger.error('Error details:', JSON.stringify(errorData, null, 2))
-        errorMessage = errorData.message || `Failed to fetch Confluence pages (${response.status})`
-      } catch (e) {
-        logger.error('Could not parse error response as JSON:', e)
-
-        try {
-          const text = await response.text()
-          logger.error('Response text:', text)
-          errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
-        } catch (_textError) {
-          errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
-        }
-      }
-
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      const errorText = await response.text()
+      logger.error('Confluence API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -117,4 +100,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

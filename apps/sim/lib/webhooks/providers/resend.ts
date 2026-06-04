@@ -1,7 +1,7 @@
-import crypto from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Base64 } from '@sim/security/hmac'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -41,10 +41,7 @@ function verifySvixSignature(
 
     const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
     const toSign = `${msgId}.${timestamp}.${rawBody}`
-    const expectedSignature = crypto
-      .createHmac('sha256', secretBytes)
-      .update(toSign, 'utf8')
-      .digest('base64')
+    const expectedSignature = hmacSha256Base64(toSign, secretBytes)
 
     const providedSignatures = signatures.split(' ')
     for (const versionedSig of providedSignatures) {
@@ -273,6 +270,7 @@ export const resendHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing apiKey or externalId for Resend webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Resend webhook deletion credentials')
         return
       }
 
@@ -289,11 +287,13 @@ export const resendHandler: WebhookProviderHandler = {
           `[${requestId}] Failed to delete Resend webhook (non-fatal): ${resendResponse.status}`,
           { response: responseBody }
         )
+        if (ctx.strict) throw new Error(`Failed to delete Resend webhook: ${resendResponse.status}`)
       } else {
         logger.info(`[${requestId}] Successfully deleted Resend webhook ${externalId}`)
       }
     } catch (error) {
       logger.warn(`[${requestId}] Error deleting Resend webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }

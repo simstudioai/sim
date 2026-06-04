@@ -34,15 +34,16 @@ Integrate WhatsApp into the workflow. Can send messages.
 
 ### `whatsapp_send_message`
 
-Send WhatsApp messages
+Send a text message through the WhatsApp Cloud API.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `phoneNumber` | string | Yes | Recipient phone number with country code \(e.g., +14155552671\) |
-| `message` | string | Yes | Message content to send \(plain text or template content\) |
+| `message` | string | Yes | Plain text message content to send |
 | `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID \(from Meta Business Suite\) |
+| `previewUrl` | boolean | No | Whether WhatsApp should try to render a link preview for the first URL in the message |
 
 #### Output
 
@@ -50,8 +51,12 @@ Send WhatsApp messages
 | --------- | ---- | ----------- |
 | `success` | boolean | WhatsApp message send success status |
 | `messageId` | string | Unique WhatsApp message identifier |
-| `phoneNumber` | string | Recipient phone number |
-| `status` | string | Message delivery status |
-| `timestamp` | string | Message send timestamp |
+| `messageStatus` | string | Initial delivery state returned by the API |
+| `messagingProduct` | string | Messaging product returned by the API |
+| `inputPhoneNumber` | string | Recipient phone number echoed back by WhatsApp |
+| `whatsappUserId` | string | WhatsApp user ID resolved for the recipient |
+| `contacts` | array | Recipient contact records returned by WhatsApp |
+|   ↳ `input` | string | Input phone number sent to the API |
+|   ↳ `wa_id` | string | WhatsApp user ID associated with the recipient |
 
 

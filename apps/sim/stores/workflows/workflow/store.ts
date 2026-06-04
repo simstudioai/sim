@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { generateId } from '@/lib/core/utils/uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import {
   getDynamicHandleSubblockType,
@@ -25,6 +26,7 @@ import type {
   WorkflowStore,
 } from '@/stores/workflows/workflow/types'
 import {
+  clampParallelBatchSize,
   findAllDescendantNodes,
   generateLoopBlocks,
   generateParallelBlocks,
@@ -73,7 +75,7 @@ function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
     } catch (error) {
       logger.warn('Failed to resolve dynamic sub-block default value', {
         subBlockId: config.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -646,7 +648,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ...acc,
             [subId]: {
               ...subBlock,
-              value: JSON.parse(JSON.stringify(subBlock.value)),
+              value: structuredClone(subBlock.value),
             },
           }),
           {}
@@ -654,10 +656,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         // Remap condition/router IDs in the duplicated subBlocks
         const clonedSubBlockValues = activeWorkflowId
-          ? JSON.parse(
-              JSON.stringify(
-                useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
-              )
+          ? structuredClone(
+              useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
             )
           : {}
         remapConditionIds(
@@ -994,7 +994,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               ...block,
               data: {
                 ...block.data,
-                count: Math.max(1, Math.min(1000, count)), // Clamp between 1-1000
+                count: Math.max(1, count),
               },
             },
           }
@@ -1162,7 +1162,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ...block,
             data: {
               ...block.data,
-              count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
+              count: Math.max(1, count),
             },
           },
         }
@@ -1177,6 +1177,32 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set(newState)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
+      },
+
+      updateParallelBatchSize: (parallelId: string, batchSize: number) => {
+        const block = get().blocks[parallelId]
+        if (!block || block.type !== 'parallel') return
+
+        const newBlocks = {
+          ...get().blocks,
+          [parallelId]: {
+            ...block,
+            data: {
+              ...block.data,
+              batchSize: clampParallelBatchSize(batchSize),
+            },
+          },
+        }
+
+        const newState = {
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: generateParallelBlocks(newBlocks),
+        }
+
+        set(newState)
+        get().updateLastSaved()
       },
 
       updateParallelCollection: (parallelId: string, collection: string) => {

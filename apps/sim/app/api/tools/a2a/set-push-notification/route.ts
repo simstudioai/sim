@@ -1,24 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { createA2AClient } from '@/lib/a2a/utils'
+import { a2aSetPushNotificationContract } from '@/lib/api/contracts/tools/a2a'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('A2ASetPushNotificationAPI')
 
-const A2ASetPushNotificationSchema = z.object({
-  agentUrl: z.string().min(1, 'Agent URL is required'),
-  taskId: z.string().min(1, 'Task ID is required'),
-  webhookUrl: z.string().min(1, 'Webhook URL is required'),
-  token: z.string().optional(),
-  apiKey: z.string().optional(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -37,8 +32,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const validatedData = A2ASetPushNotificationSchema.parse(body)
+    const rateLimited = await enforceUserOrIpRateLimit(
+      'a2a-set-push-notification',
+      authResult.userId,
+      request
+    )
+    if (rateLimited) return rateLimited
+
+    const parsed = await parseRequest(
+      a2aSetPushNotificationContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const urlValidation = await validateUrlWithDNS(validatedData.webhookUrl, 'Webhook URL')
     if (!urlValidation.isValid) {
@@ -81,18 +99,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error setting A2A push notification:`, error)
 
     return NextResponse.json(
@@ -103,4 +109,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

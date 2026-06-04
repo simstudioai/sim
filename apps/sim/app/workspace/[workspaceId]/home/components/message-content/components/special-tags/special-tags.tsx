@@ -1,12 +1,27 @@
 'use client'
 
-import { createElement, useState } from 'react'
+import { createElement, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
+import {
+  ArrowRight,
+  ChevronDown,
+  Expandable,
+  ExpandableContent,
+  SecretReveal,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
+import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
+import type {
+  ChatMessageContext,
+  MothershipResource,
+} from '@/app/workspace/[workspaceId]/home/types'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { useTablesList } from '@/hooks/queries/tables'
+import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
-export interface OptionsItemData {
+interface OptionsItemData {
   title: string
   description: string
 }
@@ -38,9 +53,10 @@ export const CREDENTIAL_TAG_TYPES = [
 export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
 
 export interface CredentialTagData {
-  value: string
+  value?: string
   type: CredentialTagType
   provider?: string
+  redacted?: boolean
 }
 
 export interface MothershipErrorTagData {
@@ -55,6 +71,16 @@ export interface FileTagData {
   content: string
 }
 
+export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'file'] as const
+
+export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
+
+export interface WorkspaceResourceTagData {
+  type: WorkspaceResourceTagType
+  id: string
+  title?: string
+}
+
 export type ContentSegment =
   | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
@@ -62,6 +88,7 @@ export type ContentSegment =
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
   | { type: 'credential'; data: CredentialTagData }
   | { type: 'mothership-error'; data: MothershipErrorTagData }
+  | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
 
 export type RuntimeSpecialTagName =
   | 'thinking'
@@ -69,6 +96,7 @@ export type RuntimeSpecialTagName =
   | 'credential'
   | 'mothership-error'
   | 'file'
+  | 'workspace_resource'
 
 export interface ParsedSpecialContent {
   segments: ContentSegment[]
@@ -81,6 +109,7 @@ const RUNTIME_SPECIAL_TAG_NAMES = [
   'credential',
   'mothership-error',
   'file',
+  'workspace_resource',
 ] as const
 
 const SPECIAL_TAG_NAMES = [
@@ -89,6 +118,7 @@ const SPECIAL_TAG_NAMES = [
   'usage_upgrade',
   'credential',
   'mothership-error',
+  'workspace_resource',
 ] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -117,12 +147,15 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
 
 function isCredentialTagData(value: unknown): value is CredentialTagData {
   if (!isRecord(value)) return false
-  return (
-    typeof value.value === 'string' &&
-    typeof value.type === 'string' &&
-    (CREDENTIAL_TAG_TYPES as readonly string[]).includes(value.type) &&
-    (value.provider === undefined || typeof value.provider === 'string')
-  )
+  if (
+    typeof value.type !== 'string' ||
+    !(CREDENTIAL_TAG_TYPES as readonly string[]).includes(value.type)
+  ) {
+    return false
+  }
+  if (value.provider !== undefined && typeof value.provider !== 'string') return false
+  if (value.redacted === true) return value.value === undefined || typeof value.value === 'string'
+  return typeof value.value === 'string'
 }
 
 function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagData {
@@ -131,6 +164,16 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
     typeof value.message === 'string' &&
     (value.code === undefined || typeof value.code === 'string') &&
     (value.provider === undefined || typeof value.provider === 'string')
+  )
+}
+
+function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.type === 'string' &&
+    (WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type) &&
+    typeof value.id === 'string' &&
+    value.id.trim().length > 0
   )
 }
 
@@ -181,6 +224,7 @@ function parseSpecialTagData(
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
   | { type: 'credential'; data: CredentialTagData }
   | { type: 'mothership-error'; data: MothershipErrorTagData }
+  | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
   | null {
   if (tagName === 'thinking') {
     const content = parseTextTagBody(body)
@@ -207,11 +251,16 @@ function parseSpecialTagData(
     return data ? { type: 'mothership-error', data } : null
   }
 
+  if (tagName === 'workspace_resource') {
+    const data = parseJsonTagBody(body, isWorkspaceResourceTagData)
+    return data ? { type: 'workspace_resource', data } : null
+  }
+
   return null
 }
 
 /**
- * Parses inline special tags (`<options>`, `<usage_upgrade>`) from streamed
+ * Parses inline special tags (`<options>`, `<usage_upgrade>`, `<workspace_resource>`) from streamed
  * text content. Complete tags are extracted into typed segments; incomplete
  * tags (still streaming) are suppressed from display and flagged via
  * `hasPendingTag` so the caller can show a loading indicator.
@@ -307,12 +356,18 @@ const THINKING_BLOCKS = [
 interface SpecialTagsProps {
   segment: Exclude<ContentSegment, { type: 'text' }>
   onOptionSelect?: (id: string) => void
+  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
 /**
- * Unified renderer for inline special tags: `<options>`, `<usage_upgrade>`, and `<credential>`.
+ * Unified renderer for inline special tags: `<options>`, `<usage_upgrade>`, `<credential>`,
+ * and `<workspace_resource>`.
  */
-export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
+export function SpecialTags({
+  segment,
+  onOptionSelect,
+  onWorkspaceResourceSelect,
+}: SpecialTagsProps) {
   switch (segment.type) {
     case 'thinking':
       return null
@@ -324,6 +379,8 @@ export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
       return <CredentialDisplay data={segment.data} />
     case 'mothership-error':
       return <MothershipErrorDisplay data={segment.data} />
+    case 'workspace_resource':
+      return <WorkspaceResourceDisplay data={segment.data} onSelect={onWorkspaceResourceSelect} />
     default:
       return null
   }
@@ -335,7 +392,7 @@ export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
 export function PendingTagIndicator() {
   return (
     <div className='flex animate-stream-fade-in items-center gap-2 py-2'>
-      <div className='grid h-[16px] w-[16px] grid-cols-2 gap-[1.5px]'>
+      <div className='grid size-[16px] grid-cols-2 gap-[1.5px]'>
         {THINKING_BLOCKS.map((block, i) => (
           <div
             key={i}
@@ -356,16 +413,19 @@ interface OptionsDisplayProps {
 
 function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
   const disabled = !onSelect
-  const [expanded, setExpanded] = useState(!disabled)
+  const [collapsedByUser, setCollapsedByUser] = useState(false)
+  // When interactive (not disabled), always expanded. When disabled, the user can toggle.
+  const expanded = !disabled || !collapsedByUser
   const entries = Object.entries(data)
+
   if (entries.length === 0) return null
 
   return (
-    <div className='animate-stream-fade-in'>
+    <div>
       {disabled ? (
         <button
           type='button'
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={() => setCollapsedByUser((prev) => !prev)}
           aria-expanded={expanded}
           className='flex items-center gap-2'
         >
@@ -398,11 +458,11 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
                     i > 0 && 'border-t'
                   )}
                 >
-                  <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                  <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
                     <span className='font-base text-[var(--text-icon)] text-sm'>{i + 1}</span>
                   </div>
                   <span className='flex-1 font-base text-[var(--text-body)] text-sm'>{title}</span>
-                  <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
+                  <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
                 </button>
               )
             })}
@@ -410,6 +470,102 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
         </ExpandableContent>
       </Expandable>
     </div>
+  )
+}
+
+function fallbackWorkspaceResourceTitle(type: WorkspaceResourceTagType): string {
+  switch (type) {
+    case 'workflow':
+      return 'Workflow'
+    case 'table':
+      return 'Table'
+    case 'file':
+      return 'File'
+  }
+}
+
+function toMothershipResourceType(type: WorkspaceResourceTagType): MothershipResource['type'] {
+  return type
+}
+
+function toChatMessageContext(data: WorkspaceResourceTagData, label: string): ChatMessageContext {
+  switch (data.type) {
+    case 'workflow':
+      return { kind: 'workflow', label, workflowId: data.id }
+    case 'table':
+      return { kind: 'table', label, tableId: data.id }
+    case 'file':
+      return { kind: 'file', label, fileId: data.id }
+  }
+}
+
+export function WorkspaceResourceDisplay({
+  data,
+  onSelect,
+}: {
+  data: WorkspaceResourceTagData
+  onSelect?: (resource: MothershipResource) => void
+}) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflows = [] } = useWorkflows(workspaceId)
+  const { data: tables = [] } = useTablesList(workspaceId)
+  const { data: files = [] } = useWorkspaceFiles(workspaceId)
+  const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
+
+  const resource = useMemo<MothershipResource>(() => {
+    const title =
+      data.type === 'workflow'
+        ? (workflows.find((workflow) => workflow.id === data.id)?.name ??
+          fallbackWorkspaceResourceTitle(data.type))
+        : data.type === 'table'
+          ? (tables.find((table) => table.id === data.id)?.name ??
+            fallbackWorkspaceResourceTitle(data.type))
+          : data.type === 'file'
+            ? (files.find((file) => file.id === data.id)?.name ??
+              fallbackWorkspaceResourceTitle(data.type))
+            : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
+              fallbackWorkspaceResourceTitle(data.type))
+
+    return {
+      type: toMothershipResourceType(data.type),
+      id: data.id,
+      title,
+    }
+  }, [data.id, data.type, files, knowledgeBases, tables, workflows])
+
+  const context = toChatMessageContext(data, resource.title)
+
+  const workflowColor =
+    data.type === 'workflow'
+      ? (workflows.find((workflow) => workflow.id === data.id)?.color ?? null)
+      : null
+
+  const mentionContent = (
+    <>
+      <ContextMentionIcon
+        context={context}
+        workflowColor={workflowColor}
+        className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+      />
+      {resource.title}
+    </>
+  )
+
+  const classes =
+    'inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] align-baseline font-[inherit] text-[inherit] leading-[inherit]'
+
+  if (!onSelect) {
+    return <span className={classes}>{mentionContent}</span>
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={() => onSelect(resource)}
+      className={cn(classes, 'cursor-pointer transition-colors hover-hover:bg-[var(--surface-6)]')}
+    >
+      {mentionContent}
+    </button>
   )
 }
 
@@ -449,31 +605,37 @@ const LockIcon = (props: { className?: string }) => (
 )
 
 function CredentialDisplay({ data }: { data: CredentialTagData }) {
-  if (data.type !== 'link' || !data.provider) return null
+  if (data.type === 'link') {
+    if (!data.provider) return null
+    const Icon = getCredentialIcon(data.provider) ?? LockIcon
+    return (
+      <a
+        href={data.value}
+        target='_blank'
+        rel='noopener noreferrer'
+        className='flex items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
+      >
+        {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
+        <span className='flex-1 font-base text-[var(--text-body)] text-sm'>
+          Connect {data.provider}
+        </span>
+        <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      </a>
+    )
+  }
 
-  const Icon = getCredentialIcon(data.provider) ?? LockIcon
+  if (data.type === 'sim_key') {
+    return <SecretReveal value={data.value} redacted={data.redacted || !data.value} />
+  }
 
-  return (
-    <a
-      href={data.value}
-      target='_blank'
-      rel='noopener noreferrer'
-      className='flex animate-stream-fade-in items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
-    >
-      {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
-      <span className='flex-1 font-base text-[var(--text-body)] text-sm'>
-        Connect {data.provider}
-      </span>
-      <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
-    </a>
-  )
+  return null
 }
 
 function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
   const detail = data.code ? `${data.message} (${data.code})` : data.message
 
   return (
-    <p className='animate-stream-fade-in font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
+    <p className='font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
       {detail}
     </p>
   )
@@ -485,10 +647,10 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   return (
-    <div className='animate-stream-fade-in rounded-xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
+    <div className='rounded-xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
       <div className='flex items-center gap-2'>
         <svg
-          className='h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400'
+          className='size-4 shrink-0 text-amber-600 dark:text-amber-400'
           viewBox='0 0 16 16'
           fill='none'
           xmlns='http://www.w3.org/2000/svg'
@@ -514,7 +676,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
         className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
       >
         {buttonLabel}
-        <ArrowRight className='h-3 w-3' />
+        <ArrowRight className='size-3' />
       </a>
     </div>
   )

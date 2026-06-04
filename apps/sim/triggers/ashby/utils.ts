@@ -14,6 +14,30 @@ export const ashbyTriggerOptions = [
 ]
 
 /**
+ * Maps Sim trigger IDs to Ashby webhookType / event action values.
+ * Used by webhook.create body and matchEvent filtering.
+ */
+export const ASHBY_TRIGGER_ACTION_MAP: Record<string, string> = {
+  ashby_application_submit: 'applicationSubmit',
+  ashby_candidate_stage_change: 'candidateStageChange',
+  ashby_candidate_hire: 'candidateHire',
+  ashby_candidate_delete: 'candidateDelete',
+  ashby_job_create: 'jobCreate',
+  ashby_offer_create: 'offerCreate',
+}
+
+/**
+ * Checks if an Ashby webhook event matches the configured trigger.
+ * Ashby sends a ping event on webhook create/edit; this filter rejects
+ * any event whose `action` does not equal the expected webhookType.
+ */
+export function isAshbyEventMatch(triggerId: string, action: string): boolean {
+  const expected = ASHBY_TRIGGER_ACTION_MAP[triggerId]
+  if (!expected) return false
+  return expected === action
+}
+
+/**
  * Generates setup instructions for Ashby webhooks.
  * Webhooks are automatically created/deleted via the Ashby API.
  */
@@ -168,9 +192,8 @@ export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput
 
 /**
  * Build outputs for candidateHire events.
- * Payload: { action, data: { application: { id, createdAt, updatedAt, status,
- *   candidate: { id, name }, currentInterviewStage: { id, title },
- *   job: { id, title } } } }
+ * Per Ashby docs, candidateHire payloads include application details and most
+ * recent accepted offer information.
  */
 export function buildCandidateHireOutputs(): Record<string, TriggerOutput> {
   return {
@@ -194,6 +217,19 @@ export function buildCandidateHireOutputs(): Record<string, TriggerOutput> {
       job: {
         id: { type: 'string', description: 'Job UUID' },
         title: { type: 'string', description: 'Job title' },
+      },
+    },
+    offer: {
+      id: { type: 'string', description: 'Accepted offer UUID' },
+      applicationId: { type: 'string', description: 'Associated application UUID' },
+      acceptanceStatus: { type: 'string', description: 'Offer acceptance status' },
+      offerStatus: { type: 'string', description: 'Offer process status' },
+      decidedAt: {
+        type: 'string',
+        description: 'Offer decision timestamp (ISO 8601)',
+      },
+      latestVersion: {
+        id: { type: 'string', description: 'Latest offer version UUID' },
       },
     },
   } as Record<string, TriggerOutput>

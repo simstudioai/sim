@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { AzureOpenAI } from 'openai'
 import type {
   ChatCompletion,
+  ChatCompletionContentPart,
   ChatCompletionCreateParamsBase,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
@@ -10,8 +12,10 @@ import type {
 } from 'openai/resources/chat/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
 import { env } from '@/lib/core/config/env'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { prepareProviderAttachments } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromAzureOpenAIStream,
@@ -23,6 +27,7 @@ import {
 } from '@/providers/azure-openai/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
   ProviderConfig,
@@ -87,7 +92,28 @@ async function executeChatCompletionsRequest(
   }
 
   if (request.messages) {
-    allMessages.push(...(request.messages as ChatCompletionMessageParam[]))
+    for (const message of request.messages) {
+      if (!message.files?.length || message.role !== 'user') {
+        allMessages.push(message as ChatCompletionMessageParam)
+        continue
+      }
+
+      const attachments = prepareProviderAttachments(message.files, 'azure-openai')
+      const nonImage = attachments.find((a) => a.contentType !== 'image')
+      if (nonImage) {
+        throw new Error(
+          `File "${nonImage.filename}" (${nonImage.mimeType}) requires the Azure OpenAI Responses API endpoint; chat-completions deployments support images only`
+        )
+      }
+
+      const parts: ChatCompletionContentPart[] = []
+      if (message.content) parts.push({ type: 'text', text: message.content })
+      for (const a of attachments) {
+        parts.push({ type: 'image_url', image_url: { url: a.dataUrl } })
+      }
+      const { files: _files, ...rest } = message
+      allMessages.push({ ...rest, content: parts } as ChatCompletionMessageParam)
+    }
   }
 
   const tools: ChatCompletionTool[] | undefined = request.tools?.length
@@ -221,7 +247,7 @@ async function executeChatCompletionsRequest(
               timeSegments: [
                 {
                   type: 'model',
-                  name: 'Streaming response',
+                  name: request.model,
                   startTime: providerStartTime,
                   endTime: Date.now(),
                   duration: Date.now() - providerStartTime,
@@ -270,12 +296,19 @@ async function executeChatCompletionsRequest(
     const timeSegments: TimeSegment[] = [
       {
         type: 'model',
-        name: 'Initial response',
+        name: request.model,
         startTime: initialCallTime,
         endTime: initialCallTime + firstResponseTime,
         duration: firstResponseTime,
       },
     ]
+
+    enrichLastModelSegmentFromChatCompletions(
+      timeSegments,
+      currentResponse,
+      currentResponse.choices[0]?.message?.tool_calls,
+      { model: request.model, provider: 'azure_openai' }
+    )
 
     const firstCheckResult = checkForForcedToolUsage(
       currentResponse,
@@ -314,7 +347,9 @@ async function executeChatCompletionsRequest(
           if (!tool) return null
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeTool(toolName, executionParams)
+          const result = await executeTool(toolName, executionParams, {
+            signal: request.abortSignal,
+          })
           const toolCallEndTime = Date.now()
 
           return {
@@ -337,7 +372,7 @@ async function executeChatCompletionsRequest(
             result: {
               success: false,
               output: undefined,
-              error: error instanceof Error ? error.message : 'Tool execution failed',
+              error: getErrorMessage(error, 'Tool execution failed'),
             },
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,
@@ -448,11 +483,18 @@ async function executeChatCompletionsRequest(
 
       timeSegments.push({
         type: 'model',
-        name: `Model response (iteration ${iterationCount + 1})`,
+        name: request.model,
         startTime: nextModelStartTime,
         endTime: nextModelEndTime,
         duration: thisModelTime,
       })
+
+      enrichLastModelSegmentFromChatCompletions(
+        timeSegments,
+        currentResponse,
+        currentResponse.choices[0]?.message?.tool_calls,
+        { model: request.model, provider: 'azure_openai' }
+      )
 
       modelTime += thisModelTime
 
@@ -593,7 +635,7 @@ async function executeChatCompletionsRequest(
       duration: totalDuration,
     })
 
-    throw new ProviderError(error instanceof Error ? error.message : String(error), {
+    throw new ProviderError(toError(error).message, {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
       duration: totalDuration,
@@ -615,12 +657,24 @@ export const azureOpenAIProvider: ProviderConfig = {
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
-    const azureEndpoint = request.azureEndpoint || env.AZURE_OPENAI_ENDPOINT
+    const userProvidedEndpoint = request.azureEndpoint
+    const azureEndpoint = userProvidedEndpoint || env.AZURE_OPENAI_ENDPOINT
 
     if (!azureEndpoint) {
       throw new Error(
         'Azure OpenAI endpoint is required. Please provide it via azureEndpoint parameter or AZURE_OPENAI_ENDPOINT environment variable.'
       )
+    }
+
+    if (userProvidedEndpoint) {
+      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'azureEndpoint')
+      if (!validation.isValid) {
+        logger.warn('Blocked SSRF attempt via azureEndpoint', {
+          endpoint: userProvidedEndpoint,
+          error: validation.error,
+        })
+        throw new Error(`Invalid Azure OpenAI endpoint: ${validation.error}`)
+      }
     }
 
     const apiKey = request.apiKey

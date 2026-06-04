@@ -33,13 +33,15 @@ export function inferDocumentFileInfo(documentName: string): {
   return { filename: `${base || documentName}.txt`, mimeType: 'text/plain' }
 }
 
-export interface KnowledgeSearchResult {
+interface KnowledgeSearchResult {
   documentId: string
   documentName: string
+  sourceUrl: string | null
   content: string
   chunkIndex: number
   metadata: Record<string, any>
   similarity: number
+  rerankerScore?: number
 }
 
 export interface KnowledgeSearchResponse {
@@ -52,29 +54,27 @@ export interface KnowledgeSearchResponse {
       input: number
       output: number
       total: number
-      tokens: {
-        prompt: number
-        completion: number
-        total: number
-      }
-      model: string
-      pricing: {
-        input: number
-        output: number
-        updatedAt: string
-      }
+      rerankerCost?: number
+      rerankerModel?: string
+      rerankerSearchUnits?: number
     }
+    tokens?: {
+      prompt: number
+      completion: number
+      total: number
+    }
+    model?: string
   }
   error?: string
 }
 
-export interface KnowledgeSearchParams {
+interface KnowledgeSearchParams {
   knowledgeBaseIds: string | string[]
   query: string
   topK?: number
 }
 
-export interface KnowledgeUploadChunkResult {
+interface KnowledgeUploadChunkResult {
   chunkId: string
   chunkIndex: number
   content: string
@@ -112,13 +112,13 @@ export interface KnowledgeUploadChunkResponse {
   error?: string
 }
 
-export interface KnowledgeUploadChunkParams {
+interface KnowledgeUploadChunkParams {
   documentId: string
   content: string
   enabled?: boolean
 }
 
-export interface KnowledgeCreateDocumentResult {
+interface KnowledgeCreateDocumentResult {
   documentId: string
   documentName: string
   type: string
@@ -136,7 +136,7 @@ export interface KnowledgeCreateDocumentResponse {
   error?: string
 }
 
-export interface KnowledgeTagDefinition {
+interface KnowledgeTagDefinition {
   id: string
   tagSlot: string
   displayName: string
@@ -145,7 +145,7 @@ export interface KnowledgeTagDefinition {
   updatedAt: string | null
 }
 
-export interface KnowledgeListTagsParams {
+interface KnowledgeListTagsParams {
   knowledgeBaseId: string
 }
 
@@ -159,7 +159,7 @@ export interface KnowledgeListTagsResponse {
   error?: string
 }
 
-export interface KnowledgeDocumentSummary {
+interface KnowledgeDocumentSummary {
   id: string
   filename: string
   fileSize: number
@@ -196,7 +196,7 @@ export interface KnowledgeDeleteDocumentResponse {
   error?: string
 }
 
-export interface KnowledgeChunkSummary {
+interface KnowledgeChunkSummary {
   id: string
   chunkIndex: number
   content: string
@@ -268,7 +268,7 @@ export interface KnowledgeGetDocumentResponse {
   error?: string
 }
 
-export interface KnowledgeConnectorSummary {
+interface KnowledgeConnectorSummary {
   id: string
   connectorType: string
   status: string
@@ -292,7 +292,7 @@ export interface KnowledgeListConnectorsResponse {
   error?: string
 }
 
-export interface KnowledgeSyncLogEntry {
+interface KnowledgeSyncLogEntry {
   id: string
   status: string
   startedAt: string | null
@@ -331,7 +331,7 @@ export interface KnowledgeUpsertDocumentParams {
   _context?: { workflowId?: string }
 }
 
-export interface KnowledgeUpsertDocumentResult {
+interface KnowledgeUpsertDocumentResult {
   documentId: string
   documentName: string
   type: string

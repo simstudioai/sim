@@ -23,7 +23,7 @@ services:
       - SIM_AGENT_API_URL=${SIM_AGENT_API_URL}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
-      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
+      - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-}
     depends_on:
       db:
         condition: service_healthy
@@ -62,36 +62,6 @@ services:
           memory: 1G
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:3002/health']
-      interval: 90s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  sim-worker:
-    build:
-      context: .
-      dockerfile: docker/app.Dockerfile
-    command: ['bun', 'apps/sim/worker/index.ts']
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-    environment:
-      - NODE_ENV=development
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
-      - REDIS_URL=${REDIS_URL:-}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-dev-encryption-key-at-least-32-chars}
-      - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-dev-internal-api-secret-min-32-chars}
-      - WORKER_PORT=3001
-    depends_on:
-      db:
-        condition: service_healthy
-      migrations:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:3001/health/live']
       interval: 90s
       timeout: 5s
       retries: 3

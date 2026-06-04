@@ -13,7 +13,7 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
     'Integrate LinkedIn into workflows. Share posts to your personal feed and access your LinkedIn profile information.',
   docsLink: 'https://docs.sim.ai/tools/linkedin',
   category: 'tools',
-  integrationType: IntegrationType.Social,
+  integrationType: IntegrationType.Sales,
   tags: ['marketing', 'sales-engagement', 'enrichment'],
   bgColor: '#0072B1',
   icon: LinkedInIcon,

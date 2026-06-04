@@ -1,18 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  createTableColumnBodySchema,
+  deleteTableColumnBodySchema,
+  updateTableColumnBodySchema,
+} from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table'
-import { COLUMN_TYPES, getTableById } from '@/lib/table'
+import { getTableById } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
 
-export interface TableAccessResult {
+interface TableAccessResult {
   hasAccess: true
   table: TableDefinition
 }
 
-export interface TableAccessDenied {
+interface TableAccessDenied {
   hasAccess: false
   notFound?: boolean
   reason?: string
@@ -22,7 +26,7 @@ export type TableAccessCheck = TableAccessResult | TableAccessDenied
 
 export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
 
-export interface ApiErrorResponse {
+interface ApiErrorResponse {
   error: string
   details?: unknown
 }
@@ -31,7 +35,7 @@ export interface ApiErrorResponse {
  * Check if a user has read access to a table.
  * Read access requires any workspace permission (read, write, or admin).
  */
-export async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
+async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
   const table = await getTableById(tableId)
 
   if (!table) {
@@ -50,10 +54,7 @@ export async function checkTableAccess(tableId: string, userId: string): Promise
  * Check if a user has write access to a table.
  * Write access requires write or admin workspace permission.
  */
-export async function checkTableWriteAccess(
-  tableId: string,
-  userId: string
-): Promise<TableAccessCheck> {
+async function checkTableWriteAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
   const table = await getTableById(tableId)
 
   if (!table) {
@@ -118,7 +119,7 @@ export function tableAccessError(
   return NextResponse.json({ error: message }, { status })
 }
 
-export async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
+async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
   const table = await getTableById(tableId)
   return table?.workspaceId === workspaceId
 }
@@ -155,36 +156,13 @@ export function serverErrorResponse(message = 'Internal server error') {
   return errorResponse(message, 500)
 }
 
-const columnTypeEnum = z.enum(
-  COLUMN_TYPES as unknown as [(typeof COLUMN_TYPES)[number], ...(typeof COLUMN_TYPES)[number][]]
-)
-
-export const CreateColumnSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  column: z.object({
-    name: z.string().min(1, 'Column name is required'),
-    type: columnTypeEnum,
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-    position: z.number().int().min(0).optional(),
-  }),
-})
-
-export const UpdateColumnSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  columnName: z.string().min(1, 'Column name is required'),
-  updates: z.object({
-    name: z.string().min(1).optional(),
-    type: columnTypeEnum.optional(),
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-  }),
-})
-
-export const DeleteColumnSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  columnName: z.string().min(1, 'Column name is required'),
-})
+/**
+ * Re-exports from `lib/api/contracts/tables` so existing routes that import
+ * these names keep working while sharing a single source of truth.
+ */
+export const CreateColumnSchema = createTableColumnBodySchema
+export const UpdateColumnSchema = updateTableColumnBodySchema
+export const DeleteColumnSchema = deleteTableColumnBodySchema
 
 export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
   return {
@@ -192,5 +170,6 @@ export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
     type: col.type,
     required: col.required ?? false,
     unique: col.unique ?? false,
+    ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
   }
 }

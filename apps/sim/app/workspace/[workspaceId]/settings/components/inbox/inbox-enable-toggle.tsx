@@ -9,6 +9,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Switch,
@@ -82,10 +83,10 @@ export function InboxEnableToggle() {
         <ModalContent size='sm'>
           <ModalHeader>Enable email inbox</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               An email address will be created for this workspace. Anyone in the allowed senders
               list can email it to create tasks.
-            </p>
+            </ModalDescription>
             <div className='mt-4 flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>
                 Custom email prefix (optional)
@@ -95,7 +96,6 @@ export function InboxEnableToggle() {
                 onChange={(e) => setEnableUsername(e.target.value)}
                 placeholder='e.g., acme'
                 className='h-9'
-                autoFocus
               />
               <p className='text-[var(--text-muted)] text-caption'>
                 Leave blank for an auto-generated address.
@@ -117,7 +117,7 @@ export function InboxEnableToggle() {
         <ModalContent size='sm'>
           <ModalHeader>Disable email inbox</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to disable the inbox
               {config?.address && (
                 <>
@@ -125,9 +125,9 @@ export function InboxEnableToggle() {
                   <span className='font-medium text-[var(--text-primary)]'>{config.address}</span>
                 </>
               )}
-              ? Any emails sent to this address after disabling will not be delivered.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
+              ? Any emails sent to this address after disabling will not be delivered. This action
+              cannot be undone.
+            </ModalDescription>
             <p className='mt-2 text-[var(--text-secondary)]'>
               Your existing conversations and task history will be preserved.
             </p>

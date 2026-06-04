@@ -1,22 +1,19 @@
 import type { Task } from '@a2a-js/sdk'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { createA2AClient } from '@/lib/a2a/utils'
+import { a2aCancelTaskContract } from '@/lib/api/contracts/tools/a2a'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('A2ACancelTaskAPI')
 
 export const dynamic = 'force-dynamic'
 
-const A2ACancelTaskSchema = z.object({
-  agentUrl: z.string().min(1, 'Agent URL is required'),
-  taskId: z.string().min(1, 'Task ID is required'),
-  apiKey: z.string().optional(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -33,8 +30,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const validatedData = A2ACancelTaskSchema.parse(body)
+    const rateLimited = await enforceUserOrIpRateLimit(
+      'a2a-cancel-task',
+      authResult.userId,
+      request
+    )
+    if (rateLimited) return rateLimited
+
+    const parsed = await parseRequest(
+      a2aCancelTaskContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Canceling A2A task`, {
       agentUrl: validatedData.agentUrl,
@@ -58,20 +78,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid A2A cancel task request`, {
-        errors: error.errors,
-      })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error canceling A2A task:`, error)
     return NextResponse.json(
       {
@@ -81,4 +87,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

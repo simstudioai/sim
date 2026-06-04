@@ -1,11 +1,14 @@
 import type { Logger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type OpenAI from 'openai'
-import type { StreamingExecution } from '@/executor/types'
+import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { enrichLastModelSegment, parseToolCallArguments } from '@/providers/trace-enrichment'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  enforceStrictSchema,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -17,6 +20,7 @@ import {
   convertResponseOutputToInputItems,
   convertToolsToResponses,
   createReadableStreamFromResponses,
+  extractResponseReasoning,
   extractResponseText,
   extractResponseToolCalls,
   parseResponsesUsage,
@@ -27,60 +31,6 @@ import {
 
 type PreparedTools = ReturnType<typeof prepareToolsWithUsageControl>
 type ToolChoice = PreparedTools['toolChoice']
-
-/**
- * Recursively enforces OpenAI strict mode requirements on a JSON schema.
- * - Sets additionalProperties: false on all object types.
- * - Ensures required includes ALL property keys.
- */
-function enforceStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
-  if (!schema || typeof schema !== 'object') return schema
-
-  const result = { ...schema }
-
-  // If this is an object type, enforce strict requirements
-  if (result.type === 'object') {
-    result.additionalProperties = false
-
-    // Recursively process properties and ensure required includes all keys
-    if (result.properties && typeof result.properties === 'object') {
-      const propKeys = Object.keys(result.properties as Record<string, unknown>)
-      result.required = propKeys // Strict mode requires ALL properties
-      result.properties = Object.fromEntries(
-        Object.entries(result.properties as Record<string, unknown>).map(([key, value]) => [
-          key,
-          enforceStrictSchema(value as Record<string, unknown>),
-        ])
-      )
-    }
-  }
-
-  // Handle array items
-  if (result.type === 'array' && result.items) {
-    result.items = enforceStrictSchema(result.items as Record<string, unknown>)
-  }
-
-  // Handle anyOf, oneOf, allOf
-  for (const keyword of ['anyOf', 'oneOf', 'allOf']) {
-    if (Array.isArray(result[keyword])) {
-      result[keyword] = (result[keyword] as Record<string, unknown>[]).map(enforceStrictSchema)
-    }
-  }
-
-  // Handle $defs / definitions
-  for (const defKey of ['$defs', 'definitions']) {
-    if (result[defKey] && typeof result[defKey] === 'object') {
-      result[defKey] = Object.fromEntries(
-        Object.entries(result[defKey] as Record<string, unknown>).map(([key, value]) => [
-          key,
-          enforceStrictSchema(value as Record<string, unknown>),
-        ])
-      )
-    }
-  }
-
-  return result
-}
 
 export interface ResponsesProviderConfig {
   providerId: string
@@ -130,7 +80,7 @@ export async function executeResponsesProviderRequest(
     allMessages.push(...request.messages)
   }
 
-  const initialInput = buildResponsesInputFromMessages(allMessages)
+  const initialInput = buildResponsesInputFromMessages(allMessages, config.providerId)
 
   const basePayload: Record<string, unknown> = {
     model: config.modelName,
@@ -346,7 +296,7 @@ export async function executeResponsesProviderRequest(
               timeSegments: [
                 {
                   type: 'model',
-                  name: 'Streaming response',
+                  name: request.model,
                   startTime: providerStartTime,
                   endTime: Date.now(),
                   duration: Date.now() - providerStartTime,
@@ -415,7 +365,7 @@ export async function executeResponsesProviderRequest(
     const timeSegments: TimeSegment[] = [
       {
         type: 'model',
-        name: 'Initial response',
+        name: request.model,
         startTime: initialCallTime,
         endTime: initialCallTime + firstResponseTime,
         duration: firstResponseTime,
@@ -434,6 +384,15 @@ export async function executeResponsesProviderRequest(
       }
 
       const toolCallsInResponse = extractResponseToolCalls(currentResponse.output)
+
+      enrichLastModelSegmentFromOpenAIResponse(
+        timeSegments,
+        currentResponse,
+        responseText,
+        toolCallsInResponse,
+        { model: request.model }
+      )
+
       if (!toolCallsInResponse.length) {
         break
       }
@@ -464,7 +423,9 @@ export async function executeResponsesProviderRequest(
           }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeTool(toolName, executionParams)
+          const result = await executeTool(toolName, executionParams, {
+            signal: request.abortSignal,
+          })
           const toolCallEndTime = Date.now()
 
           return {
@@ -487,7 +448,7 @@ export async function executeResponsesProviderRequest(
             result: {
               success: false,
               output: undefined,
-              error: error instanceof Error ? error.message : 'Tool execution failed',
+              error: getErrorMessage(error, 'Tool execution failed'),
             },
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,
@@ -510,6 +471,7 @@ export async function executeResponsesProviderRequest(
           startTime: startTime,
           endTime: endTime,
           duration: duration,
+          toolCallId: toolCall.id,
         })
 
         let resultContent: Record<string, unknown>
@@ -585,7 +547,7 @@ export async function executeResponsesProviderRequest(
 
       timeSegments.push({
         type: 'model',
-        name: `Model response (iteration ${iterationCount + 1})`,
+        name: request.model,
         startTime: nextModelStartTime,
         endTime: nextModelEndTime,
         duration: thisModelTime,
@@ -601,6 +563,18 @@ export async function executeResponsesProviderRequest(
       }
 
       iterationCount++
+    }
+
+    if (iterationCount === MAX_TOOL_ITERATIONS) {
+      const trailingText = extractResponseText(currentResponse.output)
+      const trailingToolCalls = extractResponseToolCalls(currentResponse.output)
+      enrichLastModelSegmentFromOpenAIResponse(
+        timeSegments,
+        currentResponse,
+        trailingText,
+        trailingToolCalls,
+        { model: request.model }
+      )
     }
 
     // For Azure with deferred format: make a final call with the response format applied
@@ -683,6 +657,14 @@ export async function executeResponsesProviderRequest(
       if (formattedText) {
         content = formattedText
       }
+
+      enrichLastModelSegmentFromOpenAIResponse(
+        timeSegments,
+        currentResponse,
+        formattedText,
+        extractResponseToolCalls(currentResponse.output),
+        { model: request.model }
+      )
 
       appliedDeferredFormat = true
     }
@@ -813,10 +795,89 @@ export async function executeResponsesProviderRequest(
       duration: totalDuration,
     })
 
-    throw new ProviderError(error instanceof Error ? error.message : String(error), {
+    throw new ProviderError(toError(error).message, {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
       duration: totalDuration,
     })
   }
+}
+
+/**
+ * Determines a finish reason for an OpenAI Responses API response.
+ * Maps to conventional values: 'tool_calls' | 'length' | 'stop'.
+ */
+function deriveOpenAIFinishReason(
+  response: OpenAI.Responses.Response,
+  toolCalls: ResponsesToolCall[]
+): string | undefined {
+  const incompleteReason = response.incomplete_details?.reason
+  if (incompleteReason === 'max_output_tokens') return 'length'
+  if (incompleteReason === 'content_filter') return 'content_filter'
+  if (toolCalls.length > 0) return 'tool_calls'
+  if (incompleteReason) return incompleteReason
+  if (response.status === 'failed') return 'error'
+  if (response.status === 'incomplete') return 'length'
+  if (response.status && response.status !== 'completed') return response.status
+  return 'stop'
+}
+
+/**
+ * Enriches the last model segment with per-iteration content extracted from an
+ * OpenAI Responses API response: assistant text, tool calls, finish reason,
+ * and token usage for the iteration.
+ */
+function enrichLastModelSegmentFromOpenAIResponse(
+  timeSegments: TimeSegment[],
+  response: OpenAI.Responses.Response,
+  assistantText: string,
+  toolCallsInResponse: ResponsesToolCall[],
+  extras?: {
+    model?: string
+    ttft?: number
+    errorType?: string
+    errorMessage?: string
+  }
+): void {
+  const toolCalls: IterationToolCall[] = toolCallsInResponse.map((tc) => ({
+    id: tc.id,
+    name: tc.name,
+    arguments:
+      typeof tc.arguments === 'string' ? parseToolCallArguments(tc.arguments) : tc.arguments,
+  }))
+
+  const usage = parseResponsesUsage(response.usage)
+  const thinkingContent = extractResponseReasoning(response.output)
+
+  let cost: { input: number; output: number; total: number } | undefined
+  if (extras?.model && usage) {
+    const full = calculateCost(
+      extras.model,
+      usage.promptTokens,
+      usage.completionTokens,
+      usage.cachedTokens > 0
+    )
+    cost = { input: full.input, output: full.output, total: full.total }
+  }
+
+  enrichLastModelSegment(timeSegments, {
+    assistantContent: assistantText || undefined,
+    thinkingContent: thinkingContent || undefined,
+    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    finishReason: deriveOpenAIFinishReason(response, toolCallsInResponse),
+    tokens: usage
+      ? {
+          input: usage.promptTokens,
+          output: usage.completionTokens,
+          total: usage.totalTokens,
+          ...(usage.cachedTokens > 0 && { cacheRead: usage.cachedTokens }),
+          ...(usage.reasoningTokens > 0 && { reasoning: usage.reasoningTokens }),
+        }
+      : undefined,
+    cost,
+    provider: 'openai',
+    ttft: extras?.ttft,
+    errorType: extras?.errorType,
+    errorMessage: extras?.errorMessage,
+  })
 }

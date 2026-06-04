@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { Input, Label } from '@/components/emcn'
+import { Eye, EyeOff } from 'lucide-react'
+import { Input, Label, Loader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
@@ -60,14 +60,13 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder='Enter password'
                       className={cn(error && 'border-red-500 focus:border-red-500')}
-                      autoFocus
                     />
                     <button
                       type='button'
                       onClick={() => setShowPassword(!showPassword)}
                       className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
                     >
-                      {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                      {showPassword ? <EyeOff className='size-4' /> : <Eye className='size-4' />}
                     </button>
                   </div>
                   {error && <p className='text-red-500 text-sm'>{error}</p>}
@@ -80,8 +79,8 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
                 >
                   {isSubmitting ? (
                     <span className='flex items-center gap-2'>
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                      Verifying...
+                      <Loader className='size-4' animate />
+                      Verifying…
                     </span>
                   ) : (
                     'Continue'

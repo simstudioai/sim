@@ -1,0 +1,145 @@
+import { createLogger } from '@sim/logger'
+import { type NextRequest, NextResponse } from 'next/server'
+import { microsoftExcelDrivesSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validatePathSegment, validateSharePointSiteId } from '@/lib/core/security/input-validation'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { extractGraphError, GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+
+export const dynamic = 'force-dynamic'
+
+const logger = createLogger('MicrosoftExcelDrivesAPI')
+
+/**
+ * Upper bound on Microsoft Graph pages drained when listing site drives.
+ * Each page returns up to `$top=999` drives, so this caps the result set at
+ * roughly 10k drives while preventing an unbounded server-side loop.
+ */
+const MAX_DRIVES_PAGES = 10
+
+interface GraphDrive {
+  id: string
+  name: string
+  driveType: string
+  webUrl?: string
+}
+
+/**
+ * List document libraries (drives) for a SharePoint site.
+ * Used by the microsoft.excel.drives selector to let users pick
+ * which drive contains their Excel file.
+ */
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  const requestId = generateRequestId()
+
+  try {
+    const parsed = await parseRequest(microsoftExcelDrivesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId, siteId, driveId } = parsed.data.body
+
+    const siteIdValidation = validateSharePointSiteId(siteId, 'siteId')
+    if (!siteIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid siteId format`)
+      return NextResponse.json({ error: siteIdValidation.error }, { status: 400 })
+    }
+
+    const authz = await authorizeCredentialUse(request, {
+      credentialId: credential,
+      workflowId,
+    })
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
+    }
+
+    const accessToken = await refreshAccessTokenIfNeeded(
+      credential,
+      authz.credentialOwnerUserId,
+      requestId
+    )
+    if (!accessToken) {
+      logger.warn(`[${requestId}] Failed to obtain valid access token`)
+      return NextResponse.json(
+        { error: 'Failed to obtain valid access token', authRequired: true },
+        { status: 401 }
+      )
+    }
+
+    // Single-drive lookup when driveId is provided (used by fetchById)
+    if (driveId) {
+      const driveIdValidation = validatePathSegment(driveId, {
+        paramName: 'driveId',
+        customPattern: GRAPH_ID_PATTERN,
+      })
+      if (!driveIdValidation.isValid) {
+        return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })
+      }
+
+      const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}?$select=id,name,driveType,webUrl`
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+
+      if (!response.ok) {
+        const errorMessage = await extractGraphError(response)
+        return NextResponse.json({ error: errorMessage }, { status: response.status })
+      }
+
+      const data: GraphDrive = await response.json()
+      return NextResponse.json(
+        { drive: { id: data.id, name: data.name, driveType: data.driveType } },
+        { status: 200 }
+      )
+    }
+
+    // List all drives for the site
+    let nextUrl: string | undefined =
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/drives?$select=id,name,driveType,webUrl&$top=999`
+
+    const rawDrives: GraphDrive[] = []
+    for (let page = 0; page < MAX_DRIVES_PAGES && nextUrl; page++) {
+      const response = await fetch(nextUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorMessage = await extractGraphError(response)
+        logger.error(`[${requestId}] Microsoft Graph API error fetching drives`, {
+          status: response.status,
+          error: errorMessage,
+        })
+        return NextResponse.json({ error: errorMessage }, { status: response.status })
+      }
+
+      const data = await response.json()
+      if (Array.isArray(data.value)) {
+        rawDrives.push(...data.value)
+      }
+
+      const nextLink = getGraphNextPageUrl(data)
+      nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+      if (nextUrl && page === MAX_DRIVES_PAGES - 1) {
+        logger.warn(
+          `[${requestId}] Site drives pagination hit ${MAX_DRIVES_PAGES}-page cap; result may be incomplete`
+        )
+      }
+    }
+
+    const drives = rawDrives.map((drive: GraphDrive) => ({
+      id: drive.id,
+      name: drive.name,
+      driveType: drive.driveType,
+    }))
+
+    logger.info(`[${requestId}] Successfully fetched ${drives.length} drives for site ${siteId}`)
+    return NextResponse.json({ drives }, { status: 200 })
+  } catch (error) {
+    logger.error(`[${requestId}] Error fetching drives`, error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+})

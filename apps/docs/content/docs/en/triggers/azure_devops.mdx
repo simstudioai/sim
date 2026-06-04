@@ -1,0 +1,83 @@
+---
+title: Azure Devops
+description: Available Azure Devops triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="azure_devops"
+  color="#0078D4"
+/>
+
+Azure Devops provides 3 triggers for automating workflows based on events.
+
+## Triggers
+
+### Azure DevOps Build Failed
+
+Trigger workflow when an Azure DevOps build fails, is canceled, or partially succeeds
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `buildId` | number | Build ID |
+| `buildNumber` | string | Build number string \(e.g. 20240101.1\) |
+| `result` | string | Build result: failed \| canceled \| partiallySucceeded |
+| `pipelineId` | number | Pipeline definition ID |
+| `pipelineName` | string | Pipeline definition name |
+| `projectName` | string | Azure DevOps project name |
+| `branch` | string | Source branch name \(refs/heads/ prefix stripped\) |
+| `commitSha` | string | Source commit SHA |
+| `triggeredBy` | string | Display name of the person who triggered the build |
+| `triggeredByEmail` | string | Email/unique name of the person who triggered the build, or null if not set |
+| `startTime` | string | Build start time \(ISO 8601\) |
+| `finishTime` | string | Build finish time \(ISO 8601\) |
+| `buildUrl` | string | API URL for the build resource |
+
+
+---
+
+### Azure DevOps Webhook (All Service Hook Events)
+
+Trigger on whichever service hook event types you configure in Azure DevOps. Sim does not filter deliveries for this trigger.
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Service hook event type \(e.g. build.complete, workitem.created\) |
+| `notificationId` | number | Notification ID |
+| `subscriptionId` | string | Service hook subscription ID |
+| `publisherId` | string | Publisher ID \(e.g. tfs\) |
+| `createdDate` | string | Event creation time \(ISO 8601\) |
+| `resource` | json | Event resource payload |
+| `resourceContainers` | json | Resource container references \(project, collection, etc.\) |
+| `message` | json | Short message object |
+| `detailedMessage` | json | Detailed message object |
+
+
+---
+
+### Azure DevOps Work Item Created
+
+Trigger workflow when a work item is created in Azure DevOps
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workItemId` | number | Work item ID |
+| `workItemType` | string | Work item type for Basic process \(e.g. Issue, Task, Epic\) |
+| `title` | string | Work item title |
+| `state` | string | Work item state for Basic process \(e.g. To Do, Doing, Done\) |
+| `createdBy` | string | Display name of the creator, or null if not set |
+| `assignedTo` | string | Assignee display name, or null if unassigned |
+| `priority` | number | Priority \(1–4\), or 0 if not set |
+| `areaPath` | string | Area path |
+| `iterationPath` | string | Iteration path |
+| `description` | string | Work item description \(HTML\), or null if not set |
+| `projectName` | string | Azure DevOps project name |
+| `workItemUrl` | string | API URL for the work item resource |
+

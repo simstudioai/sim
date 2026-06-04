@@ -1,16 +1,16 @@
 import { db } from '@sim/db'
-import { permissions, userStats, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
+import { permissions, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
-import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
+import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
+import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import type { PermissionType } from '@/lib/workspaces/permissions/utils'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowUtils')
@@ -103,12 +103,32 @@ export async function deduplicateWorkflowName(
   return `${name} (${generateId().slice(0, 6)})`
 }
 
+export type WorkflowResolutionResult =
+  | {
+      status: 'resolved'
+      workflowId: string
+      workflowName?: string
+    }
+  | {
+      status: 'not_found'
+      message: string
+    }
+  | {
+      status: 'ambiguous'
+      message: string
+      candidates: Array<{
+        workflowId: string
+        workflowName?: string
+        folderId?: string | null
+      }>
+    }
+
 export async function resolveWorkflowIdForUser(
   userId: string,
   workflowId?: string,
   workflowName?: string,
   workspaceId?: string
-): Promise<{ workflowId: string; workflowName?: string } | null> {
+): Promise<WorkflowResolutionResult> {
   if (workflowId) {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
@@ -116,10 +136,13 @@ export async function resolveWorkflowIdForUser(
       action: 'read',
     })
     if (!authorization.allowed) {
-      return null
+      return {
+        status: 'not_found',
+        message: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+      }
     }
     const wf = await getWorkflowById(workflowId)
-    return { workflowId, workflowName: wf?.name || undefined }
+    return { status: 'resolved', workflowId, workflowName: wf?.name || undefined }
   }
 
   const workspaceIds = await db
@@ -132,7 +155,10 @@ export async function resolveWorkflowIdForUser(
     ? workspaceIdList.filter((candidateWorkspaceId) => candidateWorkspaceId === workspaceId)
     : workspaceIdList
   if (allowedWorkspaceIds.length === 0) {
-    return null
+    return {
+      status: 'not_found',
+      message: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+    }
   }
 
   const workflows = await db
@@ -144,35 +170,62 @@ export async function resolveWorkflowIdForUser(
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt), asc(workflowTable.id))
 
   if (workflows.length === 0) {
-    return null
+    return {
+      status: 'not_found',
+      message: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+    }
   }
 
   if (workflowName) {
-    const match = workflows.find(
+    const matches = workflows.filter(
       (w) =>
         String(w.name || '')
           .trim()
           .toLowerCase() === workflowName.toLowerCase()
     )
-    if (match) {
-      return { workflowId: match.id, workflowName: match.name || undefined }
+    if (matches.length === 1) {
+      const [match] = matches
+      return {
+        status: 'resolved',
+        workflowId: match.id,
+        workflowName: match.name || undefined,
+      }
     }
-    return null
+    if (matches.length > 1) {
+      return {
+        status: 'ambiguous',
+        message: `Multiple workflows named "${workflowName}" were found. Provide workflowId to disambiguate.`,
+        candidates: matches.map((match) => ({
+          workflowId: match.id,
+          workflowName: match.name || undefined,
+          folderId: match.folderId,
+        })),
+      }
+    }
+    return {
+      status: 'not_found',
+      message: `No workflow named "${workflowName}" was found.`,
+    }
   }
 
-  return { workflowId: workflows[0].id, workflowName: workflows[0].name || undefined }
-}
+  if (workflows.length === 1) {
+    return {
+      status: 'resolved',
+      workflowId: workflows[0].id,
+      workflowName: workflows[0].name || undefined,
+    }
+  }
 
-type WorkflowRecord = ReturnType<typeof getWorkflowById> extends Promise<infer R>
-  ? NonNullable<R>
-  : never
-
-export interface WorkflowWorkspaceAuthorizationResult {
-  allowed: boolean
-  status: number
-  message?: string
-  workflow: WorkflowRecord | null
-  workspacePermission: PermissionType | null
+  return {
+    status: 'ambiguous',
+    message:
+      'Multiple workflows are available. Provide workflowId or workflowName to disambiguate.',
+    candidates: workflows.slice(0, 20).map((workflow) => ({
+      workflowId: workflow.id,
+      workflowName: workflow.name || undefined,
+      folderId: workflow.folderId,
+    })),
+  }
 }
 
 export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
@@ -190,53 +243,6 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
         lastRunAt: new Date(),
       })
       .where(eq(workflowTable.id, workflowId))
-
-    let activityUserId: string | null = null
-    if (workflow.workspaceId) {
-      try {
-        activityUserId = await getWorkspaceBilledAccountUserId(workflow.workspaceId)
-      } catch (error) {
-        logger.warn(`Error resolving billed account for workspace ${workflow.workspaceId}`, {
-          workflowId,
-          error,
-        })
-      }
-    }
-
-    if (activityUserId) {
-      try {
-        const existing = await db
-          .select()
-          .from(userStats)
-          .where(eq(userStats.userId, activityUserId))
-          .limit(1)
-
-        if (existing.length === 0) {
-          logger.warn('User stats record not found - should be created during onboarding', {
-            userId: activityUserId,
-            workflowId,
-          })
-        } else {
-          await db
-            .update(userStats)
-            .set({
-              lastActive: new Date(),
-            })
-            .where(eq(userStats.userId, activityUserId))
-        }
-      } catch (error) {
-        logger.error(`Error updating userStats lastActive for userId ${activityUserId}:`, error)
-        // Don't rethrow - we want to continue even if this fails
-      }
-    } else {
-      logger.warn(
-        'Skipping userStats lastActive update: unable to resolve workspace billed account',
-        {
-          workflowId,
-          workspaceId: workflow.workspaceId,
-        }
-      )
-    }
 
     return {
       success: true,
@@ -263,17 +269,19 @@ export const workflowHasResponseBlock = (
   return responseBlock !== undefined
 }
 
-export const createHttpResponseFromBlock = (
-  executionResult: Pick<ExecutionResult, 'output'>
-): NextResponse => {
+export const createHttpResponseFromBlock = async (
+  executionResult: Pick<ExecutionResult, 'output'>,
+  context?: ExecutionMaterializationContext
+): Promise<NextResponse> => {
   const { data = {}, status = 200, headers = {} } = executionResult.output
+  const responseData = await materializeInlineExecutionValue(data, context)
 
   const responseHeaders = new Headers({
     'Content-Type': 'application/json',
     ...headers,
   })
 
-  return NextResponse.json(data, {
+  return NextResponse.json(responseData, {
     status: status,
     headers: responseHeaders,
   })
@@ -334,86 +342,6 @@ export async function validateWorkflowPermissions(
     error: null,
     session,
     workflow: authorization.workflow,
-  }
-}
-
-export async function authorizeWorkflowByWorkspacePermission(params: {
-  workflowId: string
-  userId: string
-  action?: 'read' | 'write' | 'admin'
-}): Promise<WorkflowWorkspaceAuthorizationResult> {
-  const { workflowId, userId, action = 'read' } = params
-
-  const activeContext = await getActiveWorkflowContext(workflowId)
-  if (!activeContext) {
-    return {
-      allowed: false,
-      status: 404,
-      message: 'Workflow not found',
-      workflow: null,
-      workspacePermission: null,
-    }
-  }
-
-  const workflow = activeContext.workflow
-
-  if (!workflow.workspaceId) {
-    return {
-      allowed: false,
-      status: 403,
-      message:
-        'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be accessed.',
-      workflow,
-      workspacePermission: null,
-    }
-  }
-
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workflow.workspaceId)
-      )
-    )
-    .limit(1)
-
-  const workspacePermission = permissionRow?.permissionType ?? null
-
-  if (workspacePermission === null) {
-    return {
-      allowed: false,
-      status: 403,
-      message: `Unauthorized: Access denied to ${action} this workflow`,
-      workflow,
-      workspacePermission,
-    }
-  }
-
-  const permissionSatisfied =
-    action === 'read'
-      ? true
-      : action === 'write'
-        ? workspacePermission === 'write' || workspacePermission === 'admin'
-        : workspacePermission === 'admin'
-
-  if (!permissionSatisfied) {
-    return {
-      allowed: false,
-      status: 403,
-      message: `Unauthorized: Access denied to ${action} this workflow`,
-      workflow,
-      workspacePermission,
-    }
-  }
-
-  return {
-    allowed: true,
-    status: 200,
-    workflow,
-    workspacePermission,
   }
 }
 
@@ -592,6 +520,18 @@ export async function updateFolderRecord(
   await db.update(workflowFolder).set(setData).where(eq(workflowFolder.id, folderId))
 }
 
+export async function verifyFolderWorkspace(
+  folderId: string,
+  workspaceId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: workflowFolder.id })
+    .from(workflowFolder)
+    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+    .limit(1)
+  return Boolean(row)
+}
+
 export async function deleteFolderRecord(folderId: string): Promise<boolean> {
   const [folder] = await db
     .select({ parentId: workflowFolder.parentId })
@@ -655,6 +595,6 @@ export async function listFolders(workspaceId: string) {
       sortOrder: workflowFolder.sortOrder,
     })
     .from(workflowFolder)
-    .where(eq(workflowFolder.workspaceId, workspaceId))
+    .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt)))
     .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
 }

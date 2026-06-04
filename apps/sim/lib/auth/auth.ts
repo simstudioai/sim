@@ -1,21 +1,22 @@
+import { createHash } from 'crypto'
 import { cache } from 'react'
 import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
   captcha,
-  createAuthMiddleware,
   customSession,
   emailOTP,
   genericOAuth,
-  jwt,
-  oidcProvider,
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
@@ -29,23 +30,20 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
-import {
-  evictCachedMetadata,
-  isMetadataUrl,
-  resolveClientMetadata,
-  upsertCimdClient,
-} from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
-import { writeBillingInterval } from '@/lib/billing/core/subscription'
+import {
+  getOrganizationIdForSubscriptionReference,
+  syncSubscriptionPlan,
+  writeBillingInterval,
+} from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
+import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
-import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -56,6 +54,7 @@ import {
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
 import {
+  handleOrganizationPlanDowngrade,
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
@@ -65,21 +64,26 @@ import {
   isBillingEnabled,
   isEmailPasswordEnabled,
   isEmailVerificationEnabled,
+  isGithubAuthDisabled,
+  isGoogleAuthDisabled,
   isHosted,
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
+  isSignupMxValidationEnabled,
+  isSsoEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
+import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
-import { captureServerEvent } from '@/lib/posthog/server'
+import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
 
@@ -134,8 +138,56 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
 }
 
 const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
-  ? new Set(env.BLOCKED_SIGNUP_DOMAINS.split(',').map((d) => d.trim().toLowerCase()))
+  ? Array.from(
+      new Set(
+        env.BLOCKED_SIGNUP_DOMAINS.split(',')
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    )
   : null
+
+export function isEmailInDenylist(
+  email: string | undefined | null,
+  denylist: readonly string[] | null
+): boolean {
+  if (!denylist || denylist.length === 0 || !email) return false
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) return false
+  return denylist.some((entry) => domain === entry || domain.endsWith(`.${entry}`))
+}
+
+function isSignupEmailBlocked(email: string | undefined | null): boolean {
+  return isEmailInDenylist(email, blockedSignupDomains)
+}
+
+const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
+  logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
+)
+
+/**
+ * SSO provider IDs to trust for automatic account linking when an SSO sign-in
+ * matches an existing account's email. Includes `SSO_PROVIDER_ID` when it is set
+ * in the app environment, plus any IDs from `SSO_TRUSTED_PROVIDER_IDS`. Empty when
+ * SSO is disabled, so `trustedProviders` is unchanged for non-SSO deployments.
+ * Resolved once at startup; `trustEmailVerified` on the SSO plugin handles IdPs
+ * that assert `email_verified` live, so this is only needed for IdPs that omit it.
+ */
+const additionalTrustedSsoProviders = isSsoEnabled
+  ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id))
+  : []
+
+if (env.NODE_ENV === 'production') {
+  const baseUrl = getBaseUrl()
+  if (isLocalhostUrl(baseUrl)) {
+    logger.warn(
+      'NEXT_PUBLIC_APP_URL points to localhost in production. Self-hosted deployments must set NEXT_PUBLIC_APP_URL to the public URL users access (e.g. https://sim.example.com), otherwise auth POST requests from any non-localhost origin will be rejected by trustedOrigins. Set TRUSTED_ORIGINS to allow additional public origins.',
+      { baseUrl }
+    )
+  }
+}
 
 const validStripeKey = env.STRIPE_SECRET_KEY
 
@@ -151,8 +203,7 @@ export const auth = betterAuth({
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
-    'https://claude.ai',
-    'https://claude.com',
+    ...additionalTrustedOrigins,
   ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -165,17 +216,38 @@ export const auth = betterAuth({
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
-    freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
+    freshAge: 0,
+  },
+  user: {
+    deleteUser: {
+      enabled: false,
+      beforeDelete: async (deletingUser) => {
+        const { isSoleOwnerOfPaidOrganization } = await import(
+          '@/lib/billing/organizations/membership'
+        )
+        const check = await isSoleOwnerOfPaidOrganization(deletingUser.id)
+        if (check.isBlocker) {
+          throw new Error(
+            `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
+          )
+        }
+
+        const { reassignBilledAccountForUser } = await import('@/lib/workspaces/utils')
+        const { unresolved } = await reassignBilledAccountForUser(deletingUser.id)
+        if (unresolved.length > 0) {
+          throw new Error(
+            `Your account is the billing account for ${unresolved.length} workspace${unresolved.length === 1 ? '' : 's'} with no other admin to take it over. Add another admin to ${unresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${unresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
+          )
+        }
+      },
+    },
   },
   databaseHooks: {
     user: {
       create: {
         before: async (user) => {
-          if (blockedSignupDomains) {
-            const emailDomain = user.email?.split('@')[1]?.toLowerCase()
-            if (emailDomain && blockedSignupDomains.has(emailDomain)) {
-              throw new Error('Sign-ups from this email domain are not allowed.')
-            }
+          if (isSignupEmailBlocked(user.email)) {
+            throw new Error('Sign-ups from this email domain are not allowed.')
           }
           return { data: user }
         },
@@ -189,6 +261,21 @@ export const auth = betterAuth({
               userId: user.id,
               authMethod: 'email',
             })
+          } catch {
+            // Telemetry should not fail the operation
+          }
+
+          try {
+            const client = getPostHogClient()
+            if (client) {
+              client.identify({
+                distinctId: user.id,
+                properties: {
+                  ...(user.email ? { email: user.email } : {}),
+                  ...(user.name ? { name: user.name } : {}),
+                },
+              })
+            }
           } catch {
             // Telemetry should not fail the operation
           }
@@ -238,6 +325,13 @@ export const auth = betterAuth({
                 { userId: user.id, error }
               )
             }
+          }
+        },
+      },
+      update: {
+        after: async (user) => {
+          if (user.banned) {
+            await disableUserResources(user.id)
           }
         },
       },
@@ -386,6 +480,7 @@ export const auth = betterAuth({
                   : SSO_TRUSTED_PROVIDERS.includes(providerId)
                     ? 'sso'
                     : 'oauth'
+
               captureServerEvent(
                 account.userId,
                 'user_created',
@@ -549,6 +644,7 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       allowDifferentEmails: true,
+      requireLocalEmailVerified: false,
       trustedProviders: [
         'google',
         'github',
@@ -597,33 +693,39 @@ export const auth = betterAuth({
         'zoom',
         'wordpress',
         'linear',
+        'monday',
         'attio',
         'shopify',
         'trello',
         'calcom',
         'docusign',
         ...SSO_TRUSTED_PROVIDERS,
+        ...additionalTrustedSsoProviders,
       ],
     },
   },
   socialProviders: {
-    github: {
-      clientId: env.GITHUB_CLIENT_ID as string,
-      clientSecret: env.GITHUB_CLIENT_SECRET as string,
-      scope: ['user:email', 'repo'],
-    },
-    google: {
-      clientId: env.GOOGLE_CLIENT_ID as string,
-      clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      scope: [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
-      ],
-    },
+    ...(!isGithubAuthDisabled && {
+      github: {
+        clientId: env.GITHUB_CLIENT_ID as string,
+        clientSecret: env.GITHUB_CLIENT_SECRET as string,
+        scope: ['user:email', 'repo'],
+      },
+    }),
+    ...(!isGoogleAuthDisabled && {
+      google: {
+        clientId: env.GOOGLE_CLIENT_ID as string,
+        clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+        scope: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+        ],
+      },
+    }),
   },
   emailVerification: {
     autoSignInAfterVerification: true,
-    onEmailVerification: async (user) => {
+    afterEmailVerification: async (user) => {
       if (isHosted && user.email) {
         try {
           const html = await renderWelcomeEmail(user.name || undefined)
@@ -638,11 +740,11 @@ export const auth = betterAuth({
             emailType: 'transactional',
           })
 
-          logger.info('[emailVerification.onEmailVerification] Welcome email sent', {
+          logger.info('[emailVerification.afterEmailVerification] Welcome email sent', {
             userId: user.id,
           })
         } catch (error) {
-          logger.error('[emailVerification.onEmailVerification] Failed to send welcome email', {
+          logger.error('[emailVerification.afterEmailVerification] Failed to send welcome email', {
             userId: user.id,
             error,
           })
@@ -656,7 +758,7 @@ export const auth = betterAuth({
           })
         } catch (error) {
           logger.error(
-            '[emailVerification.onEmailVerification] Failed to schedule onboarding followup email',
+            '[emailVerification.afterEmailVerification] Failed to schedule onboarding followup email',
             { userId: user.id, error }
           )
         }
@@ -666,8 +768,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: isEmailVerificationEnabled,
-    throwOnMissingCredentials: true,
-    throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
       const username = user.name || ''
 
@@ -686,26 +786,31 @@ export const auth = betterAuth({
       }
     },
     onPasswordReset: async ({ user: resetUser }) => {
-      const { AuditAction, AuditResourceType, recordAudit } = await import('@/lib/audit/log')
+      const { AuditAction, AuditResourceType, recordAudit } = await import('@sim/audit')
       recordAudit({
         actorId: resetUser.id,
         actorName: resetUser.name,
         actorEmail: resetUser.email,
         action: AuditAction.PASSWORD_RESET,
         resourceType: AuditResourceType.PASSWORD,
-        description: 'Password reset completed',
+        resourceId: resetUser.id,
+        description: `Password reset completed for ${resetUser.email}`,
       })
     },
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
-        throw new Error('Registration is disabled, please contact your admin.')
+        throw new APIError('FORBIDDEN', {
+          message: 'Registration is disabled, please contact your admin.',
+        })
 
       if (!isEmailPasswordEnabled) {
         const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
         if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
-          throw new Error('Email/password authentication is disabled. Please use SSO to sign in.')
+          throw new APIError('FORBIDDEN', {
+            message: 'Email/password authentication is disabled. Please use SSO to sign in.',
+          })
       }
 
       if (
@@ -733,40 +838,41 @@ export const auth = betterAuth({
           }
 
           if (!isAllowed) {
-            throw new Error('Access restricted. Please contact your administrator.')
-          }
-        }
-      }
-
-      if (ctx.path.startsWith('/sign-up') && blockedSignupDomains) {
-        const requestEmail = ctx.body?.email?.toLowerCase()
-        if (requestEmail) {
-          const emailDomain = requestEmail.split('@')[1]
-          if (emailDomain && blockedSignupDomains.has(emailDomain)) {
-            throw new Error('Sign-ups from this email domain are not allowed.')
-          }
-        }
-      }
-
-      if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
-        const clientId = (ctx.query?.client_id ?? ctx.body?.client_id) as string | undefined
-        if (clientId && isMetadataUrl(clientId)) {
-          try {
-            const { metadata, fromCache } = await resolveClientMetadata(clientId)
-            if (!fromCache) {
-              try {
-                await upsertCimdClient(metadata)
-              } catch (upsertErr) {
-                evictCachedMetadata(clientId)
-                throw upsertErr
-              }
-            }
-          } catch (err) {
-            logger.warn('CIMD resolution failed', {
-              clientId,
-              error: err instanceof Error ? err.message : String(err),
+            throw new APIError('FORBIDDEN', {
+              message: 'Access restricted. Please contact your administrator.',
             })
           }
+        }
+      }
+
+      if (ctx.path.startsWith('/sign-up') && isSignupEmailBlocked(ctx.body?.email)) {
+        throw new APIError('FORBIDDEN', {
+          message: 'Sign-ups from this email domain are not allowed.',
+        })
+      }
+
+      if (isSignupMxValidationEnabled && ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
+        const mxCheck = await validateSignupEmailMx(ctx.body.email)
+        if (!mxCheck.allowed) {
+          throw new APIError('FORBIDDEN', {
+            message: 'Sign-ups from this email domain are not allowed.',
+          })
+        }
+      }
+
+      if (ctx.path === '/sign-up/email' && ctx.body?.email) {
+        const signupEmail = ctx.body.email.toLowerCase()
+        const [existingUser] = await db
+          .select({ id: schema.user.id })
+          .from(schema.user)
+          .where(eq(schema.user.email, signupEmail))
+          .limit(1)
+
+        if (existingUser) {
+          throw new APIError('UNPROCESSABLE_ENTITY', {
+            message: 'User already exists',
+            code: 'USER_ALREADY_EXISTS',
+          })
         }
       }
 
@@ -774,7 +880,6 @@ export const auth = betterAuth({
     }),
   },
   plugins: [
-    nextCookies(),
     ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
@@ -786,37 +891,15 @@ export const auth = betterAuth({
         ]
       : []),
     admin(),
-    jwt({
-      jwks: {
-        keyPairConfig: { alg: 'RS256' },
-      },
-      disableSettingJwtHeader: true,
-    }),
-    oidcProvider({
-      loginPage: '/login',
-      consentPage: '/oauth/consent',
-      requirePKCE: true,
-      allowPlainCodeChallengeMethod: false,
-      allowDynamicClientRegistration: true,
-      useJWTPlugin: true,
-      scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:tools'],
-      metadata: {
-        client_id_metadata_document_supported: true,
-      } as Record<string, unknown>,
-    }),
     oneTimeToken({
-      expiresIn: 24 * 60 * 60, // 24 hours - Socket.IO handles connection persistence with heartbeats
+      expiresIn: 24 * 60, // 24 hours in minutes (better-auth's expiresIn unit)
     }),
     customSession(async ({ user, session }) => ({
       user,
       session,
     })),
     emailOTP({
-      sendVerificationOTP: async (data: {
-        email: string
-        otp: string
-        type: 'sign-in' | 'email-verification' | 'forget-password'
-      }) => {
+      sendVerificationOTP: async (data) => {
         if (!isEmailVerificationEnabled) {
           logger.info('Skipping email verification')
           return
@@ -877,7 +960,6 @@ export const auth = betterAuth({
     }),
     genericOAuth({
       config: [
-        // Google providers
         {
           providerId: 'google-email',
           clientId: env.GOOGLE_CLIENT_ID as string,
@@ -1535,27 +1617,71 @@ export const auth = betterAuth({
           clientSecret: env.WEALTHBOX_CLIENT_SECRET as string,
           authorizationUrl: 'https://app.crmworkspace.com/oauth/authorize',
           tokenUrl: 'https://app.crmworkspace.com/oauth/token',
-          userInfoUrl: 'https://dummy-not-used.wealthbox.com', // Dummy URL since no user info endpoint exists
+          userInfoUrl: 'https://api.crmworkspace.com/v1/me',
           scopes: getCanonicalScopesForProvider('wealthbox'),
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wealthbox`,
-          getUserInfo: async (_tokens) => {
+          getUserInfo: async (tokens) => {
             try {
-              logger.info('Creating Wealthbox user profile from token data')
+              logger.info('Fetching Wealthbox user profile')
 
-              const uniqueId = 'wealthbox-user'
+              const response = await fetch('https://api.crmworkspace.com/v1/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
               const now = new Date()
 
+              if (response.ok) {
+                const data = await response.json()
+                const userId = data.id?.toString()
+                if (!userId) {
+                  return null
+                }
+                const email =
+                  data.email && typeof data.email === 'string'
+                    ? data.email
+                    : `wealthbox-${userId}@wealthbox.user`
+                const name = data.name || data.full_name || data.username || 'Wealthbox User'
+
+                return {
+                  id: `wealthbox-${userId}-${generateId()}`,
+                  name,
+                  email,
+                  emailVerified: false,
+                  createdAt: now,
+                  updatedAt: now,
+                }
+              }
+
+              // Fallback: derive a stable identifier from the refresh token (long-lived)
+              // rather than the access token (rotates every ~2 hours) to avoid creating
+              // duplicate accounts on token refresh.
+              logger.warn(
+                'Wealthbox user info fetch failed, falling back to token-derived identity',
+                {
+                  status: response.status,
+                }
+              )
+              const stableToken = tokens.refreshToken ?? tokens.accessToken
+              if (!stableToken) {
+                logger.error('Wealthbox fallback identity: no refresh or access token available')
+                return null
+              }
+              const tokenHash = createHash('sha256').update(stableToken).digest('hex').slice(0, 24)
               return {
-                id: `${uniqueId}-${generateId()}`,
+                id: `wealthbox-${tokenHash}-${generateId()}`,
                 name: 'Wealthbox User',
-                email: `${uniqueId}@wealthbox.user`,
+                email: `wealthbox-${tokenHash}@wealthbox.user`,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
               }
             } catch (error) {
-              logger.error('Error creating Wealthbox user profile:', { error })
+              logger.error('Error creating Wealthbox user profile:', {
+                error: toError(error).message,
+              })
               return null
             }
           },
@@ -1609,7 +1735,6 @@ export const auth = betterAuth({
           },
         },
 
-        // HubSpot provider
         {
           providerId: 'hubspot',
           clientId: env.HUBSPOT_CLIENT_ID as string,
@@ -1654,11 +1779,12 @@ export const auth = betterAuth({
               }
 
               logger.info('HubSpot token metadata response:', {
+                hubId: data.hub_id,
+                hubDomain: data.hub_domain,
+                userId: data.user_id,
                 hasScopes: !!data.scopes,
                 scopesType: typeof data.scopes,
                 scopesIsArray: Array.isArray(data.scopes),
-                scopesValue: data.scopes,
-                fullResponse: data,
               })
 
               return {
@@ -1682,7 +1808,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Salesforce provider
         {
           providerId: 'salesforce',
           clientId: env.SALESFORCE_CLIENT_ID as string,
@@ -1732,7 +1857,6 @@ export const auth = betterAuth({
           },
         },
 
-        // X provider
         {
           providerId: 'x',
           clientId: env.X_CLIENT_ID as string,
@@ -1792,7 +1916,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Confluence provider
         {
           providerId: 'confluence',
           clientId: env.CONFLUENCE_CLIENT_ID as string,
@@ -1844,7 +1967,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Jira provider
         {
           providerId: 'jira',
           clientId: env.JIRA_CLIENT_ID as string,
@@ -1896,7 +2018,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Airtable provider
         {
           providerId: 'airtable',
           clientId: env.AIRTABLE_CLIENT_ID as string,
@@ -1946,7 +2067,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Notion provider
         {
           providerId: 'notion',
           clientId: env.NOTION_CLIENT_ID as string,
@@ -1996,7 +2116,58 @@ export const auth = betterAuth({
           },
         },
 
-        // Reddit provider
+        {
+          providerId: 'monday',
+          clientId: env.MONDAY_CLIENT_ID as string,
+          clientSecret: env.MONDAY_CLIENT_SECRET as string,
+          authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
+          tokenUrl: 'https://auth.monday.com/oauth2/token',
+          userInfoUrl: 'https://api.monday.com/v2',
+          scopes: getCanonicalScopesForProvider('monday'),
+          responseType: 'code',
+          pkce: false,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.monday.com/v2', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'API-Version': '2024-10',
+                  Authorization: tokens.accessToken ?? '',
+                },
+                body: JSON.stringify({ query: '{ me { id name email } }' }),
+              })
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Error fetching Monday.com user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const data = await response.json()
+              const user = data.data?.me
+              if (!user) return null
+
+              const now = new Date()
+              return {
+                id: `${user.id.toString()}-${generateId()}`,
+                name: user.name || 'Monday.com User',
+                email: user.email || `${user.id}@monday.user`,
+                emailVerified: !!user.email,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Monday.com getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
         {
           providerId: 'reddit',
           clientId: env.REDDIT_CLIENT_ID as string,
@@ -2325,7 +2496,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Slack provider
         {
           providerId: 'slack',
           clientId: env.SLACK_CLIENT_ID as string,
@@ -2363,17 +2533,36 @@ export const auth = betterAuth({
               }
 
               const teamId = data.team_id || 'unknown'
-              const userId = data.user_id || data.bot_id || 'bot'
               const teamName = data.team || 'Slack Workspace'
 
-              const uniqueId = `${teamId}-${userId}`
+              /**
+               * Tag the accountId with the installing user's Slack id (from the OAuth
+               * v2 `authed_user.id`, preserved on `tokens.raw`) behind a `usr_` marker.
+               * The channels selector uses it to scope private-channel visibility to
+               * the installer's own Slack membership, per Slack Marketplace rules. The
+               * marker disambiguates it from a legacy bot id (same `U.../B...` shape);
+               * absent it, we keep the legacy format and today's behavior.
+               */
+              const authedUser = tokens.raw?.authed_user as { id?: string } | undefined
+              const installerUserId = authedUser?.id
+              const userSegment = installerUserId
+                ? `usr_${installerUserId}`
+                : data.user_id || data.bot_id || 'bot'
 
-              logger.info('Slack credential identifier', { teamId, userId, uniqueId, teamName })
+              const uniqueId = `${teamId}-${userSegment}`
+
+              logger.info('Slack credential identifier', {
+                teamId,
+                userSegment,
+                uniqueId,
+                teamName,
+                hasInstallerId: !!installerUserId,
+              })
 
               return {
                 id: `${uniqueId}-${generateId()}`,
                 name: teamName,
-                email: `${teamId}-${userId}@slack.bot`,
+                email: `${uniqueId}@slack.bot`,
                 emailVerified: false,
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -2385,7 +2574,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Webflow provider
         {
           providerId: 'webflow',
           clientId: env.WEBFLOW_CLIENT_ID as string,
@@ -2435,7 +2623,6 @@ export const auth = betterAuth({
             }
           },
         },
-        // LinkedIn provider
         {
           providerId: 'linkedin',
           clientId: env.LINKEDIN_CLIENT_ID as string,
@@ -2485,7 +2672,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Zoom provider
         {
           providerId: 'zoom',
           clientId: env.ZOOM_CLIENT_ID as string,
@@ -2537,7 +2723,6 @@ export const auth = betterAuth({
           },
         },
 
-        // Spotify provider
         {
           providerId: 'spotify',
           clientId: env.SPOTIFY_CLIENT_ID as string,
@@ -2586,7 +2771,6 @@ export const auth = betterAuth({
           },
         },
 
-        // WordPress.com provider
         {
           providerId: 'wordpress',
           clientId: env.WORDPRESS_CLIENT_ID as string,
@@ -2745,7 +2929,22 @@ export const auth = betterAuth({
       ],
     }),
     // Include SSO plugin when enabled
-    ...(env.SSO_ENABLED ? [sso()] : []),
+    ...(env.SSO_ENABLED
+      ? [
+          sso({
+            /**
+             * Honor the IdP's verified-email claim. Without this the SSO plugin
+             * forces `emailVerified: false`, blocking automatic linking of an SSO
+             * login to an existing same-email account (Better Auth "account not linked").
+             */
+            trustEmailVerified: true,
+            organizationProvisioning: {
+              disabled: false,
+              defaultRole: 'member',
+            },
+          }),
+        ]
+      : []),
     // Only include the Stripe plugin when billing is enabled
     ...(isBillingEnabled && stripeClient
       ? [
@@ -2765,32 +2964,9 @@ export const auth = betterAuth({
               authorizeReference: async ({ user, referenceId, action }) => {
                 return await authorizeSubscriptionReference(user.id, referenceId, action)
               },
-              getCheckoutSessionParams: async ({ plan, subscription }) => {
-                if (isTeam(plan.name)) {
-                  return {
-                    params: {
-                      allow_promotion_codes: true,
-                      line_items: [
-                        {
-                          price: plan.priceId,
-                          quantity: subscription?.seats || 1,
-                          adjustable_quantity: {
-                            enabled: true,
-                            minimum: 1,
-                            maximum: 50,
-                          },
-                        },
-                      ],
-                    },
-                  }
-                }
-
-                return {
-                  params: {
-                    allow_promotion_codes: true,
-                  },
-                }
-              },
+              getCheckoutSessionParams: async () => ({
+                params: { allow_promotion_codes: true },
+              }),
               onSubscriptionComplete: async ({
                 stripeSubscription,
                 subscription,
@@ -2818,6 +2994,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2835,7 +3014,7 @@ export const auth = betterAuth({
                       referenceId: subscription.referenceId,
                       dbPlan: subscription.plan,
                       planFromStripe,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -2872,10 +3051,11 @@ export const auth = betterAuth({
                   )
                 }
 
+                const referenceOrganizationId = await getOrganizationIdForSubscriptionReference(
+                  subscription.referenceId
+                )
                 const isUpgradeToTeam =
-                  isTeamPlan &&
-                  !isTeam(subscription.plan) &&
-                  !subscription.referenceId.startsWith('org_')
+                  isTeamPlan && !isTeam(subscription.plan) && referenceOrganizationId == null
 
                 const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
 
@@ -2887,6 +3067,7 @@ export const auth = betterAuth({
                   isUpgradeToTeam,
                   isAnnual,
                   referenceId: subscription.referenceId,
+                  referenceOrganizationId,
                 })
 
                 if (!planFromStripe) {
@@ -2895,6 +3076,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2925,7 +3109,7 @@ export const auth = betterAuth({
                       dbPlan: subscription.plan,
                       planFromStripe,
                       isUpgradeToTeam,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -2967,11 +3151,22 @@ export const auth = betterAuth({
                       error,
                     })
                   }
+                } else {
+                  await handleOrganizationPlanDowngrade(
+                    {
+                      id: resolvedSubscription.id,
+                      plan: effectivePlanForTeamFeatures ?? null,
+                      referenceId: resolvedSubscription.referenceId,
+                      status: resolvedSubscription.status ?? null,
+                    },
+                    event.id
+                  )
                 }
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
               },
               onSubscriptionDeleted: async ({
+                event,
                 subscription,
               }: {
                 event: Stripe.Event
@@ -2979,18 +3174,24 @@ export const auth = betterAuth({
                 subscription: any
               }) => {
                 logger.info('[onSubscriptionDeleted] Subscription deleted', {
+                  eventId: event.id,
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
                 })
 
                 try {
-                  await handleSubscriptionDeleted(subscription)
+                  await handleSubscriptionDeleted(subscription, event.id)
                 } catch (error) {
                   logger.error('[onSubscriptionDeleted] Failed to handle subscription deletion', {
+                    eventId: event.id,
                     subscriptionId: subscription.id,
                     referenceId: subscription.referenceId,
                     error,
                   })
+                  // Rethrow so the Stripe webhook retries — otherwise
+                  // the final overage invoice, usage reset, org cleanup,
+                  // and personal Pro restore can be permanently skipped.
+                  throw error
                 }
               },
             },
@@ -3057,24 +3258,12 @@ export const auth = betterAuth({
     ...(isOrganizationsEnabled
       ? [
           organization({
-            allowUserToCreateOrganization: async (user) => {
-              if (!isBillingEnabled) {
-                return true
-              }
-              const dbSubscriptions = await db
-                .select()
-                .from(schema.subscription)
-                .where(eq(schema.subscription.referenceId, user.id))
-
-              const hasTeamPlan = dbSubscriptions.some(
-                (sub) => hasPaidSubscriptionStatus(sub.status) && isOrgPlan(sub.plan)
-              )
-
-              return hasTeamPlan
-            },
-            organizationCreation: {
-              afterCreate: async ({ organization, user }) => {
-                logger.info('[organizationCreation.afterCreate] Organization created', {
+            allowUserToCreateOrganization: async () => false,
+            disableOrganizationDeletion: true,
+            requireEmailVerificationOnInvitation: isEmailVerificationEnabled,
+            organizationHooks: {
+              afterCreateOrganization: async ({ organization, user }) => {
+                logger.info('[organizationHooks.afterCreateOrganization] Organization created', {
                   organizationId: organization.id,
                   creatorId: user.id,
                 })
@@ -3083,13 +3272,8 @@ export const auth = betterAuth({
           }),
         ]
       : []),
+    nextCookies(),
   ],
-  pages: {
-    signIn: '/login',
-    signUp: '/signup',
-    error: '/error',
-    verify: '/verify',
-  },
 })
 
 async function getSessionImpl() {
@@ -3105,6 +3289,3 @@ async function getSessionImpl() {
 }
 
 export const getSession = cache(getSessionImpl)
-
-export const signIn = auth.api.signInEmail
-export const signUp = auth.api.signUpEmail

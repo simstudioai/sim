@@ -1,5 +1,12 @@
-import { isAzureConfigured, isHosted, isOllamaConfigured } from '@/lib/core/config/feature-flags'
+import { toError } from '@sim/utils/errors'
+import {
+  isAzureConfigured,
+  isCohereConfigured,
+  isHosted,
+  isOllamaConfigured,
+} from '@/lib/core/config/feature-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
   getBaseModelProviders,
@@ -43,16 +50,24 @@ export function getModelOptions() {
   const providersState = useProvidersStore.getState()
   const baseModels = providersState.providers.base.models
   const ollamaModels = providersState.providers.ollama.models
+  const ollamaCloudModels = providersState.providers['ollama-cloud'].models
   const vllmModels = providersState.providers.vllm.models
+  const litellmModels = providersState.providers.litellm.models
   const openrouterModels = providersState.providers.openrouter.models
   const fireworksModels = providersState.providers.fireworks.models
+  const togetherModels = providersState.providers.together.models
+  const basetenModels = providersState.providers.baseten.models
   const allModels = Array.from(
     new Set([
       ...baseModels,
       ...ollamaModels,
+      ...ollamaCloudModels,
       ...vllmModels,
+      ...litellmModels,
       ...openrouterModels,
       ...fireworksModels,
+      ...togetherModels,
+      ...basetenModels,
     ])
   )
 
@@ -63,16 +78,6 @@ export function getModelOptions() {
 }
 
 /**
- * Checks if a field is included in the dependsOn config.
- * Handles both simple array format and object format with all/any fields.
- */
-export function isDependency(dependsOn: SubBlockConfig['dependsOn'], field: string): boolean {
-  if (!dependsOn) return false
-  if (Array.isArray(dependsOn)) return dependsOn.includes(field)
-  return dependsOn.all?.includes(field) || dependsOn.any?.includes(field) || false
-}
-
-/**
  * Gets all dependency fields as a flat array.
  * Handles both simple array format and object format with all/any fields.
  */
@@ -80,6 +85,29 @@ export function getDependsOnFields(dependsOn: SubBlockConfig['dependsOn']): stri
   if (!dependsOn) return []
   if (Array.isArray(dependsOn)) return dependsOn
   return [...(dependsOn.all || []), ...(dependsOn.any || [])]
+}
+
+/**
+ * Finds subblocks that depend on a changed field, accounting for canonical pairs.
+ */
+export function getSubBlocksDependingOnChange(
+  allSubBlocks: SubBlockConfig[],
+  changedSubBlockId: string
+): SubBlockConfig[] {
+  const canonicalIndex = buildCanonicalIndex(allSubBlocks)
+  const canonicalId = canonicalIndex.canonicalIdBySubBlockId[changedSubBlockId]
+  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+  const changedFields = new Set<string>([changedSubBlockId])
+
+  if (canonicalId) changedFields.add(canonicalId)
+  if (group?.basicId) changedFields.add(group.basicId)
+  for (const advancedId of group?.advancedIds || []) {
+    changedFields.add(advancedId)
+  }
+
+  return allSubBlocks.filter((subBlock) =>
+    getDependsOnFields(subBlock.dependsOn).some((field) => changedFields.has(field))
+  )
 }
 
 export function resolveOutputType(
@@ -140,12 +168,13 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   ) {
     return false
   }
-  if (normalizedModel.startsWith('vllm/')) {
+  if (normalizedModel.startsWith('vllm/') || normalizedModel.startsWith('litellm/')) {
     return false
   }
 
   const storeProvider = getProviderFromStore(normalizedModel)
-  if (storeProvider === 'ollama' || storeProvider === 'vllm') return false
+  if (storeProvider === 'ollama' || storeProvider === 'vllm' || storeProvider === 'litellm')
+    return false
   if (storeProvider) return true
 
   if (isOllamaConfigured) {
@@ -166,6 +195,27 @@ export function getApiKeyCondition() {
     const model = typeof values?.model === 'string' ? values.model : ''
     const shouldShow = shouldRequireApiKeyForModel(model)
     return buildModelVisibilityCondition(model, shouldShow)
+  }
+}
+
+/**
+ * Visibility condition for the Cohere reranker API key field on the Knowledge block.
+ * Hidden on hosted Sim (platform supplies the key via workspace BYOK or rotating env keys)
+ * and on self-hosted deployments that have set `NEXT_PUBLIC_COHERE_CONFIGURED=true` to
+ * indicate `COHERE_API_KEY` is pre-configured server-side. Otherwise shown (and required)
+ * whenever reranking is enabled for a search operation, mirroring the agent block's
+ * `getApiKeyCondition` pattern.
+ */
+export function getCohereRerankerApiKeyCondition() {
+  return () => {
+    if (isHosted || isCohereConfigured) {
+      return { field: 'operation', value: '__never_show__' }
+    }
+    return {
+      field: 'operation',
+      value: 'search',
+      and: { field: 'rerankerEnabled', value: true },
+    }
   }
 }
 
@@ -361,6 +411,121 @@ export function createVersionedToolSelector<TParams extends Record<string, any>>
   }
 }
 
+interface ParseOptionalNumberInputOptions {
+  integer?: boolean
+  max?: number
+  min?: number
+}
+
+/**
+ * Parses an optional JSON-capable block input value.
+ * Returns `undefined` for empty values and throws a helpful error for invalid JSON strings.
+ */
+export function parseOptionalJsonInput<T = unknown>(value: unknown, label: string): T | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      return undefined
+    }
+
+    try {
+      return JSON.parse(trimmed) as T
+    } catch (error) {
+      throw new Error(`Invalid JSON for ${label}: ${toError(error).message}`)
+    }
+  }
+
+  return value as T
+}
+
+/**
+ * Parses an optional numeric block input value.
+ * Returns `undefined` for empty values and throws when the provided value is not a valid number.
+ */
+export function parseOptionalNumberInput(
+  value: unknown,
+  label: string,
+  options: ParseOptionalNumberInputOptions = {}
+): number | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+
+  let parsed: number
+
+  if (typeof value === 'number') {
+    parsed = value
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      return undefined
+    }
+
+    parsed = Number(trimmed)
+  } else {
+    throw new Error(`Invalid number for ${label}: expected a valid number.`)
+  }
+
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Invalid number for ${label}: expected a valid number.`)
+  }
+
+  if (options.integer && !Number.isInteger(parsed)) {
+    throw new Error(`Invalid number for ${label}: expected an integer.`)
+  }
+
+  if (options.min != null && parsed < options.min) {
+    throw new Error(`${label} must be at least ${options.min}.`)
+  }
+
+  if (options.max != null && parsed > options.max) {
+    throw new Error(`${label} must be at most ${options.max}.`)
+  }
+
+  return parsed
+}
+
+/**
+ * Parses an optional boolean block input value.
+ * Returns `undefined` for empty or unrecognized values.
+ */
+export function parseOptionalBooleanInput(value: unknown): boolean | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (normalized.length === 0) {
+    return undefined
+  }
+
+  if (normalized === 'true' || normalized === '1') {
+    return true
+  }
+
+  if (normalized === 'false' || normalized === '0') {
+    return false
+  }
+
+  return undefined
+}
+
 const DEFAULT_MULTIPLE_FILES_ERROR =
   'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
 
@@ -432,7 +597,10 @@ export const BUILT_IN_TOOL_TYPES = new Set([
   'search',
   'thinking',
   'image_generator',
+  'image_generator_v2',
   'video_generator',
+  'video_generator_v2',
+  'video_generator_v3',
   'vision',
   'translate',
   'tts',

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { getNavBlogPosts } from '@/lib/blog/registry'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import Footer from '@/app/(landing)/components/footer/footer'
@@ -8,8 +9,8 @@ import Navbar from '@/app/(landing)/components/navbar/navbar'
 export const metadata: Metadata = {
   title: 'Partner Program',
   description:
-    'Join the Sim partner program. Build, deploy, and sell AI workflow solutions. Earn your certification through Sim Academy.',
-  metadataBase: new URL('https://sim.ai'),
+    "Join the Sim partner program. Build, deploy, and sell AI agent solutions powered by Sim's AI workspace. Earn your certification through Sim Academy.",
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     title: 'Partner Program | Sim',
     description: 'Join the Sim partner program.',
@@ -22,7 +23,7 @@ const PARTNER_TIERS = [
     name: 'Certified Partner',
     badge: 'Entry',
     color: '#3A3A3A',
-    requirements: ['Complete Sim Academy certification', 'Deploy at least 1 live workflow'],
+    requirements: ['Complete Sim Academy certification', 'Deploy at least 1 live agent'],
     perks: [
       'Official partner badge',
       'Listed in partner directory',
@@ -69,13 +70,13 @@ const HOW_IT_WORKS = [
     step: '01',
     title: 'Sign up & complete Sim Academy',
     description:
-      'Create an account and work through the Sim Academy certification program. Learn to build, integrate, and deploy AI workflows through hands-on canvas exercises.',
+      'Create an account and work through the Sim Academy certification program. Learn to build, integrate, and deploy AI agents through hands-on exercises.',
   },
   {
     step: '02',
     title: 'Build & deploy real solutions',
     description:
-      'Put your skills to work. Build workflow automations for clients, integrate Sim into existing products, or create your own Sim-powered applications.',
+      'Put your skills to work. Build AI agents for clients, integrate Sim into existing products, or create your own Sim-powered applications.',
   },
   {
     step: '03',
@@ -119,7 +120,7 @@ const BENEFITS = [
     icon: '📣',
     title: 'Community',
     description:
-      'Join a growing community of Sim builders. Share workflows, collaborate on solutions, and shape the product roadmap.',
+      'Join a growing community of Sim builders. Share agents, collaborate on solutions, and shape the product roadmap.',
   },
 ]
 
@@ -144,11 +145,11 @@ export default async function PartnersPage() {
             <h1 className='mb-5 text-[64px] text-white leading-[105%] tracking-[-0.03em]'>
               Build the future
               <br />
-              of AI automation
+              of AI agents
             </h1>
             <p className='mb-10 max-w-xl text-[#F6F6F0]/60 text-[18px] leading-[160%] tracking-[0.01em]'>
               Become a certified Sim partner. Complete Sim Academy, deploy real solutions, and earn
-              recognition in the growing ecosystem of AI workflow builders.
+              recognition in the growing ecosystem of AI agent builders.
             </p>
             <div className='flex items-center gap-4'>
               {/* TODO: Uncomment when academy is public */}
@@ -241,7 +242,7 @@ export default async function PartnersPage() {
                     <ul className='space-y-1.5'>
                       {tier.requirements.map((r) => (
                         <li key={r} className='flex items-start gap-2 text-[#999] text-[13px]'>
-                          <span className='mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#555]' />
+                          <span className='mt-1.5 size-1 flex-shrink-0 rounded-full bg-[#555]' />
                           {r}
                         </li>
                       ))}
@@ -253,7 +254,7 @@ export default async function PartnersPage() {
                     <ul className='space-y-1.5'>
                       {tier.perks.map((p) => (
                         <li key={p} className='flex items-start gap-2 text-[#ECECEC] text-[13px]'>
-                          <span className='mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#4CAF50]' />
+                          <span className='mt-1.5 size-1 flex-shrink-0 rounded-full bg-[#4CAF50]' />
                           {p}
                         </li>
                       ))}
@@ -273,7 +274,7 @@ export default async function PartnersPage() {
             </h2>
             <p className='mb-10 text-[#F6F6F0]/60 text-[18px] leading-[160%]'>
               Complete Sim Academy to earn your first certification and unlock partner benefits.
-              It's free to start — no credit card required.
+              It's free to start, no credit card required.
             </p>
             {/* TODO: Uncomment when academy is public */}
             {/* <Link

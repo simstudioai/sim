@@ -5,4 +5,6 @@ export const metadata: Metadata = {
   title: 'Reset Password',
 }
 
+export const dynamic = 'force-dynamic'
+
 export default ResetPasswordPage

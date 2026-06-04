@@ -1,13 +1,15 @@
 # Sim Documentation
 
-Sim is a visual workflow builder for AI applications that lets you build AI agent workflows visually. Create powerful AI agents, automation workflows, and data processing pipelines by connecting blocks on a canvas—no coding required.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Create agents visually with the workflow builder, conversationally through Mothership, or programmatically with the API — connected to 1,000+ integrations and every major LLM.
 
 ## What is Sim?
 
-Sim provides a complete ecosystem for AI workflow automation including:
+Sim provides a complete AI workspace including:
+- Mothership — natural language agent creation and workspace management
 - Visual workflow builder with drag-and-drop interface
-- AI agent creation and automation
-- 80+ built-in integrations (OpenAI, Slack, Gmail, GitHub, etc.)
+- 1,000+ built-in integrations (OpenAI, Anthropic, Slack, Gmail, GitHub, etc.)
+- Knowledge bases for retrieval-augmented generation
+- Built-in tables for structured data
 - Real-time team collaboration
 - Multiple deployment options (cloud-hosted or self-hosted)
 - Custom integrations via MCP protocol
@@ -16,22 +18,22 @@ Sim provides a complete ecosystem for AI workflow automation including:
 
 Here are the key areas covered in our documentation:
 
-/introduction - Getting started with Sim visual workflow builder
-/getting-started - Quick start guide for building your first workflow
-/blocks - Understanding workflow blocks (AI agents, APIs, functions)
-/tools - 80+ built-in integrations and tools
+/introduction - Getting started with Sim AI workspace
+/getting-started - Quick start guide for building your first agent
+/blocks - Understanding blocks (AI agents, APIs, functions)
+/tools - 1,000+ integrations and tools
 /webhooks - Webhook triggers and handling
 /mcp - Custom integrations via MCP protocol
 /deployment - Cloud-hosted vs self-hosted deployment
 /permissions - Team collaboration and workspace management
 /collaboration - Real-time editing and team features
-/workflows - Building complex automation workflows
+/workflows - Building agent logic with the visual builder
 
 ## Technical Information
 
 - Framework: Fumadocs (Next.js-based documentation platform)
 - Content: MDX files with interactive examples
-- Languages: English (primary), French, Chinese
+- Languages: English (primary), Spanish, French, German, Japanese, Chinese
 - Search: AI-powered search and assistance available
 
 ## Complete Documentation
@@ -40,14 +42,10 @@ For the full documentation with all pages, examples, and interactive features, v
 
 ## Additional Resources
 
-- GitHub repository with workflow examples
+- GitHub repository with agent examples
 - Discord community for support and discussions
-- 80+ built-in integrations with detailed guides
+- 1,000+ built-in integrations with detailed guides
 - MCP protocol documentation for custom integrations
 - Self-hosting guides and Docker deployment
 
-For the complete documentation with interactive examples and visual workflow builder guides, visit https://docs.sim.ai
-
----
-
-Last updated: 2025-09-15
+For the complete documentation visit https://docs.sim.ai

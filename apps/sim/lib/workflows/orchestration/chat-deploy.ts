@@ -1,11 +1,11 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 
 const logger = createLogger('ChatDeployOrchestration')
@@ -28,6 +28,8 @@ export interface PerformChatDeployResult {
   success: boolean
   chatId?: string
   chatUrl?: string
+  deployedAt?: Date | null
+  version?: number
   error?: string
 }
 
@@ -155,10 +157,28 @@ export async function performChatDeploy(
     resourceId: chatId,
     resourceName: title,
     description: `Deployed chat "${title}"`,
-    metadata: { workflowId, identifier, authType },
+    metadata: {
+      workflowId,
+      identifier,
+      authType,
+      chatUrl,
+      isUpdate: !!existingDeployment,
+      hasOutputConfigs: outputConfigs.length > 0,
+      hasCustomizations: !!(
+        params.customizations?.primaryColor ||
+        params.customizations?.welcomeMessage ||
+        params.customizations?.imageUrl
+      ),
+    },
   })
 
-  return { success: true, chatId, chatUrl }
+  return {
+    success: true,
+    chatId,
+    chatUrl,
+    deployedAt: deployResult.deployedAt,
+    version: deployResult.version,
+  }
 }
 
 export interface PerformChatUndeployParams {
@@ -182,7 +202,16 @@ export async function performChatUndeploy(
 ): Promise<PerformChatUndeployResult> {
   const { chatId, userId, workspaceId } = params
 
-  const [chatRecord] = await db.select().from(chat).where(eq(chat.id, chatId)).limit(1)
+  const [chatRecord] = await db
+    .select({
+      title: chat.title,
+      workflowId: chat.workflowId,
+      identifier: chat.identifier,
+      authType: chat.authType,
+    })
+    .from(chat)
+    .where(eq(chat.id, chatId))
+    .limit(1)
 
   if (!chatRecord) {
     return { success: false, error: 'Chat not found' }
@@ -200,6 +229,11 @@ export async function performChatUndeploy(
     resourceId: chatId,
     resourceName: chatRecord.title || chatId,
     description: `Deleted chat deployment "${chatRecord.title || chatId}"`,
+    metadata: {
+      workflowId: chatRecord.workflowId || undefined,
+      identifier: chatRecord.identifier || undefined,
+      authType: chatRecord.authType || undefined,
+    },
   })
 
   return { success: true }

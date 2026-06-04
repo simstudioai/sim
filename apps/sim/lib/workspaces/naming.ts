@@ -2,14 +2,12 @@
  * Utility functions for generating names for workspaces and folders
  */
 
-import type { WorkflowFolder } from '@/stores/folders/types'
+import { randomItem } from '@sim/utils/random'
+import { requestJson } from '@/lib/api/client/request'
+import { type FolderApi, listFoldersContract } from '@/lib/api/contracts/folders'
 
-export interface NameableEntity {
+interface NameableEntity {
   name: string
-}
-
-interface FoldersApiResponse {
-  folders: WorkflowFolder[]
 }
 
 const WORKSPACE_NOUNS = [
@@ -92,16 +90,21 @@ export function generateIncrementalName<T extends NameableEntity>(
  * Generates a random cosmos-themed workspace name
  */
 export function generateWorkspaceName(): string {
-  return WORKSPACE_NOUNS[Math.floor(Math.random() * WORKSPACE_NOUNS.length)]
+  return randomItem(WORKSPACE_NOUNS)
+}
+
+async function fetchWorkspaceFolders(workspaceId: string): Promise<FolderApi[]> {
+  const { folders } = await requestJson(listFoldersContract, {
+    query: { workspaceId },
+  })
+  return folders
 }
 
 /**
  * Generates the next folder name for a workspace
  */
 export async function generateFolderName(workspaceId: string): Promise<string> {
-  const response = await fetch(`/api/folders?workspaceId=${workspaceId}`)
-  const data = (await response.json()) as FoldersApiResponse
-  const folders = data.folders || []
+  const folders = await fetchWorkspaceFolders(workspaceId)
 
   const rootFolders = folders.filter((folder) => folder.parentId === null)
 
@@ -111,13 +114,8 @@ export async function generateFolderName(workspaceId: string): Promise<string> {
 /**
  * Generates the next subfolder name for a parent folder
  */
-export async function generateSubfolderName(
-  workspaceId: string,
-  parentFolderId: string
-): Promise<string> {
-  const response = await fetch(`/api/folders?workspaceId=${workspaceId}`)
-  const data = (await response.json()) as FoldersApiResponse
-  const folders = data.folders || []
+async function generateSubfolderName(workspaceId: string, parentFolderId: string): Promise<string> {
+  const folders = await fetchWorkspaceFolders(workspaceId)
 
   const subfolders = folders.filter((folder) => folder.parentId === parentFolderId)
 

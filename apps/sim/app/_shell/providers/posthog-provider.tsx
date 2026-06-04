@@ -35,6 +35,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
             capture_performance: false,
             capture_dead_clicks: false,
             enable_heatmaps: false,
+            disable_session_recording: true,
             session_recording: {
               maskAllInputs: false,
               maskInputOptions: {

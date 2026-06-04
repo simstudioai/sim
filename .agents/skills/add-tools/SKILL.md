@@ -14,6 +14,21 @@ When the user asks you to create tools for a service:
 2. Create the tools directory structure
 3. Generate properly typed tool configurations
 
+## Hard Rule: No Guessed Response Schemas
+
+If the docs do not clearly show the response JSON for a tool, you MUST tell the user exactly which outputs are unknown and stop short of guessing.
+
+- Do NOT invent response field names
+- Do NOT infer nested paths from nearby endpoints
+- Do NOT guess array item shapes
+- Do NOT write `transformResponse` against unverified payloads
+
+If the response shape is unknown, do one of these instead:
+1. Ask the user for sample responses
+2. Ask the user for test credentials so you can verify live responses
+3. Implement only the endpoints whose outputs are documented
+4. Leave the tool unimplemented and explicitly say why
+
 ## Directory Structure
 
 Create files in `apps/sim/tools/{service}/`:
@@ -187,6 +202,8 @@ items: {
 
 Only use bare `type: 'json'` without `properties` when the shape is truly dynamic or unknown.
 
+If the response shape is unknown because the docs do not provide it, you MUST tell the user and stop. Unknown is not the same as dynamic. Never guess outputs.
+
 ## Critical Rules for transformResponse
 
 ### Handle Nullable Fields
@@ -266,9 +283,9 @@ export * from './types'
 
 ## Registering Tools
 
-After creating tools, remind the user to:
+After creating tools:
 1. Import tools in `apps/sim/tools/registry.ts`
-2. Add to the `tools` object with snake_case keys:
+2. Add to the `tools` object with snake_case keys (alphabetically):
 ```typescript
 import { serviceActionTool } from '@/tools/{service}'
 
@@ -277,6 +294,130 @@ export const tools = {
   {service}_{action}: serviceActionTool,
 }
 ```
+
+## Wiring Tools into the Block (Required)
+
+After registering in `tools/registry.ts`, you MUST also update the block definition at `apps/sim/blocks/blocks/{service}.ts`. This is not optional — tools are only usable from the UI if they are wired into the block.
+
+### 1. Add to `tools.access`
+
+```typescript
+tools: {
+  access: [
+    // existing tools...
+    'service_new_action',   // Add every new tool ID here
+  ],
+  config: { ... }
+}
+```
+
+### 2. Add operation dropdown options
+
+If the block uses an operation dropdown, add an option for each new tool:
+
+```typescript
+{
+  id: 'operation',
+  type: 'dropdown',
+  options: [
+    // existing options...
+    { label: 'New Action', id: 'new_action' },   // id maps to what tools.config.tool returns
+  ],
+}
+```
+
+### 3. Add subBlocks for new tool params
+
+For each new tool, add subBlocks covering all its required params (and optional ones where useful). Apply `condition` to show them only for the right operation, and mark required params with `required`:
+
+```typescript
+// Required param for new_action
+{
+  id: 'someParam',
+  title: 'Some Param',
+  type: 'short-input',
+  placeholder: 'e.g., value',
+  condition: { field: 'operation', value: 'new_action' },
+  required: { field: 'operation', value: 'new_action' },
+},
+// Optional param — put in advanced mode
+{
+  id: 'optionalParam',
+  title: 'Optional Param',
+  type: 'short-input',
+  condition: { field: 'operation', value: 'new_action' },
+  mode: 'advanced',
+},
+```
+
+### 4. Update `tools.config.tool`
+
+Ensure the tool selector returns the correct tool ID for every new operation. The simplest pattern:
+
+```typescript
+tool: (params) => `service_${params.operation}`,
+// If operation dropdown IDs already match tool IDs, this requires no change.
+```
+
+If the dropdown IDs differ from tool IDs, add explicit mappings:
+
+```typescript
+tool: (params) => {
+  const map: Record<string, string> = {
+    new_action: 'service_new_action',
+    // ...
+  }
+  return map[params.operation] ?? `service_${params.operation}`
+},
+```
+
+### 5. Update `tools.config.params`
+
+Add any type coercions needed for new params (runs at execution time, after variable resolution):
+
+```typescript
+params: (params) => {
+  const result: Record<string, unknown> = {}
+  if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
+  if (params.newParamName) result.toolParamName = params.newParamName  // rename if IDs differ
+  return result
+},
+```
+
+### 6. Add new outputs
+
+Add any new fields returned by the new tools to the block `outputs`:
+
+```typescript
+outputs: {
+  // existing outputs...
+  newField: { type: 'string', description: 'Description of new field' },
+}
+```
+
+### 7. Add new inputs
+
+Add new subBlock param IDs to the block `inputs` section:
+
+```typescript
+inputs: {
+  // existing inputs...
+  someParam: { type: 'string', description: 'Param description' },
+  optionalParam: { type: 'string', description: 'Optional param description' },
+}
+```
+
+### Block wiring checklist
+
+- [ ] New tool IDs added to `tools.access`
+- [ ] Operation dropdown has an option for each new tool
+- [ ] SubBlocks cover all required params for each new tool
+- [ ] SubBlocks have correct `condition` (only show for the right operation)
+- [ ] Optional/rarely-used params set to `mode: 'advanced'`
+- [ ] `tools.config.tool` returns correct ID for every new operation
+- [ ] `tools.config.params` handles any ID remapping or type coercions
+- [ ] New outputs added to block `outputs`
+- [ ] New params added to block `inputs`
 
 ## V2 Tool Pattern
 
@@ -299,7 +440,9 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] All optional outputs have `optional: true`
 - [ ] No raw JSON dumps in outputs
 - [ ] Types file has all interfaces
-- [ ] Index.ts exports all tools
+- [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
+- [ ] Tools registered in `tools/registry.ts`
+- [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
 
 ## Final Validation (Required)
 
@@ -315,7 +458,9 @@ After creating all tools, you MUST validate every tool before finishing:
    - All output fields match what the API actually returns
    - No fields are missing from outputs that the API provides
    - No extra fields are defined in outputs that the API doesn't return
+   - Every output field and JSON path is backed by docs or live-verified sample responses
 3. **Verify consistency** across tools:
    - Shared types in `types.ts` match all tools that use them
    - Tool IDs in the barrel export match the tool file definitions
    - Error handling is consistent (error checks, meaningful messages)
+4. **If any response schema is still unknown**, explicitly tell the user instead of guessing

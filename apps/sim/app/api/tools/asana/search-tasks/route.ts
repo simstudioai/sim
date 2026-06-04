@@ -1,30 +1,25 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { asanaSearchTasksContract } from '@/lib/api/contracts/tools/asana'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AsanaSearchTasksAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { accessToken, workspace, text, assignee, projects, completed } = await request.json()
-
-    if (!accessToken) {
-      logger.error('Missing access token in request')
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
-    }
-
-    if (!workspace) {
-      logger.error('Missing workspace in request')
-      return NextResponse.json({ error: 'Workspace is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(asanaSearchTasksContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { accessToken, workspace, text, assignee, projects, completed } = parsed.data.body
 
     const workspaceValidation = validateAlphanumericId(workspace, 'workspace', 100)
     if (!workspaceValidation.isValid) {
@@ -139,4 +134,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

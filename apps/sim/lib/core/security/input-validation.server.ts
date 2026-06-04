@@ -3,9 +3,11 @@ import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('InputValidation')
 
@@ -23,6 +25,7 @@ export interface AsyncValidationResult extends ValidationResult {
  * - Octal notation (0177.0.0.1)
  * - Hex notation (0x7f000001)
  * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
+ * - IPv4-compatible IPv6 (::a.b.c.d / ::xxxx:xxxx, RFC 4291 §2.5.5.1, deprecated)
  * - Various edge cases that regex patterns miss
  */
 export function isPrivateOrReservedIP(ip: string): boolean {
@@ -34,7 +37,26 @@ export function isPrivateOrReservedIP(ip: string): boolean {
     const addr = ipaddr.process(ip)
     const range = addr.range()
 
-    return range !== 'unicast'
+    if (range !== 'unicast') {
+      return true
+    }
+
+    if (addr.kind() === 'ipv6') {
+      const v6 = addr as ipaddr.IPv6
+      const parts = v6.parts
+      const firstSixZero = parts.slice(0, 6).every((p) => p === 0)
+      if (firstSixZero) {
+        const embedded = ipaddr.fromByteArray([
+          (parts[6] >> 8) & 0xff,
+          parts[6] & 0xff,
+          (parts[7] >> 8) & 0xff,
+          parts[7] & 0xff,
+        ])
+        return embedded.range() !== 'unicast'
+      }
+    }
+
+    return false
   } catch {
     return true
   }
@@ -111,7 +133,7 @@ export async function validateUrlWithDNS(
     logger.warn('DNS lookup failed for URL', {
       paramName,
       hostname,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {
       isValid: false,
@@ -175,7 +197,7 @@ export async function validateDatabaseHost(
     logger.warn('DNS lookup failed for database host', {
       paramName,
       hostname: host,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {
       isValid: false,
@@ -191,17 +213,25 @@ export interface SecureFetchOptions {
   timeout?: number
   maxRedirects?: number
   maxResponseBytes?: number
+  signal?: AbortSignal
 }
 
 export class SecureFetchHeaders {
   private headers: Map<string, string>
+  private setCookies: string[]
 
-  constructor(headers: Record<string, string>) {
+  constructor(headers: Record<string, string>, setCookies: string[] = []) {
     this.headers = new Map(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
+    this.setCookies = setCookies
   }
 
   get(name: string): string | null {
     return this.headers.get(name.toLowerCase()) ?? null
+  }
+
+  /** Returns the raw `Set-Cookie` header values as an array. Each entry is one cookie. */
+  getSetCookie(): string[] {
+    return [...this.setCookies]
   }
 
   toRecord(): Record<string, string> {
@@ -222,6 +252,7 @@ export interface SecureFetchResponse {
   status: number
   statusText: string
   headers: SecureFetchHeaders
+  body: ReadableStream<Uint8Array> | null
   text: () => Promise<string>
   json: () => Promise<unknown>
   arrayBuffer: () => Promise<ArrayBuffer>
@@ -231,6 +262,10 @@ const DEFAULT_MAX_REDIRECTS = 5
 
 function isRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400 && status !== 304
+}
+
+function isRetryableHttpStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status <= 599)
 }
 
 function resolveRedirectUrl(baseUrl: string, location: string): string {
@@ -309,7 +344,7 @@ export async function secureFetchWithPinnedIP(
         validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
           .then((validation) => {
             if (!validation.isValid) {
-              reject(new Error(`Redirect blocked: ${validation.error}`))
+              settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
             return secureFetchWithPinnedIP(
@@ -320,80 +355,175 @@ export async function secureFetchWithPinnedIP(
             )
           })
           .then((response) => {
-            if (response) resolve(response)
+            if (response) settledResolve(response)
           })
-          .catch(reject)
+          .catch(settledReject)
         return
       }
 
       if (isRedirectStatus(statusCode) && location && redirectCount >= maxRedirects) {
         res.resume()
-        reject(new Error(`Too many redirects (max: ${maxRedirects})`))
+        settledReject(new Error(`Too many redirects (max: ${maxRedirects})`))
         return
       }
 
-      const chunks: Buffer[] = []
-      let totalBytes = 0
-      let responseTerminated = false
+      const headersRecord: Record<string, string> = {}
+      let setCookieArray: string[] = []
+      for (const [key, value] of Object.entries(res.headers)) {
+        const lowerKey = key.toLowerCase()
+        if (lowerKey === 'set-cookie') {
+          if (Array.isArray(value)) {
+            setCookieArray = value
+            headersRecord[lowerKey] = value.join(', ')
+          } else if (typeof value === 'string') {
+            setCookieArray = [value]
+            headersRecord[lowerKey] = value
+          }
+        } else if (typeof value === 'string') {
+          headersRecord[lowerKey] = value
+        } else if (Array.isArray(value)) {
+          headersRecord[lowerKey] = value.join(', ')
+        }
+      }
 
-      res.on('data', (chunk: Buffer) => {
-        if (responseTerminated) return
-
-        totalBytes += chunk.length
-        if (
-          typeof maxResponseBytes === 'number' &&
-          maxResponseBytes > 0 &&
-          totalBytes > maxResponseBytes
-        ) {
-          responseTerminated = true
-          res.destroy(new Error(`Response exceeded maximum size of ${maxResponseBytes} bytes`))
+      const contentLength = headersRecord['content-length']
+      if (typeof maxResponseBytes === 'number' && maxResponseBytes > 0 && contentLength) {
+        const parsedLength = Number.parseInt(contentLength, 10)
+        if (Number.isFinite(parsedLength) && parsedLength > maxResponseBytes) {
+          cleanupAbort()
+          res.destroy()
+          req.destroy()
+          if (isRetryableHttpStatus(statusCode)) {
+            settledResolve({
+              ok: false,
+              status: statusCode,
+              statusText: res.statusMessage || '',
+              headers: new SecureFetchHeaders(headersRecord, setCookieArray),
+              body: null,
+              text: async () => '',
+              json: async () => ({}),
+              arrayBuffer: async () => new ArrayBuffer(0),
+            })
+            return
+          }
+          settledReject(
+            new PayloadSizeLimitError({
+              label: 'response body',
+              maxBytes: maxResponseBytes,
+              observedBytes: parsedLength,
+            })
+          )
           return
         }
+      }
 
-        chunks.push(chunk)
+      let totalBytes = 0
+      const nodeRes = res
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          nodeRes.on('data', (chunk: Buffer) => {
+            totalBytes += chunk.length
+            if (
+              typeof maxResponseBytes === 'number' &&
+              maxResponseBytes > 0 &&
+              totalBytes > maxResponseBytes
+            ) {
+              cleanupAbort()
+              controller.error(
+                new PayloadSizeLimitError({
+                  label: 'response body',
+                  maxBytes: maxResponseBytes,
+                  observedBytes: totalBytes,
+                })
+              )
+              nodeRes.destroy()
+              return
+            }
+            controller.enqueue(new Uint8Array(chunk))
+          })
+          nodeRes.on('end', () => {
+            cleanupAbort()
+            controller.close()
+          })
+          nodeRes.on('error', (err) => {
+            cleanupAbort()
+            controller.error(err)
+          })
+        },
+        cancel() {
+          cleanupAbort()
+          nodeRes.destroy()
+        },
       })
 
-      res.on('error', (error) => {
-        reject(error)
-      })
-
-      res.on('end', () => {
-        if (responseTerminated) return
-        const bodyBuffer = Buffer.concat(chunks)
-        const body = bodyBuffer.toString('utf-8')
-        const headersRecord: Record<string, string> = {}
-        for (const [key, value] of Object.entries(res.headers)) {
-          if (typeof value === 'string') {
-            headersRecord[key.toLowerCase()] = value
-          } else if (Array.isArray(value)) {
-            headersRecord[key.toLowerCase()] = value.join(', ')
-          }
+      let bodyBufferPromise: Promise<Buffer> | null = null
+      function readBodyAsBuffer(): Promise<Buffer> {
+        if (!bodyBufferPromise) {
+          bodyBufferPromise = (async () => {
+            const reader = body.getReader()
+            const buffers: Uint8Array[] = []
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              if (value) buffers.push(value)
+            }
+            return Buffer.concat(buffers.map((b) => Buffer.from(b)))
+          })()
         }
+        return bodyBufferPromise
+      }
 
-        resolve({
-          ok: statusCode >= 200 && statusCode < 300,
-          status: statusCode,
-          statusText: res.statusMessage || '',
-          headers: new SecureFetchHeaders(headersRecord),
-          text: async () => body,
-          json: async () => JSON.parse(body),
-          arrayBuffer: async () =>
-            bodyBuffer.buffer.slice(
-              bodyBuffer.byteOffset,
-              bodyBuffer.byteOffset + bodyBuffer.byteLength
-            ),
-        })
+      settledResolve({
+        ok: statusCode >= 200 && statusCode < 300,
+        status: statusCode,
+        statusText: res.statusMessage || '',
+        headers: new SecureFetchHeaders(headersRecord, setCookieArray),
+        body,
+        text: async () => (await readBodyAsBuffer()).toString('utf-8'),
+        json: async () => JSON.parse((await readBodyAsBuffer()).toString('utf-8')),
+        arrayBuffer: async () => {
+          const buf = await readBodyAsBuffer()
+          return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+        },
       })
     })
 
+    let onAbort: (() => void) | null = null
+    const cleanupAbort = () => {
+      if (onAbort && options.signal) {
+        options.signal.removeEventListener('abort', onAbort)
+        onAbort = null
+      }
+    }
+    const settledResolve: typeof resolve = (value) => {
+      resolve(value)
+    }
+    const settledReject: typeof reject = (reason) => {
+      cleanupAbort()
+      reject(reason)
+    }
+
     req.on('error', (error) => {
-      reject(error)
+      settledReject(error)
     })
 
     req.on('timeout', () => {
       req.destroy()
-      reject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
+      settledReject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
     })
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        req.destroy()
+        settledReject(options.signal.reason ?? new Error('Aborted'))
+        return
+      }
+      onAbort = () => {
+        req.destroy()
+        settledReject(options.signal?.reason ?? new Error('Aborted'))
+      }
+      options.signal.addEventListener('abort', onAbort, { once: true })
+    }
 
     if (options.body) {
       req.write(options.body)

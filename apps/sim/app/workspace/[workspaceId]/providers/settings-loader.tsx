@@ -1,30 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { useSession } from '@/lib/auth/auth-client'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
 
 /**
- * Loads user settings from database once per workspace session.
- * React Query handles the fetching and automatically syncs to Zustand store.
- * This ensures settings are available throughout the app.
+ * Eagerly warms the settings cache on workspace entry.
+ * React Query handles fetching, caching, and deduplication automatically.
  */
 export function SettingsLoader() {
-  const { data: session, isPending: isSessionPending } = useSession()
-  const hasLoadedRef = useRef(false)
-
-  // Use React Query hook which automatically syncs to Zustand
-  // This replaces the old Zustand loadSettings() call
-  const { refetch } = useGeneralSettings()
-
-  useEffect(() => {
-    // Only load settings once per session for authenticated users
-    if (!isSessionPending && session?.user && !hasLoadedRef.current) {
-      hasLoadedRef.current = true
-      // Force refetch from DB on initial workspace entry
-      refetch()
-    }
-  }, [isSessionPending, session?.user, refetch])
-
+  useGeneralSettings()
   return null
 }

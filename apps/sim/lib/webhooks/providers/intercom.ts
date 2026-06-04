@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import type {
   AuthContext,
   EventMatchContext,
@@ -59,10 +59,7 @@ export const intercomHandler: WebhookProviderHandler = {
     }
 
     if (!validateIntercomSignature(secret, signature, rawBody)) {
-      logger.warn(`[${requestId}] Intercom signature verification failed`, {
-        signatureLength: signature.length,
-        secretLength: secret.length,
-      })
+      logger.warn(`[${requestId}] Intercom signature verification failed`)
       return new NextResponse('Unauthorized - Invalid Intercom signature', { status: 401 })
     }
 

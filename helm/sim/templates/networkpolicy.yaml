@@ -26,9 +26,22 @@ spec:
     - protocol: TCP
       port: {{ .Values.app.service.targetPort }}
   {{- end }}
-  # Allow ingress from ingress controller
+  # Allow ingress from cron pods (every cron job curls /api/schedules/execute,
+  # webhook polls, etc. against the app service)
+  {{- if .Values.cronjobs.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.selectorLabels" . | nindent 10 }}
+          simstudio.ai/component-group: cronjob
+    ports:
+    - protocol: TCP
+      port: {{ .Values.app.service.targetPort }}
+  {{- end }}
+  # Allow ingress from ingress controller (configurable peers; defaults to any)
   {{- if .Values.ingress.enabled }}
-  - from: []
+  - from:
+      {{- toYaml (default (list (dict)) .Values.networkPolicy.ingressFrom) | nindent 6 }}
     ports:
     - protocol: TCP
       port: {{ .Values.app.service.targetPort }}
@@ -68,6 +81,20 @@ spec:
     - protocol: TCP
       port: {{ .Values.ollama.service.targetPort }}
   {{- end }}
+  # Allow egress to OpenTelemetry collector (OTLP gRPC + HTTP)
+  {{- if .Values.telemetry.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "sim.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/component: telemetry
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
   # Allow DNS resolution
   - to: []
     ports:
@@ -75,8 +102,14 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for external APIs
-  - to: []
+  # Allow HTTPS egress for external APIs (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443
@@ -111,9 +144,10 @@ spec:
     ports:
     - protocol: TCP
       port: {{ .Values.realtime.service.targetPort }}
-  # Allow ingress from ingress controller
+  # Allow ingress from ingress controller (configurable peers; defaults to any)
   {{- if .Values.ingress.enabled }}
-  - from: []
+  - from:
+      {{- toYaml (default (list (dict)) .Values.networkPolicy.ingressFrom) | nindent 6 }}
     ports:
     - protocol: TCP
       port: {{ .Values.realtime.service.targetPort }}
@@ -129,6 +163,20 @@ spec:
     - protocol: TCP
       port: {{ .Values.postgresql.service.targetPort }}
   {{- end }}
+  # Allow egress to OpenTelemetry collector (OTLP gRPC + HTTP)
+  {{- if .Values.telemetry.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "sim.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/component: telemetry
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
   # Allow DNS resolution
   - to: []
     ports:
@@ -136,8 +184,14 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for external APIs
-  - to: []
+  # Allow HTTPS egress for external APIs (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443
@@ -237,10 +291,101 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for model downloads
-  - to: []
+  # Allow HTTPS egress for model downloads (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443
 {{- end }}
+
+{{- if .Values.telemetry.enabled }}
+---
+# Network Policy for OpenTelemetry Collector
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sim.fullname" . }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: telemetry
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: telemetry
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # OTLP from app
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.app.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  # OTLP from realtime
+  {{- if .Values.realtime.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.realtime.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
+  # OTLP from copilot
+  {{- if .Values.copilot.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: copilot
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
+  egress:
+  # DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # HTTPS for forwarding to external observability backends (Datadog, Honeycomb, etc.)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}
+
+{{- /*
+  Copilot + copilot-postgresql intentionally do NOT ship dedicated NetworkPolicies.
+  Copilot requires REDIS_URL (external Redis on a non-443 port), and the chart
+  cannot know the user's Redis host/port at render time — a default egress rule
+  would silently block Redis on most installs. Users running networkPolicy.enabled=true
+  with copilot enabled should add their own NPs (or extend networkPolicy.egress
+  with the appropriate egress rules).
+*/}}
 {{- end }}

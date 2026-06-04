@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface MySQLConnectionConfig {
+interface MySQLConnectionConfig {
   host: string
   port: number
   database: string
@@ -33,7 +33,7 @@ export interface MySQLExecuteParams extends MySQLConnectionConfig {
   query: string
 }
 
-export interface MySQLBaseResponse extends ToolResponse {
+interface MySQLBaseResponse extends ToolResponse {
   output: {
     message: string
     rows: unknown[]
@@ -42,16 +42,16 @@ export interface MySQLBaseResponse extends ToolResponse {
   error?: string
 }
 
-export interface MySQLQueryResponse extends MySQLBaseResponse {}
-export interface MySQLInsertResponse extends MySQLBaseResponse {}
-export interface MySQLUpdateResponse extends MySQLBaseResponse {}
-export interface MySQLDeleteResponse extends MySQLBaseResponse {}
-export interface MySQLExecuteResponse extends MySQLBaseResponse {}
+interface MySQLQueryResponse extends MySQLBaseResponse {}
+interface MySQLInsertResponse extends MySQLBaseResponse {}
+interface MySQLUpdateResponse extends MySQLBaseResponse {}
+interface MySQLDeleteResponse extends MySQLBaseResponse {}
+interface MySQLExecuteResponse extends MySQLBaseResponse {}
 export interface MySQLResponse extends MySQLBaseResponse {}
 
 export interface MySQLIntrospectParams extends MySQLConnectionConfig {}
 
-export interface MySQLTableColumn {
+interface MySQLTableColumn {
   name: string
   type: string
   nullable: boolean
@@ -62,7 +62,7 @@ export interface MySQLTableColumn {
   references?: { table: string; column: string }
 }
 
-export interface MySQLTableSchema {
+interface MySQLTableSchema {
   name: string
   database: string
   columns: MySQLTableColumn[]

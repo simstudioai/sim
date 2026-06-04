@@ -1,5 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { deployWorkflowContract } from '@/lib/api/contracts/deployments'
+import {
+  type CreateScheduleBody,
+  createScheduleContract,
+  deleteScheduleContract,
+  disableScheduleContract,
+  getScheduleContract,
+  listWorkspaceSchedulesContract,
+  reactivateScheduleContract,
+  type ScheduleLifecycle,
+  type UpdateScheduleBody,
+  updateScheduleContract,
+  type WorkflowScheduleRow,
+  type WorkspaceScheduleRow,
+} from '@/lib/api/contracts/schedules'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 
@@ -14,32 +31,12 @@ export const scheduleKeys = {
     [...scheduleKeys.details(), workflowId, blockId] as const,
 }
 
-export interface ScheduleData {
-  id: string
-  status: 'active' | 'disabled' | 'completed'
-  cronExpression: string | null
-  nextRunAt: string | null
-  lastRanAt: string | null
-  timezone: string
-  failedCount: number
-}
-
-export interface WorkspaceScheduleData extends ScheduleData {
-  workflowId: string | null
-  workflowName: string | null
-  workflowColor: string | null
-  sourceType: 'workflow' | 'job'
-  jobTitle: string | null
-  prompt: string | null
-  sourceTaskName: string | null
-  lifecycle: string | null
-  runCount: number | null
-  maxRuns: number | null
-}
+export type ScheduleData = WorkflowScheduleRow
+export type WorkspaceScheduleData = WorkspaceScheduleRow
 
 export interface ScheduleInfo {
   id: string
-  status: 'active' | 'disabled' | 'completed'
+  status: ScheduleData['status']
   scheduleTiming: string
   nextRunAt: string | null
   lastRanAt: string | null
@@ -56,19 +53,16 @@ async function fetchSchedule(
   blockId: string,
   signal?: AbortSignal
 ): Promise<ScheduleData | null> {
-  const params = new URLSearchParams({ workflowId, blockId })
-  const response = await fetch(`/api/schedules?${params}`, {
-    signal,
-    cache: 'no-store',
-    headers: { 'Cache-Control': 'no-cache' },
-  })
-
-  if (!response.ok) {
-    return null
+  try {
+    const data = await requestJson(getScheduleContract, {
+      query: { workflowId, blockId },
+      signal,
+    })
+    return data.schedule || null
+  } catch (error) {
+    if (isApiClientError(error) && error.status === 404) return null
+    throw error
   }
-
-  const data = await response.json()
-  return data.schedule || null
 }
 
 /**
@@ -80,19 +74,11 @@ export function useWorkspaceSchedules(workspaceId?: string) {
     queryFn: async ({ signal }) => {
       if (!workspaceId) throw new Error('Workspace ID required')
 
-      const res = await fetch(`/api/schedules?workspaceId=${encodeURIComponent(workspaceId)}`, {
+      const data = await requestJson(listWorkspaceSchedulesContract, {
+        query: { workspaceId },
         signal,
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' },
       })
-
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}))
-        throw new Error(error.error || 'Failed to fetch schedules')
-      }
-
-      const data = await res.json()
-      return (data.schedules || []) as WorkspaceScheduleData[]
+      return data.schedules || []
     },
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
@@ -180,15 +166,10 @@ export function useReactivateSchedule() {
       blockId: string
       workspaceId?: string
     }) => {
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reactivate' }),
+      await requestJson(reactivateScheduleContract, {
+        params: { id: scheduleId },
+        body: { action: 'reactivate' },
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to reactivate schedule')
-      }
 
       return { workflowId, blockId, workspaceId }
     },
@@ -221,16 +202,10 @@ export function useDisableSchedule() {
       scheduleId: string
       workspaceId: string
     }) => {
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'disable' }),
+      await requestJson(disableScheduleContract, {
+        params: { id: scheduleId },
+        body: { action: 'disable' },
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to disable schedule')
-      }
 
       return { workspaceId }
     },
@@ -258,14 +233,9 @@ export function useDeleteSchedule() {
       scheduleId: string
       workspaceId: string
     }) => {
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
-        method: 'DELETE',
+      await requestJson(deleteScheduleContract, {
+        params: { id: scheduleId },
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to delete schedule')
-      }
 
       return { workspaceId }
     },
@@ -293,23 +263,11 @@ export function useUpdateSchedule() {
     }: {
       scheduleId: string
       workspaceId: string
-      title?: string
-      prompt?: string
-      cronExpression?: string
-      timezone?: string
-      lifecycle?: 'persistent' | 'until_complete'
-      maxRuns?: number | null
-    }) => {
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update', ...updates }),
+    } & Omit<UpdateScheduleBody, 'action'>) => {
+      await requestJson(updateScheduleContract, {
+        params: { id: scheduleId },
+        body: { action: 'update', ...updates },
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to update schedule')
-      }
 
       return { workspaceId }
     },
@@ -339,20 +297,12 @@ export function useCreateSchedule() {
       lifecycle,
       maxRuns,
       startDate,
-    }: {
-      workspaceId: string
-      title: string
-      prompt: string
-      cronExpression: string
+    }: CreateScheduleBody & {
       timezone: string
-      lifecycle: 'persistent' | 'until_complete'
-      maxRuns?: number
-      startDate?: string
+      lifecycle: ScheduleLifecycle
     }) => {
-      const response = await fetch('/api/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      return requestJson(createScheduleContract, {
+        body: {
           workspaceId,
           title,
           prompt,
@@ -361,15 +311,8 @@ export function useCreateSchedule() {
           lifecycle,
           maxRuns,
           startDate,
-        }),
+        },
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to create schedule')
-      }
-
-      return response.json()
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.list(variables.workspaceId) })
@@ -388,16 +331,9 @@ export function useRedeployWorkflowSchedule() {
 
   return useMutation({
     mutationFn: async ({ workflowId, blockId }: { workflowId: string; blockId: string }) => {
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deployChatEnabled: false }),
+      await requestJson(deployWorkflowContract, {
+        params: { id: workflowId },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to redeploy workflow')
-      }
 
       return { workflowId, blockId }
     },

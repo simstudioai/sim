@@ -1,4 +1,4 @@
 {
-  "title": "Knowledgebase",
-  "pages": ["index", "connectors", "tags"]
+  "title": "Knowledge Base",
+  "pages": ["index", "chunking-strategies", "connectors", "tags"]
 }

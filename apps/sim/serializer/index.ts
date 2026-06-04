@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
-import { generateId } from '@/lib/core/utils/uuid'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
@@ -432,12 +433,18 @@ export class Serializer {
     const currentToolId = toolAccess?.length > 0 ? this.selectToolId(blockConfig, params) : null
     const currentTool = currentToolId ? getTool(currentToolId) : null
 
-    // Validate tool parameters (for blocks with tools)
+    // Validate tool parameters (for blocks with tools).
+    // Lookup contract: a tool param's value lives under its own paramId in `params`.
+    // Block subBlocks must align via either `id === paramId` or `canonicalParamId === paramId`
+    // (enforced by apps/sim/scripts/check-block-registry.ts), so this validator never has to invoke
+    // the block's `tools.config.params` mapper.
     if (currentTool) {
       Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
         if (paramConfig.required && paramConfig.visibility === 'user-only') {
           const matchingConfigs =
-            blockConfig.subBlocks?.filter((sb: any) => sb.id === paramId) || []
+            blockConfig.subBlocks?.filter(
+              (sb: any) => sb.id === paramId || sb.canonicalParamId === paramId
+            ) || []
 
           let shouldValidateParam = true
 
@@ -491,8 +498,11 @@ export class Serializer {
     const validatedByTool = new Set(currentTool ? Object.keys(currentTool.params || {}) : [])
 
     blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
-      // Skip if already validated via tool params
+      // Skip if already validated via tool params (either by id or canonical bridge)
       if (validatedByTool.has(subBlockConfig.id)) {
+        return
+      }
+      if (subBlockConfig.canonicalParamId && validatedByTool.has(subBlockConfig.canonicalParamId)) {
         return
       }
 
@@ -544,7 +554,7 @@ export class Serializer {
         : blockConfig.tools.access[0]
     } catch (error) {
       logger.warn('Tool selection failed during serialization, using default:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return blockConfig.tools.access[0]
     }

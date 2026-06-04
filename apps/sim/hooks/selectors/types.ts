@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { QueryKey } from '@tanstack/react-query'
+import type { AnyApiRouteContract } from '@/lib/api/contracts/types'
 
 export type SelectorKey =
   | 'airtable.bases'
@@ -40,6 +41,7 @@ export type SelectorKey =
   | 'onedrive.folders'
   | 'sharepoint.sites'
   | 'microsoft.excel'
+  | 'microsoft.excel.drives'
   | 'microsoft.excel.sheets'
   | 'microsoft.word'
   | 'microsoft.planner'
@@ -51,6 +53,8 @@ export type SelectorKey =
   | 'webflow.items'
   | 'cloudwatch.logGroups'
   | 'cloudwatch.logStreams'
+  | 'monday.boards'
+  | 'monday.groups'
   | 'sim.workflows'
 
 export interface SelectorOption {
@@ -75,15 +79,18 @@ export interface SelectorContext {
   siteId?: string
   collectionId?: string
   spreadsheetId?: string
+  driveId?: string
   excludeWorkflowId?: string
   baseId?: string
   datasetId?: string
   serviceDeskId?: string
   impersonateUserEmail?: string
+  boardId?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string
   awsRegion?: string
   logGroupName?: string
+  mcpServerId?: string
 }
 
 export interface SelectorQueryArgs {
@@ -94,10 +101,31 @@ export interface SelectorQueryArgs {
   signal?: AbortSignal
 }
 
+export interface SelectorPage {
+  items: SelectorOption[]
+  nextCursor?: string
+}
+
+interface SelectorPageArgs extends SelectorQueryArgs {
+  cursor?: string
+}
+
 export interface SelectorDefinition {
   key: SelectorKey
+  contracts?: readonly AnyApiRouteContract[]
   getQueryKey: (args: SelectorQueryArgs) => QueryKey
-  fetchList: (args: SelectorQueryArgs) => Promise<SelectorOption[]>
+  /**
+   * Loads the full option list in a single call. Required unless `fetchPage` is
+   * defined, in which case the hook drives pagination through `fetchPage` and
+   * `fetchList` is never invoked — provide one or the other, not both.
+   */
+  fetchList?: (args: SelectorQueryArgs) => Promise<SelectorOption[]>
+  /**
+   * Optional. When defined, the selector hook fetches one page at a time and
+   * auto-drains remaining pages so the dropdown populates progressively.
+   * Returns `{ items, nextCursor }`; `nextCursor: undefined` ends the stream.
+   */
+  fetchPage?: (args: SelectorPageArgs) => Promise<SelectorPage>
   fetchById?: (args: SelectorQueryArgs) => Promise<SelectorOption | null>
   enabled?: (args: SelectorQueryArgs) => boolean
   staleTime?: number

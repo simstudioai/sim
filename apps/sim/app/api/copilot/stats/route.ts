@@ -1,22 +1,18 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { copilotStatsContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
+import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
-const BodySchema = z.object({
-  messageId: z.string(),
-  diffCreated: z.boolean(),
-  diffAccepted: z.boolean(),
-})
-
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
@@ -24,31 +20,42 @@ export async function POST(req: NextRequest) {
       return createUnauthorizedResponse()
     }
 
-    const json = await req.json().catch(() => ({}))
-    const parsed = BodySchema.safeParse(json)
-    if (!parsed.success) {
-      return createBadRequestResponse('Invalid request body for copilot stats')
-    }
+    const parsed = await parseRequest(
+      copilotStatsContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          validationErrorResponse(error, 'Invalid request body for copilot stats'),
+        invalidJsonResponse: () =>
+          NextResponse.json(
+            { error: 'Invalid request body for copilot stats', details: [] },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const { messageId, diffCreated, diffAccepted } = parsed.data as any
+    const { messageId, diffCreated, diffAccepted } = parsed.data.body
 
-    // Build outgoing payload for Sim Agent with only required fields
     const payload: Record<string, any> = {
       messageId,
       diffCreated,
       diffAccepted,
     }
 
-    const agentRes = await fetch(`${SIM_AGENT_API_URL}/api/stats`, {
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const agentRes = await fetchGo(`${mothershipBaseURL}/api/stats`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
       body: JSON.stringify(payload),
+      spanName: 'sim → go /api/stats',
+      operation: 'stats_ingest',
     })
 
-    // Prefer not to block clients; still relay status
     let agentJson: any = null
     try {
       agentJson = await agentRes.json()
@@ -63,4 +70,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return createInternalServerErrorResponse('Failed to forward copilot stats')
   }
-}
+})

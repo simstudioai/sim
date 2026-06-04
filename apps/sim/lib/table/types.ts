@@ -26,16 +26,130 @@ export interface ColumnDefinition {
   type: (typeof COLUMN_TYPES)[number]
   required?: boolean
   unique?: boolean
+  /**
+   * When set, this column is one of a workflow group's outputs. The value in
+   * `row.data[name]` is populated by the group's per-cell run.
+   */
+  workflowGroupId?: string
 }
+
+/** One group output → one plain column. */
+export interface WorkflowGroupOutput {
+  /** Source block id within the configured workflow. `''` for enrichment groups. */
+  blockId: string
+  /** Dot-path into that block's output. `''` for enrichment groups. */
+  path: string
+  /** Enrichment output id this column receives (enrichment groups only). */
+  outputId?: string
+  /** Plain column in `schema.columns` that receives the produced value. */
+  columnName: string
+}
+
+export interface WorkflowGroupDependencies {
+  /**
+   * Columns that must be non-empty before this group runs. Workflow output
+   * columns count too — once an upstream group fills its output column, any
+   * downstream group depending on that column becomes eligible. The user
+   * model is uniform: deps are columns, not group-completion edges.
+   */
+  columns?: string[]
+}
+
+/**
+ * How the group was created. `'manual'` groups are user-built workflow columns;
+ * `'enrichment'` groups are spawned from a shared enrichment template and hide
+ * launch / input-editing affordances in the config sidebar. Defaults to
+ * `'manual'` when absent (pre-feature groups).
+ */
+export type WorkflowGroupType = 'manual' | 'enrichment'
+
+/** One workflow Start-block input field ← one table column. */
+export interface WorkflowGroupInputMapping {
+  /** `inputFormat` field name on the workflow's Start block. */
+  inputName: string
+  /** Table column whose per-row value feeds that input. */
+  columnName: string
+}
+
+export interface WorkflowGroup {
+  id: string
+  /** Backing workflow id for `manual` groups. `''` for enrichment groups. */
+  workflowId: string
+  /** Registry enrichment id for `enrichment` groups. */
+  enrichmentId?: string
+  /** Display name; defaults to the workflow's / enrichment's name. */
+  name?: string
+  /** Provenance of the group. Defaults to `'manual'` when absent. */
+  type?: WorkflowGroupType
+  dependencies?: WorkflowGroupDependencies
+  outputs: WorkflowGroupOutput[]
+  /**
+   * Maps the workflow's Start-block input fields to the table columns that
+   * supply each per-row value. Absent / empty means no mapping configured yet.
+   */
+  inputMappings?: WorkflowGroupInputMapping[]
+  /**
+   * When `false`, the group never auto-fires from the scheduler — it can only
+   * be triggered manually via the "Run" actions. Defaults to `true` so
+   * existing groups keep firing on dep satisfaction. Persisted alongside the
+   * group definition; the scheduler reads it in `isGroupEligible`.
+   */
+  autoRun?: boolean
+}
+
+/**
+ * Per-row execution state for one workflow group, persisted as a row in the
+ * `tableRowExecutions` sidecar keyed by `(rowId, groupId)`. Holds run
+ * metadata only — picked output values land in `row.data` directly.
+ */
+export interface RowExecutionMetadata {
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  executionId: string | null
+  /**
+   * Async-job id (e.g. trigger.dev run id) for the in-flight execution.
+   * Persisted on `running` / `pending` rows so the cancel API can call
+   * `backend.cancelJob(jobId)` from any pod regardless of which one
+   * initiated the run. Null for terminal states.
+   */
+  jobId: string | null
+  workflowId: string
+  error: string | null
+  /** Block ids currently mid-execution. Empty / absent on terminal states. */
+  runningBlockIds?: string[]
+  /**
+   * Per-block error messages keyed by `blockId`. Errors are a normal Sim
+   * concept (error-port edges) — only the column sourced from the failing
+   * block should render `Error`, not every output column.
+   */
+  blockErrors?: Record<string, string>
+  /** ISO timestamp set when a cell is cancelled. The dispatcher skips
+   *  re-runs whose `cancelledAt > dispatch.requestedAt` — a user cancel
+   *  mid-dispatch must not be overridden by `isManualRun`. */
+  cancelledAt?: string
+}
+
+/** Map of `WorkflowGroup.id` → execution state. Stored on every row. */
+export type RowExecutions = Record<string, RowExecutionMetadata>
 
 export interface TableSchema {
   columns: ColumnDefinition[]
+  /**
+   * Workflow groups keyed by id. Each group has N output columns (each
+   * referenced by `outputs[].columnName` in this same schema).
+   */
+  workflowGroups?: WorkflowGroup[]
 }
 
-/** UI-only metadata stored alongside the table definition. */
+/**
+ * Table-level metadata stored alongside the table definition. UI state only
+ * (column widths, column order, pinned columns) — workflow-group concurrency
+ * is enforced at the trigger.dev queue layer, not via metadata.
+ */
 export interface TableMetadata {
   columnWidths?: Record<string, number>
   columnOrder?: string[]
+  /** Logical column names that are pinned to the left while scrolling horizontally. */
+  pinnedColumns?: string[]
 }
 
 export interface TableDefinition {
@@ -65,6 +179,8 @@ export interface TableSummary {
 export interface TableRow {
   id: string
   data: RowData
+  /** Per-group execution state for this row. Empty `{}` if nothing has run. */
+  executions: RowExecutions
   position: number
   createdAt: Date | string
   updatedAt: Date | string
@@ -81,13 +197,21 @@ export interface TableRow {
 export interface ConditionOperators {
   $eq?: ColumnValue
   $ne?: ColumnValue
-  $gt?: number
-  $gte?: number
-  $lt?: number
-  $lte?: number
+  $gt?: number | string
+  $gte?: number | string
+  $lt?: number | string
+  $lte?: number | string
   $in?: ColumnValue[]
   $nin?: ColumnValue[]
   $contains?: string
+  /** Case-insensitive negated substring match. Null/empty cells match. */
+  $ncontains?: string
+  /** Case-insensitive prefix match. */
+  $startsWith?: string
+  /** Case-insensitive suffix match. */
+  $endsWith?: string
+  /** `true` → cell is null or empty string; `false` → cell is present and non-empty. */
+  $empty?: boolean
 }
 
 /**
@@ -139,12 +263,18 @@ export interface QueryOptions {
   sort?: Sort
   limit?: number
   offset?: number
+  /**
+   * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
+   * Pass `false` to skip the count query (grid UI doesn't need it); `totalCount`
+   * is returned as `null` to signal it was not computed.
+   */
+  includeTotal?: boolean
 }
 
 export interface QueryResult {
   rows: TableRow[]
   rowCount: number
-  totalCount: number
+  totalCount: number | null
   limit: number
   offset: number
 }
@@ -198,6 +328,7 @@ export interface UpsertRowData {
 export interface UpsertResult {
   row: TableRow
   operation: 'insert' | 'update'
+  previousData?: RowData
 }
 
 export interface UpdateRowData {
@@ -205,27 +336,42 @@ export interface UpdateRowData {
   rowId: string
   data: RowData
   workspaceId: string
+  /**
+   * Optional partial patch to apply to the row's `tableRowExecutions`
+   * entries. Top-level keys are `WorkflowGroup.id`; pass `null` for a key
+   * to delete that group's execution row. Used by the cell task and cancel
+   * paths.
+   */
+  executionsPatch?: Record<string, RowExecutionMetadata | null>
+  /**
+   * Optional SQL-level guard: the update is a no-op if the row's
+   * `executions[groupId]` already shows `cancelled` for the same
+   * `executionId`. The cell task passes this so a `running` partial-write
+   * landing after a stop click can't clobber the authoritative `cancelled`
+   * state. `updateRow` returns `null` when the guard rejects the write.
+   */
+  cancellationGuard?: { groupId: string; executionId: string }
 }
 
 export interface BulkUpdateData {
-  tableId: string
   filter: Filter
   data: RowData
   limit?: number
-  workspaceId: string
 }
 
 export interface BatchUpdateByIdData {
   tableId: string
-  updates: Array<{ rowId: string; data: RowData }>
+  updates: Array<{
+    rowId: string
+    data: RowData
+    executionsPatch?: Record<string, RowExecutionMetadata | null>
+  }>
   workspaceId: string
 }
 
 export interface BulkDeleteData {
-  tableId: string
   filter: Filter
   limit?: number
-  workspaceId: string
 }
 
 export interface BulkDeleteByIdsData {
@@ -239,6 +385,18 @@ export interface BulkDeleteByIdsResult {
   deletedRowIds: string[]
   requestedCount: number
   missingRowIds: string[]
+}
+
+export interface ReplaceRowsData {
+  tableId: string
+  rows: RowData[]
+  workspaceId: string
+  userId?: string
+}
+
+export interface ReplaceRowsResult {
+  deletedCount: number
+  insertedCount: number
 }
 
 export interface RenameColumnData {
@@ -263,4 +421,46 @@ export interface UpdateColumnConstraintsData {
 export interface DeleteColumnData {
   tableId: string
   columnName: string
+}
+
+/** Payload for `addWorkflowGroup` — atomic insert of a group + its outputs. */
+export interface AddWorkflowGroupData {
+  tableId: string
+  group: WorkflowGroup
+  outputColumns: ColumnDefinition[]
+  /** When `false`, the post-add row-scheduling pass is skipped. Defaults to
+   *  `true` (UI behavior). Mothership passes `false` so groups can be staged
+   *  without firing every dep-satisfied row. */
+  autoRun?: boolean
+}
+
+/** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
+export interface UpdateWorkflowGroupData {
+  tableId: string
+  groupId: string
+  workflowId?: string
+  name?: string
+  dependencies?: WorkflowGroupDependencies
+  /** Full replacement set; service computes adds/removes vs current state. */
+  outputs?: WorkflowGroupOutput[]
+  /** Column definitions for any newly-added outputs. */
+  newOutputColumns?: ColumnDefinition[]
+  /**
+   * Per-column mapping swaps: keep the existing column, repoint it at a new
+   * `(blockId, path)`. Applied before the `outputs` diff and clears the
+   * affected columns' row data so the next run repopulates from the new
+   * source.
+   */
+  mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  /** Replace the group's input mappings. Omit to leave them unchanged. */
+  inputMappings?: WorkflowGroupInputMapping[]
+  /** Update the group's provenance. Omit to leave it unchanged. */
+  type?: WorkflowGroupType
+  /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
+  autoRun?: boolean
+}
+
+export interface DeleteWorkflowGroupData {
+  tableId: string
+  groupId: string
 }

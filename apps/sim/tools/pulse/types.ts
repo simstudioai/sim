@@ -65,7 +65,7 @@ export interface PulseParserV2Input {
 /**
  * Plan info returned by the Pulse API
  */
-export interface PulsePlanInfo {
+interface PulsePlanInfo {
   /** Number of pages used */
   pages_used: number
 
@@ -79,7 +79,7 @@ export interface PulsePlanInfo {
 /**
  * Native output structure from the Pulse API
  */
-export interface PulseParserOutputData {
+interface PulseParserOutputData {
   /** Extracted content in markdown format */
   markdown: string
 

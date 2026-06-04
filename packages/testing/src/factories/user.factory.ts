@@ -1,3 +1,4 @@
+import { generateRandomString } from '@sim/utils/random'
 import type { User, Workflow, WorkflowState, Workspace } from '../types'
 import { createWorkflowState } from './workflow.factory'
 
@@ -20,7 +21,7 @@ export interface UserFactoryOptions {
  * ```
  */
 export function createUser(options: UserFactoryOptions = {}): User {
-  const id = options.id ?? `user-${Math.random().toString(36).substring(2, 10)}`
+  const id = options.id ?? `user-${generateRandomString(8)}`
   return {
     id,
     email: options.email ?? `${id}@test.example.com`,
@@ -51,9 +52,9 @@ export interface WorkspaceFactoryOptions {
 export function createWorkspace(options: WorkspaceFactoryOptions = {}): Workspace {
   const now = new Date()
   return {
-    id: options.id ?? `ws-${Math.random().toString(36).substring(2, 10)}`,
+    id: options.id ?? `ws-${generateRandomString(8)}`,
     name: options.name ?? 'Test Workspace',
-    ownerId: options.ownerId ?? `user-${Math.random().toString(36).substring(2, 10)}`,
+    ownerId: options.ownerId ?? `user-${generateRandomString(8)}`,
     createdAt: options.createdAt ?? now,
     updatedAt: options.updatedAt ?? now,
   }
@@ -83,9 +84,9 @@ export interface WorkflowObjectFactoryOptions {
 export function createWorkflow(options: WorkflowObjectFactoryOptions = {}): Workflow {
   const now = new Date()
   return {
-    id: options.id ?? `wf-${Math.random().toString(36).substring(2, 10)}`,
+    id: options.id ?? `wf-${generateRandomString(8)}`,
     name: options.name ?? 'Test Workflow',
-    workspaceId: options.workspaceId ?? `ws-${Math.random().toString(36).substring(2, 10)}`,
+    workspaceId: options.workspaceId ?? `ws-${generateRandomString(8)}`,
     state: options.state ?? createWorkflowState(),
     createdAt: options.createdAt ?? now,
     updatedAt: options.updatedAt ?? now,

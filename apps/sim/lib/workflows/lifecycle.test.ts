@@ -1,21 +1,25 @@
 /**
  * @vitest-environment node
  */
+import {
+  createEnvMock,
+  urlsMock,
+  urlsMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSelect,
-  mockTransaction,
-  mockGetWorkflowById,
-  mockCleanupExternalWebhook,
-  mockWorkflowDeleted,
-} = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockTransaction: vi.fn(),
-  mockGetWorkflowById: vi.fn(),
-  mockCleanupExternalWebhook: vi.fn(),
-  mockWorkflowDeleted: vi.fn(),
-}))
+const { mockSelect, mockTransaction, mockCleanupExternalWebhook, mockWorkflowDeleted } = vi.hoisted(
+  () => ({
+    mockSelect: vi.fn(),
+    mockTransaction: vi.fn(),
+    mockCleanupExternalWebhook: vi.fn(),
+    mockWorkflowDeleted: vi.fn(),
+  })
+)
+
+const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -24,39 +28,17 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  a2aAgent: { archivedAt: 'a2a_archived_at' },
-  chat: { archivedAt: 'chat_archived_at' },
-  form: { archivedAt: 'form_archived_at' },
-  webhook: { archivedAt: 'webhook_archived_at' },
-  workflow: { archivedAt: 'workflow_archived_at' },
-  workflowDeploymentVersion: { isActive: 'workflow_deployment_version_is_active' },
-  workflowMcpTool: { archivedAt: 'workflow_mcp_tool_archived_at' },
-  workflowSchedule: { archivedAt: 'workflow_schedule_archived_at' },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
-
-vi.mock('@/lib/workflows/utils', () => ({
-  getWorkflowById: (...args: unknown[]) => mockGetWorkflowById(...args),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
   cleanupExternalWebhook: (...args: unknown[]) => mockCleanupExternalWebhook(...args),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    SOCKET_SERVER_URL: 'http://socket.test',
-    INTERNAL_API_SECRET: 'secret',
-  },
-}))
+vi.mock('@/lib/core/config/env', () =>
+  createEnvMock({ SOCKET_SERVER_URL: 'http://socket.test', INTERNAL_API_SECRET: 'secret' })
+)
+
+vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {
@@ -87,6 +69,7 @@ function createUpdateChain() {
 describe('workflow lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    urlsMockFns.mockGetSocketServerUrl.mockReturnValue('http://socket.test')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
   })
 

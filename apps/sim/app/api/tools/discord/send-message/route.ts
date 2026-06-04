@@ -1,31 +1,27 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { discordSendMessageContract } from '@/lib/api/contracts/tools/communication/discord'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('DiscordSendMessageAPI')
 
-const DiscordSendMessageSchema = z.object({
-  botToken: z.string().min(1, 'Bot token is required'),
-  channelId: z.string().min(1, 'Channel ID is required'),
-  content: z.string().optional().nullable(),
-  files: RawFileInputArraySchema.optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Discord send attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -36,12 +32,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const userId = authResult.userId
     logger.info(`[${requestId}] Authenticated Discord send request via ${authResult.authType}`, {
-      userId: authResult.userId,
+      userId,
     })
 
-    const body = await request.json()
-    const validatedData = DiscordSendMessageSchema.parse(body)
+    const parsed = await parseRequest(discordSendMessageContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const channelIdValidation = validateNumericId(validatedData.channelId, 'channelId')
     if (!channelIdValidation.isValid) {
@@ -139,21 +137,38 @@ export async function POST(request: NextRequest) {
     }
     formData.append('payload_json', JSON.stringify(payload))
 
+    const accessResults = await Promise.all(
+      userFiles.map((file) => assertToolFileAccess(file.key, userId, requestId, logger))
+    )
+    const denied = accessResults.find((r) => r !== null)
+    if (denied) return denied
+
+    const buffers = await Promise.all(
+      userFiles.map(async (file, i) => {
+        try {
+          logger.info(`[${requestId}] Downloading file ${i}: ${file.name}`)
+          return await downloadFileFromStorage(file, requestId, logger)
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
+          throw new Error(
+            `Failed to download attachment "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
+          )
+        }
+      })
+    )
+
     for (let i = 0; i < userFiles.length; i++) {
       const userFile = userFiles[i]
-      logger.info(`[${requestId}] Downloading file ${i}: ${userFile.name}`)
-
-      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+      const buffer = buffers[i]
+      logger.info(`[${requestId}] Added file ${i}: ${userFile.name} (${buffer.length} bytes)`)
       filesOutput.push({
         name: userFile.name,
         mimeType: userFile.type || 'application/octet-stream',
         data: buffer.toString('base64'),
         size: buffer.length,
       })
-
       const blob = new Blob([new Uint8Array(buffer)], { type: userFile.type })
       formData.append(`files[${i}]`, blob, userFile.name)
-      logger.info(`[${requestId}] Added file ${i}: ${userFile.name} (${buffer.length} bytes)`)
     }
 
     logger.info(`[${requestId}] Sending multipart request with ${userFiles.length} file(s)`)
@@ -194,9 +209,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )
   }
-}
+})

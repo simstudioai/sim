@@ -1,27 +1,106 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { functionExecuteContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  FORMAT_TO_CONTENT_TYPE,
+  normalizeOutputWorkspaceFileName,
+  resolveOutputFormat,
+} from '@/lib/copilot/request/tools/files'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { executeInE2B } from '@/lib/execution/e2b'
-import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
+import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
+import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
+import {
+  isLargeArrayManifest,
+  materializeLargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest'
+import { containsLargeValueRef, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  MAX_FUNCTION_INLINE_BYTES,
+  MAX_INLINE_MATERIALIZATION_BYTES,
+  readUserFileContent,
+  unavailableLargeValueError,
+} from '@/lib/execution/payloads/materialization.server'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
+import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   createEnvVarPattern,
+  createReferencePattern,
   createWorkflowVariablePattern,
 } from '@/executor/utils/reference-validation'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export const MAX_DURATION = 210
-
 const logger = createLogger('FunctionExecuteAPI')
+
+const TAG_PATTERN = createReferencePattern()
 
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
+
+/** Matches valid JS identifier names (letters, digits, underscore; no leading digit). */
+const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
+/** ES2023 reserved words — using these as `const` variable names produces a SyntaxError. */
+const JS_RESERVED_WORDS = new Set([
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'export',
+  'extends',
+  'false',
+  'finally',
+  'for',
+  'function',
+  'if',
+  'import',
+  'in',
+  'instanceof',
+  'let',
+  'new',
+  'null',
+  'return',
+  'static',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'typeof',
+  'var',
+  'void',
+  'while',
+  'with',
+  'yield',
+  'enum',
+  'await',
+  'implements',
+  'interface',
+  'package',
+  'private',
+  'protected',
+  'public',
+])
 
 type TypeScriptModule = typeof import('typescript')
 
@@ -346,6 +425,30 @@ function createUserFriendlyErrorMessage(
   return errorMessage
 }
 
+function getErrorDisplayCode(sourceCode: string | undefined, resolvedCode: string): string {
+  return sourceCode && sourceCode.length > 0 ? sourceCode : resolvedCode
+}
+
+function getLineContent(code: string, line: number | undefined): string | undefined {
+  if (line === undefined || line < 1) {
+    return undefined
+  }
+
+  return code.split('\n')[line - 1]?.trim()
+}
+
+function getErrorDisplayMessage(
+  message: string,
+  sourceCode: string | undefined,
+  resolvedCode: string
+): string {
+  if (!sourceCode || sourceCode === resolvedCode || !resolvedCode.includes('__blockRef_')) {
+    return message
+  }
+
+  return message.replace(/\s+["']globalThis["']/g, '')
+}
+
 function resolveWorkflowVariables(
   code: string,
   workflowVariables: Record<string, any>,
@@ -486,11 +589,7 @@ function resolveTagVariables(
   let resolvedCode = code
   const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
 
-  const tagPattern = new RegExp(
-    `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
-    'g'
-  )
-  const tagMatches = resolvedCode.match(tagPattern) || []
+  const tagMatches = resolvedCode.match(TAG_PATTERN) || []
 
   for (const match of tagMatches) {
     const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
@@ -580,12 +679,293 @@ function cleanStdout(stdout: string): string {
   return stdout
 }
 
-export async function POST(req: NextRequest) {
+/**
+ * Serializes a value for use as a shell environment variable. Strings pass through
+ * unchanged; primitives are coerced via `String`; objects, arrays, and other complex
+ * values are JSON-stringified so that referencing them via `$VAR` yields a useful
+ * representation instead of `[object Object]`. `null`/`undefined` become an empty
+ * string to match POSIX env semantics.
+ */
+function serializeForShellEnv(value: unknown, nullValue = ''): string {
+  if (value === null || value === undefined) return nullValue
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value)
+  }
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch {
+    return String(value)
+  }
+}
+
+interface FunctionRouteExecutionContext {
+  workflowId?: string
+  workspaceId?: string
+  executionId?: string
+  largeValueExecutionIds?: string[]
+  largeValueKeys?: string[]
+  fileKeys?: string[]
+  allowLargeValueWorkflowScope?: boolean
+  userId?: string
+  requestId: string
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function getPositiveNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return undefined
+  }
+  return value
+}
+
+function clampInlineBytes(value: unknown, limit = MAX_FUNCTION_INLINE_BYTES): number {
+  const requested = getPositiveNumber(value)
+  return Math.min(requested ?? limit, limit)
+}
+
+function getBrokerFileArgs(args: unknown): {
+  file: unknown
+  maxBytes: number
+  offset?: number
+  length?: number
+} {
+  const record = asRecord(args)
+  const options = asRecord(record.options)
+  return {
+    file: record.file,
+    maxBytes: clampInlineBytes(options.maxBytes),
+    offset: getPositiveNumber(options.offset),
+    length: getPositiveNumber(options.length),
+  }
+}
+
+function createFunctionRuntimeBrokers(
+  context: FunctionRouteExecutionContext
+): Record<string, IsolatedVMBrokerHandler> {
+  context.largeValueKeys ??= []
+  context.fileKeys ??= []
+  const largeValueKeys = context.largeValueKeys
+  const fileKeys = context.fileKeys
+  const base = {
+    requestId: context.requestId,
+    workflowId: context.workflowId,
+    workspaceId: context.workspaceId,
+    executionId: context.executionId,
+    largeValueExecutionIds: context.largeValueExecutionIds,
+    largeValueKeys,
+    fileKeys,
+    allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
+    userId: context.userId,
+    logger,
+  }
+
+  const recordMaterializedKeys = (value: unknown) =>
+    recordMaterializedAccessKeys({ largeValueKeys, fileKeys }, value)
+
+  const readFile = async (args: unknown, encoding: 'base64' | 'text', chunked = false) => {
+    const fileArgs = getBrokerFileArgs(args)
+    return readUserFileContent(fileArgs.file, {
+      ...base,
+      encoding,
+      maxBytes: fileArgs.maxBytes,
+      chunked,
+      offset: chunked ? fileArgs.offset : undefined,
+      length: chunked ? fileArgs.length : undefined,
+    })
+  }
+
+  return {
+    'sim.files.readBase64': (args) => readFile(args, 'base64'),
+    'sim.files.readText': (args) => readFile(args, 'text'),
+    'sim.files.readBase64Chunk': (args) => readFile(args, 'base64', true),
+    'sim.files.readTextChunk': (args) => readFile(args, 'text', true),
+    'sim.values.read': async (args) => {
+      const record = asRecord(args)
+      const options = asRecord(record.options)
+      const ref = record.ref
+      if (!isLargeValueRef(ref)) {
+        throw new Error('Expected a large execution value reference.')
+      }
+      if (!context.executionId) {
+        throw new Error('Large execution values require an execution context.')
+      }
+      const value = await materializeLargeValueRef(ref, {
+        ...base,
+        maxBytes: clampInlineBytes(options.maxBytes, MAX_INLINE_MATERIALIZATION_BYTES),
+      })
+      if (value === undefined) {
+        throw unavailableLargeValueError(ref)
+      }
+      recordMaterializedKeys(value)
+      return value
+    },
+    'sim.values.readArray': async (args) => {
+      const record = asRecord(args)
+      const options = asRecord(record.options)
+      const manifest = record.ref
+      if (!isLargeArrayManifest(manifest)) {
+        throw new Error('Expected a large array manifest.')
+      }
+      if (!context.executionId) {
+        throw new Error('Large array manifests require an execution context.')
+      }
+      const value = await materializeLargeArrayManifest(manifest, {
+        ...base,
+        maxBytes: clampInlineBytes(options.maxBytes, MAX_INLINE_MATERIALIZATION_BYTES),
+      })
+      recordMaterializedKeys(value)
+      return value
+    },
+  }
+}
+
+async function compactFunctionRouteBody<T>(
+  body: T,
+  context: FunctionRouteExecutionContext
+): Promise<T> {
+  return compactExecutionPayload(body, {
+    workflowId: context.workflowId,
+    workspaceId: context.workspaceId,
+    executionId: context.executionId,
+    userId: context.userId,
+    preserveRoot: true,
+    requireDurable: Boolean(context.workspaceId && context.workflowId && context.executionId),
+  })
+}
+
+async function functionJsonResponse<T>(
+  body: T,
+  context: FunctionRouteExecutionContext,
+  init?: ResponseInit
+) {
+  return NextResponse.json(
+    await compactFunctionRouteBody(
+      {
+        ...body,
+        largeValueKeys: context.largeValueKeys,
+        fileKeys: context.fileKeys,
+      },
+      context
+    ),
+    init
+  )
+}
+
+async function maybeExportSandboxFileToWorkspace(args: {
+  authUserId: string
+  workflowId?: string
+  workspaceId?: string
+  outputPath?: string
+  outputFormat?: string
+  outputMimeType?: string
+  outputSandboxPath?: string
+  exportedFileContent?: string
+  stdout: string
+  executionTime: number
+}) {
+  const {
+    authUserId,
+    workflowId,
+    workspaceId,
+    outputPath,
+    outputFormat,
+    outputMimeType,
+    outputSandboxPath,
+    exportedFileContent,
+    stdout,
+    executionTime,
+  } = args
+
+  if (!outputSandboxPath) return null
+
+  if (!outputPath) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 400 }
+    )
+  }
+
+  const resolvedWorkspaceId =
+    workspaceId || (workflowId ? (await getWorkflowById(workflowId))?.workspaceId : undefined)
+
+  if (!resolvedWorkspaceId) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Workspace context required to save sandbox file to workspace',
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 400 }
+    )
+  }
+
+  if (exportedFileContent === undefined) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 500 }
+    )
+  }
+
+  const fileName = normalizeOutputWorkspaceFileName(outputPath)
+
+  const TEXT_MIMES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
+  const resolvedMimeType =
+    outputMimeType ||
+    FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)] ||
+    'application/octet-stream'
+  const isBinary = !TEXT_MIMES.has(resolvedMimeType)
+  const fileBuffer = isBinary
+    ? Buffer.from(exportedFileContent, 'base64')
+    : Buffer.from(exportedFileContent, 'utf-8')
+
+  const uploaded = await uploadWorkspaceFile(
+    resolvedWorkspaceId,
+    authUserId,
+    fileBuffer,
+    fileName,
+    resolvedMimeType
+  )
+
+  return NextResponse.json({
+    success: true,
+    output: {
+      result: {
+        message: `Sandbox file exported to files/${fileName}`,
+        fileId: uploaded.id,
+        fileName,
+        downloadUrl: uploaded.url,
+        sandboxPath: outputSandboxPath,
+      },
+      stdout: cleanStdout(stdout),
+      executionTime,
+    },
+    resources: [{ type: 'file', id: uploaded.id, title: fileName }],
+  })
+}
+
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let stdout = ''
   let userCodeStartLine = 3 // Default value for error reporting
   let resolvedCode = '' // Store resolved code for error reporting
+  let sourceCodeForErrors: string | undefined
+  let routeContext: FunctionRouteExecutionContext | undefined
 
   try {
     const auth = await checkInternalAuth(req)
@@ -594,24 +974,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(functionExecuteContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { body } = parsed.data
 
     const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
 
     const {
       code,
+      sourceCode,
       params = {},
       timeout = DEFAULT_EXECUTION_TIMEOUT_MS,
       language = DEFAULT_CODE_LANGUAGE,
+      outputPath,
+      outputFormat,
+      outputMimeType,
+      outputSandboxPath,
       envVars = {},
       blockData = {},
       blockNameMapping = {},
       blockOutputSchemas = {},
       workflowVariables = {},
+      contextVariables: preResolvedContextVariables = {},
       workflowId,
+      executionId,
+      largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
+      allowLargeValueWorkflowScope = false,
+      workspaceId,
       isCustomTool = false,
       _sandboxFiles,
     } = body
+    sourceCodeForErrors = sourceCode
 
     const executionParams = { ...params }
     executionParams._context = undefined
@@ -621,23 +1016,56 @@ export async function POST(req: NextRequest) {
       paramsCount: Object.keys(executionParams).length,
       timeout,
       workflowId,
+      executionId,
       isCustomTool,
     })
 
+    routeContext = {
+      workflowId,
+      workspaceId,
+      executionId,
+      largeValueExecutionIds,
+      largeValueKeys,
+      fileKeys,
+      allowLargeValueWorkflowScope,
+      userId: auth.userId,
+      requestId,
+    }
+
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
 
-    const codeResolution = resolveCodeVariables(
-      code,
-      executionParams,
-      envVars,
-      blockData,
-      blockNameMapping,
-      blockOutputSchemas,
-      workflowVariables,
-      lang
-    )
-    resolvedCode = codeResolution.resolvedCode
-    const contextVariables = codeResolution.contextVariables
+    let contextVariables: Record<string, unknown> = {}
+    if (lang === CodeLanguage.Shell) {
+      // For shell, env vars are injected as OS env vars via shellEnvs.
+      // Replace {{VAR}} placeholders with $VAR so the shell can access them natively.
+      resolvedCode = code.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, '$$$1')
+      // Carry pre-resolved block output variables (e.g. __blockRef_N) so they can be
+      // injected as shell env vars below. The executor replaces block references in the
+      // code with these names, so the values must be present at runtime.
+      contextVariables = { ...preResolvedContextVariables }
+    } else {
+      const codeResolution = resolveCodeVariables(
+        code,
+        executionParams,
+        envVars,
+        blockData,
+        blockNameMapping,
+        blockOutputSchemas,
+        workflowVariables,
+        lang
+      )
+      resolvedCode = codeResolution.resolvedCode
+      // Merge pre-resolved block output variables from the executor. These take precedence
+      // because they were produced by the resolver using full execution-state context
+      // (including loop/parallel scope) and should not be overwritten.
+      contextVariables = { ...codeResolution.contextVariables, ...preResolvedContextVariables }
+    }
+
+    if (lang === CodeLanguage.Shell && containsLargeValueRef(contextVariables)) {
+      throw new Error(
+        'Large execution values require the JavaScript isolated-vm runtime. Select a nested field or read the value in a JavaScript function.'
+      )
+    }
 
     let jsImports = ''
     let jsRemainingCode = resolvedCode
@@ -650,6 +1078,87 @@ export async function POST(req: NextRequest) {
 
       const hasRequireStatements = /require\s*\(\s*['"`]/.test(resolvedCode)
       hasImports = jsImports.trim().length > 0 || hasRequireStatements
+    }
+
+    if (lang === CodeLanguage.Shell) {
+      if (!isE2bEnabled) {
+        throw new Error(
+          'Shell execution requires E2B to be enabled. Please contact your administrator to enable E2B.'
+        )
+      }
+
+      const shellEnvs: Record<string, string> = {}
+      for (const [k, v] of Object.entries(envVars)) {
+        shellEnvs[k] = serializeForShellEnv(v)
+      }
+      for (const [k, v] of Object.entries(contextVariables)) {
+        shellEnvs[k] = serializeForShellEnv(v, 'null')
+      }
+
+      logger.info(`[${requestId}] E2B shell execution`, {
+        enabled: isE2bEnabled,
+        hasApiKey: Boolean(process.env.E2B_API_KEY),
+        envVarCount: Object.keys(shellEnvs).length,
+      })
+
+      const execStart = Date.now()
+      const {
+        result: shellResult,
+        stdout: shellStdout,
+        sandboxId,
+        error: shellError,
+        exportedFileContent,
+      } = await executeShellInE2B({
+        code: resolvedCode,
+        envs: shellEnvs,
+        timeoutMs: timeout,
+        sandboxFiles: _sandboxFiles,
+        outputSandboxPath,
+      })
+      const executionTime = Date.now() - execStart
+
+      logger.info(`[${requestId}] E2B shell sandbox`, {
+        sandboxId,
+        stdoutPreview: shellStdout?.slice(0, 200),
+        error: shellError,
+        executionTime,
+      })
+
+      if (shellError) {
+        return functionJsonResponse(
+          {
+            success: false,
+            error: shellError,
+            output: { result: null, stdout: cleanStdout(shellStdout), executionTime },
+          },
+          routeContext,
+          { status: 422 }
+        )
+      }
+
+      if (outputSandboxPath) {
+        const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+          authUserId: auth.userId,
+          workflowId,
+          workspaceId,
+          outputPath,
+          outputFormat,
+          outputMimeType,
+          outputSandboxPath,
+          exportedFileContent,
+          stdout: shellStdout,
+          executionTime,
+        })
+        if (fileExportResponse) return fileExportResponse
+      }
+
+      return functionJsonResponse(
+        {
+          success: true,
+          output: { result: shellResult ?? null, stdout: cleanStdout(shellStdout), executionTime },
+        },
+        routeContext
+      )
     }
 
     if (lang === CodeLanguage.Python && !isE2bEnabled) {
@@ -668,6 +1177,12 @@ export async function POST(req: NextRequest) {
       isE2bEnabled &&
       !isCustomTool &&
       (lang === CodeLanguage.Python || (lang === CodeLanguage.JavaScript && hasImports))
+
+    if (useE2B && containsLargeValueRef(contextVariables)) {
+      throw new Error(
+        'Large execution values require the JavaScript isolated-vm runtime. Remove imports, select a nested field, or read the value in a JavaScript function without E2B.'
+      )
+    }
 
     if (useE2B) {
       logger.info(`[${requestId}] E2B status`, {
@@ -694,7 +1209,9 @@ export async function POST(req: NextRequest) {
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
         prologueLineCount++
         for (const [k, v] of Object.entries(contextVariables)) {
-          prologue += `const ${k} = ${formatLiteralForCode(v, 'javascript')};\n`
+          prologue += `globalThis[${JSON.stringify(k)}] = ${formatLiteralForCode(v, 'javascript')};\n`
+          prologue += `const ${k} = globalThis[${JSON.stringify(k)}];\n`
+          prologueLineCount++
           prologueLineCount++
         }
 
@@ -719,11 +1236,13 @@ export async function POST(req: NextRequest) {
           stdout: e2bStdout,
           sandboxId,
           error: e2bError,
+          exportedFileContent,
         } = await executeInE2B({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
           sandboxFiles: _sandboxFiles,
+          outputSandboxPath,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -735,27 +1254,48 @@ export async function POST(req: NextRequest) {
         })
 
         if (e2bError) {
+          const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
           const { formattedError, cleanedOutput } = formatE2BError(
-            e2bError,
+            getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
             e2bStdout,
             lang,
-            resolvedCode,
+            errorDisplayCode,
             prologueLineCount + importLineCount
           )
-          return NextResponse.json(
+          return functionJsonResponse(
             {
               success: false,
               error: formattedError,
               output: { result: null, stdout: cleanedOutput, executionTime },
             },
-            { status: 500 }
+            routeContext,
+            { status: 422 }
           )
         }
 
-        return NextResponse.json({
-          success: true,
-          output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
-        })
+        if (outputSandboxPath) {
+          const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+            authUserId: auth.userId,
+            workflowId,
+            workspaceId,
+            outputPath,
+            outputFormat,
+            outputMimeType,
+            outputSandboxPath,
+            exportedFileContent,
+            stdout,
+            executionTime,
+          })
+          if (fileExportResponse) return fileExportResponse
+        }
+
+        return functionJsonResponse(
+          {
+            success: true,
+            output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
+          },
+          routeContext
+        )
       }
 
       let prologueLineCount = 0
@@ -783,11 +1323,13 @@ export async function POST(req: NextRequest) {
         stdout: e2bStdout,
         sandboxId,
         error: e2bError,
+        exportedFileContent,
       } = await executeInE2B({
         code: codeForE2B,
         language: CodeLanguage.Python,
         timeoutMs: timeout,
         sandboxFiles: _sandboxFiles,
+        outputSandboxPath,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
@@ -799,35 +1341,62 @@ export async function POST(req: NextRequest) {
       })
 
       if (e2bError) {
+        const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
         const { formattedError, cleanedOutput } = formatE2BError(
-          e2bError,
+          getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
           e2bStdout,
           lang,
-          resolvedCode,
+          errorDisplayCode,
           prologueLineCount
         )
-        return NextResponse.json(
+        return functionJsonResponse(
           {
             success: false,
             error: formattedError,
             output: { result: null, stdout: cleanedOutput, executionTime },
           },
-          { status: 500 }
+          routeContext,
+          { status: 422 }
         )
       }
 
-      return NextResponse.json({
-        success: true,
-        output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
-      })
+      if (outputSandboxPath) {
+        const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+          authUserId: auth.userId,
+          workflowId,
+          workspaceId,
+          outputPath,
+          outputFormat,
+          outputMimeType,
+          outputSandboxPath,
+          exportedFileContent,
+          stdout,
+          executionTime,
+        })
+        if (fileExportResponse) return fileExportResponse
+      }
+
+      return functionJsonResponse(
+        {
+          success: true,
+          output: { result: e2bResult ?? null, stdout: cleanStdout(stdout), executionTime },
+        },
+        routeContext
+      )
     }
 
     const executionMethod = 'isolated-vm'
 
+    const isSafeParamKey = (key: string) => SAFE_IDENTIFIER.test(key) && !JS_RESERVED_WORDS.has(key)
+
     const wrapperLines = ['(async () => {', '  try {']
     if (isCustomTool) {
       Object.keys(executionParams).forEach((key) => {
-        wrapperLines.push(`    const ${key} = params.${key};`)
+        if (isSafeParamKey(key)) {
+          wrapperLines.push(`    const ${key} = params.${key};`)
+        } else {
+          logger.warn('Skipping param key — not a safe JS identifier', { key, requestId })
+        }
       })
     }
     userCodeStartLine = wrapperLines.length + 1
@@ -835,29 +1404,35 @@ export async function POST(req: NextRequest) {
     let codeToExecute = resolvedCode
     let prependedLineCount = 0
     if (isCustomTool) {
-      const paramKeys = Object.keys(executionParams)
+      const paramKeys = Object.keys(executionParams).filter(isSafeParamKey)
       const paramDestructuring = paramKeys.map((key) => `const ${key} = params.${key};`).join('\n')
       codeToExecute = `${paramDestructuring}\n${resolvedCode}`
       prependedLineCount = paramKeys.length
     }
 
-    const isolatedResult = await executeInIsolatedVM({
-      code: codeToExecute,
-      params: executionParams,
-      envVars,
-      contextVariables,
-      timeoutMs: timeout,
-      requestId,
-      ownerKey: `user:${auth.userId}`,
-      ownerWeight: 1,
-    })
+    const isolatedResult = await executeInIsolatedVM(
+      {
+        code: codeToExecute,
+        params: executionParams,
+        envVars,
+        contextVariables,
+        timeoutMs: timeout,
+        requestId,
+        ownerKey: `user:${auth.userId}`,
+        ownerWeight: 1,
+      },
+      { brokers: createFunctionRuntimeBrokers(routeContext) }
+    )
 
     const executionTime = Date.now() - startTime
 
     if (isolatedResult.error) {
-      logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+      const isSystemError = isolatedResult.error.isSystemError === true
+      const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+      logFn(`[${requestId}] Function execution failed in isolated-vm`, {
         error: isolatedResult.error,
         executionTime,
+        isSystemError,
       })
 
       const ivmError = isolatedResult.error
@@ -865,13 +1440,16 @@ export async function POST(req: NextRequest) {
       let adjustedLineContent = ivmError.lineContent
       if (prependedLineCount > 0 && ivmError.line !== undefined) {
         adjustedLine = Math.max(1, ivmError.line - prependedLineCount)
-        const codeLines = resolvedCode.split('\n')
-        if (adjustedLine <= codeLines.length) {
-          adjustedLineContent = codeLines[adjustedLine - 1]?.trim()
-        }
       }
+      const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
+      const displayMessage = getErrorDisplayMessage(
+        ivmError.message,
+        sourceCodeForErrors,
+        resolvedCode
+      )
+      adjustedLineContent = getLineContent(errorDisplayCode, adjustedLine) ?? adjustedLineContent
       const enhancedError: EnhancedError = {
-        message: ivmError.message,
+        message: displayMessage,
         name: ivmError.name,
         stack: ivmError.stack,
         originalError: ivmError,
@@ -883,10 +1461,11 @@ export async function POST(req: NextRequest) {
       const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
         enhancedError,
         requestId,
-        resolvedCode
+        errorDisplayCode
       )
 
-      logger.error(`[${requestId}] Enhanced error details`, {
+      const detailLogFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+      detailLogFn(`[${requestId}] Enhanced error details`, {
         originalMessage: ivmError.message,
         enhancedMessage: userFriendlyErrorMessage,
         line: enhancedError.line,
@@ -895,7 +1474,7 @@ export async function POST(req: NextRequest) {
         errorType: enhancedError.name,
       })
 
-      return NextResponse.json(
+      return functionJsonResponse(
         {
           success: false,
           error: userFriendlyErrorMessage,
@@ -912,7 +1491,8 @@ export async function POST(req: NextRequest) {
             stack: enhancedError.stack,
           },
         },
-        { status: 500 }
+        routeContext,
+        { status: isSystemError ? 500 : 422 }
       )
     }
 
@@ -921,23 +1501,63 @@ export async function POST(req: NextRequest) {
       executionTime,
     })
 
-    return NextResponse.json({
-      success: true,
-      output: { result: isolatedResult.result, stdout: cleanStdout(stdout), executionTime },
-    })
+    return functionJsonResponse(
+      {
+        success: true,
+        output: { result: isolatedResult.result, stdout: cleanStdout(stdout), executionTime },
+      },
+      routeContext
+    )
   } catch (error: any) {
     const executionTime = Date.now() - startTime
+    if (isExecutionResourceLimitError(error)) {
+      logger.warn(`[${requestId}] Function execution exceeded resource limits`, {
+        resource: error.resource,
+        attemptedBytes: error.attemptedBytes,
+        limitBytes: error.limitBytes,
+        executionTime,
+      })
+      if (routeContext) {
+        return functionJsonResponse(
+          {
+            success: false,
+            error: error.message,
+            output: {
+              result: null,
+              stdout: cleanStdout(stdout),
+              executionTime,
+            },
+          },
+          routeContext,
+          { status: error.statusCode }
+        )
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          output: {
+            result: null,
+            stdout: cleanStdout(stdout),
+            executionTime,
+          },
+        },
+        { status: error.statusCode }
+      )
+    }
+
     logger.error(`[${requestId}] Function execution failed`, {
       error: error.message || 'Unknown error',
       stack: error.stack,
       executionTime,
     })
 
-    const enhancedError = extractEnhancedError(error, userCodeStartLine, resolvedCode)
+    const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
+    const enhancedError = extractEnhancedError(error, userCodeStartLine, errorDisplayCode)
     const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
       enhancedError,
       requestId,
-      resolvedCode
+      errorDisplayCode
     )
 
     logger.error(`[${requestId}] Enhanced error details`, {
@@ -967,6 +1587,10 @@ export async function POST(req: NextRequest) {
       },
     }
 
+    if (routeContext) {
+      return functionJsonResponse(errorResponse, routeContext, { status: 500 })
+    }
+
     return NextResponse.json(errorResponse, { status: 500 })
   }
-}
+})

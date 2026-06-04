@@ -1,24 +1,16 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
+import { Loader } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractJsonResponse } from '@/lib/api/contracts'
+import { unsubscribeGetContract, unsubscribePostContract } from '@/lib/api/contracts/user'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { InviteLayout } from '@/app/invite/components'
 
-interface UnsubscribeData {
-  success: boolean
-  email: string
-  token: string
-  emailType: string
-  isTransactional: boolean
-  currentPreferences: {
-    unsubscribeAll?: boolean
-    unsubscribeMarketing?: boolean
-    unsubscribeUpdates?: boolean
-    unsubscribeNotifications?: boolean
-  }
-}
+type UnsubscribeData = ContractJsonResponse<typeof unsubscribeGetContract>
 
 function UnsubscribeContent() {
   const searchParams = useSearchParams()
@@ -38,19 +30,13 @@ function UnsubscribeContent() {
       return
     }
 
-    fetch(
-      `/api/users/me/settings/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setData(data)
-        } else {
-          setError(data.error || 'Invalid unsubscribe link')
-        }
+    requestJson(unsubscribeGetContract, { query: { email, token } })
+      .then((response) => {
+        setData(response)
       })
-      .catch(() => {
-        setError('Failed to validate unsubscribe link')
+      .catch((err: unknown) => {
+        const message = getErrorMessage(err, 'Failed to validate unsubscribe link')
+        setError(message)
       })
       .finally(() => {
         setLoading(false)
@@ -63,53 +49,40 @@ function UnsubscribeContent() {
     setProcessing(true)
 
     try {
-      const response = await fetch('/api/users/me/settings/unsubscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          token,
-          type,
-        }),
+      await requestJson(unsubscribePostContract, {
+        body: { email, token, type },
       })
 
-      const result = await response.json()
-
-      if (result.success) {
-        setUnsubscribed(true)
-        if (data) {
-          const validTypes = ['all', 'marketing', 'updates', 'notifications'] as const
-          if (validTypes.includes(type)) {
-            if (type === 'all') {
-              setData({
-                ...data,
-                currentPreferences: {
-                  ...data.currentPreferences,
-                  unsubscribeAll: true,
-                },
-              })
-            } else {
-              const propertyKey = `unsubscribe${type.charAt(0).toUpperCase()}${type.slice(1)}` as
-                | 'unsubscribeMarketing'
-                | 'unsubscribeUpdates'
-                | 'unsubscribeNotifications'
-              setData({
-                ...data,
-                currentPreferences: {
-                  ...data.currentPreferences,
-                  [propertyKey]: true,
-                },
-              })
-            }
+      setUnsubscribed(true)
+      if (data) {
+        const validTypes = ['all', 'marketing', 'updates', 'notifications'] as const
+        if (validTypes.includes(type)) {
+          if (type === 'all') {
+            setData({
+              ...data,
+              currentPreferences: {
+                ...data.currentPreferences,
+                unsubscribeAll: true,
+              },
+            })
+          } else {
+            const propertyKey = `unsubscribe${type.charAt(0).toUpperCase()}${type.slice(1)}` as
+              | 'unsubscribeMarketing'
+              | 'unsubscribeUpdates'
+              | 'unsubscribeNotifications'
+            setData({
+              ...data,
+              currentPreferences: {
+                ...data.currentPreferences,
+                [propertyKey]: true,
+              },
+            })
           }
         }
-      } else {
-        setError(result.error || 'Failed to unsubscribe')
       }
-    } catch {
-      setError('Failed to process unsubscribe request')
+    } catch (err: unknown) {
+      const message = getErrorMessage(err, 'Failed to process unsubscribe request')
+      setError(message)
     } finally {
       setProcessing(false)
     }
@@ -123,11 +96,11 @@ function UnsubscribeContent() {
             Loading
           </h1>
           <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-            Validating your unsubscribe link...
+            Validating your unsubscribe link…
           </p>
         </div>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-          <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
+          <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
         </div>
       </InviteLayout>
     )
@@ -218,8 +191,8 @@ function UnsubscribeContent() {
         >
           {processing ? (
             <span className='flex items-center gap-2'>
-              <Loader2 className='h-4 w-4 animate-spin' />
-              Unsubscribing...
+              <Loader className='size-4' animate />
+              Unsubscribing…
             </span>
           ) : isAlreadyUnsubscribedFromAll ? (
             'Unsubscribed from All Emails'
@@ -297,11 +270,11 @@ export default function Unsubscribe() {
               Loading
             </h1>
             <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-              Validating your unsubscribe link...
+              Validating your unsubscribe link…
             </p>
           </div>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-            <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
+            <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
           </div>
         </InviteLayout>
       }

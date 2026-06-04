@@ -105,9 +105,108 @@ totalCost = baseExecutionCharge + modelCost
   显示的价格为截至 2025 年 9 月 10 日的费率。请查看提供商文档以获取最新价格。
 </Callout>
 
+## 托管工具定价
+
+当工作流使用 Sim 托管 API 密钥的工具模块时，费用按操作收取。通过 BYOK 使用你自己的密钥可直接向服务商付费。
+
+<Tabs items={['Firecrawl', 'Exa', 'Serper', 'Perplexity', 'Linkup', 'Parallel AI', 'Jina AI', 'Google Cloud', 'Brandfetch']}>
+  <Tab>
+    **Firecrawl** - 网页抓取、爬取、搜索和提取
+
+    | Operation | Cost |
+    |-----------|------|
+    | Scrape | $0.001 per credit used |
+    | Crawl | $0.001 per credit used |
+    | Search | $0.001 per credit used |
+    | Extract | $0.001 per credit used |
+    | Map | $0.001 per credit used |
+  </Tab>
+
+  <Tab>
+    **Exa** - AI 驱动的搜索和研究
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | Dynamic (returned by API) |
+    | Get Contents | Dynamic (returned by API) |
+    | Find Similar Links | Dynamic (returned by API) |
+    | Answer | Dynamic (returned by API) |
+  </Tab>
+
+  <Tab>
+    **Serper** - Google 搜索 API
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search (≤10 results) | $0.001 |
+    | Search (>10 results) | $0.002 |
+  </Tab>
+
+  <Tab>
+    **Perplexity** - AI 驱动的聊天和网络搜索
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | $0.005 per request |
+    | Chat | Token-based (varies by model) |
+  </Tab>
+
+  <Tab>
+    **Linkup** - 网络搜索和内容检索
+
+    | Operation | Cost |
+    |-----------|------|
+    | Standard search | ~$0.006 |
+    | Deep search | ~$0.055 |
+  </Tab>
+
+  <Tab>
+    **Parallel AI** - 网络搜索、提取和深度研究
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search (≤10 results) | $0.005 |
+    | Search (>10 results) | $0.005 + $0.001 per additional result |
+    | Extract | $0.001 per URL |
+    | Deep Research | $0.005–$2.40 (varies by processor tier) |
+  </Tab>
+
+  <Tab>
+    **Jina AI** - 网页阅读和搜索
+
+    | Operation | Cost |
+    |-----------|------|
+    | Read URL | $0.20 per 1M tokens |
+    | Search | $0.20 per 1M tokens (minimum 10K tokens) |
+  </Tab>
+
+  <Tab>
+    **Google Cloud** - Translate、Maps、PageSpeed 和 Books API
+
+    | Operation | Cost |
+    |-----------|------|
+    | Translate / Detect | $0.00002 per character |
+    | Maps (Geocode, Directions, Distance Matrix, Elevation, Timezone, Reverse Geocode, Geolocate, Validate Address) | $0.005 per request |
+    | Maps (Snap to Roads) | $0.01 per request |
+    | Maps (Place Details) | $0.017 per request |
+    | Maps (Places Search) | $0.032 per request |
+    | PageSpeed | Free |
+    | Books (Search, Details) | Free |
+  </Tab>
+
+  <Tab>
+    **Brandfetch** - 品牌资产、标志、颜色和公司信息
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | Free |
+    | Get Brand | $0.04 per request |
+  </Tab>
+</Tabs>
+
 ## 自带密钥（BYOK）
 
-你可以在 **设置 → BYOK** 中为托管模型（OpenAI、Anthropic、Google、Mistral）使用你自己的 API 密钥，以按基础价格计费。密钥会被加密，并在整个工作区范围内生效。
+你可以在 **设置 → BYOK** 中为支持的服务商（OpenAI、Anthropic、Google、Mistral、Fireworks、Firecrawl、Exa、Serper、Linkup、Parallel AI、Perplexity、Jina AI、Google Cloud、Brandfetch）使用你自己的 API 密钥，以按基础价格计费。密钥会被加密，并在整个工作区范围内生效。
 
 ## 成本优化策略
 

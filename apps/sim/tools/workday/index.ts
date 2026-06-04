@@ -9,6 +9,7 @@ import { listWorkersTool } from '@/tools/workday/list_workers'
 import { terminateWorkerTool } from '@/tools/workday/terminate_worker'
 import { updateWorkerTool } from '@/tools/workday/update_worker'
 
+export * from './types'
 export {
   assignOnboardingTool as workdayAssignOnboardingTool,
   changeJobTool as workdayChangeJobTool,
@@ -21,5 +22,3 @@ export {
   terminateWorkerTool as workdayTerminateWorkerTool,
   updateWorkerTool as workdayUpdateWorkerTool,
 }
-
-export * from './types'

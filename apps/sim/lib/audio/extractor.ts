@@ -3,6 +3,7 @@ import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { createLogger } from '@sim/logger'
 import ffmpegStatic from 'ffmpeg-static'
 import ffmpeg from 'fluent-ffmpeg'
 import type {
@@ -10,6 +11,8 @@ import type {
   AudioExtractionResult,
   AudioMetadata,
 } from '@/lib/audio/types'
+
+const logger = createLogger('AudioExtractor')
 
 let ffmpegInitialized = false
 let ffmpegPath: string | null = null
@@ -35,7 +38,7 @@ function ensureFfmpeg(): void {
       fsSync.accessSync(ffmpegStatic, fsSync.constants.X_OK)
       ffmpegPath = ffmpegStatic
       ffmpeg.setFfmpegPath(ffmpegPath)
-      console.log('[FFmpeg] Using ffmpeg-static:', ffmpegPath)
+      logger.info('[FFmpeg] Using ffmpeg-static:', ffmpegPath)
       return
     } catch {
       // Binary doesn't exist or not executable
@@ -49,7 +52,7 @@ function ensureFfmpeg(): void {
     // On Windows, 'where' returns multiple paths - take first
     ffmpegPath = result.split('\n')[0]
     ffmpeg.setFfmpegPath(ffmpegPath)
-    console.log('[FFmpeg] Using system ffmpeg:', ffmpegPath)
+    logger.info('[FFmpeg] Using system ffmpeg:', ffmpegPath)
     return
   } catch {
     // System ffmpeg not found
@@ -57,7 +60,7 @@ function ensureFfmpeg(): void {
 
   // No FFmpeg found - set flag but don't throw yet
   // Error will be thrown when user tries to use video extraction
-  console.warn('[FFmpeg] No FFmpeg binary found at module load time')
+  logger.warn('[FFmpeg] No FFmpeg binary found at module load time')
 }
 
 /**
@@ -134,7 +137,7 @@ async function convertAudioWithFFmpeg(
       duration = metadata.duration || 0
     } catch (error) {
       // Metadata extraction failed, continue without duration
-      console.warn('Failed to extract metadata:', error)
+      logger.warn('Failed to extract metadata:', error)
     }
 
     // Convert using FFmpeg

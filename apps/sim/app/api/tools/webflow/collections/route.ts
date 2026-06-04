@@ -1,24 +1,29 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { webflowCollectionsSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebflowCollectionsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+interface WebflowCollection {
+  id: string
+  displayName?: string
+  slug?: string
+}
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, workflowId, siteId } = body
-
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(webflowCollectionsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId, siteId } = parsed.data.body
 
     const siteIdValidation = validateAlphanumericId(siteId, 'siteId')
     if (!siteIdValidation.isValid) {
@@ -26,7 +31,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: siteIdValidation.error }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -73,10 +78,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as { collections?: WebflowCollection[] }
     const collections = data.collections || []
 
-    const formattedCollections = collections.map((collection: any) => ({
+    const formattedCollections = collections.map((collection) => ({
       id: collection.id,
       name: collection.displayName || collection.slug || collection.id,
     }))
@@ -89,4 +94,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

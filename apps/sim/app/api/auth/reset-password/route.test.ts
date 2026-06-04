@@ -31,6 +31,8 @@ vi.mock('@/lib/auth', () => ({
 }))
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
+  getRequestContext: () => undefined,
 }))
 
 import { POST } from '@/app/api/auth/reset-password/route'

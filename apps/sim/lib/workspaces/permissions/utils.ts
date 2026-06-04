@@ -1,6 +1,14 @@
 import { db } from '@sim/db'
-import { permissions, type permissionTypeEnum, user, workspace } from '@sim/db/schema'
+import {
+  member,
+  permissions,
+  type permissionTypeEnum,
+  user,
+  type WorkspaceMode,
+  workspace,
+} from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { HttpError } from '@/lib/core/utils/http-error'
 
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 export interface WorkspaceBasic {
@@ -11,6 +19,9 @@ export interface WorkspaceWithOwner {
   id: string
   name: string
   ownerId: string
+  organizationId: string | null
+  workspaceMode: WorkspaceMode
+  billedAccountUserId: string
   archivedAt?: Date | null
 }
 
@@ -75,6 +86,9 @@ export async function getWorkspaceWithOwner(
       id: workspace.id,
       name: workspace.name,
       ownerId: workspace.ownerId,
+      organizationId: workspace.organizationId,
+      workspaceMode: workspace.workspaceMode,
+      billedAccountUserId: workspace.billedAccountUserId,
       archivedAt: workspace.archivedAt,
     })
     .from(workspace)
@@ -134,13 +148,34 @@ export async function checkWorkspaceAccess(
   return { exists: true, hasAccess: true, canWrite, workspace: ws }
 }
 
+/**
+ * Thrown when a user attempts to access a workspace they don't have access to,
+ * or that doesn't exist / has been archived. Carries `statusCode = 403` so the
+ * centralized route wrapper maps it to HTTP 403 instead of defaulting to 500.
+ * The `message` is intentionally client-safe and is exposed to API responses.
+ */
+export class WorkspaceAccessDeniedError extends HttpError {
+  readonly statusCode = 403
+  readonly workspaceId: string
+
+  constructor(workspaceId: string) {
+    super(`Workspace access denied: ${workspaceId}`)
+    this.name = 'WorkspaceAccessDeniedError'
+    this.workspaceId = workspaceId
+  }
+}
+
+export function isWorkspaceAccessDeniedError(error: unknown): error is WorkspaceAccessDeniedError {
+  return error instanceof WorkspaceAccessDeniedError
+}
+
 export async function assertActiveWorkspaceAccess(
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceAccess> {
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.exists || !access.hasAccess) {
-    throw new Error(`Active workspace access denied: ${workspaceId}`)
+    throw new WorkspaceAccessDeniedError(workspaceId)
   }
   return access
 }
@@ -225,7 +260,9 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     userId: string
     email: string
     name: string
+    image: string | null
     permissionType: PermissionType
+    isExternal: boolean
   }>
 > {
   const usersWithPermissions = await db
@@ -233,11 +270,18 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
       userId: user.id,
       email: user.email,
       name: user.name,
+      image: user.image,
       permissionType: permissions.permissionType,
+      workspaceOrganizationId: workspace.organizationId,
+      organizationMemberId: member.id,
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
     .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+    .leftJoin(
+      member,
+      and(eq(member.userId, user.id), eq(member.organizationId, workspace.organizationId))
+    )
     .where(
       and(
         eq(permissions.entityType, 'workspace'),
@@ -251,7 +295,9 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     userId: row.userId,
     email: row.email,
     name: row.name,
+    image: row.image ?? null,
     permissionType: row.permissionType,
+    isExternal: Boolean(row.workspaceOrganizationId && !row.organizationMemberId),
   }))
 }
 
@@ -310,7 +356,24 @@ export async function hasWorkspaceAdminAccess(
     return true
   }
 
-  return await hasAdminPermission(userId, workspaceId)
+  if (await hasAdminPermission(userId, workspaceId)) {
+    return true
+  }
+
+  return await isOrganizationAdminOrOwnerOfWorkspace(userId, ws)
+}
+
+async function isOrganizationAdminOrOwnerOfWorkspace(
+  userId: string,
+  ws: Pick<WorkspaceWithOwner, 'organizationId'>
+): Promise<boolean> {
+  if (!ws.organizationId) return false
+  const [row] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.organizationId, ws.organizationId)))
+    .limit(1)
+  return row?.role === 'owner' || row?.role === 'admin'
 }
 
 /**

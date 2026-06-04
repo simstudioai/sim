@@ -73,9 +73,11 @@ export function getTrigger(triggerId: string): TriggerConfig {
     throw new Error(`Trigger not found: ${triggerId}`)
   }
 
-  // Clone and filter out deprecated trigger-save subblocks
+  // Filter out deprecated trigger-save subblocks from legacy stored data
   const subBlocks = trigger.subBlocks
-    .filter((subBlock) => subBlock.id !== 'triggerSave' && subBlock.type !== 'trigger-save')
+    .filter(
+      (subBlock) => subBlock.id !== 'triggerSave' && (subBlock.type as string) !== 'trigger-save'
+    )
     .map((subBlock) => namespaceSubBlockId(subBlock, triggerId))
 
   const clonedTrigger = { ...trigger, subBlocks }
@@ -132,7 +134,7 @@ export function isTriggerValid(triggerId: string): boolean {
   return triggerId in TRIGGER_REGISTRY
 }
 
-export type { TriggerConfig, TriggerRegistry } from '@/triggers/types'
+export type { TriggerConfig } from '@/triggers/types'
 
 /**
  * Options for building trigger subBlocks
@@ -154,7 +156,7 @@ export interface BuildTriggerSubBlocksOptions {
 
 /**
  * Generic builder for trigger subBlocks.
- * Creates a consistent structure: [dropdown?] -> webhookUrl -> extraFields -> save -> instructions
+ * Creates a consistent structure: [dropdown?] -> webhookUrl -> extraFields -> instructions
  *
  * Usage:
  * - Primary trigger: `buildTriggerSubBlocks({ ...options, includeDropdown: true })`

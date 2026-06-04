@@ -1,8 +1,10 @@
+import { toError } from '@sim/utils/errors'
 import { TableIcon } from '@/components/icons'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
 import type { TableQueryResponse } from '@/tools/table/types'
+import { getTrigger } from '@/triggers'
 
 /**
  * Parses a JSON string with helpful error messages.
@@ -20,7 +22,7 @@ function parseJSON(value: string | unknown, fieldName: string): unknown {
   try {
     return JSON.parse(value)
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error)
+    const errorMsg = toError(error).message
 
     // Check if the error might be due to unquoted string values
     // This happens when users write {"field": <ref>} instead of {"field": "<ref>"}
@@ -229,6 +231,7 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
       title: 'Row ID',
       type: 'short-input',
       placeholder: 'row_xxxxx',
+      dependsOn: ['tableId'],
       condition: { field: 'operation', value: ['get_row', 'update_row', 'delete_row'] },
       required: true,
     },
@@ -376,6 +379,10 @@ IMPORTANT: Reference the table schema to know which columns exist and their type
 - **$in**: In array - {"column": {"$in": ["value1", "value2"]}}
 - **$nin**: Not in array - {"column": {"$nin": ["value1", "value2"]}}
 - **$contains**: String contains - {"column": {"$contains": "text"}}
+- **$ncontains**: Does not contain (matches empty cells) - {"column": {"$ncontains": "text"}}
+- **$startsWith**: Starts with - {"column": {"$startsWith": "text"}}
+- **$endsWith**: Ends with - {"column": {"$endsWith": "text"}}
+- **$empty**: Is empty (true) or non-empty (false) - {"column": {"$empty": true}}
 
 ### EXAMPLES
 
@@ -464,6 +471,10 @@ IMPORTANT: Reference the table schema to know which columns exist and their type
 - **$in**: In array - {"column": {"$in": ["value1", "value2"]}}
 - **$nin**: Not in array - {"column": {"$nin": ["value1", "value2"]}}
 - **$contains**: String contains - {"column": {"$contains": "text"}}
+- **$ncontains**: Does not contain (matches empty cells) - {"column": {"$ncontains": "text"}}
+- **$startsWith**: Starts with - {"column": {"$startsWith": "text"}}
+- **$endsWith**: Ends with - {"column": {"$endsWith": "text"}}
+- **$empty**: Is empty (true) or non-empty (false) - {"column": {"$empty": true}}
 
 ### EXAMPLES
 
@@ -551,6 +562,7 @@ Return ONLY the sort JSON:`,
       condition: { field: 'operation', value: 'query_rows' },
       value: () => '0',
     },
+    ...getTrigger('table_new_row').subBlocks,
   ],
 
   tools: {
@@ -687,5 +699,9 @@ Return ONLY the sort JSON:`,
       condition: { field: 'operation', value: 'get_schema' },
     },
     message: { type: 'string', description: 'Operation status message' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['table_new_row'],
   },
 }

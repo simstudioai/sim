@@ -3,16 +3,17 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Input, Label } from '@/components/emcn'
+import { Input, Label, Loader } from '@/components/emcn'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { captureEvent } from '@/lib/posthog/client'
+import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
@@ -71,15 +72,13 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-function SignupFormContent({
-  githubAvailable,
-  googleAvailable,
-  isProduction,
-}: {
+interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
   isProduction: boolean
-}) {
+}
+
+function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: SignupFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
@@ -87,8 +86,8 @@ function SignupFormContent({
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    captureEvent(posthog, 'signup_page_viewed', {})
-  }, [posthog])
+    captureClientEvent('signup_page_viewed', {})
+  }, [])
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
@@ -99,11 +98,15 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
-  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
-  const redirectUrl = useMemo(
-    () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
-    [searchParams]
-  )
+  const [turnstileSiteKey] = useState(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
+  const rawRedirectUrl = searchParams.get('redirect') || searchParams.get('callbackUrl') || ''
+  const isValidRedirectUrl = rawRedirectUrl ? validateCallbackUrl(rawRedirectUrl) : false
+  const invalidCallbackRef = useRef(false)
+  if (rawRedirectUrl && !isValidRedirectUrl && !invalidCallbackRef.current) {
+    invalidCallbackRef.current = true
+    logger.warn('Invalid callback URL detected and blocked:', { url: rawRedirectUrl })
+  }
+  const redirectUrl = isValidRedirectUrl ? rawRedirectUrl : ''
   const isInviteFlow = useMemo(
     () =>
       searchParams.get('invite_flow') === 'true' ||
@@ -239,8 +242,6 @@ function SignupFormContent({
         return
       }
 
-      const sanitizedName = trimmedName
-
       let token: string | undefined
       const widget = turnstileRef.current
       if (turnstileSiteKey && widget) {
@@ -263,25 +264,20 @@ function SignupFormContent({
         {
           email: emailValue,
           password: passwordValue,
-          name: sanitizedName,
+          name: trimmedName,
         },
         {
-          fetchOptions: {
-            headers: {
-              ...(token ? { 'x-captcha-response': token } : {}),
-            },
+          headers: {
+            ...(token ? { 'x-captcha-response': token } : {}),
           },
           onError: (ctx) => {
-            logger.error('Signup error:', ctx.error)
+            logger.warn('Signup error:', ctx.error)
             const errorMessage: string[] = ['Failed to create account']
 
             let errorCode = 'unknown'
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
               errorCode = 'user_already_exists'
-              errorMessage.push(
-                'An account with this email already exists. Please sign in instead.'
-              )
-              setEmailError(errorMessage[0])
+              setEmailError('An account with this email already exists. Please sign in instead.')
             } else if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign up is not enabled')
@@ -410,8 +406,8 @@ function SignupFormContent({
                 >
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {nameErrors.map((error, index) => (
-                        <p key={index}>{error}</p>
+                      {nameErrors.map((error) => (
+                        <p key={error}>{error}</p>
                       ))}
                     </div>
                   </div>
@@ -455,7 +451,7 @@ function SignupFormContent({
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
                       {showEmailValidationError && emailErrors.length > 0 ? (
-                        emailErrors.map((error, index) => <p key={index}>{error}</p>)
+                        emailErrors.map((error) => <p key={error}>{error}</p>)
                       ) : emailError && !showEmailValidationError ? (
                         <p>{emailError}</p>
                       ) : null}
@@ -507,8 +503,8 @@ function SignupFormContent({
                 >
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {passwordErrors.map((error, index) => (
-                        <p key={index}>{error}</p>
+                      {passwordErrors.map((error) => (
+                        <p key={error}>{error}</p>
                       ))}
                     </div>
                   </div>
@@ -534,8 +530,8 @@ function SignupFormContent({
           <button type='submit' disabled={isLoading} className={cn('!mt-6', AUTH_SUBMIT_BTN)}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader2 className='h-4 w-4 animate-spin' />
-                Creating account...
+                <Loader className='size-4' animate />
+                Creating account…
               </span>
             ) : (
               'Create account'
@@ -630,15 +626,9 @@ export default function SignupPage({
   githubAvailable,
   googleAvailable,
   isProduction,
-}: {
-  githubAvailable: boolean
-  googleAvailable: boolean
-  isProduction: boolean
-}) {
+}: SignupFormProps) {
   return (
-    <Suspense
-      fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}
-    >
+    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}

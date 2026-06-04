@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { FirefliesIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('FirefliesConnector')
 
@@ -122,7 +123,7 @@ function formatTranscriptContent(transcript: FirefliesTranscript): string {
 export const firefliesConnector: ConnectorConfig = {
   id: 'fireflies',
   name: 'Fireflies',
-  description: 'Sync meeting transcripts from Fireflies.ai into your knowledge base',
+  description: 'Sync meeting transcripts from Fireflies.ai',
   version: '1.0.0',
   icon: FirefliesIcon,
 
@@ -196,17 +197,6 @@ export const firefliesConnector: ConnectorConfig = {
             id
             name
           }
-          sentences {
-            index
-            speaker_name
-            text
-          }
-          summary {
-            keywords
-            action_items
-            overview
-            short_summary
-          }
         }
       }`,
       variables
@@ -214,32 +204,27 @@ export const firefliesConnector: ConnectorConfig = {
 
     const transcripts = (data.transcripts || []) as FirefliesTranscript[]
 
-    const documents: ExternalDocument[] = await Promise.all(
-      transcripts.map(async (transcript) => {
-        const content = formatTranscriptContent(transcript)
-        const contentHash = await computeContentHash(content)
+    const documents: ExternalDocument[] = transcripts.map((transcript) => {
+      const meetingDate = transcript.date ? new Date(transcript.date).toISOString() : undefined
+      const speakerNames = transcript.speakers?.map((s) => s.name).filter(Boolean) ?? []
 
-        const meetingDate = transcript.date ? new Date(transcript.date).toISOString() : undefined
-        const speakerNames = transcript.speakers?.map((s) => s.name).filter(Boolean) ?? []
-
-        return {
-          externalId: transcript.id,
-          title: transcript.title || 'Untitled Meeting',
-          content,
-          mimeType: 'text/plain' as const,
-          sourceUrl: transcript.transcript_url || undefined,
-          contentHash,
-          metadata: {
-            hostEmail: transcript.host_email,
-            duration: transcript.duration,
-            meetingDate,
-            participants: transcript.participants,
-            speakers: speakerNames,
-            keywords: transcript.summary?.keywords,
-          },
-        }
-      })
-    )
+      return {
+        externalId: transcript.id,
+        title: transcript.title || 'Untitled Meeting',
+        content: '',
+        contentDeferred: true,
+        mimeType: 'text/plain' as const,
+        sourceUrl: transcript.transcript_url || undefined,
+        contentHash: `fireflies:${transcript.id}:${transcript.date ?? ''}:${transcript.duration ?? ''}`,
+        metadata: {
+          hostEmail: transcript.host_email,
+          duration: transcript.duration,
+          meetingDate,
+          participants: transcript.participants,
+          speakers: speakerNames,
+        },
+      }
+    })
 
     const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
@@ -296,7 +281,7 @@ export const firefliesConnector: ConnectorConfig = {
       if (!transcript) return null
 
       const content = formatTranscriptContent(transcript)
-      const contentHash = await computeContentHash(content)
+      const contentHash = `fireflies:${transcript.id}:${transcript.date ?? ''}:${transcript.duration ?? ''}`
 
       const meetingDate = transcript.date ? new Date(transcript.date).toISOString() : undefined
       const speakerNames = transcript.speakers?.map((s) => s.name).filter(Boolean) ?? []
@@ -305,6 +290,7 @@ export const firefliesConnector: ConnectorConfig = {
         externalId: transcript.id,
         title: transcript.title || 'Untitled Meeting',
         content,
+        contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: transcript.transcript_url || undefined,
         contentHash,
@@ -320,7 +306,7 @@ export const firefliesConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Fireflies transcript', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -351,7 +337,7 @@ export const firefliesConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

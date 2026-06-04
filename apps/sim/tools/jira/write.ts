@@ -42,7 +42,8 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Description for the issue',
+      description:
+        'Description for the issue. Accepts plain text (auto-wrapped in ADF) or a raw ADF document object',
     },
     priority: {
       type: 'string',
@@ -174,7 +175,14 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       }
     }
 
-    const data = JSON.parse(responseText)
+    let data: any
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      throw new Error(
+        `Jira write failed (${response.status} ${response.statusText}): non-JSON response from /api/tools/jira/write`
+      )
+    }
 
     if (data.success && data.output) {
       return {

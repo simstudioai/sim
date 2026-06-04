@@ -31,7 +31,7 @@ export function Switch({
   }
 
   return (
-    <div className='flex items-center space-x-3'>
+    <div className='flex items-center gap-x-3'>
       <UISwitch
         id={`${blockId}-${subBlockId}`}
         checked={Boolean(value)}

@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface CloudWatchConnectionConfig {
+interface CloudWatchConnectionConfig {
   awsRegion: string
   awsAccessKeyId: string
   awsSecretAccessKey: string
@@ -142,5 +142,56 @@ export interface CloudWatchDescribeAlarmsResponse extends ToolResponse {
       evaluationPeriods: number | undefined
       stateUpdatedTimestamp: number | undefined
     }[]
+  }
+}
+
+export interface CloudWatchPutMetricDataParams extends CloudWatchConnectionConfig {
+  namespace: string
+  metricName: string
+  value: number
+  unit?: string
+  dimensions?: string
+}
+
+export interface CloudWatchPutMetricDataResponse extends ToolResponse {
+  output: {
+    success: boolean
+    namespace: string
+    metricName: string
+    value: number
+    unit: string
+    timestamp: string
+  }
+}
+
+export type CloudWatchMuteDurationUnit = 'minutes' | 'hours' | 'days'
+
+export interface CloudWatchMuteAlarmParams extends CloudWatchConnectionConfig {
+  muteRuleName: string
+  alarmNames: string[]
+  durationValue: number
+  durationUnit: CloudWatchMuteDurationUnit
+  description?: string
+  startDate?: number
+}
+
+export interface CloudWatchMuteAlarmResponse extends ToolResponse {
+  output: {
+    success: boolean
+    muteRuleName: string
+    alarmNames: string[]
+    expression: string
+    duration: string
+  }
+}
+
+export interface CloudWatchUnmuteAlarmParams extends CloudWatchConnectionConfig {
+  muteRuleName: string
+}
+
+export interface CloudWatchUnmuteAlarmResponse extends ToolResponse {
+  output: {
+    success: boolean
+    muteRuleName: string
   }
 }

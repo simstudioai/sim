@@ -1,0 +1,231 @@
+---
+title: Wiza
+description: Find, enrich, and verify B2B contact data with Wiza
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wiza"
+  color="#9284BC"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Wiza](https://wiza.co/) is a B2B contact data platform that finds and verifies emails and phone numbers for sales, recruiting, and marketing teams. Wiza pairs a global prospect database with real-time enrichment, so the data you act on stays accurate and deliverable.
+
+With Wiza, you can:
+
+- **Search a global prospect database**: Find people using person, company, and financial filters
+- **Enrich companies**: Resolve firmographic data from a name, domain, or LinkedIn URL
+- **Reveal individual contacts**: Get verified work emails, personal emails, and mobile phone numbers
+- **Track credit usage**: Check remaining email, phone, export, and API credits at any time
+
+In Sim, the Wiza integration lets your agents drive prospecting and enrichment workflows end-to-end:
+
+- **Prospect Search**: Use `wiza_prospect_search` to discover prospects matching detailed filters.
+- **Company Enrichment**: Use `wiza_company_enrichment` to enrich a company from name, domain, LinkedIn ID, or LinkedIn slug.
+- **Start Individual Reveal**: Use `wiza_start_individual_reveal` to begin enrichment for a contact via LinkedIn URL, name + company, or email — with configurable enrichment depth (`none`, `partial`, `phone`, `full`).
+- **Get Individual Reveal**: Use `wiza_get_individual_reveal` to poll a reveal and retrieve verified emails, phones, and full company context.
+- **Get Credits**: Use `wiza_get_credits` to monitor remaining credit balances before scaling up runs.
+
+Individual reveals are asynchronous: start a reveal, then poll `wiza_get_individual_reveal` until `is_complete` is `true`. Combine these tools to build agents that source, enrich, and qualify leads on demand — without leaving your workflow.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+{/* MANUAL-CONTENT-START:usage */}
+### Wiza API Key Setup
+
+Wiza authenticates via API key. To get yours:
+
+1. Log in to your [Wiza account](https://app.wiza.co/).
+2. Open **Settings → API** and generate a new API key (or copy an existing one).
+3. In Sim, open the Wiza block and paste the key into the **Wiza API Key** field.
+
+The same key is used for every Wiza operation. Wiza enforces a rate limit of 30 requests per minute (43,200 per day) per key.
+
+### Individual Reveals Are Asynchronous
+
+`wiza_start_individual_reveal` returns immediately with a reveal `id` and a `status` of `queued` or `resolving`. To retrieve the enriched contact data, call `wiza_get_individual_reveal` with that `id` and check `is_complete`. Possible statuses are `queued`, `resolving`, `finished`, and `failed`.
+
+For real-time delivery without polling, pass a `callback_url` when starting the reveal — Wiza will POST the completed payload to that URL.
+
+### Enrichment Levels and Credits
+
+When starting an individual reveal, choose the enrichment level that matches the data you need:
+
+- **`none`** — Identity only, no contact info (no credit spend)
+- **`partial`** — Verified work email (email credits)
+- **`phone`** — Mobile phone (phone credits)
+- **`full`** — Email + phone (email + phone credits)
+
+Use `wiza_get_credits` to monitor remaining email, phone, export, and API credits before running large batches.
+{/* MANUAL-CONTENT-END */}
+
+
+Integrates Wiza into the workflow. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.
+
+
+
+## Tools
+
+### `wiza_prospect_search`
+
+Search Wiza
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Wiza API key |
+| `size` | number | No | Number of sample profiles to return \(0-30, default 0\) |
+| `filters` | object | No | Full filters object \(overrides individual filter params if provided\) |
+| `first_name` | array | No | Exact first names to match \(e.g., \["John", "Jane"\]\) |
+| `last_name` | array | No | Exact last names to match |
+| `job_title` | array | No | Job titles to include/exclude \(e.g., \[\{"v":"CEO","s":"i"\},\{"v":"CTO","s":"e"\}\]\) |
+| `job_title_level` | array | No | Seniority levels \(e.g., \["cxo", "director", "manager"\]\) |
+| `job_role` | array | No | Job role categories \(e.g., \["sales", "engineering", "marketing"\]\) |
+| `job_sub_role` | array | No | Detailed role categories \(e.g., \["software", "product"\]\) |
+| `location` | array | No | Person's location filters \(city/state/country with include/exclude\) |
+| `skill` | array | No | Professional skills \(e.g., \["python", "marketing"\]\) |
+| `school` | array | No | Educational institutions |
+| `major` | array | No | Field of study |
+| `linkedin_slug` | array | No | LinkedIn profile slugs |
+| `job_company` | array | No | Current company filters \(include/exclude\) |
+| `past_company` | array | No | Past company filters |
+| `company_location` | array | No | Company HQ location filters |
+| `company_industry` | array | No | Company industry filters \(include/exclude\) |
+| `company_size` | array | No | Company headcount brackets \(e.g., \["1-10", "11-50", "51-200"\]\) |
+| `company_type` | array | No | Company type \(e.g., \["private", "public", "educational"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `total` | number | Total number of matching prospects |
+| `profiles` | array | Sample profiles matching the filter criteria |
+
+### `wiza_company_enrichment`
+
+Enrich a company by name, domain, LinkedIn ID, or LinkedIn slug with detailed firmographic data
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Wiza API key |
+| `company_name` | string | No | Company name \(e.g., "Wiza"\) |
+| `company_domain` | string | No | Company domain \(e.g., "wiza.co"\) |
+| `company_linkedin_id` | string | No | Company LinkedIn ID |
+| `company_linkedin_slug` | string | No | Company LinkedIn slug from the URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company_name` | string | Company name |
+| `company_domain` | string | Company domain |
+| `domain` | string | Domain |
+| `company_industry` | string | Industry |
+| `company_size` | number | Employee count |
+| `company_size_range` | string | Headcount range |
+| `company_founded` | number | Year founded |
+| `company_revenue_range` | string | Revenue range |
+| `company_funding` | string | Total funding |
+| `company_type` | string | Company type |
+| `company_description` | string | Description |
+| `company_ticker` | string | Stock ticker |
+| `company_last_funding_round` | string | Last funding round |
+| `company_last_funding_amount` | string | Last funding amount |
+| `company_last_funding_at` | string | Last funding date |
+| `company_location` | string | Full location string |
+| `company_twitter` | string | Twitter URL |
+| `company_facebook` | string | Facebook URL |
+| `company_linkedin` | string | LinkedIn URL |
+| `company_linkedin_id` | string | LinkedIn ID |
+| `company_street` | string | Street address |
+| `company_locality` | string | City |
+| `company_region` | string | State/region |
+| `company_postal_code` | string | Postal code |
+| `company_country` | string | Country |
+| `credits` | json | Credits deducted for this enrichment \(api_credits: \{ total, company_credits \}\) |
+
+### `wiza_individual_reveal`
+
+Reveal a contact via LinkedIn URL, name + company/domain, or email. Starts the reveal and polls until it resolves. Uses 2 credits per valid email and 5 credits per phone, charged only on success.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Wiza API key |
+| `enrichment_level` | string | Yes | Enrichment depth: none, partial, phone, or full |
+| `profile_url` | string | No | LinkedIn profile URL \(e.g., https://linkedin.com/in/johndoe\) |
+| `full_name` | string | No | Full name \(used with company or domain\) |
+| `company` | string | No | Company name \(used with full_name\) |
+| `domain` | string | No | Company domain \(used with full_name\) |
+| `email` | string | No | Email address \(use alone or with other identifiers\) |
+| `accept_work` | boolean | No | Whether to accept work emails \(email_options\) |
+| `accept_personal` | boolean | No | Whether to accept personal emails \(email_options\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Reveal ID |
+| `status` | string | queued \| resolving \| finished \| failed |
+| `is_complete` | boolean | Whether the reveal has completed |
+| `name` | string | Full name |
+| `company` | string | Company name |
+| `enrichment_level` | string | Enrichment level used |
+| `linkedin_profile_url` | string | LinkedIn URL |
+| `title` | string | Job title |
+| `location` | string | Location |
+| `email` | string | Primary email |
+| `email_type` | string | Email type |
+| `email_status` | string | valid \| risky \| unfound |
+| `emails` | array | All emails found |
+| `mobile_phone` | string | Mobile phone |
+| `phone_number` | string | Direct/office phone |
+| `phone_status` | string | found \| unfound |
+| `phones` | array | All phones found |
+| `company_size` | number | Employee count |
+| `company_size_range` | string | Headcount range |
+| `company_type` | string | Company type |
+| `company_domain` | string | Company domain |
+| `company_locality` | string | City |
+| `company_region` | string | State/region |
+| `company_country` | string | Country |
+| `company_street` | string | Street |
+| `company_postal_code` | string | Postal code |
+| `company_founded` | number | Year founded |
+| `company_funding` | string | Funding total |
+| `company_revenue` | string | Revenue |
+| `company_industry` | string | Industry |
+| `company_subindustry` | string | Subindustry |
+| `company_linkedin` | string | Company LinkedIn URL |
+| `company_location` | string | Full company location |
+| `company_description` | string | Company description |
+| `credits` | json | Credits consumed by the reveal |
+
+### `wiza_get_credits`
+
+Retrieve the remaining credits on your Wiza account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Wiza API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email_credits` | json | Remaining email credits \(number or "unlimited"\) |
+| `phone_credits` | json | Remaining phone credits \(number or "unlimited"\) |
+| `export_credits` | number | Remaining export credits |
+| `api_credits` | number | Remaining API credits |
+
+

@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -78,6 +79,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       canonicalParamId: 'pageId',
       placeholder: 'Enter Notion page ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -92,7 +94,6 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       canonicalParamId: 'databaseId',
       serviceId: 'notion',
       selectorKey: 'notion.databases',
-      selectorAllowSearch: false,
       placeholder: 'Select Notion database',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -108,6 +109,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       canonicalParamId: 'databaseId',
       placeholder: 'Enter Notion database ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -134,6 +136,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       type: 'short-input',
       canonicalParamId: 'parentId',
       placeholder: 'ID of parent page',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: ['notion_create_page', 'notion_create_database'] },
       required: true,
@@ -345,9 +348,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
             try {
               parsedProperties = JSON.parse(properties)
             } catch (error) {
-              throw new Error(
-                `Invalid JSON for properties: ${error instanceof Error ? error.message : String(error)}`
-              )
+              throw new Error(`Invalid JSON for properties: ${toError(error).message}`)
             }
           } else {
             parsedProperties = properties
@@ -360,9 +361,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
           try {
             parsedFilter = JSON.parse(filter)
           } catch (error) {
-            throw new Error(
-              `Invalid JSON for filter: ${error instanceof Error ? error.message : String(error)}`
-            )
+            throw new Error(`Invalid JSON for filter: ${toError(error).message}`)
           }
         }
 
@@ -372,9 +371,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
           try {
             parsedSorts = JSON.parse(sorts)
           } catch (error) {
-            throw new Error(
-              `Invalid JSON for sorts: ${error instanceof Error ? error.message : String(error)}`
-            )
+            throw new Error(`Invalid JSON for sorts: ${toError(error).message}`)
           }
         }
 

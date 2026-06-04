@@ -92,18 +92,6 @@ export const fathomNewMeetingTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'fathom_new_meeting',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'fathom_new_meeting',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

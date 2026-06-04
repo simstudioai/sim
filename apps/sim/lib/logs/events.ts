@@ -1,18 +1,17 @@
 import { db } from '@sim/db'
 import { workspaceNotificationDelivery, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   type AlertCheckContext,
   type AlertConfig,
   shouldTriggerAlert,
 } from '@/lib/notifications/alert-rules'
-import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import {
-  enqueueNotificationDeliveryDispatch,
   executeNotificationDelivery,
   workspaceNotificationDeliveryTask,
 } from '@/background/workspace-notification-delivery'
@@ -148,10 +147,6 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
         })
         logger.info(
           `Enqueued ${subscription.notificationType} notification ${deliveryId} via Trigger.dev`
-        )
-      } else if (await enqueueNotificationDeliveryDispatch(payload)) {
-        logger.info(
-          `Enqueued ${subscription.notificationType} notification ${deliveryId} via BullMQ`
         )
       } else {
         void executeNotificationDelivery(payload).catch((error) => {

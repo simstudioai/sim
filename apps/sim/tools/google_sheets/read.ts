@@ -1,3 +1,4 @@
+import { filterSheetRows } from '@/tools/google_sheets/filter'
 import type {
   GoogleSheetsReadResponse,
   GoogleSheetsToolParams,
@@ -53,7 +54,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
       // Keep a generous column/row bound to avoid huge payloads
       if (!params.range) {
         const defaultRange = 'A1:Z1000'
-        return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${defaultRange}`
+        return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(defaultRange)}`
       }
 
       // Otherwise, get values from the specified range
@@ -159,7 +160,7 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Column name (from header row) to filter on. If not provided, no filtering is applied.',
+        'Column name (from the header row) to filter on. Filtering is applied to the rows returned by the read range (the default is A1:Z1000), not the entire sheet. If not provided, no filtering is applied.',
     },
     filterValue: {
       type: 'string',
@@ -172,7 +173,7 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
       required: false,
       visibility: 'user-or-llm',
       description:
-        'How to match the filter value: "contains", "exact", "starts_with", or "ends_with". Defaults to "contains".',
+        'How to match the filter value. Text: "contains", "not_contains", "exact", "not_equals", "starts_with", "ends_with". Numeric/ordering: "gt", "gte", "lt", "lte" (numeric when both values are numbers, otherwise lexicographic). Defaults to "contains".',
     },
   },
 
@@ -216,48 +217,41 @@ export const readV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Read
       spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
     }
 
-    let values: unknown[][] = data.values ?? []
+    const rawValues: unknown[][] = data.values ?? []
 
-    // Apply client-side filtering only when both filterColumn and filterValue are provided
-    if (params?.filterColumn && params?.filterValue !== undefined && values.length > 1) {
-      const headers = values[0] as string[]
-      const columnIndex = headers.findIndex(
-        (h) => String(h).toLowerCase() === params.filterColumn!.toLowerCase()
-      )
+    const filterRequested =
+      Boolean(params?.filterColumn) &&
+      params?.filterValue !== undefined &&
+      params?.filterValue !== ''
 
-      if (columnIndex !== -1) {
-        const matchType = params.filterMatchType ?? 'contains'
-        const filterVal = params.filterValue.toLowerCase()
-
-        const filteredRows = values.slice(1).filter((row) => {
-          const cellValue = String(row[columnIndex] ?? '').toLowerCase()
-          switch (matchType) {
-            case 'exact':
-              return cellValue === filterVal
-            case 'starts_with':
-              return cellValue.startsWith(filterVal)
-            case 'ends_with':
-              return cellValue.endsWith(filterVal)
-            default:
-              return cellValue.includes(filterVal)
-          }
-        })
-
-        // Return header row + matching rows
-        values = [values[0], ...filteredRows]
-      }
-    }
+    const filterResult = filterSheetRows(rawValues, {
+      filterColumn: params?.filterColumn,
+      filterValue: params?.filterValue,
+      filterMatchType: params?.filterMatchType,
+    })
 
     return {
       success: true,
       output: {
         sheetName: params?.sheetName ?? '',
         range: data.range ?? '',
-        values,
+        values: filterResult.values,
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
           spreadsheetUrl: metadata.spreadsheetUrl,
         },
+        ...(filterRequested
+          ? {
+              filter: {
+                applied: filterResult.applied,
+                column: params?.filterColumn ?? '',
+                matchType: params?.filterMatchType ?? 'contains',
+                columnFound: filterResult.columnFound,
+                matchedRows: filterResult.matchedRows,
+                totalRows: filterResult.totalRows,
+              },
+            }
+          : {}),
       },
     }
   },

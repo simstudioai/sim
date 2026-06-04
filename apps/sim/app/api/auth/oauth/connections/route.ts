@@ -3,8 +3,10 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
+import type { OAuthConnection } from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { OAuthProvider } from '@/lib/oauth'
 import { parseProvider } from '@/lib/oauth'
 
@@ -19,7 +21,7 @@ interface GoogleIdToken {
 /**
  * Get all OAuth connections for the current user
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
     const userEmail = userRecord.length > 0 ? userRecord[0]?.email : null
 
     // Process accounts to determine connections
-    const connections: any[] = []
+    const connections: OAuthConnection[] = []
 
     for (const acc of accounts) {
       const { baseProvider, featureType } = parseProvider(acc.providerId as OAuthProvider)
@@ -134,4 +136,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching OAuth connections`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

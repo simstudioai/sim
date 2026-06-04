@@ -16,10 +16,13 @@ import {
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const getProviderIcon = (providerName: OAuthProvider) => {
@@ -27,7 +30,7 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
   if (!baseProviderConfig) {
-    return <ExternalLink className='h-3 w-3' />
+    return <ExternalLink className='size-3' />
   }
   return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
 }
@@ -52,6 +55,8 @@ const getProviderName = (providerName: OAuthProvider) => {
 }
 
 interface ToolCredentialSelectorProps {
+  blockId: string
+  subBlockId: string
   value: string
   onChange: (value: string) => void
   provider: OAuthProvider
@@ -59,16 +64,22 @@ interface ToolCredentialSelectorProps {
   label?: string
   serviceId: OAuthService
   disabled?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
+const EMPTY_SCOPES: string[] = []
+
 export function ToolCredentialSelector({
+  blockId,
+  subBlockId,
   value,
   onChange,
   provider,
-  requiredScopes = [],
+  requiredScopes = EMPTY_SCOPES,
   label,
   serviceId,
   disabled = false,
+  activeSearchTarget,
 }: ToolCredentialSelectorProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -166,6 +177,13 @@ export function ToolCredentialSelector({
   }, [credentials, provider])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    blockId,
+    subBlockId,
+    valuePath: [],
+    label: inputValue,
+  })
 
   const overlayContent = useMemo(() => {
     if (!inputValue) return null
@@ -175,10 +193,12 @@ export function ToolCredentialSelector({
         <div className='mr-2 flex-shrink-0 opacity-90'>
           {getProviderIcon(selectedCredentialProvider)}
         </div>
-        <span className='truncate'>{inputValue}</span>
+        <span className='truncate'>
+          {formatDisplayText(inputValue, { workflowSearchHighlight })}
+        </span>
       </div>
     )
-  }, [inputValue, selectedCredentialProvider])
+  }, [inputValue, selectedCredentialProvider, workflowSearchHighlight])
 
   const handleComboboxChange = useCallback(
     (newValue: string) => {
@@ -219,7 +239,7 @@ export function ToolCredentialSelector({
       {needsUpdate && (
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
           <div className='flex items-center font-medium text-caption'>
-            <span className='mr-1.5 inline-block h-[6px] w-[6px] rounded-xs bg-amber-500' />
+            <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
           <Button

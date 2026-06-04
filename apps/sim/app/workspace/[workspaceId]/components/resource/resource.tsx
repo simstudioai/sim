@@ -1,5 +1,14 @@
 'use client'
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type DragEvent,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ArrowDown, ArrowUp, Button, Checkbox, Loader, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -8,7 +17,7 @@ import { ResourceHeader } from './components/resource-header'
 import type { FilterTag, SearchConfig, SortConfig } from './components/resource-options-bar'
 import { ResourceOptionsBar } from './components/resource-options-bar'
 
-const CREATE_ROW_PLUS_ICON = <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+const CREATE_ROW_PLUS_ICON = <Plus className='size-[14px] text-[var(--text-subtle)]' />
 
 export interface ResourceColumn {
   id: string
@@ -30,10 +39,23 @@ export interface ResourceRow {
 
 export interface SelectableConfig {
   selectedIds: Set<string>
-  onSelectRow: (id: string, checked: boolean) => void
+  onSelectRow: (id: string, checked: boolean, shiftKey?: boolean) => void
   onSelectAll: (checked: boolean) => void
   isAllSelected: boolean
   disabled?: boolean
+}
+
+export interface RowDragDropConfig {
+  activeDropTargetId?: string | null
+  draggedRowIds?: Set<string>
+  isAnyDragActive?: boolean
+  isRowDraggable?: (rowId: string) => boolean
+  isRowDropTarget?: (rowId: string) => boolean
+  onDragStart?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragOver?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragLeave?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDrop?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragEnd?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
 }
 
 export interface PaginationConfig {
@@ -51,10 +73,12 @@ interface ResourceProps {
   defaultSort?: string
   sort?: SortConfig
   headerActions?: HeaderAction[]
+  leadingActions?: ReactNode
   columns: ResourceColumn[]
   rows: ResourceRow[]
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
@@ -68,10 +92,8 @@ interface ResourceProps {
   overlay?: ReactNode
 }
 
-const EMPTY_CELL_PLACEHOLDER = '-  -  -'
+export const EMPTY_CELL_PLACEHOLDER = '—'
 const SKELETON_ROW_COUNT = 5
-
-const stopPropagation = (e: React.MouseEvent) => e.stopPropagation()
 
 /**
  * Shared page shell for resource list pages (tables, files, knowledge, schedules, logs).
@@ -86,10 +108,12 @@ export const Resource = memo(function Resource({
   defaultSort,
   sort: sortOverride,
   headerActions,
+  leadingActions,
   columns,
   rows,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
@@ -113,6 +137,7 @@ export const Resource = memo(function Resource({
         breadcrumbs={breadcrumbs}
         create={create}
         actions={headerActions}
+        leadingActions={leadingActions}
       />
       <ResourceOptionsBar
         search={search}
@@ -128,6 +153,7 @@ export const Resource = memo(function Resource({
         sort={sortOverride}
         selectedRowId={selectedRowId}
         selectable={selectable}
+        rowDragDrop={rowDragDrop}
         onRowClick={onRowClick}
         onRowHover={onRowHover}
         onRowContextMenu={onRowContextMenu}
@@ -148,6 +174,7 @@ export interface ResourceTableProps {
   sort?: SortConfig
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
@@ -172,6 +199,7 @@ export const ResourceTable = memo(function ResourceTable({
   sort: externalSort,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
@@ -184,7 +212,6 @@ export const ResourceTable = memo(function ResourceTable({
   emptyMessage,
   overlay,
 }: ResourceTableProps) {
-  const headerRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
   const sortEnabled = defaultSort != null
   const [internalSort, setInternalSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({
@@ -192,11 +219,35 @@ export const ResourceTable = memo(function ResourceTable({
     direction: 'desc',
   })
 
-  const handleBodyScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (headerRef.current) {
-      headerRef.current.scrollLeft = e.currentTarget.scrollLeft
+  const [contextMenuRowId, setContextMenuRowId] = useState<string | null>(null)
+
+  const wrappedOnRowContextMenu = useCallback(
+    (e: React.MouseEvent, rowId: string) => {
+      setContextMenuRowId(rowId)
+      onRowContextMenu?.(e, rowId)
+    },
+    [onRowContextMenu]
+  )
+
+  useEffect(() => {
+    if (!contextMenuRowId) return
+    const clear = () => setContextMenuRowId(null)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', handleKeyDown)
+        clear()
+      }
     }
-  }, [])
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('pointerdown', clear, { once: true })
+      document.addEventListener('keydown', handleKeyDown)
+    }, 0)
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('pointerdown', clear)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [contextMenuRowId])
 
   const handleSort = useCallback((column: string, direction: 'asc' | 'desc') => {
     setInternalSort({ column, direction })
@@ -260,10 +311,10 @@ export const ResourceTable = memo(function ResourceTable({
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
-      <div ref={headerRef} className='overflow-hidden'>
+      <div className='min-h-0 flex-1 overflow-auto'>
         <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-          <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
+          <thead className='sticky top-0 z-10 bg-[var(--bg)] shadow-[inset_0_-1px_0_var(--border)]'>
             <tr>
               {hasCheckbox && (
                 <th className='h-10 w-[52px] py-1.5 pr-0 pl-5 text-left align-middle'>
@@ -303,7 +354,7 @@ export const ResourceTable = memo(function ResourceTable({
                     >
                       {col.header}
                       {isActive && (
-                        <SortIcon className='ml-1 h-[12px] w-[12px] text-[var(--text-icon)]' />
+                        <SortIcon className='ml-1 size-[12px] text-[var(--text-icon)]' />
                       )}
                     </Button>
                   </th>
@@ -311,11 +362,6 @@ export const ResourceTable = memo(function ResourceTable({
               })}
             </tr>
           </thead>
-        </table>
-      </div>
-      <div className='min-h-0 flex-1 overflow-auto' onScroll={handleBodyScroll}>
-        <table className='w-full table-fixed text-small'>
-          <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <tbody>
             {displayRows.map((row) => (
               <DataRow
@@ -324,9 +370,11 @@ export const ResourceTable = memo(function ResourceTable({
                 columns={columns}
                 selectedRowId={selectedRowId}
                 selectable={selectable}
+                rowDragDrop={rowDragDrop}
                 onRowClick={onRowClick}
                 onRowHover={onRowHover}
-                onRowContextMenu={onRowContextMenu}
+                onRowContextMenu={onRowContextMenu ? wrappedOnRowContextMenu : undefined}
+                isContextMenuTarget={contextMenuRowId === row.id}
                 hasCheckbox={hasCheckbox}
               />
             ))}
@@ -336,7 +384,7 @@ export const ResourceTable = memo(function ResourceTable({
         {hasMore && (
           <div ref={loadMoreRef} className='flex items-center justify-center py-3'>
             {isLoadingMore && (
-              <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
+              <Loader className='size-[16px] text-[var(--text-secondary)]' animate />
             )}
           </div>
         )}
@@ -370,7 +418,7 @@ const Pagination = memo(function Pagination({
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
         >
-          <ChevronLeft className='h-3.5 w-3.5' />
+          <ChevronLeft className='size-3.5' />
         </Button>
         <div className='mx-3 flex items-center gap-4'>
           {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
@@ -386,17 +434,18 @@ const Pagination = memo(function Pagination({
             }
             if (page < 1 || page > totalPages) return null
             return (
-              <button
+              <Button
                 key={page}
                 type='button'
+                variant='ghost'
                 onClick={() => onPageChange(page)}
                 className={cn(
-                  'font-medium text-sm transition-colors hover-hover:text-[var(--text-body)]',
+                  'h-auto p-0 font-medium text-sm transition-colors hover-hover:bg-transparent hover-hover:text-[var(--text-body)]',
                   page === currentPage ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
                 )}
               >
                 {page}
-              </button>
+              </Button>
             )
           })}
         </div>
@@ -405,7 +454,7 @@ const Pagination = memo(function Pagination({
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
         >
-          <ChevronRight className='h-3.5 w-3.5' />
+          <ChevronRight className='size-3.5' />
         </Button>
       </div>
     </div>
@@ -439,9 +488,11 @@ interface DataRowProps {
   columns: ResourceColumn[]
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
+  isContextMenuTarget?: boolean
   hasCheckbox: boolean
 }
 
@@ -450,16 +501,36 @@ const DataRow = memo(function DataRow({
   columns,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
+  isContextMenuTarget,
   hasCheckbox,
 }: DataRowProps) {
   const isSelected = selectable?.selectedIds.has(row.id) ?? false
+  const isDraggable = rowDragDrop?.isRowDraggable?.(row.id) ?? false
+  const isDropTarget = rowDragDrop?.isRowDropTarget?.(row.id) ?? false
+  const isActiveDropTarget = rowDragDrop?.activeDropTargetId === row.id
+  const isDragging = rowDragDrop?.draggedRowIds?.has(row.id) ?? false
+  const isAnyDragActive = rowDragDrop?.isAnyDragActive ?? false
+  const hasActiveSelection = (selectable?.selectedIds.size ?? 0) > 0
 
-  const handleClick = useCallback(() => {
-    onRowClick?.(row.id)
-  }, [onRowClick, row.id])
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLTableRowElement>) => {
+      if (
+        selectable &&
+        !selectable.disabled &&
+        (e.shiftKey || e.metaKey || e.ctrlKey || !onRowClick || hasActiveSelection)
+      ) {
+        e.preventDefault()
+        selectable.onSelectRow(row.id, !isSelected, e.shiftKey)
+        return
+      }
+      onRowClick?.(row.id)
+    },
+    [hasActiveSelection, isSelected, onRowClick, row.id, selectable]
+  )
 
   const handleMouseEnter = useCallback(() => {
     onRowHover?.(row.id)
@@ -472,25 +543,65 @@ const DataRow = memo(function DataRow({
     [onRowContextMenu, row.id]
   )
 
+  const shiftKeyRef = useRef(false)
+
+  const handleSelectRowClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    shiftKeyRef.current = e.shiftKey
+  }, [])
+
   const handleSelectRow = useCallback(
     (checked: boolean | 'indeterminate') => {
-      selectable?.onSelectRow(row.id, checked as boolean)
+      selectable?.onSelectRow(row.id, checked as boolean, shiftKeyRef.current)
+      shiftKeyRef.current = false
     },
     [selectable, row.id]
   )
+
+  const handleDragStart = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragStart?.(e, row.id)
+  }
+
+  const handleDragOver = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragOver?.(e, row.id)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragLeave?.(e, row.id)
+  }
+
+  const handleDrop = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDrop?.(e, row.id)
+  }
+
+  const handleDragEnd = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragEnd?.(e, row.id)
+  }
 
   return (
     <tr
       data-resource-row
       data-row-id={row.id}
       className={cn(
-        'transition-colors hover-hover:bg-[var(--surface-3)]',
+        'transition-colors',
+        !isAnyDragActive && 'hover-hover:bg-[var(--surface-3)]',
         onRowClick && 'cursor-pointer',
-        (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]'
+        isDraggable && 'cursor-grab active:cursor-grabbing',
+        isDropTarget && 'data-[drop-target=true]:outline-offset-[-1px]',
+        (selectedRowId === row.id || isSelected || isContextMenuTarget) && 'bg-[var(--surface-3)]',
+        isActiveDropTarget && 'bg-[var(--surface-4)] outline outline-1 outline-[var(--accent)]',
+        (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}
-      onClick={onRowClick ? handleClick : undefined}
+      data-drop-target={isDropTarget || undefined}
+      draggable={isDraggable}
+      onClick={onRowClick || selectable ? handleClick : undefined}
       onMouseEnter={handleMouseEnter}
       onContextMenu={onRowContextMenu ? handleContextMenu : undefined}
+      onDragStart={isDraggable ? handleDragStart : undefined}
+      onDragOver={isDropTarget ? handleDragOver : undefined}
+      onDragLeave={isDropTarget ? handleDragLeave : undefined}
+      onDrop={isDropTarget ? handleDrop : undefined}
+      onDragEnd={isDraggable ? handleDragEnd : undefined}
     >
       {hasCheckbox && selectable && (
         <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
@@ -500,7 +611,7 @@ const DataRow = memo(function DataRow({
             onCheckedChange={handleSelectRow}
             disabled={selectable.disabled}
             aria-label='Select row'
-            onClick={stopPropagation}
+            onClick={handleSelectRowClick}
           />
         </td>
       )}
@@ -550,22 +661,21 @@ interface ResourceColGroupProps {
   hasCheckbox?: boolean
 }
 
+const CHECKBOX_COLUMN_WIDTH = '52px'
+
 const ResourceColGroup = memo(function ResourceColGroup({
   columns,
   hasCheckbox,
 }: ResourceColGroupProps) {
+  const weights = columns.map(
+    (col, colIdx) => (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
+  )
+  const total = weights.reduce((s, w) => s + w, 0)
   return (
     <colgroup>
-      {hasCheckbox && <col className='w-[52px]' />}
+      {hasCheckbox && <col style={{ width: CHECKBOX_COLUMN_WIDTH }} />}
       {columns.map((col, colIdx) => (
-        <col
-          key={col.id}
-          style={
-            colIdx === 0
-              ? { minWidth: 200 * (col.widthMultiplier ?? 1) }
-              : { width: 160 * (col.widthMultiplier ?? 1) }
-          }
-        />
+        <col key={col.id} style={{ width: `${((weights[colIdx] / total) * 100).toFixed(3)}%` }} />
       ))}
     </colgroup>
   )
@@ -583,55 +693,48 @@ const DataTableSkeleton = memo(function DataTableSkeleton({
   hasCheckbox,
 }: DataTableSkeletonProps) {
   return (
-    <>
-      <div className='overflow-hidden'>
-        <table className='w-full table-fixed text-small'>
-          <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-          <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
-            <tr>
+    <div className='min-h-0 flex-1 overflow-auto'>
+      <table className='w-full table-fixed text-small'>
+        <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
+        <thead className='sticky top-0 z-10 bg-[var(--bg)] shadow-[inset_0_-1px_0_var(--border)]'>
+          <tr>
+            {hasCheckbox && (
+              <th className='h-10 w-[52px] py-2.5 pr-0 pl-5 text-left align-middle'>
+                <Skeleton className='size-[14px] rounded-xs' />
+              </th>
+            )}
+            {columns.map((col) => (
+              <th
+                key={col.id}
+                className='h-10 px-6 py-2.5 text-left align-middle font-base text-[var(--text-muted)]'
+              >
+                <div className='flex min-h-[20px] items-center'>
+                  <Skeleton className='h-[12px] w-[56px]' />
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: rowCount }, (_, i) => (
+            <tr key={i}>
               {hasCheckbox && (
-                <th className='h-10 w-[52px] py-2.5 pr-0 pl-5 text-left align-middle'>
-                  <Skeleton className='h-[14px] w-[14px] rounded-xs' />
-                </th>
+                <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
+                  <Skeleton className='size-[14px] rounded-xs' />
+                </td>
               )}
-              {columns.map((col) => (
-                <th
-                  key={col.id}
-                  className='h-10 px-6 py-2.5 text-left align-middle font-base text-[var(--text-muted)]'
-                >
-                  <div className='flex min-h-[20px] items-center'>
-                    <Skeleton className='h-[12px] w-[56px]' />
-                  </div>
-                </th>
+              {columns.map((col, colIdx) => (
+                <td key={col.id} className='px-6 py-2.5 align-middle'>
+                  <span className='flex min-h-[21px] items-center gap-3'>
+                    {colIdx === 0 && <Skeleton className='size-[14px] rounded-xs' />}
+                    <Skeleton className='h-[14px] w-[128px]' />
+                  </span>
+                </td>
               ))}
             </tr>
-          </thead>
-        </table>
-      </div>
-      <div className='min-h-0 flex-1 overflow-auto'>
-        <table className='w-full table-fixed text-small'>
-          <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-          <tbody>
-            {Array.from({ length: rowCount }, (_, i) => (
-              <tr key={i}>
-                {hasCheckbox && (
-                  <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
-                    <Skeleton className='h-[14px] w-[14px] rounded-xs' />
-                  </td>
-                )}
-                {columns.map((col, colIdx) => (
-                  <td key={col.id} className='px-6 py-2.5 align-middle'>
-                    <span className='flex min-h-[21px] items-center gap-3'>
-                      {colIdx === 0 && <Skeleton className='h-[14px] w-[14px] rounded-xs' />}
-                      <Skeleton className='h-[14px] w-[128px]' />
-                    </span>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 })

@@ -1,3 +1,6 @@
+export { apifyGetDatasetItemsTool } from './get_dataset_items'
+export { apifyGetRunTool } from './get_run'
 export { apifyRunActorAsyncTool } from './run_actor_async'
 export { apifyRunActorSyncTool } from './run_actor_sync'
-export type { RunActorParams, RunActorResult } from './types'
+export { apifyRunTaskTool } from './run_task'
+export * from './types'

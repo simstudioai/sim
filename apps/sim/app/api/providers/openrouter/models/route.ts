@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  openRouterUpstreamResponseSchema,
+  providerModelsResponseSchema,
+} from '@/lib/api/contracts/providers'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterModelsAPI')
@@ -29,7 +35,7 @@ export interface OpenRouterModelInfo {
   }
 }
 
-export async function GET(_request: NextRequest) {
+export const GET = withRouteHandler(async (_request: NextRequest) => {
   if (isProviderBlacklisted('openrouter')) {
     logger.info('OpenRouter provider is blacklisted, returning empty models')
     return NextResponse.json({ models: [], modelInfo: {} })
@@ -49,7 +55,7 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ models: [], modelInfo: {} })
     }
 
-    const data = (await response.json()) as OpenRouterResponse
+    const data: OpenRouterResponse = openRouterUpstreamResponseSchema.parse(await response.json())
 
     const modelInfo: Record<string, OpenRouterModelInfo> = {}
     const allModels: string[] = []
@@ -86,11 +92,11 @@ export async function GET(_request: NextRequest) {
       withStructuredOutputs: structuredOutputCount,
     })
 
-    return NextResponse.json({ models, modelInfo })
+    return NextResponse.json(providerModelsResponseSchema.parse({ models, modelInfo }))
   } catch (error) {
     logger.error('Error fetching OpenRouter models', {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
     return NextResponse.json({ models: [], modelInfo: {} })
   }
-}
+})

@@ -6,7 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Sim provides comprehensive logging for all workflow executions, giving you complete visibility into how your workflows run, what data flows through them, and where issues might occur.
+Sim provides comprehensive logging for all workflow runs, giving you complete visibility into how your workflows run, what data flows through them, and where issues might occur.
 
 ## Logging System
 
@@ -14,7 +14,7 @@ Sim offers two complementary logging interfaces to match different workflows and
 
 ### Real-Time Console
 
-During manual or chat workflow execution, logs appear in real-time in the Console panel on the right side of the workflow editor:
+During manual or chat workflow runs, logs appear in real-time in the Console panel on the right side of the workflow editor:
 
 <div className="flex justify-center">
   <Image
@@ -27,14 +27,14 @@ During manual or chat workflow execution, logs appear in real-time in the Consol
 </div>
 
 The console shows:
-- Block execution progress with active block highlighting
+- Block progress with active block highlighting
 - Real-time outputs as blocks complete
-- Execution timing for each block
+- Timing for each block
 - Success/error status indicators
 
 ### Logs Page
 
-All workflow executions—whether triggered manually, via API, Chat, Schedule, or Webhook—are logged to the dedicated Logs page:
+All workflow runs—whether triggered manually, via API, Chat, Schedule, or Webhook—are logged to the dedicated Logs page:
 
 <div className="flex justify-center">
   <Image
@@ -72,7 +72,7 @@ View the complete data flow for each block with tabs to switch between:
 
 <Tabs items={['Output', 'Input']}>
   <Tab>
-    **Output Tab** shows the block's execution result:
+    **Output Tab** shows the block's result:
     - Structured data with JSON formatting
     - Markdown rendering for AI-generated content
     - Copy button for easy data extraction
@@ -87,17 +87,17 @@ View the complete data flow for each block with tabs to switch between:
   </Tab>
 </Tabs>
 
-### Execution Timeline
+### Run Timeline
 
-For workflow-level logs, view detailed execution metrics:
+For workflow-level logs, view detailed run metrics:
 - Start and end timestamps
 - Total workflow duration
-- Individual block execution times
+- Individual block run times
 - Performance bottleneck identification
 
 ## Workflow Snapshots
 
-For any logged execution, click "View Snapshot" to see the exact workflow state at execution time:
+For any logged run, click "View Snapshot" to see the exact workflow state at the time of the run:
 
 <div className="flex justify-center">
   <Image
@@ -111,12 +111,12 @@ For any logged execution, click "View Snapshot" to see the exact workflow state 
 
 The snapshot provides:
 - Frozen canvas showing the workflow structure
-- Block states and connections as they were during execution
+- Block states and connections as they were during the run
 - Click any block to see its inputs and outputs
 - Useful for debugging workflows that have since been modified
 
 <Callout type="info">
-  Workflow snapshots are only available for executions after the enhanced logging system was introduced. Older migrated logs show a "Logged State Not Found" message.
+  Workflow snapshots are only available for runs after the enhanced logging system was introduced. Older migrated logs show a "Logged State Not Found" message.
 </Callout>
 
 ## Log Retention
@@ -134,11 +134,11 @@ The snapshot provides:
 ### For Production
 - Monitor the Logs page regularly for errors or performance issues
 - Set up filters to focus on specific workflows or time periods
-- Use live mode during critical deployments to watch executions in real-time
+- Use live mode during critical deployments to watch runs in real-time
 
 ### For Debugging
-- Always check the execution timeline to identify slow blocks
-- Compare inputs between working and failing executions
+- Always check the run timeline to identify slow blocks
+- Compare inputs between working and failing runs
 - Use workflow snapshots to see the exact state when issues occurred
 
 ## Next Steps
@@ -150,10 +150,10 @@ The snapshot provides:
 import { FAQ } from '@/components/ui/faq'
 
 <FAQ items={[
-  { question: "How long are execution logs retained?", answer: "Free plans retain logs for 7 days — after that, logs are archived to cloud storage and deleted from the database. Pro, Team, and Enterprise plans retain logs indefinitely with no automatic cleanup." },
-  { question: "What data is captured in each execution log?", answer: "Each log entry includes the execution ID, workflow ID, trigger type, start and end timestamps, total duration in milliseconds, cost breakdown (total cost, token counts, and per-model breakdowns), execution data with trace spans, final output, and any associated files. The log details sidebar lets you inspect block-level inputs and outputs." },
+  { question: "How long are run logs retained?", answer: "Free plans retain logs for 7 days — after that, logs are archived to cloud storage and deleted from the database. Pro, Team, and Enterprise plans retain logs indefinitely with no automatic cleanup." },
+  { question: "What data is captured in each run log?", answer: "Each log entry includes the run ID, workflow ID, trigger type, start and end timestamps, total duration in milliseconds, cost breakdown (total cost, token counts, and per-model breakdowns), run data with trace spans, final output, and any associated files. The log details sidebar lets you inspect block-level inputs and outputs." },
   { question: "Are API keys visible in the logs?", answer: "No. API keys and credentials are automatically redacted in the log input tab for security. You can safely inspect block inputs without exposing sensitive values." },
-  { question: "What is a workflow snapshot?", answer: "A workflow snapshot is a frozen copy of the workflow's structure (blocks, connections, and configuration) captured at execution time. It lets you see the exact state of the workflow when a particular execution ran, which is useful for debugging workflows that have been modified since the execution." },
-  { question: "Can I access logs programmatically?", answer: "Yes. The External API provides endpoints to query logs with filtering by workflow, time range, trigger type, duration, cost, and model. You can also set up webhook, email, or Slack notifications for real-time alerts when executions complete." },
-  { question: "What does Live mode do on the Logs page?", answer: "Live mode automatically refreshes the Logs page in real-time so new execution entries appear as they are logged, without requiring manual page refreshes. This is useful during deployments or when monitoring active workflows." },
+  { question: "What is a workflow snapshot?", answer: "A workflow snapshot is a frozen copy of the workflow's structure (blocks, connections, and configuration) captured at the time of a run. It lets you see the exact state of the workflow when a particular run happened, which is useful for debugging workflows that have been modified since." },
+  { question: "Can I access logs programmatically?", answer: "Yes. The External API provides endpoints to query logs with filtering by workflow, time range, trigger type, duration, cost, and model. You can also set up webhook, email, or Slack notifications for real-time alerts when runs complete." },
+  { question: "What does Live mode do on the Logs page?", answer: "Live mode automatically refreshes the Logs page in real-time so new log entries appear as they are recorded, without requiring manual page refreshes. This is useful during deployments or when monitoring active workflows." },
 ]} />

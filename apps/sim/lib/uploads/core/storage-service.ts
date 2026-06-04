@@ -1,4 +1,7 @@
+import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
 import type { BlobConfig } from '@/lib/uploads/providers/blob/types'
 import type { S3Config } from '@/lib/uploads/providers/s3/types'
@@ -74,6 +77,7 @@ async function insertFileMetadataHelper(
     key,
     userId: metadata.userId,
     workspaceId: metadata.workspaceId || null,
+    folderId: metadata.folderId || null,
     context,
     originalName: metadata.originalName || fileName,
     contentType,
@@ -181,28 +185,39 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
  * Download a file from the configured storage provider
  */
 export async function downloadFile(options: DownloadFileOptions): Promise<Buffer> {
-  const { key, context } = options
+  const { key, context, maxBytes } = options
 
   if (context) {
     const config = getStorageConfig(context)
 
     if (USE_BLOB_STORAGE) {
       const { downloadFromBlob } = await import('@/lib/uploads/providers/blob/client')
-      return downloadFromBlob(key, createBlobConfig(config))
+      const blobConfig = createBlobConfig(config)
+      return maxBytes === undefined
+        ? downloadFromBlob(key, blobConfig)
+        : downloadFromBlob(key, blobConfig, maxBytes)
     }
 
     if (USE_S3_STORAGE) {
       const { downloadFromS3 } = await import('@/lib/uploads/providers/s3/client')
-      return downloadFromS3(key, createS3Config(config))
+      const s3Config = createS3Config(config)
+      return maxBytes === undefined
+        ? downloadFromS3(key, s3Config)
+        : downloadFromS3(key, s3Config, maxBytes)
     }
   }
 
-  const { readFile } = await import('fs/promises')
+  const { readFile, stat } = await import('fs/promises')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
   const safeKey = sanitizeFileKey(key)
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
+
+  if (maxBytes !== undefined) {
+    const fileStats = await stat(filePath)
+    assertKnownSizeWithinLimit(fileStats.size, maxBytes, 'storage download')
+  }
 
   return readFile(filePath)
 }
@@ -237,6 +252,72 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
   await unlink(filePath)
 }
 
+/** AWS SDK v3 silently caps HTTP connections at 50/endpoint — stay well under. */
+const PER_FILE_DELETE_CONCURRENCY = 25
+
+/**
+ * Bulk delete via the provider's native multi-object API when available
+ * (S3 `DeleteObjects`), else bounded-concurrency per-file. All keys must
+ * share `context`. Idempotent on missing keys.
+ */
+export async function deleteFiles(
+  keys: string[],
+  context: StorageContext
+): Promise<{ deleted: number; failed: Array<{ key: string; error: string }> }> {
+  if (keys.length === 0) return { deleted: 0, failed: [] }
+
+  const config = getStorageConfig(context)
+
+  if (USE_S3_STORAGE) {
+    const { deleteManyFromS3 } = await import('@/lib/uploads/providers/s3/client')
+    const { failed } = await deleteManyFromS3(keys, createS3Config(config))
+    return { deleted: keys.length - failed.length, failed }
+  }
+
+  const failed: Array<{ key: string; error: string }> = []
+  let cursor = 0
+  const runWorker = async (): Promise<void> => {
+    while (cursor < keys.length) {
+      const idx = cursor++
+      const key = keys[idx]
+      try {
+        await deleteFile({ key, context })
+      } catch (error) {
+        failed.push({ key, error: getErrorMessage(error) })
+      }
+    }
+  }
+
+  const workerCount = Math.min(PER_FILE_DELETE_CONCURRENCY, keys.length)
+  await Promise.all(Array.from({ length: workerCount }, runWorker))
+
+  return { deleted: keys.length - failed.length, failed }
+}
+
+/**
+ * Check whether an object exists in the configured cloud storage provider.
+ * Returns object size and content-type when present, or null when missing.
+ * Throws on errors other than "not found". For local filesystem, returns null.
+ */
+export async function headObject(
+  key: string,
+  context: StorageContext
+): Promise<{ size: number; contentType?: string } | null> {
+  const config = getStorageConfig(context)
+
+  if (USE_BLOB_STORAGE) {
+    const { headBlobObject } = await import('@/lib/uploads/providers/blob/client')
+    return headBlobObject(key, createBlobConfig(config))
+  }
+
+  if (USE_S3_STORAGE) {
+    const { headS3Object } = await import('@/lib/uploads/providers/s3/client')
+    return headS3Object(key, createS3Config(config))
+  }
+
+  return null
+}
+
 /**
  * Generate a presigned URL for direct file upload
  */
@@ -251,6 +332,7 @@ export async function generatePresignedUploadUrl(
     userId,
     expirationSeconds = 3600,
     metadata = {},
+    customKey,
   } = options
 
   const allMetadata = {
@@ -263,10 +345,15 @@ export async function generatePresignedUploadUrl(
 
   const config = getStorageConfig(context)
 
-  const timestamp = Date.now()
-  const uniqueId = Math.random().toString(36).substring(2, 9)
-  const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-  const key = `${context}/${timestamp}-${uniqueId}-${safeFileName}`
+  let key: string
+  if (customKey) {
+    key = customKey
+  } else {
+    const timestamp = Date.now()
+    const uniqueId = randomBytes(8).toString('hex')
+    const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+    key = `${context}/${timestamp}-${uniqueId}-${safeFileName}`
+  }
 
   if (USE_S3_STORAGE) {
     return generateS3PresignedUrl(

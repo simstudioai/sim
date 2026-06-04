@@ -1,12 +1,14 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { patchKnowledgeConnectorDocumentsContract } from '@/lib/api/contracts/knowledge'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ConnectorDocumentsAPI')
@@ -17,7 +19,7 @@ type RouteParams = { params: Promise<{ id: string; connectorId: string }> }
  * GET /api/knowledge/[id]/connectors/[connectorId]/documents
  * Returns documents for a connector, optionally including user-excluded ones.
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -113,20 +115,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error fetching connector documents`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-const PatchSchema = z.object({
-  operation: z.enum(['restore', 'exclude']),
-  documentIds: z.array(z.string()).min(1),
 })
 
 /**
  * PATCH /api/knowledge/[id]/connectors/[connectorId]/documents
  * Restore or exclude connector documents.
  */
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteParams) => {
   const requestId = generateRequestId()
-  const { id: knowledgeBaseId, connectorId } = await params
+  const { id: knowledgeBaseId, connectorId } = await context.params
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -157,16 +154,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
     }
 
-    const body = await request.json()
-    const parsed = PatchSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: parsed.error.flatten() },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(patchKnowledgeConnectorDocumentsContract, request, context)
+    if (!parsed.success) return parsed.response
 
-    const { operation, documentIds } = parsed.data
+    const { operation, documentIds } = parsed.data.body
 
     if (operation === 'restore') {
       const updated = await db
@@ -194,7 +185,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         resourceType: AuditResourceType.CONNECTOR,
         resourceId: connectorId,
         description: `Restored ${updated.length} excluded document(s) for knowledge base "${writeCheck.knowledgeBase.name}"`,
-        metadata: { knowledgeBaseId, documentCount: updated.length },
+        metadata: {
+          knowledgeBaseId,
+          knowledgeBaseName: writeCheck.knowledgeBase.name,
+          operation: 'restore',
+          documentCount: updated.length,
+          documentIds: updated.map((d) => d.id),
+        },
         request,
       })
 
@@ -229,7 +226,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       resourceType: AuditResourceType.CONNECTOR,
       resourceId: connectorId,
       description: `Excluded ${updated.length} document(s) from knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId, documentCount: updated.length },
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        operation: 'exclude',
+        documentCount: updated.length,
+        documentIds: updated.map((d) => d.id),
+      },
       request,
     })
 
@@ -241,4 +244,4 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error updating connector documents`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

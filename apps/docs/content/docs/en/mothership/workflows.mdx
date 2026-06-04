@@ -1,0 +1,118 @@
+---
+title: Workflows
+description: Create, edit, run, debug, deploy, and organize workflows from Mothership.
+---
+
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+<Video src="mothership/create-workflow.mp4" width={700} height={450} />
+
+Describe a workflow and Mothership builds it. Reference an existing one by name and it edits it. No canvas navigation required — every change appears in the resource panel in real time.
+
+## Creating Workflows
+
+Describe what the workflow should do — what triggers it, what it should do, which integrations it needs, and what it should return. Mothership builds it and opens the canvas in the resource panel.
+
+- "Build a workflow that takes a URL, scrapes the page, summarizes it with Claude, and sends the summary to a Slack channel"
+- "Create a workflow triggered by a webhook that extracts invoice data from a PDF and writes it to the billing table"
+- "Build an outbound workflow: take a company name and domain, enrich it with firmographic data, score the fit, and draft a personalized cold email"
+- "Create a lead enrichment workflow that takes an email from a form submission, looks up the company, and writes the enriched record to the leads table"
+- "Build a customer onboarding workflow: when a new user signs up, send a welcome email, create a HubSpot contact, and post a notification to #new-customers in Slack"
+
+## Editing Workflows
+
+{/* TODO: Screenshot of Mothership with the Edit subagent active and a change applied to an open workflow — e.g., a new block added or a configuration updated, visible on the canvas in the resource panel. */}
+
+Open an existing workflow with `@workflow-name` or the **+** menu, then describe the change. Mothership reads the current structure before modifying it — you don't need to explain what already exists.
+
+- "Add a condition that routes to a different branch if the confidence score is below 0.7"
+- "Replace the GPT-4o model with Claude Opus 4.6 on the summarizer block"
+- "Add a Slack notification at the end that includes the output"
+
+## Running Workflows
+
+<Video src="mothership/run-workflow.mp4" width={700} height={450} />
+
+Ask Mothership to run a workflow and it handles the execution:
+
+- "Run the data sync workflow"
+- "Run the invoice processor with this PDF [attach file]"
+- "Test the lead scoring workflow with these inputs: name=Acme, score=0.4"
+
+Execution streams back to the chat. The workflow in the resource panel shows live block-by-block state.
+
+## Reading Logs
+
+Mothership can retrieve and interpret execution logs for any workflow in the workspace:
+
+- "Show me the last 10 runs of the pipeline workflow"
+- "Why did the invoice workflow fail yesterday?"
+- "What did the extractor block return in the most recent run?"
+
+Logs include per-block execution state, outputs, errors, and timing.
+
+## Debugging
+
+When a workflow fails, tell Mothership to debug it:
+
+- "Debug the last failed run of the content pipeline"
+- "The summarizer block is returning empty output — figure out why"
+
+Mothership reads the failure logs, identifies the cause, applies a fix, and can re-run to confirm.
+
+{/* TODO: Screenshot of the Debug subagent section in the Mothership chat showing it reading logs and applying a fix. */}
+
+## Deploying
+
+Mothership can deploy a workflow as any of the three deployment types:
+
+| Deployment type | What it creates |
+|----------------|----------------|
+| **API** | A REST endpoint at `https://sim.ai/api/workflows/{id}/execute` |
+| **Chat** | A hosted conversational interface with a shareable URL |
+| **MCP tool** | An MCP server that exposes the workflow as a tool |
+
+Ask: "Deploy the invoice workflow as an API and generate an API key."
+
+Mothership can also roll back: "Revert the billing workflow to the version from last Tuesday."
+
+See [API Deployment](/execution/api-deployment) and [Chat Deployment](/execution/chat) for full details on each deployment type.
+
+## Organizing Workflows
+
+Mothership can create and manage folders to keep your workspace organized.
+
+**Folders:**
+- "Create a folder called 'Data Pipelines'"
+- "Move the invoice workflow into the billing folder"
+- "Move the billing folder inside the finance folder"
+- "Delete the old-experiments folder"
+
+**Renaming and moving:**
+- "Rename the 'test_v2' workflow to 'lead-scorer'"
+- "Move the summarizer workflow to the research folder"
+
+{/* TODO: Screenshot showing Mothership confirming a folder or workflow organization action — e.g., a message confirming "Moved 'invoice-processor' into 'billing' folder" with the resource panel showing the folder open. */}
+
+## Workflow Variables
+
+Mothership can set global variables on a workflow — values accessible across all blocks in that workflow at runtime:
+
+- "Set the API_ENDPOINT variable on the sync workflow to 'https://api.example.com/v2'"
+- "Update the MAX_RETRIES variable on the pipeline workflow to 5"
+
+Variables set this way are available via `<variable.VARIABLE_NAME>` syntax inside any block in the workflow.
+
+## Deleting Workflows
+
+- "Delete the old_api_prototype workflow"
+- "Delete all workflows in the deprecated folder"
+
+<FAQ items={[
+  { question: "Can Mothership edit a workflow while it's deployed?", answer: "Yes. Editing a workflow does not affect the live deployment. The deployed version is a snapshot — you need to ask Mothership to redeploy to push changes to production." },
+  { question: "Can I run a workflow with specific inputs from Mothership?", answer: "Yes. Describe the inputs in your message and Mothership passes them to the workflow's start block." },
+  { question: "How does Mothership know what my workflow does?", answer: "When you reference a workflow, Mothership loads its full structure — every block, connection, and configuration — before acting on it." },
+  { question: "What happens to a workflow's deployment when I delete it?", answer: "The workflow and all its deployments are permanently removed. Any API endpoints, chat URLs, or MCP tools that pointed to that workflow will stop working." },
+]} />

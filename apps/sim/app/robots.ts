@@ -1,126 +1,59 @@
 import type { MetadataRoute } from 'next'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
+
+const DISALLOWED_PATHS = [
+  '/api/',
+  '/workspace/',
+  '/chat/',
+  '/playground/',
+  '/resume/',
+  '/invite/',
+  '/unsubscribe/',
+  '/w/',
+  '/form/',
+  '/credential-account/',
+  '/_next/',
+  '/private/',
+  '/blog*tag=',
+]
+
+/** Looser disallow than the wildcard so OG previews can fetch /chat/ and /form/. */
+const LINK_PREVIEW_DISALLOWED_PATHS = [
+  '/api/',
+  '/workspace/',
+  '/w/',
+  '/playground/',
+  '/resume/',
+  '/invite/',
+  '/unsubscribe/',
+  '/credential-account/',
+  '/_next/',
+  '/private/',
+]
+
+const LINK_PREVIEW_BOTS = [
+  'Twitterbot',
+  'LinkedInBot',
+  'Slackbot',
+  'Slack-ImgProxy',
+  'Discordbot',
+  'TelegramBot',
+  'WhatsApp',
+  'facebookexternalhit',
+  'Pinterestbot',
+  'redditbot',
+]
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = getBaseUrl()
-
-  const disallowedPaths = [
-    '/api/',
-    '/workspace/',
-    '/chat/',
-    '/playground/',
-    '/resume/',
-    '/invite/',
-    '/unsubscribe/',
-    '/w/',
-    '/_next/',
-    '/private/',
-  ]
-
   return {
     rules: [
+      { userAgent: '*', allow: '/', disallow: DISALLOWED_PATHS },
       {
-        userAgent: '*',
+        userAgent: LINK_PREVIEW_BOTS,
         allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Googlebot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Bingbot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'YandexBot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Baiduspider',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'GPTBot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'ChatGPT-User',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'OAI-SearchBot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'ClaudeBot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Claude-SearchBot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Google-Extended',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'PerplexityBot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Meta-ExternalAgent',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'FacebookBot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Applebot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Applebot-Extended',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Amazonbot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'Bytespider',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'CCBot',
-        allow: '/',
-        disallow: disallowedPaths,
-      },
-      {
-        userAgent: 'cohere-ai',
-        allow: '/',
-        disallow: disallowedPaths,
+        disallow: LINK_PREVIEW_DISALLOWED_PATHS,
       },
     ],
-    sitemap: `${baseUrl}/sitemap.xml`,
-    host: baseUrl,
+    sitemap: [`${SITE_URL}/sitemap.xml`, `${SITE_URL}/blog/sitemap-images.xml`],
   }
 }

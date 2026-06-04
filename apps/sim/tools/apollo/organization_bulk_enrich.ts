@@ -17,27 +17,31 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
-    organizations: {
+    domains: {
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of organizations to enrich (max 10)',
+      description:
+        'Array of company domains to enrich (max 10, no www. or @, e.g., ["apollo.io", "stripe.com"])',
     },
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/organizations/bulk_enrich',
+    url: (params: ApolloOrganizationBulkEnrichParams) => {
+      const qs = new URLSearchParams()
+      for (const domain of params.domains.slice(0, 10)) {
+        const trimmed = typeof domain === 'string' ? domain.trim() : ''
+        if (trimmed) qs.append('domains[]', trimmed)
+      }
+      return `https://api.apollo.io/api/v1/organizations/bulk_enrich?${qs.toString()}`
+    },
     method: 'POST',
     headers: (params: ApolloOrganizationBulkEnrichParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
-    }),
-    body: (params: ApolloOrganizationBulkEnrichParams) => ({
-      details: params.organizations.slice(0, 10),
     }),
   },
 
@@ -48,20 +52,28 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
     }
 
     const data = await response.json()
+    const organizations = data.organizations ?? []
 
     return {
       success: true,
       output: {
-        organizations: data.matches || [],
-        total: data.matches?.length || 0,
-        enriched: data.matches?.filter((o: any) => o).length || 0,
+        organizations,
+        total: data.total_requested_domains ?? organizations.length,
+        enriched: data.unique_enriched_records ?? organizations.length,
+        missing_records: data.missing_records ?? 0,
+        unique_domains: data.unique_domains ?? organizations.length,
       },
     }
   },
 
   outputs: {
     organizations: { type: 'json', description: 'Array of enriched organization data' },
-    total: { type: 'number', description: 'Total number of organizations processed' },
-    enriched: { type: 'number', description: 'Number of organizations successfully enriched' },
+    total: { type: 'number', description: 'Total number of domains requested' },
+    enriched: { type: 'number', description: 'Number of unique enriched records' },
+    missing_records: {
+      type: 'number',
+      description: 'Number of domains that could not be enriched',
+    },
+    unique_domains: { type: 'number', description: 'Number of unique domains processed' },
   },
 }

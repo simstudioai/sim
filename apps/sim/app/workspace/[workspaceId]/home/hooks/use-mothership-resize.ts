@@ -12,7 +12,6 @@ import { MOTHERSHIP_WIDTH } from '@/stores/constants'
  */
 export function useMothershipResize() {
   const mothershipRef = useRef<HTMLDivElement | null>(null)
-  // Stored so the useEffect cleanup can tear down listeners if the component unmounts mid-drag
   const cleanupRef = useRef<(() => void) | null>(null)
 
   const handleResizePointerDown = useCallback((e: React.PointerEvent) => {

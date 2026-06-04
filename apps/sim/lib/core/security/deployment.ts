@@ -1,20 +1,23 @@
-import { createHash, createHmac, timingSafeEqual } from 'crypto'
-import type { NextRequest, NextResponse } from 'next/server'
+import { safeCompare } from '@sim/security/compare'
+import { sha256Hex } from '@sim/security/hash'
+import { hmacSha256Hex } from '@sim/security/hmac'
+import type { NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
 
 /**
  * Shared authentication utilities for deployed chat and form endpoints.
- * These functions handle token generation, validation, cookies, and CORS.
+ * Handles token generation, validation, and auth cookies. CORS for these
+ * endpoints lives in proxy.ts as the single source of truth.
  */
 
 function signPayload(payload: string): string {
-  return createHmac('sha256', env.BETTER_AUTH_SECRET).update(payload).digest('hex')
+  return hmacSha256Hex(payload, env.BETTER_AUTH_SECRET)
 }
 
 function passwordSlot(encryptedPassword?: string | null): string {
   if (!encryptedPassword) return ''
-  return createHash('sha256').update(encryptedPassword).digest('hex').slice(0, 8)
+  return sha256Hex(encryptedPassword).slice(0, 8)
 }
 
 function generateAuthToken(
@@ -46,10 +49,7 @@ export function validateAuthToken(
     const sig = decoded.slice(lastColon + 1)
 
     const expectedSig = signPayload(payload)
-    if (
-      sig.length !== expectedSig.length ||
-      !timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))
-    ) {
+    if (!safeCompare(sig, expectedSig)) {
       return false
     }
 
@@ -92,24 +92,6 @@ export function setDeploymentAuthCookie(
     path: '/',
     maxAge: 60 * 60 * 24,
   })
-}
-
-/**
- * Adds CORS headers to allow cross-origin requests for embedded deployments.
- * We reflect the requesting origin to support same-site cross-origin setups
- * (e.g. subdomains), but never set Allow-Credentials — auth cookies use
- * SameSite=Lax and are handled within same-origin iframe contexts.
- */
-export function addCorsHeaders(response: NextResponse, request: NextRequest): NextResponse {
-  const origin = request.headers.get('origin')
-
-  if (origin) {
-    response.headers.set('Access-Control-Allow-Origin', origin)
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With')
-  }
-
-  return response
 }
 
 /**

@@ -1,16 +1,58 @@
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { generateId } from '@/lib/core/utils/uuid'
 import {
+  createWorkspaceEnvCredentials,
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,
-  syncWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('EnvironmentUtils')
+const EFFECTIVE_DECRYPTED_ENV_CACHE_TTL_MS = 2_000
+const EFFECTIVE_DECRYPTED_ENV_CACHE_MAX_ENTRIES = 1_000
+
+interface EffectiveDecryptedEnvCacheEntry {
+  userId: string
+  workspaceId?: string
+  promise: Promise<Record<string, string>>
+}
+
+const effectiveDecryptedEnvCache = new LRUCache<string, EffectiveDecryptedEnvCacheEntry>({
+  max: EFFECTIVE_DECRYPTED_ENV_CACHE_MAX_ENTRIES,
+  ttl: EFFECTIVE_DECRYPTED_ENV_CACHE_TTL_MS,
+})
+
+function getEffectiveDecryptedEnvCacheKey(userId: string, workspaceId?: string): string {
+  return JSON.stringify([userId, workspaceId ?? null])
+}
+
+function cloneEnvVars(envVars: Record<string, string>): Record<string, string> {
+  return { ...envVars }
+}
+
+export function invalidateEffectiveDecryptedEnvCache(input: {
+  userId?: string
+  workspaceId?: string
+}): void {
+  const { userId, workspaceId } = input
+  if (!userId && !workspaceId) return
+
+  effectiveDecryptedEnvCache.forEach((entry, cacheKey) => {
+    if (userId && entry.userId === userId) {
+      effectiveDecryptedEnvCache.delete(cacheKey)
+      return
+    }
+    if (workspaceId && entry.workspaceId === workspaceId) {
+      effectiveDecryptedEnvCache.delete(cacheKey)
+    }
+  })
+}
 
 /**
  * Get environment variable keys for a user
@@ -59,6 +101,13 @@ export async function getPersonalAndWorkspaceEnv(
   conflicts: string[]
   decryptionFailures: string[]
 }> {
+  if (workspaceId) {
+    const access = await checkWorkspaceAccess(workspaceId, userId)
+    if (!access.hasAccess) {
+      throw new Error(`Access denied to workspace ${workspaceId}`)
+    }
+  }
+
   const [personalRows, workspaceRows, accessibleEnvCredentials] = await Promise.all([
     db.select().from(environment).where(eq(environment.userId, userId)).limit(1),
     workspaceId
@@ -146,7 +195,7 @@ export async function getPersonalAndWorkspaceEnv(
             userId,
             workspaceId,
             source,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: getErrorMessage(error, 'Unknown error'),
           })
           decryptionFailures.push(k)
           return [k, ''] as const
@@ -246,7 +295,11 @@ export async function upsertPersonalEnvVars(
       set: { variables: finalEncrypted, updatedAt: new Date() },
     })
 
-  await syncPersonalEnvCredentialsForUser({ userId, envKeys: Object.keys(finalEncrypted) })
+  invalidateEffectiveDecryptedEnvCache({ userId })
+  await syncPersonalEnvCredentialsForUser({
+    userId,
+    envKeys: Object.keys(finalEncrypted),
+  })
 
   return { added, updated }
 }
@@ -292,18 +345,41 @@ export async function upsertWorkspaceEnvVars(
       set: { variables: merged, updatedAt: new Date() },
     })
 
-  await syncWorkspaceEnvCredentials({ workspaceId, envKeys: Object.keys(newVars), actingUserId })
+  invalidateEffectiveDecryptedEnvCache({ workspaceId })
+  const newKeys = Object.keys(newVars).filter((k) => !(k in existingWsEncrypted))
+  await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId })
 
   return updatedKeys
 }
 
+/**
+ * Returns a merged decrypted env map for webhook/copilot/MCP config resolution.
+ */
 export async function getEffectiveDecryptedEnv(
   userId: string,
   workspaceId?: string
 ): Promise<Record<string, string>> {
-  const { personalDecrypted, workspaceDecrypted } = await getPersonalAndWorkspaceEnv(
+  const cacheKey = getEffectiveDecryptedEnvCacheKey(userId, workspaceId)
+  const cached = effectiveDecryptedEnvCache.get(cacheKey)
+  if (cached) {
+    return cloneEnvVars(await cached.promise)
+  }
+
+  const promise = getPersonalAndWorkspaceEnv(userId, workspaceId)
+    .then(({ personalDecrypted, workspaceDecrypted }) => ({
+      ...personalDecrypted,
+      ...workspaceDecrypted,
+    }))
+    .catch((error) => {
+      effectiveDecryptedEnvCache.delete(cacheKey)
+      throw error
+    })
+
+  effectiveDecryptedEnvCache.set(cacheKey, {
     userId,
-    workspaceId
-  )
-  return { ...personalDecrypted, ...workspaceDecrypted }
+    workspaceId,
+    promise,
+  })
+
+  return cloneEnvVars(await promise)
 }

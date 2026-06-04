@@ -5,8 +5,10 @@ import { useMemo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import {
+  type FlattenOutputsBlockInput,
+  flattenWorkflowOutputs,
+} from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -24,7 +26,7 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
@@ -37,6 +39,8 @@ const TagIcon: React.FC<{
     )}
   </div>
 )
+
+const EMPTY_OUTPUTS: string[] = []
 
 /**
  * Props for the OutputSelect component
@@ -72,7 +76,7 @@ interface OutputSelectProps {
  */
 export function OutputSelect({
   workflowId,
-  selectedOutputs = [],
+  selectedOutputs = EMPTY_OUTPUTS,
   onOutputSelect,
   disabled = false,
   placeholder = 'Select outputs',
@@ -104,86 +108,52 @@ export function OutputSelect({
    * Extracts all available workflow outputs for the dropdown
    */
   const workflowOutputs = useMemo(() => {
-    const outputs: Array<{
-      id: string
-      label: string
-      blockId: string
-      blockName: string
-      blockType: string
-      path: string
-    }> = []
-
     if (!workflowId || !workflowBlocks || typeof workflowBlocks !== 'object') {
-      return outputs
+      return []
     }
+    const blockArray = Object.values(workflowBlocks) as any[]
+    if (blockArray.length === 0) return []
 
-    const blockArray = Object.values(workflowBlocks)
-    if (blockArray.length === 0) return outputs
-
-    blockArray.forEach((block: any) => {
-      if (block.type === 'starter' || !block?.id || !block?.type) return
-
-      const blockName =
-        block.name && typeof block.name === 'string'
-          ? block.name.replace(/\s+/g, '').toLowerCase()
-          : `block-${block.id}`
-
-      const blockConfig = getBlock(block.type)
-      const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
-      const effectiveTriggerMode = Boolean(block.triggerMode && isTriggerCapable)
-
-      let outputsToProcess: Record<string, unknown> = {}
+    // Merge the editor's subblock store values into the blocks before flattening —
+    // the workflow store doesn't always have the latest subBlocks.value.
+    const mergedBlocks: FlattenOutputsBlockInput[] = blockArray.map((block) => {
       const rawSubBlockValues =
         shouldUseBaseline && baselineWorkflow
           ? baselineWorkflow.blocks?.[block.id]?.subBlocks
           : subBlockValues?.[block.id]
-      const subBlocks: Record<string, { value: unknown }> = {}
+      const subBlocks: Record<string, unknown> = {}
       if (rawSubBlockValues && typeof rawSubBlockValues === 'object') {
         for (const [key, val] of Object.entries(rawSubBlockValues)) {
-          // Handle both { value: ... } and raw value formats
-          subBlocks[key] = val && typeof val === 'object' && 'value' in val ? val : { value: val }
+          subBlocks[key] =
+            val && typeof val === 'object' && 'value' in (val as object)
+              ? (val as { value: unknown })
+              : { value: val }
         }
       }
-
-      outputsToProcess = getEffectiveBlockOutputs(block.type, subBlocks, {
-        triggerMode: effectiveTriggerMode,
-        preferToolOutputs: !effectiveTriggerMode,
-      }) as Record<string, unknown>
-
-      if (Object.keys(outputsToProcess).length === 0) return
-
-      const addOutput = (path: string, outputObj: unknown, prefix = '') => {
-        const fullPath = prefix ? `${prefix}.${path}` : path
-        const createOutput = () => ({
-          id: `${block.id}_${fullPath}`,
-          label: `${blockName}.${fullPath}`,
-          blockId: block.id,
-          blockName: block.name || `Block ${block.id}`,
-          blockType: block.type,
-          path: fullPath,
-        })
-
-        if (
-          typeof outputObj !== 'object' ||
-          outputObj === null ||
-          ('type' in outputObj && typeof outputObj.type === 'string') ||
-          Array.isArray(outputObj)
-        ) {
-          outputs.push(createOutput())
-          return
-        }
-
-        Object.entries(outputObj).forEach(([key, value]) => {
-          addOutput(key, value, fullPath)
-        })
+      return {
+        id: block.id,
+        type: block.type,
+        name: block.name,
+        triggerMode: Boolean(block.triggerMode),
+        subBlocks,
       }
-
-      Object.entries(outputsToProcess).forEach(([key, value]) => {
-        addOutput(key, value)
-      })
     })
 
-    return outputs
+    const flat = flattenWorkflowOutputs(mergedBlocks)
+    return flat.map((f) => {
+      const displayBlockName =
+        f.blockName && typeof f.blockName === 'string'
+          ? f.blockName.replace(/\s+/g, '').toLowerCase()
+          : `block-${f.blockId}`
+      return {
+        id: `${f.blockId}_${f.path}`,
+        label: `${displayBlockName}.${f.path}`,
+        blockId: f.blockId,
+        blockName: f.blockName,
+        blockType: f.blockType,
+        path: f.path,
+      }
+    })
   }, [
     workflowBlocks,
     workflowId,

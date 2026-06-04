@@ -4,24 +4,30 @@ import { type ElementType, type ReactNode, useMemo } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import {
+  Blimp,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
+  Library,
   Table as TableIcon,
   TerminalWindow,
 } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
+import { logKeys } from '@/hooks/queries/logs'
 import { tableKeys } from '@/hooks/queries/tables'
+import { taskKeys } from '@/hooks/queries/tasks'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { useWorkflows } from '@/hooks/queries/workflows'
+import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface DropdownItemRenderProps {
@@ -48,7 +54,7 @@ function WorkflowTabSquare({ workflowId, className }: { workflowId: string; clas
       className={cn('flex-shrink-0 rounded-[3px] border-[2px]', className)}
       style={{
         backgroundColor: color,
-        borderColor: `${color}60`,
+        borderColor: workflowBorderColor(color),
         backgroundClip: 'padding-box',
       }}
     />
@@ -60,10 +66,10 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <div
-        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box',
         }}
       />
@@ -80,7 +86,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <DocIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
@@ -89,8 +95,32 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
 function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon: ElementType }) {
   return (
     <>
-      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
+    </>
+  )
+}
+
+function LogDropdownItem({ item }: DropdownItemRenderProps) {
+  const color = (item.color as string) ?? '#888'
+  const workflowName = (item.workflowName as string) ?? item.name
+  const time = (item.time as string) ?? ''
+  return (
+    <>
+      <div
+        className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        style={{
+          backgroundColor: color,
+          borderColor: workflowBorderColor(color),
+          backgroundClip: 'padding-box',
+        }}
+      />
+      <span className='truncate'>{workflowName}</span>
+      {time && (
+        <span className='ml-auto flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
+          {time}
+        </span>
+      )}
     </>
   )
 }
@@ -151,6 +181,33 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
   },
+  filefolder: {
+    type: 'filefolder',
+    label: 'File Folders',
+    icon: FolderIcon,
+    renderTabIcon: (_resource, className) => (
+      <FolderIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
+  },
+  task: {
+    type: 'task',
+    label: 'Tasks',
+    icon: Blimp,
+    renderTabIcon: (_resource, className) => (
+      <Blimp className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Blimp} />,
+  },
+  log: {
+    type: 'log',
+    label: 'Logs',
+    icon: Library,
+    renderTabIcon: (_resource, className) => (
+      <Library className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <LogDropdownItem {...props} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -184,6 +241,16 @@ const RESOURCE_INVALIDATORS: Record<
   },
   folder: (qc) => {
     qc.invalidateQueries({ queryKey: folderKeys.lists() })
+  },
+  filefolder: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
+  },
+  task: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: taskKeys.list(wId) })
+  },
+  log: (qc, _wId, id) => {
+    qc.invalidateQueries({ queryKey: logKeys.details() })
+    qc.invalidateQueries({ queryKey: logKeys.detail(id) })
   },
 }
 

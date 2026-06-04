@@ -38,6 +38,8 @@ export interface ConsoleUpdate {
   content?: string
   output?: Partial<NormalizedBlockOutput>
   replaceOutput?: NormalizedBlockOutput
+  blockName?: string
+  blockType?: string
   executionOrder?: number
   error?: string | Error | null
   warning?: string
@@ -75,6 +77,7 @@ export interface ConsoleStore {
   getWorkflowEntries: (workflowId: string) => ConsoleEntry[]
   toggleConsole: () => void
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
-  cancelRunningEntries: (workflowId: string) => void
+  cancelRunningEntries: (workflowId: string, executionId?: string) => void
+  finishRunningEntries: (workflowId: string, executionId?: string) => void
   _hasHydrated: boolean
 }

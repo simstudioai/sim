@@ -332,7 +332,7 @@ export interface KalshiPagingInfo {
 }
 
 // Generic response type
-export interface KalshiResponse<T> {
+interface KalshiResponse<T> {
   success: boolean
   output: T & {
     paging?: KalshiPagingInfo
@@ -388,7 +388,7 @@ export interface KalshiEvent {
 }
 
 // Balance type
-export interface KalshiBalance {
+interface KalshiBalance {
   balance: number // In cents
   portfolio_value: number // In cents
 }
@@ -429,7 +429,7 @@ export interface KalshiOrder {
 }
 
 // Orderbook type
-export interface KalshiOrderbookLevel {
+interface KalshiOrderbookLevel {
   price: number
   quantity: number
 }
@@ -474,7 +474,7 @@ export interface KalshiFill {
 }
 
 // Settlement source type
-export interface KalshiSettlementSource {
+interface KalshiSettlementSource {
   name: string
   url: string
 }

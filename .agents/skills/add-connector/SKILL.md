@@ -15,6 +15,21 @@ When the user asks you to create a connector:
 3. Create the connector directory and config
 4. Register it in the connector registry
 
+## Hard Rule: No Guessed Response Or Document Schemas
+
+If the service docs do not clearly show the document list response, document fetch response, pagination shape, or metadata fields, you MUST tell the user instead of guessing.
+
+- Do NOT invent document fields
+- Do NOT guess pagination cursors or next-page fields
+- Do NOT infer metadata/tag mappings from unrelated endpoints
+- Do NOT fabricate `ExternalDocument` content structure from partial docs
+
+If the source schema is unknown, do one of these instead:
+1. Ask the user for sample API responses
+2. Ask the user for test credentials so you can verify live payloads
+3. Implement only the documented parts of the connector
+4. Leave the connector incomplete and explicitly say which fields remain unknown
+
 ## Directory Structure
 
 Create files in `apps/sim/connectors/{service}/`:
@@ -91,6 +106,8 @@ export const {service}Connector: ConnectorConfig = {
   },
 }
 ```
+
+Only map fields in `listDocuments`, `getDocument`, `validateConfig`, and `mapTags` when the source payload shape is documented or live-verified. If not, tell the user and stop rather than guessing.
 
 ### API key connector example
 

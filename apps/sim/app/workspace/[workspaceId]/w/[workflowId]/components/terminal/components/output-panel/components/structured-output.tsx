@@ -14,6 +14,12 @@ import {
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
+import {
+  isLargeArrayManifest,
+  type LargeArrayManifest,
+} from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
 type BadgeVariant = 'green' | 'blue' | 'orange' | 'purple' | 'gray' | 'red'
@@ -74,6 +80,38 @@ const STYLES = {
 } as const
 
 const EMPTY_MATCH_INDICES: number[] = []
+const USER_FILE_BASE64_PLACEHOLDER = '[TRUNCATED]'
+
+function formatLargeValueSize(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function getLargeValueDisplayValue(ref: LargeValueRef): unknown {
+  return ref.preview ?? `[Large value: ${formatLargeValueSize(ref.size)}]`
+}
+
+function getLargeArrayManifestDisplayValue(manifest: LargeArrayManifest): unknown[] {
+  const preview = manifest.preview
+  if (manifest.totalCount <= preview.length) {
+    return preview
+  }
+
+  const remainingCount = manifest.totalCount - preview.length
+  return [
+    ...preview,
+    `[... ${remainingCount.toLocaleString()} more item${remainingCount === 1 ? '' : 's'}]`,
+  ]
+}
+
+function getDisplayValue(value: unknown): unknown {
+  if (isLargeValueRef(value)) {
+    return getLargeValueDisplayValue(value)
+  }
+  if (isLargeArrayManifest(value)) {
+    return getLargeArrayManifestDisplayValue(value)
+  }
+  return value
+}
 
 function getTypeLabel(value: unknown): ValueType {
   if (value === null) return 'null'
@@ -109,23 +147,39 @@ function extractErrorMessage(data: unknown): string {
 }
 
 function buildEntries(value: unknown, basePath: string): NodeEntry[] {
-  if (Array.isArray(value)) {
-    return value.map((item, i) => ({ key: String(i), value: item, path: `${basePath}[${i}]` }))
+  const displayValue = getDisplayValue(value)
+
+  if (Array.isArray(displayValue)) {
+    return displayValue.map((item, i) => ({
+      key: String(i),
+      value: item,
+      path: `${basePath}[${i}]`,
+    }))
   }
-  return Object.entries(value as Record<string, unknown>).map(([k, v]) => ({
+  const entries = Object.entries(displayValue as Record<string, unknown>).map(([k, v]) => ({
     key: k,
     value: v,
     path: `${basePath}.${k}`,
   }))
+  if (isUserFileDisplayMetadata(displayValue) && !('base64' in displayValue)) {
+    entries.push({
+      key: 'base64',
+      value: USER_FILE_BASE64_PLACEHOLDER,
+      path: `${basePath}.base64`,
+    })
+  }
+  return entries
 }
 
 function getCollapsedSummary(value: unknown): string | null {
-  if (Array.isArray(value)) {
-    const len = value.length
+  const displayValue = getDisplayValue(value)
+
+  if (Array.isArray(displayValue)) {
+    const len = displayValue.length
     return `${len} item${len !== 1 ? 's' : ''}`
   }
-  if (typeof value === 'object' && value !== null) {
-    const count = Object.keys(value).length
+  if (typeof displayValue === 'object' && displayValue !== null) {
+    const count = buildEntries(displayValue, '').length
     return `${count} key${count !== 1 ? 's' : ''}`
   }
   return null
@@ -133,10 +187,11 @@ function getCollapsedSummary(value: unknown): string | null {
 
 function computeInitialPaths(data: unknown, isError: boolean): Set<string> {
   if (isError) return new Set(['root.error'])
-  if (!data || typeof data !== 'object') return new Set()
-  const entries = Array.isArray(data)
-    ? data.map((_, i) => `root[${i}]`)
-    : Object.keys(data).map((k) => `root.${k}`)
+  const displayData = getDisplayValue(data)
+  if (!displayData || typeof displayData !== 'object') return new Set()
+  const entries = Array.isArray(displayData)
+    ? displayData.map((_, i) => `root[${i}]`)
+    : Object.keys(displayData).map((k) => `root.${k}`)
   return new Set(entries)
 }
 
@@ -184,13 +239,14 @@ function collectAllMatchPaths(data: unknown, query: string, basePath: string, de
   if (!query || depth > CONFIG.MAX_SEARCH_DEPTH) return []
 
   const matches: string[] = []
+  const displayData = getDisplayValue(data)
 
-  if (isPrimitive(data)) {
-    addPrimitiveMatches(data, `${basePath}.value`, query, matches)
+  if (isPrimitive(displayData)) {
+    addPrimitiveMatches(displayData, `${basePath}.value`, query, matches)
     return matches
   }
 
-  for (const entry of buildEntries(data, basePath)) {
+  for (const entry of buildEntries(displayData, basePath)) {
     if (isPrimitive(entry.value)) {
       addPrimitiveMatches(entry.value, entry.path, query, matches)
     } else {
@@ -317,9 +373,10 @@ const StructuredNode = memo(function StructuredNode({
   isError = false,
 }: StructuredNodeProps) {
   const searchContext = useContext(SearchContext)
-  const type = getTypeLabel(value)
-  const isPrimitiveValue = isPrimitive(value)
-  const isEmptyValue = !isPrimitiveValue && isEmpty(value)
+  const displayValue = getDisplayValue(value)
+  const type = getTypeLabel(displayValue)
+  const isPrimitiveValue = isPrimitive(displayValue)
+  const isEmptyValue = !isPrimitiveValue && isEmpty(displayValue)
   const isExpanded = expandedPaths.has(path)
 
   const handleToggle = useCallback(() => onToggle(path), [onToggle, path])
@@ -335,17 +392,17 @@ const StructuredNode = memo(function StructuredNode({
   )
 
   const childEntries = useMemo(
-    () => (isPrimitiveValue || isEmptyValue ? [] : buildEntries(value, path)),
-    [value, isPrimitiveValue, isEmptyValue, path]
+    () => (isPrimitiveValue || isEmptyValue ? [] : buildEntries(displayValue, path)),
+    [displayValue, isPrimitiveValue, isEmptyValue, path]
   )
 
   const collapsedSummary = useMemo(
-    () => (isPrimitiveValue ? null : getCollapsedSummary(value)),
-    [value, isPrimitiveValue]
+    () => (isPrimitiveValue ? null : getCollapsedSummary(displayValue)),
+    [displayValue, isPrimitiveValue]
   )
 
   const badgeVariant = isError ? 'red' : BADGE_VARIANTS[type]
-  const valueText = isPrimitiveValue ? formatPrimitive(value) : ''
+  const valueText = isPrimitiveValue ? formatPrimitive(displayValue) : ''
   const matchIndices = searchContext?.pathToMatchIndices.get(path) ?? EMPTY_MATCH_INDICES
 
   return (
@@ -472,16 +529,17 @@ function flattenTree(
   }
 
   function processNode(key: string, value: unknown, path: string, depth: number): void {
-    const valueType = getTypeLabel(value)
-    const isPrimitiveValue = isPrimitive(value)
-    const isEmptyValue = !isPrimitiveValue && isEmpty(value)
+    const displayValue = getDisplayValue(value)
+    const valueType = getTypeLabel(displayValue)
+    const isPrimitiveValue = isPrimitive(displayValue)
+    const isEmptyValue = !isPrimitiveValue && isEmpty(displayValue)
     const isExpanded = expandedPaths.has(path)
-    const collapsedSummary = isPrimitiveValue ? null : getCollapsedSummary(value)
+    const collapsedSummary = isPrimitiveValue ? null : getCollapsedSummary(displayValue)
 
     rows.push({
       path,
       key,
-      value,
+      value: displayValue,
       depth,
       type: 'header',
       valueType,
@@ -497,42 +555,43 @@ function flattenTree(
         rows.push({
           path: `${path}.value`,
           key: '',
-          value,
+          value: displayValue,
           depth: depth + 1,
           type: 'value',
           valueType,
           isExpanded: false,
           isError: false,
           collapsedSummary: null,
-          displayText: formatPrimitive(value),
+          displayText: formatPrimitive(displayValue),
           matchIndices: pathToMatchIndices.get(path) ?? [],
         })
       } else if (isEmptyValue) {
         rows.push({
           path: `${path}.empty`,
           key: '',
-          value,
+          value: displayValue,
           depth: depth + 1,
           type: 'empty',
           valueType,
           isExpanded: false,
           isError: false,
           collapsedSummary: null,
-          displayText: Array.isArray(value) ? '[]' : '{}',
+          displayText: Array.isArray(displayValue) ? '[]' : '{}',
           matchIndices: [],
         })
       } else {
-        for (const entry of buildEntries(value, path)) {
+        for (const entry of buildEntries(displayValue, path)) {
           processNode(entry.key, entry.value, entry.path, depth + 1)
         }
       }
     }
   }
 
-  if (isPrimitive(data)) {
-    processNode('value', data, 'root.value', 0)
-  } else if (data && typeof data === 'object') {
-    for (const entry of buildEntries(data, 'root')) {
+  const displayData = getDisplayValue(data)
+  if (isPrimitive(displayData)) {
+    processNode('value', displayData, 'root.value', 0)
+  } else if (displayData && typeof displayData === 'object') {
+    for (const entry of buildEntries(displayData, 'root')) {
       processNode(entry.key, entry.value, entry.path, 0)
     }
   }
@@ -549,22 +608,24 @@ function countVisibleRows(data: unknown, expandedPaths: Set<string>, isError: bo
   let count = 0
 
   function countNode(value: unknown, path: string): void {
+    const displayValue = getDisplayValue(value)
     count++
     if (!expandedPaths.has(path)) return
 
-    if (isPrimitive(value) || isEmpty(value)) {
+    if (isPrimitive(displayValue) || isEmpty(displayValue)) {
       count++
     } else {
-      for (const entry of buildEntries(value, path)) {
+      for (const entry of buildEntries(displayValue, path)) {
         countNode(entry.value, entry.path)
       }
     }
   }
 
-  if (isPrimitive(data)) {
-    countNode(data, 'root.value')
-  } else if (data && typeof data === 'object') {
-    for (const entry of buildEntries(data, 'root')) {
+  const displayData = getDisplayValue(data)
+  if (isPrimitive(displayData)) {
+    countNode(displayData, 'root.value')
+  } else if (displayData && typeof displayData === 'object') {
+    for (const entry of buildEntries(displayData, 'root')) {
       countNode(entry.value, entry.path)
     }
   }
@@ -682,6 +743,7 @@ export const StructuredOutput = memo(function StructuredOutput({
     computeInitialPaths(data, isError)
   )
   const prevDataRef = useRef(data)
+  const prevDataJsonRef = useRef<string | null>(null)
   const prevIsErrorRef = useRef(isError)
   const internalRef = useRef<HTMLDivElement>(null)
   const listRef = useListRef(null)
@@ -712,10 +774,22 @@ export const StructuredOutput = memo(function StructuredOutput({
 
   // Reset expanded paths when data changes
   useEffect(() => {
-    if (prevDataRef.current !== data || prevIsErrorRef.current !== isError) {
+    if (prevIsErrorRef.current !== isError) {
       prevDataRef.current = data
       prevIsErrorRef.current = isError
+      prevDataJsonRef.current = JSON.stringify(data)
       setExpandedPaths(computeInitialPaths(data, isError))
+      return
+    }
+
+    if (prevDataRef.current !== data) {
+      const newJson = JSON.stringify(data)
+      const prevJson = prevDataJsonRef.current ?? JSON.stringify(prevDataRef.current)
+      if (prevJson !== newJson) {
+        setExpandedPaths(computeInitialPaths(data, isError))
+      }
+      prevDataJsonRef.current = newJson
+      prevDataRef.current = data
     }
   }, [data, isError])
 
@@ -769,8 +843,9 @@ export const StructuredOutput = memo(function StructuredOutput({
   }, [])
 
   const rootEntries = useMemo<NodeEntry[]>(() => {
-    if (isPrimitive(data)) return [{ key: 'value', value: data, path: 'root.value' }]
-    return buildEntries(data, 'root')
+    const displayData = getDisplayValue(data)
+    if (isPrimitive(displayData)) return [{ key: 'value', value: displayData, path: 'root.value' }]
+    return buildEntries(displayData, 'root')
   }, [data])
 
   const searchContextValue = useMemo<SearchContextValue | null>(() => {

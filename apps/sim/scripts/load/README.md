@@ -11,14 +11,8 @@ These local-only Artillery scenarios exercise `POST /api/workflows/[id]/execute`
 The default rates are tuned for these local limits:
 
 - `ADMISSION_GATE_MAX_INFLIGHT=500`
-- `DISPATCH_MAX_QUEUE_PER_WORKSPACE=1000`
-- `DISPATCH_MAX_QUEUE_GLOBAL=50000`
-- `WORKSPACE_CONCURRENCY_FREE=5`
-- `WORKSPACE_CONCURRENCY_PRO=50`
-- `WORKSPACE_CONCURRENCY_TEAM=200`
-- `WORKSPACE_CONCURRENCY_ENTERPRISE=200`
 
-That means the defaults are intentionally aimed at forcing queueing for a Free workspace without overwhelming a single local dev server process.
+The admission gate caps total in-flight requests per pod.
 
 ## Baseline Concurrency
 
@@ -109,5 +103,5 @@ Optional variables:
 - `load:workflow` is an alias for `load:workflow:baseline`
 - All scenarios send `x-execution-mode: async`
 - Artillery output will show request counts and response codes, which is usually enough for quick local verification
-- At these defaults, you should observe queueing behavior before you approach `ADMISSION_GATE_MAX_INFLIGHT=500` or `DISPATCH_MAX_QUEUE_PER_WORKSPACE=1000`
+- At these defaults, you should see `429` responses when approaching `ADMISSION_GATE_MAX_INFLIGHT=500`
 - If you still see lots of `429` or `ETIMEDOUT` responses locally, lower the rates again before increasing durations

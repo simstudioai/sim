@@ -1,0 +1,237 @@
+---
+title: Linear
+description: Available Linear triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="linear"
+  color="#5E6AD2"
+/>
+
+Linear provides 15 triggers for automating workflows based on events.
+
+## Triggers
+
+### Linear Comment Created
+
+Trigger workflow when a new comment is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Comment Updated
+
+Trigger workflow when a comment is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Customer Request Created
+
+Trigger workflow when a new customer request is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Customer Request Updated
+
+Trigger workflow when a customer request is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Cycle Created
+
+Trigger workflow when a new cycle is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Cycle Updated
+
+Trigger workflow when a cycle is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Issue Created
+
+Trigger workflow when a new issue is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Issue Removed
+
+Trigger workflow when an issue is removed/deleted in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Issue Updated
+
+Trigger workflow when an issue is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Label Created
+
+Trigger workflow when a new label is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Label Updated
+
+Trigger workflow when a label is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Project Created
+
+Trigger workflow when a new project is created in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Project Update Created
+
+Trigger workflow when a new project update is posted in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Project Updated
+
+Trigger workflow when a project is updated in Linear
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+
+---
+
+### Linear Webhook
+
+Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type).
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `teamId` | string | No | Team ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | Action performed \(create, update, remove\) |
+| `type` | string | Entity type \(Issue, Comment, Project, Cycle, IssueLabel, ProjectUpdate, etc.\) |
+| `webhookId` | string | Webhook ID |
+| `webhookTimestamp` | number | Webhook timestamp \(milliseconds\) |
+| `organizationId` | string | Organization ID |
+| `createdAt` | string | Event creation timestamp |
+| `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
+| `data` | object | Complete entity data object |
+| `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+

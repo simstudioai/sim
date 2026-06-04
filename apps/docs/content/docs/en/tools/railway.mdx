@@ -1,0 +1,343 @@
+---
+title: Railway
+description: Manage Railway projects, deployments, and variables
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="railway"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Railway](https://railway.com/) is a cloud application platform for deploying, operating, and scaling services, databases, jobs, and production environments from a single project workspace. Teams use Railway to connect source repositories, manage environments, configure variables, trigger deployments, and monitor delivery across staging and production.
+
+With Railway, you can:
+
+- **Manage projects and environments**: Organize deployed services and inspect the environments attached to each project
+- **Automate deployments**: Trigger new service deployments and inspect recent deployment status from workflows
+- **Control runtime configuration**: Read and update environment variables for services or shared project environments
+- **Connect infrastructure workflows**: Use project, service, and environment IDs from one step to drive release automation in later steps
+
+In Sim, the Railway integration lets your agents work with Railway's public GraphQL API directly from workflows. You can list projects, fetch project services and environments, inspect deployments, deploy a service, and manage environment variables as part of CI/CD, operations, and release processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Railway into workflows to list projects, inspect services and environments, monitor deployments, trigger service deployments, and manage environment variables.
+
+
+
+## Tools
+
+### `railway_list_projects`
+
+List Railway projects visible to the provided token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `workspaceId` | string | No | Workspace ID to list projects from |
+| `first` | number | No | Maximum number of projects to return |
+| `after` | string | No | Cursor for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | Railway projects |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `description` | string | Project description |
+|   ↳ `createdAt` | string | Project creation timestamp |
+|   ↳ `updatedAt` | string | Project update timestamp |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether more projects are available |
+|   ↳ `endCursor` | string | Cursor for the next page |
+| `count` | number | Number of projects returned |
+
+### `railway_get_project`
+
+Get a Railway project with its services and environments
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | Project with services and environments |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `description` | string | Project description |
+|   ↳ `createdAt` | string | Project creation timestamp |
+|   ↳ `services` | array | Project services |
+|     ↳ `id` | string | Service ID |
+|     ↳ `name` | string | Service name |
+|     ↳ `icon` | string | Service icon |
+|   ↳ `environments` | array | Project environments |
+|     ↳ `id` | string | Environment ID |
+|     ↳ `name` | string | Environment name |
+
+### `railway_create_project`
+
+Create a Railway project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `name` | string | Yes | Project name |
+| `description` | string | No | Project description |
+| `workspaceId` | string | No | Workspace ID to create the project in |
+| `isPublic` | boolean | No | Whether the project should be publicly visible |
+| `defaultEnvironmentName` | string | No | Name for the default environment |
+| `prDeploys` | boolean | No | Whether to enable pull request deploys |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | Created project |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+
+### `railway_update_project`
+
+Update a Railway project name or description
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+| `name` | string | No | Updated project name |
+| `description` | string | No | Updated project description |
+| `isPublic` | boolean | No | Whether the project should be publicly visible |
+| `prDeploys` | boolean | No | Whether to enable pull request deploy environments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | Updated project |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `description` | string | Project description |
+
+### `railway_delete_project`
+
+Delete a Railway project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the project was deleted |
+
+### `railway_transfer_project`
+
+Transfer a Railway project to another workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+| `workspaceId` | string | Yes | Destination workspace ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the project was transferred |
+
+### `railway_list_project_members`
+
+List members for a Railway project
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Project members |
+|   ↳ `id` | string | Project membership ID |
+|   ↳ `role` | string | Project role |
+|   ↳ `user` | object | Railway user |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+| `count` | number | Number of members returned |
+
+### `railway_create_environment`
+
+Create a Railway project environment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+| `name` | string | Yes | Environment name |
+| `sourceEnvironmentId` | string | No | Environment ID to clone from |
+| `ephemeral` | boolean | No | Whether the environment is ephemeral |
+| `skipInitialDeploys` | boolean | No | Whether to skip initial deploys for the environment |
+| `stageInitialChanges` | boolean | No | Whether to stage initial changes instead of applying them immediately |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `environment` | object | Created environment |
+|   ↳ `id` | string | Environment ID |
+|   ↳ `name` | string | Environment name |
+
+### `railway_delete_environment`
+
+Delete a Railway project environment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `environmentId` | string | Yes | Railway environment ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the environment was deleted |
+
+### `railway_list_deployments`
+
+List deployments for a Railway service in an environment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+| `serviceId` | string | Yes | Railway service ID |
+| `environmentId` | string | Yes | Railway environment ID |
+| `first` | number | No | Maximum number of deployments to return |
+| `after` | string | No | Cursor for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deployments` | array | Service deployments |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `status` | string | Deployment status |
+|   ↳ `createdAt` | string | Deployment creation timestamp |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `staticUrl` | string | Static deployment URL |
+| `count` | number | Number of deployments returned |
+| `pageInfo` | object | Pagination information |
+|   ↳ `hasNextPage` | boolean | Whether more deployments are available |
+|   ↳ `endCursor` | string | Cursor for the next page |
+
+### `railway_deploy_service`
+
+Trigger a deployment for a Railway service in an environment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `serviceId` | string | Yes | Railway service ID |
+| `environmentId` | string | Yes | Railway environment ID |
+| `commitSha` | string | No | Specific Git commit SHA to deploy |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deploymentId` | string | Created deployment ID |
+
+### `railway_list_variables`
+
+List Railway environment variables for a service or shared environment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+| `environmentId` | string | Yes | Railway environment ID |
+| `serviceId` | string | No | Railway service ID. Omit for shared environment variables. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `variables` | object | Variable names and values |
+| `count` | number | Number of variables returned |
+
+### `railway_upsert_variable`
+
+Create or update a Railway environment variable
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `projectId` | string | Yes | Railway project ID |
+| `environmentId` | string | Yes | Railway environment ID |
+| `serviceId` | string | No | Railway service ID. Omit to create or update a shared variable. |
+| `name` | string | Yes | Variable name |
+| `value` | string | Yes | Variable value |
+| `skipDeploys` | boolean | No | Whether to skip automatic redeploys after changing the variable |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the variable was created or updated |
+
+

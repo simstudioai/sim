@@ -1,9 +1,19 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
-import type { AvailableModel } from '@/lib/copilot/types'
+import { copilotModelsContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
+import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+
+interface AvailableModel {
+  id: string
+  friendlyName: string
+  provider: string
+}
 
 const logger = createLogger('CopilotModelsAPI')
 
@@ -23,7 +33,10 @@ function isRawAvailableModel(item: unknown): item is RawAvailableModel {
   )
 }
 
-export async function GET(_req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
+  const parsed = await parseRequest(copilotModelsContract, req, {})
+  if (!parsed.success) return parsed.response
+
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -37,10 +50,13 @@ export async function GET(_req: NextRequest) {
   }
 
   try {
-    const response = await fetch(`${SIM_AGENT_API_URL}/api/get-available-models`, {
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const response = await fetchGo(`${mothershipBaseURL}/api/get-available-models`, {
       method: 'GET',
       headers,
       cache: 'no-store',
+      spanName: 'sim → go /api/get-available-models',
+      operation: 'get_available_models',
     })
 
     const payload = await response.json().catch(() => ({}))
@@ -70,7 +86,7 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ success: true, models })
   } catch (error) {
     logger.error('Error fetching available models', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return NextResponse.json(
       {
@@ -81,4 +97,4 @@ export async function GET(_req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

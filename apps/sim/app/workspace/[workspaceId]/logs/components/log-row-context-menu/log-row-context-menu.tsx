@@ -2,26 +2,35 @@
 
 import { memo } from 'react'
 import {
+  Copy,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Eye,
+  Link,
+  ListFilter,
+  Redo,
+  SquareArrowUpRight,
+  X,
 } from '@/components/emcn'
-import { Copy, Eye, Link, ListFilter, SquareArrowUpRight, X } from '@/components/emcn/icons'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
+import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
 
 interface LogRowContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
-  log: WorkflowLog | null
+  log: WorkflowLogSummary | null
   onCopyExecutionId: () => void
   onCopyLink: () => void
   onOpenWorkflow: () => void
   onOpenPreview: () => void
   onToggleWorkflowFilter: () => void
   onClearAllFilters: () => void
+  onCancelExecution: () => void
+  onRetryExecution: () => void
+  isRetryPending?: boolean
   isFilteredByThisWorkflow: boolean
   hasActiveFilters: boolean
 }
@@ -41,11 +50,17 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onOpenPreview,
   onToggleWorkflowFilter,
   onClearAllFilters,
+  onCancelExecution,
+  onRetryExecution,
+  isRetryPending = false,
   isFilteredByThisWorkflow,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
   const hasExecutionId = Boolean(log?.executionId)
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
+  const isCancellable =
+    (log?.status === 'running' || log?.status === 'pending') && hasExecutionId && hasWorkflow
+  const isRetryable = log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -69,9 +84,27 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {isRetryable && (
+          <>
+            <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
+              <Redo />
+              {isRetryPending ? 'Retrying...' : 'Retry'}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {isCancellable && (
+          <>
+            <DropdownMenuItem onSelect={onCancelExecution}>
+              <X />
+              Cancel Run
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
           <Copy />
-          Copy Execution ID
+          Copy Run ID
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>
           <Link />

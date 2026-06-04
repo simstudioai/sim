@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   toast,
@@ -27,10 +28,14 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
+import {
+  ImportCsvDialog,
+  TablesListContextMenu,
+} from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
+  downloadTableExport,
   useCreateTable,
   useDeleteTable,
   useTablesList,
@@ -76,6 +81,7 @@ export function Tables() {
   const uploadCsv = useUploadCsvToTable()
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -119,7 +125,7 @@ export function Tables() {
     if (ownerFilter.length > 0) {
       result = result.filter((t) => ownerFilter.includes(t.createdBy))
     }
-    const col = activeSort?.column ?? 'created'
+    const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
       let cmp = 0
@@ -156,15 +162,15 @@ export function Tables() {
         id: table.id,
         cells: {
           name: {
-            icon: <TableIcon className='h-[14px] w-[14px]' />,
+            icon: <TableIcon className='size-[14px]' />,
             label: table.name,
           },
           columns: {
-            icon: <Columns3 className='h-[14px] w-[14px]' />,
+            icon: <Columns3 className='size-[14px]' />,
             label: String(table.schema.columns.length),
           },
           rows: {
-            icon: <Rows3 className='h-[14px] w-[14px]' />,
+            icon: <Rows3 className='size-[14px]' />,
             label: String(table.rowCount),
           },
           created: timeCell(table.createdAt),
@@ -232,10 +238,10 @@ export function Tables() {
             src={m.image}
             alt={m.name}
             referrerPolicy='no-referrer'
-            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
           />
         ) : (
-          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
             {m.name.charAt(0).toUpperCase()}
           </span>
         ),
@@ -394,7 +400,6 @@ export function Tables() {
         }
 
         setUploadProgress({ completed: 0, total: csvFiles.length })
-        const failed: string[] = []
 
         for (let i = 0; i < csvFiles.length; i++) {
           try {
@@ -407,23 +412,13 @@ export function Tables() {
               }
             }
           } catch (err) {
-            failed.push(csvFiles[i].name)
             logger.error('Error uploading CSV:', err)
           } finally {
             setUploadProgress({ completed: i + 1, total: csvFiles.length })
           }
         }
-
-        if (failed.length > 0) {
-          toast.error(
-            failed.length === 1
-              ? `Failed to import ${failed[0]}`
-              : `Failed to import ${failed.length} file${failed.length > 1 ? 's' : ''}: ${failed.join(', ')}`
-          )
-        }
       } catch (err) {
         logger.error('Error uploading CSV:', err)
-        toast.error('Failed to import CSV')
       } finally {
         setUploading(false)
         setUploadProgress({ completed: 0, total: 0 })
@@ -445,7 +440,7 @@ export function Tables() {
       ? `${uploadProgress.completed}/${uploadProgress.total}`
       : uploading
         ? 'Uploading...'
-        : 'Upload CSV'
+        : 'Import CSV'
 
   const handleCreateTable = useCallback(async () => {
     const existingNames = tables.map((t) => t.name)
@@ -525,24 +520,45 @@ export function Tables() {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
+        onImportCsv={() => setIsImportDialogOpen(true)}
+        onExportCsv={async () => {
+          if (!activeTable) return
+          try {
+            await downloadTableExport(activeTable.id, activeTable.name)
+          } catch (err) {
+            logger.error('Failed to export table:', err)
+            toast.error('Failed to export table')
+          }
+        }}
         disableDelete={userPermissions.canEdit !== true}
         disableRename={userPermissions.canEdit !== true}
+        disableImport={userPermissions.canEdit !== true}
       />
+
+      {activeTable && (
+        <ImportCsvDialog
+          open={isImportDialogOpen}
+          onOpenChange={(open) => {
+            setIsImportDialogOpen(open)
+            if (!open) setActiveTable(null)
+          }}
+          workspaceId={workspaceId}
+          table={activeTable}
+        />
+      )}
 
       <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <ModalContent size='sm'>
           <ModalHeader>Delete Table</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
               <span className='text-[var(--text-error)]'>
                 All {activeTable?.rowCount} rows will be removed.
               </span>{' '}
-              <span className='text-[var(--text-tertiary)]'>
-                You can restore it from Recently Deleted in Settings.
-              </span>
-            </p>
+              You can restore it from Recently Deleted in Settings.
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

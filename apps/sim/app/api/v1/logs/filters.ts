@@ -84,18 +84,19 @@ export function buildLogFilters(filters: LogFilters): SQL<unknown> {
     conditions.push(lte(workflowExecutionLogs.totalDurationMs, filters.maxDurationMs))
   }
 
-  // Cost filters
+  // Cost filters — indexed projection of the usage_log ledger (dollars).
   if (filters.minCost !== undefined) {
-    conditions.push(sql`(${workflowExecutionLogs.cost}->>'total')::numeric >= ${filters.minCost}`)
+    conditions.push(sql`${workflowExecutionLogs.costTotal} >= ${filters.minCost}`)
   }
 
   if (filters.maxCost !== undefined) {
-    conditions.push(sql`(${workflowExecutionLogs.cost}->>'total')::numeric <= ${filters.maxCost}`)
+    conditions.push(sql`${workflowExecutionLogs.costTotal} <= ${filters.maxCost}`)
   }
 
-  // Model filter
+  // Model filter — uses the models_used projection (includes zero-cost/BYOK
+  // models, which the usage_log ledger drops), preserving prior behavior.
   if (filters.model) {
-    conditions.push(sql`${workflowExecutionLogs.cost}->>'models' ? ${filters.model}`)
+    conditions.push(sql`${workflowExecutionLogs.modelsUsed} @> ARRAY[${filters.model}]::text[]`)
   }
 
   // Combine all conditions with AND

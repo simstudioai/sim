@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import {
   type StartBlockCandidate,
@@ -67,7 +68,9 @@ function generateMockValue(type: string, _description?: string, fieldName?: stri
 }
 
 /**
- * Recursively processes nested output structures
+ * Recursively processes nested output structures, expanding JSON-Schema-style
+ * objects/arrays that define `properties` or `items` instead of returning
+ * a generic placeholder.
  */
 function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 10): unknown {
   if (depth > maxDepth) {
@@ -80,7 +83,30 @@ function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 1
     'type' in field &&
     typeof (field as Record<string, unknown>).type === 'string'
   ) {
-    const typedField = field as { type: string; description?: string }
+    const typedField = field as {
+      type: string
+      description?: string
+      properties?: Record<string, unknown>
+      items?: unknown
+    }
+
+    if (
+      (typedField.type === 'object' || typedField.type === 'json') &&
+      typedField.properties &&
+      typeof typedField.properties === 'object'
+    ) {
+      const nestedObject: Record<string, unknown> = {}
+      for (const [nestedKey, nestedField] of Object.entries(typedField.properties)) {
+        nestedObject[nestedKey] = processOutputField(nestedKey, nestedField, depth + 1, maxDepth)
+      }
+      return nestedObject
+    }
+
+    if (typedField.type === 'array' && typedField.items && typeof typedField.items === 'object') {
+      const itemValue = processOutputField(`${key}_item`, typedField.items, depth + 1, maxDepth)
+      return [itemValue]
+    }
+
     return generateMockValue(typedField.type, typedField.description, key)
   }
 
@@ -120,7 +146,7 @@ export function generateMockPayloadFromOutputsDefinition(
   return generateMockPayloadFromOutputs(outputs)
 }
 
-export interface TriggerInfo {
+interface TriggerInfo {
   id: string
   name: string
   description: string
@@ -426,7 +452,7 @@ export function extractTriggerMockPayload<
     logger.error('Failed to generate mock payload from trigger outputs', {
       triggerId,
       blockId: trigger.blockId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {}
   }

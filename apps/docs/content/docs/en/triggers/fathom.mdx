@@ -1,0 +1,95 @@
+---
+title: Fathom
+description: Available Fathom triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="fathom"
+  color="#181C1E"
+/>
+
+Fathom provides 2 triggers for automating workflows based on events.
+
+## Triggers
+
+### Fathom New Meeting Content
+
+Trigger workflow when new meeting content is ready in Fathom
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Fathom. |
+| `triggeredFor` | string | No | Which recording types should trigger this webhook. |
+| `includeSummary` | boolean | No | Include the meeting summary in the webhook payload. |
+| `includeTranscript` | boolean | No | Include the full transcript in the webhook payload. |
+| `includeActionItems` | boolean | No | Include action items extracted from the meeting. |
+| `includeCrmMatches` | boolean | No | Include matched CRM contacts, companies, and deals from your linked CRM. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `title` | string | Meeting title |
+| `meeting_title` | string | Calendar event title |
+| `recording_id` | number | Unique recording ID |
+| `url` | string | URL to view the meeting in Fathom |
+| `share_url` | string | Shareable URL for the meeting |
+| `created_at` | string | ISO 8601 creation timestamp |
+| `scheduled_start_time` | string | Scheduled start time |
+| `scheduled_end_time` | string | Scheduled end time |
+| `recording_start_time` | string | Recording start time |
+| `recording_end_time` | string | Recording end time |
+| `transcript_language` | string | Language of the transcript |
+| `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
+| `recorded_by` | object | Recorder details |
+| `calendar_invitees` | array | Array of calendar invitees with name and email |
+| `default_summary` | object | Meeting summary |
+| `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
+| `action_items` | array | Array of action items extracted from the meeting |
+| `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |
+
+
+---
+
+### Fathom Webhook
+
+Generic webhook trigger for all Fathom events
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Fathom. |
+| `triggeredFor` | string | No | Which recording types should trigger this webhook. |
+| `includeSummary` | boolean | No | Include the meeting summary in the webhook payload. |
+| `includeTranscript` | boolean | No | Include the full transcript in the webhook payload. |
+| `includeActionItems` | boolean | No | Include action items extracted from the meeting. |
+| `includeCrmMatches` | boolean | No | Include matched CRM contacts, companies, and deals from your linked CRM. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `title` | string | Meeting title |
+| `meeting_title` | string | Calendar event title |
+| `recording_id` | number | Unique recording ID |
+| `url` | string | URL to view the meeting in Fathom |
+| `share_url` | string | Shareable URL for the meeting |
+| `created_at` | string | ISO 8601 creation timestamp |
+| `scheduled_start_time` | string | Scheduled start time |
+| `scheduled_end_time` | string | Scheduled end time |
+| `recording_start_time` | string | Recording start time |
+| `recording_end_time` | string | Recording end time |
+| `transcript_language` | string | Language of the transcript |
+| `calendar_invitees_domains_type` | string | Domain type: only_internal or one_or_more_external |
+| `recorded_by` | object | Recorder details |
+| `calendar_invitees` | array | Array of calendar invitees with name and email |
+| `default_summary` | object | Meeting summary |
+| `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
+| `action_items` | array | Array of action items extracted from the meeting |
+| `crm_matches` | json | Matched CRM contacts, companies, and deals from linked CRM |
+

@@ -1,0 +1,343 @@
+---
+title: Dagster
+description: Orchestrate data pipelines and manage job runs with Dagster
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dagster"
+  color="#ffffff"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Dagster](https://dagster.io/) is an open-source data orchestration platform designed for building, testing, and monitoring data pipelines. It provides a unified model for defining data assets, scheduling jobs, and observing pipeline execution — whether running locally or deployed to Dagster+.
+
+With Dagster, you can:
+
+- **Orchestrate data pipelines**: Define and run jobs composed of ops and assets with full dependency tracking
+- **Monitor executions**: Track run status, inspect logs, and debug failures step by step
+- **Manage schedules and sensors**: Automate pipeline triggers on a cron schedule or in response to external events
+- **Reexecute selectively**: Resume failed pipelines from the point of failure without rerunning successful steps
+
+In Sim, the Dagster integration enables your agents to interact with a Dagster instance programmatically. Agents can launch and monitor job runs, retrieve execution logs, reexecute failed runs, and manage schedules and sensors — all as part of a larger automated workflow. Use Dagster as an orchestration layer your agents can control and observe, enabling data-driven automation that responds dynamically to pipeline outcomes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.
+
+
+
+## Tools
+
+### `dagster_launch_run`
+
+Launch a job run on a Dagster instance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3000\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
+| `repositoryName` | string | Yes | Repository name within the code location |
+| `jobName` | string | Yes | Name of the job to launch |
+| `runConfigJson` | string | No | Run configuration as a JSON object \(optional\) |
+| `tags` | string | No | Tags as a JSON array of \{key, value\} objects \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | string | The globally unique ID of the launched run |
+
+### `dagster_get_run`
+
+Get the status and details of a Dagster run by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3000\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `runId` | string | Yes | The ID of the run to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | string | Run ID |
+| `jobName` | string | Name of the job this run belongs to |
+| `status` | string | Run status \(QUEUED, NOT_STARTED, STARTING, MANAGED, STARTED, SUCCESS, FAILURE, CANCELING, CANCELED\) |
+| `startTime` | number | Run start time as Unix timestamp |
+| `endTime` | number | Run end time as Unix timestamp |
+| `runConfigYaml` | string | Run configuration as YAML |
+| `tags` | json | Run tags as array of \{key, value\} objects |
+
+### `dagster_get_run_logs`
+
+Fetch execution event logs for a Dagster run.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `runId` | string | Yes | The ID of the run to fetch logs for |
+| `afterCursor` | string | No | Cursor for paginating through log events \(from a previous response\) |
+| `limit` | number | No | Maximum number of log events to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | json | Array of log events \(type, message, timestamp, level, stepKey, eventType\) |
+|   ↳ `type` | string | GraphQL typename of the event |
+|   ↳ `message` | string | Human-readable log message |
+|   ↳ `timestamp` | string | Event timestamp as a Unix epoch string |
+|   ↳ `level` | string | Log level \(DEBUG, INFO, WARNING, ERROR, CRITICAL\) |
+|   ↳ `stepKey` | string | Step key, if the event is step-scoped |
+|   ↳ `eventType` | string | Dagster event type enum value |
+| `cursor` | string | Cursor for fetching the next page of log events |
+| `hasMore` | boolean | Whether more log events are available beyond this page |
+
+### `dagster_list_runs`
+
+List recent Dagster runs, optionally filtered by job name.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `jobName` | string | No | Filter runs by job name \(optional\) |
+| `statuses` | string | No | Comma-separated run statuses to filter by, e.g. "SUCCESS,FAILURE" \(optional\) |
+| `limit` | number | No | Maximum number of runs to return \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runs` | json | Array of runs |
+|   ↳ `runId` | string | Run ID |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `status` | string | Run status |
+|   ↳ `tags` | json | Run tags as array of \{key, value\} objects |
+|   ↳ `startTime` | number | Start time as Unix timestamp |
+|   ↳ `endTime` | number | End time as Unix timestamp |
+
+### `dagster_list_jobs`
+
+List all jobs across repositories in a Dagster instance.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobs` | json | Array of jobs with name and repositoryName |
+|   ↳ `name` | string | Job name |
+|   ↳ `repositoryName` | string | Repository name |
+
+### `dagster_reexecute_run`
+
+Reexecute an existing Dagster run, optionally resuming only from failed steps.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `parentRunId` | string | Yes | The ID of the run to reexecute |
+| `strategy` | string | Yes | Reexecution strategy: ALL_STEPS reruns everything, FROM_FAILURE resumes from failed steps, FROM_ASSET_FAILURE resumes from failed assets |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | string | The ID of the newly launched reexecution run |
+
+### `dagster_terminate_run`
+
+Terminate an in-progress Dagster run.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `runId` | string | Yes | The ID of the run to terminate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the run was successfully terminated |
+| `runId` | string | The ID of the terminated run |
+| `message` | string | Error or status message if termination failed |
+
+### `dagster_delete_run`
+
+Permanently delete a Dagster run record.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `runId` | string | Yes | The ID of the run to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | string | The ID of the deleted run |
+
+### `dagster_list_schedules`
+
+List all schedules in a Dagster repository, optionally filtered by status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
+| `repositoryName` | string | Yes | Repository name within the code location |
+| `scheduleStatus` | string | No | Filter schedules by status: RUNNING or STOPPED \(omit to return all\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schedules` | json | Array of schedules \(name, cronSchedule, jobName, status, id, description, executionTimezone\) |
+|   ↳ `name` | string | Schedule name |
+|   ↳ `cronSchedule` | string | Cron expression for the schedule |
+|   ↳ `jobName` | string | Job the schedule targets |
+|   ↳ `status` | string | Schedule status: RUNNING or STOPPED |
+|   ↳ `id` | string | Instigator state ID — use this to start or stop the schedule |
+|   ↳ `description` | string | Human-readable schedule description |
+|   ↳ `executionTimezone` | string | Timezone for cron evaluation |
+
+### `dagster_start_schedule`
+
+Enable (start) a schedule in a Dagster repository.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
+| `repositoryName` | string | Yes | Repository name within the code location |
+| `scheduleName` | string | Yes | Name of the schedule to start |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Instigator state ID of the schedule |
+| `status` | string | Updated schedule status \(RUNNING or STOPPED\) |
+
+### `dagster_stop_schedule`
+
+Disable (stop) a running schedule in Dagster.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `instigationStateId` | string | Yes | InstigationState ID of the schedule to stop — available from dagster_list_schedules output |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Instigator state ID of the schedule |
+| `status` | string | Updated schedule status \(RUNNING or STOPPED\) |
+
+### `dagster_list_sensors`
+
+List all sensors in a Dagster repository, optionally filtered by status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
+| `repositoryName` | string | Yes | Repository name within the code location |
+| `sensorStatus` | string | No | Filter sensors by status: RUNNING or STOPPED \(omit to return all\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sensors` | json | Array of sensors \(name, sensorType, status, id, description\) |
+|   ↳ `name` | string | Sensor name |
+|   ↳ `sensorType` | string | Sensor type \(ASSET, AUTO_MATERIALIZE, FRESHNESS_POLICY, MULTI_ASSET, RUN_STATUS, STANDARD\) |
+|   ↳ `status` | string | Sensor status: RUNNING or STOPPED |
+|   ↳ `id` | string | Instigator state ID — use this to start or stop the sensor |
+|   ↳ `description` | string | Human-readable sensor description |
+
+### `dagster_start_sensor`
+
+Enable (start) a sensor in a Dagster repository.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
+| `repositoryName` | string | Yes | Repository name within the code location |
+| `sensorName` | string | Yes | Name of the sensor to start |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Instigator state ID of the sensor |
+| `status` | string | Updated sensor status \(RUNNING or STOPPED\) |
+
+### `dagster_stop_sensor`
+
+Disable (stop) a running sensor in Dagster.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `instigationStateId` | string | Yes | InstigationState ID of the sensor to stop — available from dagster_list_sensors output |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Instigator state ID of the sensor |
+| `status` | string | Updated sensor status \(RUNNING or STOPPED\) |
+
+

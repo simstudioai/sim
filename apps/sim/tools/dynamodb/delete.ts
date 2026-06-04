@@ -5,7 +5,7 @@ export const deleteTool: ToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse
   id: 'dynamodb_delete',
   name: 'DynamoDB Delete',
   description: 'Delete an item from a DynamoDB table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -33,7 +33,7 @@ export const deleteTool: ToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse
       description: 'DynamoDB table name (e.g., "Users", "Orders")',
     },
     key: {
-      type: 'object',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:
@@ -45,6 +45,20 @@ export const deleteTool: ToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse
       visibility: 'user-or-llm',
       description:
         'Condition that must be met for the delete to succeed (e.g., "attribute_exists(pk)")',
+    },
+    expressionAttributeNames: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Attribute name mappings for reserved words used in conditionExpression (e.g., {"#status": "status"})',
+    },
+    expressionAttributeValues: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Expression attribute values used in conditionExpression (e.g., {":status": "active"})',
     },
   },
 
@@ -61,6 +75,12 @@ export const deleteTool: ToolConfig<DynamoDBDeleteParams, DynamoDBDeleteResponse
       tableName: params.tableName,
       key: params.key,
       ...(params.conditionExpression && { conditionExpression: params.conditionExpression }),
+      ...(params.expressionAttributeNames && {
+        expressionAttributeNames: params.expressionAttributeNames,
+      }),
+      ...(params.expressionAttributeValues && {
+        expressionAttributeValues: params.expressionAttributeValues,
+      }),
     }),
   },
 

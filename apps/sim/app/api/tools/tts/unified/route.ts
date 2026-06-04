@@ -1,10 +1,24 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import {
+  playHtOutputFormatSchema,
+  ttsUnifiedToolContract,
+} from '@/lib/api/contracts/tools/media/tts'
+import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import {
+  assertKnownSizeWithinLimit,
+  isPayloadSizeLimitError,
+  readResponseJsonWithLimit,
+  readResponseTextWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { StorageService } from '@/lib/uploads'
 import type {
   AzureTtsParams,
@@ -14,76 +28,46 @@ import type {
   GoogleTtsParams,
   OpenAiTtsParams,
   PlayHtTtsParams,
-  TtsProvider,
   TtsResponse,
 } from '@/tools/tts/types'
 import { getFileExtension, getMimeType } from '@/tools/tts/types'
 
 const logger = createLogger('TtsUnifiedProxyAPI')
+const MAX_TTS_AUDIO_BYTES = 25 * 1024 * 1024
+const MAX_TTS_ERROR_BYTES = 64 * 1024
+const MAX_TTS_JSON_BYTES = Math.ceil((MAX_TTS_AUDIO_BYTES * 4) / 3) + 256 * 1024
+
+async function readTtsErrorJson(
+  response: Response,
+  label: string
+): Promise<Record<string, unknown>> {
+  return readResponseJsonWithLimit<Record<string, unknown>>(response, {
+    maxBytes: MAX_TTS_ERROR_BYTES,
+    label,
+  }).catch(() => ({}))
+}
+
+function getTtsErrorMessage(error: Record<string, unknown>, fallback: string): string {
+  const nested = error.error
+  if (typeof nested === 'object' && nested !== null && 'message' in nested) {
+    const message = (nested as { message?: unknown }).message
+    if (typeof message === 'string') return message
+  }
+  for (const key of ['message', 'err_msg', 'error_message', 'error', 'detail']) {
+    const value = error[key]
+    if (typeof value === 'string') return value
+    if (typeof value === 'object' && value !== null && 'message' in value) {
+      const message = (value as { message?: unknown }).message
+      if (typeof message === 'string') return message
+    }
+  }
+  return fallback
+}
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // 1 minute
 
-interface TtsUnifiedRequestBody {
-  provider: TtsProvider
-  text: string
-  apiKey: string
-
-  // OpenAI specific
-  model?: 'tts-1' | 'tts-1-hd' | 'gpt-4o-mini-tts'
-  voice?: string
-  responseFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm'
-  speed?: number
-
-  // Deepgram specific
-  encoding?: 'linear16' | 'mp3' | 'opus' | 'aac' | 'flac' | 'mulaw' | 'alaw'
-  sampleRate?: number
-  bitRate?: number
-  container?: 'none' | 'wav' | 'ogg'
-
-  // ElevenLabs specific
-  voiceId?: string
-  modelId?: string
-  stability?: number
-  similarityBoost?: number
-  style?: number | string
-  useSpeakerBoost?: boolean
-
-  // Cartesia specific
-  language?: string
-  outputFormat?: object
-  emotion?: string[]
-
-  // Google Cloud specific
-  languageCode?: string
-  gender?: 'MALE' | 'FEMALE' | 'NEUTRAL'
-  audioEncoding?: 'LINEAR16' | 'MP3' | 'OGG_OPUS' | 'MULAW' | 'ALAW'
-  speakingRate?: number
-  pitch?: number
-  volumeGainDb?: number
-  sampleRateHertz?: number
-  effectsProfileId?: string[]
-
-  // Azure specific
-  region?: string
-  rate?: string
-  styleDegree?: number
-  role?: string
-
-  // PlayHT specific
-  userId?: string
-  quality?: 'draft' | 'standard' | 'premium'
-  temperature?: number
-  voiceGuidance?: number
-  textGuidance?: number
-
-  // Execution context
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
-}
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
   logger.info(`[${requestId}] TTS unified request started`)
 
@@ -94,19 +78,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body: TtsUnifiedRequestBody = await request.json()
+    const parsed = await parseRequest(
+      ttsUnifiedToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid TTS unified request:`, error.issues)
+          return validationErrorResponse(
+            error,
+            getValidationErrorMessage(error, 'Invalid request data')
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
     const { provider, text, apiKey, workspaceId, workflowId, executionId } = body
 
-    if (!provider || !text || !apiKey) {
-      return NextResponse.json(
-        { error: 'Missing required fields: provider, text, and apiKey' },
-        { status: 400 }
-      )
-    }
-
-    const hasExecutionContext = workspaceId && workflowId && executionId
+    const executionContext =
+      workspaceId && workflowId && executionId ? { workspaceId, workflowId, executionId } : null
     logger.info(`[${requestId}] Processing TTS with ${provider}`, {
-      hasExecutionContext,
+      hasExecutionContext: Boolean(executionContext),
       textLength: text.length,
     })
 
@@ -173,7 +167,12 @@ export async function POST(request: NextRequest) {
           modelId: body.modelId,
           voice: body.voice,
           language: body.language,
-          outputFormat: body.outputFormat,
+          outputFormat:
+            body.outputFormat &&
+            typeof body.outputFormat === 'object' &&
+            !Array.isArray(body.outputFormat)
+              ? (body.outputFormat as CartesiaTtsParams['outputFormat'])
+              : undefined,
           speed: body.speed,
           emotion: body.emotion,
         })
@@ -189,7 +188,7 @@ export async function POST(request: NextRequest) {
           gender: body.gender,
           audioEncoding: body.audioEncoding,
           speakingRate: body.speakingRate,
-          pitch: body.pitch,
+          pitch: typeof body.pitch === 'number' ? body.pitch : undefined,
           volumeGainDb: body.volumeGainDb,
           sampleRateHertz: body.sampleRateHertz,
           effectsProfileId: body.effectsProfileId,
@@ -203,7 +202,10 @@ export async function POST(request: NextRequest) {
           apiKey,
           voiceId: body.voiceId,
           region: body.region,
-          outputFormat: body.outputFormat as AzureTtsParams['outputFormat'],
+          outputFormat:
+            typeof body.outputFormat === 'string'
+              ? (body.outputFormat as AzureTtsParams['outputFormat'])
+              : undefined,
           rate: body.rate,
           pitch: body.pitch as string | undefined,
           style: body.style as string | undefined,
@@ -220,13 +222,14 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           )
         }
+        const playHtOutputFormat = playHtOutputFormatSchema.safeParse(body.outputFormat)
         const result = await synthesizeWithPlayHT({
           text,
           apiKey,
           userId: body.userId,
           voice: body.voice,
           quality: body.quality,
-          outputFormat: typeof body.outputFormat === 'string' ? body.outputFormat : undefined,
+          outputFormat: playHtOutputFormat.success ? playHtOutputFormat.data : undefined,
           speed: body.speed,
           temperature: body.temperature,
           voiceGuidance: body.voiceGuidance,
@@ -241,19 +244,22 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       logger.error(`[${requestId}] TTS synthesis failed:`, error)
-      const errorMessage = error instanceof Error ? error.message : 'TTS synthesis failed'
-      return NextResponse.json({ error: errorMessage }, { status: 500 })
+      const errorMessage = getErrorMessage(error, 'TTS synthesis failed')
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+      )
     }
 
     const timestamp = Date.now()
     const fileExtension = getFileExtension(format)
     const fileName = `tts-${provider}-${timestamp}.${fileExtension}`
 
-    if (hasExecutionContext) {
+    if (executionContext) {
       const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
 
       const userFile = await uploadExecutionFile(
-        { workspaceId, workflowId, executionId },
+        executionContext,
         audioBuffer,
         fileName,
         mimeType,
@@ -310,10 +316,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] TTS unified proxy error:`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    const errorMessage = getErrorMessage(error, 'Unknown error')
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+    )
   }
-}
+})
 
 async function synthesizeWithOpenAi(
   params: OpenAiTtsParams
@@ -337,13 +346,15 @@ async function synthesizeWithOpenAi(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.error?.message || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'OpenAI TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`OpenAI TTS API error: ${errorMessage}`)
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  const audioBuffer = Buffer.from(arrayBuffer)
+  const audioBuffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_TTS_AUDIO_BYTES,
+    label: 'OpenAI TTS audio response',
+  })
   const mimeType = getMimeType(responseFormat)
 
   return {
@@ -393,13 +404,15 @@ async function synthesizeWithDeepgram(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.err_msg || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'Deepgram TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`Deepgram TTS API error: ${errorMessage}`)
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  const audioBuffer = Buffer.from(arrayBuffer)
+  const audioBuffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_TTS_AUDIO_BYTES,
+    label: 'Deepgram TTS audio response',
+  })
 
   let finalFormat: string = encoding
   if (container === 'wav') {
@@ -456,16 +469,15 @@ async function synthesizeWithElevenLabs(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage =
-      typeof error.detail === 'string'
-        ? error.detail
-        : error.detail?.message || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'ElevenLabs TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`ElevenLabs TTS API error: ${errorMessage}`)
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  const audioBuffer = Buffer.from(arrayBuffer)
+  const audioBuffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_TTS_AUDIO_BYTES,
+    label: 'ElevenLabs TTS audio response',
+  })
 
   return {
     audioBuffer,
@@ -543,9 +555,9 @@ async function synthesizeWithCartesia(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.error || error.message || response.statusText
-    const errorDetail = error.detail || ''
+    const error = await readTtsErrorJson(response, 'Cartesia TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
+    const errorDetail = typeof error.detail === 'string' ? error.detail : ''
     logger.error('Cartesia API error details:', {
       status: response.status,
       error: errorMessage,
@@ -557,8 +569,10 @@ async function synthesizeWithCartesia(
     )
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  const audioBuffer = Buffer.from(arrayBuffer)
+  const audioBuffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_TTS_AUDIO_BYTES,
+    label: 'Cartesia TTS audio response',
+  })
 
   const format =
     outputFormat && typeof outputFormat === 'object' && 'container' in outputFormat
@@ -650,12 +664,15 @@ async function synthesizeWithGoogle(
   )
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.error?.message || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'Google TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`Google Cloud TTS API error: ${errorMessage}`)
   }
 
-  const data = await response.json()
+  const data = await readResponseJsonWithLimit<{ audioContent?: string }>(response, {
+    maxBytes: MAX_TTS_JSON_BYTES,
+    label: 'Google TTS JSON response',
+  })
   const audioContent = data.audioContent
 
   if (!audioContent) {
@@ -663,6 +680,7 @@ async function synthesizeWithGoogle(
   }
 
   const audioBuffer = Buffer.from(audioContent, 'base64')
+  assertKnownSizeWithinLimit(audioBuffer.length, MAX_TTS_AUDIO_BYTES, 'Google TTS audio response')
 
   const format = audioEncoding.toLowerCase().replace('_', '')
   const mimeType = getMimeType(format)
@@ -692,6 +710,13 @@ async function synthesizeWithAzure(
 
   if (!text || !apiKey) {
     throw new Error('text and apiKey are required for Azure TTS')
+  }
+
+  const AZURE_REGION_RE = /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/
+  if (!AZURE_REGION_RE.test(region)) {
+    throw new Error(
+      'Invalid Azure region: must match /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/ (e.g. eastus, westeurope)'
+    )
   }
 
   let ssml = `<speak version='1.0' xml:lang='en-US' xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts"><voice name='${voiceId}'>`
@@ -733,12 +758,17 @@ async function synthesizeWithAzure(
   })
 
   if (!response.ok) {
-    const error = await response.text()
+    const error = await readResponseTextWithLimit(response, {
+      maxBytes: MAX_TTS_ERROR_BYTES,
+      label: 'Azure TTS error response',
+    })
     throw new Error(`Azure TTS API error: ${error || response.statusText}`)
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  const audioBuffer = Buffer.from(arrayBuffer)
+  const audioBuffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_TTS_AUDIO_BYTES,
+    label: 'Azure TTS audio response',
+  })
 
   const format = outputFormat.includes('mp3') ? 'mp3' : 'wav'
   const mimeType = getMimeType(format)
@@ -795,13 +825,15 @@ async function synthesizeWithPlayHT(
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    const errorMessage = error.error_message || error.message || response.statusText
+    const error = await readTtsErrorJson(response, 'PlayHT TTS error response')
+    const errorMessage = getTtsErrorMessage(error, response.statusText)
     throw new Error(`PlayHT TTS API error: ${errorMessage}`)
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  const audioBuffer = Buffer.from(arrayBuffer)
+  const audioBuffer = await readResponseToBufferWithLimit(response, {
+    maxBytes: MAX_TTS_AUDIO_BYTES,
+    label: 'PlayHT TTS audio response',
+  })
 
   const format = outputFormat || 'mp3'
   const mimeType = getMimeType(format)

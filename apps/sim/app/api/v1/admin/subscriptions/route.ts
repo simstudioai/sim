@@ -16,54 +16,69 @@ import { db } from '@sim/db'
 import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, type SQL } from 'drizzle-orm'
+import { adminV1ListSubscriptionsContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
-import { internalErrorResponse, listResponse } from '@/app/api/v1/admin/responses'
+import {
+  adminValidationErrorResponse,
+  internalErrorResponse,
+  listResponse,
+} from '@/app/api/v1/admin/responses'
 import {
   type AdminSubscription,
   createPaginationMeta,
-  parsePaginationParams,
   toAdminSubscription,
 } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminSubscriptionsAPI')
 
-export const GET = withAdminAuth(async (request) => {
-  const url = new URL(request.url)
-  const { limit, offset } = parsePaginationParams(url)
-  const planFilter = url.searchParams.get('plan')
-  const statusFilter = url.searchParams.get('status')
+export const GET = withRouteHandler(
+  withAdminAuth(async (request) => {
+    const parsed = await parseRequest(
+      adminV1ListSubscriptionsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: adminValidationErrorResponse,
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-  try {
-    const conditions: SQL<unknown>[] = []
-    if (planFilter) {
-      conditions.push(eq(subscription.plan, planFilter))
+    const { limit, offset, plan: planFilter, status: statusFilter } = parsed.data.query
+
+    try {
+      const conditions: SQL<unknown>[] = []
+      if (planFilter) {
+        conditions.push(eq(subscription.plan, planFilter))
+      }
+      if (statusFilter) {
+        conditions.push(eq(subscription.status, statusFilter))
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+
+      const [countResult, subscriptions] = await Promise.all([
+        db.select({ total: count() }).from(subscription).where(whereClause),
+        db
+          .select()
+          .from(subscription)
+          .where(whereClause)
+          .orderBy(subscription.plan)
+          .limit(limit)
+          .offset(offset),
+      ])
+
+      const total = countResult[0].total
+      const data: AdminSubscription[] = subscriptions.map(toAdminSubscription)
+      const pagination = createPaginationMeta(total, limit, offset)
+
+      logger.info(`Admin API: Listed ${data.length} subscriptions (total: ${total})`)
+
+      return listResponse(data, pagination)
+    } catch (error) {
+      logger.error('Admin API: Failed to list subscriptions', { error })
+      return internalErrorResponse('Failed to list subscriptions')
     }
-    if (statusFilter) {
-      conditions.push(eq(subscription.status, statusFilter))
-    }
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
-
-    const [countResult, subscriptions] = await Promise.all([
-      db.select({ total: count() }).from(subscription).where(whereClause),
-      db
-        .select()
-        .from(subscription)
-        .where(whereClause)
-        .orderBy(subscription.plan)
-        .limit(limit)
-        .offset(offset),
-    ])
-
-    const total = countResult[0].total
-    const data: AdminSubscription[] = subscriptions.map(toAdminSubscription)
-    const pagination = createPaginationMeta(total, limit, offset)
-
-    logger.info(`Admin API: Listed ${data.length} subscriptions (total: ${total})`)
-
-    return listResponse(data, pagination)
-  } catch (error) {
-    logger.error('Admin API: Failed to list subscriptions', { error })
-    return internalErrorResponse('Failed to list subscriptions')
-  }
-})
+  })
+)

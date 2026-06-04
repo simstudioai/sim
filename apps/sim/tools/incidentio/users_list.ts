@@ -31,6 +31,18 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
       visibility: 'user-or-llm',
       description: 'Pagination cursor to fetch the next page of results',
     },
+    email: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter users by email address',
+    },
+    slack_user_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter users by Slack user ID',
+    },
   },
 
   request: {
@@ -42,7 +54,15 @@ export const usersListTool: ToolConfig<IncidentioUsersListParams, IncidentioUser
       }
 
       if (params.after) {
-        url.searchParams.append('after', params.after)
+        url.searchParams.append('after', params.after.trim())
+      }
+
+      if (params.email) {
+        url.searchParams.append('email', params.email.trim())
+      }
+
+      if (params.slack_user_id) {
+        url.searchParams.append('slack_user_id', params.slack_user_id.trim())
       }
 
       return url.toString()

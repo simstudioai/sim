@@ -1,36 +1,30 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  deleteTableRowContract,
+  getTableQuerySchema,
+  updateTableRowContract,
+} from '@/lib/api/contracts/tables'
+import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
 
-const GetRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-})
-
-const UpdateRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  data: z.record(z.unknown(), { required_error: 'Row data is required' }),
-})
-
-const DeleteRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-})
-
 interface RowRouteParams {
   params: Promise<{ tableId: string; rowId: string }>
 }
 
 /** GET /api/table/[tableId]/rows/[rowId] - Retrieves a single row. */
-export async function GET(request: NextRequest, { params }: RowRouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
   const { tableId, rowId } = await params
 
@@ -41,7 +35,7 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
     }
 
     const { searchParams } = new URL(request.url)
-    const validated = GetRowSchema.parse({
+    const validated = getTableQuerySchema.parse({
       workspaceId: searchParams.get('workspaceId'),
     })
 
@@ -93,22 +87,18 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
+    if (isZodError(error)) {
+      return validationErrorResponse(error)
     }
 
     logger.error(`[${requestId}] Error getting row:`, error)
     return NextResponse.json({ error: 'Failed to get row' }, { status: 500 })
   }
-}
+})
 
 /** PATCH /api/table/[tableId]/rows/[rowId] - Updates a single row (supports partial updates). */
-export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
+export const PATCH = withRouteHandler(async (request: NextRequest, context: RowRouteParams) => {
   const requestId = generateRequestId()
-  const { tableId, rowId } = await params
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -116,14 +106,13 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
+    const parsed = await parseRequest(updateTableRowContract, request, context, {
+      validationErrorResponse: (error) => validationErrorResponse(error),
+    })
+    if (!parsed.success) return parsed.response
 
-    const validated = UpdateRowSchema.parse(body)
+    const { tableId, rowId } = parsed.data.params
+    const validated = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -134,37 +123,24 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const [existingRow] = await db
-      .select({ data: userTableRows.data })
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .limit(1)
-
-    if (!existingRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    const mergedData = {
-      ...(existingRow.data as RowData),
-      ...(validated.data as RowData),
-    }
-
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: mergedData,
+        data: validated.data as RowData,
         workspaceId: validated.workspaceId,
       },
       table,
       requestId
     )
+    // Only `null` when a `cancellationGuard` is supplied and the SQL guard
+    // rejects the write — this route doesn't pass one, so reaching null is a bug.
+    if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
+    // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
+    // Firing a second mode: 'incomplete' dispatch here would race with the
+    // `mode: 'new'` one AND bulk-clear sibling-group outputs (the incomplete
+    // bulk-clear wipes ALL targeted columns when any one column on the row
+    // is empty).
 
     return NextResponse.json({
       success: true,
@@ -186,14 +162,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
       return NextResponse.json({ error: errorMessage }, { status: 404 })
@@ -212,12 +181,11 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
   }
-}
+})
 
 /** DELETE /api/table/[tableId]/rows/[rowId] - Deletes a single row. */
-export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
+export const DELETE = withRouteHandler(async (request: NextRequest, context: RowRouteParams) => {
   const requestId = generateRequestId()
-  const { tableId, rowId } = await params
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -225,14 +193,13 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
+    const parsed = await parseRequest(deleteTableRowContract, request, context, {
+      validationErrorResponse: (error) => validationErrorResponse(error),
+    })
+    if (!parsed.success) return parsed.response
 
-    const validated = DeleteRowSchema.parse(body)
+    const { tableId, rowId } = parsed.data.params
+    const validated = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -253,14 +220,7 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
       return NextResponse.json({ error: errorMessage }, { status: 404 })
@@ -269,4 +229,4 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }
-}
+})

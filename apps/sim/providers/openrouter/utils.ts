@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
@@ -19,9 +20,6 @@ let modelCapabilitiesCache: Map<string, ModelCapabilities> | null = null
 let cacheTimestamp = 0
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
-/**
- * Fetches and caches OpenRouter model capabilities from their API.
- */
 async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>> {
   try {
     const response = await fetch('https://openrouter.ai/api/v1/models', {
@@ -57,7 +55,7 @@ async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>>
     return capabilities
   } catch (error) {
     logger.error('Error fetching OpenRouter model capabilities', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return new Map()
   }
@@ -81,18 +79,11 @@ export async function getOpenRouterModelCapabilities(
   return modelCapabilitiesCache.get(normalizedId) ?? null
 }
 
-/**
- * Checks if a model supports native structured outputs (json_schema).
- */
 export async function supportsNativeStructuredOutputs(modelId: string): Promise<boolean> {
   const capabilities = await getOpenRouterModelCapabilities(modelId)
   return capabilities?.supportsStructuredOutputs ?? false
 }
 
-/**
- * Creates a ReadableStream from an OpenRouter streaming response.
- * Uses the shared OpenAI-compatible streaming utility.
- */
 export function createReadableStreamFromOpenAIStream(
   openaiStream: AsyncIterable<ChatCompletionChunk>,
   onComplete?: (content: string, usage: CompletionUsage) => void
@@ -100,10 +91,6 @@ export function createReadableStreamFromOpenAIStream(
   return createOpenAICompatibleStream(openaiStream, 'OpenRouter', onComplete)
 }
 
-/**
- * Checks if a forced tool was used in an OpenRouter response.
- * Uses the shared OpenAI-compatible forced tool usage helper.
- */
 export function checkForForcedToolUsage(
   response: any,
   toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any },

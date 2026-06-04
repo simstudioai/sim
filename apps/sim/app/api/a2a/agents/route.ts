@@ -7,13 +7,16 @@
 import { db } from '@sim/db'
 import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import { A2A_DEFAULT_CAPABILITIES } from '@/lib/a2a/constants'
 import { sanitizeAgentName } from '@/lib/a2a/utils'
+import { createA2AAgentContract, listA2AAgentsQuerySchema } from '@/lib/api/contracts/a2a-agents'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
@@ -26,19 +29,24 @@ export const dynamic = 'force-dynamic'
 /**
  * GET - List all A2A agents for a workspace
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const workspaceId = searchParams.get('workspaceId')
+    const queryResult = listA2AAgentsQuerySchema.safeParse({
+      workspaceId: request.nextUrl.searchParams.get('workspaceId'),
+    })
 
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
+    if (!queryResult.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(queryResult.error) },
+        { status: 400 }
+      )
     }
+    const { workspaceId } = queryResult.data
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, auth.userId)
     if (!workspaceAccess.exists) {
@@ -84,28 +92,23 @@ export async function GET(request: NextRequest) {
     logger.error('Error listing agents:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * POST - Create a new A2A agent from a workflow
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { workspaceId, workflowId, name, description, capabilities, authentication, skillTags } =
-      body
+    const parsed = await parseRequest(createA2AAgentContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    if (!workspaceId || !workflowId) {
-      return NextResponse.json(
-        { error: 'workspaceId and workflowId are required' },
-        { status: 400 }
-      )
-    }
+    const { workspaceId, workflowId, name, description, capabilities, authentication, skillTags } =
+      parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, auth.userId)
     if (!workspaceAccess.exists) {
@@ -217,4 +220,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error creating agent:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

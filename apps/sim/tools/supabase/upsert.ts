@@ -1,4 +1,6 @@
+import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseUpsertParams, SupabaseUpsertResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse> = {
@@ -42,7 +44,11 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
   },
 
   request: {
-    url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
+    url: (params) => {
+      const tableValidation = validateDatabaseIdentifier(params.table, 'table')
+      if (!tableValidation.isValid) throw new Error(tableValidation.error)
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
+    },
     method: 'POST',
     headers: (params) => {
       const headers: Record<string, string> = {

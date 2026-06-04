@@ -11,7 +11,7 @@ export const validateTemplateTool: ToolConfig<
   id: 'cloudformation_validate_template',
   name: 'CloudFormation Validate Template',
   description: 'Validate a CloudFormation template for syntax and structural correctness',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

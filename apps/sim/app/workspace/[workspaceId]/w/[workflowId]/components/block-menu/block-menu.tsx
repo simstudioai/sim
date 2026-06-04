@@ -35,6 +35,7 @@ export interface BlockMenuProps {
   onClose: () => void
   selectedBlocks: BlockInfo[]
   onCopy: () => void
+  onCut: () => void
   onPaste: () => void
   onDuplicate: () => void
   onDelete: () => void
@@ -74,6 +75,7 @@ export function BlockMenu({
   onClose,
   selectedBlocks,
   onCopy,
+  onCut,
   onPaste,
   onDuplicate,
   onDelete,
@@ -161,6 +163,17 @@ export function BlockMenu({
         >
           <span>Copy</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘C</span>
+        </PopoverItem>
+        <PopoverItem
+          className='group'
+          disabled={disableEdit}
+          onClick={() => {
+            onCut()
+            onClose()
+          }}
+        >
+          <span>Cut</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘X</span>
         </PopoverItem>
         <PopoverItem
           className='group'

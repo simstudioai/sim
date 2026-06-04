@@ -1,4 +1,3 @@
-import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
@@ -9,72 +8,17 @@ export const jiraTriggerOptions = [
   { label: 'Issue Updated', id: 'jira_issue_updated' },
   { label: 'Issue Deleted', id: 'jira_issue_deleted' },
   { label: 'Issue Commented', id: 'jira_issue_commented' },
+  { label: 'Comment Updated', id: 'jira_comment_updated' },
+  { label: 'Comment Deleted', id: 'jira_comment_deleted' },
   { label: 'Worklog Created', id: 'jira_worklog_created' },
+  { label: 'Worklog Updated', id: 'jira_worklog_updated' },
+  { label: 'Worklog Deleted', id: 'jira_worklog_deleted' },
+  { label: 'Sprint Created', id: 'jira_sprint_created' },
+  { label: 'Sprint Started', id: 'jira_sprint_started' },
+  { label: 'Sprint Closed', id: 'jira_sprint_closed' },
+  { label: 'Project Created', id: 'jira_project_created' },
+  { label: 'Version Released', id: 'jira_version_released' },
   { label: 'Generic Webhook (All Events)', id: 'jira_webhook' },
-]
-
-/**
- * Common webhook subBlocks for Jira triggers
- * Used across all Jira webhook-based triggers
- */
-export const jiraWebhookSubBlocks: SubBlockConfig[] = [
-  {
-    id: 'triggerCredentials',
-    title: 'Jira Credentials',
-    type: 'oauth-input',
-    serviceId: 'jira',
-    requiredScopes: [
-      'read:jira-work',
-      'read:jira-user',
-      'manage:jira-webhook',
-      'read:webhook:jira',
-      'write:webhook:jira',
-      'delete:webhook:jira',
-      'read:issue-event:jira',
-      'read:issue:jira',
-      'read:issue.changelog:jira',
-      'read:comment:jira',
-      'read:comment.property:jira',
-      'read:issue.property:jira',
-      'read:issue-worklog:jira',
-      'read:project:jira',
-      'read:field:jira',
-      'read:jql:jira',
-    ],
-    placeholder: 'Select Jira account',
-    required: true,
-    mode: 'trigger',
-  },
-  {
-    id: 'webhookUrlDisplay',
-    title: 'Webhook URL',
-    type: 'short-input',
-    readOnly: true,
-    showCopyButton: true,
-    useWebhookUrl: true,
-    placeholder: 'Webhook URL will be generated after saving',
-    mode: 'trigger',
-    description: 'Copy this URL and use it when configuring the webhook in Jira',
-  },
-  {
-    id: 'webhookSecret',
-    title: 'Webhook Secret',
-    type: 'short-input',
-    placeholder: 'Enter webhook secret for validation',
-    description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
-    password: true,
-    required: false,
-    mode: 'trigger',
-  },
-  {
-    id: 'jiraDomain',
-    title: 'Jira Domain',
-    type: 'short-input',
-    placeholder: 'your-company.atlassian.net',
-    description: 'Your Jira Cloud domain',
-    required: false,
-    mode: 'trigger',
-  },
 ]
 
 /**
@@ -113,6 +57,20 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
     timestamp: {
       type: 'number',
       description: 'Timestamp of the webhook event',
+    },
+    user: {
+      displayName: {
+        type: 'string',
+        description: 'Display name of the user who triggered the event',
+      },
+      accountId: {
+        type: 'string',
+        description: 'Account ID of the user who triggered the event',
+      },
+      emailAddress: {
+        type: 'string',
+        description: 'Email address of the user who triggered the event',
+      },
     },
 
     issue: {
@@ -166,7 +124,8 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
           },
           emailAddress: {
             type: 'string',
-            description: 'Creator email address',
+            description:
+              'Email address (Jira Server only — not available in Jira Cloud webhook payloads)',
           },
         },
         duedate: {
@@ -191,6 +150,11 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
           type: 'string',
           description: 'Issue summary/title',
         },
+        description: {
+          type: 'json',
+          description:
+            'Issue description in Atlassian Document Format (ADF). On Jira Server this may be a plain string.',
+        },
         updated: {
           type: 'string',
           description: 'Last updated date (ISO format)',
@@ -210,7 +174,8 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
           },
           emailAddress: {
             type: 'string',
-            description: 'Assignee email address',
+            description:
+              'Email address (Jira Server only — not available in Jira Cloud webhook payloads)',
           },
         },
         priority: {
@@ -238,7 +203,8 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
           },
           emailAddress: {
             type: 'string',
-            description: 'Reporter email address',
+            description:
+              'Email address (Jira Server only — not available in Jira Cloud webhook payloads)',
           },
         },
         security: {
@@ -262,6 +228,24 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
             type: 'string',
             description: 'Issue type ID',
           },
+        },
+        resolution: {
+          name: {
+            type: 'string',
+            description: 'Resolution name (e.g., Done, Fixed)',
+          },
+          id: {
+            type: 'string',
+            description: 'Resolution ID',
+          },
+        },
+        components: {
+          type: 'array',
+          description: 'Array of component objects associated with this issue',
+        },
+        fixVersions: {
+          type: 'array',
+          description: 'Array of fix version objects for this issue',
         },
       },
     },
@@ -309,8 +293,9 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
         description: 'Comment ID',
       },
       body: {
-        type: 'string',
-        description: 'Comment text/body',
+        type: 'json',
+        description:
+          'Comment body in Atlassian Document Format (ADF). On Jira Server this may be a plain string.',
       },
       author: {
         displayName: {
@@ -326,6 +311,16 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
           description: 'Comment author email address',
         },
       },
+      updateAuthor: {
+        displayName: {
+          type: 'string',
+          description: 'Display name of the user who last updated the comment',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Account ID of the user who last updated the comment',
+        },
+      },
       created: {
         type: 'string',
         description: 'Comment creation date (ISO format)',
@@ -333,6 +328,10 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
       updated: {
         type: 'string',
         description: 'Comment last updated date (ISO format)',
+      },
+      self: {
+        type: 'string',
+        description: 'REST API URL for this comment',
       },
     },
   }
@@ -361,6 +360,16 @@ export function buildWorklogOutputs(): Record<string, TriggerOutput> {
           description: 'Worklog author email address',
         },
       },
+      updateAuthor: {
+        displayName: {
+          type: 'string',
+          description: 'Display name of the user who last updated the worklog',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Account ID of the user who last updated the worklog',
+        },
+      },
       timeSpent: {
         type: 'string',
         description: 'Time spent (e.g., "2h 30m")',
@@ -377,6 +386,22 @@ export function buildWorklogOutputs(): Record<string, TriggerOutput> {
         type: 'string',
         description: 'When the work was started (ISO format)',
       },
+      created: {
+        type: 'string',
+        description: 'When the worklog entry was created (ISO format)',
+      },
+      updated: {
+        type: 'string',
+        description: 'When the worklog entry was last updated (ISO format)',
+      },
+      issueId: {
+        type: 'string',
+        description: 'ID of the issue this worklog belongs to',
+      },
+      self: {
+        type: 'string',
+        description: 'REST API URL for this worklog entry',
+      },
     },
   }
 }
@@ -391,9 +416,16 @@ export function isJiraEventMatch(
     jira_issue_updated: ['jira:issue_updated', 'issue_updated', 'issue_generic'],
     jira_issue_deleted: ['jira:issue_deleted', 'issue_deleted'],
     jira_issue_commented: ['comment_created'],
+    jira_comment_updated: ['comment_updated'],
+    jira_comment_deleted: ['comment_deleted'],
     jira_worklog_created: ['worklog_created'],
     jira_worklog_updated: ['worklog_updated'],
     jira_worklog_deleted: ['worklog_deleted'],
+    jira_sprint_created: ['sprint_created'],
+    jira_sprint_started: ['sprint_started'],
+    jira_sprint_closed: ['sprint_closed'],
+    jira_project_created: ['project_created'],
+    jira_version_released: ['jira:version_released'],
     // Generic webhook accepts all events
     jira_webhook: ['*'],
   }
@@ -415,30 +447,273 @@ export function isJiraEventMatch(
   )
 }
 
-export function extractIssueData(body: any) {
+export function extractIssueData(body: unknown) {
+  const obj = body as Record<string, unknown>
   return {
-    webhookEvent: body.webhookEvent,
-    timestamp: body.timestamp,
-    issue_event_type_name: body.issue_event_type_name,
-    issue: body.issue || {},
-    changelog: body.changelog,
+    webhookEvent: obj.webhookEvent,
+    timestamp: obj.timestamp,
+    user: obj.user || null,
+    issue_event_type_name: obj.issue_event_type_name,
+    issue: obj.issue || {},
+    changelog: obj.changelog,
   }
 }
 
-export function extractCommentData(body: any) {
+export function extractCommentData(body: unknown) {
+  const obj = body as Record<string, unknown>
   return {
-    webhookEvent: body.webhookEvent,
-    timestamp: body.timestamp,
-    issue: body.issue || {},
-    comment: body.comment || {},
+    webhookEvent: obj.webhookEvent,
+    timestamp: obj.timestamp,
+    user: obj.user || null,
+    issue: obj.issue || {},
+    comment: obj.comment || {},
   }
 }
 
-export function extractWorklogData(body: any) {
+export function extractWorklogData(body: unknown) {
+  const obj = body as Record<string, unknown>
   return {
-    webhookEvent: body.webhookEvent,
-    timestamp: body.timestamp,
-    issue: body.issue || {},
-    worklog: body.worklog || {},
+    webhookEvent: obj.webhookEvent,
+    timestamp: obj.timestamp,
+    user: obj.user || null,
+    issue: obj.issue || {},
+    worklog: obj.worklog || {},
+  }
+}
+
+/**
+ * Builds output schema for sprint-related webhook events
+ */
+export function buildSprintOutputs(): Record<string, TriggerOutput> {
+  return {
+    webhookEvent: {
+      type: 'string',
+      description: 'The webhook event type (e.g., sprint_started, sprint_closed)',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Timestamp of the webhook event',
+    },
+    user: {
+      displayName: {
+        type: 'string',
+        description: 'Display name of the user who triggered the event',
+      },
+      accountId: {
+        type: 'string',
+        description: 'Account ID of the user who triggered the event',
+      },
+      emailAddress: {
+        type: 'string',
+        description: 'Email address of the user who triggered the event',
+      },
+    },
+    sprint: {
+      id: {
+        type: 'number',
+        description: 'Sprint ID',
+      },
+      self: {
+        type: 'string',
+        description: 'REST API URL for this sprint',
+      },
+      state: {
+        type: 'string',
+        description: 'Sprint state (future, active, closed)',
+      },
+      name: {
+        type: 'string',
+        description: 'Sprint name',
+      },
+      startDate: {
+        type: 'string',
+        description: 'Sprint start date (ISO format)',
+      },
+      endDate: {
+        type: 'string',
+        description: 'Sprint end date (ISO format)',
+      },
+      completeDate: {
+        type: 'string',
+        description: 'Sprint completion date (ISO format)',
+      },
+      originBoardId: {
+        type: 'number',
+        description: 'Board ID the sprint belongs to',
+      },
+      goal: {
+        type: 'string',
+        description: 'Sprint goal',
+      },
+      createdDate: {
+        type: 'string',
+        description: 'Sprint creation date (ISO format)',
+      },
+    },
+  }
+}
+
+/**
+ * Builds output schema for project_created webhook events
+ */
+export function buildProjectCreatedOutputs(): Record<string, TriggerOutput> {
+  return {
+    webhookEvent: {
+      type: 'string',
+      description: 'The webhook event type (project_created)',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Timestamp of the webhook event',
+    },
+    user: {
+      displayName: {
+        type: 'string',
+        description: 'Display name of the user who triggered the event',
+      },
+      accountId: {
+        type: 'string',
+        description: 'Account ID of the user who triggered the event',
+      },
+      emailAddress: {
+        type: 'string',
+        description: 'Email address of the user who triggered the event',
+      },
+    },
+    project: {
+      id: {
+        type: 'string',
+        description: 'Project ID',
+      },
+      key: {
+        type: 'string',
+        description: 'Project key',
+      },
+      name: {
+        type: 'string',
+        description: 'Project name',
+      },
+      self: {
+        type: 'string',
+        description: 'REST API URL for this project',
+      },
+      projectTypeKey: {
+        type: 'string',
+        description: 'Project type (e.g., software, business)',
+      },
+      lead: {
+        displayName: {
+          type: 'string',
+          description: 'Project lead display name',
+        },
+        accountId: {
+          type: 'string',
+          description: 'Project lead account ID',
+        },
+      },
+    },
+  }
+}
+
+/**
+ * Builds output schema for version_released webhook events
+ */
+export function buildVersionReleasedOutputs(): Record<string, TriggerOutput> {
+  return {
+    webhookEvent: {
+      type: 'string',
+      description: 'The webhook event type (jira:version_released)',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Timestamp of the webhook event',
+    },
+    user: {
+      displayName: {
+        type: 'string',
+        description: 'Display name of the user who triggered the event',
+      },
+      accountId: {
+        type: 'string',
+        description: 'Account ID of the user who triggered the event',
+      },
+      emailAddress: {
+        type: 'string',
+        description: 'Email address of the user who triggered the event',
+      },
+    },
+    version: {
+      id: {
+        type: 'string',
+        description: 'Version ID',
+      },
+      name: {
+        type: 'string',
+        description: 'Version name',
+      },
+      self: {
+        type: 'string',
+        description: 'REST API URL for this version',
+      },
+      released: {
+        type: 'boolean',
+        description: 'Whether the version is released',
+      },
+      releaseDate: {
+        type: 'string',
+        description: 'Release date (ISO format)',
+      },
+      projectId: {
+        type: 'number',
+        description: 'Project ID the version belongs to',
+      },
+      description: {
+        type: 'string',
+        description: 'Version description',
+      },
+      archived: {
+        type: 'boolean',
+        description: 'Whether the version is archived',
+      },
+    },
+  }
+}
+
+/**
+ * Extracts sprint data from a Jira webhook payload
+ */
+export function extractSprintData(body: unknown) {
+  const obj = body as Record<string, unknown>
+  return {
+    webhookEvent: obj.webhookEvent,
+    timestamp: obj.timestamp,
+    user: obj.user || null,
+    sprint: obj.sprint || {},
+  }
+}
+
+/**
+ * Extracts project data from a Jira webhook payload
+ */
+export function extractProjectData(body: unknown) {
+  const obj = body as Record<string, unknown>
+  return {
+    webhookEvent: obj.webhookEvent,
+    timestamp: obj.timestamp,
+    user: obj.user || null,
+    project: obj.project || {},
+  }
+}
+
+/**
+ * Extracts version data from a Jira webhook payload
+ */
+export function extractVersionData(body: unknown) {
+  const obj = body as Record<string, unknown>
+  return {
+    webhookEvent: obj.webhookEvent,
+    timestamp: obj.timestamp,
+    user: obj.user || null,
+    version: obj.version || {},
   }
 }

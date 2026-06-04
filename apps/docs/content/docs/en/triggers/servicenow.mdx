@@ -1,0 +1,210 @@
+---
+title: ServiceNow
+description: Available ServiceNow triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="servicenow"
+  color="#032D42"
+/>
+
+ServiceNow provides 5 triggers for automating workflows based on events.
+
+## Triggers
+
+### ServiceNow Change Request Created
+
+Trigger workflow when a new change request is created in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `type` | string | Change type \(Normal, Standard, Emergency\) |
+| `risk` | string | Risk level of the change |
+| `impact` | string | Impact level of the change |
+| `approval` | string | Approval status |
+| `startDate` | string | Planned start date |
+| `endDate` | string | Planned end date |
+| `category` | string | Change category |
+| `record` | json | Full change request record data |
+
+
+---
+
+### ServiceNow Change Request Updated
+
+Trigger workflow when a change request is updated in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `type` | string | Change type \(Normal, Standard, Emergency\) |
+| `risk` | string | Risk level of the change |
+| `impact` | string | Impact level of the change |
+| `approval` | string | Approval status |
+| `startDate` | string | Planned start date |
+| `endDate` | string | Planned end date |
+| `category` | string | Change category |
+| `record` | json | Full change request record data |
+
+
+---
+
+### ServiceNow Incident Created
+
+Trigger workflow when a new incident is created in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `urgency` | string | Urgency level \(1=High, 2=Medium, 3=Low\) |
+| `impact` | string | Impact level \(1=High, 2=Medium, 3=Low\) |
+| `category` | string | Incident category |
+| `subcategory` | string | Incident subcategory |
+| `caller` | string | Caller/requester of the incident |
+| `resolvedBy` | string | User who resolved the incident |
+| `resolvedAt` | string | When the incident was resolved |
+| `closeNotes` | string | Notes added when the incident was closed |
+| `record` | json | Full incident record data |
+
+
+---
+
+### ServiceNow Incident Updated
+
+Trigger workflow when an incident is updated in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `urgency` | string | Urgency level \(1=High, 2=Medium, 3=Low\) |
+| `impact` | string | Impact level \(1=High, 2=Medium, 3=Low\) |
+| `category` | string | Incident category |
+| `subcategory` | string | Incident subcategory |
+| `caller` | string | Caller/requester of the incident |
+| `resolvedBy` | string | User who resolved the incident |
+| `resolvedAt` | string | When the incident was resolved |
+| `closeNotes` | string | Notes added when the incident was closed |
+| `record` | json | Full incident record data |
+
+
+---
+
+### ServiceNow Webhook (All Events)
+
+Trigger workflow on any ServiceNow webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `eventType` | string | The type of event that triggered this workflow \(e.g., insert, update, delete\) |
+| `category` | string | Record category |
+| `record` | json | Full record data from the webhook payload |
+

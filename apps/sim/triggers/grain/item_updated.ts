@@ -40,18 +40,6 @@ export const grainItemUpdatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'grain_item_updated',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'grain_item_updated',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

@@ -5,74 +5,72 @@
  * @vitest-environment node
  */
 
-import { auditMock, envMock, loggerMock, requestUtilsMock, telemetryMock } from '@sim/testing'
+import {
+  auditMock,
+  envMock,
+  hybridAuthMockFns,
+  telemetryMock,
+  workflowAuthzMockFns,
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockCheckHybridAuth = vi.fn()
-const mockCheckSessionOrInternalAuth = vi.fn()
-const mockLoadWorkflowFromNormalizedTables = vi.fn()
-const mockGetWorkflowById = vi.fn()
-const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
-const mockPerformDeleteWorkflow = vi.fn()
-const mockDbUpdate = vi.fn()
-const mockDbSelect = vi.fn()
+const mockLoadWorkflowFromNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
+const mockAuthorizeWorkflowByWorkspacePermission =
+  workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
+const mockPerformDeleteWorkflow = workflowsOrchestrationMockFns.mockPerformDeleteWorkflow
+const mockPerformUpdateWorkflow = workflowsOrchestrationMockFns.mockPerformUpdateWorkflow
+
+const { mockDbUpdate, mockDbSelect, mockDbTransaction } = vi.hoisted(() => ({
+  mockDbUpdate: vi.fn(),
+  mockDbSelect: vi.fn(),
+  mockDbTransaction: vi.fn(),
+}))
 
 /**
  * Helper to set mock auth state consistently across getSession and hybrid auth.
  */
 function mockGetSession(session: { user: { id: string } } | null) {
   if (session) {
-    mockCheckHybridAuth.mockResolvedValue({ success: true, userId: session.user.id })
-    mockCheckSessionOrInternalAuth.mockResolvedValue({ success: true, userId: session.user.id })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
+      success: true,
+      userId: session.user.id,
+    })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: session.user.id,
+    })
   } else {
-    mockCheckHybridAuth.mockResolvedValue({ success: false })
-    mockCheckSessionOrInternalAuth.mockResolvedValue({ success: false })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: false })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({ success: false })
   }
 }
-
-vi.mock('@/lib/auth', () => ({
-  getSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkHybridAuth: (...args: unknown[]) => mockCheckHybridAuth(...args),
-  checkSessionOrInternalAuth: (...args: unknown[]) => mockCheckSessionOrInternalAuth(...args),
-}))
 
 vi.mock('@/lib/core/config/env', () => envMock)
 
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/audit/log', () => auditMock)
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: (workflowId: string) =>
-    mockLoadWorkflowFromNormalizedTables(workflowId),
-}))
-
-vi.mock('@/lib/workflows/utils', () => ({
-  getWorkflowById: (workflowId: string) => mockGetWorkflowById(workflowId),
-  authorizeWorkflowByWorkspacePermission: (params: {
-    workflowId: string
-    userId: string
-    action?: 'read' | 'write' | 'admin'
-  }) => mockAuthorizeWorkflowByWorkspacePermission(params),
-}))
-
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performDeleteWorkflow: (...args: unknown[]) => mockPerformDeleteWorkflow(...args),
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 vi.mock('@sim/db', () => ({
   db: {
     update: () => mockDbUpdate(),
     select: () => mockDbSelect(),
+    transaction: mockDbTransaction,
   },
   workflow: {},
 }))
@@ -88,10 +86,34 @@ describe('Workflow By ID API Route', () => {
     })
 
     mockLoadWorkflowFromNormalizedTables.mockResolvedValue(null)
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
+    mockPerformUpdateWorkflow.mockImplementation(async (params) => ({
+      success: true,
+      workflow: {
+        id: params.workflowId,
+        name: params.name ?? params.currentName,
+        description: params.description ?? null,
+        color: params.color ?? null,
+        workspaceId: params.workspaceId,
+        folderId: params.folderId ?? params.currentFolderId ?? null,
+        sortOrder: params.sortOrder ?? null,
+        locked: params.locked ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        archivedAt: null,
+      },
+    }))
+    mockDbTransaction.mockImplementation(async (callback) =>
+      callback({
+        execute: vi.fn().mockResolvedValue(undefined),
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+      })
+    )
   })
 
   describe('GET /api/workflows/[id]', () => {
@@ -375,7 +397,42 @@ describe('Workflow By ID API Route', () => {
       expect(data.error).toBe('Cannot delete the only workflow in the workspace')
     })
 
-    it.concurrent('should deny deletion for non-admin users', async () => {
+    it('should allow user with write permission to delete workflow', async () => {
+      const mockWorkflow = {
+        id: 'workflow-123',
+        userId: 'other-user',
+        name: 'Test Workflow',
+        workspaceId: 'workspace-456',
+      }
+
+      mockGetSession({ user: { id: 'user-123' } })
+
+      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
+        workflow: mockWorkflow,
+        workspacePermission: 'write',
+      })
+
+      mockPerformDeleteWorkflow.mockResolvedValue({ success: true })
+
+      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
+        method: 'DELETE',
+      })
+      const params = Promise.resolve({ id: 'workflow-123' })
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.success).toBe(true)
+      expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith(
+        expect.objectContaining({ workflowId: 'workflow-123', action: 'write' })
+      )
+    })
+
+    it.concurrent('should deny deletion for read-only users', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'other-user',
@@ -389,9 +446,9 @@ describe('Workflow By ID API Route', () => {
       mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
         allowed: false,
         status: 403,
-        message: 'Unauthorized: Access denied to admin this workflow',
+        message: 'Unauthorized: Access denied to write this workflow',
         workflow: mockWorkflow,
-        workspacePermission: null,
+        workspacePermission: 'read',
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
@@ -403,7 +460,7 @@ describe('Workflow By ID API Route', () => {
 
       expect(response.status).toBe(403)
       const data = await response.json()
-      expect(data.error).toBe('Unauthorized: Access denied to admin this workflow')
+      expect(data.error).toBe('Unauthorized: Access denied to write this workflow')
     })
   })
 
@@ -570,7 +627,7 @@ describe('Workflow By ID API Route', () => {
 
       expect(response.status).toBe(400)
       const data = await response.json()
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
     })
 
     it('should reject rename when duplicate name exists in same folder', async () => {
@@ -590,8 +647,11 @@ describe('Workflow By ID API Route', () => {
         workflow: mockWorkflow,
         workspacePermission: 'write',
       })
-
-      mockDuplicateCheck([{ id: 'workflow-other' }])
+      mockPerformUpdateWorkflow.mockResolvedValueOnce({
+        success: false,
+        error: 'A workflow named "Duplicate Name" already exists in this folder',
+        errorCode: 'conflict',
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'PUT',
@@ -623,8 +683,11 @@ describe('Workflow By ID API Route', () => {
         workflow: mockWorkflow,
         workspacePermission: 'write',
       })
-
-      mockDuplicateCheck([{ id: 'workflow-other' }])
+      mockPerformUpdateWorkflow.mockResolvedValueOnce({
+        success: false,
+        error: 'A workflow named "Duplicate Name" already exists in this folder',
+        errorCode: 'conflict',
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'PUT',
@@ -743,9 +806,11 @@ describe('Workflow By ID API Route', () => {
         workflow: mockWorkflow,
         workspacePermission: 'write',
       })
-
-      // Duplicate exists in target folder
-      mockDuplicateCheck([{ id: 'workflow-other' }])
+      mockPerformUpdateWorkflow.mockResolvedValueOnce({
+        success: false,
+        error: 'A workflow named "My Workflow" already exists in this folder',
+        errorCode: 'conflict',
+      })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'PUT',

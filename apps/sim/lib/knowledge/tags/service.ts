@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import type { DbOrTx } from '@/lib/db/types'
 import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
@@ -304,7 +304,7 @@ export async function getTagDefinitionById(
 /**
  * Update tags on all documents and chunks when a tag value is changed
  */
-export async function updateTagValuesInDocumentsAndChunks(
+async function updateTagValuesInDocumentsAndChunks(
   knowledgeBaseId: string,
   tagSlot: string,
   oldValue: string | null,

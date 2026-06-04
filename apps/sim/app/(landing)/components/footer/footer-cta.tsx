@@ -2,11 +2,18 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
-import Link from 'next/link'
+import dynamic from 'next/dynamic'
+import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
+
+const AuthModal = dynamic(
+  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
+  { loading: () => null }
+)
 
 const MAX_HEIGHT = 120
 
@@ -58,8 +65,14 @@ export function FooterCTA() {
 
       <div className='mt-8 w-full max-w-[42rem]'>
         <div
+          role='group'
+          aria-label='Landing prompt input'
           className='cursor-text rounded-[20px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg-surface)] px-2.5 py-2'
           onClick={() => textareaRef.current?.focus()}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return
+            handleKeyboardActivation(event, () => textareaRef.current?.focus())
+          }}
         >
           <textarea
             ref={textareaRef}
@@ -70,8 +83,8 @@ export function FooterCTA() {
             aria-label='Describe what you want to build'
             placeholder={animatedPlaceholder}
             rows={2}
-            className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent px-1 py-1 font-body text-[var(--landing-text)] text-base leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0'
-            style={{ caretColor: '#FFFFFF', maxHeight: `${MAX_HEIGHT}px` }}
+            className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent p-1 font-body text-[var(--landing-text)] text-base leading-[24px] tracking-[-0.015em] caret-white outline-none placeholder:font-[380] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0'
+            style={{ maxHeight: `${MAX_HEIGHT}px` }}
           />
           <div className='flex items-center justify-end'>
             <button
@@ -79,11 +92,10 @@ export function FooterCTA() {
               onClick={handleSubmit}
               disabled={isEmpty}
               aria-label='Submit message'
-              className='flex h-[28px] w-[28px] items-center justify-center rounded-full border-0 p-0 transition-colors'
-              style={{
-                background: isEmpty ? '#555555' : '#FFFFFF',
-                cursor: isEmpty ? 'not-allowed' : 'pointer',
-              }}
+              className={cn(
+                'flex h-[28px] w-[28px] items-center justify-center rounded-full border-0 p-0 transition-colors',
+                isEmpty ? 'cursor-not-allowed bg-[#555555]' : 'cursor-pointer bg-white'
+              )}
             >
               <ArrowUp size={16} strokeWidth={2.25} color={isEmpty ? '#888888' : '#1C1C1C'} />
             </button>
@@ -96,7 +108,10 @@ export function FooterCTA() {
           href='https://docs.sim.ai'
           target='_blank'
           rel='noopener noreferrer'
-          className={`${CTA_BUTTON} border-[var(--landing-border-strong)] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]`}
+          className={cn(
+            CTA_BUTTON,
+            'border-[var(--landing-border-strong)] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
+          )}
           onClick={() =>
             trackLandingCta({
               label: 'Docs',
@@ -107,15 +122,24 @@ export function FooterCTA() {
         >
           Docs
         </a>
-        <Link
-          href='/signup'
-          className={`${CTA_BUTTON} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
-          onClick={() =>
-            trackLandingCta({ label: 'Get started', section: 'footer_cta', destination: '/signup' })
-          }
-        >
-          Get started
-        </Link>
+        <AuthModal defaultView='signup' source='footer_cta'>
+          <button
+            type='button'
+            className={cn(
+              CTA_BUTTON,
+              'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+            )}
+            onClick={() =>
+              trackLandingCta({
+                label: 'Get started',
+                section: 'footer_cta',
+                destination: 'auth_modal',
+              })
+            }
+          >
+            Get started
+          </button>
+        </AuthModal>
       </div>
     </section>
   )

@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import type {
   ReductoParserInput,
@@ -102,7 +103,7 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
               )
             }
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(
               `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a PDF document.`
             )
@@ -190,7 +191,7 @@ export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParser
   directExecution: undefined,
   transformResponse: reductoParserTool.transformResponse
     ? (response: Response, params?: ReductoParserV2Input) =>
-        reductoParserTool.transformResponse!(response, params as unknown as ReductoParserInput)
+        reductoParserTool.transformResponse!(response, params)
     : undefined,
   params: {
     file: {

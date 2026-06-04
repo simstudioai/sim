@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.unmock('@/stores/terminal')
+vi.unmock('@/stores/terminal/console/store')
+vi.unmock('@/stores/notifications')
+
+import { useNotificationStore } from '@/stores/notifications'
 import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
 
 describe('terminal console store', () => {
@@ -12,6 +18,9 @@ describe('terminal console store', () => {
       entryLocationById: {},
       isOpen: false,
       _hasHydrated: true,
+    })
+    useNotificationStore.setState({
+      notifications: [],
     })
   })
 
@@ -111,5 +120,111 @@ describe('terminal console store', () => {
 
     expect(after.workflowEntries['wf-2']).toBe(workflowTwoEntries)
     expect(after.getWorkflowEntries('wf-1')[0].output).toMatchObject({ status: 'updated' })
+  })
+
+  it('uses the block name from error updates in notifications', () => {
+    useTerminalConsoleStore.getState().addConsole({
+      workflowId: 'wf-1',
+      blockId: 'block-1',
+      blockName: 'Unknown Block',
+      blockType: 'function',
+      executionId: 'exec-1',
+      executionOrder: 1,
+      isRunning: true,
+    })
+
+    useTerminalConsoleStore.getState().updateConsole(
+      'block-1',
+      {
+        blockName: 'Transform Data',
+        blockType: 'function',
+        executionOrder: 1,
+        error: 'Boom',
+        success: false,
+      },
+      'exec-1'
+    )
+
+    const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+    const [notification] = useNotificationStore.getState().notifications
+
+    expect(entry.blockName).toBe('Transform Data')
+    expect(notification.message).toBe('Transform Data: Boom')
+    expect(notification.action?.message).toContain('Error in Transform Data.')
+  })
+
+  describe('cancelRunningEntries', () => {
+    it('flips a plain running entry to canceled', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Function',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        startedAt: new Date(Date.now() - 1000).toISOString(),
+      })
+
+      useTerminalConsoleStore.getState().cancelRunningEntries('wf-1')
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.isCanceled).toBe(true)
+      expect(entry.isRunning).toBe(false)
+    })
+
+    it('only cancels running entries for the requested execution when provided', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Function 1',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+      })
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-2',
+        blockName: 'Function 2',
+        blockType: 'function',
+        executionId: 'exec-2',
+        executionOrder: 2,
+        isRunning: true,
+      })
+
+      useTerminalConsoleStore.getState().cancelRunningEntries('wf-1', 'exec-1')
+
+      const entries = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entries.find((entry) => entry.executionId === 'exec-1')).toMatchObject({
+        isCanceled: true,
+        isRunning: false,
+      })
+      expect(entries.find((entry) => entry.executionId === 'exec-2')).toMatchObject({
+        isRunning: true,
+      })
+    })
+  })
+
+  describe('finishRunningEntries', () => {
+    it('settles running entries without marking them canceled', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Function',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        startedAt: new Date(Date.now() - 1000).toISOString(),
+      })
+
+      useTerminalConsoleStore.getState().finishRunningEntries('wf-1', 'exec-1')
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.isCanceled).toBe(false)
+      expect(entry.isRunning).toBe(false)
+      expect(entry.endedAt).toBeDefined()
+    })
   })
 })

@@ -15,7 +15,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `ENCRYPTION_KEY` | Clave de cifrado (32 caracteres hex): `openssl rand -hex 32` |
 | `INTERNAL_API_SECRET` | Secreto de API interna (32 caracteres hex): `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | URL pública de la aplicación |
-| `NEXT_PUBLIC_SOCKET_URL` | URL de WebSocket (predeterminado: `http://localhost:3002`) |
+| `NEXT_PUBLIC_SOCKET_URL` | Opcional. URL de WebSocket — predetermina al origen de la página; configúrala solo si realtime está en un host separado. |
 
 ## Proveedores de IA
 
@@ -80,7 +80,6 @@ BETTER_AUTH_URL=https://sim.yourdomain.com
 ENCRYPTION_KEY=<openssl rand -hex 32>
 INTERNAL_API_SECRET=<openssl rand -hex 32>
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
-NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
 OPENAI_API_KEY=sk-...
 ```
 

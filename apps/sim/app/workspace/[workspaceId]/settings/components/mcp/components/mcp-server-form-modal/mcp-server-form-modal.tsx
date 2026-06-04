@@ -1,19 +1,23 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Button,
   Input as EmcnInput,
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
+  SecretInput,
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { McpTransport } from '@/lib/mcp/types'
+import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
@@ -35,6 +39,9 @@ interface McpServerFormData {
   url?: string
   timeout?: number
   headers?: HeaderEntry[]
+  oauthClientId?: string
+  oauthClientSecret?: string
+  hasOauthClientSecret?: boolean
 }
 
 export interface McpServerFormConfig {
@@ -43,6 +50,9 @@ export interface McpServerFormConfig {
   url: string
   headers: Record<string, string>
   timeout: number
+  oauthClientId?: string
+  oauthClientSecret?: string
+  authType?: McpAuthType
 }
 
 export interface McpServerFormModalProps {
@@ -100,11 +110,12 @@ interface EnvVarDropdownConfig {
 }
 
 function getTestButtonLabel(
-  testResult: { success: boolean; error?: string } | null,
+  testResult: { success: boolean; error?: string; authRequired?: boolean } | null,
   isTestingConnection: boolean
 ): string {
   if (isTestingConnection) return 'Testing...'
   if (testResult?.success) return 'Connection success'
+  if (testResult?.authRequired) return 'Requires OAuth'
   if (testResult && !testResult.success) return 'No connection: retry'
   return 'Test Connection'
 }
@@ -322,11 +333,14 @@ export function McpServerFormModal({
   const [urlScrollLeft, setUrlScrollLeft] = useState(0)
   const [headerScrollLeft, setHeaderScrollLeft] = useState<Record<string, number>>({})
 
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [oauthClientSecretTouched, setOauthClientSecretTouched] = useState(false)
+
   const [prevOpen, setPrevOpen] = useState(false)
   if (open && !prevOpen) {
     const data = initialData ?? DEFAULT_FORM_DATA
     setFormData(data)
-    setOriginalData(JSON.parse(JSON.stringify(data)))
+    setOriginalData(structuredClone(data))
     setFormMode('form')
     setJsonInput('')
     setJsonError(null)
@@ -337,6 +351,8 @@ export function McpServerFormModal({
     setActiveHeaderIndex(null)
     setUrlScrollLeft(0)
     setHeaderScrollLeft({})
+    setShowAdvanced(!!(data.oauthClientId || data.oauthClientSecret || data.hasOauthClientSecret))
+    setOauthClientSecretTouched(false)
   }
   if (open !== prevOpen) {
     setPrevOpen(open)
@@ -350,76 +366,72 @@ export function McpServerFormModal({
     }
   }, [open, clearTestResult])
 
-  const resetEnvVarState = useCallback(() => {
+  const resetEnvVarState = () => {
     setShowEnvVars(false)
     setActiveInputField(null)
     setActiveHeaderIndex(null)
-  }, [])
+  }
 
-  const handleInputChange = useCallback(
-    (field: InputFieldType, value: string, headerIndex?: number) => {
-      const input = document.activeElement as HTMLInputElement
-      const pos = input?.selectionStart || 0
-      setCursorPosition(pos)
+  const handleInputChange = (field: InputFieldType, value: string, headerIndex?: number) => {
+    const input = document.activeElement as HTMLInputElement
+    const pos = input?.selectionStart || 0
+    setCursorPosition(pos)
 
-      if (testResult) clearTestResult()
-      if (submitError) setSubmitError(null)
+    if (testResult) clearTestResult()
+    if (submitError) setSubmitError(null)
 
-      const envVarTrigger = checkEnvVarTrigger(value, pos)
-      setShowEnvVars(envVarTrigger.show)
-      setEnvSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+    const envVarTrigger = checkEnvVarTrigger(value, pos)
+    setShowEnvVars(envVarTrigger.show)
+    setEnvSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
 
-      if (envVarTrigger.show) {
-        setActiveInputField(field)
-        setActiveHeaderIndex(headerIndex ?? null)
-      } else {
-        resetEnvVarState()
-      }
-
-      if (field === 'url') {
-        setFormData((prev) => ({ ...prev, url: value }))
-      } else if (headerIndex !== undefined) {
-        const headerField = field === 'header-key' ? 'key' : 'value'
-        setFormData((prev) => ({
-          ...prev,
-          headers: updateHeadersArray(prev.headers || [], headerIndex, headerField, value),
-        }))
-      }
-    },
-    [testResult, clearTestResult, submitError, resetEnvVarState]
-  )
-
-  const handleEnvVarSelect = useCallback(
-    (newValue: string) => {
-      if (activeInputField === 'url') {
-        setFormData((prev) => ({ ...prev, url: newValue }))
-      } else if (activeHeaderIndex !== null) {
-        const field = activeInputField === 'header-key' ? 'key' : 'value'
-        const processedValue = field === 'key' ? newValue.replace(/[{}]/g, '') : newValue
-        setFormData((prev) => ({
-          ...prev,
-          headers: updateHeadersArray(prev.headers || [], activeHeaderIndex, field, processedValue),
-        }))
-      }
+    if (envVarTrigger.show) {
+      setActiveInputField(field)
+      setActiveHeaderIndex(headerIndex ?? null)
+    } else {
       resetEnvVarState()
-    },
-    [activeInputField, activeHeaderIndex, resetEnvVarState]
-  )
+    }
 
-  const handleHeaderScroll = useCallback((key: string, sl: number) => {
+    if (field === 'url') {
+      setFormData((prev) => ({ ...prev, url: value }))
+    } else if (headerIndex !== undefined) {
+      const headerField = field === 'header-key' ? 'key' : 'value'
+      setFormData((prev) => ({
+        ...prev,
+        headers: updateHeadersArray(prev.headers || [], headerIndex, headerField, value),
+      }))
+    }
+  }
+
+  const handleEnvVarSelect = (newValue: string) => {
+    if (activeInputField === 'url') {
+      setFormData((prev) => ({ ...prev, url: newValue }))
+    } else if (activeHeaderIndex !== null) {
+      const field = activeInputField === 'header-key' ? 'key' : 'value'
+      const processedValue = field === 'key' ? newValue.replace(/[{}]/g, '') : newValue
+      setFormData((prev) => ({
+        ...prev,
+        headers: updateHeadersArray(prev.headers || [], activeHeaderIndex, field, processedValue),
+      }))
+    }
+    resetEnvVarState()
+  }
+
+  const handleHeaderScroll = (key: string, sl: number) => {
     setHeaderScrollLeft((prev) => ({ ...prev, [key]: sl }))
-  }, [])
+  }
 
   const isDomainBlocked =
     !!formData.url?.trim() && !isDomainAllowed(formData.url, allowedMcpDomains)
   const isFormValid = !!(formData.name.trim() && formData.url?.trim())
   const testButtonLabel = getTestButtonLabel(testResult, isTestingConnection)
 
-  const hasChanges = useMemo(() => {
+  const computeHasChanges = (): boolean => {
     if (mode === 'add') return true
     if (formData.name !== originalData.name) return true
     if (formData.url !== originalData.url) return true
     if (formData.transport !== originalData.transport) return true
+    if ((formData.oauthClientId || '') !== (originalData.oauthClientId || '')) return true
+    if (oauthClientSecretTouched) return true
     const currentHeaders = formData.headers || []
     const origHeaders = originalData.headers || []
     if (currentHeaders.length !== origHeaders.length) return true
@@ -431,49 +443,49 @@ export function McpServerFormModal({
         return true
     }
     return false
-  }, [mode, formData, originalData])
+  }
+  const hasChanges = computeHasChanges()
 
-  const parseJsonConfig = useCallback(
-    (json: string): { name: string; url: string; headers: Record<string, string> } | null => {
-      try {
-        const parsed = JSON.parse(json)
+  const parseJsonConfig = (
+    json: string
+  ): { name: string; url: string; headers: Record<string, string> } | null => {
+    try {
+      const parsed = JSON.parse(json)
 
-        if (parsed.mcpServers && typeof parsed.mcpServers === 'object') {
-          const entries = Object.entries(parsed.mcpServers)
-          if (entries.length === 0) {
-            setJsonError('No servers found in mcpServers')
-            return null
-          }
-          if (entries.length > 1) {
-            setJsonError(
-              `Only the first server ("${entries[0][0]}") will be imported. Paste each config separately to add others.`
-            )
-          }
-          const [name, config] = entries[0] as [string, Record<string, unknown>]
-          if (!config.url || typeof config.url !== 'string') {
-            setJsonError('Server config must include a "url" field')
-            return null
-          }
-          if (entries.length <= 1) setJsonError(null)
-          return { name, url: config.url, headers: extractStringHeaders(config.headers) }
+      if (parsed.mcpServers && typeof parsed.mcpServers === 'object') {
+        const entries = Object.entries(parsed.mcpServers)
+        if (entries.length === 0) {
+          setJsonError('No servers found in mcpServers')
+          return null
         }
-
-        if (parsed.url && typeof parsed.url === 'string') {
-          setJsonError(null)
-          return { name: '', url: parsed.url, headers: extractStringHeaders(parsed.headers) }
+        if (entries.length > 1) {
+          setJsonError(
+            `Only the first server ("${entries[0][0]}") will be imported. Paste each config separately to add others.`
+          )
         }
-
-        setJsonError('JSON must contain "mcpServers" or a "url" field')
-        return null
-      } catch {
-        setJsonError('Invalid JSON')
-        return null
+        const [name, config] = entries[0] as [string, Record<string, unknown>]
+        if (!config.url || typeof config.url !== 'string') {
+          setJsonError('Server config must include a "url" field')
+          return null
+        }
+        if (entries.length <= 1) setJsonError(null)
+        return { name, url: config.url, headers: extractStringHeaders(config.headers) }
       }
-    },
-    []
-  )
 
-  const handleTestConnection = useCallback(async () => {
+      if (parsed.url && typeof parsed.url === 'string') {
+        setJsonError(null)
+        return { name: '', url: parsed.url, headers: extractStringHeaders(parsed.headers) }
+      }
+
+      setJsonError('JSON must contain "mcpServers" or a "url" field')
+      return null
+    } catch {
+      setJsonError('Invalid JSON')
+      return null
+    }
+  }
+
+  const handleTestConnection = async () => {
     if (!isFormValid) return
 
     await testConnection({
@@ -484,15 +496,20 @@ export function McpServerFormModal({
       timeout: formData.timeout,
       workspaceId,
     })
-  }, [formData, isFormValid, testConnection, workspaceId])
+  }
 
-  const handleSubmitForm = useCallback(async () => {
+  const handleSubmitForm = async () => {
     if (!isFormValid || isDomainBlocked) return
 
     setIsSubmitting(true)
     setSubmitError(null)
     try {
       const headers = headersToRecord(formData.headers)
+      const oauthClientId = formData.oauthClientId?.trim()
+      const oauthClientSecret = formData.oauthClientSecret?.trim()
+      const originalClientId = (originalData.oauthClientId || '').trim()
+      const oauthClientIdChanged = (oauthClientId || '') !== originalClientId
+
       const connectionResult = await testConnection({
         name: formData.name,
         transport: formData.transport,
@@ -502,7 +519,7 @@ export function McpServerFormModal({
         workspaceId,
       })
 
-      if (!connectionResult.success) {
+      if (!connectionResult.success && !connectionResult.authRequired) {
         setSubmitError(
           connectionResult.error || 'Connection test failed. Please check the URL and try again.'
         )
@@ -515,19 +532,31 @@ export function McpServerFormModal({
         url: formData.url!,
         headers,
         timeout: formData.timeout || 30000,
+        authType: connectionResult.authType,
+        oauthClientId:
+          mode === 'edit'
+            ? oauthClientIdChanged
+              ? (oauthClientId ?? '')
+              : undefined
+            : oauthClientId || undefined,
+        oauthClientSecret:
+          mode === 'edit'
+            ? oauthClientSecretTouched
+              ? (oauthClientSecret ?? '')
+              : undefined
+            : oauthClientSecret || undefined,
       })
 
       onOpenChange(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save server'
-      setSubmitError(message)
+      setSubmitError(getErrorMessage(error, 'Failed to save server'))
       logger.error('Failed to save MCP server:', error)
     } finally {
       setIsSubmitting(false)
     }
-  }, [formData, isFormValid, isDomainBlocked, testConnection, workspaceId, onSubmit, onOpenChange])
+  }
 
-  const handleSubmitJson = useCallback(async () => {
+  const handleSubmitJson = async () => {
     const config = parseJsonConfig(jsonInput)
     if (!config) return
 
@@ -553,7 +582,7 @@ export function McpServerFormModal({
         workspaceId,
       })
 
-      if (!connectionResult.success) {
+      if (!connectionResult.success && !connectionResult.authRequired) {
         setSubmitError(
           connectionResult.error || 'Connection test failed. Please check the URL and try again.'
         )
@@ -566,25 +595,17 @@ export function McpServerFormModal({
         url: config.url,
         headers: config.headers,
         timeout: 30000,
+        authType: connectionResult.authType,
       })
 
       onOpenChange(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save server'
-      setSubmitError(message)
+      setSubmitError(getErrorMessage(error, 'Failed to save server'))
       logger.error('Failed to save MCP server from JSON:', error)
     } finally {
       setIsSubmitting(false)
     }
-  }, [
-    jsonInput,
-    parseJsonConfig,
-    allowedMcpDomains,
-    testConnection,
-    workspaceId,
-    onSubmit,
-    onOpenChange,
-  ])
+  }
 
   const isSubmitDisabled =
     isSubmitting || !isFormValid || isDomainBlocked || (mode === 'edit' && !hasChanges)
@@ -594,9 +615,13 @@ export function McpServerFormModal({
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent>
-        <ModalHeader>{title}</ModalHeader>
-        <ModalBody>
+      <ModalContent size='lg' className='max-h-[82vh]'>
+        <ModalHeader className='border-[var(--border)] border-b pb-3'>{title}</ModalHeader>
+        <ModalBody className='min-h-0 px-4 pt-4 pb-4'>
+          <ModalDescription className='sr-only'>
+            Configure an MCP server by entering the server URL and optional headers, or paste a JSON
+            configuration.
+          </ModalDescription>
           {formMode === 'json' ? (
             <div className='flex flex-col gap-2'>
               <Textarea
@@ -608,12 +633,28 @@ export function McpServerFormModal({
                   if (testResult) clearTestResult()
                   if (submitError) setSubmitError(null)
                 }}
-                className='min-h-[200px] font-mono text-small'
+                className='min-h-[280px] font-mono text-small leading-5'
               />
               {jsonError && <p className='text-[var(--text-error)] text-caption'>{jsonError}</p>}
             </div>
           ) : (
-            <div className='flex flex-col gap-2'>
+            <div className='flex flex-col gap-3'>
+              <input
+                type='text'
+                name='fakeusernameremembered'
+                autoComplete='username'
+                style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+                tabIndex={-1}
+                readOnly
+              />
+              <input
+                type='password'
+                name='fakepasswordremembered'
+                autoComplete='current-password'
+                style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+                tabIndex={-1}
+                readOnly
+              />
               <FormField label='Server Name'>
                 <EmcnInput
                   placeholder='e.g., My MCP Server'
@@ -652,8 +693,7 @@ export function McpServerFormModal({
                 )}
               </FormField>
 
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-secondary)] text-small'>Headers</span>
+              <FormField label='Headers'>
                 <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
                   {(formData.headers || []).map((header, index) => (
                     <HeaderRow
@@ -675,13 +715,71 @@ export function McpServerFormModal({
                     />
                   ))}
                 </div>
-              </div>
+              </FormField>
+
+              <Button
+                type='button'
+                variant='ghost'
+                onClick={() => setShowAdvanced((v) => !v)}
+                className='mt-1 gap-1 self-start px-0 py-0 text-small'
+              >
+                {showAdvanced ? (
+                  <ChevronDown className='size-[14px]' />
+                ) : (
+                  <ChevronRight className='size-[14px]' />
+                )}
+                Advanced settings
+              </Button>
+              {showAdvanced && (
+                <div className='flex flex-col gap-2'>
+                  <FormField label='Client ID'>
+                    <EmcnInput
+                      placeholder='OAuth Client ID (optional)'
+                      value={formData.oauthClientId || ''}
+                      name='mcp_oauth_client_id'
+                      autoComplete='off'
+                      autoCorrect='off'
+                      autoCapitalize='off'
+                      data-lpignore='true'
+                      data-form-type='other'
+                      onChange={(e) => {
+                        if (testResult) clearTestResult()
+                        if (submitError) setSubmitError(null)
+                        setFormData((prev) => ({ ...prev, oauthClientId: e.target.value }))
+                      }}
+                      className='h-9'
+                    />
+                  </FormField>
+                  <FormField label='Client Secret'>
+                    <SecretInput
+                      placeholder='OAuth Client Secret (optional)'
+                      value={formData.oauthClientSecret || ''}
+                      name='mcp_oauth_client_secret'
+                      autoComplete='new-password'
+                      autoCorrect='off'
+                      autoCapitalize='off'
+                      data-lpignore='true'
+                      data-form-type='other'
+                      onChange={(value) => {
+                        if (testResult) clearTestResult()
+                        if (submitError) setSubmitError(null)
+                        setOauthClientSecretTouched(value.length > 0)
+                        setFormData((prev) => ({ ...prev, oauthClientSecret: value }))
+                      }}
+                      className='h-9'
+                    />
+                  </FormField>
+                  <p className='text-[var(--text-tertiary)] text-caption'>
+                    Only needed for servers that don't support automatic client registration.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </ModalBody>
-        <ModalFooter>
+        <ModalFooter className='flex-col items-stretch gap-2'>
           {submitError && (
-            <p className='mb-2 w-full text-[var(--text-error)] text-small'>{submitError}</p>
+            <p className='w-full text-[var(--text-error)] text-small'>{submitError}</p>
           )}
           <div className='flex w-full items-center justify-between'>
             <div className='flex items-center gap-2'>
@@ -710,7 +808,7 @@ export function McpServerFormModal({
               )}
             </div>
             <div className='flex items-center gap-2'>
-              <Button variant='ghost' onClick={() => onOpenChange(false)}>
+              <Button variant='default' onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               {formMode === 'json' ? (

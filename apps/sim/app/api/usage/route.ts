@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { getUsageLimitContract, updateUsageLimitContract } from '@/lib/api/contracts/subscription'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getUserUsageLimitInfo, updateUserUsageLimit } from '@/lib/billing'
 import {
@@ -8,27 +9,16 @@ import {
   isOrganizationOwnerOrAdmin,
 } from '@/lib/billing/core/organization'
 import { isUserMemberOfOrganization } from '@/lib/billing/organizations/membership'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedUsageAPI')
-
-const usageContextEnum = z.enum(['user', 'organization'])
-
-const usageUpdateSchema = z
-  .object({
-    limit: z.number().min(0, 'Limit must be a positive number'),
-    context: usageContextEnum.optional().default('user'),
-    organizationId: z.string().optional(),
-  })
-  .refine((data) => data.context !== 'organization' || data.organizationId, {
-    message: 'Organization ID is required when context is organization',
-  })
 
 /**
  * Unified Usage Endpoint
  * GET/PUT /api/usage?context=user|organization&userId=<id>&organizationId=<id>
  *
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -36,17 +26,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'user'
-    const userId = searchParams.get('userId') || session.user.id
-    const organizationId = searchParams.get('organizationId')
+    const parsed = await parseRequest(
+      getUsageLimitContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json(
+            { error: 'Invalid context. Must be "user" or "organization"' },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!['user', 'organization'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Invalid context. Must be "user" or "organization"' },
-        { status: 400 }
-      )
-    }
+    const { context, userId = session.user.id, organizationId } = parsed.data.query
 
     if (context === 'user' && userId !== session.user.id) {
       return NextResponse.json(
@@ -84,7 +78,7 @@ export async function GET(request: NextRequest) {
       success: true,
       context,
       userId,
-      organizationId,
+      organizationId: organizationId ?? null,
       data: usageLimitInfo,
     })
   } catch (error) {
@@ -95,9 +89,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function PUT(request: NextRequest) {
+export const PUT = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -105,16 +99,22 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validation = usageUpdateSchema.safeParse(body)
+    const parsed = await parseRequest(
+      updateUsageLimitContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          const message = getValidationErrorMessage(error)
+          logger.error('Validation error:', message)
+          return NextResponse.json({ error: message }, { status: 400 })
+        },
+      }
+    )
 
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      logger.error('Validation error:', firstError)
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
+    if (!parsed.success) return parsed.response
 
-    const { limit, context, organizationId } = validation.data
+    const { limit, context, organizationId } = parsed.data.body
     const userId = session.user.id
 
     if (context === 'user') {
@@ -146,7 +146,7 @@ export async function PUT(request: NextRequest) {
       success: true,
       context,
       userId,
-      organizationId,
+      organizationId: organizationId ?? null,
       data: updatedInfo,
     })
   } catch (error) {
@@ -157,4 +157,4 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

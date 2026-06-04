@@ -5,8 +5,10 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
+  isSubBlockVisibleForTriggerMode,
+  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
-import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
@@ -100,10 +102,7 @@ export function useEditorSubblockLayout(
     )
 
     const subBlocksForCanonical = displayTriggerMode
-      ? (config.subBlocks || []).filter(
-          (subBlock) =>
-            subBlock.mode === 'trigger' || subBlock.type === ('trigger-config' as SubBlockType)
-        )
+      ? (config.subBlocks || []).filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
       : config.subBlocks || []
     const canonicalIndex = buildCanonicalIndex(subBlocksForCanonical)
     const effectiveAdvanced = displayAdvancedMode
@@ -130,19 +129,7 @@ export function useEditorSubblockLayout(
       // Hide tool API key fields when hosted or when env var is set
       if (isSubBlockHidden(block)) return false
 
-      // Special handling for trigger-config type (legacy trigger configuration UI)
-      if (block.type === ('trigger-config' as SubBlockType)) {
-        const isPureTriggerBlock = config?.triggers?.enabled && config.category === 'triggers'
-        return displayTriggerMode || isPureTriggerBlock
-      }
-
-      // Filter by mode if specified
-      if (block.mode === 'trigger') {
-        if (!displayTriggerMode) return false
-      }
-
-      // When in trigger mode, hide blocks that don't have mode: 'trigger'
-      if (displayTriggerMode && block.mode !== 'trigger') {
+      if (!isSubBlockVisibleForTriggerMode(block, displayTriggerMode, config)) {
         return false
       }
 

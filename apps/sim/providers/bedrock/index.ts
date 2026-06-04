@@ -5,6 +5,7 @@ import {
   type ContentBlock,
   type ConversationRole,
   ConverseCommand,
+  type ConverseResponse,
   ConverseStreamCommand,
   type SystemContentBlock,
   type Tool,
@@ -13,8 +14,10 @@ import {
   type ToolUseBlock,
 } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
-import type { StreamingExecution } from '@/executor/types'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { buildBedrockMessageContent } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromBedrockStream,
@@ -22,6 +25,7 @@ import {
   getBedrockInferenceProfileId,
 } from '@/providers/bedrock/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
   ProviderConfig,
@@ -39,6 +43,62 @@ import {
 import { executeTool } from '@/tools'
 
 const logger = createLogger('BedrockProvider')
+
+function enrichLastModelSegmentFromBedrockResponse(
+  timeSegments: TimeSegment[],
+  response: ConverseResponse,
+  extras: { model: string }
+): void {
+  const blocks: ContentBlock[] = response.output?.message?.content ?? []
+
+  const assistantText = blocks
+    .filter((b): b is ContentBlock & { text: string } => 'text' in b && typeof b.text === 'string')
+    .map((b) => b.text)
+    .join('\n')
+  const assistantContent = assistantText.length > 0 ? assistantText : undefined
+
+  const toolCalls: IterationToolCall[] = blocks
+    .filter((b): b is ContentBlock & { toolUse: ToolUseBlock } => 'toolUse' in b && !!b.toolUse)
+    .map((b) => {
+      const input = b.toolUse.input
+      return {
+        id: b.toolUse.toolUseId ?? '',
+        name: b.toolUse.name ?? '',
+        arguments:
+          input && typeof input === 'object' && !Array.isArray(input)
+            ? (input as Record<string, unknown>)
+            : {},
+      }
+    })
+
+  const inputTokens = response.usage?.inputTokens
+  const outputTokens = response.usage?.outputTokens
+
+  let cost: { input: number; output: number; total: number } | undefined
+  if (typeof inputTokens === 'number' && typeof outputTokens === 'number') {
+    const full = calculateCost(extras.model, inputTokens, outputTokens)
+    cost = { input: full.input, output: full.output, total: full.total }
+  }
+
+  enrichLastModelSegment(timeSegments, {
+    assistantContent,
+    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    finishReason: response.stopReason ?? undefined,
+    tokens:
+      inputTokens !== undefined || outputTokens !== undefined
+        ? {
+            input: inputTokens,
+            output: outputTokens,
+            total:
+              typeof inputTokens === 'number' && typeof outputTokens === 'number'
+                ? inputTokens + outputTokens
+                : undefined,
+          }
+        : undefined,
+    cost,
+    provider: 'aws.bedrock',
+  })
+}
 
 export const bedrockProvider: ProviderConfig = {
   id: 'bedrock',
@@ -119,9 +179,11 @@ export const bedrockProvider: ProviderConfig = {
           }
         } else {
           const role: ConversationRole = msg.role === 'assistant' ? 'assistant' : 'user'
+          const content = buildBedrockMessageContent(msg.content, msg.files, 'bedrock')
           messages.push({
             role,
-            content: [{ text: msg.content || '' }],
+            // double-cast-allowed: shared attachment builder emits Bedrock Converse content blocks while keeping provider-neutral attachment types
+            content: content as unknown as ContentBlock[],
           })
         }
       }
@@ -344,7 +406,7 @@ export const bedrockProvider: ProviderConfig = {
               timeSegments: [
                 {
                   type: 'model',
-                  name: 'Streaming response',
+                  name: request.model,
                   startTime: providerStartTime,
                   endTime: Date.now(),
                   duration: Date.now() - providerStartTime,
@@ -443,12 +505,16 @@ export const bedrockProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
         },
       ]
+
+      enrichLastModelSegmentFromBedrockResponse(timeSegments, currentResponse, {
+        model: request.model,
+      })
 
       const initialToolUseContentBlocks = (currentResponse.output?.message?.content || []).filter(
         (block): block is ContentBlock & { toolUse: ToolUseBlock } => 'toolUse' in block
@@ -500,7 +566,9 @@ export const bedrockProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams)
+            const result = await executeTool(toolName, executionParams, {
+              signal: request.abortSignal,
+            })
             const toolCallEndTime = Date.now()
 
             return {
@@ -525,7 +593,7 @@ export const bedrockProvider: ProviderConfig = {
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
@@ -667,10 +735,14 @@ export const bedrockProvider: ProviderConfig = {
 
         timeSegments.push({
           type: 'model',
-          name: `Model response (iteration ${iterationCount + 1})`,
+          name: request.model,
           startTime: nextModelStartTime,
           endTime: nextModelEndTime,
           duration: thisModelTime,
+        })
+
+        enrichLastModelSegmentFromBedrockResponse(timeSegments, currentResponse, {
+          model: request.model,
         })
 
         modelTime += thisModelTime
@@ -722,6 +794,10 @@ export const bedrockProvider: ProviderConfig = {
           startTime: structuredOutputStartTime,
           endTime: structuredOutputEndTime,
           duration: structuredOutputEndTime - structuredOutputStartTime,
+        })
+
+        enrichLastModelSegmentFromBedrockResponse(timeSegments, structuredResponse, {
+          model: request.model,
         })
 
         modelTime += structuredOutputEndTime - structuredOutputStartTime
@@ -928,7 +1004,7 @@ export const bedrockProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

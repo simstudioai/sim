@@ -1,19 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { redisConfigMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: vi.fn().mockReturnValue(null),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 import {
   clearPendingWebhookVerification,

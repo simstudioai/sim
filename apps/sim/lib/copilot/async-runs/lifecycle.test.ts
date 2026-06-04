@@ -4,8 +4,10 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
-  inferDeliveredAsyncSuccess,
+  isAsyncEphemeralConfirmationStatus,
+  isAsyncTerminalConfirmationStatus,
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
 } from './lifecycle'
@@ -20,10 +22,17 @@ describe('async tool lifecycle helpers', () => {
     expect(isTerminalAsyncStatus(ASYNC_TOOL_STATUS.delivered)).toBe(false)
   })
 
-  it('treats delivered rows as success unless durable error/cancel markers say otherwise', () => {
+  it('treats delivered rows as distinct from terminal execution states', () => {
     expect(isDeliveredAsyncStatus(ASYNC_TOOL_STATUS.delivered)).toBe(true)
-    expect(inferDeliveredAsyncSuccess({ result: { ok: true }, error: null })).toBe(true)
-    expect(inferDeliveredAsyncSuccess({ result: { cancelled: true }, error: null })).toBe(false)
-    expect(inferDeliveredAsyncSuccess({ result: null, error: 'tool failed' })).toBe(false)
+  })
+
+  it('distinguishes background from terminal completion statuses', () => {
+    expect(isAsyncEphemeralConfirmationStatus(ASYNC_TOOL_CONFIRMATION_STATUS.background)).toBe(true)
+    expect(isAsyncEphemeralConfirmationStatus(ASYNC_TOOL_CONFIRMATION_STATUS.success)).toBe(false)
+
+    expect(isAsyncTerminalConfirmationStatus(ASYNC_TOOL_CONFIRMATION_STATUS.success)).toBe(true)
+    expect(isAsyncTerminalConfirmationStatus(ASYNC_TOOL_CONFIRMATION_STATUS.error)).toBe(true)
+    expect(isAsyncTerminalConfirmationStatus(ASYNC_TOOL_CONFIRMATION_STATUS.cancelled)).toBe(true)
+    expect(isAsyncTerminalConfirmationStatus(ASYNC_TOOL_CONFIRMATION_STATUS.background)).toBe(true)
   })
 })

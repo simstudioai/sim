@@ -40,18 +40,6 @@ export const circlebackMeetingNotesTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'circleback_meeting_notes',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'circleback_meeting_notes',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

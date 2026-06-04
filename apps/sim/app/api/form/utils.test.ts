@@ -3,35 +3,25 @@
  *
  * @vitest-environment node
  */
-import { databaseMock, loggerMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns, workflowsUtilsMock } from '@sim/testing'
 import type { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDecryptSecret,
-  mockValidateAuthToken,
-  mockSetDeploymentAuthCookie,
-  mockAddCorsHeaders,
-  mockIsEmailAllowed,
-} = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
-  mockValidateAuthToken: vi.fn().mockReturnValue(false),
-  mockSetDeploymentAuthCookie: vi.fn(),
-  mockAddCorsHeaders: vi.fn((response: unknown) => response),
-  mockIsEmailAllowed: vi.fn(),
-}))
+const { mockValidateAuthToken, mockSetDeploymentAuthCookie, mockIsEmailAllowed } = vi.hoisted(
+  () => ({
+    mockValidateAuthToken: vi.fn().mockReturnValue(false),
+    mockSetDeploymentAuthCookie: vi.fn(),
+    mockIsEmailAllowed: vi.fn(),
+  })
+)
 
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/logger', () => loggerMock)
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,
   setDeploymentAuthCookie: mockSetDeploymentAuthCookie,
-  addCorsHeaders: mockAddCorsHeaders,
   isEmailAllowed: mockIsEmailAllowed,
 }))
 
@@ -41,9 +31,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: vi.fn(),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { decryptSecret } from '@/lib/core/security/encryption'
 import {
@@ -246,18 +234,20 @@ describe('Form API Utils', () => {
         },
       } as any
 
-      // Exact email match should authorize
+      // Exact email match should require OTP verification, not authorize directly
       mockIsEmailAllowed.mockReturnValue(true)
       const result1 = await validateFormAuth('request-id', deployment, mockRequest, {
         email: 'user@example.com',
       })
-      expect(result1.authorized).toBe(true)
+      expect(result1.authorized).toBe(false)
+      expect(result1.error).toBe('otp_required')
 
-      // Domain match should authorize
+      // Domain match should also require OTP verification
       const result2 = await validateFormAuth('request-id', deployment, mockRequest, {
         email: 'other@company.com',
       })
-      expect(result2.authorized).toBe(true)
+      expect(result2.authorized).toBe(false)
+      expect(result2.error).toBe('otp_required')
 
       // Unknown email should not authorize
       mockIsEmailAllowed.mockReturnValue(false)

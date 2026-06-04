@@ -1,19 +1,26 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { confluenceCreatePageContract } from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceCreatePageAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(confluenceCreatePageContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const {
       domain,
@@ -23,7 +30,7 @@ export async function POST(request: NextRequest) {
       title,
       content,
       parentId,
-    } = await request.json()
+    } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -101,30 +108,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-
-      let errorMessage = `Failed to create Confluence page (${response.status})`
-      if (errorData?.message) {
-        errorMessage = errorData.message
-      } else if (errorData?.errors && Array.isArray(errorData.errors)) {
-        const firstError = errorData.errors[0]
-        if (firstError?.title) {
-          if (firstError.title.includes("'spaceId'") && firstError.title.includes('Long')) {
-            errorMessage =
-              'Invalid Space ID. Use the list spaces operation to find valid space IDs.'
-          } else {
-            errorMessage = firstError.title
-          }
-        } else {
-          errorMessage = JSON.stringify(errorData.errors)
-        }
+      let errorMessage = parseAtlassianErrorMessage(response.status, response.statusText, errorText)
+      if (errorMessage.includes("'spaceId'") && errorMessage.includes('Long')) {
+        errorMessage = 'Invalid Space ID. Use the list spaces operation to find valid space IDs.'
       }
-
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
@@ -137,4 +130,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

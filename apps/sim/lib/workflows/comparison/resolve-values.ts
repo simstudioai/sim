@@ -1,14 +1,16 @@
 import { createLogger } from '@sim/logger'
+import { truncate } from '@sim/utils/string'
 import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
 import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { CREDENTIAL_SET, isUuid } from '@/executor/constants'
 import { fetchCredentialSetById } from '@/hooks/queries/credential-sets'
 import { fetchOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
-import { getSelectorDefinition } from '@/hooks/selectors/registry'
+import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('ResolveValues')
 
@@ -105,7 +107,7 @@ async function resolveSelectorValue(
       }
     }
 
-    const options = await definition.fetchList({
+    const options = await loadAllSelectorOptions(definition, {
       key: selectorKey,
       context: selectorContext,
     })
@@ -127,18 +129,48 @@ function extractMcpToolName(toolId: string): string {
 }
 
 /**
+ * Resolves a subBlock field ID to its human-readable title.
+ * Falls back to the raw ID if the block or subBlock is not found.
+ */
+export function resolveFieldLabel(blockType: string, subBlockId: string): string {
+  if (subBlockId.startsWith('data.')) {
+    return formatParameterLabel(subBlockId.slice(5))
+  }
+  const blockConfig = getBlock(blockType)
+  if (!blockConfig) return subBlockId
+  const subBlockConfig = blockConfig.subBlocks.find((sb) => sb.id === subBlockId)
+  return subBlockConfig?.title ?? subBlockId
+}
+
+/**
+ * Resolves a dropdown option ID to its human-readable label.
+ * Returns null if the subBlock is not a dropdown or the value is not found.
+ */
+function resolveDropdownLabel(subBlockConfig: SubBlockConfig, value: string): string | null {
+  if (subBlockConfig.type !== 'dropdown') return null
+  if (!subBlockConfig.options) return null
+  const options =
+    typeof subBlockConfig.options === 'function' ? subBlockConfig.options() : subBlockConfig.options
+  const match = options.find((opt) => opt.id === value)
+  return match?.label ?? null
+}
+
+/**
  * Formats a value for display in diff descriptions.
  */
 export function formatValueForDisplay(value: unknown): string {
   if (value === null || value === undefined) return '(none)'
   if (typeof value === 'string') {
-    if (value.length > 50) return `${value.slice(0, 50)}...`
+    if (value.length > 50) return truncate(value, 50)
     return value || '(empty)'
   }
   if (typeof value === 'boolean') return value ? 'enabled' : 'disabled'
   if (typeof value === 'number') return String(value)
   if (Array.isArray(value)) return `[${value.length} items]`
-  if (typeof value === 'object') return `${JSON.stringify(value).slice(0, 50)}...`
+  if (typeof value === 'object') {
+    const json = JSON.stringify(value)
+    return truncate(json, 50)
+  }
   return String(value)
 }
 
@@ -165,7 +197,6 @@ export async function resolveValueForDisplay(
   value: unknown,
   context: ResolutionContext
 ): Promise<ResolvedValue> {
-  // Non-string or empty values can't be resolved
   if (typeof value !== 'string' || !value) {
     return {
       original: value,
@@ -190,9 +221,8 @@ export async function resolveValueForDisplay(
       )
     : { workflowId: context.workflowId, workspaceId: context.workspaceId }
 
-  // Credential fields (oauth-input or credential subBlockId)
   const isCredentialField =
-    subBlockConfig?.type === 'oauth-input' || context.subBlockId === 'credential'
+    subBlockConfig.type === 'oauth-input' || context.subBlockId === 'credential'
 
   if (isCredentialField && (value.startsWith(CREDENTIAL_SET.PREFIX) || isUuid(value))) {
     const label = await resolveCredential(value, context.workflowId)
@@ -202,8 +232,7 @@ export async function resolveValueForDisplay(
     return { original: value, displayLabel: semanticFallback, resolved: true }
   }
 
-  // Workflow selector
-  if (subBlockConfig?.type === 'workflow-selector' && isUuid(value)) {
+  if (subBlockConfig.type === 'workflow-selector' && isUuid(value)) {
     const label = await resolveWorkflow(value, selectorCtx.workspaceId)
     if (label) {
       return { original: value, displayLabel: label, resolved: true }
@@ -211,15 +240,27 @@ export async function resolveValueForDisplay(
     return { original: value, displayLabel: semanticFallback, resolved: true }
   }
 
-  // MCP tool selector
-  if (subBlockConfig?.type === 'mcp-tool-selector') {
+  if (subBlockConfig.type === 'mcp-tool-selector') {
     const toolName = extractMcpToolName(value)
     return { original: value, displayLabel: toolName, resolved: true }
   }
 
-  // Selector types that require hydration (file-selector, sheet-selector, etc.)
-  // These support external service IDs like Google Drive file IDs
-  if (subBlockConfig && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlockConfig.type)) {
+  if (subBlockConfig.type === 'dropdown') {
+    try {
+      const label = resolveDropdownLabel(subBlockConfig, value)
+      if (label) {
+        return { original: value, displayLabel: label, resolved: true }
+      }
+    } catch (error) {
+      logger.warn('Failed to resolve dropdown label', {
+        value,
+        subBlockId: context.subBlockId,
+        error,
+      })
+    }
+  }
+
+  if (SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlockConfig.type)) {
     const resolution = resolveSelectorForSubBlock(subBlockConfig, selectorCtx)
 
     if (resolution?.key) {
@@ -228,22 +269,17 @@ export async function resolveValueForDisplay(
         return { original: value, displayLabel: label, resolved: true }
       }
     }
-    // If resolution failed for a hydration-required type, use semantic fallback
     return { original: value, displayLabel: semanticFallback, resolved: true }
   }
 
-  // For fields without specific subBlock types, use pattern matching
-  // UUID fallback
   if (isUuid(value)) {
     return { original: value, displayLabel: semanticFallback, resolved: true }
   }
 
-  // Slack-style IDs (channels: C..., users: U.../W...) get semantic fallback
   if (/^C[A-Z0-9]{8,}$/.test(value) || /^[UW][A-Z0-9]{8,}$/.test(value)) {
     return { original: value, displayLabel: semanticFallback, resolved: true }
   }
 
-  // Credential set prefix without credential field type
   if (value.startsWith(CREDENTIAL_SET.PREFIX)) {
     const label = await resolveCredential(value, context.workflowId)
     if (label) {

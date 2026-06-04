@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
@@ -28,7 +29,7 @@ export async function parseJSON(filePath: string): Promise<FileParseResult> {
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -55,7 +56,50 @@ export async function parseJSONBuffer(buffer: Buffer): Promise<FileParseResult> 
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`)
+  }
+}
+
+/**
+ * Parse JSONL (JSON Lines) files — one JSON object per line
+ */
+export async function parseJSONL(filePath: string): Promise<FileParseResult> {
+  const fs = await import('fs/promises')
+  const content = await fs.readFile(filePath, 'utf-8')
+  return parseJSONLContent(content)
+}
+
+/**
+ * Parse JSONL from buffer
+ */
+export async function parseJSONLBuffer(buffer: Buffer): Promise<FileParseResult> {
+  const content = buffer.toString('utf-8')
+  return parseJSONLContent(content)
+}
+
+function parseJSONLContent(content: string): FileParseResult {
+  const lines = content.split('\n').filter((line) => line.trim())
+  const items: unknown[] = []
+
+  for (const line of lines) {
+    try {
+      items.push(JSON.parse(line))
+    } catch {
+      throw new Error(`Invalid JSONL: failed to parse line: ${line.slice(0, 100)}`)
+    }
+  }
+
+  const formattedContent = JSON.stringify(items, null, 2)
+
+  return {
+    content: formattedContent,
+    metadata: {
+      type: 'json',
+      isArray: true,
+      keys: [],
+      itemCount: items.length,
+      depth: items.length > 0 ? 1 + getJsonDepth(items[0]) : 1,
+    },
   }
 }
 

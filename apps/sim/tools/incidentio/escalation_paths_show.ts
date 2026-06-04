@@ -29,7 +29,7 @@ export const escalationPathsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/escalation_paths/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/escalation_paths/${params.id.trim()}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -103,8 +103,6 @@ export const escalationPathsShowTool: ToolConfig<
             },
           },
         },
-        created_at: { type: 'string', description: 'When the path was created' },
-        updated_at: { type: 'string', description: 'When the path was last updated' },
       },
     },
   },

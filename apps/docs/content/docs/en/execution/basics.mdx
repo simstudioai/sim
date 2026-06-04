@@ -6,7 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
 
-Understanding how workflows execute in Sim is key to building efficient and reliable automations. The execution engine automatically handles dependencies, concurrency, and data flow to ensure your workflows run smoothly and predictably.
+Understanding how workflows run in Sim is key to building efficient and reliable automations. The execution engine automatically handles dependencies, concurrency, and data flow to ensure your workflows run smoothly and predictably.
 
 ## How Workflows Execute
 
@@ -14,7 +14,7 @@ Sim's execution engine processes workflows intelligently by analyzing dependenci
 
 ### Concurrent Execution by Default
 
-Multiple blocks run concurrently when they don't depend on each other. This parallel execution dramatically improves performance without requiring manual configuration.
+Multiple blocks run concurrently when they don't depend on each other. This dramatically improves performance without requiring manual configuration.
 
 <Image
   src="/static/execution/concurrency.png"
@@ -49,7 +49,7 @@ Workflows can branch in multiple directions using routing blocks. The execution 
   height={500}
 />
 
-This workflow demonstrates how execution can follow different paths based on conditions or AI decisions, with each path executing independently.
+This workflow demonstrates how a run can follow different paths based on conditions or AI decisions, with each path running independently.
 
 ## Block Types
 
@@ -57,7 +57,7 @@ Sim provides different types of blocks that serve specific purposes in your work
 
 <Cards>
   <Card title="Triggers" href="/triggers">
-    **Starter blocks** initiate workflows and **Webhook blocks** respond to external events. Every workflow needs a trigger to begin execution.
+    **Starter blocks** initiate workflows and **Webhook blocks** respond to external events. Every workflow needs a trigger to begin a run.
   </Card>
   
   <Card title="Processing Blocks" href="/blocks">
@@ -73,37 +73,37 @@ Sim provides different types of blocks that serve specific purposes in your work
   </Card>
 </Cards>
 
-All blocks execute automatically based on their dependencies - you don't need to manually manage execution order or timing.
+All blocks run automatically based on their dependencies - you don't need to manually manage run order or timing.
 
-## Execution Monitoring
+## Run Monitoring
 
-When workflows run, Sim provides real-time visibility into the execution process:
+When workflows run, Sim provides real-time visibility into the process:
 
-- **Live Block States**: See which blocks are currently executing, completed, or failed
-- **Execution Logs**: Detailed logs appear in real-time showing inputs, outputs, and any errors
-- **Performance Metrics**: Track execution time and costs for each block
-- **Path Visualization**: Understand which execution paths were taken through your workflow
+- **Live Block States**: See which blocks are currently running, completed, or failed
+- **Run Logs**: Detailed logs appear in real-time showing inputs, outputs, and any errors
+- **Performance Metrics**: Track run time and costs for each block
+- **Path Visualization**: Understand which paths were taken through your workflow
 
 <Callout type="info">
-  All execution details are captured and available for review even after workflows complete, helping with debugging and optimization.
+  All run details are captured and available for review even after workflows complete, helping with debugging and optimization.
 </Callout>
 
-## Key Execution Principles
+## Key Principles
 
 Understanding these core principles will help you build better workflows:
 
 1. **Dependency-Based Execution**: Blocks only run when all their dependencies have completed
 2. **Automatic Parallelization**: Independent blocks run concurrently without configuration
 3. **Smart Data Flow**: Outputs flow automatically to connected blocks
-4. **Error Handling**: Failed blocks stop their execution path but don't affect independent paths
-5. **Response Blocks as Exit Points**: When a Response block executes, the entire workflow stops and the API response is sent immediately. Multiple Response blocks can exist on different branches — the first one to execute wins
-6. **State Persistence**: All block outputs and execution details are preserved for debugging
-7. **Cycle Protection**: Workflows that call other workflows (via Workflow blocks, MCP tools, or API blocks) are tracked with a call chain. If the chain exceeds 25 hops, execution is stopped to prevent infinite loops
+4. **Error Handling**: Failed blocks stop their run path but don't affect independent paths
+5. **Response Blocks as Exit Points**: When a Response block runs, the entire workflow stops and the API response is sent immediately. Multiple Response blocks can exist on different branches — the first one to run wins
+6. **State Persistence**: All block outputs and run details are preserved for debugging
+7. **Cycle Protection**: Workflows that call other workflows (via Workflow blocks, MCP tools, or API blocks) are tracked with a call chain. If the chain exceeds 25 hops, the run is stopped to prevent infinite loops
 
 ## Next Steps
 
 Now that you understand execution basics, explore:
 - **[Block Types](/blocks)** - Learn about specific block capabilities
-- **[Logging](/execution/logging)** - Monitor workflow executions and debug issues
+- **[Logging](/execution/logging)** - Monitor workflow runs and debug issues
 - **[Cost Calculation](/execution/costs)** - Understand and optimize workflow costs
 - **[Triggers](/triggers)** - Set up different ways to run your workflows

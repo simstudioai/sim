@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { SharepointAddListItemResponse, SharepointToolParams } from '@/tools/sharepoint/types'
+import { optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointAddListItem')
@@ -8,7 +9,7 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
   id: 'sharepoint_add_list_items',
   name: 'Add SharePoint List Item',
   description: 'Add a new item to a SharePoint list',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -42,7 +43,7 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
         'The ID of the list to add the item to. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012',
     },
     listItemFields: {
-      type: 'object',
+      type: 'json',
       required: true,
       visibility: 'user-only',
       description: 'Field values for the new list item',
@@ -51,11 +52,12 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
 
   request: {
     url: (params) => {
-      const siteId = params.siteId || params.siteSelector || 'root'
-      if (!params.listId) {
+      const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
+      const listId = optionalTrim(params.listId)
+      if (!listId) {
         throw new Error('listId must be provided')
       }
-      const listSegment = params.listId
+      const listSegment = encodeURIComponent(listId)
       return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items`
     },
     method: 'POST',
@@ -74,7 +76,10 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
         params.listItemFields !== null &&
         'fields' in (params.listItemFields as Record<string, unknown>) &&
         Object.keys(params.listItemFields as Record<string, unknown>).length === 1
-          ? ((params.listItemFields as any).fields as Record<string, unknown>)
+          ? ((params.listItemFields as { fields: Record<string, unknown> }).fields as Record<
+              string,
+              unknown
+            >)
           : (params.listItemFields as Record<string, unknown>)
 
       if (!providedFields || Object.keys(providedFields).length === 0) {

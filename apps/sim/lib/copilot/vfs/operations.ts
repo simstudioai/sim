@@ -226,8 +226,10 @@ export function read(
   const totalLines = lines.length
 
   if (offset !== undefined || limit !== undefined) {
-    const start = offset ?? 0
-    const end = limit !== undefined ? start + limit : lines.length
+    const rawStart = Number.isFinite(offset) ? (offset as number) : 0
+    const start = Math.max(0, Math.min(totalLines, rawStart))
+    const rawEnd = limit !== undefined ? start + Math.max(0, limit) : totalLines
+    const end = Math.max(start, Math.min(totalLines, rawEnd))
     return {
       content: lines.slice(start, end).join('\n'),
       totalLines,

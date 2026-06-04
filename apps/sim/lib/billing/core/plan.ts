@@ -13,11 +13,71 @@ const logger = createLogger('PlanLookup')
 
 export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPrioritySubscription>>
 
+interface GetHighestPrioritySubscriptionOptions {
+  onError?: 'return-null' | 'throw'
+}
+
+function pickHighestPrioritySubscription<TSubscription>(
+  subscriptions: TSubscription[],
+  predicates: Array<(subscription: TSubscription) => boolean>
+): TSubscription | null {
+  for (const predicate of predicates) {
+    const match = subscriptions.find(predicate)
+    if (match) return match
+  }
+
+  return null
+}
+
+export async function getHighestPriorityPersonalSubscription(
+  userId: string,
+  options: GetHighestPrioritySubscriptionOptions = {}
+) {
+  const { onError = 'return-null' } = options
+  try {
+    const personalSubs = await db
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, userId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+
+    return pickHighestPrioritySubscription(personalSubs, [
+      checkEnterprisePlan,
+      checkTeamPlan,
+      checkProPlan,
+    ])
+  } catch (error) {
+    logger.error('Error getting highest priority personal subscription', { error, userId })
+    if (onError === 'throw') {
+      throw error
+    }
+    return null
+  }
+}
+
 /**
  * Get the highest priority paid subscription for a user.
- * Priority: Enterprise > Team > Pro > Free
+ *
+ * Selection order:
+ *   1. Plan tier: Enterprise > Team > Pro > Free
+ *   2. Within the same tier, **org-scoped subs beat personally-scoped subs**.
+ *
+ * The tie-break matters because a user can legitimately hold both scopes
+ * at once — e.g. they accepted an org invite while their own personal Pro
+ * is still in its `cancelAtPeriodEnd` grace window. In that case the org
+ * is already paying for their usage, so pooled resources should win over
+ * the runoff personal sub; otherwise usage, credits, and rate limits would
+ * leak onto the user's row until the next billing cycle.
  */
-export async function getHighestPrioritySubscription(userId: string) {
+export async function getHighestPrioritySubscription(
+  userId: string,
+  options: GetHighestPrioritySubscriptionOptions = {}
+) {
+  const { onError = 'return-null' } = options
   try {
     const personalSubs = await db
       .select()
@@ -59,22 +119,17 @@ export async function getHighestPrioritySubscription(userId: string) {
       }
     }
 
-    const allSubs = [...personalSubs, ...orgSubs]
+    if (personalSubs.length === 0 && orgSubs.length === 0) return null
 
-    if (allSubs.length === 0) return null
-
-    const enterpriseSub = allSubs.find((s) => checkEnterprisePlan(s))
-    if (enterpriseSub) return enterpriseSub
-
-    const teamSub = allSubs.find((s) => checkTeamPlan(s))
-    if (teamSub) return teamSub
-
-    const proSub = allSubs.find((s) => checkProPlan(s))
-    if (proSub) return proSub
-
-    return null
+    return pickHighestPrioritySubscription(
+      [...orgSubs, ...personalSubs],
+      [checkEnterprisePlan, checkTeamPlan, checkProPlan]
+    )
   } catch (error) {
     logger.error('Error getting highest priority subscription', { error, userId })
+    if (onError === 'throw') {
+      throw error
+    }
     return null
   }
 }

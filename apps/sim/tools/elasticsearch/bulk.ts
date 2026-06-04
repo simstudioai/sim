@@ -137,7 +137,7 @@ export const bulkTool: ToolConfig<ElasticsearchBulkParams, ElasticsearchBulkResp
       if (!operations.endsWith('\n')) {
         operations += '\n'
       }
-      return operations as unknown as Record<string, any>
+      return operations
     },
   },
 

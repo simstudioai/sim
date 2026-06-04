@@ -11,7 +11,7 @@
  *    (published by serve route, consumed by serve route on other processes to push to local SSE clients)
  */
 
-import { createPubSubChannel } from '@/lib/events/pubsub'
+import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 import type { ToolsChangedEvent, WorkflowToolsChangedEvent } from '@/lib/mcp/types'
 
 interface McpPubSubAdapter {
@@ -22,25 +22,39 @@ interface McpPubSubAdapter {
   dispose(): void
 }
 
-const toolsChannel =
-  typeof window !== 'undefined'
-    ? null
-    : createPubSubChannel<ToolsChangedEvent>({
-        channel: 'mcp:tools_changed',
-        label: 'mcp-tools',
-      })
+type McpPubSubGlobal = typeof globalThis & {
+  _mcpToolsChannel?: PubSubChannel<ToolsChangedEvent> | null
+  _mcpWorkflowToolsChannel?: PubSubChannel<WorkflowToolsChangedEvent> | null
+}
 
-const workflowToolsChannel =
-  typeof window !== 'undefined'
-    ? null
-    : createPubSubChannel<WorkflowToolsChangedEvent>({
-        channel: 'mcp:workflow_tools_changed',
-        label: 'mcp-workflow-tools',
-      })
+const g = globalThis as McpPubSubGlobal
 
-export const mcpPubSub: McpPubSubAdapter =
+if (!('_mcpToolsChannel' in g)) {
+  g._mcpToolsChannel =
+    typeof window !== 'undefined'
+      ? null
+      : createPubSubChannel<ToolsChangedEvent>({
+          channel: 'mcp:tools_changed',
+          label: 'mcp-tools',
+        })
+}
+
+if (!('_mcpWorkflowToolsChannel' in g)) {
+  g._mcpWorkflowToolsChannel =
+    typeof window !== 'undefined'
+      ? null
+      : createPubSubChannel<WorkflowToolsChangedEvent>({
+          channel: 'mcp:workflow_tools_changed',
+          label: 'mcp-workflow-tools',
+        })
+}
+
+const toolsChannel = g._mcpToolsChannel
+const workflowToolsChannel = g._mcpWorkflowToolsChannel
+
+export const mcpPubSub: McpPubSubAdapter | null =
   typeof window !== 'undefined' || !toolsChannel || !workflowToolsChannel
-    ? (null as unknown as McpPubSubAdapter)
+    ? null
     : {
         publishToolsChanged: (event) => toolsChannel.publish(event),
         publishWorkflowToolsChanged: (event) => workflowToolsChannel.publish(event),

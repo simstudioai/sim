@@ -1,13 +1,19 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { slackUsersListOrDetailContract } from '@/lib/api/contracts/selectors/slack'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SlackUsersAPI')
+
+const SLACK_PAGE_LIMIT = 200
+const SLACK_MAX_USER_PAGES = 10
 
 interface SlackUser {
   id: string
@@ -17,16 +23,20 @@ interface SlackUser {
   is_bot: boolean
 }
 
-export async function POST(request: Request) {
+interface SlackUsersResult {
+  members: SlackUser[]
+  truncated: boolean
+}
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, workflowId, userId } = body
-
-    if (!credential) {
+    const parsed = await parseRequest(slackUsersListOrDetailContract, request, {})
+    if (!parsed.success) {
       logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+      return parsed.response
     }
+    const { credential, workflowId, userId } = parsed.data.body
 
     if (userId !== undefined && userId !== null) {
       const validation = validateAlphanumericId(userId, 'userId', 100)
@@ -43,7 +53,7 @@ export async function POST(request: Request) {
       accessToken = credential
       logger.info('Using direct bot token for Slack API')
     } else {
-      const authz = await authorizeCredentialUse(request as any, {
+      const authz = await authorizeCredentialUse(request, {
         credentialId: credential,
         workflowId,
       })
@@ -84,6 +94,9 @@ export async function POST(request: Request) {
     }
 
     const data = await fetchSlackUsers(accessToken)
+    if (data.truncated) {
+      logger.warn('users.list hit pagination cap; user list may be incomplete')
+    }
 
     const users = (data.members || [])
       .filter((user: SlackUser) => !user.deleted && !user.is_bot)
@@ -105,7 +118,7 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})
 
 async function fetchSlackUser(accessToken: string, userId: string) {
   const url = new URL('https://slack.com/api/users.info')
@@ -132,27 +145,53 @@ async function fetchSlackUser(accessToken: string, userId: string) {
   return data
 }
 
-async function fetchSlackUsers(accessToken: string) {
-  const url = new URL('https://slack.com/api/users.list')
-  url.searchParams.append('limit', '200')
+/**
+ * Lists Slack workspace members, following `response_metadata.next_cursor` so
+ * the full set is returned. Bounded by `SLACK_MAX_USER_PAGES`; sets `truncated`
+ * rather than silently dropping members when the cap is hit.
+ */
+async function fetchSlackUsers(accessToken: string): Promise<SlackUsersResult> {
+  const members: SlackUser[] = []
+  let cursor: string | undefined
+  let truncated = false
 
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-  })
+  for (let page = 0; page < SLACK_MAX_USER_PAGES; page++) {
+    const url = new URL('https://slack.com/api/users.list')
+    url.searchParams.append('limit', String(SLACK_PAGE_LIMIT))
+    if (cursor) {
+      url.searchParams.append('cursor', cursor)
+    }
 
-  if (!response.ok) {
-    throw new Error(`Slack API error: ${response.status} ${response.statusText}`)
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Slack API error: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+
+    if (!data.ok) {
+      throw new Error(data.error || 'Failed to fetch users')
+    }
+
+    if (Array.isArray(data.members)) {
+      members.push(...data.members)
+    }
+
+    cursor = data.response_metadata?.next_cursor?.trim() || undefined
+    if (!cursor) {
+      return { members, truncated }
+    }
+    if (page === SLACK_MAX_USER_PAGES - 1) {
+      truncated = true
+    }
   }
 
-  const data = await response.json()
-
-  if (!data.ok) {
-    throw new Error(data.error || 'Failed to fetch users')
-  }
-
-  return data
+  return { members, truncated }
 }

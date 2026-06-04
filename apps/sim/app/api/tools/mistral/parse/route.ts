@@ -1,36 +1,27 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { mistralParseContract } from '@/lib/api/contracts/tools/media/document-parse'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MistralParseAPI')
 
-const MistralParseSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().min(1, 'File path is required').optional(),
-  fileData: FileInputSchema.optional(),
-  file: FileInputSchema.optional(),
-  resultType: z.string().optional(),
-  pages: z.array(z.number()).optional(),
-  includeImageBase64: z.boolean().optional(),
-  imageLimit: z.number().optional(),
-  imageMinSize: z.number().optional(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -50,8 +41,28 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.userId
-    const body = await request.json()
-    const validatedData = MistralParseSchema.parse(body)
+
+    const parsed = await parseRequest(
+      mistralParseContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid request data`, { errors: error.issues })
+          return NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     const fileData = validatedData.file || validatedData.fileData
     const filePath = typeof fileData === 'string' ? fileData : validatedData.filePath
@@ -86,7 +97,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to process file',
+            error: getErrorMessage(error, 'Failed to process file'),
           },
           { status: 400 }
         )
@@ -111,6 +122,8 @@ export async function POST(request: NextRequest) {
       }
       let base64 = userFile.base64
       if (!base64) {
+        const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+        if (denied) return denied
         const buffer = await downloadFileFromStorage(userFile, requestId, logger)
         base64 = buffer.toString('base64')
       }
@@ -252,26 +265,14 @@ export async function POST(request: NextRequest) {
       output: mistralData,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error in Mistral parse:`, error)
 
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )
   }
-}
+})

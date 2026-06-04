@@ -3,58 +3,23 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
-import { COPILOT_MODES } from '@/lib/copilot/models'
+import { updateCopilotMessagesContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { replaceCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
+import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 
-const UpdateMessagesSchema = z.object({
-  chatId: z.string(),
-  messages: z.array(
-    z
-      .object({
-        id: z.string(),
-        role: z.enum(['user', 'assistant', 'system']),
-        content: z.string(),
-        timestamp: z.string(),
-        toolCalls: z.array(z.any()).optional(),
-        contentBlocks: z.array(z.any()).optional(),
-        fileAttachments: z
-          .array(
-            z.object({
-              id: z.string(),
-              key: z.string(),
-              filename: z.string(),
-              media_type: z.string(),
-              size: z.number(),
-            })
-          )
-          .optional(),
-        contexts: z.array(z.any()).optional(),
-        citations: z.array(z.any()).optional(),
-        errorType: z.string().optional(),
-      })
-      .passthrough() // Preserve any additional fields for future compatibility
-  ),
-  planArtifact: z.string().nullable().optional(),
-  config: z
-    .object({
-      mode: z.enum(COPILOT_MODES).optional(),
-      model: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
-})
-
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -63,13 +28,21 @@ export async function POST(req: NextRequest) {
       return createUnauthorizedResponse()
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(
+      updateCopilotMessagesContract,
+      req,
+      {},
+      {
+        invalidJson: 'throw',
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { chatId, messages, planArtifact, config } = parsed.data.body
 
-    // Debug: Log what we received
-    const lastMsg = body.messages?.[body.messages.length - 1]
+    const lastMsg = messages[messages.length - 1]
     if (lastMsg?.role === 'assistant') {
       logger.info(`[${tracker.requestId}] Received messages to save`, {
-        messageCount: body.messages?.length,
+        messageCount: messages.length,
         lastMsgId: lastMsg.id,
         lastMsgContentLength: lastMsg.content?.length || 0,
         lastMsgContentBlockCount: lastMsg.contentBlocks?.length || 0,
@@ -77,13 +50,15 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const { chatId, messages, planArtifact, config } = UpdateMessagesSchema.parse(body)
+    const normalizedMessages: PersistedMessage[] = messages.map((message) =>
+      normalizeMessage(message as Record<string, unknown>)
+    )
 
     // Debug: Log what we're about to save
-    const lastMsgParsed = messages[messages.length - 1]
+    const lastMsgParsed = normalizedMessages[normalizedMessages.length - 1]
     if (lastMsgParsed?.role === 'assistant') {
       logger.info(`[${tracker.requestId}] Parsed messages to save`, {
-        messageCount: messages.length,
+        messageCount: normalizedMessages.length,
         lastMsgId: lastMsgParsed.id,
         lastMsgContentLength: lastMsgParsed.content?.length || 0,
         lastMsgContentBlockCount: lastMsgParsed.contentBlocks?.length || 0,
@@ -92,15 +67,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify that the chat belongs to the user
-    const chat = await getAccessibleCopilotChat(chatId, userId)
+    const chat = await getAccessibleCopilotChatAuth(chatId, userId)
 
     if (!chat) {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
 
-    // Update chat with new messages, plan artifact, and config
-    const updateData: Record<string, any> = {
-      messages: messages,
+    const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     }
 
@@ -112,21 +85,34 @@ export async function POST(req: NextRequest) {
       updateData.config = config
     }
 
-    await db.update(copilotChats).set(updateData).where(eq(copilotChats.id, chatId))
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(copilotChats)
+        .set(updateData)
+        .where(eq(copilotChats.id, chatId))
+        .returning({ model: copilotChats.model })
+      if (!updated) return
+      await replaceCopilotChatMessages(
+        chatId,
+        normalizedMessages,
+        { chatModel: updated.model ?? null },
+        tx
+      )
+    })
 
     logger.info(`[${tracker.requestId}] Successfully updated chat`, {
       chatId,
-      newMessageCount: messages.length,
+      newMessageCount: normalizedMessages.length,
       hasPlanArtifact: !!planArtifact,
       hasConfig: !!config,
     })
 
     return NextResponse.json({
       success: true,
-      messageCount: messages.length,
+      messageCount: normalizedMessages.length,
     })
   } catch (error) {
     logger.error(`[${tracker.requestId}] Error updating chat messages:`, error)
     return createInternalServerErrorResponse('Failed to update chat messages')
   }
-}
+})

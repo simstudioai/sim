@@ -1,6 +1,11 @@
+import type { BlobServiceClient as BlobServiceClientType } from '@azure/storage-blob'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import {
+  assertKnownSizeWithinLimit,
+  readNodeStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { BLOB_CONFIG } from '@/lib/uploads/config'
-import { generateId } from '@/lib/core/utils/uuid'
 import type {
   AzureMultipartPart,
   AzureMultipartUploadInit,
@@ -11,13 +16,9 @@ import type { FileInfo } from '@/lib/uploads/shared/types'
 import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file-utils'
 import { sanitizeFileName } from '@/executor/constants'
 
-type BlobServiceClientInstance = Awaited<
-  ReturnType<typeof import('@azure/storage-blob').BlobServiceClient.fromConnectionString>
->
-
 const logger = createLogger('BlobClient')
 
-let _blobServiceClient: BlobServiceClientInstance | null = null
+let _blobServiceClient: BlobServiceClientType | null = null
 
 interface ParsedCredentials {
   accountName: string
@@ -65,7 +66,7 @@ function getAccountCredentials(): ParsedCredentials {
   )
 }
 
-export async function getBlobServiceClient(): Promise<BlobServiceClientInstance> {
+export async function getBlobServiceClient(): Promise<BlobServiceClientType> {
   if (_blobServiceClient) return _blobServiceClient
 
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
@@ -210,7 +211,7 @@ export async function getPresignedUrlWithConfig(
     generateBlobSASQueryParameters,
     StorageSharedKeyCredential,
   } = await import('@azure/storage-blob')
-  let tempBlobServiceClient: BlobServiceClientInstance
+  let tempBlobServiceClient: BlobServiceClientType
   let accountName: string
   let accountKey: string
 
@@ -270,9 +271,19 @@ export async function downloadFromBlob(key: string): Promise<Buffer>
  */
 export async function downloadFromBlob(key: string, customConfig: BlobConfig): Promise<Buffer>
 
-export async function downloadFromBlob(key: string, customConfig?: BlobConfig): Promise<Buffer> {
+export async function downloadFromBlob(
+  key: string,
+  customConfig: BlobConfig,
+  maxBytes: number
+): Promise<Buffer>
+
+export async function downloadFromBlob(
+  key: string,
+  customConfig?: BlobConfig,
+  maxBytes?: number
+): Promise<Buffer> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
-  let blobServiceClient: BlobServiceClientInstance
+  let blobServiceClient: BlobServiceClientType
   let containerName: string
 
   if (customConfig) {
@@ -300,30 +311,46 @@ export async function downloadFromBlob(key: string, customConfig?: BlobConfig): 
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
   const downloadBlockBlobResponse = await blockBlobClient.download()
+  if (maxBytes !== undefined && downloadBlockBlobResponse.contentLength !== undefined) {
+    try {
+      assertKnownSizeWithinLimit(
+        downloadBlockBlobResponse.contentLength,
+        maxBytes,
+        'storage download'
+      )
+    } catch (error) {
+      const stream = downloadBlockBlobResponse.readableStreamBody as
+        | { destroy?: (error?: Error) => void }
+        | undefined
+      stream?.destroy?.(error instanceof Error ? error : undefined)
+      throw error
+    }
+  }
+
   if (!downloadBlockBlobResponse.readableStreamBody) {
     throw new Error('Failed to get readable stream from blob download')
   }
-  const downloaded = await streamToBuffer(downloadBlockBlobResponse.readableStreamBody)
+  const downloaded = await readNodeStreamToBufferWithLimit(
+    downloadBlockBlobResponse.readableStreamBody,
+    {
+      maxBytes: maxBytes ?? Number.MAX_SAFE_INTEGER,
+      label: 'storage download',
+    }
+  )
 
   return downloaded
 }
 
 /**
- * Delete a file from Azure Blob Storage
- * @param key Blob name
+ * Check whether a blob exists (and return its size when it does).
+ * Returns null when the blob is missing.
  */
-export async function deleteFromBlob(key: string): Promise<void>
-
-/**
- * Delete a file from Azure Blob Storage with custom configuration
- * @param key Blob name
- * @param customConfig Custom Blob configuration
- */
-export async function deleteFromBlob(key: string, customConfig: BlobConfig): Promise<void>
-
-export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Promise<void> {
+export async function headBlobObject(
+  key: string,
+  customConfig?: BlobConfig
+): Promise<{ size: number; contentType?: string } | null> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
-  let blobServiceClient: BlobServiceClientInstance
+  let blobServiceClient: BlobServiceClientType
   let containerName: string
 
   if (customConfig) {
@@ -350,23 +377,75 @@ export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Pr
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  await blockBlobClient.delete()
+  try {
+    const properties = await blockBlobClient.getProperties()
+    return {
+      size: properties.contentLength ?? 0,
+      contentType: properties.contentType,
+    }
+  } catch (err) {
+    const status = (err as { statusCode?: number }).statusCode
+    const code = (err as { code?: string }).code
+    if (status === 404 || code === 'BlobNotFound') {
+      return null
+    }
+    throw err
+  }
 }
 
 /**
- * Helper function to convert a readable stream to a Buffer
+ * Delete a file from Azure Blob Storage
+ * @param key Blob name
  */
-async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    readableStream.on('data', (data) => {
-      chunks.push(data instanceof Buffer ? data : Buffer.from(data))
-    })
-    readableStream.on('end', () => {
-      resolve(Buffer.concat(chunks))
-    })
-    readableStream.on('error', reject)
-  })
+export async function deleteFromBlob(key: string): Promise<void>
+
+/**
+ * Delete a file from Azure Blob Storage with custom configuration
+ * @param key Blob name
+ * @param customConfig Custom Blob configuration
+ */
+export async function deleteFromBlob(key: string, customConfig: BlobConfig): Promise<void>
+
+export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Promise<void> {
+  const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
+  let blobServiceClient: BlobServiceClientType
+  let containerName: string
+
+  if (customConfig) {
+    if (customConfig.connectionString) {
+      blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
+    } else if (customConfig.accountName && customConfig.accountKey) {
+      const credential = new StorageSharedKeyCredential(
+        customConfig.accountName,
+        customConfig.accountKey
+      )
+      blobServiceClient = new BlobServiceClient(
+        `https://${customConfig.accountName}.blob.core.windows.net`,
+        credential
+      )
+    } else {
+      throw new Error('Invalid custom blob configuration')
+    }
+    containerName = customConfig.containerName
+  } else {
+    blobServiceClient = await getBlobServiceClient()
+    containerName = BLOB_CONFIG.containerName
+  }
+
+  const containerClient = blobServiceClient.getContainerClient(containerName)
+  const blockBlobClient = containerClient.getBlockBlobClient(key)
+
+  await blockBlobClient.deleteIfExists()
+}
+
+/**
+ * Derive the deterministic Azure block id for a given part number.
+ * Block ids must be base64-encoded and equal length within an upload; using a
+ * fixed-width zero-padded counter gives both properties for free, and lets the
+ * server reconstruct the id from `partNumber` alone when completing an upload.
+ */
+export function deriveBlobBlockId(partNumber: number): string {
+  return Buffer.from(`block-${partNumber.toString().padStart(6, '0')}`).toString('base64')
 }
 
 /**
@@ -376,9 +455,9 @@ export async function initiateMultipartUpload(
   options: AzureMultipartUploadInit
 ): Promise<{ uploadId: string; key: string }> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
-  const { fileName, contentType, customConfig } = options
+  const { fileName, contentType, customConfig, customKey } = options
 
-  let blobServiceClient: BlobServiceClientInstance
+  let blobServiceClient: BlobServiceClientType
   let containerName: string
 
   if (customConfig) {
@@ -403,7 +482,7 @@ export async function initiateMultipartUpload(
   }
 
   const safeFileName = sanitizeFileName(fileName)
-  const uniqueKey = `kb/${generateId()}-${safeFileName}`
+  const uniqueKey = customKey || `kb/${generateId()}-${safeFileName}`
 
   const uploadId = generateId()
 
@@ -438,7 +517,7 @@ export async function getMultipartPartUrls(
     generateBlobSASQueryParameters,
     StorageSharedKeyCredential,
   } = await import('@azure/storage-blob')
-  let blobServiceClient: BlobServiceClientInstance
+  let blobServiceClient: BlobServiceClientType
   let containerName: string
   let accountName: string
   let accountKey: string
@@ -476,9 +555,7 @@ export async function getMultipartPartUrls(
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
   return partNumbers.map((partNumber) => {
-    const blockId = Buffer.from(`block-${partNumber.toString().padStart(6, '0')}`).toString(
-      'base64'
-    )
+    const blockId = deriveBlobBlockId(partNumber)
 
     const sasOptions = {
       containerName,
@@ -510,7 +587,7 @@ export async function completeMultipartUpload(
   customConfig?: BlobConfig
 ): Promise<{ location: string; path: string; key: string }> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
-  let blobServiceClient: BlobServiceClientInstance
+  let blobServiceClient: BlobServiceClientType
   let containerName: string
 
   if (customConfig) {
@@ -563,7 +640,7 @@ export async function completeMultipartUpload(
  */
 export async function abortMultipartUpload(key: string, customConfig?: BlobConfig): Promise<void> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
-  let blobServiceClient: BlobServiceClientInstance
+  let blobServiceClient: BlobServiceClientType
   let containerName: string
 
   if (customConfig) {

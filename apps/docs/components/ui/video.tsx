@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { getAssetUrl } from '@/lib/utils'
+import { useRef, useState } from 'react'
+import { cn, getAssetUrl } from '@/lib/utils'
 import { Lightbox } from './lightbox'
 
 interface VideoProps {
@@ -12,36 +12,61 @@ interface VideoProps {
   muted?: boolean
   playsInline?: boolean
   enableLightbox?: boolean
+  width?: number
+  height?: number
 }
 
 export function Video({
   src,
-  className = 'w-full rounded-xl border border-border shadow-sm overflow-hidden outline-none focus:outline-none',
+  className = 'w-full rounded-xl border border-border overflow-hidden outline-none focus:outline-none',
   autoPlay = true,
   loop = true,
   muted = true,
   playsInline = true,
   enableLightbox = true,
+  width,
+  height,
 }: VideoProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const startTimeRef = useRef(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
-  const handleVideoClick = () => {
-    if (enableLightbox) {
-      setIsLightboxOpen(true)
-    }
+  const openLightbox = () => {
+    startTimeRef.current = videoRef.current?.currentTime ?? 0
+    setIsLightboxOpen(true)
   }
+
+  const video = (
+    <video
+      ref={videoRef}
+      autoPlay={autoPlay}
+      loop={loop}
+      muted={muted}
+      playsInline={playsInline}
+      width={width}
+      height={height}
+      className={cn(
+        className,
+        enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-[0.97]'
+      )}
+      src={getAssetUrl(src)}
+    />
+  )
 
   return (
     <>
-      <video
-        autoPlay={autoPlay}
-        loop={loop}
-        muted={muted}
-        playsInline={playsInline}
-        className={`${className} ${enableLightbox ? 'cursor-pointer transition-opacity hover:opacity-95' : ''}`}
-        src={getAssetUrl(src)}
-        onClick={handleVideoClick}
-      />
+      {enableLightbox ? (
+        <button
+          type='button'
+          onClick={openLightbox}
+          aria-label={`Open ${src} in media viewer`}
+          className='group contents'
+        >
+          {video}
+        </button>
+      ) : (
+        video
+      )}
 
       {enableLightbox && (
         <Lightbox
@@ -50,6 +75,7 @@ export function Video({
           src={src}
           alt={`Video: ${src}`}
           type='video'
+          startTime={startTimeRef.current}
         />
       )}
     </>

@@ -1,11 +1,27 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput } from '@/lib/api/contracts'
+import {
+  createWorkspaceContract,
+  deleteWorkspaceContract,
+  getWorkspaceContract,
+  getWorkspaceMembersContract,
+  getWorkspacePermissionsContract,
+  listWorkspacesContract,
+  updateWorkspaceContract,
+  type Workspace,
+  type WorkspaceCreationPolicy,
+  type WorkspaceMember,
+  type WorkspacePermissions,
+  type WorkspaceQueryScope,
+  type WorkspacesResponse,
+} from '@/lib/api/contracts'
 
 /**
  * Query key factory for workspace-related queries.
  * Provides hierarchical cache keys for workspaces, settings, and permissions.
  */
-type WorkspaceQueryScope = 'active' | 'archived' | 'all'
-
 export const workspaceKeys = {
   all: ['workspace'] as const,
   lists: () => [...workspaceKeys.all, 'list'] as const,
@@ -20,48 +36,78 @@ export const workspaceKeys = {
   adminList: (userId: string | undefined) => [...workspaceKeys.adminLists(), userId ?? ''] as const,
 }
 
-/** Represents a workspace in the user's workspace list. */
-export interface Workspace {
-  id: string
-  name: string
-  color?: string
-  ownerId: string
-  role?: string
-  membershipId?: string
-  permissions?: 'admin' | 'write' | 'read' | null
-}
+export type { Workspace, WorkspaceCreationPolicy, WorkspaceMember, WorkspacePermissions }
 
 async function fetchWorkspaces(
   scope: WorkspaceQueryScope = 'active',
   signal?: AbortSignal
-): Promise<Workspace[]> {
-  const response = await fetch(`/api/workspaces?scope=${scope}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch workspaces')
+): Promise<WorkspacesResponse> {
+  const data = await requestJson(listWorkspacesContract, { query: { scope }, signal })
+  return {
+    workspaces:
+      data.workspaces?.map((workspace: Workspace) => ({
+        ...workspace,
+        organizationId: workspace.organizationId ?? null,
+        workspaceMode: workspace.workspaceMode ?? 'grandfathered_shared',
+        inviteMembersEnabled: workspace.inviteMembersEnabled ?? false,
+        inviteDisabledReason: workspace.inviteDisabledReason ?? null,
+        inviteUpgradeRequired: workspace.inviteUpgradeRequired ?? false,
+      })) || [],
+    lastActiveWorkspaceId:
+      typeof data.lastActiveWorkspaceId === 'string' ? data.lastActiveWorkspaceId : null,
+    creationPolicy: data.creationPolicy
+      ? {
+          ...data.creationPolicy,
+          organizationId: data.creationPolicy.organizationId ?? null,
+          reason: data.creationPolicy.reason ?? null,
+          workspaceMode: data.creationPolicy.workspaceMode ?? 'personal',
+        }
+      : null,
   }
-
-  const data = await response.json()
-  return data.workspaces || []
 }
+
+const selectWorkspaces = (data: WorkspacesResponse): Workspace[] => data.workspaces
 
 /**
  * Fetches the current user's workspaces.
- * @param enabled - Whether the query should execute (defaults to true)
+ * Returns only the workspace array. Use `useWorkspacesWithMetadata` when
+ * you also need `lastActiveWorkspaceId`.
  */
 export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 'active') {
   return useQuery({
     queryKey: workspaceKeys.list(scope),
     queryFn: ({ signal }) => fetchWorkspaces(scope, signal),
+    select: selectWorkspaces,
     enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
 }
 
-interface CreateWorkspaceParams {
-  name: string
+/**
+ * Fetches workspaces with the user's last active workspace ID.
+ * Used by the redirect page to determine which workspace to open.
+ */
+export function useWorkspacesWithMetadata(enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.list('active'),
+    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    enabled,
+    staleTime: 30 * 1000,
+  })
 }
+
+export function useWorkspaceCreationPolicy(enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.list('active'),
+    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    select: (data) => data.creationPolicy,
+    enabled,
+    staleTime: 30 * 1000,
+  })
+}
+
+type CreateWorkspaceParams = Pick<ContractBodyInput<typeof createWorkspaceContract>, 'name'>
 
 /**
  * Creates a new workspace.
@@ -73,29 +119,18 @@ export function useCreateWorkspace() {
 
   return useMutation({
     mutationFn: async ({ name }: CreateWorkspaceParams) => {
-      const response = await fetch('/api/workspaces', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to create workspace')
-      }
-
-      const data = await response.json()
-      return data.workspace as Workspace
+      const data = await requestJson(createWorkspaceContract, { body: { name } })
+      return data.workspace
     },
     onSuccess: (newWorkspace) => {
-      queryClient.setQueryData<Workspace[]>(workspaceKeys.list('active'), (previous) => {
-        if (!previous?.length) {
-          return [newWorkspace]
+      queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
+        if (!previous) {
+          return { workspaces: [newWorkspace], lastActiveWorkspaceId: null, creationPolicy: null }
         }
-        if (previous.some((w) => w.id === newWorkspace.id)) {
+        if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
           return previous
         }
-        return [newWorkspace, ...previous]
+        return { ...previous, workspaces: [newWorkspace, ...previous.workspaces] }
       })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
@@ -117,31 +152,22 @@ export function useDeleteWorkspace() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, deleteTemplates = false }: DeleteWorkspaceParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deleteTemplates }),
+      return requestJson(deleteWorkspaceContract, {
+        params: { id: workspaceId },
+        body: { deleteTemplates },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete workspace')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
   })
 }
 
-interface UpdateWorkspaceParams {
-  workspaceId: string
-  name?: string
-  color?: string
-}
+type UpdateWorkspaceParams = { workspaceId: string } & Pick<
+  ContractBodyInput<typeof updateWorkspaceContract>,
+  'name' | 'color' | 'logoUrl'
+>
 
 /**
  * Updates a workspace's properties (name, color, etc.).
@@ -153,58 +179,33 @@ export function useUpdateWorkspace() {
   return useMutation({
     mutationFn: async ({ workspaceId, ...updates }: UpdateWorkspaceParams) => {
       const body = updates.name !== undefined ? { ...updates, name: updates.name.trim() } : updates
-      const response = await fetch(`/api/workspaces/${workspaceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update workspace')
-      }
-
-      return response.json()
+      return requestJson(updateWorkspaceContract, { params: { id: workspaceId }, body })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
   })
 }
 
-/** Represents a user with permissions in a workspace. */
-export interface WorkspaceUser {
-  userId: string
-  email: string
-  name: string | null
-  image: string | null
-  permissionType: 'admin' | 'write' | 'read'
-}
-
-/** Workspace permissions data containing all users and their access levels. */
-export interface WorkspacePermissions {
-  users: WorkspaceUser[]
-  total: number
-}
-
 async function fetchWorkspacePermissions(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<WorkspacePermissions> {
-  const response = await fetch(`/api/workspaces/${workspaceId}/permissions`, { signal })
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error('Workspace not found or access denied')
+  try {
+    return await requestJson(getWorkspacePermissionsContract, {
+      params: { id: workspaceId },
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      throw new Error('Workspace not found or access denied', { cause: error })
     }
-    if (response.status === 401) {
-      throw new Error('Authentication required')
+    if (error instanceof ApiClientError && error.status === 401) {
+      throw new Error('Authentication required', { cause: error })
     }
-    throw new Error(`Failed to fetch permissions: ${response.statusText}`)
+    throw error
   }
-
-  return response.json()
 }
 
 /**
@@ -221,25 +222,15 @@ export function useWorkspacePermissionsQuery(workspaceId: string | null | undefi
   })
 }
 
-/** Lightweight member profile for UI display (avatars, owner cells). */
-export interface WorkspaceMember {
-  userId: string
-  name: string
-  image: string | null
-}
-
 async function fetchWorkspaceMembers(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<WorkspaceMember[]> {
-  const response = await fetch(`/api/workspaces/${workspaceId}/members`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch workspace members')
-  }
-
-  const data = await response.json()
-  return data.members || []
+  const data = await requestJson(getWorkspaceMembersContract, {
+    params: { id: workspaceId },
+    signal,
+  })
+  return data.members
 }
 
 /**
@@ -256,18 +247,9 @@ export function useWorkspaceMembersQuery(workspaceId: string | null | undefined)
 }
 
 async function fetchWorkspaceSettings(workspaceId: string, signal?: AbortSignal) {
-  const [settingsResponse, permissionsResponse] = await Promise.all([
-    fetch(`/api/workspaces/${workspaceId}`, { signal }),
-    fetch(`/api/workspaces/${workspaceId}/permissions`, { signal }),
-  ])
-
-  if (!settingsResponse.ok || !permissionsResponse.ok) {
-    throw new Error('Failed to fetch workspace settings')
-  }
-
   const [settings, permissions] = await Promise.all([
-    settingsResponse.json(),
-    permissionsResponse.json(),
+    requestJson(getWorkspaceContract, { params: { id: workspaceId }, signal }),
+    requestJson(getWorkspacePermissionsContract, { params: { id: workspaceId }, signal }),
   ])
 
   return {
@@ -290,11 +272,10 @@ export function useWorkspaceSettings(workspaceId: string) {
   })
 }
 
-interface UpdateWorkspaceSettingsParams {
-  workspaceId: string
-  billedAccountUserId?: string
-  billingAccountUserEmail?: string
-}
+type UpdateWorkspaceSettingsParams = { workspaceId: string } & Pick<
+  ContractBodyInput<typeof updateWorkspaceContract>,
+  'billedAccountUserId'
+>
 
 /**
  * Updates workspace settings (e.g., billing configuration).
@@ -305,20 +286,9 @@ export function useUpdateWorkspaceSettings() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, ...updates }: UpdateWorkspaceSettingsParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to update workspace settings')
-      }
-
-      return response.json()
+      return requestJson(updateWorkspaceContract, { params: { id: workspaceId }, body: updates })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.settings(variables.workspaceId),
       })
@@ -333,82 +303,55 @@ export interface AdminWorkspace {
   isOwner: boolean
   ownerId?: string
   canInvite: boolean
+  organizationId: string | null
+  workspaceMode: Workspace['workspaceMode']
 }
 
 async function fetchAdminWorkspaces(
   userId: string | undefined,
+  organizationId: string | undefined,
   signal?: AbortSignal
 ): Promise<AdminWorkspace[]> {
   if (!userId) {
     return []
   }
 
-  const workspacesResponse = await fetch('/api/workspaces', { signal })
-  if (!workspacesResponse.ok) {
-    throw new Error('Failed to fetch workspaces')
-  }
+  const workspacesData = await requestJson(listWorkspacesContract, { query: {}, signal })
+  const allUserWorkspaces = (workspacesData.workspaces || []).map((workspace: Workspace) => ({
+    ...workspace,
+    organizationId: workspace.organizationId ?? null,
+    workspaceMode: workspace.workspaceMode ?? 'grandfathered_shared',
+    inviteMembersEnabled: workspace.inviteMembersEnabled ?? false,
+    inviteDisabledReason: workspace.inviteDisabledReason ?? null,
+    inviteUpgradeRequired: workspace.inviteUpgradeRequired ?? false,
+  }))
 
-  const workspacesData = await workspacesResponse.json()
-  const allUserWorkspaces = workspacesData.workspaces || []
-
-  const permissionPromises = allUserWorkspaces.map(
-    async (workspace: { id: string; name: string; isOwner?: boolean; ownerId?: string }) => {
-      try {
-        const permissionResponse = await fetch(`/api/workspaces/${workspace.id}/permissions`, {
-          signal,
-        })
-        if (!permissionResponse.ok) {
-          return null
-        }
-        const permissionData = await permissionResponse.json()
-        return { workspace, permissionData }
-      } catch (_error) {
-        return null
-      }
-    }
-  )
-
-  const results = await Promise.all(permissionPromises)
-
-  const adminWorkspaces: AdminWorkspace[] = []
-  for (const result of results) {
-    if (!result) continue
-
-    const { workspace, permissionData } = result
-    let hasAdminAccess = false
-
-    if (permissionData.users) {
-      const currentUserPermission = permissionData.users.find(
-        (user: { id: string; userId?: string; permissionType: string }) =>
-          user.id === userId || user.userId === userId
-      )
-      hasAdminAccess = currentUserPermission?.permissionType === 'admin'
-    }
-
-    const isOwner = workspace.isOwner || workspace.ownerId === userId
-
-    if (hasAdminAccess || isOwner) {
-      adminWorkspaces.push({
-        id: workspace.id,
-        name: workspace.name,
-        isOwner,
-        ownerId: workspace.ownerId,
-        canInvite: true,
-      })
-    }
-  }
-
-  return adminWorkspaces
+  return allUserWorkspaces
+    .filter((workspace: Workspace) => workspace.permissions === 'admin')
+    .filter((workspace: Workspace) =>
+      organizationId
+        ? workspace.organizationId === organizationId && workspace.workspaceMode === 'organization'
+        : true
+    )
+    .map((workspace: Workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      isOwner: workspace.ownerId === userId,
+      ownerId: workspace.ownerId,
+      canInvite: workspace.inviteMembersEnabled ?? false,
+      organizationId: workspace.organizationId,
+      workspaceMode: workspace.workspaceMode,
+    }))
 }
 
 /**
  * Fetches workspaces where the user has admin access.
  * @param userId - The user ID to check admin access for
  */
-export function useAdminWorkspaces(userId: string | undefined) {
+export function useAdminWorkspaces(userId: string | undefined, organizationId?: string) {
   return useQuery({
-    queryKey: workspaceKeys.adminList(userId),
-    queryFn: ({ signal }) => fetchAdminWorkspaces(userId, signal),
+    queryKey: [...workspaceKeys.adminList(userId), organizationId ?? ''] as const,
+    queryFn: ({ signal }) => fetchAdminWorkspaces(userId, organizationId, signal),
     enabled: Boolean(userId),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,

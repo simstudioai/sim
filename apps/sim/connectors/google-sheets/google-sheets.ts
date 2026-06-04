@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GoogleSheetsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleSheetsConnector')
 
@@ -129,7 +130,7 @@ async function fetchSpreadsheetModifiedTime(
     return data.modifiedTime
   } catch (error) {
     logger.warn('Error fetching modifiedTime from Drive API', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return undefined
   }
@@ -168,7 +169,6 @@ async function sheetToDocument(
       return null
     }
 
-    const contentHash = await computeContentHash(content)
     const rowCount = dataRows.length
 
     return {
@@ -177,7 +177,7 @@ async function sheetToDocument(
       content,
       mimeType: 'text/plain',
       sourceUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheet.sheetId}`,
-      contentHash,
+      contentHash: `gsheets:${spreadsheetId}:${sheet.sheetId}:${modifiedTime ?? ''}`,
       metadata: {
         spreadsheetId,
         spreadsheetTitle,
@@ -190,7 +190,7 @@ async function sheetToDocument(
     }
   } catch (error) {
     logger.warn(`Failed to extract content from sheet: ${sheet.title}`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }
@@ -199,7 +199,7 @@ async function sheetToDocument(
 export const googleSheetsConnector: ConnectorConfig = {
   id: 'google_sheets',
   name: 'Google Sheets',
-  description: 'Sync spreadsheet data from Google Sheets into your knowledge base',
+  description: 'Sync spreadsheet data from Google Sheets',
   version: '1.0.0',
   icon: GoogleSheetsIcon,
 
@@ -259,22 +259,24 @@ export const googleSheetsConnector: ConnectorConfig = {
       sheetCount: sheets.length,
     })
 
-    const documents: ExternalDocument[] = []
-    for (let i = 0; i < sheets.length; i += CONCURRENCY) {
-      const batch = sheets.slice(i, i + CONCURRENCY)
-      const results = await Promise.all(
-        batch.map((sheet) =>
-          sheetToDocument(
-            accessToken,
-            spreadsheetId,
-            metadata.properties.title,
-            sheet,
-            modifiedTime
-          )
-        )
-      )
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-    }
+    const documents: ExternalDocument[] = sheets.map((sheet) => ({
+      externalId: `${spreadsheetId}__sheet__${sheet.sheetId}`,
+      title: `${metadata.properties.title} - ${sheet.title}`,
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/plain',
+      sourceUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheet.sheetId}`,
+      contentHash: `gsheets:${spreadsheetId}:${sheet.sheetId}:${modifiedTime ?? ''}`,
+      metadata: {
+        spreadsheetId,
+        spreadsheetTitle: metadata.properties.title,
+        sheetTitle: sheet.title,
+        sheetId: sheet.sheetId,
+        rowCount: sheet.gridProperties?.rowCount,
+        columnCount: sheet.gridProperties?.columnCount,
+        ...(modifiedTime ? { modifiedTime } : {}),
+      },
+    }))
 
     return {
       documents,
@@ -309,7 +311,7 @@ export const googleSheetsConnector: ConnectorConfig = {
         fetchSpreadsheetModifiedTime(accessToken, spreadsheetId),
       ])
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = toError(error).message
       if (message.includes('404')) {
         logger.info('Spreadsheet not found (possibly deleted)', { spreadsheetId })
         return null
@@ -324,13 +326,15 @@ export const googleSheetsConnector: ConnectorConfig = {
       return null
     }
 
-    return sheetToDocument(
+    const doc = await sheetToDocument(
       accessToken,
       spreadsheetId,
       metadata.properties.title,
       sheetEntry.properties,
       modifiedTime
     )
+    if (!doc) return null
+    return { ...doc, contentDeferred: false }
   },
 
   validateConfig: async (
@@ -376,7 +380,7 @@ export const googleSheetsConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

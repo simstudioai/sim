@@ -2,7 +2,7 @@ import type { ToolResponse } from '@/tools/types'
 
 // ===== Core Types =====
 
-export interface GitLabProject {
+interface GitLabProject {
   id: number
   name: string
   path: string
@@ -26,7 +26,7 @@ export interface GitLabProject {
   }
 }
 
-export interface GitLabIssue {
+interface GitLabIssue {
   id: number
   iid: number
   project_id: number
@@ -62,7 +62,7 @@ export interface GitLabIssue {
   confidential: boolean
 }
 
-export interface GitLabMergeRequest {
+interface GitLabMergeRequest {
   id: number
   iid: number
   project_id: number
@@ -106,7 +106,7 @@ export interface GitLabMergeRequest {
   merge_when_pipeline_succeeds: boolean
 }
 
-export interface GitLabPipeline {
+interface GitLabPipeline {
   id: number
   iid: number
   project_id: number
@@ -124,7 +124,7 @@ export interface GitLabPipeline {
   }
 }
 
-export interface GitLabBranch {
+interface GitLabBranch {
   name: string
   merged: boolean
   protected: boolean
@@ -142,7 +142,7 @@ export interface GitLabBranch {
   }
 }
 
-export interface GitLabNote {
+interface GitLabNote {
   id: number
   body: string
   author: {
@@ -158,7 +158,7 @@ export interface GitLabNote {
   noteable_iid?: number
 }
 
-export interface GitLabUser {
+interface GitLabUser {
   id: number
   name: string
   username: string
@@ -168,7 +168,7 @@ export interface GitLabUser {
   web_url: string
 }
 
-export interface GitLabLabel {
+interface GitLabLabel {
   id: number
   name: string
   color: string
@@ -176,7 +176,7 @@ export interface GitLabLabel {
   text_color: string
 }
 
-export interface GitLabMilestone {
+interface GitLabMilestone {
   id: number
   iid: number
   project_id: number
@@ -366,32 +366,32 @@ export interface GitLabCancelPipelineParams extends GitLabBaseParams {
 
 // ===== Branch Parameters =====
 
-export interface GitLabListBranchesParams extends GitLabBaseParams {
+interface GitLabListBranchesParams extends GitLabBaseParams {
   projectId: string | number
   search?: string
   perPage?: number
   page?: number
 }
 
-export interface GitLabGetBranchParams extends GitLabBaseParams {
+interface GitLabGetBranchParams extends GitLabBaseParams {
   projectId: string | number
   branch: string
 }
 
-export interface GitLabCreateBranchParams extends GitLabBaseParams {
+interface GitLabCreateBranchParams extends GitLabBaseParams {
   projectId: string | number
   branch: string
   ref: string
 }
 
-export interface GitLabDeleteBranchParams extends GitLabBaseParams {
+interface GitLabDeleteBranchParams extends GitLabBaseParams {
   projectId: string | number
   branch: string
 }
 
 // ===== Note/Comment Parameters =====
 
-export interface GitLabListIssueNotesParams extends GitLabBaseParams {
+interface GitLabListIssueNotesParams extends GitLabBaseParams {
   projectId: string | number
   issueIid: number
   orderBy?: 'created_at' | 'updated_at'
@@ -406,7 +406,7 @@ export interface GitLabCreateIssueNoteParams extends GitLabBaseParams {
   body: string
 }
 
-export interface GitLabListMergeRequestNotesParams extends GitLabBaseParams {
+interface GitLabListMergeRequestNotesParams extends GitLabBaseParams {
   projectId: string | number
   mergeRequestIid: number
   orderBy?: 'created_at' | 'updated_at'
@@ -423,14 +423,14 @@ export interface GitLabCreateMergeRequestNoteParams extends GitLabBaseParams {
 
 // ===== Label Parameters =====
 
-export interface GitLabListLabelsParams extends GitLabBaseParams {
+interface GitLabListLabelsParams extends GitLabBaseParams {
   projectId: string | number
   search?: string
   perPage?: number
   page?: number
 }
 
-export interface GitLabCreateLabelParams extends GitLabBaseParams {
+interface GitLabCreateLabelParams extends GitLabBaseParams {
   projectId: string | number
   name: string
   color: string
@@ -439,9 +439,9 @@ export interface GitLabCreateLabelParams extends GitLabBaseParams {
 
 // ===== User Parameters =====
 
-export interface GitLabGetCurrentUserParams extends GitLabBaseParams {}
+interface GitLabGetCurrentUserParams extends GitLabBaseParams {}
 
-export interface GitLabListUsersParams extends GitLabBaseParams {
+interface GitLabListUsersParams extends GitLabBaseParams {
   search?: string
   perPage?: number
   page?: number
@@ -555,32 +555,32 @@ export interface GitLabCancelPipelineResponse extends ToolResponse {
   }
 }
 
-export interface GitLabListBranchesResponse extends ToolResponse {
+interface GitLabListBranchesResponse extends ToolResponse {
   output: {
     branches?: GitLabBranch[]
     total?: number
   }
 }
 
-export interface GitLabGetBranchResponse extends ToolResponse {
+interface GitLabGetBranchResponse extends ToolResponse {
   output: {
     branch?: GitLabBranch
   }
 }
 
-export interface GitLabCreateBranchResponse extends ToolResponse {
+interface GitLabCreateBranchResponse extends ToolResponse {
   output: {
     branch?: GitLabBranch
   }
 }
 
-export interface GitLabDeleteBranchResponse extends ToolResponse {
+interface GitLabDeleteBranchResponse extends ToolResponse {
   output: {
     success?: boolean
   }
 }
 
-export interface GitLabListNotesResponse extends ToolResponse {
+interface GitLabListNotesResponse extends ToolResponse {
   output: {
     notes?: GitLabNote[]
     total?: number
@@ -593,26 +593,26 @@ export interface GitLabCreateNoteResponse extends ToolResponse {
   }
 }
 
-export interface GitLabListLabelsResponse extends ToolResponse {
+interface GitLabListLabelsResponse extends ToolResponse {
   output: {
     labels?: GitLabLabel[]
     total?: number
   }
 }
 
-export interface GitLabCreateLabelResponse extends ToolResponse {
+interface GitLabCreateLabelResponse extends ToolResponse {
   output: {
     label?: GitLabLabel
   }
 }
 
-export interface GitLabGetCurrentUserResponse extends ToolResponse {
+interface GitLabGetCurrentUserResponse extends ToolResponse {
   output: {
     user?: GitLabUser
   }
 }
 
-export interface GitLabListUsersResponse extends ToolResponse {
+interface GitLabListUsersResponse extends ToolResponse {
   output: {
     users?: GitLabUser[]
     total?: number

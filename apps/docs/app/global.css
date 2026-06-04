@@ -20,6 +20,11 @@ body {
   --color-fd-primary: var(--color-fd-foreground);
 }
 
+/* Pure white light mode background */
+:root:not(.dark) {
+  --color-fd-background: hsl(0, 0%, 100%) !important;
+}
+
 /* Match landing page dark background (#1b1b1b) */
 .dark {
   --color-fd-background: hsl(0, 0%, 10.6%) !important;
@@ -41,27 +46,26 @@ body {
 }
 
 :root {
-  --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
-  --fd-nav-height: 93px; /* Custom navbar height (52px top + 1px divider + 40px tabs) */
+  --fd-nav-height: 92px; /* Custom navbar height (52px top + 40px tabs) */
   /* Content container width used to center main content */
   --spacing-fd-container: 1400px;
   /* Edge gutter = leftover space on each side of centered container */
   --edge-gutter: max(1rem, calc((100vw - var(--spacing-fd-container)) / 2));
-  /* Shift the sidebar slightly left from the content edge for extra breathing room */
-  --sidebar-shift: 90px;
+  /* How far sidebar/TOC shift inward from the edge gutter */
+  --sidebar-shift: 50px;
   --sidebar-offset: max(0px, calc(var(--edge-gutter) - var(--sidebar-shift)));
-  /* Shift TOC slightly right to match sidebar spacing for symmetry */
-  --toc-shift: 90px;
+  --toc-shift: 50px;
   --toc-offset: max(0px, calc(var(--edge-gutter) - var(--toc-shift)));
-  /* Sidebar and TOC have 20px internal padding - navbar accounts for this directly */
+  /* Inner padding for navbar and sidebar — single source of truth */
+  --nav-inset: 44px;
   /* Extra gap between sidebar/TOC and the main text content */
-  --content-gap: 1.75rem;
+  --content-gap: 2.25rem;
 }
 
 /* Light mode navbar background */
 :root:not(.dark) nav {
-  background-color: hsla(0, 0%, 96%, 0.85) !important;
+  background-color: hsla(0, 0%, 100%, 0.85) !important;
 }
 
 /* Dark mode navbar background */
@@ -69,14 +73,14 @@ body {
   background-color: hsla(0, 0%, 10.6%, 0.92) !important;
 }
 
-:root.dark nav button[type="button"] {
+:root.dark nav button[data-search-trigger] {
   background-color: hsla(0, 0%, 15%, 0.85) !important;
   backdrop-filter: blur(33px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(33px) saturate(180%) !important;
   color: rgba(255, 255, 255, 0.5) !important;
 }
 
-:root.dark nav button[type="button"] kbd {
+:root.dark nav button[data-search-trigger] kbd {
   color: rgba(255, 255, 255, 0.4) !important;
 }
 
@@ -94,6 +98,17 @@ aside[data-sidebar],
 aside#nd-sidebar {
   background: transparent !important;
   border: none !important;
+}
+
+/* Remove the fade-out mask on sidebar scroll viewport (Fumadocs applies inline maskImage) */
+[data-sidebar-placeholder] [data-radix-scroll-area-viewport],
+#nd-sidebar [data-radix-scroll-area-viewport],
+#nd-sidebar [data-radix-scroll-area-viewport] > div,
+aside#nd-sidebar [data-radix-scroll-area-viewport] {
+  mask: none !important;
+  mask-image: none !important;
+  -webkit-mask: none !important;
+  -webkit-mask-image: none !important;
 }
 
 /* Fumadocs v16: Add sidebar placeholder styling for grid area */
@@ -130,14 +145,32 @@ aside#nd-sidebar {
 /* On mobile, let fumadocs handle the layout natively */
 @media (min-width: 1024px) {
   :root {
-    --fd-banner-height: 93px !important; /* 52px top + 1px divider + 40px tabs */
+    --fd-banner-height: 92px !important; /* 52px top + 40px tabs */
   }
 
   #nd-docs-layout {
-    --fd-docs-height: calc(100dvh - 93px) !important; /* 52px top + 1px divider + 40px tabs */
+    /* Use 100dvh so sidebar height = 100dvh - 92px (banner) = full viewport below navbar */
+    --fd-docs-height: 100dvh !important;
     --fd-sidebar-width: 300px !important;
     margin-left: var(--sidebar-offset) !important;
     margin-right: var(--toc-offset) !important;
+    min-height: var(--fd-docs-height) !important;
+  }
+
+  /* Sidebar divider line — fixed to viewport, full height from navbar to bottom */
+  #nd-docs-layout::before {
+    content: "";
+    position: fixed;
+    top: 92px; /* below navbar */
+    bottom: 0;
+    left: calc(var(--sidebar-offset) + var(--fd-sidebar-width));
+    width: 1px;
+    background-color: rgba(0, 0, 0, 0.08);
+    pointer-events: none;
+    z-index: 21;
+  }
+  html.dark #nd-docs-layout::before {
+    background-color: rgba(255, 255, 255, 0.08);
   }
 
   /* Hide fumadocs nav on desktop - we use custom navbar there */
@@ -146,48 +179,66 @@ aside#nd-sidebar {
   }
 }
 
-/* Sidebar spacing - compact like turborepo */
-/* Fumadocs v16: [data-sidebar-viewport] doesn't exist, target #nd-sidebar > div instead */
+/* Sidebar spacing — left padding aligns item text with navbar content (item has 14px internal padding) */
 [data-sidebar-viewport],
 #nd-sidebar > div {
-  padding: 0.5rem 12px 12px;
+  padding: 0 14px 0 calc(var(--nav-inset) - 14px) !important;
   background: transparent !important;
+}
+
+/* Override Fumadocs p-4 on scroll viewport — must beat Tailwind v4 utility layer specificity */
+html #nd-sidebar [data-radix-scroll-area-viewport],
+html #nd-sidebar [data-radix-scroll-area-viewport].p-4,
+html aside#nd-sidebar [data-radix-scroll-area-viewport] {
+  padding: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Top/bottom breathing room inside the scrollable sidebar content — scrollable, not clipped */
+html #nd-sidebar [data-radix-scroll-area-viewport] > div {
+  padding-top: 20px !important;
+  padding-bottom: 16px !important;
 }
 
 /* Override sidebar item styling to match Raindrop */
 /* Target Link and button elements in sidebar - override Fumadocs itemVariants */
 /* Exclude the small chevron-only toggle buttons */
 /* Using html prefix for higher specificity over Tailwind v4 utilities */
-html #nd-sidebar a,
+html #nd-sidebar a:not(:has(span.font-mono)),
 html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
-  font-size: 0.9375rem !important; /* 15px to match Raindrop */
+  font-size: 0.875rem !important; /* 14px to match navbar items */
   line-height: 1.4 !important;
-  padding: 0.5rem 0.75rem !important; /* More compact like Raindrop */
-  font-weight: 400 !important;
-  border-radius: 0.75rem !important; /* More rounded like Raindrop */
+  padding: 0.375rem 0.875rem !important;
+  font-weight: 450 !important;
+  border-radius: 0.75rem !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     sans-serif !important;
 }
 
-/* Dark mode sidebar text */
-html.dark #nd-sidebar a,
+/* Sidebar text — aligned with platform --text-body */
+html.dark #nd-sidebar a:not(:has(span.font-mono)),
 html.dark #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
-  color: rgba(255, 255, 255, 0.6) !important;
+  color: #cdcdcd !important;
 }
 
-/* Light mode sidebar text */
-html:not(.dark) #nd-sidebar a,
+html:not(.dark) #nd-sidebar a:not(:has(span.font-mono)),
 html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
-  color: rgba(0, 0, 0, 0.6) !important;
+  color: #3b3b3b !important;
 }
 
-/* Make sure chevron icons are visible and properly styled */
+/* Chevron icons — aligned with platform --text-icon */
 #nd-sidebar svg {
   display: inline-block !important;
-  opacity: 0.6 !important;
+  opacity: 1 !important;
+  color: #5e5e5e !important;
   flex-shrink: 0 !important;
-  width: 0.75rem !important;
-  height: 0.75rem !important;
+}
+
+html.dark #nd-sidebar svg {
+  color: #939393 !important;
 }
 
 /* Ensure the small chevron toggle buttons are visible */
@@ -198,8 +249,6 @@ html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*
   padding: 0.25rem !important;
 }
 
-/* Root-level spacing now handled by [data-sidebar-viewport] > * rule below */
-
 /* Add tiny gap between nested items */
 #nd-sidebar ul li {
   margin-bottom: 0.0625rem !important;
@@ -209,91 +258,68 @@ html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*
   margin-bottom: 0 !important;
 }
 
-/* Section headers should be slightly larger */
-/* Fumadocs v16: Also target #nd-sidebar for compatibility */
-[data-sidebar-viewport] [data-separator],
-#nd-sidebar [data-separator],
-#nd-sidebar p {
-  font-size: 0.75rem !important;
+/* Section separator headers — styling handled by component, override fumadocs defaults */
+[data-sidebar-viewport] [data-separator] p,
+#nd-sidebar [data-separator] p {
+  font-size: 0.625rem !important; /* 10px */
   font-weight: 600 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
+  letter-spacing: 0.06em !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-/* Override active state */
-#nd-sidebar a[data-active="true"],
-#nd-sidebar button[data-active="true"],
-#nd-sidebar a.bg-fd-primary\/10,
-#nd-sidebar a.text-fd-primary,
-#nd-sidebar a[class*="bg-fd-primary"],
-#nd-sidebar a[class*="text-fd-primary"],
-/* Override custom sidebar green classes */
-  #nd-sidebar
-  a.bg-emerald-50\/80,
-#nd-sidebar a.text-emerald-600,
-#nd-sidebar a[class*="bg-emerald"],
-#nd-sidebar a[class*="text-emerald"] {
+/* First separator has no top margin or divider; subsequent ones show the divider on desktop */
+[data-separator]:not([data-separator] ~ [data-separator]) {
+  margin-top: 0;
+}
+
+@media (min-width: 1024px) {
+  [data-separator] ~ [data-separator] > .separator-divider {
+    display: block;
+  }
+}
+
+/* Active state — aligned with platform --surface-active */
+#nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
+#nd-sidebar button[data-active="true"] {
   background-image: none !important;
 }
 
-/* Dark mode active state */
-html.dark #nd-sidebar a[data-active="true"],
-html.dark #nd-sidebar button[data-active="true"],
-html.dark #nd-sidebar a.bg-fd-primary\/10,
-html.dark #nd-sidebar a.text-fd-primary,
-html.dark #nd-sidebar a[class*="bg-fd-primary"],
-html.dark #nd-sidebar a[class*="text-fd-primary"],
-html.dark #nd-sidebar a.bg-emerald-50\/80,
-html.dark #nd-sidebar a.text-emerald-600,
-html.dark #nd-sidebar a[class*="bg-emerald"],
-html.dark #nd-sidebar a[class*="text-emerald"] {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  color: rgba(255, 255, 255, 1) !important;
+html.dark #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
+html.dark #nd-sidebar button[data-active="true"] {
+  background-color: #2c2c2c !important;
+  color: #cdcdcd !important;
 }
 
-/* Light mode active state */
-html:not(.dark) #nd-sidebar a[data-active="true"],
-html:not(.dark) #nd-sidebar button[data-active="true"],
-html:not(.dark) #nd-sidebar a.bg-fd-primary\/10,
-html:not(.dark) #nd-sidebar a.text-fd-primary,
-html:not(.dark) #nd-sidebar a[class*="bg-fd-primary"],
-html:not(.dark) #nd-sidebar a[class*="text-fd-primary"],
-html:not(.dark) #nd-sidebar a.bg-emerald-50\/80,
-html:not(.dark) #nd-sidebar a.text-emerald-600,
-html:not(.dark) #nd-sidebar a[class*="bg-emerald"],
-html:not(.dark) #nd-sidebar a[class*="text-emerald"] {
-  background-color: rgba(0, 0, 0, 0.07) !important;
-  color: rgba(0, 0, 0, 0.9) !important;
+html:not(.dark) #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
+html:not(.dark) #nd-sidebar button[data-active="true"] {
+  background-color: #ececec !important;
+  color: #3b3b3b !important;
 }
 
-/* Dark mode hover state */
-html.dark #nd-sidebar a:hover:not([data-active="true"]),
+/* Hover state — aligned with platform --surface-hover */
+html.dark #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
 html.dark #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: #262626 !important;
 }
 
-/* Light mode hover state */
-html:not(.dark) #nd-sidebar a:hover:not([data-active="true"]),
+html:not(.dark) #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
 html:not(.dark) #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: rgba(0, 0, 0, 0.03) !important;
+  background-color: #f2f2f2 !important;
 }
 
-/* Dark mode - ensure active/selected items don't change on hover */
-html.dark #nd-sidebar a.bg-emerald-50\/80:hover,
-html.dark #nd-sidebar a[class*="bg-emerald"]:hover,
-html.dark #nd-sidebar a[data-active="true"]:hover,
+/* Active items don't change on hover */
+html.dark #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
 html.dark #nd-sidebar button[data-active="true"]:hover {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  color: rgba(255, 255, 255, 1) !important;
+  background-color: #2c2c2c !important;
+  color: #cdcdcd !important;
 }
 
-/* Light mode - ensure active/selected items don't change on hover */
-html:not(.dark) #nd-sidebar a.bg-emerald-50\/80:hover,
-html:not(.dark) #nd-sidebar a[class*="bg-emerald"]:hover,
-html:not(.dark) #nd-sidebar a[data-active="true"]:hover,
+html:not(.dark) #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
 html:not(.dark) #nd-sidebar button[data-active="true"]:hover {
-  background-color: rgba(0, 0, 0, 0.07) !important;
-  color: rgba(0, 0, 0, 0.9) !important;
+  background-color: #ececec !important;
+  color: #3b3b3b !important;
 }
 
 /* Hide search, platform, and collapse button from sidebar completely */
@@ -341,14 +367,6 @@ aside button:has(svg:only-child),
 /* Hide theme toggle and other non-content elements */
 aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  height: 0 !important;
-  max-height: 0 !important;
-  overflow: hidden !important;
-  pointer-events: none !important;
-  position: absolute !important;
-  left: -9999px !important;
 }
 
 /* Desktop only: Hide sidebar toggle buttons and nav title/logo (keep visible on mobile) */
@@ -389,10 +407,6 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   #nd-sidebar button[aria-label*="Theme"],
   #nd-sidebar > div:last-child > button {
     display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    max-height: 0 !important;
-    overflow: hidden !important;
   }
 }
 
@@ -420,7 +434,7 @@ aside[data-sidebar] > div:first-child {
   padding-top: 0;
 }
 
-/* Remove all sidebar borders and backgrounds */
+/* Remove all sidebar borders and backgrounds (except the right divider) */
 [data-sidebar-container],
 aside[data-sidebar],
 [data-sidebar],
@@ -429,6 +443,8 @@ aside[data-sidebar],
 #nd-sidebar * {
   border: none !important;
 }
+
+/* Sidebar border is handled via #nd-docs-layout::before pseudo-element (see desktop section below) */
 
 /* Override fumadocs background colors for sidebar */
 .dark #nd-sidebar,
@@ -455,7 +471,7 @@ pre code {
     "Liberation Mono", "Courier New", monospace;
 }
 
-/* Inline code */
+/* Inline code — neutral colors aligned with sim design system */
 :not(pre) > code {
   padding: 0.2em 0.4em;
   border-radius: 0.25rem;
@@ -463,21 +479,37 @@ pre code {
   font-weight: 500;
 }
 
-/* Light mode inline code */
+/* Light mode inline code — neutral, no red */
 :root:not(.dark) :not(pre) > code {
-  background-color: rgb(243 244 246);
-  color: rgb(220 38 38);
+  background-color: rgb(245 245 245);
+  color: rgb(55 65 81);
   border: 1px solid rgb(229 231 235);
 }
 
-/* Dark mode inline code */
+/* Dark mode inline code — neutral, no red */
 .dark :not(pre) > code {
-  background-color: rgb(31 41 55);
-  color: rgb(248 113 113);
-  border: 1px solid rgb(55 65 81);
+  background-color: rgb(38 38 38);
+  color: rgb(212 212 216);
+  border: 1px solid rgb(63 63 70);
 }
 
-/* Code block container improvements */
+/* Remove heavy shadows globally — aligned with sim design system (shadow-card: 0 1px 3px rgba(0,0,0,0.04)) */
+figure.shiki,
+figure[data-rehype-pretty-code-figure],
+.shiki {
+  box-shadow: none !important;
+}
+
+/* Search dialog — lighter shadow + constrained size */
+[data-radix-popper-content-wrapper] > div,
+[role="dialog"][data-state] {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+[role="dialog"][data-state] {
+  max-width: 480px !important;
+}
+
 pre {
   font-size: 0.875rem;
   line-height: 1.7;
@@ -497,6 +529,97 @@ pre code .line {
   padding-right: 0;
 }
 
+/* Content typography — align heading sizes and weights with platform */
+main article h1,
+[data-content] h1,
+#nd-page h1 {
+  font-size: 1.5rem !important;
+  font-weight: 550 !important;
+  letter-spacing: -0.02em;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+html.dark main article h1,
+html.dark [data-content] h1,
+html.dark #nd-page h1 {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+main article h2,
+[data-content] h2,
+#nd-page h2 {
+  font-size: 1.25rem !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.015em;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+html.dark main article h2,
+html.dark [data-content] h2,
+html.dark #nd-page h2 {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+main article h3,
+main article h4,
+[data-content] h3,
+[data-content] h4,
+#nd-page h3,
+#nd-page h4 {
+  font-size: 1rem !important;
+  font-weight: 470 !important;
+  letter-spacing: -0.01em;
+  color: rgba(0, 0, 0, 0.8);
+}
+
+html.dark main article h3,
+html.dark main article h4,
+html.dark [data-content] h3,
+html.dark [data-content] h4,
+html.dark #nd-page h3,
+html.dark #nd-page h4 {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Body text — align with landing text colors */
+main article p,
+[data-content] p,
+[data-docs-page] p {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+html.dark main article p,
+html.dark [data-content] p,
+html.dark [data-docs-page] p {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Muted text — align with landing-text-muted (#999999) */
+main article .text-muted-foreground,
+[data-content] .text-muted-foreground,
+[data-docs-page] .text-muted-foreground {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+html.dark main article .text-muted-foreground,
+html.dark [data-content] .text-muted-foreground,
+html.dark [data-docs-page] .text-muted-foreground {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* List items — inherit body text color */
+main article li,
+[data-content] li,
+[data-docs-page] li {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+html.dark main article li,
+html.dark [data-content] li,
+html.dark [data-docs-page] li {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* Custom text highlighting styles */
 .text-highlight {
   color: var(--color-fd-primary);
@@ -510,6 +633,48 @@ pre code .line {
 /* Remove the thin border-left on nested TOC items (keeps main indicator only) */
 #nd-toc a[style*="padding-inline-start"] {
   border-left: none !important;
+}
+
+/* TOC heading — align weight with landing */
+#nd-toc h3,
+#nd-toc [class*="title"] {
+  font-weight: 480 !important;
+  font-size: 0.8125rem !important;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+html.dark #nd-toc h3,
+html.dark #nd-toc [class*="title"] {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* TOC links — softer colors aligned with landing muted text */
+#nd-toc a {
+  font-weight: 430 !important;
+  font-size: 0.8125rem !important;
+  color: rgba(0, 0, 0, 0.5);
+  transition: color 0.2s;
+}
+
+html.dark #nd-toc a {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+#nd-toc a:hover {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+html.dark #nd-toc a:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#nd-toc a[data-active="true"] {
+  color: rgba(0, 0, 0, 0.85) !important;
+  font-weight: 470 !important;
+}
+
+html.dark #nd-toc a[data-active="true"] {
+  color: rgba(255, 255, 255, 0.9) !important;
 }
 
 /* Add bottom spacing to prevent abrupt page endings */
@@ -543,6 +708,10 @@ main[data-main] {
     padding-left: 1rem;
     padding-right: 1rem;
   }
+  #nd-page:has(.api-page-header) {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
 }
 
 /* Ensure docs page content is properly constrained */
@@ -566,6 +735,8 @@ video {
 #nd-page:has(.api-page-header) {
   grid-column: main-start / toc-end !important;
   max-width: 1400px !important;
+  padding-left: calc(var(--content-gap) + 1rem);
+  padding-right: calc(var(--content-gap) + 1rem);
 }
 
 /* Hide the empty TOC aside on OpenAPI pages so it doesn't overlay content */
@@ -634,11 +805,16 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
   background-color: rgb(239 68 68 / 0.15);
 }
 
-/* Sidebar links with method badges — flex for vertical centering */
-#nd-sidebar a:has(span.font-mono.font-medium) {
+/* Sidebar links with method badges — match regular item padding */
+html #nd-sidebar a:has(span.font-mono.font-medium) {
   display: flex !important;
   align-items: center !important;
   gap: 0.375rem;
+  padding: 0.375rem 0.875rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.4 !important;
+  font-weight: 450 !important;
+  border-radius: 0.75rem !important;
 }
 
 /* Sidebar method badges — fixed-width for right-aligned labels */
@@ -665,10 +841,24 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
   border-radius: 0.1875rem;
 }
 
-/* Code block containers — match regular docs styling */
+/* API page code/card containers — transparent background */
+#nd-page:has(.api-page-header) {
+  --color-fd-card: transparent !important;
+}
+
 #nd-page:has(.api-page-header) figure.shiki {
   border-radius: 0.75rem !important;
-  background-color: var(--color-fd-card) !important;
+  background-color: transparent !important;
+}
+
+/* API page code example panels — transparent */
+#nd-page:has(.api-page-header) .rounded-xl.border.bg-fd-card {
+  background-color: transparent !important;
+}
+
+#nd-page:has(.api-page-header) .rounded-xl.border.shadow-md.bg-fd-card {
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Hide "Filter Properties" search bar everywhere — main page and popovers */
@@ -812,13 +1002,13 @@ html.dark
   color: rgb(229 231 235) !important;
 }
 
-/* Inline code in API pages — neutral color instead of red.
+/* Inline code in API pages — neutral color aligned with sim design.
    Exclude code inside the method+path bar (handled above). */
 #nd-page:has(.api-page-header) .prose :not(pre) > code {
-  color: rgb(79 70 229) !important;
+  color: rgb(55 65 81) !important;
 }
 html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
-  color: rgb(165 180 252) !important;
+  color: rgb(212 212 216) !important;
 }
 
 /* Response Section — custom dropdown-based rendering (Mintlify style) */
@@ -860,15 +1050,20 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   align-items: center;
   gap: 1rem;
   margin-top: 1.75rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .response-section-title {
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
   margin: 0;
-  color: var(--color-fd-foreground);
+  color: rgba(0, 0, 0, 0.85);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+html.dark .response-section-title {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .response-section-meta {
@@ -917,19 +1112,17 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   left: 0;
   z-index: 50;
   min-width: 5rem;
-  background-color: white;
+  background-color: var(--color-fd-popover, white);
   border: 1px solid rgb(229 231 235);
   border-radius: 0.5rem;
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.1),
-    0 2px 4px -2px rgb(0 0 0 / 0.1);
-  padding: 0.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 0.375rem;
   overflow: hidden;
 }
 html.dark .response-section-dropdown-menu {
-  background-color: rgb(24 24 27);
+  background-color: var(--color-fd-popover, rgb(24 24 27));
   border-color: rgb(63 63 70);
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .response-section-dropdown-item {
@@ -1230,6 +1423,43 @@ html.dark
   overflow-wrap: break-word !important;
 }
 
+/* Callout/alert — transparent background, no shadow, hide colored bar, add padding */
+div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) {
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  padding-left: 0.875rem !important;
+  align-items: center !important;
+}
+
+html.dark div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+div.rounded-xl.border.bg-fd-card.shadow-md > [role="none"] {
+  display: none !important;
+}
+
+/* Files component — transparent background */
+div.not-prose.rounded-md.border.bg-fd-card.p-2 {
+  background-color: transparent !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+html.dark div.not-prose.rounded-md.border.bg-fd-card.p-2 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Callout icon — outline style, text color, vertically centered */
+div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) > svg {
+  fill: none !important;
+  color: var(--color-fd-foreground) !important;
+  stroke-width: 1.75 !important;
+  flex-shrink: 0;
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
 /* API page header — constrain title/copy-page to left content column, not full width.
    Only applies on OpenAPI pages (which have the two-column layout). */
 @media (min-width: 1280px) {
@@ -1247,6 +1477,370 @@ html.dark
   #nd-page:has(.api-page-header) > div:last-child {
     max-width: 100%;
   }
+}
+
+/* ─── Content Components — aligned with platform design system ─── */
+
+/* Heading anchor links — no underline, inherit color */
+#nd-page h1 a,
+#nd-page h2 a,
+#nd-page h3 a,
+#nd-page h4 a,
+#nd-page h5 a,
+#nd-page h6 a,
+.prose h1 a,
+.prose h2 a,
+.prose h3 a,
+.prose h4 a,
+.prose h5 a,
+.prose h6 a {
+  text-decoration: none !important;
+  color: inherit !important;
+  border: none !important;
+}
+
+/* Tables — clean divider-based style matching chat markdown renderer */
+.prose table,
+[data-docs-page] table,
+[data-content] table,
+main article table {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  font-size: 0.875rem !important;
+}
+
+.prose thead th,
+[data-docs-page] thead th,
+[data-content] thead th,
+main article thead th {
+  background: none !important;
+  font-weight: 600 !important;
+  padding: 0.5rem 0.75rem !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-inline-start: none !important;
+  color: rgba(0, 0, 0, 0.85);
+  text-align: left;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+html.dark .prose thead th,
+html.dark [data-docs-page] thead th,
+html.dark [data-content] thead th,
+html.dark main article thead th {
+  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.prose td,
+[data-docs-page] td,
+[data-content] td,
+main article td {
+  padding: 0.5rem 0.75rem !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-inline-start: none !important;
+  color: rgba(0, 0, 0, 0.7);
+  line-height: 1.5;
+}
+
+html.dark .prose td,
+html.dark [data-docs-page] td,
+html.dark [data-content] td,
+html.dark main article td {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Remove bottom border on last row */
+.prose tbody tr:last-child td,
+[data-docs-page] tbody tr:last-child td,
+[data-content] tbody tr:last-child td,
+main article tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* Code blocks — aligned with platform chat code block styling */
+
+/* Standalone code block figure — border + rounded */
+figure.shiki:not(div > figure.shiki),
+figure[data-rehype-pretty-code-figure]:not(div > figure[data-rehype-pretty-code-figure]),
+figure:has(pre):not(div > figure:has(pre)) {
+  border-radius: 0.5rem !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+  overflow: hidden !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.dark figure.shiki:not(div > figure.shiki),
+html.dark figure[data-rehype-pretty-code-figure]:not(div > figure[data-rehype-pretty-code-figure]),
+html.dark figure:has(pre):not(div > figure:has(pre)) {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  background-color: transparent !important;
+}
+
+/* Code block inside tabs (API examples) — no extra border, inherits from parent */
+div > figure.shiki {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.dark div > figure.shiki {
+  background-color: transparent !important;
+}
+
+/* Tabbed code block container (cURL/JS/Go tabs) */
+div:has(> [role="tablist"]):has(> div > figure.shiki) {
+  border-radius: 0.5rem !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  overflow: hidden !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html.dark div:has(> [role="tablist"]):has(> div > figure.shiki) {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: transparent !important;
+}
+
+/* Tab list bar — match platform surface-4 */
+div:has(> div > figure.shiki) > [role="tablist"] {
+  background: none !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+html.dark div:has(> div > figure.shiki) > [role="tablist"] {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Tab triggers — muted text, active gets foreground */
+div:has(> div > figure.shiki) > [role="tablist"] button {
+  color: rgba(0, 0, 0, 0.4) !important;
+  font-weight: 470 !important;
+}
+
+div:has(> div > figure.shiki) > [role="tablist"] button:hover {
+  color: rgba(0, 0, 0, 0.7) !important;
+}
+
+div:has(> div > figure.shiki) > [role="tablist"] button[data-state="active"] {
+  color: rgba(0, 0, 0, 0.85) !important;
+}
+
+html.dark div:has(> div > figure.shiki) > [role="tablist"] button {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+html.dark div:has(> div > figure.shiki) > [role="tablist"] button:hover {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html.dark div:has(> div > figure.shiki) > [role="tablist"] button[data-state="active"] {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+/* Code block title header (figcaption with filename) */
+figure.shiki > div:first-child:has(figcaption) {
+  background-color: rgb(245, 245, 245) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+html.dark figure.shiki > div:first-child:has(figcaption) {
+  background-color: rgb(41, 41, 41) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+figure.shiki figcaption {
+  color: rgba(0, 0, 0, 0.45) !important;
+}
+
+html.dark figure.shiki figcaption {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* Code block pre element — transparent bg */
+figure.shiki pre {
+  background-color: transparent !important;
+}
+
+html.dark figure.shiki pre {
+  background-color: transparent !important;
+}
+
+/* Code viewport scroll area — transparent bg */
+figure.shiki > div[role="region"] {
+  background-color: transparent !important;
+}
+
+html.dark figure.shiki > div[role="region"] {
+  background-color: transparent !important;
+}
+
+/* Copy button — minimal ghost style */
+figure.shiki button[aria-label="Copy Text"],
+figure.shiki button[aria-label="Copied Text"] {
+  color: rgba(0, 0, 0, 0.3) !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+figure.shiki button[aria-label="Copy Text"]:hover {
+  color: rgba(0, 0, 0, 0.6) !important;
+}
+
+figure.shiki button[aria-label="Copied Text"] {
+  color: rgb(34, 197, 94) !important;
+}
+
+html.dark figure.shiki button[aria-label="Copy Text"],
+html.dark figure.shiki button[aria-label="Copied Text"] {
+  color: rgba(255, 255, 255, 0.25) !important;
+}
+
+html.dark figure.shiki button[aria-label="Copy Text"]:hover {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+html.dark figure.shiki button[aria-label="Copied Text"] {
+  color: rgb(74, 222, 128) !important;
+}
+
+/* Copy button container — remove backdrop blur bg */
+figure.shiki > div:has(> button[aria-label]) {
+  background: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Cards container — vertical list with line dividers instead of grid boxes */
+.prose .grid:has(> a[data-card]),
+#nd-page .grid:has(> a[data-card]) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+html.dark .prose .grid:has(> a[data-card]),
+html.dark #nd-page .grid:has(> a[data-card]) {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Card items — line-separated rows with hover bg (scoped to grid container only) */
+.grid > a[data-card] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.125rem !important;
+  background: none !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 0 !important;
+  padding: 0.875rem 1rem !important;
+  transition: background-color 0.15s !important;
+  box-shadow: none !important;
+}
+
+.grid > a[data-card]:last-child {
+  border-bottom: none !important;
+}
+
+.grid > a[data-card]:hover {
+  background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
+html.dark .grid > a[data-card] {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+  background: none !important;
+}
+
+html.dark .grid > a[data-card]:hover {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* Card title */
+.grid > a[data-card] h3 {
+  font-weight: 470 !important;
+  font-size: 0.875rem !important;
+  color: rgba(0, 0, 0, 0.85) !important;
+}
+
+html.dark .grid > a[data-card] h3 {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+/* Card description */
+.grid > a[data-card] p,
+.grid > a[data-card] div {
+  color: rgba(0, 0, 0, 0.45) !important;
+  font-size: 0.8125rem !important;
+}
+
+html.dark .grid > a[data-card] p,
+html.dark .grid > a[data-card] div {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* Steps — lighter styling aligned with platform */
+.fd-steps {
+  border-left-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.dark .fd-steps {
+  border-left-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.fd-step::before {
+  background-color: rgb(245, 245, 245) !important;
+  color: rgba(0, 0, 0, 0.5) !important;
+  font-weight: 500 !important;
+}
+
+html.dark .fd-step::before {
+  background-color: rgb(41, 41, 41) !important;
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* Blockquotes — subtle left border, matching platform divider */
+.prose blockquote,
+[data-docs-page] blockquote,
+[data-content] blockquote,
+main article blockquote {
+  border-left: 3px solid rgba(0, 0, 0, 0.1) !important;
+  padding: 0.25rem 0 0.25rem 1rem !important;
+  color: rgba(0, 0, 0, 0.55) !important;
+  font-style: italic;
+  background: none !important;
+  margin: 1.5rem 0 !important;
+}
+
+html.dark .prose blockquote,
+html.dark [data-docs-page] blockquote,
+html.dark [data-content] blockquote,
+html.dark main article blockquote {
+  border-left-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Remove all remaining box-shadows on content components */
+.prose > *,
+[data-docs-page] figure,
+[data-docs-page] table,
+[data-docs-page] [data-card] {
+  box-shadow: none !important;
 }
 
 /* Tailwind v4 content sources */

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -9,11 +10,11 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
-import { formatAbsoluteDate } from '@/lib/core/utils/formatting'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type {
   FilterTag,
@@ -21,7 +22,11 @@ import type {
   ResourceRow,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
 import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
 import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
 import { ScheduleListContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-list-context-menu'
@@ -43,12 +48,12 @@ function getScheduleDescription(s: WorkspaceScheduleData) {
     const timing = parseCronToHumanReadable(s.cronExpression, s.timezone)
     return `Recurring, ${timing.charAt(0).toLowerCase()}${timing.slice(1)}`
   }
-  return '-  -  -'
+  return EMPTY_CELL_PLACEHOLDER
 }
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'task', header: 'Task' },
-  { id: 'schedule', header: 'Schedule', widthMultiplier: 1.5 },
+  { id: 'schedule', header: 'Schedule' },
   { id: 'nextRun', header: 'Next Run' },
   { id: 'lastRun', header: 'Last Run' },
 ]
@@ -170,7 +175,7 @@ export function ScheduledTasks() {
         id: item.id,
         cells: {
           task: {
-            icon: <Calendar className='h-[14px] w-[14px]' />,
+            icon: <Calendar className='size-[14px]' />,
             label: item.prompt,
           },
           schedule: { label: getScheduleDescription(item) },
@@ -447,13 +452,13 @@ export function ScheduledTasks() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Scheduled Task</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)] text-caption'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {activeTask?.jobTitle || 'this task'}
               </span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
+              ? This action cannot be undone.
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

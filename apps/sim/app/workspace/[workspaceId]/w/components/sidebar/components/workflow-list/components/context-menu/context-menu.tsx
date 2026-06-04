@@ -1,6 +1,7 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Pin, PinOff } from 'lucide-react'
 import {
   Button,
   DropdownMenu,
@@ -27,6 +28,7 @@ import {
   Trash,
   Unlock,
   Upload,
+  X,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { WORKFLOW_COLORS } from '@/lib/workflows/colors'
@@ -193,7 +195,7 @@ function ColorPickerSubmenu({
           />
           <div className='flex items-center gap-1'>
             <div
-              className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border border-black/10'
+              className='size-[16px] flex-shrink-0 rounded-sm border border-black/10'
               style={{
                 backgroundColor: isValidHex(hexInput) ? normalizeHex(hexInput) : '#ffffff',
               }}
@@ -214,9 +216,9 @@ function ColorPickerSubmenu({
                 e.stopPropagation()
                 handleHexSubmit()
               }}
-              className='h-[20px] w-[20px] flex-shrink-0 p-0'
+              className='size-[20px] flex-shrink-0 p-0'
             >
-              <Check className='h-[12px] w-[12px]' />
+              <Check className='size-[12px]' />
             </Button>
           </div>
         </div>
@@ -233,6 +235,7 @@ interface ContextMenuProps {
   onOpenInNewTab?: () => void
   onMarkAsRead?: () => void
   onMarkAsUnread?: () => void
+  onTogglePin?: () => void
   onRename?: () => void
   onCreate?: () => void
   onCreateFolder?: () => void
@@ -244,6 +247,8 @@ interface ContextMenuProps {
   showOpenInNewTab?: boolean
   showMarkAsRead?: boolean
   showMarkAsUnread?: boolean
+  showPin?: boolean
+  isPinned?: boolean
   showRename?: boolean
   showCreate?: boolean
   showCreateFolder?: boolean
@@ -267,6 +272,12 @@ interface ContextMenuProps {
   disableLock?: boolean
   isLocked?: boolean
   showDelete?: boolean
+  onUploadLogo?: () => void
+  onRemoveLogo?: () => void
+  showUploadLogo?: boolean
+  showRemoveLogo?: boolean
+  disableUploadLogo?: boolean
+  disableRemoveLogo?: boolean
 }
 
 /**
@@ -281,6 +292,7 @@ export function ContextMenu({
   onOpenInNewTab,
   onMarkAsRead,
   onMarkAsUnread,
+  onTogglePin,
   onRename,
   onCreate,
   onCreateFolder,
@@ -292,6 +304,8 @@ export function ContextMenu({
   showOpenInNewTab = false,
   showMarkAsRead = false,
   showMarkAsUnread = false,
+  showPin = false,
+  isPinned = false,
   showRename = true,
   showCreate = false,
   showCreateFolder = false,
@@ -315,6 +329,12 @@ export function ContextMenu({
   disableLock = false,
   isLocked = false,
   showDelete = true,
+  onUploadLogo,
+  onRemoveLogo,
+  showUploadLogo = false,
+  showRemoveLogo = false,
+  disableUploadLogo = false,
+  disableRemoveLogo = false,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -362,13 +382,18 @@ export function ContextMenu({
   }, [])
 
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
-  const hasStatusSection = (showMarkAsRead && onMarkAsRead) || (showMarkAsUnread && onMarkAsUnread)
+  const hasStatusSection =
+    (showMarkAsRead && onMarkAsRead) ||
+    (showMarkAsUnread && onMarkAsUnread) ||
+    (showPin && onTogglePin)
   const hasEditSection =
     (showRename && onRename) ||
     (showCreate && onCreate) ||
     (showCreateFolder && onCreateFolder) ||
     (showColorChange && onColorChange) ||
-    (showLock && onToggleLock)
+    (showLock && onToggleLock) ||
+    (showUploadLogo && onUploadLogo) ||
+    (showRemoveLogo && onRemoveLogo)
   const hasCopySection = (showDuplicate && onDuplicate) || (showExport && onExport)
 
   return (
@@ -432,6 +457,17 @@ export function ContextMenu({
             Mark as unread
           </DropdownMenuItem>
         )}
+        {showPin && onTogglePin && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onTogglePin()
+              onClose()
+            }}
+          >
+            {isPinned ? <PinOff className='size-[14px]' /> : <Pin className='size-[14px]' />}
+            {isPinned ? 'Unpin' : 'Pin'}
+          </DropdownMenuItem>
+        )}
         {hasStatusSection && (hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
 
         {showRename && onRename && (
@@ -482,6 +518,31 @@ export function ContextMenu({
             handleHexFocus={handleHexFocus}
             disabled={disableColorChange}
           />
+        )}
+
+        {showUploadLogo && onUploadLogo && (
+          <DropdownMenuItem
+            disabled={disableUploadLogo}
+            onSelect={() => {
+              onUploadLogo()
+              onClose()
+            }}
+          >
+            <Upload />
+            Upload logo
+          </DropdownMenuItem>
+        )}
+        {showRemoveLogo && onRemoveLogo && (
+          <DropdownMenuItem
+            disabled={disableRemoveLogo}
+            onSelect={() => {
+              onRemoveLogo()
+              onClose()
+            }}
+          >
+            <X />
+            Remove logo
+          </DropdownMenuItem>
         )}
 
         {showLock && onToggleLock && (

@@ -1,0 +1,387 @@
+---
+title: Monday
+description: Manage Monday.com boards, items, and groups
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="monday"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.
+
+
+
+## Tools
+
+### `monday_list_boards`
+
+List boards from your Monday.com account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Maximum number of boards to return \(default 25, max 500\) |
+| `page` | number | No | Page number for pagination \(starts at 1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boards` | array | List of Monday.com boards |
+|   ↳ `id` | string | Board ID |
+|   ↳ `name` | string | Board name |
+|   ↳ `description` | string | Board description |
+|   ↳ `state` | string | Board state \(active, archived, deleted\) |
+|   ↳ `boardKind` | string | Board kind \(public, private, share\) |
+|   ↳ `itemsCount` | number | Number of items on the board |
+|   ↳ `url` | string | Board URL |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+| `count` | number | Number of boards returned |
+
+### `monday_get_board`
+
+Get a specific Monday.com board with its groups and columns
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `board` | json | Board details |
+|   ↳ `id` | string | Board ID |
+|   ↳ `name` | string | Board name |
+|   ↳ `description` | string | Board description |
+|   ↳ `state` | string | Board state |
+|   ↳ `boardKind` | string | Board kind \(public, private, share\) |
+|   ↳ `itemsCount` | number | Number of items |
+|   ↳ `url` | string | Board URL |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+| `groups` | array | Groups on the board |
+|   ↳ `id` | string | Group ID |
+|   ↳ `title` | string | Group title |
+|   ↳ `color` | string | Group color \(hex\) |
+|   ↳ `archived` | boolean | Whether the group is archived |
+|   ↳ `deleted` | boolean | Whether the group is deleted |
+|   ↳ `position` | string | Group position |
+| `columns` | array | Columns on the board |
+|   ↳ `id` | string | Column ID |
+|   ↳ `title` | string | Column title |
+|   ↳ `type` | string | Column type |
+
+### `monday_get_item`
+
+Get a specific item by ID from Monday.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | The ID of the item to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The requested item |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+
+### `monday_get_items`
+
+Get items from a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board to get items from |
+| `groupId` | string | No | Filter items by group ID |
+| `limit` | number | No | Maximum number of items to return \(default 25, max 500\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | List of items from the board |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state \(active, archived, deleted\) |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values for the item |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Human-readable text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+| `count` | number | Number of items returned |
+
+### `monday_search_items`
+
+Search for items on a Monday.com board by column values
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board to search |
+| `columns` | string | Yes | JSON array of column filters, e.g. \[\{"column_id":"status","column_values":\["Done"\]\}\] |
+| `limit` | number | No | Maximum number of items to return \(default 25, max 500\) |
+| `cursor` | string | No | Pagination cursor from a previous search response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Matching items |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+| `count` | number | Number of items returned |
+| `cursor` | string | Pagination cursor for fetching the next page |
+
+### `monday_create_item`
+
+Create a new item on a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board to create the item on |
+| `itemName` | string | Yes | The name of the new item |
+| `groupId` | string | No | The group ID to create the item in |
+| `columnValues` | string | No | JSON string of column values to set \(e.g., \{"status":"Done","date":"2024-01-01"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The created item |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+
+### `monday_update_item`
+
+Update column values of an item on a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board containing the item |
+| `itemId` | string | Yes | The ID of the item to update |
+| `columnValues` | string | Yes | JSON string of column values to update \(e.g., \{"status":"Done","date":"2024-01-01"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The updated item |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+
+### `monday_delete_item`
+
+Delete an item from a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | The ID of the item to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The ID of the deleted item |
+
+### `monday_archive_item`
+
+Archive an item on a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | The ID of the item to archive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | The ID of the archived item |
+
+### `monday_move_item_to_group`
+
+Move an item to a different group on a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | The ID of the item to move |
+| `groupId` | string | Yes | The ID of the target group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The moved item with updated group |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+
+### `monday_create_subitem`
+
+Create a subitem under a parent item on Monday.com
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `parentItemId` | string | Yes | The ID of the parent item |
+| `itemName` | string | Yes | The name of the new subitem |
+| `columnValues` | string | No | JSON string of column values to set |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | json | The created subitem |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `state` | string | Item state |
+|   ↳ `boardId` | string | Board ID |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupTitle` | string | Group title |
+|   ↳ `columnValues` | array | Column values |
+|     ↳ `id` | string | Column ID |
+|     ↳ `text` | string | Text value |
+|     ↳ `value` | string | Raw JSON value |
+|     ↳ `type` | string | Column type |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+|   ↳ `url` | string | Item URL |
+
+### `monday_create_update`
+
+Add an update (comment) to a Monday.com item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | The ID of the item to add the update to |
+| `body` | string | Yes | The update text content \(supports HTML\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `update` | json | The created update |
+|   ↳ `id` | string | Update ID |
+|   ↳ `body` | string | Update body \(HTML\) |
+|   ↳ `textBody` | string | Plain text body |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `creatorId` | string | Creator user ID |
+|   ↳ `itemId` | string | Item ID |
+
+### `monday_create_group`
+
+Create a new group on a Monday.com board
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `boardId` | string | Yes | The ID of the board to create the group on |
+| `groupName` | string | Yes | The name of the new group \(max 255 characters\) |
+| `groupColor` | string | No | The group color as a hex code \(e.g., "#ff642e"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | json | The created group |
+|   ↳ `id` | string | Group ID |
+|   ↳ `title` | string | Group title |
+|   ↳ `color` | string | Group color \(hex\) |
+|   ↳ `archived` | boolean | Whether archived |
+|   ↳ `deleted` | boolean | Whether deleted |
+|   ↳ `position` | string | Group position |
+
+

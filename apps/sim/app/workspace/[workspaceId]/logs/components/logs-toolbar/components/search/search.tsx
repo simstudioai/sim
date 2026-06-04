@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Badge } from '@/components/emcn'
+import { Badge, Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { type ParsedFilter, parseQuery } from '@/lib/logs/query-parser'
@@ -162,14 +162,14 @@ export function AutocompleteSearch({
         <DropdownMenuPrimitive.Trigger asChild>
           <div className='relative flex h-[32px] w-[400px] items-center rounded-lg bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
             {/* Search Icon */}
-            <Search className='mr-1.5 ml-2 h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
+            <Search className='mr-1.5 ml-2 size-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
 
             {/* Scrollable container for badges */}
             <div className='flex flex-1 items-center gap-1.5 overflow-x-auto pr-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
               {/* Applied Filter Badges */}
               {appliedFilters.map((filter, index) => (
                 <Badge
-                  key={`${filter.field}-${filter.value}-${index}`}
+                  key={`${filter.field}-${filter.value}`}
                   variant='outline'
                   role='button'
                   tabIndex={0}
@@ -191,7 +191,7 @@ export function AutocompleteSearch({
                     {filter.operator !== '=' && filter.operator}
                     {truncateFilterValue(filter.field, filter.originalValue)}
                   </span>
-                  <X className='h-3 w-3 shrink-0' />
+                  <X className='size-3 shrink-0' />
                 </Badge>
               ))}
 
@@ -213,7 +213,7 @@ export function AutocompleteSearch({
                   <span className='max-w-[150px] truncate text-[var(--text-primary)]'>
                     "{textSearch}"
                   </span>
-                  <X className='h-3 w-3 shrink-0' />
+                  <X className='size-3 shrink-0' />
                 </Badge>
               )}
 
@@ -233,13 +233,14 @@ export function AutocompleteSearch({
 
             {/* Clear All Button */}
             {(hasFilters || hasTextSearch) && (
-              <button
+              <Button
                 type='button'
-                className='mr-2 ml-1.5 flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                variant='ghost'
+                className='mr-2 ml-1.5 size-[14px] flex-shrink-0 p-0 text-[var(--text-subtle)] hover-hover:text-[var(--text-secondary)]'
                 onClick={clearAll}
               >
-                <X className='h-[14px] w-[14px]' />
-              </button>
+                <X className='size-[14px]' />
+              </Button>
             )}
           </div>
         </DropdownMenuPrimitive.Trigger>
@@ -248,7 +249,7 @@ export function AutocompleteSearch({
         <DropdownMenuPrimitive.Portal>
           <DropdownMenuPrimitive.Content
             ref={dropdownRef}
-            className='z-50 rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+            className='z-[70] rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
             style={{ width: dropdownWidth }}
             align='start'
             sideOffset={4}
@@ -259,11 +260,12 @@ export function AutocompleteSearch({
                 <div className='py-1'>
                   {/* Show all results (no header) */}
                   {suggestions[0]?.category === 'show-all' && (
-                    <button
+                    <Button
                       key={suggestions[0].id}
+                      variant='ghost'
                       data-index={0}
                       className={cn(
-                        'w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                        'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
                         'hover-hover:bg-[var(--surface-5)]',
                         highlightedIndex === 0 && 'bg-[var(--surface-5)]'
                       )}
@@ -274,7 +276,7 @@ export function AutocompleteSearch({
                       }}
                     >
                       <div className='text-small'>{suggestions[0].label}</div>
-                    </button>
+                    </Button>
                   )}
 
                   {sections.map((section) => (
@@ -289,11 +291,12 @@ export function AutocompleteSearch({
                         const isHighlighted = index === highlightedIndex
 
                         return (
-                          <button
+                          <Button
                             key={suggestion.id}
+                            variant='ghost'
                             data-index={index}
                             className={cn(
-                              'w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                              'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
                               'hover-hover:bg-[var(--surface-5)]',
                               isHighlighted && 'bg-[var(--surface-5)]'
                             )}
@@ -316,7 +319,7 @@ export function AutocompleteSearch({
                                 </div>
                               )}
                             </div>
-                          </button>
+                          </Button>
                         )
                       })}
                     </div>
@@ -332,11 +335,12 @@ export function AutocompleteSearch({
                   )}
 
                   {suggestions.map((suggestion, index) => (
-                    <button
+                    <Button
                       key={suggestion.id}
+                      variant='ghost'
                       data-index={index}
                       className={cn(
-                        'w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                        'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
                         'hover-hover:bg-[var(--surface-5)]',
                         index === highlightedIndex && 'bg-[var(--surface-5)]'
                       )}
@@ -354,7 +358,7 @@ export function AutocompleteSearch({
                           </div>
                         )}
                       </div>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}

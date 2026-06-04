@@ -1,86 +1,19 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput } from '@/lib/api/contracts'
+import {
+  createBillingPortalContract,
+  getUserBillingContract,
+  getUserUsageLimitContract,
+  purchaseCreditsContract,
+  type SubscriptionApiResponse,
+  updateUsageLimitContract,
+} from '@/lib/api/contracts/subscription'
 import { organizationKeys } from '@/hooks/queries/organization'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
-/**
- * Shape of the usage object returned from the billing API (user context)
- */
-export interface BillingUsageData {
-  current: number
-  limit: number
-  percentUsed: number
-  isWarning: boolean
-  isExceeded: boolean
-  billingPeriodStart: string | null
-  billingPeriodEnd: string | null
-  lastPeriodCost: number
-  lastPeriodCopilotCost: number
-  daysRemaining: number
-  copilotCost: number
-  currentCredits: number
-  limitCredits: number
-  lastPeriodCostCredits: number
-  lastPeriodCopilotCostCredits: number
-  copilotCostCredits: number
-}
-
-/**
- * Shape of the billing data returned for the user context
- */
-export interface SubscriptionBillingData {
-  type: 'individual' | 'organization'
-  plan: string
-  basePrice: number
-  currentUsage: number
-  overageAmount: number
-  totalProjected: number
-  usageLimit: number
-  percentUsed: number
-  isWarning: boolean
-  isExceeded: boolean
-  daysRemaining: number
-  creditBalance: number
-  billingInterval: 'month' | 'year'
-  tierCredits: number
-  basePriceCredits: number
-  currentUsageCredits: number
-  overageAmountCredits: number
-  totalProjectedCredits: number
-  usageLimitCredits: number
-  isPaid: boolean
-  isPro: boolean
-  isTeam: boolean
-  isEnterprise: boolean
-  status: string | null
-  seats: number | null
-  stripeSubscriptionId: string | null
-  periodEnd: string | null
-  cancelAtPeriodEnd?: boolean
-  usage: BillingUsageData
-  billingBlocked?: boolean
-  billingBlockedReason?: 'payment_failed' | 'dispute' | null
-  blockedByOrgOwner?: boolean
-  organization?: { id: string; role: 'owner' | 'admin' | 'member' }
-  organizationData?: {
-    seatCount: number
-    memberCount: number
-    totalBasePrice: number
-    totalCurrentUsage: number
-    totalOverage: number
-    totalBasePriceCredits: number
-    totalCurrentUsageCredits: number
-    totalOverageCredits: number
-  }
-}
-
-/**
- * Shape of the full API response from GET /api/billing?context=user
- */
-export interface SubscriptionApiResponse {
-  success: boolean
-  context: string
-  data: SubscriptionBillingData
-}
+export type { SubscriptionApiResponse }
 
 /**
  * Query key factories for subscription-related queries
@@ -100,14 +33,10 @@ async function fetchSubscriptionData(
   includeOrg = false,
   signal?: AbortSignal
 ): Promise<SubscriptionApiResponse> {
-  const params = new URLSearchParams({ context: 'user' })
-  if (includeOrg) params.set('includeOrg', 'true')
-
-  const response = await fetch(`/api/billing?${params}`, { signal })
-  if (!response.ok) {
-    throw new Error('Failed to fetch subscription data')
-  }
-  return response.json()
+  return requestJson(getUserBillingContract, {
+    query: { context: 'user', includeOrg },
+    signal,
+  })
 }
 
 interface UseSubscriptionDataOptions {
@@ -124,7 +53,7 @@ interface UseSubscriptionDataOptions {
  * @param options - Optional configuration
  */
 export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
-  const { includeOrg = false, enabled = true, staleTime = 30 * 1000 } = options
+  const { includeOrg = false, enabled = true, staleTime = 5 * 60 * 1000 } = options
 
   return useQuery({
     queryKey: subscriptionKeys.user(includeOrg),
@@ -143,7 +72,7 @@ export function prefetchSubscriptionData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.user(false),
     queryFn: ({ signal }) => fetchSubscriptionData(false, signal),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -153,11 +82,10 @@ export function prefetchSubscriptionData(queryClient: QueryClient) {
  * For actual usage data (current, limit, percentUsed), use useSubscriptionData() instead
  */
 async function fetchUsageLimitData(signal?: AbortSignal) {
-  const response = await fetch('/api/usage?context=user', { signal })
-  if (!response.ok) {
-    throw new Error('Failed to fetch usage limit data')
-  }
-  return response.json()
+  return requestJson(getUserUsageLimitContract, {
+    query: { context: 'user' },
+    signal,
+  })
 }
 
 interface UseUsageLimitDataOptions {
@@ -185,7 +113,7 @@ export function useUsageLimitData(options: UseUsageLimitDataOptions = {}) {
  * Update usage limit mutation
  */
 interface UpdateUsageLimitParams {
-  limit: number
+  limit: ContractBodyInput<typeof updateUsageLimitContract>['limit']
 }
 
 export function useUpdateUsageLimit() {
@@ -193,18 +121,9 @@ export function useUpdateUsageLimit() {
 
   return useMutation({
     mutationFn: async ({ limit }: UpdateUsageLimitParams) => {
-      const response = await fetch('/api/usage?context=user', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit }),
+      return requestJson(updateUsageLimitContract, {
+        body: { context: 'user', limit },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to update usage limit')
-      }
-
-      return response.json()
     },
     onMutate: async ({ limit }) => {
       await queryClient.cancelQueries({ queryKey: subscriptionKeys.all })
@@ -213,7 +132,7 @@ export function useUpdateUsageLimit() {
       const previousSubscriptionDataWithOrg = queryClient.getQueryData(subscriptionKeys.user(true))
       const previousUsageData = queryClient.getQueryData(subscriptionKeys.usage())
 
-      const updateSubscriptionData = (old: any) => {
+      const updateSubscriptionData = (old: SubscriptionApiResponse | undefined) => {
         if (!old) return old
         const currentUsage = old.data?.usage?.current || 0
         const newPercentUsed = limit > 0 ? (currentUsage / limit) * 100 : 0
@@ -231,19 +150,28 @@ export function useUpdateUsageLimit() {
         }
       }
 
-      queryClient.setQueryData(subscriptionKeys.user(false), updateSubscriptionData)
-      queryClient.setQueryData(subscriptionKeys.user(true), updateSubscriptionData)
+      queryClient.setQueryData<SubscriptionApiResponse | undefined>(
+        subscriptionKeys.user(false),
+        updateSubscriptionData
+      )
+      queryClient.setQueryData<SubscriptionApiResponse | undefined>(
+        subscriptionKeys.user(true),
+        updateSubscriptionData
+      )
 
-      queryClient.setQueryData(subscriptionKeys.usage(), (old: any) => {
-        if (!old) return old
-        return {
-          ...old,
-          data: {
-            ...old.data,
-            currentLimit: limit,
-          },
+      queryClient.setQueryData<Awaited<ReturnType<typeof fetchUsageLimitData>> | undefined>(
+        subscriptionKeys.usage(),
+        (old) => {
+          if (!old) return old
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              currentLimit: limit,
+            },
+          }
         }
-      })
+      )
 
       return { previousSubscriptionData, previousSubscriptionDataWithOrg, previousUsageData }
     },
@@ -284,6 +212,7 @@ export function useUpgradeSubscription() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
 
       if (variables.orgId) {
         queryClient.invalidateQueries({
@@ -301,8 +230,9 @@ export function useUpgradeSubscription() {
  * Purchase credits mutation
  */
 interface PurchaseCreditsParams {
-  amount: number
-  requestId: string
+  amount: ContractBodyInput<typeof purchaseCreditsContract>['amount']
+  requestId: ContractBodyInput<typeof purchaseCreditsContract>['requestId']
+  orgId?: string
 }
 
 export function usePurchaseCredits() {
@@ -310,23 +240,17 @@ export function usePurchaseCredits() {
 
   return useMutation({
     mutationFn: async ({ amount, requestId }: PurchaseCreditsParams) => {
-      const response = await fetch('/api/billing/credits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, requestId }),
+      return requestJson(purchaseCreditsContract, {
+        body: { amount, requestId },
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to purchase credits')
-      }
-
-      return data
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+      if (variables.orgId) {
+        queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
+        queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
+      }
     },
   })
 }
@@ -334,28 +258,16 @@ export function usePurchaseCredits() {
 /**
  * Open billing portal mutation
  */
-interface OpenBillingPortalParams {
-  context: 'user' | 'organization'
-  organizationId?: string
-  returnUrl: string
-}
+type OpenBillingPortalParams = ContractBodyInput<typeof createBillingPortalContract>
 
 export function useOpenBillingPortal() {
   return useMutation({
-    mutationFn: async ({ context, organizationId, returnUrl }: OpenBillingPortalParams) => {
-      const response = await fetch('/api/billing/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, organizationId, returnUrl }),
+    mutationFn: async (body: OpenBillingPortalParams) => {
+      const data = await requestJson(createBillingPortalContract, {
+        body,
       })
 
-      const data = await response.json()
-
-      if (!response.ok || !data?.url) {
-        throw new Error(data?.error || 'Failed to start billing portal')
-      }
-
-      return data as { url: string }
+      return data
     },
   })
 }

@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import {
   document,
@@ -6,8 +5,12 @@ import {
   knowledgeBase,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
+  workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import {
   and,
@@ -27,13 +30,12 @@ import {
 } from 'drizzle-orm'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
-import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
-import { env } from '@/lib/core/config/env'
+import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import {
   buildUndefinedTagsError,
@@ -43,28 +45,113 @@ import {
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
+import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import { deleteFileMetadata, getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
-import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
+import type {
+  DocumentProcessingPayload,
+  processDocument as processDocumentTask,
+} from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentService')
 
+/**
+ * Thrown when a knowledge-base document's `fileUrl` references an internal `kb/`
+ * storage object that is not owned by the target knowledge base's workspace.
+ * Routes map this to a 403.
+ */
+export class KnowledgeBaseFileOwnershipError extends Error {
+  constructor(public readonly storageKey: string) {
+    super('Document file is not owned by this knowledge base')
+    this.name = 'KnowledgeBaseFileOwnershipError'
+  }
+}
+
+/**
+ * Guard document `fileUrl`s at creation time. When a URL points at an internal
+ * `kb/` storage object, require that the target knowledge base owns the object,
+ * resolved from the trusted `workspace_files` binding:
+ *
+ * - Workspace KB (`kbWorkspaceId` set): the binding's `workspaceId` must match.
+ * - Personal KB (`kbWorkspaceId` null): the binding's `userId` must be the KB
+ *   owner. A key bound to another tenant is rejected; an unbound key (legacy /
+ *   never reserved) passes since it carries no cross-tenant ownership.
+ *
+ * External `http(s)`/`data:` URLs (ingestion sources) and non-`kb/` internal keys
+ * pass through unchanged. This blocks a user from asserting ownership of another
+ * tenant's `kb/` key via a planted `fileUrl` — including in a personal KB, which
+ * otherwise could be moved into a workspace to launder the binding. All
+ * referenced bindings are resolved in one query (no N+1 inside the `FOR UPDATE`
+ * window). Single-document callers pass a one-element array.
+ */
+async function assertKnowledgeBaseFileUrlsOwnership(
+  fileUrls: string[],
+  kbWorkspaceId: string | null,
+  kbUserId: string,
+  requestId: string,
+  executor: DbExecutor = db
+): Promise<void> {
+  const keys = [
+    ...new Set(
+      fileUrls
+        .map((url) => getKnowledgeBaseStorageKey(url))
+        .filter((key): key is string => key !== null && key.startsWith('kb/'))
+    ),
+  ]
+  if (keys.length === 0) {
+    return
+  }
+
+  // Read bindings on the caller's transaction so the security check shares the
+  // same connection/lock context as the FOR UPDATE'd insert that follows.
+  const bindings = await getFileMetadataByKeys(keys, 'knowledge-base', executor)
+  const bindingByKey = new Map(bindings.map((binding) => [binding.key, binding]))
+
+  for (const key of keys) {
+    const binding = bindingByKey.get(key)
+
+    if (kbWorkspaceId) {
+      if (!binding || binding.workspaceId !== kbWorkspaceId) {
+        logger.warn(`[${requestId}] Rejected document referencing unowned knowledge-base file`, {
+          storageKey: key,
+          kbWorkspaceId,
+          bindingWorkspaceId: binding?.workspaceId ?? null,
+        })
+        throw new KnowledgeBaseFileOwnershipError(key)
+      }
+      continue
+    }
+
+    // Personal KB: reject a key whose binding belongs to a different user. An
+    // unbound key carries no ownership and is allowed (legacy personal files).
+    if (binding && binding.userId !== kbUserId) {
+      logger.warn(
+        `[${requestId}] Rejected personal-KB document referencing another tenant's file`,
+        {
+          storageKey: key,
+          kbUserId,
+          bindingUserId: binding.userId,
+          bindingWorkspaceId: binding.workspaceId ?? null,
+        }
+      )
+      throw new KnowledgeBaseFileOwnershipError(key)
+    }
+  }
+}
+
 const TIMEOUTS = {
-  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000, // Default 10 minutes for KB document processing
+  OVERALL_PROCESSING: envNumber(env.KB_CONFIG_MAX_DURATION, 600) * 1000,
 } as const
 
-// Configuration for handling large documents
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
-  MAX_EMBEDDING_BATCH: env.KB_CONFIG_BATCH_SIZE || 2000,
+  MAX_EMBEDDING_BATCH: envNumber(env.KB_CONFIG_BATCH_SIZE, 2000),
   MAX_FILE_SIZE: 100 * 1024 * 1024,
   MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
 
-/**
- * Create a timeout wrapper for async operations
- */
 function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -79,21 +166,15 @@ function withTimeout<T>(
 }
 
 const PROCESSING_CONFIG = {
-  maxConcurrentDocuments: Math.max(1, Math.floor((env.KB_CONFIG_CONCURRENCY_LIMIT || 20) / 5)) || 4,
-  batchSize: Math.max(1, Math.floor((env.KB_CONFIG_BATCH_SIZE || 20) / 2)) || 10,
-  delayBetweenBatches: (env.KB_CONFIG_DELAY_BETWEEN_BATCHES || 100) * 2,
-  delayBetweenDocuments: (env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50) * 2,
-}
-
-const REDIS_PROCESSING_CONFIG = {
-  maxConcurrentDocuments: env.KB_CONFIG_CONCURRENCY_LIMIT || 20,
-  batchSize: env.KB_CONFIG_BATCH_SIZE || 20,
-  delayBetweenBatches: env.KB_CONFIG_DELAY_BETWEEN_BATCHES || 100,
-  delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50,
+  maxConcurrentDocuments:
+    Math.max(1, Math.floor(envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20) / 5)) || 4,
+  batchSize: Math.max(1, Math.floor(envNumber(env.KB_CONFIG_BATCH_SIZE, 20) / 2)) || 10,
+  delayBetweenBatches: envNumber(env.KB_CONFIG_DELAY_BETWEEN_BATCHES, 100) * 2,
+  delayBetweenDocuments: envNumber(env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS, 50) * 2,
 }
 
 export function getProcessingConfig() {
-  return isBullMQEnabled() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
+  return PROCESSING_CONFIG
 }
 
 export interface DocumentData {
@@ -109,79 +190,32 @@ export interface ProcessingOptions {
   lang?: string
 }
 
-export interface DocumentJobData {
-  knowledgeBaseId: string
-  documentId: string
-  docData: {
-    filename: string
-    fileUrl: string
-    fileSize: number
-    mimeType: string
-  }
-  processingOptions: ProcessingOptions
-  requestId: string
-}
-
-export async function dispatchDocumentProcessingJob(payload: DocumentJobData): Promise<void> {
-  if (isTriggerAvailable()) {
-    await tasks.trigger('knowledge-process-document', payload, {
-      tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
-    })
-    return
-  }
-
-  if (isBullMQEnabled()) {
-    const workspaceRows = await db
-      .select({
-        workspaceId: knowledgeBase.workspaceId,
-        userId: knowledgeBase.userId,
-      })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, payload.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-      .limit(1)
-
-    const workspaceId = workspaceRows[0]?.workspaceId
-    const userId = workspaceRows[0]?.userId
-    if (!workspaceId || !userId) {
-      throw new Error(`Knowledge base not found: ${payload.knowledgeBaseId}`)
-    }
-
-    await enqueueWorkspaceDispatch({
-      workspaceId,
-      lane: 'knowledge',
-      queueName: 'knowledge-process-document',
-      bullmqJobName: 'knowledge-process-document',
-      bullmqPayload: createBullMQJobData(payload),
-      metadata: {
-        userId,
-      },
-    })
-    return
-  }
-
-  await processDocumentAsync(
-    payload.knowledgeBaseId,
-    payload.documentId,
-    payload.docData,
-    payload.processingOptions
-  )
-}
-
-export interface DocumentTagData {
+interface DocumentTagData {
   tagName: string
   fieldType: string
   value: string
 }
 
-/**
- * Process structured document tags and validate them against existing definitions
- * Throws an error if a tag doesn't exist or if the value doesn't match the expected type
- */
-export async function processDocumentTags(
+type TagDefinition = typeof knowledgeBaseTagDefinitions.$inferSelect
+type TagDefinitionsByName = Map<string, TagDefinition>
+type DbExecutor = Pick<typeof db, 'select'>
+
+async function loadTagDefinitions(
   knowledgeBaseId: string,
+  executor: DbExecutor = db
+): Promise<TagDefinitionsByName> {
+  const defs = await executor
+    .select()
+    .from(knowledgeBaseTagDefinitions)
+    .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
+  return new Map(defs.map((def) => [def.displayName, def]))
+}
+
+function resolveDocumentTags(
   tagData: DocumentTagData[],
+  tagDefinitions: TagDefinitionsByName,
   requestId: string
-): Promise<ProcessedDocumentTags> {
+): ProcessedDocumentTags {
   const setTagValue = (
     tags: ProcessedDocumentTags,
     slot: string,
@@ -266,13 +300,6 @@ export async function processDocumentTags(
     return result
   }
 
-  const existingDefinitions = await db
-    .select()
-    .from(knowledgeBaseTagDefinitions)
-    .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
-
-  const existingByName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
-
   const undefinedTags: string[] = []
   const typeErrors: string[] = []
 
@@ -289,7 +316,7 @@ export async function processDocumentTags(
 
     if (!hasValue) continue
 
-    const existingDef = existingByName.get(tagName)
+    const existingDef = tagDefinitions.get(tagName)
     if (!existingDef) {
       undefinedTags.push(tagName)
       continue
@@ -330,7 +357,7 @@ export async function processDocumentTags(
 
     if (!hasValue) continue
 
-    const existingDef = existingByName.get(tagName)
+    const existingDef = tagDefinitions.get(tagName)
     if (!existingDef) continue
 
     const targetSlot = existingDef.tagSlot
@@ -354,16 +381,16 @@ export async function processDocumentTags(
   return result
 }
 
-/**
- * Process documents with the configured background execution backend.
- */
-export async function processDocumentsWithQueue(
-  createdDocuments: DocumentData[],
+/** Per-call cap for `tasks.batchTrigger` on Trigger.dev SDK 4.3.1+. */
+const TRIGGER_BATCH_SIZE = 1000
+
+function buildJobPayload(
+  doc: DocumentData,
   knowledgeBaseId: string,
   processingOptions: ProcessingOptions,
   requestId: string
-): Promise<void> {
-  const jobPayloads = createdDocuments.map<DocumentJobData>((doc) => ({
+): DocumentProcessingPayload {
+  return {
     knowledgeBaseId,
     documentId: doc.documentId,
     docData: {
@@ -374,42 +401,101 @@ export async function processDocumentsWithQueue(
     },
     processingOptions,
     requestId,
-  }))
-
-  logger.info(
-    `[${requestId}] Dispatching background processing for ${jobPayloads.length} documents`,
-    {
-      backend: isTriggerAvailable() ? 'trigger-dev' : isBullMQEnabled() ? 'bullmq' : 'direct',
-    }
-  )
-
-  const results = await Promise.allSettled(
-    jobPayloads.map((payload) => dispatchDocumentProcessingJob(payload))
-  )
-
-  const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-  if (failures.length > 0) {
-    logger.error(`[${requestId}] ${failures.length}/${results.length} document dispatches failed`, {
-      errors: failures.map((f) =>
-        f.reason instanceof Error ? f.reason.message : String(f.reason)
-      ),
-    })
   }
-
-  logger.info(
-    `[${requestId}] Document dispatch complete: ${results.length - failures.length}/${results.length} succeeded`
-  )
-
-  if (failures.length === results.length) {
-    throw new Error(`All ${failures.length} document processing dispatches failed`)
-  }
-
-  return
 }
 
 /**
- * Process a document asynchronously with full error handling
+ * Dispatches document processing jobs via Trigger.dev's `batchTrigger` when
+ * available, or in-process otherwise. Throws only when every dispatch fails;
+ * partial failures are logged and recovered by the next sync's stuck-doc pass.
  */
+export async function processDocumentsWithQueue(
+  createdDocuments: DocumentData[],
+  knowledgeBaseId: string,
+  processingOptions: ProcessingOptions,
+  requestId: string
+): Promise<void> {
+  if (createdDocuments.length === 0) return
+
+  const jobPayloads = createdDocuments.map((doc) =>
+    buildJobPayload(doc, knowledgeBaseId, processingOptions, requestId)
+  )
+
+  const useTrigger = isTriggerAvailable()
+  logger.info(
+    `[${requestId}] Dispatching background processing for ${jobPayloads.length} documents`,
+    { backend: useTrigger ? 'trigger-dev' : 'direct' }
+  )
+
+  const dispatched = useTrigger
+    ? await dispatchViaBatchTrigger(jobPayloads, requestId)
+    : await dispatchInProcess(jobPayloads, requestId)
+
+  logger.info(
+    `[${requestId}] Document dispatch complete: ${dispatched}/${jobPayloads.length} succeeded`
+  )
+
+  if (dispatched === 0) {
+    throw new Error(`All ${jobPayloads.length} document processing dispatches failed`)
+  }
+}
+
+async function dispatchViaBatchTrigger(
+  jobPayloads: DocumentProcessingPayload[],
+  requestId: string
+): Promise<number> {
+  let dispatched = 0
+  const batchIds: string[] = []
+  for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
+    const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
+    try {
+      const result = await tasks.batchTrigger<typeof processDocumentTask>(
+        'knowledge-process-document',
+        chunk.map((payload) => ({
+          payload,
+          options: {
+            // Scoped to (documentId, requestId): blocks intra-dispatch retries
+            // from double-enqueuing; later syncs use a fresh requestId.
+            idempotencyKey: `doc-process-${payload.documentId}-${requestId}`,
+            tags: [
+              `knowledgeBaseId:${payload.knowledgeBaseId}`,
+              `documentId:${payload.documentId}`,
+            ],
+          },
+        }))
+      )
+      batchIds.push(result.batchId)
+      dispatched += chunk.length
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
+        error: getErrorMessage(error),
+      })
+    }
+  }
+  if (batchIds.length > 0) {
+    logger.info(`[${requestId}] Trigger.dev batches dispatched`, { batchIds })
+  }
+  return dispatched
+}
+
+async function dispatchInProcess(
+  jobPayloads: DocumentProcessingPayload[],
+  requestId: string
+): Promise<number> {
+  const results = await Promise.allSettled(
+    jobPayloads.map((p) =>
+      processDocumentAsync(p.knowledgeBaseId, p.documentId, p.docData, p.processingOptions)
+    )
+  )
+  let dispatched = 0
+  for (const r of results) {
+    if (r.status === 'fulfilled') dispatched++
+    else
+      logger.error(`[${requestId}] Document dispatch failed`, { error: getErrorMessage(r.reason) })
+  }
+  return dispatched
+}
+
 export async function processDocumentAsync(
   knowledgeBaseId: string,
   documentId: string,
@@ -425,19 +511,65 @@ export async function processDocumentAsync(
   try {
     logger.info(`[${documentId}] Starting document processing: ${docData.filename}`)
 
-    const kb = await db
+    // KB config + workspace billing + doc tags in one JOIN (was 3 SELECTs).
+    const contextRows = await db
       .select({
         userId: knowledgeBase.userId,
         workspaceId: knowledgeBase.workspaceId,
         chunkingConfig: knowledgeBase.chunkingConfig,
+        embeddingModel: knowledgeBase.embeddingModel,
+        billedAccountUserId: workspaceTable.billedAccountUserId,
+        tag1: document.tag1,
+        tag2: document.tag2,
+        tag3: document.tag3,
+        tag4: document.tag4,
+        tag5: document.tag5,
+        tag6: document.tag6,
+        tag7: document.tag7,
+        number1: document.number1,
+        number2: document.number2,
+        number3: document.number3,
+        number4: document.number4,
+        number5: document.number5,
+        date1: document.date1,
+        date2: document.date2,
+        boolean1: document.boolean1,
+        boolean2: document.boolean2,
+        boolean3: document.boolean3,
       })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .from(document)
+      .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
+      .leftJoin(
+        workspaceTable,
+        and(eq(workspaceTable.id, knowledgeBase.workspaceId), isNull(workspaceTable.archivedAt))
+      )
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(knowledgeBase.id, knowledgeBaseId),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          isNull(knowledgeBase.deletedAt)
+        )
+      )
       .limit(1)
 
-    if (kb.length === 0) {
-      throw new Error(`Knowledge base not found: ${knowledgeBaseId}`)
+    if (contextRows.length === 0) {
+      logger.warn(
+        `[${documentId}] Skipping document processing: document or knowledge base ${knowledgeBaseId} no longer exists`
+      )
+      await db
+        .update(document)
+        .set({
+          processingStatus: 'failed',
+          processingError: 'Document or knowledge base no longer exists',
+          processingCompletedAt: new Date(),
+        })
+        .where(eq(document.id, documentId))
+      return
     }
+
+    const ctx = contextRows[0]
 
     await db
       .update(document)
@@ -453,10 +585,12 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    const rawConfig = kb[0].chunkingConfig as {
+    const rawConfig = ctx.chunkingConfig as {
       maxSize?: number
       minSize?: number
       overlap?: number
+      strategy?: ChunkingStrategy
+      strategyOptions?: StrategyOptions
     } | null
     const kbConfig = {
       maxSize: rawConfig?.maxSize ?? 1024,
@@ -464,9 +598,18 @@ export async function processDocumentAsync(
       overlap: rawConfig?.overlap ?? 200,
     }
 
+    const kbEmbeddingModel = ctx.embeddingModel
+    if (!ctx.workspaceId) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is missing workspace billing context`)
+    }
+    const billingUserId = ctx.billedAccountUserId
+    if (!billingUserId) {
+      throw new Error(`Workspace ${ctx.workspaceId} is missing billed account`)
+    }
     let totalEmbeddingTokens = 0
     let embeddingIsBYOK = false
-    let embeddingModelName = 'text-embedding-3-small'
+    let embeddingModelName = kbEmbeddingModel
+    let embeddingPricingId = kbEmbeddingModel
 
     await withTimeout(
       (async () => {
@@ -477,8 +620,10 @@ export async function processDocumentAsync(
           kbConfig.maxSize,
           kbConfig.overlap,
           kbConfig.minSize,
-          kb[0].userId,
-          kb[0].workspaceId
+          ctx.userId,
+          ctx.workspaceId,
+          rawConfig?.strategy,
+          rawConfig?.strategyOptions
         )
 
         if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
@@ -513,7 +658,8 @@ export async function processDocumentAsync(
               totalTokens: batchTokens,
               isBYOK,
               modelName,
-            } = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
+              pricingId,
+            } = await generateEmbeddings(batch, kbEmbeddingModel, ctx.workspaceId)
             for (const emb of batchEmbeddings) {
               embeddings.push(emb)
             }
@@ -521,64 +667,31 @@ export async function processDocumentAsync(
             if (i === 0) {
               embeddingIsBYOK = isBYOK
               embeddingModelName = modelName
+              embeddingPricingId = pricingId
             }
           }
         }
 
-        logger.info(`[${documentId}] Embeddings generated, fetching document tags`)
+        // Tag values prefetched above; reuse for the embedding rows.
+        const documentTags = ctx
 
-        const documentRecord = await db
-          .select({
-            // Text tags (7 slots)
-            tag1: document.tag1,
-            tag2: document.tag2,
-            tag3: document.tag3,
-            tag4: document.tag4,
-            tag5: document.tag5,
-            tag6: document.tag6,
-            tag7: document.tag7,
-            // Number tags (5 slots)
-            number1: document.number1,
-            number2: document.number2,
-            number3: document.number3,
-            number4: document.number4,
-            number5: document.number5,
-            // Date tags (2 slots)
-            date1: document.date1,
-            date2: document.date2,
-            // Boolean tags (3 slots)
-            boolean1: document.boolean1,
-            boolean2: document.boolean2,
-            boolean3: document.boolean3,
-          })
-          .from(document)
-          .where(
-            and(
-              eq(document.id, documentId),
-              isNull(document.archivedAt),
-              isNull(document.deletedAt)
-            )
-          )
-          .limit(1)
+        logger.info(`[${documentId}] Embeddings generated, creating embedding records with tags`)
 
-        const documentTags = documentRecord[0] || {}
-
-        logger.info(`[${documentId}] Creating embedding records with tags`)
+        const tokenizerProvider = getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
 
         const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
           id: generateId(),
           knowledgeBaseId,
           documentId,
           chunkIndex,
-          chunkHash: crypto.createHash('sha256').update(chunk.text).digest('hex'),
+          chunkHash: sha256Hex(chunk.text),
           content: chunk.text,
           contentLength: chunk.text.length,
-          tokenCount: Math.ceil(chunk.text.length / 4),
+          tokenCount: estimateTokenCount(chunk.text, tokenizerProvider).count,
           embedding: embeddings[chunkIndex] || null,
-          embeddingModel: 'text-embedding-3-small',
+          embeddingModel: kbEmbeddingModel,
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
-          // Copy text tags from document (7 slots)
           tag1: documentTags.tag1,
           tag2: documentTags.tag2,
           tag3: documentTags.tag3,
@@ -586,16 +699,13 @@ export async function processDocumentAsync(
           tag5: documentTags.tag5,
           tag6: documentTags.tag6,
           tag7: documentTags.tag7,
-          // Copy number tags from document (5 slots)
           number1: documentTags.number1,
           number2: documentTags.number2,
           number3: documentTags.number3,
           number4: documentTags.number4,
           number5: documentTags.number5,
-          // Copy date tags from document (2 slots)
           date1: documentTags.date1,
           date2: documentTags.date2,
-          // Copy boolean tags from document (3 slots)
           boolean1: documentTags.boolean1,
           boolean2: documentTags.boolean2,
           boolean3: documentTags.boolean3,
@@ -657,11 +767,11 @@ export async function processDocumentAsync(
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
-    if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && kb[0].userId) {
+    if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && billingUserId) {
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
-          embeddingModelName,
+          embeddingPricingId,
           totalEmbeddingTokens,
           0,
           false,
@@ -669,22 +779,20 @@ export async function processDocumentAsync(
         )
         if (cost > 0) {
           await recordUsage({
-            userId: kb[0].userId,
-            workspaceId: kb[0].workspaceId ?? undefined,
+            userId: billingUserId,
+            workspaceId: ctx.workspaceId ?? undefined,
             entries: [
               {
                 category: 'model',
                 source: 'knowledge-base',
                 description: embeddingModelName,
                 cost,
+                sourceReference: `knowledge-document:${documentId}:${startTime}`,
                 metadata: { inputTokens: totalEmbeddingTokens, outputTokens: 0 },
               },
             ],
-            additionalStats: {
-              totalTokensUsed: sql`total_tokens_used + ${totalEmbeddingTokens}`,
-            },
           })
-          await checkAndBillOverageThreshold(kb[0].userId)
+          await checkAndBillOverageThreshold(billingUserId)
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
@@ -697,7 +805,7 @@ export async function processDocumentAsync(
     }
   } catch (error) {
     const processingTime = Date.now() - startTime
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     logger.error(`[${documentId}] Failed to process document after ${processingTime}ms:`, {
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
@@ -719,67 +827,10 @@ export async function processDocumentAsync(
   }
 }
 
-/**
- * Check if Trigger.dev is available and configured
- */
 export function isTriggerAvailable(): boolean {
   return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
 }
 
-/**
- * Process documents using Trigger.dev
- */
-export async function processDocumentsWithTrigger(
-  documents: DocumentProcessingPayload[],
-  requestId: string
-): Promise<{ success: boolean; message: string; batchIds?: string[] }> {
-  if (!isTriggerAvailable()) {
-    throw new Error('Trigger.dev is not configured - TRIGGER_SECRET_KEY missing')
-  }
-
-  try {
-    logger.info(`[${requestId}] Triggering background processing for ${documents.length} documents`)
-
-    const MAX_BATCH_SIZE = 1000
-    const batchIds: string[] = []
-
-    for (let i = 0; i < documents.length; i += MAX_BATCH_SIZE) {
-      const chunk = documents.slice(i, i + MAX_BATCH_SIZE)
-      const batchResult = await tasks.batchTrigger(
-        'knowledge-process-document',
-        chunk.map((doc) => ({
-          payload: doc,
-          options: {
-            idempotencyKey: `doc-process-${doc.documentId}-${requestId}`,
-            tags: [`knowledgeBaseId:${doc.knowledgeBaseId}`, `documentId:${doc.documentId}`],
-          },
-        }))
-      )
-      batchIds.push(batchResult.batchId)
-    }
-
-    logger.info(
-      `[${requestId}] Triggered ${documents.length} document processing jobs in ${batchIds.length} batch(es)`
-    )
-
-    return {
-      success: true,
-      message: `${documents.length} document processing jobs triggered`,
-      batchIds,
-    }
-  } catch (error) {
-    logger.error(`[${requestId}] Failed to trigger document processing jobs:`, error)
-
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to trigger background jobs',
-    }
-  }
-}
-
-/**
- * Create document records in database with tags
- */
 export async function createDocumentRecords(
   documents: Array<{
     filename: string
@@ -802,7 +853,11 @@ export async function createDocumentRecords(
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
     const kb = await tx
-      .select({ id: knowledgeBase.id })
+      .select({
+        id: knowledgeBase.id,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
@@ -810,6 +865,21 @@ export async function createDocumentRecords(
     if (kb.length === 0) {
       throw new Error('Knowledge base not found')
     }
+
+    const kbWorkspaceId = kb[0].workspaceId
+    await assertKnowledgeBaseFileUrlsOwnership(
+      documents.map((docData) => docData.fileUrl),
+      kbWorkspaceId,
+      kb[0].userId,
+      requestId,
+      tx
+    )
+
+    // One load per batch (was N+1); skip entirely if no doc carries tags.
+    const hasTaggedDocs = documents.some((d) => d.documentTagsData)
+    const tagDefinitions = hasTaggedDocs
+      ? await loadTagDefinitions(knowledgeBaseId, tx)
+      : (new Map() as TagDefinitionsByName)
 
     const now = new Date()
     const documentRecords = []
@@ -824,7 +894,7 @@ export async function createDocumentRecords(
         try {
           const tagData = JSON.parse(docData.documentTagsData)
           if (Array.isArray(tagData)) {
-            processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
+            processedTags = resolveDocumentTags(tagData, tagDefinitions, requestId)
           }
         } catch (error) {
           if (error instanceof SyntaxError) {
@@ -840,6 +910,7 @@ export async function createDocumentRecords(
         knowledgeBaseId,
         filename: docData.filename,
         fileUrl: docData.fileUrl,
+        storageKey: getKnowledgeBaseStorageKey(docData.fileUrl),
         fileSize: docData.fileSize,
         mimeType: docData.mimeType,
         chunkCount: 0,
@@ -848,7 +919,6 @@ export async function createDocumentRecords(
         processingStatus: 'pending' as const,
         enabled: true,
         uploadedAt: now,
-        // Text tags - use processed tags if available, otherwise fall back to individual tag fields
         tag1: processedTags.tag1 ?? docData.tag1 ?? null,
         tag2: processedTags.tag2 ?? docData.tag2 ?? null,
         tag3: processedTags.tag3 ?? docData.tag3 ?? null,
@@ -856,16 +926,13 @@ export async function createDocumentRecords(
         tag5: processedTags.tag5 ?? docData.tag5 ?? null,
         tag6: processedTags.tag6 ?? docData.tag6 ?? null,
         tag7: processedTags.tag7 ?? docData.tag7 ?? null,
-        // Number tags (5 slots)
         number1: processedTags.number1 ?? null,
         number2: processedTags.number2 ?? null,
         number3: processedTags.number3 ?? null,
         number4: processedTags.number4 ?? null,
         number5: processedTags.number5 ?? null,
-        // Date tags (2 slots)
         date1: processedTags.date1 ?? null,
         date2: processedTags.date2 ?? null,
-        // Boolean tags (3 slots)
         boolean1: processedTags.boolean1 ?? null,
         boolean2: processedTags.boolean2 ?? null,
         boolean3: processedTags.boolean3 ?? null,
@@ -897,20 +964,14 @@ export async function createDocumentRecords(
   })
 }
 
-/**
- * A single tag filter condition passed from the API layer.
- */
 export interface TagFilterCondition {
   tagSlot: string
   fieldType: 'text' | 'number' | 'date' | 'boolean'
   operator: string
-  value: string
-  valueTo?: string
+  value: unknown
+  valueTo?: unknown
 }
 
-/**
- * Builds a Drizzle SQL condition from a tag filter.
- */
 const ALLOWED_TAG_SLOTS = new Set([
   'tag1',
   'tag2',
@@ -941,7 +1002,7 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   const col = document[filter.tagSlot as keyof typeof document]
 
   if (filter.fieldType === 'text') {
-    const v = filter.value
+    const v = String(filter.value ?? '')
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.tag1, v)
@@ -998,7 +1059,7 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   }
 
   if (filter.fieldType === 'date') {
-    const v = filter.value
+    const v = String(filter.value ?? '')
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.date1, new Date(v))
@@ -1014,9 +1075,10 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
         return lte(col as typeof document.date1, new Date(v))
       case 'between': {
         if (!filter.valueTo) return undefined
+        const valueTo = String(filter.valueTo)
         return and(
           gte(col as typeof document.date1, new Date(v)),
-          lte(col as typeof document.date1, new Date(filter.valueTo))
+          lte(col as typeof document.date1, new Date(valueTo))
         )
       }
       default:
@@ -1025,7 +1087,9 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   }
 
   if (filter.fieldType === 'boolean') {
-    const boolVal = filter.value === 'true'
+    const boolVal =
+      typeof filter.value === 'boolean' ? filter.value : parseBooleanValue(String(filter.value))
+    if (boolVal === null) return undefined
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.boolean1, boolVal)
@@ -1039,9 +1103,6 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   return undefined
 }
 
-/**
- * Get documents for a knowledge base with filtering and pagination
- */
 export async function getDocuments(
   knowledgeBaseId: string,
   options: {
@@ -1057,6 +1118,7 @@ export async function getDocuments(
 ): Promise<{
   documents: Array<{
     id: string
+    knowledgeBaseId: string
     filename: string
     fileUrl: string
     fileSize: number
@@ -1070,7 +1132,6 @@ export async function getDocuments(
     processingError: string | null
     enabled: boolean
     uploadedAt: Date
-    // Text tags
     tag1: string | null
     tag2: string | null
     tag3: string | null
@@ -1078,20 +1139,16 @@ export async function getDocuments(
     tag5: string | null
     tag6: string | null
     tag7: string | null
-    // Number tags
     number1: number | null
     number2: number | null
     number3: number | null
     number4: number | null
     number5: number | null
-    // Date tags
     date1: Date | null
     date2: Date | null
-    // Boolean tags
     boolean1: boolean | null
     boolean2: boolean | null
     boolean3: boolean | null
-    // Connector fields
     connectorId: string | null
     connectorType: string | null
     sourceUrl: string | null
@@ -1144,7 +1201,7 @@ export async function getDocuments(
     .from(document)
     .where(and(...whereConditions))
 
-  const total = totalResult[0]?.count || 0
+  const total = Number(totalResult[0]?.count ?? 0)
   const hasMore = offset + limit < total
 
   const getOrderByColumn = () => {
@@ -1175,6 +1232,7 @@ export async function getDocuments(
   const documents = await db
     .select({
       id: document.id,
+      knowledgeBaseId: document.knowledgeBaseId,
       filename: document.filename,
       fileUrl: document.fileUrl,
       fileSize: document.fileSize,
@@ -1188,7 +1246,6 @@ export async function getDocuments(
       processingError: document.processingError,
       enabled: document.enabled,
       uploadedAt: document.uploadedAt,
-      // Text tags (7 slots)
       tag1: document.tag1,
       tag2: document.tag2,
       tag3: document.tag3,
@@ -1196,20 +1253,16 @@ export async function getDocuments(
       tag5: document.tag5,
       tag6: document.tag6,
       tag7: document.tag7,
-      // Number tags (5 slots)
       number1: document.number1,
       number2: document.number2,
       number3: document.number3,
       number4: document.number4,
       number5: document.number5,
-      // Date tags (2 slots)
       date1: document.date1,
       date2: document.date2,
-      // Boolean tags (3 slots)
       boolean1: document.boolean1,
       boolean2: document.boolean2,
       boolean3: document.boolean3,
-      // Connector fields
       connectorId: document.connectorId,
       connectorType: knowledgeConnector.connectorType,
       sourceUrl: document.sourceUrl,
@@ -1228,6 +1281,7 @@ export async function getDocuments(
   return {
     documents: documents.map((doc) => ({
       id: doc.id,
+      knowledgeBaseId: doc.knowledgeBaseId,
       filename: doc.filename,
       fileUrl: doc.fileUrl,
       fileSize: doc.fileSize,
@@ -1241,7 +1295,6 @@ export async function getDocuments(
       processingError: doc.processingError,
       enabled: doc.enabled,
       uploadedAt: doc.uploadedAt,
-      // Text tags
       tag1: doc.tag1,
       tag2: doc.tag2,
       tag3: doc.tag3,
@@ -1249,20 +1302,16 @@ export async function getDocuments(
       tag5: doc.tag5,
       tag6: doc.tag6,
       tag7: doc.tag7,
-      // Number tags
       number1: doc.number1,
       number2: doc.number2,
       number3: doc.number3,
       number4: doc.number4,
       number5: doc.number5,
-      // Date tags
       date1: doc.date1,
       date2: doc.date2,
-      // Boolean tags
       boolean1: doc.boolean1,
       boolean2: doc.boolean2,
       boolean3: doc.boolean3,
-      // Connector fields
       connectorId: doc.connectorId,
       connectorType: doc.connectorType ?? null,
       sourceUrl: doc.sourceUrl,
@@ -1276,9 +1325,6 @@ export async function getDocuments(
   }
 }
 
-/**
- * Create a single document record
- */
 export async function createSingleDocument(
   documentData: {
     filename: string
@@ -1320,7 +1366,6 @@ export async function createSingleDocument(
   const now = new Date()
 
   let processedTags: ProcessedDocumentTags = {
-    // Text tags (7 slots)
     tag1: documentData.tag1 ?? null,
     tag2: documentData.tag2 ?? null,
     tag3: documentData.tag3 ?? null,
@@ -1328,16 +1373,13 @@ export async function createSingleDocument(
     tag5: documentData.tag5 ?? null,
     tag6: documentData.tag6 ?? null,
     tag7: documentData.tag7 ?? null,
-    // Number tags (5 slots)
     number1: null,
     number2: null,
     number3: null,
     number4: null,
     number5: null,
-    // Date tags (2 slots)
     date1: null,
     date2: null,
-    // Boolean tags (3 slots)
     boolean1: null,
     boolean2: null,
     boolean3: null,
@@ -1347,7 +1389,8 @@ export async function createSingleDocument(
     try {
       const tagData = JSON.parse(documentData.documentTagsData)
       if (Array.isArray(tagData)) {
-        processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
+        const tagDefinitions = await loadTagDefinitions(knowledgeBaseId)
+        processedTags = resolveDocumentTags(tagData, tagDefinitions, requestId)
       }
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -1363,6 +1406,7 @@ export async function createSingleDocument(
     knowledgeBaseId,
     filename: documentData.filename,
     fileUrl: documentData.fileUrl,
+    storageKey: getKnowledgeBaseStorageKey(documentData.fileUrl),
     fileSize: documentData.fileSize,
     mimeType: documentData.mimeType,
     chunkCount: 0,
@@ -1377,7 +1421,11 @@ export async function createSingleDocument(
     await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
     const kb = await tx
-      .select({ id: knowledgeBase.id })
+      .select({
+        id: knowledgeBase.id,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
@@ -1385,6 +1433,14 @@ export async function createSingleDocument(
     if (kb.length === 0) {
       throw new Error('Knowledge base not found')
     }
+
+    await assertKnowledgeBaseFileUrlsOwnership(
+      [documentData.fileUrl],
+      kb[0].workspaceId,
+      kb[0].userId,
+      requestId,
+      tx
+    )
 
     await tx.insert(document).values(newDocument)
 
@@ -1417,9 +1473,6 @@ export async function createSingleDocument(
   }
 }
 
-/**
- * Perform bulk operations on documents
- */
 export async function bulkDocumentOperation(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
@@ -1509,9 +1562,6 @@ export async function bulkDocumentOperation(
   }
 }
 
-/**
- * Perform bulk operations on all documents matching a filter
- */
 export async function bulkDocumentOperationByFilter(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
@@ -1583,9 +1633,6 @@ export async function bulkDocumentOperationByFilter(
   }
 }
 
-/**
- * Mark a document as failed due to timeout
- */
 export async function markDocumentAsFailedTimeout(
   documentId: string,
   processingStartedAt: Date,
@@ -1618,9 +1665,6 @@ export async function markDocumentAsFailedTimeout(
   }
 }
 
-/**
- * Retry processing a failed document
- */
 export async function retryDocumentProcessing(
   knowledgeBaseId: string,
   documentId: string,
@@ -1673,9 +1717,6 @@ export async function retryDocumentProcessing(
   }
 }
 
-/**
- * Update a document with specified fields
- */
 export async function updateDocument(
   documentId: string,
   updateData: {
@@ -1686,7 +1727,6 @@ export async function updateDocument(
     characterCount?: number
     processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
     processingError?: string
-    // Text tags
     tag1?: string
     tag2?: string
     tag3?: string
@@ -1694,16 +1734,13 @@ export async function updateDocument(
     tag5?: string
     tag6?: string
     tag7?: string
-    // Number tags
     number1?: string
     number2?: string
     number3?: string
     number4?: string
     number5?: string
-    // Date tags
     date1?: string
     date2?: string
-    // Boolean tags
     boolean1?: string
     boolean2?: string
     boolean3?: string
@@ -1772,7 +1809,6 @@ export async function updateDocument(
     boolean2: boolean | null
     boolean3: boolean | null
   }> = {}
-  // All tag slots across all field types
   const ALL_TAG_SLOTS = [
     'tag1',
     'tag2',
@@ -1794,7 +1830,6 @@ export async function updateDocument(
   ] as const
   type TagSlot = (typeof ALL_TAG_SLOTS)[number]
 
-  // Regular field updates
   if (updateData.filename !== undefined) dbUpdateData.filename = updateData.filename
   if (updateData.enabled !== undefined) dbUpdateData.enabled = updateData.enabled
   if (updateData.chunkCount !== undefined) dbUpdateData.chunkCount = updateData.chunkCount
@@ -1812,26 +1847,21 @@ export async function updateDocument(
   ): string | number | Date | boolean | null => {
     if (value === undefined || value === '') return null
 
-    // Number slots
     if (slot.startsWith('number')) {
       return parseNumberValue(value)
     }
 
-    // Date slots
     if (slot.startsWith('date')) {
       return parseDateValue(value)
     }
 
-    // Boolean slots
     if (slot.startsWith('boolean')) {
       return parseBooleanValue(value) ?? false
     }
 
-    // Text slots: keep as string
     return value || null
   }
 
-  // Type-safe access to tag slots in updateData
   type UpdateDataWithTags = typeof updateData & Record<TagSlot, string | undefined>
   const typedUpdateData = updateData as UpdateDataWithTags
 
@@ -1930,22 +1960,67 @@ function getKnowledgeBaseStorageKey(fileUrl: string | null): string | null {
 }
 
 export async function deleteDocumentStorageFiles(
-  documentsToDelete: Array<{ id: string; fileUrl: string | null }>,
+  documentsToDelete: Array<{ id: string; fileUrl: string | null; workspaceId?: string | null }>,
   requestId: string
 ): Promise<void> {
+  const entries = documentsToDelete.map((doc) => ({
+    doc,
+    storageKey: getKnowledgeBaseStorageKey(doc.fileUrl),
+  }))
+
+  // Resolve all kb/ ownership bindings in one query (avoids an N+1 across the
+  // delete fan-out below).
+  const kbKeys = [
+    ...new Set(
+      entries
+        .map((entry) => entry.storageKey)
+        .filter((key): key is string => key !== null && key.startsWith('kb/'))
+    ),
+  ]
+  const ownerByKey = new Map<string, string | null>()
+  if (kbKeys.length > 0) {
+    const bindings = await getFileMetadataByKeys(kbKeys, 'knowledge-base')
+    for (const binding of bindings) {
+      ownerByKey.set(binding.key, binding.workspaceId)
+    }
+  }
+
   await Promise.allSettled(
-    documentsToDelete.map(async (doc) => {
-      const storageKey = getKnowledgeBaseStorageKey(doc.fileUrl)
+    entries.map(async ({ doc, storageKey }) => {
       if (!storageKey) {
         return
       }
 
+      // Only delete a kb/ object when its trusted ownership binding confirms the
+      // deleting document's workspace owns it. Prevents deleting another tenant's
+      // object via a document with a planted fileUrl.
+      if (storageKey.startsWith('kb/')) {
+        const bindingWorkspaceId = ownerByKey.get(storageKey)
+        if (!bindingWorkspaceId) {
+          logger.warn(`[${requestId}] Skipping storage delete: no ownership binding for key`, {
+            documentId: doc.id,
+            storageKey,
+          })
+          return
+        }
+        if (!doc.workspaceId || bindingWorkspaceId !== doc.workspaceId) {
+          logger.warn(`[${requestId}] Skipping storage delete: ownership binding mismatch`, {
+            documentId: doc.id,
+            storageKey,
+            bindingWorkspaceId,
+            documentWorkspaceId: doc.workspaceId ?? null,
+          })
+          return
+        }
+      }
+
       try {
         await deleteFile({ key: storageKey, context: 'knowledge-base' })
+        await deleteFileMetadata(storageKey)
       } catch (error) {
         logger.warn(`[${requestId}] Failed to delete document storage file`, {
           documentId: doc.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     })
@@ -1979,7 +2054,7 @@ async function excludeConnectorDocuments(
   return updated.length
 }
 
-export async function deleteDocumentsByLifecyclePolicy(
+async function deleteDocumentsByLifecyclePolicy(
   documentIds: string[],
   requestId: string
 ): Promise<number> {
@@ -2020,8 +2095,10 @@ export async function hardDeleteDocuments(
     .select({
       id: document.id,
       fileUrl: document.fileUrl,
+      workspaceId: knowledgeBase.workspaceId,
     })
     .from(document)
+    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
     .where(inArray(document.id, ids))
 
   if (documentsToDelete.length === 0) {
@@ -2044,9 +2121,6 @@ export async function hardDeleteDocuments(
   return existingIds.length
 }
 
-/**
- * Hard delete a document.
- */
 export async function deleteDocument(
   documentId: string,
   requestId: string

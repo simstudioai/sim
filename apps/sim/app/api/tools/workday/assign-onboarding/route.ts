@@ -1,25 +1,18 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { workdayAssignOnboardingContract } from '@/lib/api/contracts/tools/workday'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkdaySoapClient, extractRefId, wdRef } from '@/tools/workday/soap'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkdayAssignOnboardingAPI')
 
-const RequestSchema = z.object({
-  tenantUrl: z.string().min(1),
-  tenant: z.string().min(1),
-  username: z.string().min(1),
-  password: z.string().min(1),
-  workerId: z.string().min(1),
-  onboardingPlanId: z.string().min(1),
-  actionEventId: z.string().min(1),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -28,8 +21,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const data = RequestSchema.parse(body)
+    const parsed = await parseRequest(workdayAssignOnboardingContract, request, {})
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     const client = await createWorkdaySoapClient(
       data.tenantUrl,
@@ -43,7 +37,7 @@ export async function POST(request: NextRequest) {
       Onboarding_Plan_Assignment_Data: {
         Onboarding_Plan_Reference: wdRef('Onboarding_Plan_ID', data.onboardingPlanId),
         Person_Reference: wdRef('WID', data.workerId),
-        Action_Event_Reference: wdRef('Background_Check_ID', data.actionEventId),
+        Action_Event_Reference: wdRef('WID', data.actionEventId),
         Assignment_Effective_Moment: new Date().toISOString(),
         Active: true,
       },
@@ -60,8 +54,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error(`[${requestId}] Workday assign onboarding failed`, { error })
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: getErrorMessage(error, 'Unknown error') },
       { status: 500 }
     )
   }
-}
+})

@@ -1,8 +1,9 @@
-/**
- * MCP Types - for connecting to external MCP servers
- */
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 
 export type McpTransport = 'streamable-http'
+
+/** `oauth` uses the SDK's authProvider; `headers` is a static map; `none` is unauthenticated. */
+export type McpAuthType = 'none' | 'headers' | 'oauth'
 
 export interface McpServerStatusConfig {
   consecutiveFailures: number
@@ -15,6 +16,13 @@ export interface McpServerConfig {
   description?: string
   transport: McpTransport
   url?: string
+  authType?: McpAuthType
+  /**
+   * Required when `authType === 'oauth'` — identifies whose stored tokens
+   * to use when establishing the connection. Omit for header / none auth.
+   */
+  userId?: string
+  workspaceId?: string
   headers?: Record<string, string>
   timeout?: number
   retries?: number
@@ -57,38 +65,28 @@ export interface McpSecurityPolicy {
   auditLevel: 'none' | 'basic' | 'detailed'
 }
 
-/**
- * JSON Schema property definition for tool parameters.
- * Follows JSON Schema specification with description support.
- */
 export interface McpToolSchemaProperty {
-  type: string
+  type?: string | string[]
   description?: string
   items?: McpToolSchemaProperty
   properties?: Record<string, McpToolSchemaProperty>
   required?: string[]
-  enum?: Array<string | number | boolean>
+  enum?: Array<string | number | boolean | null>
   default?: unknown
+  [key: string]: unknown
 }
 
-/**
- * JSON Schema for tool input parameters.
- * Aligns with MCP SDK's Tool.inputSchema structure.
- */
+/** Typed view of the SDK's `Tool.inputSchema` (which is `Record<string, unknown>`). */
 export interface McpToolSchema {
   type: 'object'
   properties?: Record<string, McpToolSchemaProperty>
   required?: string[]
   description?: string
+  [key: string]: unknown
 }
 
-/**
- * MCP Tool with server context.
- * Extends the SDK's Tool type with app-specific server tracking.
- */
-export interface McpTool {
-  name: string
-  description?: string
+/** SDK `Tool` plus the server context Sim tracks. */
+export interface McpTool extends Pick<Tool, 'name' | 'description'> {
   inputSchema: McpToolSchema
   serverId: string
   serverName: string
@@ -134,6 +132,22 @@ export class McpConnectionError extends McpError {
   }
 }
 
+/**
+ * Thrown when an OAuth-protected MCP server is reachable but the current
+ * user has not yet authorized Sim. This is a benign "pending" state, not a
+ * connection failure — callers should surface a re-auth prompt rather than
+ * marking the server as errored.
+ */
+export class McpOauthAuthorizationRequiredError extends McpError {
+  constructor(
+    public readonly serverId: string,
+    serverName: string
+  ) {
+    super(`OAuth authorization required for "${serverName}"`)
+    this.name = 'McpOauthAuthorizationRequiredError'
+  }
+}
+
 export interface McpServerSummary {
   id: string
   name: string
@@ -159,11 +173,23 @@ export interface McpClientOptions {
   config: McpServerConfig
   securityPolicy?: McpSecurityPolicy
   onToolsChanged?: McpToolsChangedCallback
+  /**
+   * Pre-resolved IP address to pin all transport HTTP connections to. When
+   * set, the SDK transport uses a custom fetch backed by an undici Agent with
+   * a fixed DNS lookup, preventing DNS-rebinding (TOCTOU) attacks between
+   * URL validation and connection. Should be supplied by callers that have
+   * just validated the URL via `validateMcpServerSsrf`.
+   */
+  resolvedIP?: string
+  /**
+   * SDK-compatible OAuth client provider. When provided, the underlying
+   * StreamableHTTPClientTransport delegates token discovery, refresh, and
+   * 401 recovery to it. Should be supplied for `authType === 'oauth'`
+   * server configs.
+   */
+  authProvider?: import('@modelcontextprotocol/sdk/client/auth.js').OAuthClientProvider
 }
 
-/**
- * Event emitted by the connection manager when a server's tools change.
- */
 export interface ToolsChangedEvent {
   serverId: string
   serverName: string
@@ -171,9 +197,6 @@ export interface ToolsChangedEvent {
   timestamp: number
 }
 
-/**
- * State of a managed persistent connection.
- */
 export interface ManagedConnectionState {
   serverId: string
   serverName: string
@@ -185,9 +208,6 @@ export interface ManagedConnectionState {
   lastActivity: number
 }
 
-/**
- * Event emitted when workflow CRUD modifies a workflow MCP server's tools.
- */
 export interface WorkflowToolsChangedEvent {
   serverId: string
   workspaceId: string

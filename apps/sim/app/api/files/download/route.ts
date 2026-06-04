@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { fileDownloadContract } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { verifyFileAccess } from '@/app/api/files/authorization'
@@ -10,7 +13,7 @@ const logger = createLogger('FileDownload')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
@@ -22,8 +25,22 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.userId
-    const body = await request.json()
-    const { key, name, isExecutionFile, context, url } = body
+
+    const parsed = await parseRequest(
+      fileDownloadContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          createErrorResponse(
+            new Error(getValidationErrorMessage(error, 'Invalid request data')),
+            400
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { key, name, isExecutionFile, context, url } = parsed.data.body
 
     if (!key) {
       return createErrorResponse(new Error('File key is required'), 400)
@@ -41,7 +58,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    let storageContext: StorageContext = context || 'general'
+    let storageContext: StorageContext | 'general' | undefined = context
 
     if (isExecutionFile && !context) {
       storageContext = 'execution'
@@ -62,9 +79,10 @@ export async function POST(request: NextRequest) {
     }
 
     const { getBaseUrl } = await import('@/lib/core/utils/urls')
-    const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}?context=${storageContext}`
+    const contextQuery = storageContext ? `?context=${storageContext}` : ''
+    const downloadUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(key)}${contextQuery}`
 
-    logger.info(`Generated download URL for ${storageContext} file: ${key}`)
+    logger.info(`Generated download URL for ${storageContext ?? 'inferred'} file: ${key}`)
 
     return NextResponse.json({
       downloadUrl,
@@ -83,4 +101,4 @@ export async function POST(request: NextRequest) {
       500
     )
   }
-}
+})

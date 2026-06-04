@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next'
-import { env, getEnv, isTruthy } from './lib/core/config/env'
+import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/feature-flags'
 import {
   getChatEmbedCSPPolicy,
@@ -10,6 +10,7 @@ import {
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  poweredByHeader: false,
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
@@ -40,13 +41,13 @@ const nextConfig: NextConfig = {
         hostname: 'lh3.googleusercontent.com',
       },
       // Brand logo domain if configured
-      ...(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')
+      ...(process.env.NEXT_PUBLIC_BRAND_LOGO_URL
         ? (() => {
             try {
               return [
                 {
                   protocol: 'https' as const,
-                  hostname: new URL(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')!).hostname,
+                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_LOGO_URL!).hostname,
                 },
               ]
             } catch {
@@ -55,13 +56,13 @@ const nextConfig: NextConfig = {
           })()
         : []),
       // Brand favicon domain if configured
-      ...(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL')
+      ...(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL
         ? (() => {
             try {
               return [
                 {
                   protocol: 'https' as const,
-                  hostname: new URL(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL')!).hostname,
+                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL!).hostname,
                 },
               ]
             } catch {
@@ -75,31 +76,26 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: isTruthy(env.DOCKER_BUILD),
   },
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
-  turbopack: {
-    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
-  },
   serverExternalPackages: [
     '@1password/sdk',
     'unpdf',
     'ffmpeg-static',
     'fluent-ffmpeg',
-    'pino',
-    'pino-pretty',
-    'thread-stream',
     'ws',
     'isolated-vm',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
-    '/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*', './dist/pptx-worker.cjs'],
+    '/*': [
+      './node_modules/sharp/**/*',
+      './node_modules/@img/**/*',
+      './lib/execution/sandbox/bundles/*.cjs',
+    ],
   },
   experimental: {
     optimizeCss: true,
-    turbopackSourceMaps: false,
-    turbopackFileSystemCacheForDev: true,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
-      'lucide-react',
       'lodash',
       'framer-motion',
       'reactflow',
@@ -113,9 +109,8 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-checkbox',
       '@radix-ui/react-switch',
       '@radix-ui/react-slider',
-      'react-markdown',
+      'streamdown',
       'zod',
-      'date-fns',
     ],
   },
   ...(isDev && {
@@ -145,6 +140,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: '/:all*(svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
+      {
         source: '/.well-known/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
@@ -152,85 +156,10 @@ const nextConfig: NextConfig = {
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
         ],
       },
-      {
-        // API routes CORS headers
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
-          {
-            key: 'Access-Control-Allow-Origin',
-            value: env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001',
-          },
-          {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET,POST,OPTIONS,PUT,DELETE',
-          },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value:
-              'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization',
-          },
-        ],
-      },
-      {
-        source: '/api/auth/oauth2/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Credentials', value: 'false' },
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type, Authorization, Accept',
-          },
-        ],
-      },
-      {
-        source: '/api/auth/jwks',
-        headers: [
-          { key: 'Access-Control-Allow-Credentials', value: 'false' },
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
-        ],
-      },
-      {
-        source: '/api/auth/.well-known/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Credentials', value: 'false' },
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Accept' },
-        ],
-      },
-      {
-        source: '/api/mcp/copilot',
-        headers: [
-          { key: 'Access-Control-Allow-Credentials', value: 'false' },
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET, POST, OPTIONS, DELETE',
-          },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
-          },
-        ],
-      },
-      // For workflow execution API endpoints
+      // /api/* CORS is set at runtime in proxy.ts (resolveApiCorsPolicy).
       {
         source: '/api/workflows/:id/execute',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET,POST,OPTIONS,PUT',
-          },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value:
-              'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key',
-          },
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
           {
@@ -313,21 +242,11 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
         ],
       },
-      // Form API routes - allow cross-origin requests
-      {
-        source: '/api/form/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, X-Requested-With' },
-          { key: 'Access-Control-Allow-Credentials', value: 'true' },
-        ],
-      },
       // Apply security headers to routes not handled by middleware runtime CSP
-      // Middleware handles: /, /workspace/*
+      // Middleware handles: /, /login, /signup, /workspace/*
       // Exclude chat and form routes which have their own permissive embed headers
       {
-        source: '/((?!workspace|chat|form).*)',
+        source: '/((?!workspace|chat|form|login|signup|$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -381,12 +300,12 @@ const nextConfig: NextConfig = {
     redirects.push(
       {
         source: '/building/:path*',
-        destination: 'https://sim.ai/blog/:path*',
+        destination: 'https://www.sim.ai/blog/:path*',
         permanent: true,
       },
       {
         source: '/studio/:path*',
-        destination: 'https://sim.ai/blog/:path*',
+        destination: 'https://www.sim.ai/blog/:path*',
         permanent: true,
       }
     )

@@ -1,13 +1,17 @@
 import type { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import {
+  describeRetryableInfrastructureError,
+  isRetryableInfrastructureError,
+} from '@/lib/core/errors/retryable-infrastructure'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { LoggingSession, type SessionStartParams } from '@/lib/logs/execution/logging-session'
-import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -31,6 +35,7 @@ export interface PreprocessExecutionOptions {
   checkRateLimit?: boolean // Default: false for manual/chat, true for others
   checkDeployment?: boolean // Default: true for non-manual triggers
   skipUsageLimits?: boolean // Default: false (only use for test mode)
+  logPreprocessingErrors?: boolean // Default: true. When false, skip writing workflow_execution_logs error rows (caller surfaces failures itself, e.g. table cells)
 
   // Context information
   workspaceId?: string // If known, used for billing resolution
@@ -40,7 +45,7 @@ export interface PreprocessExecutionOptions {
   useAuthenticatedUserAsActor?: boolean // If true, use the authenticated userId as actorUserId (for client-side executions and personal API keys)
   /** @deprecated No longer used - background/async executions always use deployed state */
   useDraftState?: boolean
-  /** Pre-fetched workflow record to skip the Step 1 DB query. Must be a full workflow table row. */
+  /** Pre-fetched workflow row for caller context; preprocessing still re-checks active state. */
   workflowRecord?: WorkflowRecord
 }
 
@@ -53,6 +58,8 @@ export interface PreprocessExecutionResult {
     message: string
     statusCode: number
     logCreated: boolean
+    retryable?: boolean
+    cause?: Record<string, unknown>
   }
   actorUserId?: string
   workflowRecord?: WorkflowRecord
@@ -83,6 +90,7 @@ export async function preprocessExecution(
     checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
     checkDeployment = triggerType !== 'manual',
     skipUsageLimits = false,
+    logPreprocessingErrors = true,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
     triggerData,
@@ -90,6 +98,11 @@ export async function preprocessExecution(
     useAuthenticatedUserAsActor = false,
     workflowRecord: prefetchedWorkflowRecord,
   } = options
+
+  // When `logPreprocessingErrors` is false the caller surfaces failures itself
+  // (e.g. table cells use cell state / SSE), so skip the execution-log writes.
+  const recordPreprocessingError: typeof logPreprocessingError = (args) =>
+    logPreprocessingErrors ? logPreprocessingError(args) : Promise.resolve()
 
   logger.info(`[${requestId}] Starting execution preprocessing`, {
     workflowId,
@@ -116,7 +129,7 @@ export async function preprocessExecution(
       if (!workflowRecord) {
         logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
 
-        await logPreprocessingError({
+        await recordPreprocessingError({
           workflowId,
           executionId,
           triggerType,
@@ -141,7 +154,7 @@ export async function preprocessExecution(
     } catch (error) {
       logger.error(`[${requestId}] Error fetching workflow`, { error, workflowId })
 
-      await logPreprocessingError({
+      await recordPreprocessingError({
         workflowId,
         executionId,
         triggerType,
@@ -159,6 +172,8 @@ export async function preprocessExecution(
           message: 'Internal error while fetching workflow',
           statusCode: 500,
           logCreated: true,
+          retryable: isRetryableInfrastructureError(error),
+          cause: describeRetryableInfrastructureError(error),
         },
       }
     }
@@ -245,7 +260,7 @@ export async function preprocessExecution(
         workspaceId,
       })
 
-      await logPreprocessingError({
+      await recordPreprocessingError({
         workflowId,
         executionId,
         triggerType,
@@ -269,7 +284,7 @@ export async function preprocessExecution(
   } catch (error) {
     logger.error(`[${requestId}] Error resolving billing actor`, { error, workflowId })
     const fallbackUserId = userId || 'unknown'
-    await logPreprocessingError({
+    await recordPreprocessingError({
       workflowId,
       executionId,
       triggerType,
@@ -287,6 +302,8 @@ export async function preprocessExecution(
         message: 'Error resolving billing account',
         statusCode: 500,
         logCreated: true,
+        retryable: isRetryableInfrastructureError(error),
+        cause: describeRetryableInfrastructureError(error),
       },
     }
   }
@@ -309,7 +326,7 @@ export async function preprocessExecution(
           }
         )
 
-        await logPreprocessingError({
+        await recordPreprocessingError({
           workflowId,
           executionId,
           triggerType,
@@ -339,7 +356,7 @@ export async function preprocessExecution(
         actorUserId,
       })
 
-      await logPreprocessingError({
+      await recordPreprocessingError({
         workflowId,
         executionId,
         triggerType,
@@ -358,6 +375,8 @@ export async function preprocessExecution(
           message: 'Unable to determine usage limits. Execution blocked for security.',
           statusCode: 500,
           logCreated: true,
+          retryable: isRetryableInfrastructureError(error),
+          cause: describeRetryableInfrastructureError(error),
         },
       }
     }
@@ -383,7 +402,7 @@ export async function preprocessExecution(
           resetAt: rateLimitInfo.resetAt,
         })
 
-        await logPreprocessingError({
+        await recordPreprocessingError({
           workflowId,
           executionId,
           triggerType,
@@ -407,7 +426,7 @@ export async function preprocessExecution(
     } catch (error) {
       logger.error(`[${requestId}] Error checking rate limits`, { error, actorUserId })
 
-      await logPreprocessingError({
+      await recordPreprocessingError({
         workflowId,
         executionId,
         triggerType,
@@ -425,6 +444,8 @@ export async function preprocessExecution(
           message: 'Error checking rate limits',
           statusCode: 500,
           logCreated: true,
+          retryable: isRetryableInfrastructureError(error),
+          cause: describeRetryableInfrastructureError(error),
         },
       }
     }

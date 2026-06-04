@@ -2,7 +2,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Base params for all Elasticsearch tools
-export interface ElasticsearchBaseParams {
+interface ElasticsearchBaseParams {
   // Connection configuration
   deploymentType: 'self_hosted' | 'cloud'
   host?: string // For self-hosted
@@ -80,25 +80,25 @@ export interface ElasticsearchGetIndexParams extends ElasticsearchBaseParams {
   index: string
 }
 
-export interface ElasticsearchIndexExistsParams extends ElasticsearchBaseParams {
+interface ElasticsearchIndexExistsParams extends ElasticsearchBaseParams {
   index: string
 }
 
-export interface ElasticsearchRefreshIndexParams extends ElasticsearchBaseParams {
+interface ElasticsearchRefreshIndexParams extends ElasticsearchBaseParams {
   index: string
 }
 
-export interface ElasticsearchIndexStatsParams extends ElasticsearchBaseParams {
+interface ElasticsearchIndexStatsParams extends ElasticsearchBaseParams {
   index: string
 }
 
 // Mapping Operations
-export interface ElasticsearchPutMappingParams extends ElasticsearchBaseParams {
+interface ElasticsearchPutMappingParams extends ElasticsearchBaseParams {
   index: string
   mappings: string // JSON string
 }
 
-export interface ElasticsearchGetMappingParams extends ElasticsearchBaseParams {
+interface ElasticsearchGetMappingParams extends ElasticsearchBaseParams {
   index: string
 }
 
@@ -112,7 +112,7 @@ export interface ElasticsearchClusterStatsParams extends ElasticsearchBaseParams
 
 export interface ElasticsearchListIndicesParams extends ElasticsearchBaseParams {}
 
-export interface ElasticsearchIndexInfo {
+interface ElasticsearchIndexInfo {
   index: string
   health: string
   status: string
@@ -196,13 +196,13 @@ export interface ElasticsearchIndexInfoResponse extends ToolResponse {
   >
 }
 
-export interface ElasticsearchIndexExistsResponse extends ToolResponse {
+interface ElasticsearchIndexExistsResponse extends ToolResponse {
   output: {
     exists: boolean
   }
 }
 
-export interface ElasticsearchMappingResponse extends ToolResponse {
+interface ElasticsearchMappingResponse extends ToolResponse {
   output: Record<string, { mappings: Record<string, unknown> }>
 }
 
@@ -244,7 +244,7 @@ export interface ElasticsearchClusterStatsResponse extends ToolResponse {
   }
 }
 
-export interface ElasticsearchRefreshResponse extends ToolResponse {
+interface ElasticsearchRefreshResponse extends ToolResponse {
   output: {
     _shards: {
       total: number
@@ -254,7 +254,7 @@ export interface ElasticsearchRefreshResponse extends ToolResponse {
   }
 }
 
-export interface ElasticsearchIndexStatsResponse extends ToolResponse {
+interface ElasticsearchIndexStatsResponse extends ToolResponse {
   output: {
     _all: {
       primaries: {

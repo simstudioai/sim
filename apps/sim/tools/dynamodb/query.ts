@@ -5,7 +5,7 @@ export const queryTool: ToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> =
   id: 'dynamodb_query',
   name: 'DynamoDB Query',
   description: 'Query items from a DynamoDB table using key conditions',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -46,13 +46,13 @@ export const queryTool: ToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> =
       description: 'Filter expression for results (e.g., "age > :minAge AND #status = :status")',
     },
     expressionAttributeNames: {
-      type: 'object',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description: 'Attribute name mappings for reserved words (e.g., {"#status": "status"})',
     },
     expressionAttributeValues: {
-      type: 'object',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description: 'Expression attribute values (e.g., {":pk": "USER#123", ":minAge": 18})',
@@ -68,6 +68,20 @@ export const queryTool: ToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> =
       required: false,
       visibility: 'user-or-llm',
       description: 'Maximum number of items to return (e.g., 10, 50, 100)',
+    },
+    exclusiveStartKey: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Pagination token from a previous query's lastEvaluatedKey to continue fetching results",
+    },
+    scanIndexForward: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Sort order for the sort key: true for ascending (default), false for descending',
     },
   },
 
@@ -92,6 +106,8 @@ export const queryTool: ToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> =
       }),
       ...(params.indexName && { indexName: params.indexName }),
       ...(params.limit && { limit: params.limit }),
+      ...(params.exclusiveStartKey && { exclusiveStartKey: params.exclusiveStartKey }),
+      ...(params.scanIndexForward !== undefined && { scanIndexForward: params.scanIndexForward }),
     }),
   },
 
@@ -108,6 +124,7 @@ export const queryTool: ToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> =
         message: data.message || 'Query executed successfully',
         items: data.items || [],
         count: data.count || 0,
+        ...(data.lastEvaluatedKey && { lastEvaluatedKey: data.lastEvaluatedKey }),
       },
       error: undefined,
     }
@@ -117,5 +134,11 @@ export const queryTool: ToolConfig<DynamoDBQueryParams, DynamoDBQueryResponse> =
     message: { type: 'string', description: 'Operation status message' },
     items: { type: 'array', description: 'Array of items returned' },
     count: { type: 'number', description: 'Number of items returned' },
+    lastEvaluatedKey: {
+      type: 'json',
+      description:
+        'Pagination token to pass as exclusiveStartKey to fetch the next page of results',
+      optional: true,
+    },
   },
 }

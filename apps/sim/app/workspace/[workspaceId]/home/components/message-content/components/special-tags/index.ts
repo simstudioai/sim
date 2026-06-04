@@ -9,6 +9,8 @@ export type {
   RuntimeSpecialTagName,
   UsageUpgradeAction,
   UsageUpgradeTagData,
+  WorkspaceResourceTagData,
+  WorkspaceResourceTagType,
 } from './special-tags'
 export {
   CREDENTIAL_TAG_TYPES,
@@ -20,4 +22,6 @@ export {
   parseTextTagBody,
   SpecialTags,
   USAGE_UPGRADE_ACTIONS,
+  WORKSPACE_RESOURCE_TAG_TYPES,
+  WorkspaceResourceDisplay,
 } from './special-tags'

@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
+import { mcpServerTestBodySchema } from '@/lib/api/contracts/mcp'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { McpClient } from '@/lib/mcp/client'
 import {
   McpDnsResolutionError,
@@ -8,9 +11,14 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
-import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
+import {
+  mcpBodyReadErrorResponse,
+  readMcpJsonBodyWithLimit,
+  withMcpAuth,
+} from '@/lib/mcp/middleware'
+import { detectMcpAuthType } from '@/lib/mcp/oauth'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
-import type { McpTransport } from '@/lib/mcp/types'
+import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerTestAPI')
@@ -25,18 +33,11 @@ function isUrlBasedTransport(transport: McpTransport): boolean {
   return transport === 'streamable-http'
 }
 
-interface TestConnectionRequest {
-  name: string
-  transport: McpTransport
-  url?: string
-  headers?: Record<string, string>
-  timeout?: number
-  workspaceId: string
-}
-
 interface TestConnectionResult {
   success: boolean
   error?: string
+  authRequired?: boolean
+  authType?: McpAuthType
   serverInfo?: {
     name: string
     version: string
@@ -64,10 +65,17 @@ function sanitizeConnectionError(error: unknown): string {
 /**
  * POST - Test connection to an MCP server before registering it
  */
-export const POST = withMcpAuth('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+export const POST = withRouteHandler(
+  withMcpAuth('write')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const body: TestConnectionRequest = getParsedBody(request) || (await request.json())
+      const rawBody = await readMcpJsonBodyWithLimit(request)
+      const parsedBody = mcpServerTestBodySchema.safeParse(rawBody)
+
+      if (!parsedBody.success) {
+        return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
+      }
+
+      const body = parsedBody.data
 
       logger.info(`[${requestId}] Testing MCP server connection:`, {
         name: body.name,
@@ -75,14 +83,6 @@ export const POST = withMcpAuth('write')(
         url: body.url ? `${body.url.substring(0, 50)}...` : undefined, // Partial URL for security
         workspaceId,
       })
-
-      if (!body.name || !body.transport) {
-        return createMcpErrorResponse(
-          new Error('Missing required fields: name and transport are required'),
-          'Missing required fields',
-          400
-        )
-      }
 
       if (isUrlBasedTransport(body.transport) && !body.url) {
         return createMcpErrorResponse(
@@ -102,6 +102,9 @@ export const POST = withMcpAuth('write')(
       }
 
       try {
+        // Initial pre-resolution check; the authoritative resolved IP is
+        // captured after env-var resolution below and used to pin the
+        // connection against DNS rebinding.
         await validateMcpServerSsrf(body.url)
       } catch (e) {
         if (e instanceof McpDnsResolutionError) {
@@ -147,8 +150,9 @@ export const POST = withMcpAuth('write')(
         throw e
       }
 
+      let resolvedIP: string | null
       try {
-        await validateMcpServerSsrf(testConfig.url)
+        resolvedIP = await validateMcpServerSsrf(testConfig.url)
       } catch (e) {
         if (e instanceof McpDnsResolutionError) {
           return createMcpErrorResponse(e, e.message, 502)
@@ -166,10 +170,26 @@ export const POST = withMcpAuth('write')(
       }
 
       const result: TestConnectionResult = { success: false }
+
+      // Skip unauth connect when the server returns an RFC 9728 OAuth challenge.
+      if (testConfig.url) {
+        const detectedAuthType = await detectMcpAuthType(testConfig.url)
+        if (detectedAuthType === 'oauth') {
+          result.authRequired = true
+          result.authType = 'oauth'
+          return createMcpSuccessResponse(result, 200)
+        }
+        result.authType = detectedAuthType
+      }
+
       let client: McpClient | null = null
 
       try {
-        client = new McpClient(testConfig, testSecurityPolicy)
+        client = new McpClient({
+          config: testConfig,
+          securityPolicy: testSecurityPolicy,
+          resolvedIP: resolvedIP ?? undefined,
+        })
         await client.connect()
 
         result.negotiatedVersion = client.getNegotiatedVersion()
@@ -219,12 +239,10 @@ export const POST = withMcpAuth('write')(
 
       return createMcpSuccessResponse(result, result.success ? 200 : 400)
     } catch (error) {
+      const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+      if (bodyErrorResponse) return bodyErrorResponse
       logger.error(`[${requestId}] Error testing MCP server connection:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to test server connection'),
-        'Failed to test server connection',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to test server connection', 500)
     }
-  }
+  })
 )

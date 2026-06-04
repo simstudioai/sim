@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import JSON5 from 'json5'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { generateId } from '@/lib/core/utils/uuid'
 import { normalizeName } from '@/executor/constants'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { Variable, VariablesStore } from '@/stores/variables/types'
@@ -55,7 +56,7 @@ function validateVariable(variable: Variable): string | undefined {
     }
     return undefined
   } catch (e) {
-    return e instanceof Error ? e.message : 'Invalid format'
+    return getErrorMessage(e, 'Invalid format')
   }
 }
 

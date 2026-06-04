@@ -1,21 +1,28 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { jsmCustomersContract } from '@/lib/api/contracts/selectors/jsm'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmCustomersAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(jsmCustomersContract, request, {})
+    if (!parsed.success) return parsed.response
+
     const {
       domain,
       accessToken,
@@ -26,7 +33,7 @@ export async function POST(request: NextRequest) {
       limit,
       accountIds,
       emails,
-    } = body
+    } = parsed.data.body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -43,6 +50,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Service Desk ID is required' }, { status: 400 })
     }
 
+    if (emails !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            'The `emails` parameter is no longer supported. Use `accountIds` (Atlassian account IDs) instead.',
+        },
+        { status: 400 }
+      )
+    }
+
     const cloudId = cloudIdParam || (await getJiraCloudId(domain, accessToken))
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
@@ -57,33 +74,31 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const rawIds = accountIds || emails
-    const parsedAccountIds = rawIds
-      ? typeof rawIds === 'string'
-        ? rawIds
-            .split(',')
-            .map((id: string) => id.trim())
-            .filter((id: string) => id)
-        : Array.isArray(rawIds)
-          ? rawIds
-          : []
-      : []
+    const splitCsv = (value: unknown): string[] =>
+      value
+        ? typeof value === 'string'
+          ? value
+              .split(',')
+              .map((v: string) => v.trim())
+              .filter((v: string) => v)
+          : Array.isArray(value)
+            ? (value as string[])
+            : []
+        : []
 
-    const isAddOperation = parsedAccountIds.length > 0
+    const parsedAccountIds = splitCsv(accountIds)
 
-    if (isAddOperation) {
+    if (parsedAccountIds.length > 0) {
       const url = `${baseUrl}/servicedesk/${serviceDeskId}/customer`
 
-      logger.info('Adding customers to:', url, { accountIds: parsedAccountIds })
-
-      const requestBody: Record<string, unknown> = {
+      logger.info('Adding customers to:', url, {
         accountIds: parsedAccountIds,
-      }
+      })
 
       const response = await fetch(url, {
         method: 'POST',
         headers: getJsmHeaders(accessToken),
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ accountIds: parsedAccountIds }),
       })
 
       if (!response.ok) {
@@ -95,7 +110,10 @@ export async function POST(request: NextRequest) {
         })
 
         return NextResponse.json(
-          { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+          {
+            error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+            details: errorText,
+          },
           { status: response.status }
         )
       }
@@ -132,7 +150,10 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }
@@ -150,16 +171,16 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     logger.error('Error with customers operation:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
         success: false,
       },
       { status: 500 }
     )
   }
-}
+})

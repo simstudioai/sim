@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { EvernoteIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import {
@@ -365,7 +366,7 @@ async function apiGetNote(
 export const evernoteConnector: ConnectorConfig = {
   id: 'evernote',
   name: 'Evernote',
-  description: 'Sync notes from Evernote into your knowledge base',
+  description: 'Sync notes from Evernote',
   version: '1.0.0',
   icon: EvernoteIcon,
 
@@ -461,7 +462,8 @@ export const evernoteConnector: ConnectorConfig = {
       const retryOptions = { maxRetries: 3, initialDelayMs: 500 }
       const note = await apiGetNote(accessToken, externalId, retryOptions)
       const plainText = htmlToPlainText(note.content)
-      if (!plainText.trim()) return null
+      const title = note.title || 'Untitled'
+      const content = plainText.trim() ? plainText : title
 
       const shardId = extractShardId(accessToken)
       const userId = extractUserId(accessToken)
@@ -493,8 +495,8 @@ export const evernoteConnector: ConnectorConfig = {
 
       return {
         externalId,
-        title: note.title || 'Untitled',
-        content: plainText,
+        title,
+        content,
         contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: `https://${host}/shard/${shardId}/nl/${userId}/${externalId}/`,
@@ -509,7 +511,7 @@ export const evernoteConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Evernote note', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -538,7 +540,7 @@ export const evernoteConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to connect to Evernote'
+      const message = toError(error).message || 'Failed to connect to Evernote'
       return { valid: false, error: message }
     }
   },

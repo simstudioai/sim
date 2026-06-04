@@ -32,11 +32,19 @@ import { db } from '@sim/db'
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
+import {
+  adminV1AddOrganizationMemberContract,
+  adminV1ListOrganizationMembersContract,
+} from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
+import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminInvalidJsonResponse,
+  adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
   listResponse,
@@ -47,7 +55,6 @@ import {
   type AdminMember,
   type AdminMemberDetail,
   createPaginationMeta,
-  parsePaginationParams,
 } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminOrganizationMembersAPI')
@@ -56,140 +63,172 @@ interface RouteParams {
   id: string
 }
 
-export const GET = withAdminAuthParams<RouteParams>(async (request, context) => {
-  const { id: organizationId } = await context.params
-  const url = new URL(request.url)
-  const { limit, offset } = parsePaginationParams(url)
+export const GET = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1ListOrganizationMembersContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
 
-  try {
-    const [orgData] = await db
-      .select({ id: organization.id })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
+    const { id: organizationId } = parsed.data.params
+    const { limit, offset } = parsed.data.query
 
-    if (!orgData) {
-      return notFoundResponse('Organization')
+    try {
+      const [orgData] = await db
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.id, organizationId))
+        .limit(1)
+
+      if (!orgData) {
+        return notFoundResponse('Organization')
+      }
+
+      const [countResult, membersData] = await Promise.all([
+        db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
+        db
+          .select({
+            id: member.id,
+            userId: member.userId,
+            organizationId: member.organizationId,
+            role: member.role,
+            createdAt: member.createdAt,
+            userName: user.name,
+            userEmail: user.email,
+            currentPeriodCost: userStats.currentPeriodCost,
+            currentUsageLimit: userStats.currentUsageLimit,
+            billingBlocked: userStats.billingBlocked,
+          })
+          .from(member)
+          .innerJoin(user, eq(member.userId, user.id))
+          .leftJoin(userStats, eq(member.userId, userStats.userId))
+          .where(eq(member.organizationId, organizationId))
+          .orderBy(member.createdAt)
+          .limit(limit)
+          .offset(offset),
+      ])
+
+      const total = countResult[0].count
+
+      // currentPeriodCost is only a baseline; add each member's attributed
+      // usage_log for the org's period so admin shows real current usage.
+      const usageByUser = await getOrgMemberLedgerByUser(organizationId)
+
+      const data: AdminMemberDetail[] = membersData.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        organizationId: m.organizationId,
+        role: m.role,
+        createdAt: m.createdAt.toISOString(),
+        userName: m.userName,
+        userEmail: m.userEmail,
+        currentPeriodCost: (
+          Number(m.currentPeriodCost ?? 0) + (usageByUser.get(m.userId) ?? 0)
+        ).toString(),
+        currentUsageLimit: m.currentUsageLimit,
+        billingBlocked: m.billingBlocked ?? false,
+      }))
+
+      const pagination = createPaginationMeta(total, limit, offset)
+
+      logger.info(`Admin API: Listed ${data.length} members for organization ${organizationId}`)
+
+      return listResponse(data, pagination)
+    } catch (error) {
+      logger.error('Admin API: Failed to list organization members', { error, organizationId })
+      return internalErrorResponse('Failed to list organization members')
     }
+  })
+)
 
-    const [countResult, membersData] = await Promise.all([
-      db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
-      db
+export const POST = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(adminV1AddOrganizationMemberContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+      invalidJsonResponse: adminInvalidJsonResponse,
+    })
+    if (!parsed.success) return parsed.response
+
+    const { id: organizationId } = parsed.data.params
+
+    try {
+      const { userId, role } = parsed.data.body
+
+      const [orgData] = await db
+        .select({ id: organization.id, name: organization.name })
+        .from(organization)
+        .where(eq(organization.id, organizationId))
+        .limit(1)
+
+      if (!orgData) {
+        return notFoundResponse('Organization')
+      }
+
+      const [userData] = await db
+        .select({ id: user.id, name: user.name, email: user.email })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1)
+
+      if (!userData) {
+        return notFoundResponse('User')
+      }
+
+      const [existingMember] = await db
         .select({
           id: member.id,
-          userId: member.userId,
-          organizationId: member.organizationId,
           role: member.role,
           createdAt: member.createdAt,
-          userName: user.name,
-          userEmail: user.email,
-          currentPeriodCost: userStats.currentPeriodCost,
-          currentUsageLimit: userStats.currentUsageLimit,
-          lastActive: userStats.lastActive,
-          billingBlocked: userStats.billingBlocked,
+          organizationId: member.organizationId,
         })
         .from(member)
-        .innerJoin(user, eq(member.userId, user.id))
-        .leftJoin(userStats, eq(member.userId, userStats.userId))
-        .where(eq(member.organizationId, organizationId))
-        .orderBy(member.createdAt)
-        .limit(limit)
-        .offset(offset),
-    ])
+        .where(eq(member.userId, userId))
+        .limit(1)
 
-    const total = countResult[0].count
-    const data: AdminMemberDetail[] = membersData.map((m) => ({
-      id: m.id,
-      userId: m.userId,
-      organizationId: m.organizationId,
-      role: m.role,
-      createdAt: m.createdAt.toISOString(),
-      userName: m.userName,
-      userEmail: m.userEmail,
-      currentPeriodCost: m.currentPeriodCost ?? '0',
-      currentUsageLimit: m.currentUsageLimit,
-      lastActive: m.lastActive?.toISOString() ?? null,
-      billingBlocked: m.billingBlocked ?? false,
-    }))
+      if (existingMember) {
+        if (existingMember.organizationId === organizationId) {
+          if (existingMember.role === 'owner') {
+            return badRequestResponse(
+              'Cannot change the owner role via this endpoint. Use POST /api/v1/admin/organizations/[id]/transfer-ownership instead.'
+            )
+          }
 
-    const pagination = createPaginationMeta(total, limit, offset)
+          if (existingMember.role !== role) {
+            await db.update(member).set({ role }).where(eq(member.id, existingMember.id))
 
-    logger.info(`Admin API: Listed ${data.length} members for organization ${organizationId}`)
+            logger.info(
+              `Admin API: Updated user ${userId} role in organization ${organizationId}`,
+              {
+                previousRole: existingMember.role,
+                newRole: role,
+              }
+            )
 
-    return listResponse(data, pagination)
-  } catch (error) {
-    logger.error('Admin API: Failed to list organization members', { error, organizationId })
-    return internalErrorResponse('Failed to list organization members')
-  }
-})
-
-export const POST = withAdminAuthParams<RouteParams>(async (request, context) => {
-  const { id: organizationId } = await context.params
-
-  try {
-    const body = await request.json()
-
-    if (!body.userId || typeof body.userId !== 'string') {
-      return badRequestResponse('userId is required')
-    }
-
-    if (!body.role || !['admin', 'member'].includes(body.role)) {
-      return badRequestResponse('role must be "admin" or "member"')
-    }
-
-    const [orgData] = await db
-      .select({ id: organization.id, name: organization.name })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
-
-    if (!orgData) {
-      return notFoundResponse('Organization')
-    }
-
-    const [userData] = await db
-      .select({ id: user.id, name: user.name, email: user.email })
-      .from(user)
-      .where(eq(user.id, body.userId))
-      .limit(1)
-
-    if (!userData) {
-      return notFoundResponse('User')
-    }
-
-    const [existingMember] = await db
-      .select({
-        id: member.id,
-        role: member.role,
-        createdAt: member.createdAt,
-        organizationId: member.organizationId,
-      })
-      .from(member)
-      .where(eq(member.userId, body.userId))
-      .limit(1)
-
-    if (existingMember) {
-      if (existingMember.organizationId === organizationId) {
-        if (existingMember.role !== body.role) {
-          await db.update(member).set({ role: body.role }).where(eq(member.id, existingMember.id))
-
-          logger.info(
-            `Admin API: Updated user ${body.userId} role in organization ${organizationId}`,
-            {
-              previousRole: existingMember.role,
-              newRole: body.role,
-            }
-          )
+            return singleResponse({
+              id: existingMember.id,
+              userId,
+              organizationId,
+              role,
+              createdAt: existingMember.createdAt.toISOString(),
+              userName: userData.name,
+              userEmail: userData.email,
+              action: 'updated' as const,
+              billingActions: {
+                proUsageSnapshotted: false,
+                proCancelledAtPeriodEnd: false,
+              },
+            })
+          }
 
           return singleResponse({
             id: existingMember.id,
-            userId: body.userId,
+            userId,
             organizationId,
-            role: body.role,
+            role: existingMember.role,
             createdAt: existingMember.createdAt.toISOString(),
             userName: userData.name,
             userEmail: userData.email,
-            action: 'updated' as const,
+            action: 'already_member' as const,
             billingActions: {
               proUsageSnapshotted: false,
               proCancelledAtPeriodEnd: false,
@@ -197,86 +236,49 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
           })
         }
 
-        return singleResponse({
-          id: existingMember.id,
-          userId: body.userId,
-          organizationId,
-          role: existingMember.role,
-          createdAt: existingMember.createdAt.toISOString(),
-          userName: userData.name,
-          userEmail: userData.email,
-          action: 'already_member' as const,
-          billingActions: {
-            proUsageSnapshotted: false,
-            proCancelledAtPeriodEnd: false,
-          },
-        })
-      }
-
-      return badRequestResponse(
-        `User is already a member of another organization. Users can only belong to one organization at a time.`
-      )
-    }
-
-    const result = await addUserToOrganization({
-      userId: body.userId,
-      organizationId,
-      role: body.role,
-      skipBillingLogic: !isBillingEnabled,
-    })
-
-    if (!result.success) {
-      return badRequestResponse(result.error || 'Failed to add member')
-    }
-
-    if (isBillingEnabled && result.billingActions.proSubscriptionToCancel?.stripeSubscriptionId) {
-      try {
-        const stripe = requireStripeClient()
-        await stripe.subscriptions.update(
-          result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
-          { cancel_at_period_end: true }
+        return badRequestResponse(
+          `User is already a member of another organization. Users can only belong to one organization at a time.`
         )
-        logger.info('Admin API: Synced Pro cancellation with Stripe', {
-          userId: body.userId,
-          subscriptionId: result.billingActions.proSubscriptionToCancel.subscriptionId,
-          stripeSubscriptionId: result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
-        })
-      } catch (stripeError) {
-        logger.error('Admin API: Failed to sync Pro cancellation with Stripe', {
-          userId: body.userId,
-          subscriptionId: result.billingActions.proSubscriptionToCancel.subscriptionId,
-          stripeSubscriptionId: result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
-          error: stripeError,
-        })
       }
+
+      const result = await addUserToOrganization({
+        userId,
+        organizationId,
+        role,
+        skipBillingLogic: !isBillingEnabled,
+      })
+
+      if (!result.success) {
+        return badRequestResponse(result.error || 'Failed to add member')
+      }
+
+      const data: AdminMember = {
+        id: result.memberId!,
+        userId,
+        organizationId,
+        role,
+        createdAt: new Date().toISOString(),
+        userName: userData.name,
+        userEmail: userData.email,
+      }
+
+      logger.info(`Admin API: Added user ${userId} to organization ${organizationId}`, {
+        role,
+        memberId: result.memberId,
+        billingActions: result.billingActions,
+      })
+
+      return singleResponse({
+        ...data,
+        action: 'created' as const,
+        billingActions: {
+          proUsageSnapshotted: result.billingActions.proUsageSnapshotted,
+          proCancelledAtPeriodEnd: result.billingActions.proCancelledAtPeriodEnd,
+        },
+      })
+    } catch (error) {
+      logger.error('Admin API: Failed to add organization member', { error, organizationId })
+      return internalErrorResponse('Failed to add organization member')
     }
-
-    const data: AdminMember = {
-      id: result.memberId!,
-      userId: body.userId,
-      organizationId,
-      role: body.role,
-      createdAt: new Date().toISOString(),
-      userName: userData.name,
-      userEmail: userData.email,
-    }
-
-    logger.info(`Admin API: Added user ${body.userId} to organization ${organizationId}`, {
-      role: body.role,
-      memberId: result.memberId,
-      billingActions: result.billingActions,
-    })
-
-    return singleResponse({
-      ...data,
-      action: 'created' as const,
-      billingActions: {
-        proUsageSnapshotted: result.billingActions.proUsageSnapshotted,
-        proCancelledAtPeriodEnd: result.billingActions.proCancelledAtPeriodEnd,
-      },
-    })
-  } catch (error) {
-    logger.error('Admin API: Failed to add organization member', { error, organizationId })
-    return internalErrorResponse('Failed to add organization member')
-  }
-})
+  })
+)

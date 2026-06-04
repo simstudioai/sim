@@ -1,0 +1,41 @@
+---
+title: Stripe
+description: Available Stripe triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="stripe"
+  color="#635BFF"
+/>
+
+Stripe provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Stripe Webhook
+
+Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypes` | string | No | Select specific Stripe events to filter. Leave empty to receive all events from Stripe. |
+| `webhookSecret` | string | No | Your webhook signing secret from Stripe Dashboard. Used to verify webhook authenticity. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Unique identifier for the event |
+| `type` | string | Event type \(e.g., payment_intent.succeeded, customer.created, invoice.paid\) |
+| `object` | string | Always "event" |
+| `api_version` | string | Stripe API version used to render the event |
+| `created` | number | Unix timestamp when the event was created |
+| `data` | json | Event data containing the affected Stripe object. Structure varies by event type - access via data.object for the resource \(PaymentIntent, Customer, Invoice, etc.\) |
+| `livemode` | boolean | Whether this event occurred in live mode \(true\) or test mode \(false\) |
+| `pending_webhooks` | number | Number of webhooks yet to be delivered for this event |
+| `request` | json | Information about the API request that triggered this event \(id, idempotency_key\) |
+

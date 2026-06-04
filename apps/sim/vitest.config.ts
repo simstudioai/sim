@@ -19,13 +19,7 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
     setupFiles: ['./vitest.setup.ts'],
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false,
-        useAtomics: true,
-        isolate: true,
-      },
-    },
+    isolate: true,
     fileParallelism: true,
     maxConcurrency: 10,
     testTimeout: 10000,

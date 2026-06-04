@@ -74,5 +74,6 @@ export interface SixtyfourEnrichCompanyResponse extends ToolResponse {
     structuredData: Record<string, unknown>
     references: Record<string, string>
     confidenceScore: number | null
+    orgChart: Record<string, unknown> | unknown[] | null
   }
 }

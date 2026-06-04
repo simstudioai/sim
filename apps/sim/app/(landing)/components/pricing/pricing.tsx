@@ -1,9 +1,21 @@
 'use client'
 
-import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Badge } from '@/components/emcn'
-import { DemoRequestModal } from '@/app/(landing)/components/demo-request/demo-request-modal'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+
+const AuthModal = dynamic(
+  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
+  { loading: () => null }
+)
+
+const DemoRequestModal = dynamic(
+  () =>
+    import('@/app/(landing)/components/demo-request/demo-request-modal').then(
+      (m) => m.DemoRequestModal
+    ),
+  { loading: () => null }
+)
 
 interface PricingTier {
   id: string
@@ -27,8 +39,8 @@ const PRICING_TIERS: PricingTier[] = [
       '1,000 credits (trial)',
       '5GB file storage',
       '3 tables · 1,000 rows each',
+      '1 personal workspace',
       '5 min execution limit',
-      '5 concurrent/workspace',
       '7-day log retention',
       'CLI/SDK/MCP Access',
     ],
@@ -37,7 +49,7 @@ const PRICING_TIERS: PricingTier[] = [
   {
     id: 'pro',
     name: 'Pro',
-    description: 'For professionals building production workflows',
+    description: 'For professionals deploying AI agents',
     price: '$25',
     billingPeriod: 'per month',
     color: '#00F701',
@@ -45,8 +57,8 @@ const PRICING_TIERS: PricingTier[] = [
       '6,000 credits/mo · +50/day',
       '50GB file storage',
       '25 tables · 5,000 rows each',
+      'Up to 3 personal workspaces',
       '50 min execution · 150 runs/min',
-      '50 concurrent/workspace',
       'Unlimited log retention',
       'CLI/SDK/MCP Access',
     ],
@@ -55,7 +67,7 @@ const PRICING_TIERS: PricingTier[] = [
   {
     id: 'max',
     name: 'Max',
-    description: 'For power users and teams building at scale',
+    description: 'For teams building AI agents at scale',
     price: '$100',
     billingPeriod: 'per month',
     color: '#FA4EDF',
@@ -63,8 +75,8 @@ const PRICING_TIERS: PricingTier[] = [
       '25,000 credits/mo · +200/day',
       '500GB file storage',
       '25 tables · 5,000 rows each',
+      'Up to 10 personal workspaces',
       '50 min execution · 300 runs/min',
-      '200 concurrent/workspace',
       'Unlimited log retention',
       'CLI/SDK/MCP Access',
     ],
@@ -80,8 +92,8 @@ const PRICING_TIERS: PricingTier[] = [
       'Custom credits & infra limits',
       'Custom file storage',
       '10,000 tables · 1M rows each',
+      'Unlimited shared workspaces',
       'Custom execution limits',
-      'Custom concurrency limits',
       'Unlimited log retention',
       'SSO & SCIM · SOC2',
       'Self hosting · Dedicated support',
@@ -163,33 +175,37 @@ function PricingCard({ tier }: PricingCardProps) {
                 </button>
               </DemoRequestModal>
             ) : isPro ? (
-              <Link
-                href={tier.cta.href || '/signup'}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-[14px] text-white transition-colors hover:border-[var(--landing-border)] hover:bg-[var(--landing-bg-elevated)]'
-                onClick={() =>
-                  trackLandingCta({
-                    label: tier.cta.label,
-                    section: 'pricing',
-                    destination: tier.cta.href || '/signup',
-                  })
-                }
-              >
-                {tier.cta.label}
-              </Link>
+              <AuthModal defaultView='signup' source='pricing'>
+                <button
+                  type='button'
+                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-[14px] text-white transition-colors hover:border-[var(--landing-border)] hover:bg-[var(--landing-bg-elevated)]'
+                  onClick={() =>
+                    trackLandingCta({
+                      label: tier.cta.label,
+                      section: 'pricing',
+                      destination: 'auth_modal',
+                    })
+                  }
+                >
+                  {tier.cta.label}
+                </button>
+              </AuthModal>
             ) : (
-              <Link
-                href={tier.cta.href || '/signup'}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-light)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-hover)]'
-                onClick={() =>
-                  trackLandingCta({
-                    label: tier.cta.label,
-                    section: 'pricing',
-                    destination: tier.cta.href || '/signup',
-                  })
-                }
-              >
-                {tier.cta.label}
-              </Link>
+              <AuthModal defaultView='signup' source='pricing'>
+                <button
+                  type='button'
+                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-light)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-hover)]'
+                  onClick={() =>
+                    trackLandingCta({
+                      label: tier.cta.label,
+                      section: 'pricing',
+                      destination: 'auth_modal',
+                    })
+                  }
+                >
+                  {tier.cta.label}
+                </button>
+              </AuthModal>
             )}
           </div>
         </div>
@@ -252,10 +268,12 @@ export default function Pricing() {
             Pricing
           </h2>
           <p className='sr-only'>
-            Sim pricing: Community plan is free with 1,000 credits and 5GB storage. Pro plan is $25
-            per month with 6,000 credits and 50GB storage. Max plan is $100 per month with 25,000
-            credits and 500GB storage. Enterprise pricing is custom with SSO, SCIM, SOC2 compliance,
-            self-hosting, and dedicated support. All plans include CLI, SDK, and MCP access.
+            Sim pricing: Community plan is free with 1,000 credits, 5GB storage, and 1 personal
+            workspace. Pro plan is $25 per month with 6,000 credits, 50GB storage, and up to 3
+            personal workspaces. Max plan is $100 per month with 25,000 credits, 500GB storage, and
+            up to 10 personal workspaces. Enterprise pricing is custom with unlimited shared
+            workspaces, SSO, SCIM, SOC2 compliance, self-hosting, and dedicated support. All plans
+            include CLI, SDK, and MCP access.
           </p>
         </div>
 

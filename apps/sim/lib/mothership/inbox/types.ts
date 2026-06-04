@@ -10,14 +10,14 @@ export interface InboxConfig {
   providerId: string | null
 }
 
-export interface InboxTaskStats {
+interface InboxTaskStats {
   total: number
   completed: number
   processing: number
   failed: number
 }
 
-export interface AllowedSender {
+interface AllowedSender {
   id: string
   email: string
   label: string | null

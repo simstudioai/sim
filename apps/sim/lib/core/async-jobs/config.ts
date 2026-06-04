@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { taskContext } from '@trigger.dev/core/v3'
 import type { AsyncBackendType, JobQueueBackend } from '@/lib/core/async-jobs/types'
-import { isBullMQEnabled } from '@/lib/core/bullmq'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('AsyncJobsConfig')
@@ -11,15 +11,16 @@ let cachedInlineBackend: JobQueueBackend | null = null
 
 /**
  * Determines which async backend to use based on environment configuration.
- * Follows the fallback chain: trigger.dev → bullmq → database
+ * Falls back to the database backend when trigger.dev isn't enabled — except
+ * when this process IS a trigger.dev worker (`taskContext.isInsideTask`), in
+ * which case the SDK runtime is available regardless of env vars and we
+ * always want to enqueue back through trigger.dev. Without this carve-out, a
+ * worker pod missing `TRIGGER_DEV_ENABLED=true` silently routes cell jobs to
+ * the database backend that nothing's draining.
  */
 export function getAsyncBackendType(): AsyncBackendType {
-  if (isTriggerDevEnabled) {
+  if (isTriggerDevEnabled || taskContext.isInsideTask) {
     return 'trigger-dev'
-  }
-
-  if (isBullMQEnabled()) {
-    return 'bullmq'
   }
 
   return 'database'
@@ -40,11 +41,6 @@ export async function getJobQueue(): Promise<JobQueueBackend> {
     case 'trigger-dev': {
       const { TriggerDevJobQueue } = await import('@/lib/core/async-jobs/backends/trigger-dev')
       cachedBackend = new TriggerDevJobQueue()
-      break
-    }
-    case 'bullmq': {
-      const { BullMQJobQueue } = await import('@/lib/core/async-jobs/backends/bullmq')
-      cachedBackend = new BullMQJobQueue()
       break
     }
     case 'database': {
@@ -72,7 +68,7 @@ export function getCurrentBackendType(): AsyncBackendType | null {
 }
 
 /**
- * Gets a job queue backend that bypasses Trigger.dev (BullMQ -> Database).
+ * Gets a job queue backend that bypasses Trigger.dev (Database only).
  * Used for execution paths that must avoid Trigger.dev cold starts.
  */
 export async function getInlineJobQueue(): Promise<JobQueueBackend> {
@@ -80,18 +76,10 @@ export async function getInlineJobQueue(): Promise<JobQueueBackend> {
     return cachedInlineBackend
   }
 
-  let type: string
-  if (isBullMQEnabled()) {
-    const { BullMQJobQueue } = await import('@/lib/core/async-jobs/backends/bullmq')
-    cachedInlineBackend = new BullMQJobQueue()
-    type = 'bullmq'
-  } else {
-    const { DatabaseJobQueue } = await import('@/lib/core/async-jobs/backends/database')
-    cachedInlineBackend = new DatabaseJobQueue()
-    type = 'database'
-  }
+  const { DatabaseJobQueue } = await import('@/lib/core/async-jobs/backends/database')
+  cachedInlineBackend = new DatabaseJobQueue()
 
-  logger.info(`Inline job backend initialized: ${type}`)
+  logger.info('Inline job backend initialized: database')
   return cachedInlineBackend
 }
 
@@ -101,10 +89,6 @@ export async function getInlineJobQueue(): Promise<JobQueueBackend> {
  */
 export function shouldExecuteInline(): boolean {
   return getAsyncBackendType() === 'database'
-}
-
-export function shouldUseBullMQ(): boolean {
-  return isBullMQEnabled()
 }
 
 /**

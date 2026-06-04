@@ -1,31 +1,33 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { microsoftPlannerTasksSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { PlannerTask } from '@/tools/microsoft_planner/types'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 const logger = createLogger('MicrosoftPlannerTasksAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+/**
+ * Upper bound on Microsoft Graph pages drained when listing a plan's tasks.
+ * Planner uses server-side paging (`$top` is generally ignored), so this caps
+ * the `@odata.nextLink` follow loop to prevent an unbounded drain.
+ */
+const MAX_TASKS_PAGES = 20
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const body = await request.json()
-    const { credential, workflowId, planId } = body
-
-    if (!credential) {
-      logger.error(`[${requestId}] Missing credential in request`)
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
-
-    if (!planId) {
-      logger.error(`[${requestId}] Missing planId in request`)
-      return NextResponse.json({ error: 'Plan ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(microsoftPlannerTasksSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId, planId } = parsed.data.body
 
     const planIdValidation = validateMicrosoftGraphId(planId, 'planId')
     if (!planIdValidation.isValid) {
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: planIdValidation.error }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -54,28 +56,41 @@ export async function POST(request: Request) {
       )
     }
 
-    const response = await fetch(
-      `https://graph.microsoft.com/v1.0/planner/plans/${planIdValidation.sanitized}/tasks`,
-      {
+    let nextUrl: string | undefined =
+      `https://graph.microsoft.com/v1.0/planner/plans/${planIdValidation.sanitized}/tasks`
+
+    const rawTasks: PlannerTask[] = []
+    for (let page = 0; page < MAX_TASKS_PAGES && nextUrl; page++) {
+      const response = await fetch(nextUrl, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-      }
-    )
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(`[${requestId}] Microsoft Graph API error:`, errorText)
-      return NextResponse.json(
-        { error: 'Failed to fetch tasks from Microsoft Graph' },
-        { status: response.status }
-      )
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error(`[${requestId}] Microsoft Graph API error:`, errorText)
+        return NextResponse.json(
+          { error: 'Failed to fetch tasks from Microsoft Graph' },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+      if (Array.isArray(data.value)) {
+        rawTasks.push(...data.value)
+      }
+
+      const nextLink = getGraphNextPageUrl(data)
+      nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+      if (nextUrl && page === MAX_TASKS_PAGES - 1) {
+        logger.warn(
+          `[${requestId}] Planner tasks pagination hit ${MAX_TASKS_PAGES}-page cap; result may be incomplete`
+        )
+      }
     }
 
-    const data = await response.json()
-    const tasks = data.value || []
-
-    const filteredTasks = tasks.map((task: PlannerTask) => ({
+    const filteredTasks = rawTasks.map((task: PlannerTask) => ({
       id: task.id,
       title: task.title,
       planId: task.planId,
@@ -100,4 +115,4 @@ export async function POST(request: Request) {
     logger.error(`[${requestId}] Error fetching Microsoft Planner tasks:`, error)
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 })
   }
-}
+})

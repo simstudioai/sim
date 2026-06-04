@@ -53,7 +53,7 @@ export function validateDateRange(value: string): string {
   return value
 }
 
-export interface GoogleAdsBaseParams {
+interface GoogleAdsBaseParams {
   accessToken: string
   customerId: string
   developerToken: string
@@ -112,7 +112,7 @@ export interface GoogleAdsSearchResponse extends ToolResponse {
   }
 }
 
-export interface GoogleAdsCampaign {
+interface GoogleAdsCampaign {
   id: string
   name: string
   status: string
@@ -129,7 +129,7 @@ export interface GoogleAdsListCampaignsResponse extends ToolResponse {
   }
 }
 
-export interface GoogleAdsCampaignPerformance {
+interface GoogleAdsCampaignPerformance {
   id: string
   name: string
   status: string
@@ -148,7 +148,7 @@ export interface GoogleAdsCampaignPerformanceResponse extends ToolResponse {
   }
 }
 
-export interface GoogleAdsAdGroup {
+interface GoogleAdsAdGroup {
   id: string
   name: string
   status: string
@@ -164,7 +164,7 @@ export interface GoogleAdsListAdGroupsResponse extends ToolResponse {
   }
 }
 
-export interface GoogleAdsAdPerformance {
+interface GoogleAdsAdPerformance {
   adId: string
   adGroupId: string
   adGroupName: string | null

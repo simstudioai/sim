@@ -1,61 +1,43 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import {
+  deleteCustomToolContract,
+  listCustomToolsContract,
+  upsertCustomToolsContract,
+} from '@/lib/api/contracts/tools/custom'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CustomToolsAPI')
 
-const CustomToolSchema = z.object({
-  tools: z.array(
-    z.object({
-      id: z.string().optional(),
-      title: z.string().min(1, 'Tool title is required'),
-      schema: z.object({
-        type: z.literal('function'),
-        function: z.object({
-          name: z.string().min(1, 'Function name is required'),
-          description: z.string().optional(),
-          parameters: z.object({
-            type: z.string(),
-            properties: z.record(z.any()),
-            required: z.array(z.string()).optional(),
-          }),
-        }),
-      }),
-      code: z.string(),
-    })
-  ),
-  workspaceId: z.string().optional(),
-  source: z.enum(['settings', 'tool_input']).optional(),
-})
-
-// GET - Fetch all custom tools for the workspace
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  const searchParams = request.nextUrl.searchParams
-  const workspaceId = searchParams.get('workspaceId')
-  const workflowId = searchParams.get('workflowId')
 
   try {
-    // Use session/internal auth to support session and internal JWT (no API key access)
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tools access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = authResult.userId
+    const parsed = await parseRequest(listCustomToolsContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    let resolvedWorkspaceId: string | null = workspaceId
+    const userId = authResult.userId
+    const { workspaceId, workflowId } = parsed.data.query
+
+    let resolvedWorkspaceId: string | null = workspaceId ?? null
     let resolvedFromWorkflowAuthorization = false
 
     if (!resolvedWorkspaceId && workflowId) {
@@ -80,7 +62,6 @@ export async function GET(request: NextRequest) {
       resolvedFromWorkflowAuthorization = true
     }
 
-    // Check workspace permissions for all auth types
     if (resolvedWorkspaceId && !resolvedFromWorkflowAuthorization) {
       const userPermission = await getUserEntityPermissions(
         userId,
@@ -95,16 +76,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Build query to fetch tools
-    // 1. Workspace-scoped tools: tools with matching workspaceId
-    // 2. User-scoped legacy tools: tools with null workspaceId and matching userId
     const conditions = []
 
     if (resolvedWorkspaceId) {
       conditions.push(eq(customTools.workspaceId, resolvedWorkspaceId))
     }
 
-    // Always include legacy user-scoped tools for backward compatibility
     conditions.push(and(isNull(customTools.workspaceId), eq(customTools.userId, userId)))
 
     const result = await db
@@ -118,116 +95,123 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching custom tools:`, error)
     return NextResponse.json({ error: 'Failed to fetch custom tools' }, { status: 500 })
   }
-}
+})
 
-// POST - Create or update custom tools
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    // Use session/internal auth (no API key access)
     const authResult = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tools update attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const parsed = await parseRequest(
+      upsertCustomToolsContract,
+      req,
+      {},
+      {
+        invalidJson: 'throw',
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid custom tools data`, { errors: error.issues })
+          return NextResponse.json(
+            {
+              error: 'Invalid request data',
+              details: error.issues,
+            },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
     const userId = authResult.userId
-    const body = await req.json()
+    const { tools, workspaceId, source } = parsed.data.body
 
-    try {
-      // Validate the request body
-      const { tools, workspaceId, source } = CustomToolSchema.parse(body)
-
-      if (!workspaceId) {
-        logger.warn(`[${requestId}] Missing workspaceId in request body`)
-        return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
-      }
-
-      // Check workspace permissions
-      const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!userPermission) {
-        logger.warn(
-          `[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-      }
-
-      // Check write permission
-      if (userPermission !== 'admin' && userPermission !== 'write') {
-        logger.warn(
-          `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
-      }
-
-      // Use the extracted upsert function
-      const resultTools = await upsertCustomTools({
-        tools,
-        workspaceId,
-        userId,
-        requestId,
-      })
-
-      for (const tool of resultTools) {
-        captureServerEvent(
-          userId,
-          'custom_tool_saved',
-          { tool_id: tool.id, workspace_id: workspaceId, tool_name: tool.title, source },
-          {
-            groups: { workspace: workspaceId },
-            setOnce: { first_custom_tool_saved_at: new Date().toISOString() },
-          }
-        )
-
-        recordAudit({
-          workspaceId,
-          actorId: userId,
-          action: AuditAction.CUSTOM_TOOL_CREATED,
-          resourceType: AuditResourceType.CUSTOM_TOOL,
-          resourceId: tool.id,
-          resourceName: tool.title,
-          description: `Created/updated custom tool "${tool.title}"`,
-        })
-      }
-
-      return NextResponse.json({ success: true, data: resultTools })
-    } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid custom tools data`, {
-          errors: validationError.errors,
-        })
-        return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
-          { status: 400 }
-        )
-      }
-      throw validationError
+    if (!workspaceId) {
+      logger.warn(`[${requestId}] Missing workspaceId in request body`)
+      return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
     }
+
+    const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (!userPermission) {
+      logger.warn(`[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    if (userPermission !== 'admin' && userPermission !== 'write') {
+      logger.warn(
+        `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
+      )
+      return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
+    }
+
+    const resultTools = await upsertCustomTools({
+      tools,
+      workspaceId,
+      userId,
+      requestId,
+    })
+
+    for (const tool of resultTools) {
+      captureServerEvent(
+        userId,
+        'custom_tool_saved',
+        { tool_id: tool.id, workspace_id: workspaceId, tool_name: tool.title, source },
+        {
+          groups: { workspace: workspaceId },
+          setOnce: { first_custom_tool_saved_at: new Date().toISOString() },
+        }
+      )
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        actorName: authResult.userName ?? undefined,
+        actorEmail: authResult.userEmail ?? undefined,
+        action: AuditAction.CUSTOM_TOOL_CREATED,
+        resourceType: AuditResourceType.CUSTOM_TOOL,
+        resourceId: tool.id,
+        resourceName: tool.title,
+        description: `Created/updated custom tool "${tool.title}"`,
+        metadata: { source },
+      })
+    }
+
+    return NextResponse.json({ success: true, data: resultTools })
   } catch (error) {
     logger.error(`[${requestId}] Error updating custom tools`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to update custom tools'
+    const errorMessage = getErrorMessage(error, 'Failed to update custom tools')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})
 
-// DELETE - Delete a custom tool by ID
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  const searchParams = request.nextUrl.searchParams
-  const toolId = searchParams.get('id')
-  const workspaceId = searchParams.get('workspaceId')
-  const sourceParam = searchParams.get('source')
-  const source =
-    sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
+  const parsed = await parseRequest(
+    deleteCustomToolContract,
+    request,
+    {},
+    {
+      validationErrorResponse: (error) => {
+        logger.warn(`[${requestId}] Missing tool ID for deletion`)
+        return NextResponse.json(
+          {
+            error: 'Tool ID is required',
+            details: error.issues,
+          },
+          { status: 400 }
+        )
+      },
+    }
+  )
+  if (!parsed.success) return parsed.response
 
-  if (!toolId) {
-    logger.warn(`[${requestId}] Missing tool ID for deletion`)
-    return NextResponse.json({ error: 'Tool ID is required' }, { status: 400 })
-  }
+  const { id: toolId, workspaceId, source } = parsed.data.query
 
   try {
-    // Use session/internal auth (no API key access)
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized custom tool deletion attempt`)
@@ -236,7 +220,6 @@ export async function DELETE(request: NextRequest) {
 
     const userId = authResult.userId
 
-    // Check if the tool exists
     const existingTool = await db
       .select()
       .from(customTools)
@@ -250,14 +233,12 @@ export async function DELETE(request: NextRequest) {
 
     const tool = existingTool[0]
 
-    // Handle workspace-scoped tools
     if (tool.workspaceId) {
       if (!workspaceId) {
         logger.warn(`[${requestId}] Missing workspaceId for workspace-scoped tool`)
         return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 })
       }
 
-      // Check workspace permissions
       const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!userPermission) {
         logger.warn(
@@ -266,7 +247,6 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
 
-      // Check write permission
       if (userPermission !== 'admin' && userPermission !== 'write') {
         logger.warn(
           `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
@@ -274,23 +254,17 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
       }
 
-      // Verify tool belongs to this workspace
       if (tool.workspaceId !== workspaceId) {
         logger.warn(`[${requestId}] Tool ${toolId} does not belong to workspace ${workspaceId}`)
         return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
       }
-    } else {
-      // Handle legacy user-scoped tools (no workspaceId)
-      // Only allow deletion if user owns the tool
-      if (tool.userId !== userId) {
-        logger.warn(
-          `[${requestId}] User ${userId} attempted to delete tool they don't own: ${toolId}`
-        )
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-      }
+    } else if (tool.userId !== userId) {
+      logger.warn(
+        `[${requestId}] User ${userId} attempted to delete tool they don't own: ${toolId}`
+      )
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Delete the tool
     await db.delete(customTools).where(eq(customTools.id, toolId))
 
     const toolWorkspaceId = tool.workspaceId ?? workspaceId ?? ''
@@ -304,10 +278,14 @@ export async function DELETE(request: NextRequest) {
     recordAudit({
       workspaceId: tool.workspaceId || undefined,
       actorId: userId,
+      actorName: authResult.userName ?? undefined,
+      actorEmail: authResult.userEmail ?? undefined,
       action: AuditAction.CUSTOM_TOOL_DELETED,
       resourceType: AuditResourceType.CUSTOM_TOOL,
       resourceId: toolId,
-      description: `Deleted custom tool`,
+      resourceName: tool.title,
+      description: `Deleted custom tool "${tool.title}"`,
+      metadata: { source },
     })
 
     logger.info(`[${requestId}] Deleted tool: ${toolId}`)
@@ -316,4 +294,4 @@ export async function DELETE(request: NextRequest) {
     logger.error(`[${requestId}] Error deleting custom tool:`, error)
     return NextResponse.json({ error: 'Failed to delete custom tool' }, { status: 500 })
   }
-}
+})

@@ -138,7 +138,7 @@ export const TAVILY_MAP_RESULT_OUTPUT: OutputProperty = {
   properties: TAVILY_MAP_RESULT_OUTPUT_PROPERTIES,
 }
 
-export interface TavilySearchResult {
+interface TavilySearchResult {
   title: string
   url: string
   content: string
@@ -180,7 +180,7 @@ interface ExtractResult {
   raw_content: string
 }
 
-export interface ExtractResponse extends ToolResponse {
+interface ExtractResponse extends ToolResponse {
   output: {
     results: ExtractResult[]
     failed_results?: Array<{
@@ -219,7 +219,7 @@ interface SearchResult {
   raw_content?: string
 }
 
-export interface SearchResponse extends ToolResponse {
+interface SearchResponse extends ToolResponse {
   output: {
     query: string
     results: SearchResult[]
@@ -263,7 +263,7 @@ export interface CrawlResponse extends ToolResponse {
   }
 }
 
-export interface TavilyCrawlResponse extends ToolResponse {
+interface TavilyCrawlResponse extends ToolResponse {
   output: {
     base_url: string
     results: CrawlResult[]
@@ -300,7 +300,7 @@ export interface MapResponse extends ToolResponse {
   }
 }
 
-export interface TavilyMapResponse extends ToolResponse {
+interface TavilyMapResponse extends ToolResponse {
   output: {
     base_url: string
     results: MapResult[]

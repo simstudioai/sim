@@ -21,14 +21,6 @@ export const rssPollingTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'rss_poller',
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

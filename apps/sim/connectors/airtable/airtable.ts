@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { AirtableIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -74,7 +75,7 @@ function parseCursor(cursor?: string): string | undefined {
 export const airtableConnector: ConnectorConfig = {
   id: 'airtable',
   name: 'Airtable',
-  description: 'Sync records from an Airtable table into your knowledge base',
+  description: 'Sync records from an Airtable table',
   version: '1.0.0',
   icon: AirtableIcon,
 
@@ -307,7 +308,7 @@ export const airtableConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },
@@ -404,7 +405,7 @@ async function fetchFieldNames(
     }
   } catch (error) {
     logger.warn('Error fetching Airtable schema', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 

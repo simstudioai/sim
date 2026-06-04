@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { WebflowIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('WebflowConnector')
 
@@ -82,7 +83,7 @@ export const webflowConnector: ConnectorConfig = {
   id: 'webflow',
   name: 'Webflow',
   description:
-    'Sync CMS collection items from a Webflow site into your knowledge base. Note: Webflow OAuth tokens do not support refresh — you may need to reconnect periodically.',
+    'Sync CMS collection items from a Webflow site. Note: Webflow OAuth tokens do not support refresh — you may need to reconnect periodically.',
   version: '1.0.0',
   icon: WebflowIcon,
 
@@ -194,8 +195,8 @@ export const webflowConnector: ConnectorConfig = {
     }
 
     const items = data.items || []
-    let documents: ExternalDocument[] = await Promise.all(
-      items.map((item) => itemToDocument(item, currentCollectionId, collectionName))
+    let documents: ExternalDocument[] = items.map((item) =>
+      itemToDocument(item, currentCollectionId, collectionName)
     )
 
     if (maxItems > 0) {
@@ -341,7 +342,7 @@ export const webflowConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },
@@ -373,13 +374,14 @@ export const webflowConnector: ConnectorConfig = {
 /**
  * Converts a Webflow CMS item to an ExternalDocument.
  */
-async function itemToDocument(
+function itemToDocument(
   item: WebflowItem,
   collectionId: string,
   collectionName: string
-): Promise<ExternalDocument> {
+): ExternalDocument {
   const plainText = itemToPlainText(item, collectionName)
-  const contentHash = await computeContentHash(plainText)
+  const lastModified = item.lastUpdated || item.lastPublished || item.createdOn || ''
+  const contentHash = `webflow:${item.id}:${lastModified}`
   const title = extractItemTitle(item)
   const slug = (item.fieldData?.slug as string) || ''
 
@@ -479,7 +481,7 @@ async function fetchCollectionNameDirect(
   } catch (error) {
     logger.warn('Error fetching collection name', {
       collectionId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return collectionId
   }

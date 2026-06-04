@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { AlertCircle, ArrowUp } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -9,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -191,6 +193,36 @@ Example 2:
     },
   })
 
+  const schemaParameters = useMemo(() => {
+    try {
+      if (!jsonSchema) return []
+      const parsed = JSON.parse(jsonSchema)
+      const properties = parsed?.function?.parameters?.properties
+      if (!properties) return []
+
+      return Object.keys(properties).map((key) => ({
+        name: key,
+        type: properties[key].type || 'any',
+        description: properties[key].description || '',
+        required: parsed?.function?.parameters?.required?.includes(key) || false,
+      }))
+    } catch {
+      return []
+    }
+  }, [jsonSchema])
+
+  const codeGenerationSchemaContext = useMemo(() => {
+    if (schemaParameters.length === 0) {
+      return 'Schema parameters: (none defined yet — the user has not added any parameters to the schema)'
+    }
+    const lines = schemaParameters.map((p) => {
+      const requiredLabel = p.required ? 'required' : 'optional'
+      const description = p.description ? `: ${p.description}` : ''
+      return `- ${p.name} (${p.type}, ${requiredLabel})${description}`
+    })
+    return `Schema parameters (reference these directly by name in the generated code):\n${lines.join('\n')}`
+  }, [schemaParameters])
+
   const codeGeneration = useWand({
     wandConfig: {
       enabled: true,
@@ -200,6 +232,8 @@ Generate ONLY the raw body of a JavaScript function based on the user's request.
 The code should be executable within an 'async function(params, environmentVariables) {...}' context.
 - 'params' (object): Contains input parameters derived from the JSON schema. Reference these directly by name (e.g., 'userId', 'cityName'). Do NOT use 'params.paramName'.
 - 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
+
+${codeGenerationSchemaContext}
 
 Current code: {context}
 
@@ -373,24 +407,6 @@ try {
     }
   }
 
-  const schemaParameters = useMemo(() => {
-    try {
-      if (!jsonSchema) return []
-      const parsed = JSON.parse(jsonSchema)
-      const properties = parsed?.function?.parameters?.properties
-      if (!properties) return []
-
-      return Object.keys(properties).map((key) => ({
-        name: key,
-        type: properties[key].type || 'any',
-        description: properties[key].description || '',
-        required: parsed?.function?.parameters?.required?.includes(key) || false,
-      }))
-    } catch {
-      return []
-    }
-  }, [jsonSchema])
-
   const isSchemaValid = useMemo(() => validateSchema(jsonSchema).isValid, [jsonSchema])
 
   const hasChanges = useMemo(() => {
@@ -494,7 +510,7 @@ try {
       handleClose()
     } catch (error) {
       logger.error('Error saving custom tool:', { error })
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save custom tool'
+      const errorMessage = getErrorMessage(error, 'Failed to save custom tool')
 
       if (errorMessage.includes('Cannot change function name')) {
         setSchemaError(
@@ -800,7 +816,7 @@ try {
       handleClose()
     } catch (error) {
       logger.error('Error deleting custom tool:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete custom tool'
+      const errorMessage = getErrorMessage(error, 'Failed to delete custom tool')
       setSchemaError(`${errorMessage}. Please try again.`)
       setActiveSection('schema')
       setShowDeleteConfirm(false)
@@ -824,6 +840,10 @@ try {
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
+              <ModalDescription className='sr-only'>
+                Create or edit a custom agent tool by defining its JSON schema and implementation
+                code.
+              </ModalDescription>
               <ModalTabsContent value='schema'>
                 <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
                   <div className='flex min-w-0 items-center gap-2'>
@@ -832,7 +852,7 @@ try {
                     </Label>
                     {schemaError && (
                       <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
-                        <AlertCircle className='h-3 w-3 flex-shrink-0' />
+                        <AlertCircle className='size-3 flex-shrink-0' />
                         <span className='truncate'>{schemaError}</span>
                       </div>
                     )}
@@ -873,9 +893,9 @@ try {
                             e.stopPropagation()
                             handleSchemaPromptSubmit()
                           }}
-                          className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                          className='size-[20px] flex-shrink-0 p-0'
                         >
-                          <ArrowUp className='h-[12px] w-[12px]' />
+                          <ArrowUp className='size-[12px]' />
                         </Button>
                       </div>
                     )}
@@ -924,7 +944,7 @@ try {
                     </Label>
                     {codeError && !codeGeneration.isStreaming && (
                       <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
-                        <AlertCircle className='h-3 w-3 flex-shrink-0' />
+                        <AlertCircle className='size-3 flex-shrink-0' />
                         <span className='truncate'>{codeError}</span>
                       </div>
                     )}
@@ -965,9 +985,9 @@ try {
                             e.stopPropagation()
                             handleCodePromptSubmit()
                           }}
-                          className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                          className='size-[20px] flex-shrink-0 p-0'
                         >
-                          <ArrowUp className='h-[12px] w-[12px]' />
+                          <ArrowUp className='size-[12px]' />
                         </Button>
                       </div>
                     )}
@@ -1176,13 +1196,13 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               <span className='text-[var(--text-error)]'>
                 This will permanently delete the tool and remove it from any workflows that are
                 using it.
               </span>{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
+              This action cannot be undone.
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button
@@ -1207,10 +1227,10 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               You have unsaved changes to this tool. Are you sure you want to discard your changes
               and close the editor?
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowDiscardAlert(false)}>

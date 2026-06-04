@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { workdayGetCompensationContract } from '@/lib/api/contracts/tools/workday'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createWorkdaySoapClient,
   extractRefId,
   normalizeSoapArray,
+  parseSoapNumber,
   type WorkdayCompensationDataSoap,
   type WorkdayCompensationPlanSoap,
   type WorkdayWorkerSoap,
@@ -16,15 +20,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkdayGetCompensationAPI')
 
-const RequestSchema = z.object({
-  tenantUrl: z.string().min(1),
-  tenant: z.string().min(1),
-  username: z.string().min(1),
-  password: z.string().min(1),
-  workerId: z.string().min(1),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -33,8 +29,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const data = RequestSchema.parse(body)
+    const parsed = await parseRequest(workdayGetCompensationContract, request, {})
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     const client = await createWorkdaySoapClient(
       data.tenantUrl,
@@ -65,7 +62,11 @@ export async function POST(request: NextRequest) {
     const mapPlan = (p: WorkdayCompensationPlanSoap) => ({
       id: extractRefId(p.Compensation_Plan_Reference) ?? null,
       planName: p.Compensation_Plan_Reference?.attributes?.Descriptor ?? null,
-      amount: p.Amount ?? p.Per_Unit_Amount ?? p.Individual_Target_Amount ?? null,
+      amount:
+        parseSoapNumber(p.Amount) ??
+        parseSoapNumber(p.Per_Unit_Amount) ??
+        parseSoapNumber(p.Individual_Target_Amount) ??
+        null,
       currency: extractRefId(p.Currency_Reference) ?? null,
       frequency: extractRefId(p.Frequency_Reference) ?? null,
     })
@@ -94,8 +95,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error(`[${requestId}] Workday get compensation failed`, { error })
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: getErrorMessage(error, 'Unknown error') },
       { status: 500 }
     )
   }
-}
+})

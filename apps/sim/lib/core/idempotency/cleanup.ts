@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { and, count, inArray, like, lt, max, min, sql } from 'drizzle-orm'
 
 const logger = createLogger('IdempotencyCleanup')
@@ -97,11 +99,10 @@ export async function cleanupExpiredIdempotencyKeys(
         } else {
           logger.info(`Deleted batch ${batchCount}: ${deletedCount} expired idempotency keys`)
 
-          await new Promise((resolve) => setTimeout(resolve, 100))
+          await sleep(100)
         }
       } catch (batchError) {
-        const errorMessage =
-          batchError instanceof Error ? batchError.message : 'Unknown batch error'
+        const errorMessage = getErrorMessage(batchError, 'Unknown batch error')
         logger.error(`Error deleting batch ${batchCount + 1}:`, batchError)
         errors.push(`Batch ${batchCount + 1}: ${errorMessage}`)
 
@@ -120,7 +121,7 @@ export async function cleanupExpiredIdempotencyKeys(
       errors: errors.length,
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     logger.error('Failed to cleanup expired idempotency keys:', error)
     errors.push(`General error: ${errorMessage}`)
   }

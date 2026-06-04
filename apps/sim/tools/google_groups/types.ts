@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Common parameters for Google Groups API calls
  */
-export interface GoogleGroupsCommonParams {
+interface GoogleGroupsCommonParams {
   accessToken: string
 }
 

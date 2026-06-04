@@ -1,35 +1,22 @@
 import type { DataPart, FilePart, Message, Part, Task, TextPart } from '@a2a-js/sdk'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
+import { a2aSendMessageContract } from '@/lib/api/contracts/tools/a2a'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('A2ASendMessageAPI')
 
-const FileInputSchema = z.object({
-  type: z.enum(['file', 'url']),
-  data: z.string(),
-  name: z.string(),
-  mime: z.string().optional(),
-})
-
-const A2ASendMessageSchema = z.object({
-  agentUrl: z.string().min(1, 'Agent URL is required'),
-  message: z.string().min(1, 'Message is required'),
-  taskId: z.string().optional(),
-  contextId: z.string().optional(),
-  data: z.string().optional(),
-  files: z.array(FileInputSchema).optional(),
-  apiKey: z.string().optional(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -46,6 +33,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const rateLimited = await enforceUserOrIpRateLimit(
+      'a2a-send-message',
+      authResult.userId,
+      request
+    )
+    if (rateLimited) return rateLimited
+
     logger.info(
       `[${requestId}] Authenticated A2A send message request via ${authResult.authType}`,
       {
@@ -53,8 +47,24 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const body = await request.json()
-    const validatedData = A2ASendMessageSchema.parse(body)
+    const parsed = await parseRequest(
+      a2aSendMessageContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Sending A2A message`, {
       agentUrl: validatedData.agentUrl,
@@ -89,7 +99,7 @@ export async function POST(request: NextRequest) {
         parts.push(dataPart)
       } catch (parseError) {
         logger.warn(`[${requestId}] Failed to parse data as JSON, skipping DataPart`, {
-          error: parseError instanceof Error ? parseError.message : String(parseError),
+          error: toError(parseError).message,
         })
       }
     }
@@ -202,18 +212,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error sending A2A message:`, error)
 
     return NextResponse.json(
@@ -224,4 +222,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

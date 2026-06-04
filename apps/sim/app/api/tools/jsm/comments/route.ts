@@ -1,21 +1,28 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { jsmCommentsContract } from '@/lib/api/contracts/selectors/jsm'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
-import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmCommentsAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(jsmCommentsContract, request, {})
+    if (!parsed.success) return parsed.response
+
     const {
       domain,
       accessToken,
@@ -26,7 +33,7 @@ export async function POST(request: NextRequest) {
       expand,
       start,
       limit,
-    } = body
+    } = parsed.data.body
 
     if (!domain) {
       logger.error('Missing domain in request')
@@ -82,7 +89,10 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }
@@ -101,16 +111,16 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     logger.error('Error fetching comments:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
         success: false,
       },
       { status: 500 }
     )
   }
-}
+})

@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { generateId } from '@sim/utils/id'
 import type { ComboboxOption } from '@/components/emcn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/query-builder/constants'
+import { useCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { SortRuleRow } from './components/sort-rule-row'
 
 interface SortBuilderProps {
@@ -16,6 +18,7 @@ interface SortBuilderProps {
   disabled?: boolean
   columns?: Array<{ value: string; label: string }>
   tableIdSubBlockId?: string
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 const createDefaultRule = (columns: ComboboxOption[]): SortRule => ({
@@ -34,9 +37,10 @@ export function SortBuilder({
   disabled = false,
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
+  activeSearchTarget,
 }: SortBuilderProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<SortRule[]>(blockId, subBlockId)
-  const [tableIdValue] = useSubBlockValue<string>(blockId, tableIdSubBlockId)
+  const tableIdValue = useCanonicalSubBlockValue<string>(blockId, tableIdSubBlockId)
 
   const dynamicColumns = useTableColumns({ tableId: tableIdValue, includeBuiltIn: true })
   const columns = useMemo(() => {
@@ -97,6 +101,9 @@ export function SortBuilder({
           columns={columns}
           directionOptions={directionOptions}
           isReadOnly={isReadOnly}
+          blockId={blockId}
+          subBlockId={subBlockId}
+          activeSearchTarget={activeSearchTarget}
           onAdd={addRule}
           onRemove={removeRule}
           onUpdate={updateRule}

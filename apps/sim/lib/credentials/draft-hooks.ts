@@ -1,8 +1,10 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
+import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 
 const logger = createLogger('CredentialDraftHooks')
 
@@ -51,6 +53,19 @@ export async function handleCreateCredentialFromDraft(params: {
       providerId,
       accountId,
     })
+
+    await clearDeadFlag(accountId)
+
+    recordAudit({
+      workspaceId: draft.workspaceId,
+      actorId: userId,
+      action: AuditAction.CREDENTIAL_CREATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: credentialId,
+      resourceName: draft.displayName,
+      description: `Created OAuth credential "${draft.displayName}"`,
+      metadata: { providerId, accountId },
+    })
   } catch (insertError: unknown) {
     const code =
       insertError && typeof insertError === 'object' && 'code' in insertError
@@ -74,9 +89,10 @@ export async function handleReconnectCredential(params: {
   draft: { credentialId: string | null; workspaceId: string; displayName: string }
   newAccountId: string
   workspaceId: string
+  userId: string
   now: Date
 }) {
-  const { draft, newAccountId, workspaceId, now } = params
+  const { draft, newAccountId, workspaceId, userId, now } = params
   if (!draft.credentialId) return
 
   const [existingCredential] = await db
@@ -132,6 +148,19 @@ export async function handleReconnectCredential(params: {
     credentialId: draft.credentialId,
     oldAccountId,
     newAccountId,
+  })
+
+  await clearDeadFlag(newAccountId)
+
+  recordAudit({
+    workspaceId,
+    actorId: userId,
+    action: AuditAction.CREDENTIAL_RECONNECTED,
+    resourceType: AuditResourceType.CREDENTIAL,
+    resourceId: draft.credentialId,
+    resourceName: draft.displayName,
+    description: `Reconnected OAuth credential "${draft.displayName}" to a new account`,
+    metadata: { oldAccountId, newAccountId },
   })
 
   if (oldAccountId) {

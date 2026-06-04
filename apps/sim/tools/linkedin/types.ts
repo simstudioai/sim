@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface LinkedInProfile {
+interface LinkedInProfile {
   sub: string
   name: string
   given_name: string
@@ -10,7 +10,7 @@ export interface LinkedInProfile {
   email_verified?: boolean
 }
 
-export interface LinkedInPost {
+interface LinkedInPost {
   author: string // URN format: urn:li:person:abc123
   lifecycleState: 'PUBLISHED'
   specificContent: {

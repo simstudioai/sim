@@ -495,7 +495,6 @@ export const URL_OUTPUT: OutputProperty = {
   description: 'URL to view in Confluence',
 }
 
-// Page operations
 export interface ConfluenceRetrieveParams {
   accessToken: string
   pageId: string
@@ -512,7 +511,7 @@ export interface ConfluenceRetrieveResponse extends ToolResponse {
   }
 }
 
-export interface ConfluencePage {
+interface ConfluencePage {
   id: string
   title: string
   spaceKey?: string
@@ -526,7 +525,6 @@ export interface ConfluenceUpdateParams {
   pageId: string
   title?: string
   content?: string
-  version?: number
   cloudId?: string
 }
 
@@ -539,7 +537,7 @@ export interface ConfluenceUpdateResponse extends ToolResponse {
   }
 }
 
-export interface ConfluenceCreatePageParams {
+interface ConfluenceCreatePageParams {
   accessToken: string
   domain: string
   spaceId: string
@@ -549,7 +547,7 @@ export interface ConfluenceCreatePageParams {
   cloudId?: string
 }
 
-export interface ConfluenceCreatePageResponse extends ToolResponse {
+interface ConfluenceCreatePageResponse extends ToolResponse {
   output: {
     ts: string
     pageId: string
@@ -558,14 +556,14 @@ export interface ConfluenceCreatePageResponse extends ToolResponse {
   }
 }
 
-export interface ConfluenceDeletePageParams {
+interface ConfluenceDeletePageParams {
   accessToken: string
   domain: string
   pageId: string
   cloudId?: string
 }
 
-export interface ConfluenceDeletePageResponse extends ToolResponse {
+interface ConfluenceDeletePageResponse extends ToolResponse {
   output: {
     ts: string
     pageId: string
@@ -573,8 +571,7 @@ export interface ConfluenceDeletePageResponse extends ToolResponse {
   }
 }
 
-// Search operations
-export interface ConfluenceSearchParams {
+interface ConfluenceSearchParams {
   accessToken: string
   domain: string
   query: string
@@ -582,7 +579,7 @@ export interface ConfluenceSearchParams {
   cloudId?: string
 }
 
-export interface ConfluenceSearchResponse extends ToolResponse {
+interface ConfluenceSearchResponse extends ToolResponse {
   output: {
     ts: string
     results: Array<{
@@ -595,8 +592,7 @@ export interface ConfluenceSearchResponse extends ToolResponse {
   }
 }
 
-// Comment operations
-export interface ConfluenceCommentParams {
+interface ConfluenceCommentParams {
   accessToken: string
   domain: string
   pageId: string
@@ -604,7 +600,7 @@ export interface ConfluenceCommentParams {
   cloudId?: string
 }
 
-export interface ConfluenceCommentResponse extends ToolResponse {
+interface ConfluenceCommentResponse extends ToolResponse {
   output: {
     ts: string
     commentId: string
@@ -612,8 +608,7 @@ export interface ConfluenceCommentResponse extends ToolResponse {
   }
 }
 
-// Attachment operations
-export interface ConfluenceAttachmentParams {
+interface ConfluenceAttachmentParams {
   accessToken: string
   domain: string
   pageId?: string
@@ -622,7 +617,7 @@ export interface ConfluenceAttachmentParams {
   cloudId?: string
 }
 
-export interface ConfluenceAttachmentResponse extends ToolResponse {
+interface ConfluenceAttachmentResponse extends ToolResponse {
   output: {
     ts: string
     attachments?: Array<{
@@ -637,7 +632,7 @@ export interface ConfluenceAttachmentResponse extends ToolResponse {
   }
 }
 
-export interface ConfluenceUploadAttachmentParams {
+interface ConfluenceUploadAttachmentParams {
   accessToken: string
   domain: string
   pageId: string
@@ -647,7 +642,7 @@ export interface ConfluenceUploadAttachmentParams {
   cloudId?: string
 }
 
-export interface ConfluenceUploadAttachmentResponse extends ToolResponse {
+interface ConfluenceUploadAttachmentResponse extends ToolResponse {
   output: {
     ts: string
     attachmentId: string
@@ -659,8 +654,7 @@ export interface ConfluenceUploadAttachmentResponse extends ToolResponse {
   }
 }
 
-// Label operations
-export interface ConfluenceLabelParams {
+interface ConfluenceLabelParams {
   accessToken: string
   domain: string
   pageId: string
@@ -668,7 +662,7 @@ export interface ConfluenceLabelParams {
   cloudId?: string
 }
 
-export interface ConfluenceLabelResponse extends ToolResponse {
+interface ConfluenceLabelResponse extends ToolResponse {
   output: {
     ts: string
     labels?: Array<{
@@ -683,8 +677,7 @@ export interface ConfluenceLabelResponse extends ToolResponse {
   }
 }
 
-// Space operations
-export interface ConfluenceSpaceParams {
+interface ConfluenceSpaceParams {
   accessToken: string
   domain: string
   spaceId?: string
@@ -692,7 +685,7 @@ export interface ConfluenceSpaceParams {
   cloudId?: string
 }
 
-export interface ConfluenceSpaceResponse extends ToolResponse {
+interface ConfluenceSpaceResponse extends ToolResponse {
   output: {
     ts: string
     spaces?: Array<{

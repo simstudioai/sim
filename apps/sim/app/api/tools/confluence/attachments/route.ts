@@ -1,28 +1,36 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { confluenceListAttachmentsContract } from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceAttachmentsAPI')
 
 export const dynamic = 'force-dynamic'
 
 // List attachments on a page
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const domain = searchParams.get('domain')
-    const accessToken = searchParams.get('accessToken')
-    const pageId = searchParams.get('pageId')
-    const providedCloudId = searchParams.get('cloudId')
-    const limit = searchParams.get('limit') || '50'
-    const cursor = searchParams.get('cursor')
+    const parsed = await parseRequest(confluenceListAttachmentsContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      pageId,
+      cloudId: providedCloudId,
+      limit,
+      cursor,
+    } = parsed.data.query
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -64,15 +72,16 @@ export async function GET(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage =
-        errorData?.message || `Failed to list Confluence attachments (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -104,4 +113,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

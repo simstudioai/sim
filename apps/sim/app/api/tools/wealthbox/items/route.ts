@@ -1,16 +1,28 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { validateEnum, validatePathSegment } from '@/lib/core/security/input-validation'
+import { wealthboxItemsSelectorContract } from '@/lib/api/contracts/selectors/wealthbox'
+import { parseRequest } from '@/lib/api/server'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WealthboxItemsAPI')
+
+/**
+ * Wealthbox `GET /v1/contacts` paginates with `?page=` / `?per_page=`, starting
+ * at page 1. Wealthbox documents no `per_page` maximum and its contacts response
+ * carries no pagination `meta`, so termination relies on the short-page check:
+ * we stop once a page returns fewer items than `WEALTHBOX_PAGE_SIZE` (the
+ * `meta.total_pages` / `meta.current_page` check is a defensive fallback for if
+ * Wealthbox ever adds that block). Bounded by `MAX_WEALTHBOX_PAGES` so a runaway
+ * response can't loop forever.
+ */
+const WEALTHBOX_PAGE_SIZE = 50
+const MAX_WEALTHBOX_PAGES = 50
 
 interface WealthboxItem {
   id: string
@@ -21,29 +33,26 @@ interface WealthboxItem {
   updatedAt: string
 }
 
+interface WealthboxContactsPage {
+  contacts?: Array<Record<string, unknown>>
+  meta?: {
+    total_count?: number
+    total_pages?: number
+    current_page?: number
+  }
+}
+
 /**
  * Get items (notes, contacts, tasks) from Wealthbox
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated request rejected`)
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const type = searchParams.get('type') || 'contact'
-    const query = searchParams.get('query') || ''
-
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credential ID`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(wealthboxItemsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credentialId, type } = parsed.data.query
+    const query = parsed.data.query.query ?? ''
 
     const credentialIdValidation = validatePathSegment(credentialId, {
       paramName: 'credentialId',
@@ -57,46 +66,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
     }
 
-    const ALLOWED_TYPES = ['contact'] as const
-    const typeValidation = validateEnum(type, ALLOWED_TYPES, 'type')
-    if (!typeValidation.isValid) {
-      logger.warn(`[${requestId}] Invalid item type: ${type}`)
-      return NextResponse.json({ error: typeValidation.error }, { status: 400 })
+    const authz = await authorizeCredentialUse(request, {
+      credentialId,
+      requireWorkflowIdForInternal: false,
+    })
+    if (!authz.ok || !authz.credentialOwnerUserId) {
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
-
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (!resolved) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-
-    if (resolved.workspaceId) {
-      const { getUserEntityPermissions } = await import('@/lib/workspaces/permissions/utils')
-      const perm = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        resolved.workspaceId
-      )
-      if (perm === null) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
-
-    const credentials = await db
-      .select()
-      .from(account)
-      .where(eq(account.id, resolved.accountId))
-      .limit(1)
-
-    if (!credentials.length) {
-      logger.warn(`[${requestId}] Credential not found`, { credentialId })
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-
-    const accountRow = credentials[0]
 
     const accessToken = await refreshAccessTokenIfNeeded(
-      resolved.accountId,
-      accountRow.userId,
+      credentialId,
+      authz.credentialOwnerUserId,
       requestId
     )
 
@@ -110,67 +90,95 @@ export async function GET(request: NextRequest) {
     }
     const endpoint = endpoints[type as keyof typeof endpoints]
 
-    const url = new URL(`https://api.crmworkspace.com/v1/${endpoint}`)
-
     logger.info(`[${requestId}] Fetching ${type}s from Wealthbox`, {
       endpoint,
-      url: url.toString(),
       hasQuery: !!query.trim(),
     })
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    const allContacts: Array<Record<string, unknown>> = []
+    let page = 1
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error(
-        `[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`,
-        {
-          error: errorText,
-          endpoint,
-          url: url.toString(),
-        }
-      )
-      return NextResponse.json(
-        { error: `Failed to fetch ${type}s from Wealthbox` },
-        { status: response.status }
-      )
-    }
+    for (; page <= MAX_WEALTHBOX_PAGES; page++) {
+      const url = new URL(`https://api.crmworkspace.com/v1/${endpoint}`)
+      url.searchParams.set('per_page', String(WEALTHBOX_PAGE_SIZE))
+      url.searchParams.set('page', String(page))
 
-    const data = await response.json()
+      const response = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
 
-    logger.info(`[${requestId}] Wealthbox API raw response`, {
-      type,
-      status: response.status,
-      dataKeys: Object.keys(data || {}),
-      hasContacts: !!data.contacts,
-      dataStructure: typeof data === 'object' ? Object.keys(data) : 'not an object',
-    })
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error(
+          `[${requestId}] Wealthbox API error: ${response.status} ${response.statusText}`,
+          {
+            error: errorText,
+            endpoint,
+            url: url.toString(),
+          }
+        )
+        return NextResponse.json(
+          { error: `Failed to fetch ${type}s from Wealthbox` },
+          { status: response.status }
+        )
+      }
 
-    let items: WealthboxItem[] = []
+      const data = (await response.json()) as WealthboxContactsPage
 
-    if (type === 'contact') {
       const contacts = data.contacts || []
       if (!Array.isArray(contacts)) {
         logger.warn(`[${requestId}] Contacts is not an array`, {
           contacts,
           dataType: typeof contacts,
         })
-        return NextResponse.json({ items: [] }, { status: 200 })
+        break
       }
 
-      items = contacts.map((item: any) => ({
-        id: item.id?.toString() || '',
-        name: `${item.first_name || ''} ${item.last_name || ''}`.trim() || `Contact ${item.id}`,
-        type: 'contact',
-        content: item.background_information || '',
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-      }))
+      allContacts.push(...contacts)
+
+      const totalPages = data.meta?.total_pages
+      const currentPage = data.meta?.current_page ?? page
+      const reachedLastByMeta =
+        typeof totalPages === 'number' && totalPages > 0 && currentPage >= totalPages
+      const reachedLastByCount = contacts.length < WEALTHBOX_PAGE_SIZE
+
+      if (reachedLastByMeta || reachedLastByCount) {
+        break
+      }
+
+      if (page === MAX_WEALTHBOX_PAGES) {
+        logger.warn(
+          `[${requestId}] Wealthbox pagination hit MAX_WEALTHBOX_PAGES cap; contact list may be incomplete`,
+          { endpoint, maxPages: MAX_WEALTHBOX_PAGES }
+        )
+      }
+    }
+
+    logger.info(`[${requestId}] Wealthbox API drained`, {
+      type,
+      pagesFetched: Math.min(page, MAX_WEALTHBOX_PAGES),
+      totalContacts: allContacts.length,
+    })
+
+    let items: WealthboxItem[] = []
+
+    if (type === 'contact') {
+      items = allContacts.map((item) => {
+        const firstName = typeof item.first_name === 'string' ? item.first_name : ''
+        const lastName = typeof item.last_name === 'string' ? item.last_name : ''
+        return {
+          id: item.id?.toString() || '',
+          name: `${firstName} ${lastName}`.trim() || `Contact ${item.id ?? ''}`,
+          type: 'contact',
+          content:
+            typeof item.background_information === 'string' ? item.background_information : '',
+          createdAt: typeof item.created_at === 'string' ? item.created_at : '',
+          updatedAt: typeof item.updated_at === 'string' ? item.updated_at : '',
+        }
+      })
     }
 
     if (query.trim()) {
@@ -192,4 +200,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching Wealthbox items`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

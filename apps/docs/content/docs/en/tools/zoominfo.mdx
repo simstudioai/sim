@@ -1,0 +1,203 @@
+---
+title: ZoomInfo
+description: Search and enrich B2B company and contact data with ZoomInfo.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="zoominfo"
+  color="#EA1B15"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ZoomInfo](https://www.zoominfo.com/) is a B2B go-to-market platform with one of the largest verified databases of company and contact data. It pairs deep firmographic and contact records with buyer intent signals and company news, so your sales, marketing, and operations teams can find, prioritize, and reach the right accounts.
+
+With ZoomInfo, you can:
+
+- **Search companies**: Find organizations by name, industry, location, revenue, and employee size
+- **Search contacts**: Discover people by name, job title, department, and management level
+- **Enrich companies and contacts**: Resolve detailed firmographics, verified emails, and phone numbers in bulk
+- **Track buyer intent**: Surface companies showing intent signals on the topics you care about
+- **Monitor company news**: Pull recent articles by category, source, or date range
+
+In Sim, the ZoomInfo integration lets your agents power prospecting, enrichment, and account research workflows end-to-end:
+
+- **Search Companies**: Use `zoominfo_search_companies` to find accounts matching firmographic filters.
+- **Search Contacts**: Use `zoominfo_search_contacts` to find people by role and company. Search results do not include emails or phone numbers — use Enrich Contacts for engagement data.
+- **Enrich Companies**: Use `zoominfo_enrich_companies` to resolve up to 25 companies per request from a name, domain, ticker, or ZoomInfo ID.
+- **Enrich Contacts**: Use `zoominfo_enrich_contacts` to resolve up to 25 contacts per request, returning verified emails, phones, and job details.
+- **Search Intent**: Use `zoominfo_search_intent` to find companies researching specific topics, with signal scores and recommended contacts.
+- **Search News**: Use `zoominfo_search_news` to monitor company news by category, source URL, or publish date.
+
+ZoomInfo authenticates with the OAuth 2.0 client credentials flow: Sim exchanges your client ID and secret for a short-lived bearer token automatically on each call, so you only ever provide your credentials. A common pattern is to search first to identify the records you want, then pass their IDs into the matching enrich tool to pull full detail efficiently.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrates ZoomInfo into the workflow. Search companies and contacts, enrich firmographic and contact data, find intent signals, and pull news — all using the ZoomInfo GTM API.
+
+
+
+## Tools
+
+### `zoominfo_search_companies`
+
+Search the ZoomInfo company database by name, industry, location, and size.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | ZoomInfo OAuth client ID |
+| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
+| `companyName` | string | No | Company name to search for |
+| `companyWebsite` | string | No | Company website \(comma-separated for multiple\) |
+| `companyTicker` | string | No | Stock ticker symbols — JSON array, comma-separated list, or single ticker. Sent to the API as an array. |
+| `industryCodes` | string | No | Industry codes — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
+| `country` | string | No | Country name |
+| `state` | string | No | State or province |
+| `metroRegion` | string | No | US/Canada metro region |
+| `revenueMin` | number | No | Minimum annual revenue in thousands USD |
+| `revenueMax` | number | No | Maximum annual revenue in thousands USD |
+| `employeeRangeMin` | number | No | Minimum employee count |
+| `employeeRangeMax` | number | No | Maximum employee count |
+| `excludeDefunctCompanies` | boolean | No | Exclude inactive companies |
+| `page` | number | No | Page number \(1-based\) |
+| `rpp` | number | No | Results per page \(1-100, default 25\) |
+| `sortBy` | string | No | Field to sort by |
+| `sortOrder` | string | No | Sort order \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Matching companies |
+
+### `zoominfo_search_contacts`
+
+Search ZoomInfo for contacts (people) by name, job title, company, and other filters. Does not return emails or phone numbers — use Enrich Contacts for engagement data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | ZoomInfo OAuth client ID |
+| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
+| `firstName` | string | No | First name |
+| `lastName` | string | No | Last name |
+| `fullName` | string | No | Full name |
+| `emailAddress` | string | No | Email address |
+| `jobTitle` | string | No | Job title |
+| `managementLevel` | string | No | Management level — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
+| `department` | string | No | Department — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
+| `companyId` | string | No | ZoomInfo company ID |
+| `companyName` | string | No | Company name |
+| `contactAccuracyScoreMin` | number | No | Minimum accuracy score \(70-99\) |
+| `requiredFields` | string | No | Fields that must exist in results — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
+| `excludePartialProfiles` | boolean | No | Exclude partial profiles |
+| `page` | number | No | Page number \(1-based\) |
+| `rpp` | number | No | Results per page \(1-100, default 25\) |
+| `sortBy` | string | No | Field to sort by |
+| `sortOrder` | string | No | Sort order \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `contacts` | array | Matching contacts \(without emails or phone numbers\) |
+
+### `zoominfo_enrich_companies`
+
+Enrich up to 25 companies in one request with detailed firmographics, industry, financials, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | ZoomInfo OAuth client ID |
+| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
+| `matchCompanyInput` | string | Yes | JSON array \(1-25 items\) of company matching criteria, e.g. \[\{"companyName":"Acme","companyWebsite":"acme.com"\}\] |
+| `outputFields` | string | No | JSON array or comma-separated list of fields to return \(e.g. \["id","name","website","revenue","employeeCount"\]\). Defaults to a standard firmographic set if omitted. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Enrichment results, one per input with match status and attributes |
+
+### `zoominfo_enrich_contacts`
+
+Enrich up to 25 contacts in one request with verified emails, phone numbers, job details, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | ZoomInfo OAuth client ID |
+| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
+| `matchPersonInput` | string | Yes | JSON array \(1-25 items\) of contact matching criteria, e.g. \[\{"firstName":"Jane","lastName":"Doe","companyName":"Acme"\}\] |
+| `outputFields` | string | No | JSON array or comma-separated list of fields to return \(e.g. \["id","firstName","email","phone","jobTitle"\]\). Defaults to a standard contact set if omitted. |
+| `requiredFields` | string | No | JSON array or comma-separated list of fields that must exist in results \(e.g. \["email"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Enrichment results, one per input with match status and attributes |
+
+### `zoominfo_search_intent`
+
+Search for companies showing intent signals on specific topics.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | ZoomInfo OAuth client ID |
+| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
+| `topics` | string | Yes | Up to 50 intent topics as JSON array or comma-separated list \(e.g. \["CRM Software","Marketing Automation"\]\) |
+| `signalStartDate` | string | No | Earliest signal date \(YYYY-MM-DD\) |
+| `signalEndDate` | string | No | Latest signal date \(YYYY-MM-DD\) |
+| `signalScoreMin` | number | No | Minimum signal score \(60-100\) |
+| `signalScoreMax` | number | No | Maximum signal score \(60-100\) |
+| `audienceStrengthMin` | string | No | Minimum audience strength \(A-E, A is largest\) |
+| `audienceStrengthMax` | string | No | Maximum audience strength \(A-E, A is largest\) |
+| `findRecommendedContacts` | boolean | No | Include recommended contacts \(default true\) |
+| `country` | string | No | Country filter |
+| `state` | string | No | State filter |
+| `industryCodes` | string | No | Industry codes — JSON array or comma-separated list. Sent to the API as a comma-separated string. |
+| `page` | number | No | Page number \(1-based\) |
+| `rpp` | number | No | Results per page \(1-100, default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signals` | array | Intent signals with topic, score, audience strength, and company |
+
+### `zoominfo_search_news`
+
+Search ZoomInfo news articles by category, URL, or date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | ZoomInfo OAuth client ID |
+| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
+| `categories` | string | No | News categories as JSON array or comma-separated list |
+| `url` | string | No | News source URLs as JSON array or comma-separated list |
+| `pageDateMin` | string | No | Earliest publish date \(YYYY-MM-DD\) |
+| `pageDateMax` | string | No | Latest publish date \(YYYY-MM-DD\) |
+| `page` | number | No | Page number \(1-based\) |
+| `rpp` | number | No | Results per page \(1-100, default 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `articles` | array | News articles matching the filters |
+
+

@@ -366,14 +366,23 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
     }
   }
 
+  const nestedByContainerId = new Map<string, ConsoleEntry[]>()
+  for (const e of nestedIterationEntries) {
+    const parent = e.parentIterations?.[0]
+    if (!parent) continue
+    const list = nestedByContainerId.get(parent.iterationContainerId)
+    if (list) {
+      list.push(e)
+    } else {
+      nestedByContainerId.set(parent.iterationContainerId, [e])
+    }
+  }
+
   const subflowNodes: EntryNode[] = []
   for (const subflowGroup of subflowGroups.values()) {
     const { iterationType, iterationContainerId, groups: iterationGroups } = subflowGroup
 
-    const nestedForThisSubflow = nestedIterationEntries.filter((e) => {
-      const parent = e.parentIterations?.[0]
-      return parent && parent.iterationContainerId === iterationContainerId
-    })
+    const nestedForThisSubflow = nestedByContainerId.get(iterationContainerId) ?? []
 
     const allDirectBlocks = iterationGroups.flatMap((g) => g.blocks)
     const allRelevantBlocks = [...allDirectBlocks, ...nestedForThisSubflow]
@@ -384,9 +393,7 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
     const subflowEndMs = Math.max(
       ...allRelevantBlocks.map((b) => new Date(b.endedAt || b.timestamp).getTime())
     )
-    const totalDuration = allRelevantBlocks.reduce((sum, b) => sum + (b.durationMs || 0), 0)
-    const subflowDuration =
-      iterationType === 'parallel' ? subflowEndMs - subflowStartMs : totalDuration
+    const subflowDuration = subflowEndMs - subflowStartMs
 
     const subflowExecutionOrder = Math.min(...allRelevantBlocks.map((b) => b.executionOrder))
     const metadataSource = allRelevantBlocks[0]
@@ -406,12 +413,21 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
       iterationContainerId,
     }
 
+    const nestedByIteration = new Map<number, ConsoleEntry[]>()
+    for (const e of nestedForThisSubflow) {
+      const iterNum = e.parentIterations?.[0]?.iterationCurrent
+      if (iterNum === undefined) continue
+      const list = nestedByIteration.get(iterNum)
+      if (list) {
+        list.push(e)
+      } else {
+        nestedByIteration.set(iterNum, [e])
+      }
+    }
+
     const iterationNodes: EntryNode[] = iterationGroups
       .map((iterGroup): EntryNode | null => {
-        const matchingNestedEntries = nestedForThisSubflow.filter((e) => {
-          const parent = e.parentIterations?.[0]
-          return parent?.iterationCurrent === iterGroup.iterationCurrent
-        })
+        const matchingNestedEntries = nestedByIteration.get(iterGroup.iterationCurrent) ?? []
 
         const strippedNestedEntries: ConsoleEntry[] = matchingNestedEntries.map((e) => ({
           ...e,
@@ -431,9 +447,7 @@ export function buildEntryTree(entries: ConsoleEntry[], idPrefix = ''): EntryNod
         const iterEndMs = Math.max(
           ...allIterEntries.map((b) => new Date(b.endedAt || b.timestamp).getTime())
         )
-        const iterDuration = allIterEntries.reduce((sum, b) => sum + (b.durationMs || 0), 0)
-        const iterDisplayDuration =
-          iterationType === 'parallel' ? iterEndMs - iterStartMs : iterDuration
+        const iterDisplayDuration = iterEndMs - iterStartMs
 
         const iterExecutionOrder = Math.min(...allIterEntries.map((b) => b.executionOrder))
         const iterMetadataSource = allIterEntries[0]

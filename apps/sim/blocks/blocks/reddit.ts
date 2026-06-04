@@ -13,7 +13,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
     'Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, manage messages, and access user and subreddit info.',
   docsLink: 'https://docs.sim.ai/tools/reddit',
   category: 'tools',
-  integrationType: IntegrationType.Social,
+  integrationType: IntegrationType.Communication,
   tags: ['content-management', 'web-scraping'],
   bgColor: '#FF5700',
   icon: RedditIcon,

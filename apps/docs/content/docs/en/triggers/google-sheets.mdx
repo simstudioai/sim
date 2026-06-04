@@ -1,0 +1,46 @@
+---
+title: Google Sheets
+description: Available Google Sheets triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="google_sheets"
+  color="#E0E0E0"
+/>
+
+Google Sheets provides 1 trigger for automating workflows based on events.
+
+All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
+
+## Triggers
+
+### Google Sheets New Row Trigger
+
+Triggers when new rows are added to a Google Sheet
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Connect your Google account to access Google Sheets. |
+| `spreadsheetId` | file-selector | Yes | The spreadsheet to monitor for new rows. |
+| `manualSpreadsheetId` | string | Yes | The spreadsheet to monitor for new rows. |
+| `sheetName` | sheet-selector | Yes | The sheet tab to monitor for new rows. |
+| `manualSheetName` | string | Yes | The sheet tab to monitor for new rows. |
+| `valueRenderOption` | string | No | How values are rendered. Formatted returns display strings, Unformatted returns raw numbers/booleans, Formula returns the formula text. |
+| `dateTimeRenderOption` | string | No | How dates and times are rendered. Only applies when Value Render is not  |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `row` | json | Row data mapped to column headers from row 1 |
+| `rawRow` | json | Raw row values as an array |
+| `headers` | json | Column headers from row 1 |
+| `rowNumber` | number | The 1-based row number of the new row |
+| `spreadsheetId` | string | The spreadsheet ID |
+| `sheetName` | string | The sheet tab name |
+| `timestamp` | string | Event timestamp in ISO format |
+

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 import { getChildFolders, getFolderById } from '@/lib/folders/tree'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'

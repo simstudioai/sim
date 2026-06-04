@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -12,12 +13,15 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
   Switch,
   Tooltip,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
@@ -34,7 +38,6 @@ import {
   getPlanTierDollars,
   isEnterprise,
   isFree,
-  isOrgPlan,
   isPaid,
   isPro,
   isTeam,
@@ -46,7 +49,6 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CreditBalance,
@@ -139,7 +141,7 @@ function SubscriptionSkeleton() {
                 <ul className='flex flex-1 flex-col gap-3.5'>
                   {[...Array(5)].map((_, j) => (
                     <li key={j} className='flex items-center gap-2'>
-                      <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-sm' />
+                      <Skeleton className='size-[12px] flex-shrink-0 rounded-sm' />
                       <Skeleton className='h-[12px] w-[120px] rounded-sm' />
                     </li>
                   ))}
@@ -223,9 +225,9 @@ function CreditPlanCard({
 
       {features && features.length > 0 && (
         <ul className='flex flex-col gap-2.5 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
-          {features.map((feature, idx) => (
-            <li key={idx} className='flex items-center gap-2'>
-              <feature.icon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-muted)]' />
+          {features.map((feature) => (
+            <li key={feature.text} className='flex items-center gap-2'>
+              <feature.icon className='size-[13px] flex-shrink-0 text-[var(--text-muted)]' />
               <span className='text-[var(--text-secondary)] text-caption'>{feature.text}</span>
             </li>
           ))}
@@ -240,7 +242,7 @@ function CreditPlanCard({
         </div>
       )}
 
-      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3.5'>
+      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] p-3.5'>
         {isCurrentPlan ? (
           <Button onClick={onManagePlan} className='h-[32px] w-full' variant='default'>
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
@@ -272,7 +274,7 @@ export function Subscription() {
     data: subscriptionData,
     isLoading: isSubscriptionLoading,
     refetch: refetchSubscription,
-  } = useSubscriptionData()
+  } = useSubscriptionData({ includeOrg: true })
   const { data: usageLimitResponse, isLoading: isUsageLimitLoading } = useUsageLimitData()
   const { data: workspaceData, isLoading: isWorkspaceLoading } = useWorkspaceSettings(workspaceId)
   const updateWorkspaceMutation = useUpdateWorkspaceSettings()
@@ -280,9 +282,12 @@ export function Subscription() {
   const { data: orgsData } = useOrganizations()
   const activeOrganization = orgsData?.activeOrganization
   const activeOrgId = activeOrganization?.id
+  const workspaceOrganizationId = workspaceData?.settings?.workspace?.organizationId ?? null
+  const billingOrganizationId =
+    workspaceOrganizationId ?? subscriptionData?.data?.organization?.id ?? activeOrgId ?? null
 
   const { data: organizationBillingData, isLoading: isOrgBillingLoading } = useOrganizationBilling(
-    activeOrgId || ''
+    billingOrganizationId || ''
   )
 
   const openBillingPortal = useOpenBillingPortal()
@@ -294,12 +299,12 @@ export function Subscription() {
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
   const hasInitializedInterval = useRef(false)
 
-  const hasOrgPlan = isOrgPlan(subscriptionData?.data?.plan)
+  const hasOrgScopedSubscription = Boolean(subscriptionData?.data?.isOrgScoped)
   const isLoading =
     isSubscriptionLoading ||
     isUsageLimitLoading ||
     isWorkspaceLoading ||
-    (hasOrgPlan && isOrgBillingLoading)
+    (hasOrgScopedSubscription && isOrgBillingLoading)
 
   const isCancelledAtPeriodEnd = subscriptionData?.data?.cancelAtPeriodEnd === true
 
@@ -311,6 +316,12 @@ export function Subscription() {
     isPaid:
       isPaid(subscriptionData?.data?.plan) &&
       hasPaidSubscriptionStatus(subscriptionData?.data?.status),
+    /**
+     * True when the subscription is attached to an org (regardless of plan
+     * name). Drives routing of usage-limit edits and whether we show pooled
+     * or personal usage.
+     */
+    isOrgScoped: Boolean(subscriptionData?.data?.isOrgScoped),
     plan: subscriptionData?.data?.plan || 'free',
     status: subscriptionData?.data?.status || 'inactive',
     seats: getEffectiveSeats(subscriptionData?.data),
@@ -338,6 +349,10 @@ export function Subscription() {
   const isCritical = isBlocked || usage.percentUsed >= USAGE_THRESHOLDS.CRITICAL
 
   const billedAccountUserId = workspaceData?.settings?.workspace?.billedAccountUserId ?? null
+  const workspaceMode = workspaceData?.settings?.workspace?.workspaceMode ?? null
+  const isOrganizationWorkspace =
+    workspaceData?.settings?.workspace?.organizationId != null && workspaceMode === 'organization'
+  const isGrandfatheredSharedWorkspace = workspaceMode === 'grandfathered_shared'
   const workspaceAdmins: WorkspaceAdmin[] =
     workspaceData?.permissions?.users?.filter(
       (user: WorkspaceAdmin) => user.permissionType === 'admin'
@@ -360,20 +375,17 @@ export function Subscription() {
     }
   }, [subscriptionData?.data?.billingInterval])
 
-  const userRole = getUserRole(activeOrganization, session?.user?.email)
+  const userRole = subscriptionData?.data?.organization?.role ?? 'member'
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
+  const shouldUseOrganizationBillingContext = subscription.isOrgScoped && isTeamAdmin
 
   const planIncludedAmount =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    isTeamAdmin &&
-    organizationBillingData?.data
+    subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
       ? organizationBillingData.data.minimumBillingAmount
       : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
 
   const effectiveUsageLimit =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    isTeamAdmin &&
-    organizationBillingData?.data
+    subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
       ? organizationBillingData.data.totalUsageLimit
       : usageLimitData.currentLimit || usage.limit
 
@@ -381,8 +393,7 @@ export function Subscription() {
     subscription.isPaid && planIncludedAmount > 0 && effectiveUsageLimit > planIncludedAmount
 
   const effectiveCurrentUsage =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    organizationBillingData?.data?.totalCurrentUsage != null
+    subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
       ? organizationBillingData.data.totalCurrentUsage
       : usage.current
 
@@ -390,23 +401,26 @@ export function Subscription() {
 
   const handleToggleOnDemand = useCallback(async () => {
     try {
-      const isOrgContext =
-        (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin && activeOrgId
+      if (shouldUseOrganizationBillingContext && !billingOrganizationId) {
+        throw new Error(
+          'Organization billing context is unavailable. Please refresh and try again.'
+        )
+      }
 
       if (isOnDemandActive) {
         if (!canDisableOnDemand) return
-        if (isOrgContext) {
+        if (shouldUseOrganizationBillingContext) {
           await updateOrgLimit.mutateAsync({
-            organizationId: activeOrgId!,
+            organizationId: billingOrganizationId!,
             limit: planIncludedAmount,
           })
         } else {
           await updateUserLimit.mutateAsync({ limit: planIncludedAmount })
         }
       } else {
-        if (isOrgContext) {
+        if (shouldUseOrganizationBillingContext) {
           await updateOrgLimit.mutateAsync({
-            organizationId: activeOrgId!,
+            organizationId: billingOrganizationId!,
             limit: ON_DEMAND_UNLIMITED,
           })
         } else {
@@ -420,10 +434,8 @@ export function Subscription() {
   }, [
     isOnDemandActive,
     canDisableOnDemand,
-    subscription.isTeam,
-    subscription.isEnterprise,
-    isTeamAdmin,
-    activeOrgId,
+    shouldUseOrganizationBillingContext,
+    billingOrganizationId,
     planIncludedAmount,
     logger,
   ])
@@ -435,6 +447,7 @@ export function Subscription() {
       isTeam: subscription.isTeam,
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
+      isOrgScoped: subscription.isOrgScoped,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
@@ -448,6 +461,7 @@ export function Subscription() {
       isTeam: subscription.isTeam,
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
+      isOrgScoped: subscription.isOrgScoped,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
@@ -490,7 +504,7 @@ export function Subscription() {
           ...(seats ? { seats } : {}),
         })
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Unknown error occurred')
+        alert(getErrorMessage(error, 'Unknown error occurred'))
       }
     },
     [handleUpgrade, isAnnual]
@@ -502,11 +516,15 @@ export function Subscription() {
       return
     }
     if (isBlocked) {
-      const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+      const context = subscription.isOrgScoped ? 'organization' : 'user'
+      if (context === 'organization' && !billingOrganizationId) {
+        alert('Organization billing context is unavailable. Please refresh and try again.')
+        return
+      }
       openBillingPortal.mutate(
         {
           context,
-          organizationId: activeOrgId,
+          organizationId: billingOrganizationId ?? undefined,
           returnUrl: `${getBaseUrl()}/workspace?billing=updated`,
         },
         {
@@ -529,9 +547,8 @@ export function Subscription() {
     isDispute,
     isBlocked,
     subscription.isFree,
-    subscription.isTeam,
-    subscription.isEnterprise,
-    activeOrgId,
+    subscription.isOrgScoped,
+    billingOrganizationId,
     doUpgrade,
     logger,
   ])
@@ -546,13 +563,9 @@ export function Subscription() {
           'Interval switching is not available on legacy plans. Please upgrade first.'
         )
       }
-      const res = await fetch('/api/billing/switch-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetPlanName: subscription.plan, interval }),
+      await requestJson(billingSwitchPlanContract, {
+        body: { targetPlanName: subscription.plan, interval },
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Failed to switch interval')
       await refetchSubscription()
     },
     [refetchSubscription, subscription.plan, isLegacyPlan]
@@ -591,14 +604,13 @@ export function Subscription() {
                 : undefined
           }
           current={
-            (subscription.isTeam || subscription.isEnterprise) &&
-            organizationBillingData?.data?.totalCurrentUsage != null
+            subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
               ? organizationBillingData.data.totalCurrentUsage
               : usage.current
           }
           limit={
-            subscription.isEnterprise || subscription.isTeam
-              ? organizationBillingData?.data?.totalUsageLimit
+            subscription.isOrgScoped
+              ? (organizationBillingData?.data?.totalUsageLimit ?? usage.limit)
               : !subscription.isFree &&
                   (permissions.canEditUsageLimit || permissions.showTeamMemberView)
                 ? usage.current
@@ -612,29 +624,21 @@ export function Subscription() {
               <UsageLimit
                 ref={usageLimitRef}
                 currentLimit={
-                  (subscription.isTeam || subscription.isEnterprise) &&
-                  isTeamAdmin &&
-                  organizationBillingData?.data
+                  subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
                     ? organizationBillingData.data.totalUsageLimit
                     : usageLimitData.currentLimit || usage.limit
                 }
                 currentUsage={usage.current}
                 canEdit={permissions.canEditUsageLimit}
                 minimumLimit={
-                  (subscription.isTeam || subscription.isEnterprise) &&
-                  isTeamAdmin &&
-                  organizationBillingData?.data
+                  subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
                     ? organizationBillingData.data.minimumBillingAmount
                     : usageLimitData.minimumLimit
                 }
-                context={
-                  (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
-                    ? 'organization'
-                    : 'user'
-                }
+                context={shouldUseOrganizationBillingContext ? 'organization' : 'user'}
                 organizationId={
-                  (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
-                    ? activeOrgId
+                  shouldUseOrganizationBillingContext
+                    ? (billingOrganizationId ?? undefined)
                     : undefined
                 }
                 onLimitUpdated={() => logger.info('Usage limit updated')}
@@ -732,9 +736,7 @@ export function Subscription() {
                               handleSwitchInterval(isAnnual ? 'year' : 'month')
                                 .then(() => setManagePlanModalOpen(false))
                                 .catch((e) =>
-                                  alert(
-                                    e instanceof Error ? e.message : 'Failed to switch interval'
-                                  )
+                                  alert(getErrorMessage(e, 'Failed to switch interval'))
                                 )
                           : () => doUpgrade('pro', PRO_TIER.credits)
                     }
@@ -769,25 +771,21 @@ export function Subscription() {
                       : isOnMaxTier && wantsIntervalSwitch
                         ? () =>
                             handleSwitchInterval(isAnnual ? 'year' : 'month').catch((e) =>
-                              alert(e instanceof Error ? e.message : 'Failed to switch interval')
+                              alert(getErrorMessage(e, 'Failed to switch interval'))
                             )
                         : subscription.isPaid
                           ? async () => {
                               const planType = subscription.isTeam ? 'team' : 'pro'
                               try {
-                                const res = await fetch('/api/billing/switch-plan', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
+                                await requestJson(billingSwitchPlanContract, {
+                                  body: {
                                     targetPlanName: `${planType}_${MAX_TIER.credits}`,
                                     interval: isAnnual ? 'year' : 'month',
-                                  }),
+                                  },
                                 })
-                                const data = await res.json()
-                                if (!res.ok) throw new Error(data?.error || 'Failed to upgrade')
                                 await refetchSubscription()
                               } catch (e) {
-                                alert(e instanceof Error ? e.message : 'Failed to upgrade')
+                                alert(getErrorMessage(e, 'Failed to upgrade'))
                               }
                             }
                           : () => doUpgrade('pro', MAX_TIER.credits)
@@ -857,17 +855,13 @@ export function Subscription() {
           const planType = subscription.isTeam ? 'team' : 'pro'
           const targetPlanName = `${planType}_${targetTier.credits}`
           try {
-            const res = await fetch('/api/billing/switch-plan', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ targetPlanName }),
+            await requestJson(billingSwitchPlanContract, {
+              body: { targetPlanName },
             })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data?.error || 'Failed to switch plan')
             await refetchSubscription()
             setManagePlanModalOpen(false)
           } catch (e) {
-            alert(e instanceof Error ? e.message : 'Failed to switch plan')
+            alert(getErrorMessage(e, 'Failed to switch plan'))
           }
         }}
         onUpgradeToCurrentTier={async () => {
@@ -878,23 +872,19 @@ export function Subscription() {
           const planType = subscription.isTeam ? 'team' : 'pro'
           const targetPlanName = `${planType}_${currentTier.credits}`
           try {
-            const res = await fetch('/api/billing/switch-plan', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ targetPlanName }),
+            await requestJson(billingSwitchPlanContract, {
+              body: { targetPlanName },
             })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data?.error || 'Failed to migrate plan')
             await refetchSubscription()
             setManagePlanModalOpen(false)
           } catch (e) {
-            alert(e instanceof Error ? e.message : 'Failed to migrate plan')
+            alert(getErrorMessage(e, 'Failed to migrate plan'))
           }
         }}
         onGetForTeam={() => {
           setManagePlanModalOpen(false)
           if (subscription.isTeam) {
-            window.location.href = `/workspace/${workspaceId}/settings/team`
+            window.location.href = `/workspace/${workspaceId}/settings/organization`
           } else {
             setTeamModalOpen(true)
           }
@@ -905,26 +895,44 @@ export function Subscription() {
           setManagePlanModalOpen(false)
           if (!betterAuthSubscription.cancel) return
           try {
-            const isOrgSub = (subscription.isTeam || subscription.isEnterprise) && activeOrgId
-            const referenceId = isOrgSub ? activeOrgId : session?.user?.id || ''
+            const isOrgSub = subscription.isOrgScoped
+            const referenceId = isOrgSub
+              ? (() => {
+                  if (!billingOrganizationId) {
+                    throw new Error(
+                      'Organization billing context is unavailable. Please refresh and try again.'
+                    )
+                  }
+                  return billingOrganizationId
+                })()
+              : session?.user?.id || ''
             const returnUrl = getBaseUrl() + window.location.pathname
             await betterAuthSubscription.cancel({ returnUrl, referenceId })
           } catch (e) {
             logger.error('Failed to cancel subscription', { error: e })
-            alert(e instanceof Error ? e.message : 'Failed to cancel subscription')
+            alert(getErrorMessage(e, 'Failed to cancel subscription'))
           }
         }}
         onRestore={async () => {
           if (!betterAuthSubscription.restore) return
           try {
-            const isOrgSub = (subscription.isTeam || subscription.isEnterprise) && activeOrgId
-            const referenceId = isOrgSub ? activeOrgId : session?.user?.id || ''
+            const isOrgSub = subscription.isOrgScoped
+            const referenceId = isOrgSub
+              ? (() => {
+                  if (!billingOrganizationId) {
+                    throw new Error(
+                      'Organization billing context is unavailable. Please refresh and try again.'
+                    )
+                  }
+                  return billingOrganizationId
+                })()
+              : session?.user?.id || ''
             await betterAuthSubscription.restore({ referenceId })
             await refetchSubscription()
             setManagePlanModalOpen(false)
           } catch (e) {
             logger.error('Failed to restore subscription', { error: e })
-            alert(e instanceof Error ? e.message : 'Failed to restore subscription')
+            alert(getErrorMessage(e, 'Failed to restore subscription'))
           }
         }}
       />
@@ -937,9 +945,7 @@ export function Subscription() {
               <CreditBalance
                 balance={subscriptionData?.data?.creditBalance ?? 0}
                 canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
-                entityType={
-                  subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-                }
+                entityType={subscription.isOrgScoped ? 'organization' : 'user'}
                 isLoading={isLoading}
                 onPurchaseComplete={() => refetchSubscription()}
               />
@@ -967,50 +973,100 @@ export function Subscription() {
           {subscription.isPaid &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between gap-4'>
-                <Label>Invoices</Label>
-                <Button
-                  variant='active'
-                  disabled={openBillingPortal.isPending}
-                  onClick={() => {
-                    const portalWindow = window.open('', '_blank')
-                    const context =
-                      subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-                    openBillingPortal.mutate(
-                      {
-                        context,
-                        organizationId: activeOrgId,
-                        returnUrl: window.location.href,
-                      },
-                      {
-                        onSuccess: (data) => {
-                          if (portalWindow) {
-                            portalWindow.location.href = data.url
-                          } else {
-                            window.location.href = data.url
-                          }
-                        },
-                        onError: (error) => {
-                          portalWindow?.close()
-                          logger.error('Failed to open billing portal', { error })
-                          alert(error.message)
-                        },
+              <>
+                <div className='flex items-center justify-between gap-4'>
+                  <Label>Payment method</Label>
+                  <Button
+                    variant='active'
+                    disabled={openBillingPortal.isPending}
+                    onClick={() => {
+                      const portalWindow = window.open('', '_blank')
+                      const context = subscription.isOrgScoped ? 'organization' : 'user'
+                      if (context === 'organization' && !billingOrganizationId) {
+                        portalWindow?.close()
+                        alert(
+                          'Organization billing context is unavailable. Please refresh and try again.'
+                        )
+                        return
                       }
-                    )
-                  }}
-                >
-                  View Invoices
-                </Button>
-              </div>
+                      openBillingPortal.mutate(
+                        {
+                          context,
+                          organizationId: billingOrganizationId ?? undefined,
+                          returnUrl: window.location.href,
+                        },
+                        {
+                          onSuccess: (data) => {
+                            if (portalWindow) {
+                              portalWindow.location.href = data.url
+                            } else {
+                              window.location.href = data.url
+                            }
+                          },
+                          onError: (error) => {
+                            portalWindow?.close()
+                            logger.error('Failed to open billing portal', { error })
+                            alert(error.message)
+                          },
+                        }
+                      )
+                    }}
+                  >
+                    Manage in Stripe
+                  </Button>
+                </div>
+
+                <div className='flex items-center justify-between gap-4'>
+                  <Label>Invoices</Label>
+                  <Button
+                    variant='active'
+                    disabled={openBillingPortal.isPending}
+                    onClick={() => {
+                      const portalWindow = window.open('', '_blank')
+                      const context = subscription.isOrgScoped ? 'organization' : 'user'
+                      if (context === 'organization' && !billingOrganizationId) {
+                        portalWindow?.close()
+                        alert(
+                          'Organization billing context is unavailable. Please refresh and try again.'
+                        )
+                        return
+                      }
+                      openBillingPortal.mutate(
+                        {
+                          context,
+                          organizationId: billingOrganizationId ?? undefined,
+                          returnUrl: window.location.href,
+                        },
+                        {
+                          onSuccess: (data) => {
+                            if (portalWindow) {
+                              portalWindow.location.href = data.url
+                            } else {
+                              window.location.href = data.url
+                            }
+                          },
+                          onError: (error) => {
+                            portalWindow?.close()
+                            logger.error('Failed to open billing portal', { error })
+                            alert(error.message)
+                          },
+                        }
+                      )
+                    }}
+                  >
+                    View Invoices
+                  </Button>
+                </div>
+              </>
             )}
 
-          {!isLoading && isTeamAdmin && (
+          {!isLoading && isTeamAdmin && isGrandfatheredSharedWorkspace && (
             <div className='flex items-center justify-between gap-4'>
               <div className='flex items-center gap-1.5'>
                 <Label htmlFor='billed-account'>Billed Account</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Info className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
+                    <Info className='size-[12px] text-[var(--text-secondary)]' />
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     <span>Usage from this workspace will be billed to this account</span>
@@ -1065,12 +1121,15 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
   const [selectedTier, setSelectedTier] = useState<number>(PRO_TIER.credits)
   const [selectedSeats, setSelectedSeats] = useState(1)
 
-  useEffect(() => {
+  // Reset selections each time the modal opens.
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) {
       setSelectedTier(PRO_TIER.credits)
       setSelectedSeats(1)
     }
-  }, [open])
+  }
 
   const tier = CREDIT_TIERS.find((t) => t.credits === selectedTier) ?? PRO_TIER
   const monthlyCostPerSeat = tier.dollars
@@ -1088,9 +1147,9 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
       <ModalContent size='sm'>
         <ModalHeader>Get For Team</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             Choose a plan and number of seats for your team. Credits are pooled across all members.
-          </p>
+          </ModalDescription>
 
           {/* Plan toggle */}
           <div className='mt-4 flex flex-col gap-1'>
@@ -1223,9 +1282,12 @@ function ManagePlanModal({
   const [isSwitching, setIsSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Clear the error each time the modal opens.
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) setError(null)
-  }, [open])
+  }
 
   const isOnMax = currentPlanCredits === MAX_TIER.credits || (isLegacyPlan && isTeamPlan)
   const currentTier = isOnMax ? MAX_TIER : PRO_TIER
@@ -1243,7 +1305,7 @@ function ManagePlanModal({
     try {
       await onSwitchInterval(targetInterval)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to switch interval')
+      setError(getErrorMessage(e, 'Failed to switch interval'))
     } finally {
       setIsSwitching(false)
     }
@@ -1298,7 +1360,7 @@ function ManagePlanModal({
           Manage {currentTier.name} Plan{isTeamPlan ? ' (Team)' : ''}
         </ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             You're on the{' '}
             <span className='font-medium text-[var(--text-primary)]'>{currentTier.name}</span> plan
             {isTeamPlan ? ' for your team' : ''}, billed{' '}
@@ -1306,7 +1368,7 @@ function ManagePlanModal({
               ? `$${currentPlanDollars}/mo${perUnit}`
               : `$${actualAnnualTotal}/yr${perUnit} ($${actualDiscountedMonthly}/mo${perUnit})`}
             .
-          </p>
+          </ModalDescription>
 
           {isLegacyPlan && (
             <Badge variant='amber' size='lg' dot className='mt-2'>

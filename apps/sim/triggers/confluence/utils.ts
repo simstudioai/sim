@@ -17,6 +17,13 @@ export const confluenceTriggerOptions = [
   { label: 'Space Updated', id: 'confluence_space_updated' },
   { label: 'Label Added', id: 'confluence_label_added' },
   { label: 'Label Removed', id: 'confluence_label_removed' },
+  { label: 'Comment Updated', id: 'confluence_comment_updated' },
+  { label: 'Attachment Updated', id: 'confluence_attachment_updated' },
+  { label: 'Page Restored', id: 'confluence_page_restored' },
+  { label: 'Blog Post Restored', id: 'confluence_blog_restored' },
+  { label: 'Space Removed', id: 'confluence_space_removed' },
+  { label: 'Page Permissions Updated', id: 'confluence_page_permissions_updated' },
+  { label: 'User Created', id: 'confluence_user_created' },
   { label: 'Generic Webhook (All Events)', id: 'confluence_webhook' },
 ]
 
@@ -234,6 +241,39 @@ export function buildLabelOutputs(): Record<string, TriggerOutput> {
   }
 }
 
+/** Page permissions outputs for permission change events. */
+export function buildPagePermissionsOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...buildBaseWebhookOutputs(),
+    page: {
+      ...buildContentEntityFields(),
+      permissions: {
+        type: 'json',
+        description: 'Updated permissions object for the page',
+      },
+    },
+  }
+}
+
+/** User-related outputs for user events. */
+export function buildUserOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...buildBaseWebhookOutputs(),
+    user: {
+      accountId: { type: 'string', description: 'Account ID of the new user' },
+      accountType: { type: 'string', description: 'Account type (e.g., atlassian, app)' },
+      displayName: { type: 'string', description: 'Display name of the user' },
+      emailAddress: {
+        type: 'string',
+        description:
+          'Email address of the user (may not be available due to GDPR/privacy settings)',
+      },
+      publicName: { type: 'string', description: 'Public name of the user' },
+      self: { type: 'string', description: 'URL link to the user profile' },
+    },
+  }
+}
+
 /** Combined outputs for the generic webhook trigger (all events). */
 export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
   return {
@@ -245,6 +285,7 @@ export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
     space: { type: 'json', description: 'Space object (present in space events)' },
     label: { type: 'json', description: 'Label object (present in label events)' },
     content: { type: 'json', description: 'Content object (present in label events)' },
+    user: { type: 'json', description: 'User object (present in user events)' },
     files: {
       type: 'file[]',
       description:
@@ -308,6 +349,24 @@ export function extractLabelData(body: any) {
   }
 }
 
+export function extractPagePermissionsData(body: Record<string, unknown>) {
+  return {
+    timestamp: body.timestamp,
+    userAccountId: body.userAccountId,
+    accountType: body.accountType,
+    page: body.page || {},
+  }
+}
+
+export function extractUserData(body: Record<string, unknown>) {
+  return {
+    timestamp: body.timestamp,
+    userAccountId: body.userAccountId,
+    accountType: body.accountType,
+    user: body.user || {},
+  }
+}
+
 /**
  * Maps trigger IDs to the exact Confluence event strings they accept.
  * Admin REST API webhooks include an `event` field (e.g. `"event": "page_created"`).
@@ -329,6 +388,13 @@ const TRIGGER_EVENT_MAP: Record<string, string[]> = {
   confluence_space_updated: ['space_updated'],
   confluence_label_added: ['label_added', 'label_created'],
   confluence_label_removed: ['label_removed', 'label_deleted'],
+  confluence_comment_updated: ['comment_updated'],
+  confluence_attachment_updated: ['attachment_updated'],
+  confluence_page_restored: ['page_restored'],
+  confluence_blog_restored: ['blog_restored'],
+  confluence_space_removed: ['space_removed'],
+  confluence_page_permissions_updated: ['content_permissions_updated'],
+  confluence_user_created: ['user_created', 'user_reactivated'],
 }
 
 const TRIGGER_CATEGORY_MAP: Record<string, string> = {
@@ -347,6 +413,13 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   confluence_space_updated: 'space',
   confluence_label_added: 'label',
   confluence_label_removed: 'label',
+  confluence_comment_updated: 'comment',
+  confluence_attachment_updated: 'attachment',
+  confluence_page_restored: 'page',
+  confluence_blog_restored: 'blog',
+  confluence_space_removed: 'space',
+  confluence_page_permissions_updated: 'page',
+  confluence_user_created: 'user',
 }
 
 /**
@@ -360,6 +433,7 @@ function inferEntityCategory(body: Record<string, unknown>): string | null {
   if (body.label) return 'label'
   if (body.page) return 'page'
   if (body.space) return 'space'
+  if (body.user) return 'user'
   return null
 }
 

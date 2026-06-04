@@ -3,49 +3,24 @@ import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  type DashboardStatsResponse,
+  type SegmentStats,
+  statsQueryParamsSchema,
+  type WorkflowStats,
+} from '@/lib/api/contracts/logs'
+import { isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { buildFilterConditions } from '@/lib/logs/filters'
+import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
 const logger = createLogger('LogsStatsAPI')
 
 export const revalidate = 0
 
-const StatsQueryParamsSchema = LogFilterParamsSchema.extend({
-  segmentCount: z.coerce.number().optional().default(72),
-})
-
-export interface SegmentStats {
-  timestamp: string
-  totalExecutions: number
-  successfulExecutions: number
-  avgDurationMs: number
-}
-
-export interface WorkflowStats {
-  workflowId: string
-  workflowName: string
-  segments: SegmentStats[]
-  overallSuccessRate: number
-  totalExecutions: number
-  totalSuccessful: number
-}
-
-export interface DashboardStatsResponse {
-  workflows: WorkflowStats[]
-  aggregateSegments: SegmentStats[]
-  totalRuns: number
-  totalErrors: number
-  avgLatency: number
-  timeBounds: {
-    start: string
-    end: string
-  }
-  segmentMs: number
-}
-
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -59,9 +34,16 @@ export async function GET(request: NextRequest) {
 
     try {
       const { searchParams } = new URL(request.url)
-      const params = StatsQueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
+      const params = statsQueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
       const workspaceFilter = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
+
+      if (params.folderIds) {
+        params.folderIds = await expandFolderIdsWithDescendants(
+          params.workspaceId,
+          params.folderIds
+        )
+      }
 
       const commonFilters = buildFilterConditions(params, { useSimpleLevelFilter: true })
       const whereCondition = commonFilters ? and(workspaceFilter, commonFilters) : workspaceFilter
@@ -276,14 +258,14 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(response, { status: 200 })
     } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
+      if (isZodError(validationError)) {
         logger.warn(`[${requestId}] Invalid logs stats request parameters`, {
-          errors: validationError.errors,
+          errors: validationError.issues,
         })
         return NextResponse.json(
           {
             error: 'Invalid request parameters',
-            details: validationError.errors,
+            details: validationError.issues,
           },
           { status: 400 }
         )
@@ -294,4 +276,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] logs stats fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

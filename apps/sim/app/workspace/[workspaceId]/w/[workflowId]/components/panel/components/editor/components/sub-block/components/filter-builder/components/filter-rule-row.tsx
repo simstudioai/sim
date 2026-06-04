@@ -10,11 +10,17 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import {
+  getActiveWorkflowSearchHighlight,
+  getWorkflowSearchLabelHighlight,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import type { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface FilterRuleRowProps {
   blockId: string
@@ -32,10 +38,12 @@ interface FilterRuleRowProps {
   onUpdate: (id: string, field: keyof FilterRule, value: string) => void
   onToggleCollapse: (id: string) => void
   inputController: ReturnType<typeof useSubBlockInput>
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function FilterRuleRow({
   blockId,
+  subBlockId,
   rule,
   index,
   columns,
@@ -47,6 +55,7 @@ export function FilterRuleRow({
   onUpdate,
   onToggleCollapse,
   inputController,
+  activeSearchTarget,
 }: FilterRuleRowProps) {
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const valueInputRef = useRef<HTMLInputElement>(null)
@@ -68,6 +77,12 @@ export function FilterRuleRow({
     rule.value,
     (newValue) => onUpdate(rule.id, 'value', newValue)
   )
+  const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    blockId,
+    subBlockId,
+    valuePath: [index, 'value'],
+  })
 
   const getOperatorLabel = (value: string) => {
     const option = comparisonOptions.find((op) => op.value === value)
@@ -79,24 +94,52 @@ export function FilterRuleRow({
     return option?.label || value
   }
 
+  const getLabelHighlight = (field: 'column' | 'operator' | 'logicalOperator', label: string) =>
+    getWorkflowSearchLabelHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [index, field],
+      label,
+    })
+
   const renderHeader = () => (
     <div
+      role='group'
+      aria-label={`Condition ${index + 1}`}
       className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => onToggleCollapse(rule.id)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, () => onToggleCollapse(rule.id))
+      }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
-          {rule.collapsed && rule.column ? getColumnLabel(rule.column) : `Condition ${index + 1}`}
+          {rule.collapsed && rule.column
+            ? formatDisplayText(getColumnLabel(rule.column), {
+                workflowSearchHighlight: getLabelHighlight('column', getColumnLabel(rule.column)),
+              })
+            : `Condition ${index + 1}`}
         </span>
         {rule.collapsed && rule.column && (
           <Badge variant='type' size='sm'>
-            {getOperatorLabel(rule.operator)}
+            {formatDisplayText(getOperatorLabel(rule.operator), {
+              workflowSearchHighlight: getLabelHighlight(
+                'operator',
+                getOperatorLabel(rule.operator)
+              ),
+            })}
           </Badge>
         )}
       </div>
-      <div className='flex items-center gap-2 pl-2' onClick={(e) => e.stopPropagation()}>
+      <div
+        role='presentation'
+        className='flex items-center gap-2 pl-2'
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} className='h-auto p-0'>
-          <Plus className='h-[14px] w-[14px]' />
+          <Plus className='size-[14px]' />
           <span className='sr-only'>Add Condition</span>
         </Button>
         <Button
@@ -105,7 +148,7 @@ export function FilterRuleRow({
           disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
-          <Trash className='h-[14px] w-[14px]' />
+          <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Condition</span>
         </Button>
       </div>
@@ -145,7 +188,9 @@ export function FilterRuleRow({
         <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
           {formatDisplayText(
             rule.value,
-            accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+            accessiblePrefixes
+              ? { accessiblePrefixes, workflowSearchHighlight }
+              : { highlightAll: true, workflowSearchHighlight }
           )}
         </div>
       </div>
@@ -174,6 +219,18 @@ export function FilterRuleRow({
             value={rule.logicalOperator}
             onChange={(v) => onUpdate(rule.id, 'logicalOperator', v as 'and' | 'or')}
             disabled={isReadOnly}
+            overlayContent={
+              getLabelHighlight('logicalOperator', rule.logicalOperator) ? (
+                <span className='truncate text-[var(--text-primary)]'>
+                  {formatDisplayText(rule.logicalOperator, {
+                    workflowSearchHighlight: getLabelHighlight(
+                      'logicalOperator',
+                      rule.logicalOperator
+                    ),
+                  })}
+                </span>
+              ) : undefined
+            }
           />
         </div>
       )}
@@ -186,6 +243,15 @@ export function FilterRuleRow({
           onChange={(v) => onUpdate(rule.id, 'column', v)}
           disabled={isReadOnly}
           placeholder='Select column'
+          overlayContent={
+            getLabelHighlight('column', getColumnLabel(rule.column)) ? (
+              <span className='truncate text-[var(--text-primary)]'>
+                {formatDisplayText(getColumnLabel(rule.column), {
+                  workflowSearchHighlight: getLabelHighlight('column', getColumnLabel(rule.column)),
+                })}
+              </span>
+            ) : undefined
+          }
         />
       </div>
 
@@ -197,6 +263,18 @@ export function FilterRuleRow({
           onChange={(v) => onUpdate(rule.id, 'operator', v)}
           disabled={isReadOnly}
           placeholder='Select operator'
+          overlayContent={
+            getLabelHighlight('operator', getOperatorLabel(rule.operator)) ? (
+              <span className='truncate text-[var(--text-primary)]'>
+                {formatDisplayText(getOperatorLabel(rule.operator), {
+                  workflowSearchHighlight: getLabelHighlight(
+                    'operator',
+                    getOperatorLabel(rule.operator)
+                  ),
+                })}
+              </span>
+            ) : undefined
+          }
         />
       </div>
 

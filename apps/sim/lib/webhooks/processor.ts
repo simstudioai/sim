@@ -1,15 +1,15 @@
 import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
 import { credentialSet } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
+import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { isProd } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import {
@@ -18,6 +18,7 @@ import {
   requiresPendingWebhookVerification,
 } from '@/lib/webhooks/pending-verification'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isPollingWebhookProvider } from '@/triggers/constants'
@@ -83,7 +84,7 @@ export async function parseWebhookBody(
     }
   } catch (bodyError) {
     logger.error(`[${requestId}] Failed to read request body`, {
-      error: bodyError instanceof Error ? bodyError.message : String(bodyError),
+      error: toError(bodyError).message,
     })
     return new NextResponse('Failed to read request body', { status: 400 })
   }
@@ -106,7 +107,7 @@ export async function parseWebhookBody(
     }
   } catch (parseError) {
     logger.error(`[${requestId}] Failed to parse webhook body`, {
-      error: parseError instanceof Error ? parseError.message : String(parseError),
+      error: toError(parseError).message,
       contentType: request.headers.get('content-type'),
       bodyPreview: `${rawBody?.slice(0, 100)}...`,
     })
@@ -117,7 +118,7 @@ export async function parseWebhookBody(
 }
 
 /** Providers that implement challenge/verification handling, checked before webhook lookup. */
-const CHALLENGE_PROVIDERS = ['slack', 'microsoft-teams', 'whatsapp', 'zoom'] as const
+const CHALLENGE_PROVIDERS = ['monday', 'slack', 'microsoft-teams', 'whatsapp', 'zoom'] as const
 
 export async function handleProviderChallenges(
   body: unknown,
@@ -223,7 +224,7 @@ export function handlePreDeploymentVerification(
   return null
 }
 
-export async function findWebhookAndWorkflow(
+async function findWebhookAndWorkflow(
   options: WebhookProcessorOptions
 ): Promise<{ webhook: any; workflow: any } | null> {
   if (options.webhookId) {
@@ -304,8 +305,12 @@ export async function findWebhookAndWorkflow(
 }
 
 /**
- * Find ALL webhooks matching a path.
- * Used for credential sets where multiple webhooks share the same path.
+ * Finds all webhooks matching a path, scoped to a single workflow.
+ *
+ * Legitimate fan-out (credential sets) is always within one workflow, but paths
+ * are user-controlled and only unique per deployment version, so two tenants can
+ * register the same path. On collision we keep only the workflow that registered
+ * the path first, so one tenant can never receive another's webhook deliveries.
  */
 export async function findAllWebhooksForPath(
   options: WebhookProcessorOptions
@@ -343,7 +348,31 @@ export async function findAllWebhooksForPath(
 
   if (results.length === 0) {
     logger.warn(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
-  } else if (results.length > 1) {
+    return results
+  }
+
+  const distinctWorkflowIds = new Set(results.map((result) => result.webhook.workflowId))
+
+  if (distinctWorkflowIds.size > 1) {
+    const owner = results.reduce((earliest, candidate) => {
+      const candidateTime = new Date(candidate.webhook.createdAt).getTime()
+      const earliestTime = new Date(earliest.webhook.createdAt).getTime()
+      if (candidateTime !== earliestTime) {
+        return candidateTime < earliestTime ? candidate : earliest
+      }
+      return candidate.webhook.id < earliest.webhook.id ? candidate : earliest
+    })
+    const ownerWorkflowId = owner.webhook.workflowId
+    const ownerResults = results.filter((result) => result.webhook.workflowId === ownerWorkflowId)
+
+    logger.error(
+      `[${options.requestId}] Cross-tenant webhook path collision for path: ${options.path}. Found ${results.length} active webhooks across ${distinctWorkflowIds.size} workflows. Dispatching only to owner workflow ${ownerWorkflowId} and dropping ${results.length - ownerResults.length} foreign webhook(s).`
+    )
+
+    return ownerResults
+  }
+
+  if (results.length > 1) {
     logger.info(
       `[${options.requestId}] Found ${results.length} webhooks for path: ${options.path} (credential set fan-out)`
     )
@@ -566,93 +595,55 @@ export async function queueWebhookExecution(
     const isPolling = isPollingWebhookProvider(payload.provider)
 
     if (isPolling && !shouldExecuteInline()) {
-      const jobId = isBullMQEnabled()
-        ? await enqueueWorkspaceDispatch({
-            id: executionId,
-            workspaceId: foundWorkflow.workspaceId,
-            lane: 'runtime',
-            queueName: 'webhook-execution',
-            bullmqJobName: 'webhook-execution',
-            bullmqPayload: createBullMQJobData(payload, {
-              workflowId: foundWorkflow.id,
-              userId: actorUserId,
-              correlation,
-            }),
-            metadata: {
-              workflowId: foundWorkflow.id,
-              userId: actorUserId,
-              correlation,
-            },
-          })
-        : await (await getJobQueue()).enqueue('webhook-execution', payload, {
-            metadata: {
-              workflowId: foundWorkflow.id,
-              workspaceId: foundWorkflow.workspaceId,
-              userId: actorUserId,
-              correlation,
-            },
-          })
+      const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
+        metadata: {
+          workflowId: foundWorkflow.id,
+          workspaceId: foundWorkflow.workspaceId,
+          userId: actorUserId,
+          correlation,
+        },
+      })
       logger.info(
         `[${options.requestId}] Queued polling webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
       )
     } else {
       const jobQueue = await getInlineJobQueue()
-      const jobId = isBullMQEnabled()
-        ? await enqueueWorkspaceDispatch({
-            id: executionId,
-            workspaceId: foundWorkflow.workspaceId,
-            lane: 'runtime',
-            queueName: 'webhook-execution',
-            bullmqJobName: 'webhook-execution',
-            bullmqPayload: createBullMQJobData(payload, {
-              workflowId: foundWorkflow.id,
-              userId: actorUserId,
-              correlation,
-            }),
-            metadata: {
-              workflowId: foundWorkflow.id,
-              userId: actorUserId,
-              correlation,
-            },
-          })
-        : await jobQueue.enqueue('webhook-execution', payload, {
-            metadata: {
-              workflowId: foundWorkflow.id,
-              workspaceId: foundWorkflow.workspaceId,
-              userId: actorUserId,
-              correlation,
-            },
-          })
+      const jobId = await jobQueue.enqueue('webhook-execution', payload, {
+        metadata: {
+          workflowId: foundWorkflow.id,
+          workspaceId: foundWorkflow.workspaceId,
+          userId: actorUserId,
+          correlation,
+        },
+      })
       logger.info(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
 
-      if (!isBullMQEnabled()) {
-        void (async () => {
+      void (async () => {
+        try {
+          await jobQueue.startJob(jobId)
+          const output = await executeWebhookJob(payload)
+          await jobQueue.completeJob(jobId, output)
+        } catch (error) {
+          const errorMessage = toError(error).message
+          logger.error(`[${options.requestId}] Webhook execution failed`, {
+            jobId,
+            error: errorMessage,
+          })
           try {
-            await jobQueue.startJob(jobId)
-            const output = await executeWebhookJob(payload)
-            await jobQueue.completeJob(jobId, output)
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
-            logger.error(`[${options.requestId}] Webhook execution failed`, {
+            await jobQueue.markJobFailed(jobId, errorMessage)
+          } catch (markFailedError) {
+            logger.error(`[${options.requestId}] Failed to mark job as failed`, {
               jobId,
-              error: errorMessage,
+              error:
+                markFailedError instanceof Error
+                  ? markFailedError.message
+                  : String(markFailedError),
             })
-            try {
-              await jobQueue.markJobFailed(jobId, errorMessage)
-            } catch (markFailedError) {
-              logger.error(`[${options.requestId}] Failed to mark job as failed`, {
-                jobId,
-                error:
-                  markFailedError instanceof Error
-                    ? markFailedError.message
-                    : String(markFailedError),
-              })
-            }
           }
-        })()
-      }
+        }
+      })()
     }
 
     const successResponse = handler.formatSuccessResponse?.(providerConfig) ?? null
@@ -670,5 +661,172 @@ export async function queueWebhookExecution(
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export interface PolledWebhookEventResult {
+  success: boolean
+  error?: string
+  statusCode?: number
+  executionId?: string
+}
+
+type PolledWebhookRecord = typeof webhook.$inferSelect
+type PolledWorkflowRecord = typeof workflow.$inferSelect
+
+/**
+ * Processes a polled webhook event directly, bypassing the HTTP trigger route.
+ * Used by polling services (Gmail, Outlook, IMAP, RSS) to avoid the self-POST
+ * anti-pattern where they would otherwise POST back to /api/webhooks/trigger/{path}.
+ *
+ * Performs only the steps actually needed for polling providers:
+ * admission control, preprocessing, block existence check, and queue execution.
+ */
+export async function processPolledWebhookEvent(
+  foundWebhook: PolledWebhookRecord,
+  foundWorkflow: PolledWorkflowRecord,
+  body: Record<string, unknown> | object,
+  requestId: string
+): Promise<PolledWebhookEventResult> {
+  if (!foundWebhook.provider) {
+    return { success: false, error: 'Webhook has no provider', statusCode: 400 }
+  }
+  const provider = foundWebhook.provider
+
+  const ticket = tryAdmit()
+  if (!ticket) {
+    logger.warn(`[${requestId}] Admission gate rejected polled webhook event`)
+    return { success: false, error: 'Server at capacity', statusCode: 429 }
+  }
+
+  try {
+    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
+    if (preprocessResult.error) {
+      const errorResponse = preprocessResult.error
+      const statusCode = errorResponse.status
+      const errorBody = await errorResponse.json().catch(() => ({}))
+      const errorMessage = errorBody.error ?? 'Preprocessing failed'
+      logger.warn(`[${requestId}] Polled webhook preprocessing failed`, {
+        statusCode,
+        error: errorMessage,
+      })
+      return { success: false, error: errorMessage, statusCode }
+    }
+
+    if (foundWebhook.blockId) {
+      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
+      if (!blockExists) {
+        logger.info(
+          `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
+        )
+        return { success: false, error: 'Trigger block not found in deployment', statusCode: 404 }
+      }
+    }
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+    const credentialId = providerConfig.credentialId as string | undefined
+    const credentialSetId = foundWebhook.credentialSetId as string | undefined
+
+    if (credentialSetId) {
+      const billingCheck = await verifyCredentialSetBilling(credentialSetId)
+      if (!billingCheck.valid) {
+        logger.warn(`[${requestId}] Credential set billing check failed: ${billingCheck.error}`)
+        return { success: false, error: billingCheck.error, statusCode: 403 }
+      }
+    }
+
+    const actorUserId = preprocessResult.actorUserId
+    if (!actorUserId) {
+      logger.error(`[${requestId}] No actorUserId provided for webhook ${foundWebhook.id}`)
+      return { success: false, error: 'Unable to resolve billing account', statusCode: 500 }
+    }
+
+    const executionId = preprocessResult.executionId ?? generateId()
+    const correlation =
+      preprocessResult.correlation ??
+      ({
+        executionId,
+        requestId,
+        source: 'webhook' as const,
+        workflowId: foundWorkflow.id,
+        webhookId: foundWebhook.id,
+        path: foundWebhook.path,
+        provider,
+        triggerType: 'webhook',
+      } satisfies AsyncExecutionCorrelation)
+
+    const workspaceId = foundWorkflow.workspaceId ?? undefined
+    const payload = {
+      webhookId: foundWebhook.id,
+      workflowId: foundWorkflow.id,
+      userId: actorUserId,
+      executionId,
+      requestId,
+      correlation,
+      provider,
+      body,
+      headers: { 'content-type': 'application/json' } as Record<string, string>,
+      path: foundWebhook.path,
+      blockId: foundWebhook.blockId ?? undefined,
+      workspaceId,
+      ...(credentialId ? { credentialId } : {}),
+    }
+
+    if (isPollingWebhookProvider(payload.provider) && !shouldExecuteInline()) {
+      const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
+        metadata: {
+          workflowId: foundWorkflow.id,
+          workspaceId,
+          userId: actorUserId,
+          correlation,
+        },
+      })
+      logger.info(
+        `[${requestId}] Queued polling webhook execution task ${jobId} for ${provider} webhook via job queue`
+      )
+    } else {
+      const jobQueue = await getInlineJobQueue()
+      const jobId = await jobQueue.enqueue('webhook-execution', payload, {
+        metadata: {
+          workflowId: foundWorkflow.id,
+          workspaceId,
+          userId: actorUserId,
+          correlation,
+        },
+      })
+      logger.info(`[${requestId}] Queued ${provider} webhook execution ${jobId} via inline backend`)
+
+      void (async () => {
+        try {
+          await jobQueue.startJob(jobId)
+          const output = await executeWebhookJob(payload)
+          await jobQueue.completeJob(jobId, output)
+        } catch (error) {
+          const errorMessage = toError(error).message
+          logger.error(`[${requestId}] Webhook execution failed`, {
+            jobId,
+            error: errorMessage,
+          })
+          try {
+            await jobQueue.markJobFailed(jobId, errorMessage)
+          } catch (markFailedError) {
+            logger.error(`[${requestId}] Failed to mark job as failed`, {
+              jobId,
+              error:
+                markFailedError instanceof Error
+                  ? markFailedError.message
+                  : String(markFailedError),
+            })
+          }
+        }
+      })()
+    }
+
+    return { success: true, executionId }
+  } catch (error: unknown) {
+    logger.error(`[${requestId}] Failed to process polled webhook event:`, error)
+    return { success: false, error: 'Internal server error', statusCode: 500 }
+  } finally {
+    ticket.release()
   }
 }

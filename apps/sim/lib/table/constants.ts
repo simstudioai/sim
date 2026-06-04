@@ -2,12 +2,15 @@
  * Limits and constants for user-defined tables.
  */
 
+import { randomInt, randomItem } from '@sim/utils/random'
+import { env, envNumber } from '@/lib/core/config/env'
+
 export const TABLE_LIMITS = {
   MAX_TABLES_PER_WORKSPACE: 100,
   MAX_ROWS_PER_TABLE: 10000,
   MAX_ROW_SIZE_BYTES: 100 * 1024, // 100KB
   MAX_COLUMNS_PER_TABLE: 50,
-  MAX_TABLE_NAME_LENGTH: 50,
+  MAX_TABLE_NAME_LENGTH: 128,
   MAX_COLUMN_NAME_LENGTH: 50,
   MAX_STRING_VALUE_LENGTH: 10000,
   MAX_DESCRIPTION_LENGTH: 500,
@@ -21,12 +24,16 @@ export const TABLE_LIMITS = {
   MAX_BATCH_INSERT_SIZE: 1000,
   /** Maximum rows per bulk update/delete operation */
   MAX_BULK_OPERATION_SIZE: 1000,
+  /** Maximum rows a single clipboard copy/cut serializes; beyond this the user is steered to Export. */
+  MAX_COPY_ROWS: 50000,
 } as const
 
 /**
- * Plan-based table limits.
+ * Default plan-based table limits. Each value can be overridden via env vars
+ * (see `getTablePlanLimits`) so self-hosted deployments can raise the free-tier
+ * caps that apply when billing is disabled.
  */
-export const TABLE_PLAN_LIMITS = {
+export const DEFAULT_TABLE_PLAN_LIMITS = {
   free: {
     maxTables: 3,
     maxRowsPerTable: 1000,
@@ -45,11 +52,54 @@ export const TABLE_PLAN_LIMITS = {
   },
 } as const
 
-export type PlanName = keyof typeof TABLE_PLAN_LIMITS
+export type PlanName = keyof typeof DEFAULT_TABLE_PLAN_LIMITS
 
 export interface TablePlanLimits {
   maxTables: number
   maxRowsPerTable: number
+}
+
+export type TablePlanLimitsByPlan = Record<PlanName, TablePlanLimits>
+
+/**
+ * Returns plan-based table limits, applying env var overrides on top of the
+ * defaults. When no override is set the value falls back to the hosted-default
+ * constant so behavior is unchanged for the hosted product.
+ */
+export function getTablePlanLimits(): TablePlanLimitsByPlan {
+  return {
+    free: {
+      maxTables: envNumber(env.FREE_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.free.maxTables),
+      maxRowsPerTable: envNumber(
+        env.FREE_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.free.maxRowsPerTable
+      ),
+    },
+    pro: {
+      maxTables: envNumber(env.PRO_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.pro.maxTables),
+      maxRowsPerTable: envNumber(
+        env.PRO_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.pro.maxRowsPerTable
+      ),
+    },
+    team: {
+      maxTables: envNumber(env.TEAM_TABLES_LIMIT, DEFAULT_TABLE_PLAN_LIMITS.team.maxTables),
+      maxRowsPerTable: envNumber(
+        env.TEAM_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.team.maxRowsPerTable
+      ),
+    },
+    enterprise: {
+      maxTables: envNumber(
+        env.ENTERPRISE_TABLES_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxTables
+      ),
+      maxRowsPerTable: envNumber(
+        env.ENTERPRISE_TABLE_ROWS_LIMIT,
+        DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxRowsPerTable
+      ),
+    },
+  }
 }
 
 export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
@@ -264,14 +314,14 @@ export function generateUniqueTableName(existingNames: string[]): string {
   const maxAttempts = 50
 
   for (let i = 0; i < maxAttempts; i++) {
-    const adj = TABLE_NAME_ADJECTIVES[Math.floor(Math.random() * TABLE_NAME_ADJECTIVES.length)]
-    const noun = TABLE_NAME_NOUNS[Math.floor(Math.random() * TABLE_NAME_NOUNS.length)]
+    const adj = randomItem(TABLE_NAME_ADJECTIVES)
+    const noun = randomItem(TABLE_NAME_NOUNS)
     const name = `${adj.toLowerCase()}_${noun.toLowerCase()}`
     if (!taken.has(name)) return name
   }
 
-  const adj = TABLE_NAME_ADJECTIVES[Math.floor(Math.random() * TABLE_NAME_ADJECTIVES.length)]
-  const noun = TABLE_NAME_NOUNS[Math.floor(Math.random() * TABLE_NAME_NOUNS.length)]
-  const suffix = Math.floor(Math.random() * 900) + 100
+  const adj = randomItem(TABLE_NAME_ADJECTIVES)
+  const noun = randomItem(TABLE_NAME_NOUNS)
+  const suffix = randomInt(100, 1000)
   return `${adj.toLowerCase()}_${noun.toLowerCase()}_${suffix}`
 }

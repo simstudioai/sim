@@ -3,6 +3,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { calculateStreamingCost } from '@/lib/tokenization/calculators'
 import { TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
 import {
@@ -30,6 +31,11 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
     return false
   }
 
+  // Skip recalculation if cost was explicitly set by the billing layer (e.g. BYOK zero cost)
+  if (log.output?.cost?.pricing) {
+    return false
+  }
+
   // Check if we have content to tokenize
   if (!streamedContent?.trim()) {
     return false
@@ -43,13 +49,19 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
     const inputText = extractTextContent(log.input)
 
     // Calculate streaming cost
+    const systemPrompt =
+      typeof log.input?.systemPrompt === 'string' ? log.input.systemPrompt : undefined
+    const context = typeof log.input?.context === 'string' ? log.input.context : undefined
+    const messages = Array.isArray(log.input?.messages)
+      ? (log.input.messages as Array<{ role: string; content: string }>)
+      : undefined
     const result = calculateStreamingCost(
       model,
       inputText,
       streamedContent,
-      log.input?.systemPrompt,
-      log.input?.context,
-      log.input?.messages
+      systemPrompt,
+      context,
+      messages
     )
 
     // Update the log output with tokenization data
@@ -77,7 +89,7 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
   } catch (error) {
     logger.error(`Streaming tokenization failed for block ${log.blockId}`, {
       blockType: log.blockType,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       contentLength: streamedContent?.length || 0,
     })
 
@@ -96,8 +108,9 @@ function getModelForBlock(log: BlockLog): string {
   }
 
   // Try to get model from input
-  if (log.input?.model?.trim()) {
-    return log.input.model
+  const inputModel = log.input?.model
+  if (typeof inputModel === 'string' && inputModel.trim()) {
+    return inputModel
   }
 
   // Use block type specific defaults

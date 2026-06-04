@@ -53,6 +53,25 @@ export function createEnvMock(overrides: Record<string, string | undefined> = {}
       typeof value === 'string'
         ? value.toLowerCase() === 'false' || value === '0'
         : value === false,
+    envBoolean: (value: boolean | string | undefined | null): boolean | undefined => {
+      if (typeof value === 'boolean') return value
+      if (value === undefined || value === null || value === '') return undefined
+      const normalized = String(value).trim().toLowerCase()
+      return (
+        normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on'
+      )
+    },
+    envNumber: (
+      value: number | string | undefined | null,
+      fallback: number,
+      options: { min?: number } = {}
+    ): number => {
+      const min = options.min ?? 0
+      if (typeof value === 'number' && Number.isFinite(value) && value >= min) return value
+      if (value === undefined || value === null || value === '') return fallback
+      const parsed = Number(value)
+      return Number.isFinite(parsed) && parsed >= min ? parsed : fallback
+    },
   }
 }
 

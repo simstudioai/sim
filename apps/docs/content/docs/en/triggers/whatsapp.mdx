@@ -1,0 +1,49 @@
+---
+title: WhatsApp
+description: Available WhatsApp triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="whatsapp"
+  color="#25D366"
+/>
+
+WhatsApp provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### WhatsApp Webhook
+
+Trigger workflow from WhatsApp incoming messages and message status webhooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `verificationToken` | string | Yes | Enter any secure token here. You |
+| `appSecret` | string | Yes | Required for WhatsApp POST signature verification. Sim uses it to validate the X-Hub-Signature-256 header on every webhook delivery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Webhook classification such as incoming_message, message_status, or mixed |
+| `messageId` | string | First WhatsApp message identifier \(wamid\) found in the webhook batch |
+| `from` | string | Sender phone number from the first incoming message in the batch |
+| `recipientId` | string | Recipient phone number from the first status update in the batch |
+| `phoneNumberId` | string | Business phone number ID from the first message or status item in the batch |
+| `displayPhoneNumber` | string | Business display phone number from the first message or status item in the batch |
+| `text` | string | Text body from the first incoming text message in the batch |
+| `timestamp` | string | Timestamp from the first message or status item in the batch |
+| `messageType` | string | Type of the first incoming message in the batch \(text, image, system, etc.\) |
+| `status` | string | First outgoing message status in the batch, such as sent, delivered, read, or failed |
+| `contact` | json | First sender contact in the batch \(wa_id, profile.name\) |
+| `webhookContacts` | json | All sender contact profiles from the webhook batch |
+| `messages` | json | All incoming message objects from the webhook batch, flattened across entries/changes |
+| `statuses` | json | All message status objects from the webhook batch, flattened across entries/changes |
+| `conversation` | json | Conversation metadata from the first status update in the batch \(id, expiration_timestamp, origin.type\) |
+| `pricing` | json | Pricing metadata from the first status update in the batch \(billable, pricing_model, category\) |
+| `raw` | json | Complete structured webhook payload from WhatsApp |
+

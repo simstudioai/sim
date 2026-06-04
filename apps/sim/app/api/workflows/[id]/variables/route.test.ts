@@ -4,31 +4,19 @@
  *
  * @vitest-environment node
  */
-import { auditMock } from '@sim/testing'
+import {
+  auditMock,
+  hybridAuthMockFns,
+  workflowAuthzMockFns,
+  workflowsUtilsMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getWorkflowVariablesContract } from '@/lib/api/contracts/workflows'
 
-const { mockCheckSessionOrInternalAuth, mockAuthorizeWorkflowByWorkspacePermission } = vi.hoisted(
-  () => ({
-    mockCheckSessionOrInternalAuth: vi.fn(),
-    mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-  })
-)
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/audit/log', () => auditMock)
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('mock-request-id-12345678'),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { GET, POST } from '@/app/api/workflows/[id]/variables/route'
 
@@ -39,7 +27,7 @@ describe('Workflow Variables API Route', () => {
 
   describe('GET /api/workflows/[id]/variables', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: false,
         error: 'Authentication required',
       })
@@ -55,12 +43,12 @@ describe('Workflow Variables API Route', () => {
     })
 
     it('should return 404 when workflow does not exist', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 404,
         message: 'Workflow not found',
@@ -88,12 +76,12 @@ describe('Workflow Variables API Route', () => {
         },
       }
 
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -107,7 +95,17 @@ describe('Workflow Variables API Route', () => {
 
       expect(response.status).toBe(200)
       const data = await response.json()
-      expect(data.data).toEqual(mockWorkflow.variables)
+      expect(data.data).toEqual({
+        'var-1': {
+          id: 'var-1',
+          name: 'test',
+          type: 'string',
+          value: 'hello',
+          workflowId: 'workflow-123',
+        },
+      })
+      const parsed = getWorkflowVariablesContract.response.schema.parse(data)
+      expect(parsed.data['var-1'].workflowId).toBe('workflow-123')
     })
 
     it('should allow access when user has workspace permissions', async () => {
@@ -120,12 +118,12 @@ describe('Workflow Variables API Route', () => {
         },
       }
 
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -139,7 +137,16 @@ describe('Workflow Variables API Route', () => {
 
       expect(response.status).toBe(200)
       const data = await response.json()
-      expect(data.data).toEqual(mockWorkflow.variables)
+      // GET stamps `workflowId` from the path param on each variable.
+      expect(data.data).toEqual({
+        'var-1': {
+          id: 'var-1',
+          name: 'test',
+          type: 'string',
+          value: 'hello',
+          workflowId: 'workflow-123',
+        },
+      })
     })
 
     it('should deny access when user has no workspace permissions', async () => {
@@ -150,12 +157,12 @@ describe('Workflow Variables API Route', () => {
         variables: {},
       }
 
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 403,
         message: 'Unauthorized: Access denied to read this workflow',
@@ -183,12 +190,12 @@ describe('Workflow Variables API Route', () => {
         },
       }
 
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -215,12 +222,12 @@ describe('Workflow Variables API Route', () => {
         variables: {},
       }
 
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -258,12 +265,12 @@ describe('Workflow Variables API Route', () => {
         variables: {},
       }
 
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 403,
         message: 'Unauthorized: Access denied to write this workflow',
@@ -302,12 +309,12 @@ describe('Workflow Variables API Route', () => {
         variables: {},
       }
 
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: true,
         status: 200,
         workflow: mockWorkflow,
@@ -326,18 +333,18 @@ describe('Workflow Variables API Route', () => {
 
       expect(response.status).toBe(400)
       const data = await response.json()
-      expect(data.error).toBe('Invalid request data')
+      expect(data.error).toBe('Validation error')
     })
   })
 
   describe('Error handling', () => {
     it('should handle database errors gracefully', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-123',
         authType: 'session',
       })
-      mockAuthorizeWorkflowByWorkspacePermission.mockRejectedValueOnce(
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockRejectedValueOnce(
         new Error('Database connection failed')
       )
 

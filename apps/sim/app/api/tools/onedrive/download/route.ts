@@ -1,12 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { onedriveDownloadContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,13 +33,7 @@ interface DriveItemMetadata {
 
 const logger = createLogger('OneDriveDownloadAPI')
 
-const OneDriveDownloadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  fileId: z.string().min(1, 'File ID is required'),
-  fileName: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -53,10 +50,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const validatedData = OneDriveDownloadSchema.parse(body)
-
-    const { accessToken, fileId, fileName } = validatedData
+    const parsed = await parseRequest(onedriveDownloadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { accessToken, fileId, fileName } = parsed.data.body
     const authHeader = `Bearer ${accessToken}`
 
     logger.info(`[${requestId}] Getting file metadata from OneDrive`, { fileId })
@@ -169,9 +165,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )
   }
-}
+})

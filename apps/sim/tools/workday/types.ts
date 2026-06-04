@@ -1,13 +1,13 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface WorkdayBaseParams {
+interface WorkdayBaseParams {
   tenantUrl: string
   tenant: string
   username: string
   password: string
 }
 
-export interface WorkdayWorker {
+interface WorkdayWorker {
   id: string
   descriptor: string
   primaryWorkEmail?: string
@@ -20,7 +20,7 @@ export interface WorkdayWorker {
   [key: string]: unknown
 }
 
-export interface WorkdayOrganization {
+interface WorkdayOrganization {
   id: string
   descriptor: string
   type?: string

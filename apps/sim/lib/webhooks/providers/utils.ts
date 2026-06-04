@@ -1,7 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import type { AuthContext, EventFilterContext } from '@/lib/webhooks/providers/types'
 
 const logger = createLogger('WebhookProviderAuth')

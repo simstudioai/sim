@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { sftpUploadContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   createSftpConnection,
   getSftp,
@@ -19,28 +22,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SftpUploadAPI')
 
-const UploadSchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().int().positive().default(22),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().nullish(),
-  privateKey: z.string().nullish(),
-  passphrase: z.string().nullish(),
-  remotePath: z.string().min(1, 'Remote path is required'),
-  files: RawFileInputArraySchema.optional().nullable(),
-  fileContent: z.string().nullish(),
-  fileName: z.string().nullish(),
-  overwrite: z.boolean().default(true),
-  permissions: z.string().nullish(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized SFTP upload attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
@@ -52,15 +40,9 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const params = UploadSchema.parse(body)
-
-    if (!params.password && !params.privateKey) {
-      return NextResponse.json(
-        { error: 'Either password or privateKey must be provided' },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseRequest(sftpUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     const hasFiles = params.files && params.files.length > 0
     const hasDirectContent = params.fileContent && params.fileName
@@ -115,6 +97,13 @@ export async function POST(request: NextRequest) {
 
         for (const file of userFiles) {
           try {
+            const denied = await assertToolFileAccess(
+              file.key,
+              authResult.userId,
+              requestId,
+              logger
+            )
+            if (denied) return denied
             logger.info(
               `[${requestId}] Downloading file for upload: ${file.name} (${file.size} bytes)`
             )
@@ -155,7 +144,7 @@ export async function POST(request: NextRequest) {
           } catch (error) {
             logger.error(`[${requestId}] Failed to upload file ${file.name}:`, error)
             throw new Error(
-              `Failed to upload file "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+              `Failed to upload file "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
             )
           }
         }
@@ -220,17 +209,9 @@ export async function POST(request: NextRequest) {
       client.end()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SFTP upload failed:`, error)
 
     return NextResponse.json({ error: `SFTP upload failed: ${errorMessage}` }, { status: 500 })
   }
-}
+})

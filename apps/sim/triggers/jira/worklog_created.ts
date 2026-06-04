@@ -57,18 +57,6 @@ export const jiraWorklogCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'jira_worklog_created',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_worklog_created',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

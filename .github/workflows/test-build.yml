@@ -14,15 +14,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.11
+          bun-version: 1.3.13
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: latest
 
@@ -45,7 +45,7 @@ jobs:
           path: ./.turbo
 
       - name: Restore Next.js build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ./apps/sim/.next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}
@@ -90,7 +90,7 @@ jobs:
 
           echo "✅ All feature flags are properly configured"
 
-      - name: Check subblock ID stability
+      - name: Check block registry invariants
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
@@ -98,14 +98,29 @@ jobs:
           else
             BASE_REF="HEAD~1"
           fi
-          bun run apps/sim/scripts/check-subblock-id-stability.ts "$BASE_REF"
+          bun run apps/sim/scripts/check-block-registry.ts "$BASE_REF"
 
       - name: Lint code
         run: bun run lint:check
 
+      - name: Enforce monorepo boundaries
+        run: bun run check:boundaries
+
+      - name: API contract boundary audit
+        run: bun run check:api-validation:strict
+
+      - name: Zustand v5 selector audit
+        run: bun run check:zustand-v5
+
+      - name: Verify realtime prune graph
+        run: bun run check:realtime-prune
+
+      - name: Type-check realtime server
+        run: bunx turbo run type-check --filter=@sim/realtime
+
       - name: Run tests with coverage
         env:
-          NODE_OPTIONS: '--no-warnings'
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
@@ -127,7 +142,7 @@ jobs:
 
       - name: Build application
         env:
-          NODE_OPTIONS: '--no-warnings'
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
           STRIPE_SECRET_KEY: 'dummy_key_for_ci_only'

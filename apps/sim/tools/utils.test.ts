@@ -1,9 +1,5 @@
-import { createMockResponse, loggerMock } from '@sim/testing'
+import { createMockResponse, inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 import {
@@ -15,11 +11,7 @@ import {
 } from '@/tools/utils'
 import { executeRequest } from '@/tools/utils.server'
 
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: vi.fn(),
-  secureFetchWithPinnedIP: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const { mockGetQueryData } = vi.hoisted(() => ({
   mockGetQueryData: vi.fn(),
@@ -413,8 +405,8 @@ describe('validateRequiredParametersAfterMerge', () => {
 
 describe('executeRequest', () => {
   let mockTool: ToolConfig
-  const mockValidateUrlWithDNS = vi.mocked(validateUrlWithDNS)
-  const mockSecureFetchWithPinnedIP = vi.mocked(secureFetchWithPinnedIP)
+  const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
+  const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
 
   beforeEach(() => {
     mockValidateUrlWithDNS.mockResolvedValue({

@@ -4,6 +4,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
+import { getTrigger } from '@/triggers'
 
 // Legacy block - hidden from toolbar
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
@@ -386,7 +387,6 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       canonicalParamId: 'sheetName',
       serviceId: 'google-sheets',
       selectorKey: 'google.sheets',
-      selectorAllowSearch: false,
       placeholder: 'Select a sheet',
       required: true,
       dependsOn: { all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] },
@@ -401,7 +401,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       canonicalParamId: 'sheetName',
       placeholder: 'Name of the sheet/tab (e.g., Sheet1)',
       required: true,
-      dependsOn: ['credential'],
+      dependsOn: { all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] },
       mode: 'advanced',
       condition: { field: 'operation', value: ['read', 'write', 'update', 'append', 'clear'] },
     },
@@ -462,9 +462,15 @@ Return ONLY the range string - no sheet name, no explanations, no quotes.`,
       type: 'dropdown',
       options: [
         { label: 'Contains', id: 'contains' },
+        { label: 'Does Not Contain', id: 'not_contains' },
         { label: 'Exact Match', id: 'exact' },
+        { label: 'Not Equal To', id: 'not_equals' },
         { label: 'Starts With', id: 'starts_with' },
         { label: 'Ends With', id: 'ends_with' },
+        { label: 'Greater Than', id: 'gt' },
+        { label: 'Greater Than or Equal', id: 'gte' },
+        { label: 'Less Than', id: 'lt' },
+        { label: 'Less Than or Equal', id: 'lte' },
       ],
       condition: { field: 'operation', value: 'read' },
       mode: 'advanced',
@@ -503,7 +509,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
         { label: "Raw (Don't parse formulas)", id: 'RAW' },
       ],
-      condition: { field: 'operation', value: ['write', 'batch_update'] },
+      condition: { field: 'operation', value: ['write', 'update', 'batch_update'] },
     },
     // Update-specific Fields
     {
@@ -716,6 +722,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'copy_sheet' },
       required: true,
     },
+    ...getTrigger('google_sheets_poller').subBlocks,
   ],
   tools: {
     access: [
@@ -895,11 +902,15 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       type: 'string',
       description: 'Destination spreadsheet ID for copy',
     },
-    filterColumn: { type: 'string', description: 'Column header name to filter on' },
+    filterColumn: {
+      type: 'string',
+      description: 'Column header name to filter the read rows on (within the read range)',
+    },
     filterValue: { type: 'string', description: 'Value to match against the filter column' },
     filterMatchType: {
       type: 'string',
-      description: 'Match type: contains, exact, starts_with, or ends_with',
+      description:
+        'Match type: contains, not_contains, exact, not_equals, starts_with, ends_with, gt, gte, lt, or lte',
     },
   },
   outputs: {
@@ -917,6 +928,12 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     values: {
       type: 'json',
       description: 'Cell values as 2D array',
+      condition: { field: 'operation', value: 'read' },
+    },
+    filter: {
+      type: 'json',
+      description:
+        'Filter summary (present only when a filter was requested): applied, column, matchType, columnFound, matchedRows, totalRows',
       condition: { field: 'operation', value: 'read' },
     },
     // Write/Update/Append outputs
@@ -1067,5 +1084,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         ],
       },
     },
+  },
+  triggers: {
+    enabled: true,
+    available: ['google_sheets_poller'],
   },
 }

@@ -1,41 +1,13 @@
-import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import type {
+  ShopifyCreateFulfillmentParams,
+  ShopifyFulfillmentResponse,
+} from '@/tools/shopify/types'
 import { FULFILLMENT_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface ShopifyCreateFulfillmentParams extends ShopifyBaseParams {
-  fulfillmentOrderId: string
-  trackingNumber?: string
-  trackingCompany?: string
-  trackingUrl?: string
-  notifyCustomer?: boolean
-}
-
-interface ShopifyCreateFulfillmentResponse extends ToolResponse {
-  output: {
-    fulfillment?: {
-      id: string
-      status: string
-      createdAt: string
-      updatedAt: string
-      trackingInfo: Array<{
-        company: string | null
-        number: string | null
-        url: string | null
-      }>
-      fulfillmentLineItems: Array<{
-        id: string
-        quantity: number
-        lineItem: {
-          title: string
-        }
-      }>
-    }
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const shopifyCreateFulfillmentTool: ToolConfig<
   ShopifyCreateFulfillmentParams,
-  ShopifyCreateFulfillmentResponse
+  ShopifyFulfillmentResponse
 > = {
   id: 'shopify_create_fulfillment',
   name: 'Shopify Create Fulfillment',
@@ -125,7 +97,7 @@ export const shopifyCreateFulfillmentTool: ToolConfig<
       } = {
         lineItemsByFulfillmentOrder: [
           {
-            fulfillmentOrderId: params.fulfillmentOrderId,
+            fulfillmentOrderId: params.fulfillmentOrderId.trim(),
           },
         ],
         notifyCustomer: params.notifyCustomer !== false, // Default to true
@@ -138,8 +110,8 @@ export const shopifyCreateFulfillmentTool: ToolConfig<
 
       return {
         query: `
-          mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
-            fulfillmentCreateV2(fulfillment: $fulfillment) {
+          mutation fulfillmentCreate($fulfillment: FulfillmentInput!) {
+            fulfillmentCreate(fulfillment: $fulfillment) {
               fulfillment {
                 id
                 status
@@ -187,7 +159,7 @@ export const shopifyCreateFulfillmentTool: ToolConfig<
       }
     }
 
-    const result = data.data?.fulfillmentCreateV2
+    const result = data.data?.fulfillmentCreate
     if (!result) {
       return {
         success: false,

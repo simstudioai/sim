@@ -44,12 +44,6 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
       visibility: 'user-or-llm',
       description: 'New content for the page in Confluence storage format',
     },
-    version: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Version number of the page (required for preventing conflicts)',
-    },
     cloudId: {
       type: 'string',
       required: false,
@@ -78,16 +72,8 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
         pageId: params.pageId,
         cloudId: params.cloudId,
         title: params.title,
-        body: params.content
-          ? {
-              representation: 'storage',
-              value: params.content,
-            }
-          : undefined,
-        version: {
-          number: params.version || 1,
-          message: params.version ? 'Updated via Sim' : 'Initial update via Sim',
-        },
+        body: params.content ? { value: params.content } : undefined,
+        version: { message: 'Updated via Sim' },
       }
       return body
     },

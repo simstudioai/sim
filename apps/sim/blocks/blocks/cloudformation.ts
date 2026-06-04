@@ -117,6 +117,7 @@ export const CloudFormationBlock: BlockConfig<
       type: 'short-input',
       placeholder: '50',
       condition: { field: 'operation', value: 'describe_stack_events' },
+      mode: 'advanced',
     },
   ],
   tools: {

@@ -1,11 +1,12 @@
-import { env } from '@/lib/core/config/env'
+import { env, envBoolean } from '@/lib/core/config/env'
 import type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
 export type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
+
 export const UPLOAD_DIR = '/uploads'
 
 const hasS3Config = !!(env.S3_BUCKET_NAME && env.AWS_REGION)
-const hasBlobConfig = !!(
+export const hasBlobConfig = !!(
   env.AZURE_STORAGE_CONTAINER_NAME &&
   ((env.AZURE_ACCOUNT_NAME && env.AZURE_ACCOUNT_KEY) || env.AZURE_CONNECTION_STRING)
 )
@@ -16,6 +17,15 @@ export const USE_S3_STORAGE = hasS3Config && !USE_BLOB_STORAGE
 export const S3_CONFIG = {
   bucket: env.S3_BUCKET_NAME || '',
   region: env.AWS_REGION || '',
+  /**
+   * Custom endpoint for S3-compatible providers (Cloudflare R2, MinIO, Backblaze B2).
+   * Unset means the AWS SDK derives the host from `region`, targeting AWS S3.
+   * This is trusted operator configuration (not user input), so it is passed
+   * through verbatim — `http://` and private hosts are allowed for on-prem MinIO.
+   */
+  endpoint: env.S3_ENDPOINT || undefined,
+  /** Path-style addressing — required by MinIO/Ceph RGW; AWS S3 and R2 use the default `false`. */
+  forcePathStyle: envBoolean(env.S3_FORCE_PATH_STYLE) ?? false,
 }
 
 export const BLOB_CONFIG = {
@@ -97,6 +107,18 @@ export const BLOB_OG_IMAGES_CONFIG = {
   containerName: env.AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME || '',
 }
 
+export const S3_WORKSPACE_LOGOS_CONFIG = {
+  bucket: env.S3_WORKSPACE_LOGOS_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_WORKSPACE_LOGOS_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME || '',
+}
+
 /**
  * Get the current storage provider as a human-readable string
  */
@@ -169,6 +191,11 @@ function getS3Config(context: StorageContext): StorageConfig {
         bucket: S3_OG_IMAGES_CONFIG.bucket || S3_CONFIG.bucket,
         region: S3_OG_IMAGES_CONFIG.region || S3_CONFIG.region,
       }
+    case 'workspace-logos':
+      return {
+        bucket: S3_WORKSPACE_LOGOS_CONFIG.bucket || S3_CONFIG.bucket,
+        region: S3_WORKSPACE_LOGOS_CONFIG.region || S3_CONFIG.region,
+      }
     default:
       return {
         bucket: S3_CONFIG.bucket,
@@ -231,6 +258,14 @@ function getBlobConfig(context: StorageContext): StorageConfig {
         accountKey: BLOB_OG_IMAGES_CONFIG.accountKey || BLOB_CONFIG.accountKey,
         connectionString: BLOB_OG_IMAGES_CONFIG.connectionString || BLOB_CONFIG.connectionString,
         containerName: BLOB_OG_IMAGES_CONFIG.containerName || BLOB_CONFIG.containerName,
+      }
+    case 'workspace-logos':
+      return {
+        accountName: BLOB_WORKSPACE_LOGOS_CONFIG.accountName || BLOB_CONFIG.accountName,
+        accountKey: BLOB_WORKSPACE_LOGOS_CONFIG.accountKey || BLOB_CONFIG.accountKey,
+        connectionString:
+          BLOB_WORKSPACE_LOGOS_CONFIG.connectionString || BLOB_CONFIG.connectionString,
+        containerName: BLOB_WORKSPACE_LOGOS_CONFIG.containerName || BLOB_CONFIG.containerName,
       }
     default:
       return {

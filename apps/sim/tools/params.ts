@@ -6,10 +6,15 @@ import {
   evaluateSubBlockCondition,
   isCanonicalPair,
   isSubBlockHidden,
+  isTriggerModeSubBlock,
   resolveCanonicalMode,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
-import type { SubBlockConfig as BlockSubBlockConfig, GenerationType } from '@/blocks/types'
+import type {
+  BlockConfig as AppBlockConfig,
+  SubBlockConfig as BlockSubBlockConfig,
+  GenerationType,
+} from '@/blocks/types'
 import { safeAssign } from '@/tools/safe-assign'
 import { isEmptyTagValue } from '@/tools/shared/tags'
 import type { OAuthConfig, ParameterVisibility, ToolConfig } from '@/tools/types'
@@ -29,18 +34,18 @@ export function isNonEmpty(value: unknown): boolean {
 // Tag/Value Parsing Utilities
 // ============================================================================
 
-export interface Option {
+interface Option {
   label: string
   value: string
 }
 
-export interface ComponentCondition {
+interface ComponentCondition {
   field: string
   value: string | number | boolean | Array<string | number | boolean>
   not?: boolean
 }
 
-export interface UIComponentConfig {
+interface UIComponentConfig {
   type: string
   options?: Option[]
   placeholder?: string
@@ -49,6 +54,7 @@ export interface UIComponentConfig {
   title?: string
   value?: unknown
   serviceId?: string
+  selectorKey?: BlockSubBlockConfig['selectorKey']
   requiredScopes?: string[]
   mimeType?: string
   columns?: string[]
@@ -66,7 +72,7 @@ export interface UIComponentConfig {
   /** Canonical parameter ID if this is part of a canonical group */
   canonicalParamId?: string
   /** The mode of the source subblock (basic/advanced/both) */
-  mode?: 'basic' | 'advanced' | 'both' | 'trigger'
+  mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
   /** The actual subblock ID this config was derived from */
   actualSubBlockId?: string
   /** Wand configuration for AI assistance */
@@ -79,7 +85,7 @@ export interface UIComponentConfig {
   }
 }
 
-export interface SubBlockConfig {
+interface SubBlockConfig {
   id: string
   type: string
   title?: string
@@ -104,12 +110,9 @@ export interface SubBlockConfig {
   dependsOn?: string[]
 }
 
-export interface BlockConfig {
-  type: string
-  subBlocks?: SubBlockConfig[]
-}
+type ToolInputBlockConfig = Pick<AppBlockConfig, 'type' | 'subBlocks' | 'tools'>
 
-export interface SchemaProperty {
+interface SchemaProperty {
   type: string
   description: string
   items?: Record<string, any>
@@ -121,6 +124,10 @@ export interface ToolSchema {
   type: 'object'
   properties: Record<string, SchemaProperty>
   required: string[]
+}
+
+export interface UserToolSchemaOptions {
+  surface?: 'default' | 'copilot'
 }
 
 export interface LLMToolSchemaResult {
@@ -153,32 +160,58 @@ export interface ToolWithParameters {
   optionalParameters: ToolParameterConfig[] // Nice to have, shown to user
 }
 
-let blockConfigCache: Record<string, BlockConfig> | null = null
+let blockConfigCache: Record<string, ToolInputBlockConfig> | null = null
 
-function getBlockConfigurations(): Record<string, BlockConfig> {
+function getBlockConfigurations(): Record<string, ToolInputBlockConfig> {
   if (!blockConfigCache) {
     try {
       const { getAllBlocks } = require('@/blocks')
       const allBlocks = getAllBlocks()
       blockConfigCache = {}
-      allBlocks.forEach((block: BlockConfig) => {
+      allBlocks.forEach((block: AppBlockConfig) => {
         blockConfigCache![block.type] = block
       })
     } catch (error) {
-      console.warn('Could not load block configuration:', error)
+      logger.warn('Could not load block configuration:', error)
       blockConfigCache = {}
     }
   }
   return blockConfigCache
 }
 
+/**
+ * Gets the correct tool ID for a block operation.
+ */
+export function getToolIdForOperation(blockType: string, operation?: string): string | undefined {
+  const block = getBlockConfigurations()[blockType]
+  if (!block?.tools?.access) return undefined
+
+  if (block.tools.access.length === 1) {
+    return block.tools.access[0]
+  }
+
+  if (operation && block.tools.config?.tool) {
+    try {
+      return block.tools.config.tool({ operation })
+    } catch (error) {
+      logger.error('Error selecting tool for operation:', error)
+    }
+  }
+
+  if (operation && block.tools.access.includes(operation)) {
+    return operation
+  }
+
+  return block.tools.access[0]
+}
+
 function resolveSubBlockForParam(
   paramId: string,
-  subBlocks: SubBlockConfig[],
+  subBlocks: BlockSubBlockConfig[],
   valuesWithOperation: Record<string, unknown>,
   paramType: string
 ): BlockSubBlockConfig | undefined {
-  const blockSubBlocks = subBlocks as BlockSubBlockConfig[]
+  const blockSubBlocks = subBlocks
 
   // First pass: find subblock with matching condition
   let fallbackMatch: BlockSubBlockConfig | undefined
@@ -248,6 +281,7 @@ export function getToolParametersConfig(
           uiComponent: {
             type: 'workflow-selector',
             placeholder: 'Select workflow to execute',
+            selectorKey: 'sim.workflows',
           },
         },
         {
@@ -264,6 +298,7 @@ export function getToolParametersConfig(
               value: '',
               not: true, // Show when workflowId is not empty
             },
+            dependsOn: ['workflowId'],
           },
         },
       ]
@@ -282,7 +317,7 @@ export function getToolParametersConfig(
     }
 
     // Get block configuration for UI component information
-    let blockConfig: BlockConfig | null = null
+    let blockConfig: ToolInputBlockConfig | null = null
     if (blockType) {
       const blockConfigs = getBlockConfigurations()
       blockConfig = blockConfigs[blockType] || null
@@ -333,6 +368,7 @@ export function getToolParametersConfig(
               title: subBlock.title,
               value: subBlock.value,
               serviceId: subBlock.serviceId,
+              selectorKey: subBlock.selectorKey,
               requiredScopes: subBlock.requiredScopes,
               mimeType: subBlock.mimeType,
               columns: subBlock.columns,
@@ -390,8 +426,15 @@ export function getToolParametersConfig(
 function buildParameterSchema(
   toolId: string,
   paramId: string,
-  param: ToolParamDefinition
+  param: ToolParamDefinition,
+  options: UserToolSchemaOptions = {}
 ): SchemaProperty {
+  const surface = options.surface ?? 'default'
+
+  if (surface === 'copilot' && (param.type === 'file' || param.type === 'file[]')) {
+    return buildCopilotFileParameterSchema(param)
+  }
+
   let schemaType = param.type
   if (schemaType === 'json' || schemaType === 'any') {
     schemaType = 'object'
@@ -416,7 +459,51 @@ function buildParameterSchema(
   return propertySchema
 }
 
-export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
+function buildCopilotFileParameterSchema(param: ToolParamDefinition): SchemaProperty {
+  const baseDescription =
+    param.description ||
+    (param.type === 'file'
+      ? 'A file object for tool execution.'
+      : 'An array of file objects for tool execution.')
+  const resolutionDescription =
+    'For copilot and mothership tool calls, prefer passing canonical workspace file IDs such as "wf_123". The runtime will resolve them into full file objects before tool execution.'
+
+  const fileObjectSchema: SchemaProperty = {
+    type: 'object',
+    description: `${baseDescription} ${resolutionDescription}`,
+    properties: {
+      id: { type: 'string', description: 'Canonical workspace file ID.' },
+      name: { type: 'string', description: 'File name.' },
+      url: { type: 'string', description: 'File URL or serve path.' },
+      size: { type: 'number', description: 'File size in bytes.' },
+      type: { type: 'string', description: 'MIME type.' },
+      key: { type: 'string', description: 'Internal storage key.' },
+      context: { type: 'string', description: 'Optional file context.' },
+      base64: { type: 'string', description: 'Optional base64-encoded file contents.' },
+    },
+    required: ['id', 'name', 'url', 'size', 'type', 'key'],
+  }
+
+  if (param.type === 'file') {
+    return fileObjectSchema
+  }
+
+  return {
+    type: 'array',
+    description: `${baseDescription} ${resolutionDescription}`,
+    items: {
+      type: 'object',
+      description: 'A file object.',
+      properties: fileObjectSchema.properties,
+    },
+  }
+}
+
+export function createUserToolSchema(
+  toolConfig: ToolConfig,
+  options: UserToolSchemaOptions = {}
+): ToolSchema {
+  const surface = options.surface ?? 'default'
   const schema: ToolSchema = {
     type: 'object',
     properties: {},
@@ -430,7 +517,7 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
       continue
     }
 
-    const propertySchema = buildParameterSchema(toolConfig.id, paramId, param)
+    const propertySchema = buildParameterSchema(toolConfig.id, paramId, param, options)
     schema.properties[paramId] = propertySchema
 
     if (param.required) {
@@ -438,12 +525,13 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
     }
   }
 
-  if (toolConfig.oauth?.required) {
+  if (toolConfig.oauth?.required && surface === 'copilot') {
     schema.properties.credentialId = {
       type: 'string',
       description:
-        'Optional credential ID to use when multiple accounts are connected for this provider. Get IDs from environment/credentials.json. If omitted, auto-selects the first available credential.',
+        'Credential ID to use for this OAuth tool call. Required for Copilot/Superagent execution. Get valid IDs from environment/credentials.json.',
     }
+    schema.required.push('credentialId')
   }
 
   return schema
@@ -869,7 +957,6 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
   'eval-input',
   'webhook-config',
   'schedule-info',
-  'trigger-save',
   'input-format',
   'response-format',
   'mcp-server-selector',
@@ -900,7 +987,8 @@ export function getSubBlocksForToolInput(
   toolId: string,
   blockType: string,
   currentValues?: Record<string, unknown>,
-  canonicalModeOverrides?: CanonicalModeOverrides
+  canonicalModeOverrides?: CanonicalModeOverrides,
+  blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): SubBlocksForToolInput | null {
   try {
     const toolConfig = getTool(toolId)
@@ -910,7 +998,7 @@ export function getSubBlocksForToolInput(
     }
 
     const blockConfigs = getBlockConfigurations()
-    const blockConfig = blockConfigs[blockType]
+    const blockConfig = blockConfigOverride ?? blockConfigs[blockType]
     if (!blockConfig?.subBlocks?.length) {
       return null
     }
@@ -944,7 +1032,7 @@ export function getSubBlocksForToolInput(
       if (EXCLUDED_SUBBLOCK_TYPES.has(sb.type)) continue
 
       // Skip trigger-mode-only subblocks
-      if (sb.mode === 'trigger') continue
+      if (isTriggerModeSubBlock(sb)) continue
 
       // Hide tool API key fields when running on hosted Sim or when env var is set
       if (isSubBlockHidden(sb)) continue

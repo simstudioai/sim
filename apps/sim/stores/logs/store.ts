@@ -25,6 +25,12 @@ export const useLogDetailsUIStore = create<LogDetailsUIState>()(
     }),
     {
       name: 'log-details-ui-state',
+      partialize: (state) => ({ panelWidth: state.panelWidth }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.panelWidth = clampPanelWidth(state.panelWidth)
+        }
+      },
     }
   )
 )

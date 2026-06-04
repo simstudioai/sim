@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   Input,
@@ -9,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -39,12 +41,15 @@ export function RenameDocumentModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset form fields when the modal opens (open transitions false → true).
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) {
       setName(initialName)
       setError(null)
     }
-  }, [open, initialName])
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,7 +74,7 @@ export function RenameDocumentModal({
       onOpenChange(false)
     } catch (err) {
       logger.error('Error renaming document:', err)
-      setError(err instanceof Error ? err.message : 'Failed to rename document')
+      setError(getErrorMessage(err, 'Failed to rename document'))
     } finally {
       setIsSubmitting(false)
     }
@@ -79,6 +84,7 @@ export function RenameDocumentModal({
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>Rename Document</ModalHeader>
+        <ModalDescription className='sr-only'>Enter a new name for this document</ModalDescription>
         <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody className='!pb-4'>
             <div className='space-y-3'>
@@ -94,7 +100,6 @@ export function RenameDocumentModal({
                   placeholder='Enter document name'
                   className={cn(error && 'border-[var(--text-error)]')}
                   disabled={isSubmitting}
-                  autoFocus
                   maxLength={255}
                   autoComplete='off'
                   autoCorrect='off'

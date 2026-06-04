@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import type { Edge } from 'reactflow'
 import { buildMockExecutionPlan } from '@/lib/academy/mock-execution'
 import type {
@@ -323,7 +324,7 @@ export function SandboxCanvasProvider({
       for (let i = 0; i < plan.length; i++) {
         const step = plan[i]
         setActiveBlocks(workflowId, new Set([step.blockId]))
-        await new Promise((resolve) => setTimeout(resolve, step.delay))
+        await sleep(step.delay)
         addConsole({
           workflowId,
           blockId: step.blockId,
@@ -356,7 +357,7 @@ export function SandboxCanvasProvider({
   if (!isReady) {
     return (
       <div className='flex h-full w-full items-center justify-center bg-[#0e0e0e]'>
-        <div className='h-5 w-5 animate-spin rounded-full border-2 border-[#ECECEC] border-t-transparent' />
+        <div className='size-5 animate-spin rounded-full border-2 border-[#ECECEC] border-t-transparent' />
       </div>
     )
   }

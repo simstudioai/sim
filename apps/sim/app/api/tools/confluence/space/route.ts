@@ -1,26 +1,34 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  confluenceCreateSpaceContract,
+  confluenceDeleteSpaceContract,
+  confluenceGetSpaceContract,
+  confluenceUpdateSpaceContract,
+} from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceSpaceAPI')
 
 export const dynamic = 'force-dynamic'
 
 // Get a specific space
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const domain = searchParams.get('domain')
-    const accessToken = searchParams.get('accessToken')
-    const spaceId = searchParams.get('spaceId')
-    const providedCloudId = searchParams.get('cloudId')
+    const parsed = await parseRequest(confluenceGetSpaceContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, spaceId, cloudId: providedCloudId } = parsed.data.query
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -57,15 +65,16 @@ export async function GET(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage =
-        errorData?.message || `Failed to get Confluence space (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -77,21 +86,30 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Create a new Confluence space.
  * Uses POST /wiki/api/v2/spaces
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, name, key, description, cloudId: providedCloudId } = body
+    const parsed = await parseRequest(confluenceCreateSpaceContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      name,
+      key,
+      description,
+      cloudId: providedCloudId,
+    } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -136,14 +154,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage = errorData?.message || `Failed to create space (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -155,21 +175,30 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Update a Confluence space.
  * Uses PUT /wiki/api/v2/spaces/{id}
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, spaceId, name, description, cloudId: providedCloudId } = body
+    const parsed = await parseRequest(confluenceUpdateSpaceContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      spaceId,
+      name,
+      description,
+      cloudId: providedCloudId,
+    } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -195,8 +224,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
-
     if (!name && description === undefined) {
       return NextResponse.json(
         { error: 'At least one of name or description is required for update' },
@@ -204,32 +231,38 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updateBody: Record<string, unknown> = {}
-
-    if (name) {
-      updateBody.name = name
-    } else {
-      const currentResponse = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+    const lookupUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
+    const lookupResponse = await fetch(lookupUrl, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!lookupResponse.ok) {
+      const errorText = await lookupResponse.text()
+      return NextResponse.json(
+        {
+          error: parseAtlassianErrorMessage(
+            lookupResponse.status,
+            lookupResponse.statusText,
+            errorText
+          ),
         },
-      })
-      if (!currentResponse.ok) {
-        return NextResponse.json(
-          { error: `Failed to fetch current space: ${currentResponse.status}` },
-          { status: currentResponse.status }
-        )
-      }
-      const currentSpace = await currentResponse.json()
-      updateBody.name = currentSpace.name
+        { status: lookupResponse.status }
+      )
     }
+    const currentSpace = await lookupResponse.json()
+    const spaceKey = currentSpace.key
 
+    const updateBody: Record<string, unknown> = {
+      name: name || currentSpace.name,
+    }
     if (description !== undefined) {
-      updateBody.description = { value: description, representation: 'plain' }
+      updateBody.description = { plain: { value: description, representation: 'plain' } }
     }
 
-    logger.info(`Updating space ${spaceId}`)
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/space/${encodeURIComponent(spaceKey)}`
+    logger.info(`Updating space ${spaceKey}`)
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -242,14 +275,16 @@ export async function PUT(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage = errorData?.message || `Failed to update space (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -261,21 +296,23 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Delete a Confluence space.
  * Uses DELETE /wiki/api/v2/spaces/{id}
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, spaceId, cloudId: providedCloudId } = body
+    const parsed = await parseRequest(confluenceDeleteSpaceContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, spaceId, cloudId: providedCloudId } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -301,9 +338,32 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
+    const lookupUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces/${spaceId}`
+    const lookupResponse = await fetch(lookupUrl, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!lookupResponse.ok) {
+      const errorText = await lookupResponse.text()
+      return NextResponse.json(
+        {
+          error: parseAtlassianErrorMessage(
+            lookupResponse.status,
+            lookupResponse.statusText,
+            errorText
+          ),
+        },
+        { status: lookupResponse.status }
+      )
+    }
+    const currentSpace = await lookupResponse.json()
+    const spaceKey = currentSpace.key
 
-    logger.info(`Deleting space ${spaceId}`)
+    const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/space/${encodeURIComponent(spaceKey)}`
+
+    logger.info(`Deleting space ${spaceKey}`)
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -314,17 +374,38 @@ export async function DELETE(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage = errorData?.message || `Failed to delete space (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
-    return NextResponse.json({ spaceId, deleted: true })
+    let longTask: { id?: string; statusLink?: string } = {}
+    try {
+      const text = await response.text()
+      if (text) {
+        const data = JSON.parse(text)
+        longTask = {
+          id: data?.id,
+          statusLink: data?.links?.status,
+        }
+      }
+    } catch {
+      // 204 No Content or non-JSON body — ignore
+    }
+
+    return NextResponse.json({
+      spaceId,
+      deleted: true,
+      longTaskId: longTask.id,
+      longTaskStatusLink: longTask.statusLink,
+    })
   } catch (error) {
     logger.error('Error deleting Confluence space:', error)
     return NextResponse.json(
@@ -332,4 +413,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

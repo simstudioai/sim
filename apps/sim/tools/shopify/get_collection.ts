@@ -1,47 +1,10 @@
-import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import type { ShopifyCollectionResponse, ShopifyGetCollectionParams } from '@/tools/shopify/types'
 import { COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface ShopifyGetCollectionParams extends ShopifyBaseParams {
-  collectionId: string
-  productsFirst?: number
-}
-
-interface ShopifyGetCollectionResponse extends ToolResponse {
-  output: {
-    collection?: {
-      id: string
-      title: string
-      handle: string
-      description: string | null
-      descriptionHtml: string | null
-      productsCount: number
-      sortOrder: string
-      updatedAt: string
-      image: {
-        url: string
-        altText: string | null
-      } | null
-      products: Array<{
-        id: string
-        title: string
-        handle: string
-        status: string
-        vendor: string
-        productType: string
-        totalInventory: number
-        featuredImage: {
-          url: string
-          altText: string | null
-        } | null
-      }>
-    }
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const shopifyGetCollectionTool: ToolConfig<
   ShopifyGetCollectionParams,
-  ShopifyGetCollectionResponse
+  ShopifyCollectionResponse
 > = {
   id: 'shopify_get_collection',
   name: 'Shopify Get Collection',
@@ -106,6 +69,7 @@ export const shopifyGetCollectionTool: ToolConfig<
               sortOrder
               updatedAt
               image {
+                id
                 url
                 altText
               }
@@ -134,7 +98,7 @@ export const shopifyGetCollectionTool: ToolConfig<
           }
         `,
         variables: {
-          id: params.collectionId,
+          id: params.collectionId.trim(),
           productsFirst,
         },
       }

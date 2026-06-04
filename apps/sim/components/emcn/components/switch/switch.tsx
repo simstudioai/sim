@@ -22,7 +22,7 @@ const Switch = React.memo(
       {...props}
       ref={ref}
     >
-      <SwitchPrimitives.Thumb className='pointer-events-none block h-4 w-4 rounded-full bg-[var(--surface-2)] shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-0.5' />
+      <SwitchPrimitives.Thumb className='pointer-events-none block size-4 rounded-full bg-[var(--surface-2)] shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-0.5' />
     </SwitchPrimitives.Root>
   ))
 )

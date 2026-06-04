@@ -1,0 +1,145 @@
+---
+title: New Relic
+description: Query observability data and record deployments in New Relic
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="new_relic"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[New Relic](https://newrelic.com/) is an observability platform for monitoring application performance, infrastructure, logs, traces, and business-impacting changes across your systems. It centralizes telemetry in NRDB and exposes that data through NerdGraph, New Relic's GraphQL API.
+
+With New Relic, you can:
+
+- **Query telemetry with NRQL**: Run NRQL against account data to inspect service health, usage, errors, latency, and custom events.
+- **Find monitored entities**: Search services, applications, hosts, and other monitored resources by name, type, tags, alert state, or reporting status.
+- **Fetch entity details**: Resolve an entity GUID into basic entity metadata for downstream workflow steps.
+- **Record deployment changes**: Create deployment change tracking events with version, changelog, commit, build links, group IDs, and user context.
+
+Sim's New Relic integration lets agents pull production observability signals into workflows and annotate releases or operational changes directly from automation. Use it to summarize live service health, route incident workflows from entity searches, or mark deployments so New Relic charts can correlate performance changes with release activity.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate New Relic into workflows. Run NRQL queries, search monitored entities, fetch entity details, and record deployment change events.
+
+
+
+## Tools
+
+### `new_relic_nrql_query`
+
+Run a NRQL query against a New Relic account using NerdGraph.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | New Relic user API key for NerdGraph |
+| `region` | string | No | New Relic data center region: us or eu |
+| `accountId` | number | Yes | New Relic account ID to query |
+| `nrql` | string | Yes | NRQL query to execute |
+| `timeout` | number | No | Optional query timeout in seconds |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | NRQL result rows. Row fields depend on the query projection. |
+| `resultCount` | number | Number of NRQL result rows returned |
+
+### `new_relic_search_entities`
+
+Search New Relic entities by name, GUID, domain type, tags, or reporting state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | New Relic user API key for NerdGraph |
+| `region` | string | No | New Relic data center region: us or eu |
+| `query` | string | Yes | Entity search query, for example: name like "api" or domainType = "APM-APPLICATION" |
+| `cursor` | string | No | Pagination cursor from a previous entity search |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of entities matching the query |
+| `query` | string | Entity search query New Relic executed |
+| `entities` | array | Matching New Relic entities |
+|   ↳ `guid` | string | Entity GUID |
+|   ↳ `name` | string | Entity name |
+|   ↳ `entityType` | string | Entity type |
+| `nextCursor` | string | Cursor for the next page of results |
+
+### `new_relic_get_entity`
+
+Fetch a New Relic entity by GUID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | New Relic user API key for NerdGraph |
+| `region` | string | No | New Relic data center region: us or eu |
+| `guid` | string | Yes | Entity GUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entity` | object | New Relic entity details |
+|   ↳ `guid` | string | Entity GUID |
+|   ↳ `name` | string | Entity name |
+|   ↳ `entityType` | string | Entity type |
+
+### `new_relic_create_deployment_event`
+
+Record a deployment change event in New Relic change tracking.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | New Relic user API key for NerdGraph |
+| `region` | string | No | New Relic data center region: us or eu |
+| `entityGuid` | string | Yes | GUID of the entity associated with the deployment |
+| `version` | string | Yes | Deployment version, release name, or commit SHA |
+| `shortDescription` | string | No | Short description of the deployment |
+| `description` | string | No | Longer deployment description |
+| `changelog` | string | No | Deployment changelog text or URL |
+| `commit` | string | No | Commit SHA or identifier associated with the deployment |
+| `deepLink` | string | No | URL to the deployment, build, or release details |
+| `user` | string | No | User or automation that performed the deployment |
+| `groupId` | string | No | Optional group ID to correlate related changes |
+| `customAttributes` | json | No | Custom change event metadata as key-value pairs with string, number, or boolean values |
+| `deploymentType` | string | No | Deployment type: basic, blue green, canary, rolling, or shadow |
+| `timestamp` | number | No | Event timestamp in milliseconds since Unix epoch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Created New Relic change tracking event |
+|   ↳ `changeTrackingId` | string | New Relic change tracking ID |
+|   ↳ `customAttributes` | json | Custom attributes on the change tracking event |
+|   ↳ `category` | string | Change category |
+|   ↳ `categoryAndType` | string | Combined category and type |
+|   ↳ `type` | string | Change type |
+|   ↳ `shortDescription` | string | Short change description |
+|   ↳ `description` | string | Change description |
+|   ↳ `timestamp` | number | Change timestamp in milliseconds |
+|   ↳ `user` | string | User associated with the change |
+|   ↳ `groupId` | string | Change group ID |
+|   ↳ `entity` | object | Entity associated with the change |
+|     ↳ `guid` | string | Entity GUID |
+|     ↳ `name` | string | Entity name |
+| `messages` | array | Messages returned by New Relic for the created change event |
+
+

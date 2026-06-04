@@ -1,15 +1,17 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { cleanupExpiredIdempotencyKeys, getIdempotencyKeyStats } from '@/lib/core/idempotency'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('IdempotencyCleanupAPI')
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // Allow up to 5 minutes for cleanup
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`Idempotency cleanup triggered (${requestId})`)
 
@@ -55,10 +57,10 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         message: 'Idempotency cleanup failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
         requestId,
       },
       { status: 500 }
     )
   }
-}
+})

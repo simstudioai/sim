@@ -3,9 +3,12 @@
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
  */
 
+import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   checkStorageQuota,
@@ -13,14 +16,30 @@ import {
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getServePathPrefix } from '@/lib/uploads'
-import { downloadFile, hasCloudStorage, uploadFile } from '@/lib/uploads/core/storage-service'
+import {
+  deleteFile,
+  downloadFile,
+  hasCloudStorage,
+  headObject,
+  uploadFile,
+} from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
+import type { WorkspaceFileFolderRecord } from './workspace-file-folder-manager'
+import {
+  assertWorkspaceFileFolderTarget,
+  buildWorkspaceFileFolderPathMap,
+  fileNameExistsInWorkspaceFolder,
+  findWorkspaceFileFolderIdByPath,
+  getWorkspaceFileFolderPath,
+  listWorkspaceFileFolders,
+  normalizeWorkspaceFileItemName,
+} from './workspace-file-folder-manager'
 
 const logger = createLogger('WorkspaceFileStorage')
 
@@ -43,10 +62,19 @@ export interface WorkspaceFileRecord {
   size: number
   type: string
   uploadedBy: string
+  folderId?: string | null
+  folderPath?: string | null
   deletedAt?: Date | null
   uploadedAt: Date
+  updatedAt: Date
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
+}
+
+interface ListWorkspaceFilesOptions {
+  scope?: WorkspaceFileScope
+  folders?: WorkspaceFileFolderRecord[]
+  hydrateFolderPaths?: boolean
 }
 
 /**
@@ -90,7 +118,7 @@ export function parseWorkspaceFileKey(key: string): string | null {
  */
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()
-  const random = Math.random().toString(36).substring(2, 9)
+  const random = randomBytes(8).toString('hex')
   const safeFileName = sanitizeFileName(fileName)
   return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
 }
@@ -115,14 +143,15 @@ function withCopySuffix(fileName: string, n: number): string {
  */
 async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
-  baseName: string
+  baseName: string,
+  folderId?: string | null
 ): Promise<string> {
-  if (!(await fileExistsInWorkspace(workspaceId, baseName))) {
+  if (!(await fileExistsInWorkspace(workspaceId, baseName, folderId))) {
     return baseName
   }
   for (let n = 1; n <= MAX_COPY_SUFFIX; n++) {
     const candidate = withCopySuffix(baseName, n)
-    if (!(await fileExistsInWorkspace(workspaceId, candidate))) {
+    if (!(await fileExistsInWorkspace(workspaceId, candidate, folderId))) {
       return candidate
     }
   }
@@ -137,10 +166,13 @@ export async function uploadWorkspaceFile(
   userId: string,
   fileBuffer: Buffer,
   fileName: string,
-  contentType: string
+  contentType: string,
+  options?: { folderId?: string | null }
 ): Promise<UserFile> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
+  const folderId = await assertWorkspaceFileFolderTarget(workspaceId, options?.folderId)
+  const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
   const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
 
   if (!quotaCheck.allowed) {
@@ -149,9 +181,13 @@ export async function uploadWorkspaceFile(
 
   let lastError: unknown
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
-    const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, fileName)
+    const uniqueName = await allocateUniqueWorkspaceFileName(
+      workspaceId,
+      normalizedFileName,
+      folderId
+    )
     const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
-    let fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    let fileId = `wf_${generateShortId()}`
 
     try {
       logger.info(`Generated storage key: ${storageKey}`)
@@ -162,16 +198,17 @@ export async function uploadWorkspaceFile(
         purpose: 'workspace',
         userId: userId,
         workspaceId: workspaceId,
+        ...(folderId ? { folderId } : {}),
       }
 
       const uploadResult = await uploadFile({
         file: fileBuffer,
-        fileName: storageKey, // Use the full storageKey as fileName
+        fileName: storageKey,
         contentType,
         context: 'workspace',
-        preserveKey: true, // Don't add timestamp prefix
-        customKey: storageKey, // Explicitly set the key
-        metadata, // Pass metadata for cloud storage consistency
+        preserveKey: true,
+        customKey: storageKey,
+        metadata,
       })
 
       logger.info(`Upload returned key: ${uploadResult.key}`)
@@ -184,6 +221,7 @@ export async function uploadWorkspaceFile(
           key: uploadResult.key,
           userId,
           workspaceId,
+          folderId,
           context: 'workspace',
           originalName: uniqueName,
           contentType,
@@ -201,6 +239,7 @@ export async function uploadWorkspaceFile(
             key: uploadResult.key,
             userId,
             workspaceId,
+            folderId,
             context: 'workspace',
             originalName: uniqueName,
             contentType,
@@ -231,7 +270,7 @@ export async function uploadWorkspaceFile(
         name: uniqueName,
         size: fileBuffer.length,
         type: contentType,
-        url: serveUrl, // Use authenticated serve URL (enforces context)
+        url: serveUrl,
         key: uploadResult.key,
         context: 'workspace',
       }
@@ -247,9 +286,7 @@ export async function uploadWorkspaceFile(
         continue
       }
       logger.error(`Failed to upload workspace file ${fileName}:`, error)
-      throw new Error(
-        `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
     }
   }
 
@@ -261,10 +298,174 @@ export async function uploadWorkspaceFile(
 }
 
 /**
+ * Finalize a workspace file that was uploaded directly to cloud storage
+ * (presigned PUT or completed multipart). Verifies the object exists,
+ * checks quota, allocates a non-colliding display name, inserts metadata,
+ * and increments storage usage.
+ *
+ * Throws if the object is missing in storage, quota is exceeded, or the
+ * caller cannot resolve a unique name within the retry budget.
+ */
+export interface RegisterUploadedWorkspaceFileResult {
+  file: UserFile
+  /** True when a new metadata row was inserted; false when an existing row was reused. */
+  created: boolean
+}
+
+export async function registerUploadedWorkspaceFile(params: {
+  workspaceId: string
+  userId: string
+  key: string
+  originalName: string
+  contentType: string
+  folderId?: string | null
+}): Promise<RegisterUploadedWorkspaceFileResult> {
+  const { workspaceId, userId, key, originalName, contentType } = params
+  const folderId = await assertWorkspaceFileFolderTarget(workspaceId, params.folderId)
+  const normalizedOriginalName = normalizeWorkspaceFileItemName(originalName, 'File')
+
+  if (!hasCloudStorage()) {
+    throw new Error('Direct-upload registration requires cloud storage')
+  }
+
+  if (parseWorkspaceFileKey(key) !== workspaceId) {
+    throw new Error('Storage key does not belong to this workspace')
+  }
+
+  const head = await headObject(key, 'workspace')
+  if (!head) {
+    throw new Error('Uploaded object not found in storage')
+  }
+  const verifiedSize = head.size
+
+  const cleanupOrphan = async (reason: string) => {
+    try {
+      await deleteFile({ key, context: 'workspace' })
+    } catch (deleteError) {
+      logger.error(`Failed to clean up orphaned object after ${reason}`, deleteError)
+    }
+  }
+
+  if (verifiedSize > MAX_WORKSPACE_FILE_SIZE) {
+    await cleanupOrphan('size-cap rejection')
+    throw new Error(`File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes`)
+  }
+
+  /**
+   * Existence check precedes the quota guard so a network-dropped retry doesn't
+   * double-charge quota or orphan-cleanup an already-registered object.
+   */
+  const existing = await getFileMetadataByKey(key, 'workspace')
+
+  let fileId = existing?.id ?? ''
+  let displayName = existing?.originalName ?? ''
+  let created = false
+
+  if (!existing) {
+    const quotaCheck = await checkStorageQuota(userId, verifiedSize)
+    if (!quotaCheck.allowed) {
+      await cleanupOrphan('quota rejection')
+      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    }
+
+    let lastInsertError: unknown
+    for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
+      fileId = `wf_${generateShortId()}`
+      displayName = await allocateUniqueWorkspaceFileName(
+        workspaceId,
+        normalizedOriginalName,
+        folderId
+      )
+      try {
+        await insertFileMetadata({
+          id: fileId,
+          key,
+          userId,
+          workspaceId,
+          folderId,
+          context: 'workspace',
+          originalName: displayName,
+          contentType,
+          size: verifiedSize,
+        })
+        created = true
+        lastInsertError = undefined
+        break
+      } catch (insertError) {
+        lastInsertError = insertError
+        if (getPostgresErrorCode(insertError) === '23505') {
+          logger.warn(
+            `Unique name conflict on register (attempt ${attempt + 1}/${MAX_UPLOAD_UNIQUE_RETRIES}), retrying with a new name`
+          )
+          continue
+        }
+        break
+      }
+    }
+
+    if (!created) {
+      logger.error(
+        'Failed to insert metadata after direct upload; cleaning up storage object',
+        lastInsertError
+      )
+      await cleanupOrphan('metadata insert failure')
+      if (getPostgresErrorCode(lastInsertError) === '23505') {
+        throw new FileConflictError(normalizedOriginalName)
+      }
+      throw lastInsertError instanceof Error
+        ? lastInsertError
+        : new Error('Failed to insert workspace file metadata')
+    }
+
+    try {
+      await incrementStorageUsage(userId, verifiedSize)
+    } catch (storageError) {
+      logger.error('Failed to update storage tracking:', storageError)
+    }
+  } else {
+    logger.info(`Using existing metadata record for direct upload: ${key}`)
+  }
+
+  const pathPrefix = getServePathPrefix()
+  const serveUrl = `${pathPrefix}${encodeURIComponent(key)}?context=workspace`
+
+  return {
+    file: {
+      id: fileId,
+      name: displayName,
+      size: verifiedSize,
+      type: contentType,
+      url: serveUrl,
+      key,
+      context: 'workspace',
+    },
+    created,
+  }
+}
+
+/**
+ * Like `withCopySuffix` but with `n=1` meaning "no suffix" — used by retry loops where
+ * the first attempt should try the original name (`image.png`, `image (2).png`, ...).
+ * Exported for tests.
+ */
+export function suffixedName(name: string, n: number): string {
+  return n <= 1 ? name : withCopySuffix(name, n)
+}
+
+const MAX_CHAT_DISPLAY_NAME_RETRIES = 1000
+
+/** Postgres constraint name for the partial unique index on `(chat_id, display_name)`. */
+export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique'
+
+/**
  * Track a file that was already uploaded to workspace S3 as a chat-scoped upload.
  * Links the existing workspaceFiles metadata record (created by the storage service
  * during upload) to the chat by setting chatId and context='mothership'.
  * Falls back to inserting a new record if none exists for the key.
+ *
+ * Allocates a collision-free `displayName` (the partial unique index on
+ * (chat_id, display_name) WHERE context='mothership' enforces this) and returns it
+ * so callers can surface the same name to the model in the VFS read hint.
  */
 export async function trackChatUpload(
   workspaceId: string,
@@ -274,39 +475,63 @@ export async function trackChatUpload(
   fileName: string,
   contentType: string,
   size: number
-): Promise<void> {
-  const updated = await db
-    .update(workspaceFiles)
-    .set({ chatId, context: 'mothership' })
-    .where(
-      and(
-        eq(workspaceFiles.key, s3Key),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
-    .returning({ id: workspaceFiles.id })
+): Promise<{ displayName: string }> {
+  for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
+    const candidate = suffixedName(fileName, n)
+    try {
+      const updated = await db
+        .update(workspaceFiles)
+        .set({ chatId, context: 'mothership', displayName: candidate })
+        .where(
+          and(
+            eq(workspaceFiles.key, s3Key),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            isNull(workspaceFiles.deletedAt)
+          )
+        )
+        .returning({ id: workspaceFiles.id })
 
-  if (updated.length > 0) {
-    logger.info(`Linked existing file record to chat: ${fileName} for chat ${chatId}`)
-    return
+      if (updated.length > 0) {
+        logger.info(
+          `Linked existing file record to chat: ${fileName} (display: ${candidate}) for chat ${chatId}`
+        )
+        return { displayName: candidate }
+      }
+
+      const fileId = `wf_${generateShortId()}`
+
+      await db.insert(workspaceFiles).values({
+        id: fileId,
+        key: s3Key,
+        userId,
+        workspaceId,
+        context: 'mothership',
+        chatId,
+        originalName: fileName,
+        displayName: candidate,
+        contentType,
+        size,
+      })
+
+      logger.info(`Tracked chat upload: ${fileName} (display: ${candidate}) for chat ${chatId}`)
+      return { displayName: candidate }
+    } catch (error) {
+      // Other 23505s (e.g. active-key collision from a racing same-s3Key insert) signal
+      // a different invariant — retrying would silently rename a row another caller owns.
+      if (
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === CHAT_DISPLAY_NAME_INDEX
+      ) {
+        logger.warn(
+          `Chat upload displayName collision on attempt ${n} for "${candidate}" in chat ${chatId}, retrying with suffix`
+        )
+        continue
+      }
+      throw error
+    }
   }
 
-  const fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-
-  await db.insert(workspaceFiles).values({
-    id: fileId,
-    key: s3Key,
-    userId,
-    workspaceId,
-    context: 'mothership',
-    chatId,
-    originalName: fileName,
-    contentType,
-    size,
-  })
-
-  logger.info(`Tracked chat upload: ${fileName} for chat ${chatId}`)
+  throw new FileConflictError(fileName)
 }
 
 /**
@@ -314,56 +539,23 @@ export async function trackChatUpload(
  */
 export async function fileExistsInWorkspace(
   workspaceId: string,
-  fileName: string
+  fileName: string,
+  folderId?: string | null
 ): Promise<boolean> {
   try {
-    const existing = await db
-      .select()
-      .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.originalName, fileName),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
-      .limit(1)
-
-    return existing.length > 0
+    return await fileNameExistsInWorkspaceFolder(workspaceId, fileName, folderId)
   } catch (error) {
     logger.error(`Failed to check file existence for ${fileName}:`, error)
     return false
   }
 }
 
-/**
- * Look up a single active workspace file by its original name.
- * Returns the record if found, or null if no matching file exists.
- * Throws on DB errors so callers can distinguish "not found" from "lookup failed."
- */
-export async function getWorkspaceFileByName(
+function mapWorkspaceFileRecord(
+  file: typeof workspaceFiles.$inferSelect,
   workspaceId: string,
-  fileName: string
-): Promise<WorkspaceFileRecord | null> {
-  const files = await db
-    .select()
-    .from(workspaceFiles)
-    .where(
-      and(
-        eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.originalName, fileName),
-        eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
-    .limit(1)
-
-  if (files.length === 0) return null
-
+  folderPaths: Map<string, string>
+): WorkspaceFileRecord {
   const pathPrefix = getServePathPrefix()
-
-  const file = files[0]
   return {
     id: file.id,
     workspaceId: file.workspaceId || workspaceId,
@@ -373,9 +565,60 @@ export async function getWorkspaceFileByName(
     size: file.size,
     type: file.contentType,
     uploadedBy: file.userId,
+    folderId: file.folderId,
+    folderPath: file.folderId ? (folderPaths.get(file.folderId) ?? null) : null,
     deletedAt: file.deletedAt,
     uploadedAt: file.uploadedAt,
+    updatedAt: file.updatedAt,
   }
+}
+
+async function mapSingleWorkspaceFileRecord(
+  file: typeof workspaceFiles.$inferSelect,
+  workspaceId: string
+): Promise<WorkspaceFileRecord> {
+  if (!file.folderId) {
+    return mapWorkspaceFileRecord(file, workspaceId, new Map())
+  }
+
+  const folderPath = await getWorkspaceFileFolderPath(workspaceId, file.folderId, {
+    includeDeleted: true,
+  })
+  return mapWorkspaceFileRecord(
+    file,
+    workspaceId,
+    folderPath ? new Map([[file.folderId, folderPath]]) : new Map()
+  )
+}
+
+/**
+ * Look up a single active workspace file by its original name.
+ * Returns the record if found, or null if no matching file exists.
+ * Throws on DB errors so callers can distinguish "not found" from "lookup failed."
+ */
+export async function getWorkspaceFileByName(
+  workspaceId: string,
+  fileName: string,
+  options?: { folderId?: string | null }
+): Promise<WorkspaceFileRecord | null> {
+  const folderId = options?.folderId ?? null
+  const files = await db
+    .select()
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.originalName, fileName),
+        eq(workspaceFiles.context, 'workspace'),
+        folderId ? eq(workspaceFiles.folderId, folderId) : isNull(workspaceFiles.folderId),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .limit(1)
+
+  if (files.length === 0) return null
+
+  return mapSingleWorkspaceFileRecord(files[0], workspaceId)
 }
 
 /**
@@ -383,10 +626,10 @@ export async function getWorkspaceFileByName(
  */
 export async function listWorkspaceFiles(
   workspaceId: string,
-  options?: { scope?: WorkspaceFileScope }
+  options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active' } = options ?? {}
+    const { scope = 'active', hydrateFolderPaths = true } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
@@ -410,20 +653,13 @@ export async function listWorkspaceFiles(
       )
       .orderBy(workspaceFiles.uploadedAt)
 
-    const pathPrefix = getServePathPrefix()
+    const needsFolderPaths = hydrateFolderPaths && files.some((file) => file.folderId)
+    const folders = needsFolderPaths
+      ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
+      : []
+    const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
 
-    return files.map((file) => ({
-      id: file.id,
-      workspaceId: file.workspaceId || workspaceId, // Use query workspaceId as fallback (should never be null for workspace files)
-      name: file.originalName,
-      key: file.key,
-      path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-      size: file.size,
-      type: file.contentType,
-      uploadedBy: file.userId,
-      deletedAt: file.deletedAt,
-      uploadedAt: file.uploadedAt,
-    }))
+    return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
     return []
@@ -437,17 +673,29 @@ export async function listWorkspaceFiles(
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
+  const withoutDeletedPrefix = trimmed.startsWith('recently-deleted/')
+    ? trimmed.slice('recently-deleted/'.length)
+    : trimmed
 
-  if (trimmed.startsWith('files/by-id/')) {
-    const byIdRef = trimmed.slice('files/by-id/'.length)
+  if (withoutDeletedPrefix.startsWith('files/by-id/')) {
+    const byIdRef = withoutDeletedPrefix.slice('files/by-id/'.length)
     const match = byIdRef.match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
     if (match?.[1]) {
       return match[1]
     }
   }
 
-  if (trimmed.startsWith('files/')) {
-    const withoutPrefix = trimmed.slice('files/'.length)
+  if (withoutDeletedPrefix.startsWith('by-id/')) {
+    const match = withoutDeletedPrefix
+      .slice('by-id/'.length)
+      .match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
+    if (match?.[1]) {
+      return match[1]
+    }
+  }
+
+  if (withoutDeletedPrefix.startsWith('files/')) {
+    const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)
     if (withoutPrefix.endsWith('/meta.json')) {
       return withoutPrefix.slice(0, -'/meta.json'.length)
     }
@@ -457,7 +705,7 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
     return withoutPrefix
   }
 
-  return trimmed
+  return withoutDeletedPrefix
 }
 
 /**
@@ -471,7 +719,7 @@ export function getSandboxWorkspaceFilePath(
 
 /**
  * Find a workspace file record in an existing list from either its id or a VFS/name reference.
- * For copilot `open_resource` and the resource panel, use {@link getWorkspaceFile} with a UUID only.
+ * For copilot `open_resource` and the resource panel, use {@link getWorkspaceFile} with the file id.
  */
 export function findWorkspaceFileRecord(
   files: WorkspaceFileRecord[],
@@ -488,8 +736,41 @@ export function findWorkspaceFileRecord(
     return normalizedIdMatch
   }
 
-  const segmentKey = normalizeVfsSegment(normalizedReference)
+  const segmentKey = normalizedReference
+    .split('/')
+    .map((segment) => normalizeVfsSegment(segment))
+    .join('/')
+  const normalizedPathMatch = files.find((file) => {
+    const folderPath = file.folderPath
+      ?.split('/')
+      .map((segment) => normalizeVfsSegment(segment))
+      .join('/')
+    const fullPath = folderPath
+      ? `${folderPath}/${normalizeVfsSegment(file.name)}`
+      : normalizeVfsSegment(file.name)
+    return fullPath === segmentKey
+  })
+  if (normalizedPathMatch) return normalizedPathMatch
+
   return files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
+}
+
+async function getWorkspaceFileByExactReference(
+  workspaceId: string,
+  fileReference: string
+): Promise<WorkspaceFileRecord | null> {
+  const segments = fileReference
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  if (segments.length === 0) return null
+  if (segments.length === 1) {
+    return getWorkspaceFileByName(workspaceId, segments[0], { folderId: null })
+  }
+
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1))
+  return folderId ? getWorkspaceFileByName(workspaceId, segments.at(-1) ?? '', { folderId }) : null
 }
 
 /**
@@ -499,6 +780,18 @@ export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string
 ): Promise<WorkspaceFileRecord | null> {
+  const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  if (normalizedReference.startsWith('wf_')) {
+    const file = await getWorkspaceFile(workspaceId, normalizedReference)
+    if (file) return file
+  }
+
+  const exactReferenceFile = await getWorkspaceFileByExactReference(
+    workspaceId,
+    normalizedReference
+  )
+  if (exactReferenceFile) return exactReferenceFile
+
   const files = await listWorkspaceFiles(workspaceId)
   return findWorkspaceFileRecord(files, fileReference)
 }
@@ -534,21 +827,7 @@ export async function getWorkspaceFile(
 
     if (files.length === 0) return null
 
-    const pathPrefix = getServePathPrefix()
-
-    const file = files[0]
-    return {
-      id: file.id,
-      workspaceId: file.workspaceId || workspaceId, // Use query workspaceId as fallback (should never be null for workspace files)
-      name: file.originalName,
-      key: file.key,
-      path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-      size: file.size,
-      type: file.contentType,
-      uploadedBy: file.userId,
-      deletedAt: file.deletedAt,
-      uploadedAt: file.uploadedAt,
-    }
+    return mapSingleWorkspaceFileRecord(files[0], workspaceId)
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
     return null
@@ -558,7 +837,7 @@ export async function getWorkspaceFile(
 /**
  * Download workspace file content
  */
-export async function downloadWorkspaceFile(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
+export async function fetchWorkspaceFileBuffer(fileRecord: WorkspaceFileRecord): Promise<Buffer> {
   logger.info(`Downloading workspace file: ${fileRecord.name}`)
 
   try {
@@ -572,9 +851,7 @@ export async function downloadWorkspaceFile(fileRecord: WorkspaceFileRecord): Pr
     return buffer
   } catch (error) {
     logger.error(`Failed to download workspace file ${fileRecord.name}:`, error)
-    throw new Error(
-      `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -612,6 +889,7 @@ export async function updateWorkspaceFileContent(
       purpose: 'workspace',
       userId,
       workspaceId,
+      ...(fileRecord.folderId ? { folderId: fileRecord.folderId } : {}),
     }
 
     await uploadFile({
@@ -626,7 +904,7 @@ export async function updateWorkspaceFileContent(
 
     await db
       .update(workspaceFiles)
-      .set({ size: content.length, contentType: nextContentType })
+      .set({ size: content.length, contentType: nextContentType, updatedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -656,9 +934,7 @@ export async function updateWorkspaceFileContent(
     }
   } catch (error) {
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
-    throw new Error(
-      `Failed to update file content: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -673,29 +949,27 @@ export async function renameWorkspaceFile(
   logger.info(`Renaming workspace file: ${fileId} to "${newName}" in workspace ${workspaceId}`)
 
   const trimmedName = newName.trim()
-  if (!trimmedName) {
-    throw new Error('File name cannot be empty')
-  }
+  const normalizedName = normalizeWorkspaceFileItemName(trimmedName, 'File')
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
   if (!fileRecord) {
     throw new Error('File not found')
   }
 
-  if (fileRecord.name === trimmedName) {
+  if (fileRecord.name === normalizedName) {
     return fileRecord
   }
 
-  const exists = await fileExistsInWorkspace(workspaceId, trimmedName)
+  const exists = await fileExistsInWorkspace(workspaceId, normalizedName, fileRecord.folderId)
   if (exists) {
-    throw new FileConflictError(trimmedName)
+    throw new FileConflictError(normalizedName)
   }
 
   let updated: { id: string }[]
   try {
     updated = await db
       .update(workspaceFiles)
-      .set({ originalName: trimmedName })
+      .set({ originalName: normalizedName, updatedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -706,7 +980,7 @@ export async function renameWorkspaceFile(
       .returning({ id: workspaceFiles.id })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505') {
-      throw new FileConflictError(trimmedName)
+      throw new FileConflictError(normalizedName)
     }
     throw error
   }
@@ -715,11 +989,11 @@ export async function renameWorkspaceFile(
     throw new Error('File not found or could not be renamed')
   }
 
-  logger.info(`Successfully renamed workspace file ${fileId} to "${trimmedName}"`)
+  logger.info(`Successfully renamed workspace file ${fileId} to "${normalizedName}"`)
 
   return {
     ...fileRecord,
-    name: trimmedName,
+    name: normalizedName,
   }
 }
 
@@ -750,9 +1024,7 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
     logger.info(`Successfully archived workspace file: ${fileRecord.name}`)
   } catch (error) {
     logger.error(`Failed to delete workspace file ${fileId}:`, error)
-    throw new Error(
-      `Failed to delete file: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw new Error(`Failed to delete file: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -788,14 +1060,14 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     try {
       const newName = await generateRestoreName(
         fileRecord.name,
-        (candidate) => fileExistsInWorkspace(workspaceId, candidate),
+        (candidate) => fileExistsInWorkspace(workspaceId, candidate, null),
         { hasExtension: true }
       )
       attemptedRestoreName = newName
 
       await db
         .update(workspaceFiles)
-        .set({ deletedAt: null, originalName: newName })
+        .set({ deletedAt: null, folderId: null, originalName: newName, updatedAt: new Date() })
         .where(
           and(
             eq(workspaceFiles.id, fileId),

@@ -1,19 +1,22 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import type React from 'react'
+import { useRef, useState } from 'react'
+import { AlertCircle } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
+  Copy,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalHeader,
 } from '@/components/emcn'
-import { Copy } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
@@ -64,21 +67,21 @@ export function ExecutionSnapshot({
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const closeMenu = useCallback(() => {
+  function closeMenu() {
     setIsMenuOpen(false)
-  }, [])
+  }
 
-  const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
+  function handleCanvasContextMenu(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     setMenuPosition({ x: e.clientX, y: e.clientY })
     setIsMenuOpen(true)
-  }, [])
+  }
 
-  const handleCopyExecutionId = useCallback(() => {
+  function handleCopyExecutionId() {
     navigator.clipboard.writeText(executionId)
     closeMenu()
-  }, [executionId, closeMenu])
+  }
 
   const workflowState = data?.workflowState as WorkflowState | undefined
   const childWorkflowSnapshots = data?.childWorkflowSnapshots as
@@ -93,8 +96,8 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-            <Loader2 className='h-[16px] w-[16px] animate-spin' />
-            <span className='text-small'>Loading execution snapshot...</span>
+            <Loader className='size-[16px]' animate />
+            <span className='text-small'>Loading run snapshot…</span>
           </div>
         </div>
       )
@@ -107,8 +110,8 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-error)]'>
-            <AlertCircle className='h-[16px] w-[16px]' />
-            <span className='text-small'>Failed to load execution snapshot: {error.message}</span>
+            <AlertCircle className='size-[16px]' />
+            <span className='text-small'>Failed to load run snapshot: {error.message}</span>
           </div>
         </div>
       )
@@ -121,8 +124,8 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-            <Loader2 className='h-[16px] w-[16px] animate-spin' />
-            <span className='text-small'>Loading execution snapshot...</span>
+            <Loader className='size-[16px]' animate />
+            <span className='text-small'>Loading run snapshot…</span>
           </div>
         </div>
       )
@@ -135,12 +138,12 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-3 text-[var(--text-warning)]'>
-            <AlertCircle className='h-[20px] w-[20px]' />
+            <AlertCircle className='size-[20px]' />
             <span className='font-medium text-base'>Logged State Not Found</span>
           </div>
           <div className='max-w-md text-center text-[var(--text-secondary)] text-small'>
-            This log was migrated from the old logging system. The workflow state at execution time
-            is not available.
+            This log was migrated from the old logging system. The workflow state at the time of
+            this run is not available.
           </div>
           <div className='text-[var(--text-tertiary)] text-caption'>
             Note: {workflowState._note}
@@ -161,6 +164,7 @@ export function ExecutionSnapshot({
         onCanvasContextMenu={handleCanvasContextMenu}
         showBorder={!isModal}
         autoSelectLeftmost
+        showBlockCloseButton={!isModal}
       />
     )
   }
@@ -191,7 +195,7 @@ export function ExecutionSnapshot({
             >
               <DropdownMenuItem onSelect={handleCopyExecutionId}>
                 <Copy />
-                Copy Execution ID
+                Copy Run ID
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>,
@@ -213,7 +217,12 @@ export function ExecutionSnapshot({
           <ModalContent size='full' className='flex h-[90vh] flex-col'>
             <ModalHeader>Workflow State</ModalHeader>
 
-            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>{renderContent()}</ModalBody>
+            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
+              <ModalDescription className='sr-only'>
+                View the workflow state snapshot for this execution
+              </ModalDescription>
+              {renderContent()}
+            </ModalBody>
           </ModalContent>
         </Modal>
         {canvasContextMenu}

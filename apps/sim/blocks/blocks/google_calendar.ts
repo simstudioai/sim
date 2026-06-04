@@ -4,6 +4,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
+import { getTrigger } from '@/triggers'
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
@@ -67,7 +68,6 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       canonicalParamId: 'calendarId',
       serviceId: 'google-calendar',
       selectorKey: 'google.calendar',
-      selectorAllowSearch: false,
       requiredScopes: getScopesForService('google-calendar'),
       placeholder: 'Select calendar',
       dependsOn: ['credential'],
@@ -81,6 +81,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       type: 'short-input',
       canonicalParamId: 'calendarId',
       placeholder: 'Enter calendar ID (e.g., primary or calendar@gmail.com)',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_calendars', not: true },
     },
@@ -333,7 +334,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       canonicalParamId: 'destinationCalendarId',
       serviceId: 'google-calendar',
       selectorKey: 'google.calendar',
-      selectorAllowSearch: false,
       requiredScopes: getScopesForService('google-calendar'),
       placeholder: 'Select destination calendar',
       dependsOn: ['credential'],
@@ -348,6 +348,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       canonicalParamId: 'destinationCalendarId',
       placeholder: 'destination@group.calendar.google.com',
+      dependsOn: ['credential'],
       condition: { field: 'operation', value: 'move' },
       required: true,
       mode: 'advanced',
@@ -488,6 +489,7 @@ Return ONLY the natural language event text - no explanations.`,
         { label: 'None (no emails sent)', id: 'none' },
       ],
     },
+    ...getTrigger('google_calendar_poller').subBlocks,
   ],
   tools: {
     access: [
@@ -643,6 +645,10 @@ Return ONLY the natural language event text - no explanations.`,
   outputs: {
     content: { type: 'string', description: 'Operation response content' },
     metadata: { type: 'json', description: 'Event or calendar metadata' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['google_calendar_poller'],
   },
 }
 

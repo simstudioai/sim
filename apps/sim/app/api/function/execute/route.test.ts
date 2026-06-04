@@ -3,135 +3,76 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  featureFlagsMock,
+  hybridAuthMockFns,
+  workflowsUtilsMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckInternalAuth, mockExecuteInE2B, mockExecuteInIsolatedVM } = vi.hoisted(() => ({
-  mockCheckInternalAuth: vi.fn(),
+const { mockExecuteInE2B, mockExecuteInIsolatedVM, mockUploadFile } = vi.hoisted(() => ({
   mockExecuteInE2B: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
+  mockUploadFile: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkInternalAuth: mockCheckInternalAuth,
-}))
-
 vi.mock('@/lib/execution/e2b', () => ({
   executeInE2B: mockExecuteInE2B,
+  executeShellInE2B: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isHosted: false,
-  isE2bEnabled: false,
-  isProd: false,
-  isDev: false,
-  isTest: true,
+vi.mock('@/lib/copilot/request/tools/files', () => ({
+  FORMAT_TO_CONTENT_TYPE: {
+    json: 'application/json',
+    csv: 'text/csv',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    html: 'text/html',
+  },
+  normalizeOutputWorkspaceFileName: vi.fn((p: string) => p.replace(/^files\//, '')),
+  resolveOutputFormat: vi.fn(() => 'json'),
 }))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  uploadWorkspaceFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  StorageService: {
+    uploadFile: mockUploadFile,
+  },
+}))
+
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { POST } from '@/app/api/function/execute/route'
-
-/**
- * Creates a fake isolated-vm execution result by evaluating code
- * in a sandboxed context, mimicking the real executeInIsolatedVM behavior.
- */
-function createIsolatedVmImplementation() {
-  return async (req: {
-    code: string
-    params: Record<string, unknown>
-    envVars: Record<string, unknown>
-    contextVariables: Record<string, unknown>
-  }) => {
-    const { code, params, envVars, contextVariables } = req
-    const stdoutChunks: string[] = []
-
-    const mockConsole = {
-      log: (...args: unknown[]) => {
-        stdoutChunks.push(
-          `${args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')}\n`
-        )
-      },
-      error: (...args: unknown[]) => {
-        stdoutChunks.push(
-          'ERROR: ' +
-            args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ') +
-            '\n'
-        )
-      },
-      warn: (...args: unknown[]) => mockConsole.log('WARN:', ...args),
-      info: (...args: unknown[]) => mockConsole.log(...args),
-    }
-
-    try {
-      const escapePattern = /this\.constructor\.constructor|\.constructor\s*\(/
-      if (escapePattern.test(code)) {
-        return { result: undefined, stdout: '' }
-      }
-
-      const context: Record<string, unknown> = {
-        console: mockConsole,
-        params,
-        environmentVariables: envVars,
-        ...contextVariables,
-        process: undefined,
-        require: undefined,
-        module: undefined,
-        exports: undefined,
-        __dirname: undefined,
-        __filename: undefined,
-        fetch: async () => {
-          throw new Error('fetch not implemented in test mock')
-        },
-      }
-
-      const paramNames = Object.keys(context)
-      const paramValues = Object.values(context)
-
-      const wrappedCode = `
-        return (async () => {
-          ${code}
-        })();
-      `
-
-      const fn = new Function(...paramNames, wrappedCode)
-      const result = await fn(...paramValues)
-
-      return {
-        result,
-        stdout: stdoutChunks.join(''),
-      }
-    } catch (error: unknown) {
-      const err = error as Error
-      return {
-        result: null,
-        stdout: stdoutChunks.join(''),
-        error: {
-          message: err.message || String(error),
-          name: err.name || 'Error',
-          stack: err.stack,
-        },
-      }
-    }
-  }
-}
 
 describe('Function Execute API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    featureFlagsMock.isE2bEnabled = false
 
-    mockCheckInternalAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-123',
       authType: 'internal_jwt',
     })
 
-    mockExecuteInIsolatedVM.mockImplementation(createIsolatedVmImplementation())
+    mockExecuteInIsolatedVM.mockResolvedValue({ result: 'test', stdout: '' })
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    clearLargeValueCacheForTests()
 
     mockExecuteInE2B.mockResolvedValue({
       result: 'e2b success',
@@ -142,7 +83,7 @@ describe('Function Execute API Route', () => {
 
   describe('Security Tests', () => {
     it('should reject unauthorized requests', async () => {
-      mockCheckInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
         success: false,
         error: 'Unauthorized',
       })
@@ -171,7 +112,9 @@ describe('Function Execute API Route', () => {
       expect(data.output.result).toBe('test')
     })
 
-    it.concurrent('should prevent VM escape via constructor chain', async () => {
+    it('should prevent VM escape via constructor chain', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: undefined, stdout: '' })
+
       const req = createMockRequest('POST', {
         code: 'return this.constructor.constructor("return process")().env',
       })
@@ -179,7 +122,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      if (response.status === 500) {
+      if (response.status === 422 || response.status === 500) {
         expect(data.success).toBe(false)
       } else {
         const result = data.output?.result
@@ -207,7 +150,9 @@ describe('Function Execute API Route', () => {
       }
     })
 
-    it.concurrent('should not expose process object', async () => {
+    it('should not expose process object', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'undefined', stdout: '' })
+
       const req = createMockRequest('POST', {
         code: 'return typeof process',
       })
@@ -219,7 +164,9 @@ describe('Function Execute API Route', () => {
       expect(data.output.result).toBe('undefined')
     })
 
-    it.concurrent('should not expose require function', async () => {
+    it('should not expose require function', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'undefined', stdout: '' })
+
       const req = createMockRequest('POST', {
         code: 'return typeof require',
       })
@@ -267,7 +214,63 @@ describe('Function Execute API Route', () => {
       expect(data.output).toHaveProperty('executionTime')
     })
 
-    it.concurrent('should return computed result for multi-line code', async () => {
+    it('compacts large array result fields to manifests when execution context is durable', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: {
+          rows: Array.from({ length: 120_000 }, (_, index) => ({
+            key: `SIM-${index}`,
+            payload: 'x'.repeat(100),
+          })),
+        },
+        stdout: '',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return rows',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(isLargeArrayManifest(data.output.result.rows)).toBe(true)
+      expect(data.output.result.rows).toMatchObject({
+        __simLargeArrayManifest: true,
+        kind: 'array',
+        totalCount: 120_000,
+      })
+    })
+
+    it('keeps large string result fields as generic large value refs', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: {
+          text: 'x'.repeat(9 * 1024 * 1024),
+        },
+        stdout: '',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return text',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(isLargeValueRef(data.output.result.text)).toBe(true)
+    })
+
+    it('should return computed result for multi-line code', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 10, stdout: '' })
+
       const req = createMockRequest('POST', {
         code: 'const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nreturn a + b + c + d;',
         timeout: 5000,
@@ -289,8 +292,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(data.success).toBe(false)
+      expect(response.status).toBe(400)
       expect(data).toHaveProperty('error')
     })
 
@@ -304,6 +306,73 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
+    })
+
+    it('rejects large refs in runtimes without ref-native helpers', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      const req = createMockRequest('POST', {
+        code: 'echo "$__blockRef_0"',
+        language: 'shell',
+        contextVariables: {
+          __blockRef_0: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 12 * 1024 * 1024,
+            executionId: 'execution-1',
+          },
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain(
+        'Large execution values require the JavaScript isolated-vm runtime'
+      )
+    })
+
+    it('registers manifest array read broker for isolated-vm execution', async () => {
+      const req = createMockRequest('POST', {
+        code: 'return await sim.values.readArray(__blockRef_0)',
+        language: 'javascript',
+        contextVariables: {
+          __blockRef_0: {
+            __simLargeArrayManifest: true,
+            version: 2,
+            kind: 'array',
+            totalCount: 1,
+            chunkCount: 1,
+            byteSize: 16,
+            chunks: [
+              {
+                ref: {
+                  __simLargeValueRef: true,
+                  version: 1,
+                  id: 'lv_ABCDEFGHIJKL',
+                  kind: 'array',
+                  size: 16,
+                  executionId: 'execution-1',
+                },
+                count: 1,
+                byteSize: 16,
+              },
+            ],
+            preview: [{ id: 1 }],
+          },
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+      const [, options] = mockExecuteInIsolatedVM.mock.calls.at(-1) ?? []
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(options?.brokers).toHaveProperty('sim.values.readArray')
     })
   })
 
@@ -454,7 +523,7 @@ describe('Function Execute API Route', () => {
 
       const response = await POST(req)
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(400)
     })
 
     it.concurrent('should handle timeout parameter', async () => {
@@ -484,6 +553,12 @@ describe('Function Execute API Route', () => {
 
   describe('Enhanced Error Handling', () => {
     it('should provide detailed syntax error with line content', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: { message: 'Unexpected end of input', name: 'SyntaxError' },
+      })
+
       const req = createMockRequest('POST', {
         code: 'const obj = {\n  name: "test",\n  description: "This has a missing closing quote\n};\nreturn obj;',
         timeout: 5000,
@@ -492,12 +567,21 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toBeTruthy()
     })
 
     it('should provide detailed runtime error with line and column', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: {
+          message: "Cannot read properties of null (reading 'someMethod')",
+          name: 'TypeError',
+        },
+      })
+
       const req = createMockRequest('POST', {
         code: 'const obj = null;\nreturn obj.someMethod();',
         timeout: 5000,
@@ -506,13 +590,19 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Type Error')
       expect(data.error).toContain('Cannot read properties of null')
     })
 
     it('should handle ReferenceError with enhanced details', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: { message: 'undefinedVariable is not defined', name: 'ReferenceError' },
+      })
+
       const req = createMockRequest('POST', {
         code: 'const x = 42;\nreturn undefinedVariable + x;',
         timeout: 5000,
@@ -521,13 +611,49 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Reference Error')
       expect(data.error).toContain('undefinedVariable is not defined')
     })
 
+    it('should show original source code when resolved block references cause syntax errors', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: {
+          message: 'Unexpected identifier "globalThis"',
+          name: 'SyntaxError',
+          line: 1,
+          column: 7,
+          lineContent: 'retur globalThis["__blockRef_0"]',
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'retur globalThis["__blockRef_0"]',
+        sourceCode: 'retur <start.reqerror>',
+        contextVariables: { __blockRef_0: 'value' },
+        timeout: 5000,
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Line 1: `retur <start.reqerror>`')
+      expect(data.error).not.toContain('globalThis')
+      expect(data.debug.lineContent).toBe('retur <start.reqerror>')
+    })
+
     it('should handle thrown errors gracefully', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: { message: 'Custom error message', name: 'Error' },
+      })
+
       const req = createMockRequest('POST', {
         code: 'throw new Error("Custom error message");',
         timeout: 5000,
@@ -536,12 +662,18 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toContain('Custom error message')
     })
 
-    it.concurrent('should provide helpful suggestions for common syntax errors', async () => {
+    it('should provide helpful suggestions for common syntax errors', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: { message: 'Unexpected end of input', name: 'SyntaxError' },
+      })
+
       const req = createMockRequest('POST', {
         code: 'const obj = {\n  name: "test"\n// Missing closing brace',
         timeout: 5000,
@@ -550,7 +682,7 @@ describe('Function Execute API Route', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(422)
       expect(data.success).toBe(false)
       expect(data.error).toBeTruthy()
     })

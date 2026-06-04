@@ -29,7 +29,7 @@ export const incidentRolesDeleteTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incident_roles/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/incident_roles/${params.id.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',

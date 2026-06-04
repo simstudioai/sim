@@ -11,7 +11,7 @@ export const describeStacksTool: ToolConfig<
   id: 'cloudformation_describe_stacks',
   name: 'CloudFormation Describe Stacks',
   description: 'List and describe CloudFormation stacks',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

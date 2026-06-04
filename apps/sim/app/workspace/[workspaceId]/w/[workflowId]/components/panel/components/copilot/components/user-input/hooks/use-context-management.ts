@@ -49,7 +49,7 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
    * Clears all selected contexts
    */
   const clearContexts = useCallback(() => {
-    setSelectedContexts([])
+    setSelectedContexts((prev) => (prev.length === 0 ? prev : []))
   }, [])
 
   /**
@@ -58,7 +58,9 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
    */
   useEffect(() => {
     if (!message) {
-      setSelectedContexts([])
+      // Functional updater bails out when already empty; a fresh `[]` literal would
+      // emit a new reference and invalidate downstream memos that key on identity.
+      setSelectedContexts((prev) => (prev.length === 0 ? prev : []))
       return
     }
 

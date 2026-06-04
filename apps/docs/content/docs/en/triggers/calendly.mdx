@@ -1,0 +1,181 @@
+---
+title: Calendly
+description: Available Calendly triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="calendly"
+  color="#FFFFFF"
+/>
+
+Calendly provides 4 triggers for automating workflows based on events.
+
+## Triggers
+
+### Calendly Invitee Canceled
+
+Trigger workflow when someone cancels a scheduled event on Calendly
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Personal Access Token |
+| `organization` | string | Yes | Organization URI for the webhook subscription. Get this from  |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type \(invitee.created or invitee.canceled\) |
+| `created_at` | string | Webhook event creation timestamp |
+| `created_by` | string | URI of the Calendly user who created this webhook |
+| `payload` | object | payload output from the tool |
+|   ↳ `uri` | string | Invitee URI |
+|   ↳ `email` | string | Invitee email address |
+|   ↳ `name` | string | Invitee full name |
+|   ↳ `first_name` | string | Invitee first name |
+|   ↳ `last_name` | string | Invitee last name |
+|   ↳ `status` | string | Invitee status \(active or canceled\) |
+|   ↳ `timezone` | string | Invitee timezone |
+|   ↳ `event` | string | Scheduled event URI |
+|   ↳ `text_reminder_number` | string | Phone number for text reminders |
+|   ↳ `rescheduled` | boolean | Whether this invitee rescheduled |
+|   ↳ `old_invitee` | string | URI of the old invitee \(if rescheduled\) |
+|   ↳ `new_invitee` | string | URI of the new invitee \(if rescheduled\) |
+|   ↳ `cancel_url` | string | URL to cancel the event |
+|   ↳ `reschedule_url` | string | URL to reschedule the event |
+|   ↳ `created_at` | string | Invitee creation timestamp |
+|   ↳ `updated_at` | string | Invitee last update timestamp |
+|   ↳ `canceled` | boolean | Whether the event was canceled |
+|   ↳ `cancellation` | object | Cancellation details |
+|     ↳ `canceled_by` | string | Who canceled the event |
+|     ↳ `reason` | string | Cancellation reason |
+|   ↳ `payment` | object | Payment details |
+|     ↳ `id` | string | Payment ID |
+|     ↳ `provider` | string | Payment provider |
+|     ↳ `amount` | number | Payment amount |
+|     ↳ `currency` | string | Payment currency |
+|     ↳ `terms` | string | Payment terms |
+|     ↳ `successful` | boolean | Whether payment was successful |
+|   ↳ `no_show` | object | No-show details |
+|     ↳ `created_at` | string | No-show marked timestamp |
+|   ↳ `reconfirmation` | object | Reconfirmation details |
+|     ↳ `created_at` | string | Reconfirmation timestamp |
+|     ↳ `confirmed_at` | string | Confirmation timestamp |
+
+
+---
+
+### Calendly Invitee Created
+
+Trigger workflow when someone schedules a new event on Calendly
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Personal Access Token |
+| `organization` | string | Yes | Organization URI for the webhook subscription. Get this from  |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type \(invitee.created or invitee.canceled\) |
+| `created_at` | string | Webhook event creation timestamp |
+| `created_by` | string | URI of the Calendly user who created this webhook |
+| `payload` | object | payload output from the tool |
+|   ↳ `uri` | string | Invitee URI |
+|   ↳ `email` | string | Invitee email address |
+|   ↳ `name` | string | Invitee full name |
+|   ↳ `first_name` | string | Invitee first name |
+|   ↳ `last_name` | string | Invitee last name |
+|   ↳ `status` | string | Invitee status \(active or canceled\) |
+|   ↳ `timezone` | string | Invitee timezone |
+|   ↳ `event` | string | Scheduled event URI |
+|   ↳ `text_reminder_number` | string | Phone number for text reminders |
+|   ↳ `rescheduled` | boolean | Whether this invitee rescheduled |
+|   ↳ `old_invitee` | string | URI of the old invitee \(if rescheduled\) |
+|   ↳ `new_invitee` | string | URI of the new invitee \(if rescheduled\) |
+|   ↳ `cancel_url` | string | URL to cancel the event |
+|   ↳ `reschedule_url` | string | URL to reschedule the event |
+|   ↳ `created_at` | string | Invitee creation timestamp |
+|   ↳ `updated_at` | string | Invitee last update timestamp |
+|   ↳ `canceled` | boolean | Whether the event was canceled |
+|   ↳ `cancellation` | object | Cancellation details |
+|     ↳ `canceled_by` | string | Who canceled the event |
+|     ↳ `reason` | string | Cancellation reason |
+|   ↳ `payment` | object | Payment details |
+|     ↳ `id` | string | Payment ID |
+|     ↳ `provider` | string | Payment provider |
+|     ↳ `amount` | number | Payment amount |
+|     ↳ `currency` | string | Payment currency |
+|     ↳ `terms` | string | Payment terms |
+|     ↳ `successful` | boolean | Whether payment was successful |
+|   ↳ `no_show` | object | No-show details |
+|     ↳ `created_at` | string | No-show marked timestamp |
+|   ↳ `reconfirmation` | object | Reconfirmation details |
+|     ↳ `created_at` | string | Reconfirmation timestamp |
+|     ↳ `confirmed_at` | string | Confirmation timestamp |
+
+
+---
+
+### Calendly Routing Form Submitted
+
+Trigger workflow when someone submits a Calendly routing form
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Personal Access Token |
+| `organization` | string | Yes | Organization URI for the webhook subscription. Get this from  |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type \(routing_form_submission.created\) |
+| `created_at` | string | Webhook event creation timestamp |
+| `created_by` | string | URI of the Calendly user who created this webhook |
+| `payload` | object | payload output from the tool |
+|   ↳ `uri` | string | Routing form submission URI |
+|   ↳ `routing_form` | string | Routing form URI |
+|   ↳ `submitter` | object | Submitter details |
+|     ↳ `uri` | string | Submitter URI |
+|     ↳ `email` | string | Submitter email address |
+|     ↳ `name` | string | Submitter full name |
+|   ↳ `submitter_type` | string | Type of submitter |
+|   ↳ `result` | object | Routing result details |
+|     ↳ `type` | string | Result type \(event_type, custom_message, or external_url\) |
+|     ↳ `value` | string | Result value \(event type URI, message, or URL\) |
+|   ↳ `created_at` | string | Submission creation timestamp |
+|   ↳ `updated_at` | string | Submission last update timestamp |
+
+
+---
+
+### Calendly Webhook
+
+Trigger workflow from any Calendly webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Personal Access Token |
+| `organization` | string | Yes | Organization URI for the webhook subscription. Get this from  |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Event type \(invitee.created, invitee.canceled, or routing_form_submission.created\) |
+| `created_at` | string | Webhook event creation timestamp |
+| `created_by` | string | URI of the Calendly user who created this webhook |
+| `payload` | object | Complete event payload \(structure varies by event type\) |
+

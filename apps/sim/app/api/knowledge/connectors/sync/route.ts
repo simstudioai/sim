@@ -5,6 +5,7 @@ import { and, eq, inArray, isNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,7 @@ const logger = createLogger('ConnectorSyncSchedulerAPI')
  * Cron endpoint that checks for connectors due for sync and dispatches sync jobs.
  * Should be called every 5 minutes by an external cron service.
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Connector sync scheduler triggered`)
 
@@ -96,4 +97,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Connector sync scheduler error`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

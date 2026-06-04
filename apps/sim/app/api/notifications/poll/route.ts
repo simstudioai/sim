@@ -1,8 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { noInputSchema } from '@/lib/api/contracts/primitives'
+import { validationErrorResponse } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { runDetached } from '@/lib/core/utils/background'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { pollInactivityAlerts } from '@/lib/notifications/inactivity-polling'
 
 const logger = createLogger('InactivityAlertPoll')
@@ -12,11 +17,13 @@ export const maxDuration = 120
 const LOCK_KEY = 'inactivity-alert-polling-lock'
 const LOCK_TTL_SECONDS = 120
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateShortId()
   logger.info(`Inactivity alert polling triggered (${requestId})`)
-
-  let lockAcquired = false
+  const queryValidation = noInputSchema.safeParse(
+    Object.fromEntries(request.nextUrl.searchParams.entries())
+  )
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
 
   try {
     const authError = verifyCronAuth(request, 'Inactivity alert polling')
@@ -24,7 +31,7 @@ export async function GET(request: NextRequest) {
       return authError
     }
 
-    lockAcquired = await acquireLock(LOCK_KEY, requestId, LOCK_TTL_SECONDS)
+    const lockAcquired = await acquireLock(LOCK_KEY, requestId, LOCK_TTL_SECONDS)
 
     if (!lockAcquired) {
       return NextResponse.json(
@@ -38,29 +45,33 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const results = await pollInactivityAlerts()
-
-    return NextResponse.json({
-      success: true,
-      message: 'Inactivity alert polling completed',
-      requestId,
-      status: 'completed',
-      ...results,
+    runDetached('inactivity-alert-polling', async () => {
+      try {
+        await pollInactivityAlerts()
+      } finally {
+        await releaseLock(LOCK_KEY, requestId).catch(() => {})
+      }
     })
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Inactivity alert polling started',
+        requestId,
+        status: 'started',
+      },
+      { status: 202 }
+    )
   } catch (error) {
     logger.error(`Error during inactivity alert polling (${requestId}):`, error)
     return NextResponse.json(
       {
         success: false,
         message: 'Inactivity alert polling failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
         requestId,
       },
       { status: 500 }
     )
-  } finally {
-    if (lockAcquired) {
-      await releaseLock(LOCK_KEY, requestId).catch(() => {})
-    }
   }
-}
+})

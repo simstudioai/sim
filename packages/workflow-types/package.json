@@ -1,0 +1,37 @@
+{
+  "name": "@sim/workflow-types",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    "./blocks": {
+      "types": "./src/blocks.ts",
+      "default": "./src/blocks.ts"
+    },
+    "./workflow": {
+      "types": "./src/workflow.ts",
+      "default": "./src/workflow.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
+  },
+  "peerDependencies": {
+    "reactflow": "^11.11.4"
+  },
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "reactflow": "^11.11.4",
+    "typescript": "^5.7.3"
+  }
+}

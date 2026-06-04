@@ -53,17 +53,16 @@ export const DEFAULT_LIMIT = 50
 export const MAX_LIMIT = 250
 
 export function parsePaginationParams(url: URL): PaginationParams {
-  const limitParam = url.searchParams.get('limit')
-  const offsetParam = url.searchParams.get('offset')
+  return {
+    limit: parsePaginationNumber(url.searchParams.get('limit'), DEFAULT_LIMIT, MAX_LIMIT),
+    offset: parsePaginationNumber(url.searchParams.get('offset'), 0),
+  }
+}
 
-  let limit = limitParam ? Number.parseInt(limitParam, 10) : DEFAULT_LIMIT
-  let offset = offsetParam ? Number.parseInt(offsetParam, 10) : 0
-
-  if (Number.isNaN(limit) || limit < 1) limit = DEFAULT_LIMIT
-  if (limit > MAX_LIMIT) limit = MAX_LIMIT
-  if (Number.isNaN(offset) || offset < 0) offset = 0
-
-  return { limit, offset }
+function parsePaginationNumber(value: string | null, fallback: number, max?: number): number {
+  const parsed = value ? Number.parseInt(value, 10) : fallback
+  if (!Number.isInteger(parsed) || parsed < 1) return fallback
+  return max === undefined ? parsed : Math.min(parsed, max)
 }
 
 export function createPaginationMeta(total: number, limit: number, offset: number): PaginationMeta {
@@ -199,7 +198,23 @@ export interface AdminWorkflowDetail extends AdminWorkflow {
   edgeCount: number
 }
 
-export function toAdminWorkflow(dbWorkflow: DbWorkflow): AdminWorkflow {
+export type AdminWorkflowSource = Pick<
+  DbWorkflow,
+  | 'id'
+  | 'name'
+  | 'description'
+  | 'color'
+  | 'workspaceId'
+  | 'folderId'
+  | 'isDeployed'
+  | 'deployedAt'
+  | 'runCount'
+  | 'lastRunAt'
+  | 'createdAt'
+  | 'updatedAt'
+>
+
+export function toAdminWorkflow(dbWorkflow: AdminWorkflowSource): AdminWorkflow {
   return {
     id: dbWorkflow.id,
     name: dbWorkflow.name,
@@ -444,7 +459,20 @@ export interface AdminOrganizationDetail extends AdminOrganization {
   subscription: AdminSubscription | null
 }
 
-export function toAdminOrganization(dbOrg: DbOrganization): AdminOrganization {
+export type AdminOrganizationSource = Pick<
+  DbOrganization,
+  | 'id'
+  | 'name'
+  | 'slug'
+  | 'logo'
+  | 'orgUsageLimit'
+  | 'storageUsedBytes'
+  | 'departedMemberUsage'
+  | 'createdAt'
+  | 'updatedAt'
+>
+
+export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrganization {
   return {
     id: dbOrg.id,
     name: dbOrg.name,
@@ -515,7 +543,6 @@ export interface AdminMemberDetail extends AdminMember {
   // Billing/usage info from userStats
   currentPeriodCost: string
   currentUsageLimit: string | null
-  lastActive: string | null
   billingBlocked: boolean
 }
 
@@ -539,35 +566,22 @@ export interface AdminWorkspaceMember {
 // User Billing Types
 // =============================================================================
 
-export interface AdminUserBilling {
+interface AdminUserBilling {
   userId: string
   // User info
   userName: string
   userEmail: string
   stripeCustomerId: string | null
   // Usage stats
-  totalManualExecutions: number
-  totalApiCalls: number
-  totalWebhookTriggers: number
-  totalScheduledExecutions: number
-  totalChatExecutions: number
-  totalMcpExecutions: number
-  totalA2aExecutions: number
-  totalTokensUsed: number
-  totalCost: string
   currentUsageLimit: string | null
   currentPeriodCost: string
   lastPeriodCost: string | null
   billedOverageThisPeriod: string
   storageUsedBytes: number
-  lastActive: string | null
   billingBlocked: boolean
-  // Copilot usage
-  totalCopilotCost: string
+  // Copilot usage (active per-period baselines)
   currentPeriodCopilotCost: string
   lastPeriodCopilotCost: string | null
-  totalCopilotTokens: number
-  totalCopilotCalls: number
 }
 
 export interface AdminUserBillingWithSubscription extends AdminUserBilling {
@@ -615,16 +629,6 @@ export interface AdminSeatAnalytics {
   subscriptionPlan: string
   canAddSeats: boolean
   utilizationRate: number
-  activeMembers: number
-  inactiveMembers: number
-  memberActivity: Array<{
-    userId: string
-    userName: string
-    userEmail: string
-    role: string
-    joinedAt: string
-    lastActive: string | null
-  }>
 }
 
 export interface AdminDeploymentVersion {
@@ -646,6 +650,7 @@ export interface AdminDeployResult {
 
 export interface AdminUndeployResult {
   isDeployed: boolean
+  warnings?: string[]
 }
 
 // =============================================================================

@@ -1,0 +1,144 @@
+---
+title: CrowdStrike
+description: Query CrowdStrike Identity Protection sensors and documented aggregates
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="crowdstrike"
+  color="#E01F3D"
+/>
+
+## Usage Instructions
+
+Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.
+
+
+
+## Tools
+
+### `crowdstrike_get_sensor_aggregates`
+
+Get documented CrowdStrike Identity Protection sensor aggregates from a JSON aggregate query body
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `aggregateQuery` | json | Yes | JSON aggregate query body documented by CrowdStrike for sensor aggregates |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `aggregates` | array | Aggregate result groups returned by CrowdStrike |
+|   ↳ `buckets` | array | Buckets within the aggregate result |
+|     ↳ `count` | number | Bucket document count |
+|     ↳ `from` | number | Bucket lower bound |
+|     ↳ `keyAsString` | string | String representation of the bucket key |
+|     ↳ `label` | json | Bucket label object |
+|     ↳ `stringFrom` | string | String lower bound |
+|     ↳ `stringTo` | string | String upper bound |
+|     ↳ `subAggregates` | json | Nested aggregate results for this bucket |
+|     ↳ `to` | number | Bucket upper bound |
+|     ↳ `value` | number | Bucket metric value |
+|     ↳ `valueAsString` | string | String representation of the bucket value |
+|   ↳ `docCountErrorUpperBound` | number | Upper bound for bucket count error |
+|   ↳ `name` | string | Aggregate result name |
+|   ↳ `sumOtherDocCount` | number | Document count not included in the returned buckets |
+| `count` | number | Number of aggregate result groups returned |
+
+### `crowdstrike_get_sensor_details`
+
+Get documented CrowdStrike Identity Protection sensor details for one or more device IDs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `ids` | json | Yes | JSON array of CrowdStrike sensor device IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sensors` | array | CrowdStrike identity sensor detail records |
+|   ↳ `agentVersion` | string | Sensor agent version |
+|   ↳ `cid` | string | CrowdStrike customer identifier |
+|   ↳ `deviceId` | string | Sensor device identifier |
+|   ↳ `heartbeatTime` | number | Last heartbeat timestamp |
+|   ↳ `hostname` | string | Sensor hostname |
+|   ↳ `idpPolicyId` | string | Assigned Identity Protection policy ID |
+|   ↳ `idpPolicyName` | string | Assigned Identity Protection policy name |
+|   ↳ `ipAddress` | string | Sensor local IP address |
+|   ↳ `kerberosConfig` | string | Kerberos configuration status |
+|   ↳ `ldapConfig` | string | LDAP configuration status |
+|   ↳ `ldapsConfig` | string | LDAPS configuration status |
+|   ↳ `machineDomain` | string | Machine domain |
+|   ↳ `ntlmConfig` | string | NTLM configuration status |
+|   ↳ `osVersion` | string | Operating system version |
+|   ↳ `rdpToDcConfig` | string | RDP to domain controller configuration status |
+|   ↳ `smbToDcConfig` | string | SMB to domain controller configuration status |
+|   ↳ `status` | string | Sensor protection status |
+|   ↳ `statusCauses` | array | Documented causes behind the current status |
+|   ↳ `tiEnabled` | string | Threat intelligence enablement status |
+| `count` | number | Number of sensors returned |
+| `pagination` | json | Pagination metadata when returned by the underlying API |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
+
+### `crowdstrike_query_sensors`
+
+Search CrowdStrike identity protection sensors by hostname, IP, or related fields
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter for identity sensor search |
+| `limit` | number | No | Maximum number of sensor records to return |
+| `offset` | number | No | Pagination offset for the identity sensor query |
+| `sort` | string | No | Sort expression for identity sensor results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sensors` | array | Matching CrowdStrike identity sensor records |
+|   ↳ `agentVersion` | string | Sensor agent version |
+|   ↳ `cid` | string | CrowdStrike customer identifier |
+|   ↳ `deviceId` | string | Sensor device identifier |
+|   ↳ `heartbeatTime` | number | Last heartbeat timestamp |
+|   ↳ `hostname` | string | Sensor hostname |
+|   ↳ `idpPolicyId` | string | Assigned Identity Protection policy ID |
+|   ↳ `idpPolicyName` | string | Assigned Identity Protection policy name |
+|   ↳ `ipAddress` | string | Sensor local IP address |
+|   ↳ `kerberosConfig` | string | Kerberos configuration status |
+|   ↳ `ldapConfig` | string | LDAP configuration status |
+|   ↳ `ldapsConfig` | string | LDAPS configuration status |
+|   ↳ `machineDomain` | string | Machine domain |
+|   ↳ `ntlmConfig` | string | NTLM configuration status |
+|   ↳ `osVersion` | string | Operating system version |
+|   ↳ `rdpToDcConfig` | string | RDP to domain controller configuration status |
+|   ↳ `smbToDcConfig` | string | SMB to domain controller configuration status |
+|   ↳ `status` | string | Sensor protection status |
+|   ↳ `statusCauses` | array | Documented causes behind the current status |
+|   ↳ `tiEnabled` | string | Threat intelligence enablement status |
+| `count` | number | Number of sensors returned |
+| `pagination` | json | Pagination metadata \(limit, offset, total\) |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
+
+

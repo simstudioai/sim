@@ -3,28 +3,34 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { deleteCopilotChatContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
-import { taskPubSub } from '@/lib/copilot/task-events'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('DeleteChatAPI')
 
-const DeleteChatSchema = z.object({
-  chatId: z.string(),
-})
-
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const parsed = DeleteChatSchema.parse(body)
+    const validated = await parseRequest(
+      deleteCopilotChatContract,
+      request,
+      {},
+      {
+        invalidJson: 'throw',
+      }
+    )
+    if (!validated.success) return validated.response
+    const parsed = validated.data.body
 
-    const chat = await getAccessibleCopilotChat(parsed.chatId, session.user.id)
+    const chat = await getAccessibleCopilotChatAuth(parsed.chatId, session.user.id)
     if (!chat) {
       return NextResponse.json({ success: true })
     }
@@ -53,4 +59,4 @@ export async function DELETE(request: NextRequest) {
     logger.error('Error deleting chat:', error)
     return NextResponse.json({ success: false, error: 'Failed to delete chat' }, { status: 500 })
   }
-}
+})

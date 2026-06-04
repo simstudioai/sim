@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { formatDate } from '@sim/utils/formatting'
 import { Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -9,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -17,7 +19,6 @@ import {
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
-import { formatDate } from '@/lib/core/utils/formatting'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ApiKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import {
@@ -117,7 +118,7 @@ export function ApiKeys() {
     }
   }
 
-  const formatLastUsed = (dateString?: string) => {
+  const formatLastUsed = (dateString?: string | null) => {
     if (!dateString) return 'Never'
     return formatDate(new Date(dateString))
   }
@@ -126,9 +127,9 @@ export function ApiKeys() {
     <div className='flex h-full flex-col gap-4.5'>
       {/* Search Input and Create Button */}
       <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-2 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent p-2 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
           <Search
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
             strokeWidth={2}
           />
           <Input
@@ -149,7 +150,7 @@ export function ApiKeys() {
           variant='primary'
           disabled={createButtonDisabled}
         >
-          <Plus className='mr-1.5 h-[13px] w-[13px]' />
+          <Plus className='mr-1.5 size-[13px]' />
           Create
         </Button>
       </div>
@@ -314,7 +315,7 @@ export function ApiKeys() {
         <div className='mt-6 flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <Skeleton className='h-5 w-[170px]' />
-            <Skeleton className='h-3 w-3 rounded-full' />
+            <Skeleton className='size-3 rounded-full' />
           </div>
           <Skeleton className='h-5 w-9 rounded-full' />
         </div>
@@ -332,7 +333,7 @@ export function ApiKeys() {
                     type='button'
                     className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
                   >
-                    <Info className='h-[12px] w-[12px]' strokeWidth={2} />
+                    <Info className='size-[12px]' strokeWidth={2} />
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top' className='max-w-xs text-small'>
@@ -378,14 +379,14 @@ export function ApiKeys() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Sim key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Deleting{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span>{' '}
               <span className='text-[var(--text-error)]'>
                 will immediately revoke access for any integrations using it.
               </span>{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
+              This action cannot be undone.
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

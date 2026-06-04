@@ -6,7 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Video } from '@/components/ui/video'
 
-Sim provides a comprehensive external API for querying workflow execution logs and setting up webhooks for real-time notifications when workflows complete.
+Sim provides a comprehensive external API for querying workflow run logs and setting up webhooks for real-time notifications when workflows complete.
 
 ## Authentication
 
@@ -21,7 +21,7 @@ You can generate API keys from the Sim platform and navigate to **Settings**, th
 
 ## Logs API
 
-All API responses include information about your workflow execution limits and usage:
+All API responses include information about your workflow run limits and usage:
 
 ```json
 "limits": {
@@ -48,11 +48,11 @@ All API responses include information about your workflow execution limits and u
 }
 ```
 
-**Note:** Rate limits use a token bucket algorithm. `remaining` can exceed `requestsPerMinute` up to `maxBurst` when you haven't used your full allowance recently, allowing for burst traffic. The rate limits in the response body are for workflow executions. The rate limits for calling this API endpoint are in the response headers (`X-RateLimit-*`).
+**Note:** Rate limits use a token bucket algorithm. `remaining` can exceed `requestsPerMinute` up to `maxBurst` when you haven't used your full allowance recently, allowing for burst traffic. The rate limits in the response body are for workflow runs. The rate limits for calling this API endpoint are in the response headers (`X-RateLimit-*`).
 
 ### Query Logs
 
-Query workflow execution logs with extensive filtering options.
+Query workflow run logs with extensive filtering options.
 
 <Tabs items={['Request', 'Response']}>
   <Tab value="Request">
@@ -70,11 +70,11 @@ Query workflow execution logs with extensive filtering options.
     - `level` - Filter by level: `info`, `error`
     - `startDate` - ISO timestamp for date range start
     - `endDate` - ISO timestamp for date range end
-    - `executionId` - Exact execution ID match
-    - `minDurationMs` - Minimum execution duration in milliseconds
-    - `maxDurationMs` - Maximum execution duration in milliseconds
-    - `minCost` - Minimum execution cost
-    - `maxCost` - Maximum execution cost
+    - `executionId` - Exact run ID match
+    - `minDurationMs` - Minimum run duration in milliseconds
+    - `maxDurationMs` - Maximum run duration in milliseconds
+    - `minCost` - Minimum run cost
+    - `maxCost` - Maximum run cost
     - `model` - Filter by AI model used
 
     **Pagination:**
@@ -213,9 +213,9 @@ Retrieve detailed information about a specific log entry.
   </Tab>
 </Tabs>
 
-### Get Execution Details
+### Get Run Details
 
-Retrieve execution details including the workflow state snapshot.
+Retrieve run details including the workflow state snapshot.
 
 <Tabs items={['Request', 'Response']}>
   <Tab value="Request">
@@ -248,7 +248,7 @@ Retrieve execution details including the workflow state snapshot.
 
 ## Notifications
 
-Get real-time notifications when workflow executions complete via webhook, email, or Slack. Notifications are configured at the workspace level from the Logs page.
+Get real-time notifications when workflow runs complete via webhook, email, or Slack. Notifications are configured at the workspace level from the Logs page.
 
 ### Configuration
 
@@ -256,7 +256,7 @@ Configure notifications from the Logs page by clicking the menu button and selec
 
 **Notification Channels:**
 - **Webhook**: Send HTTP POST requests to your endpoint
-- **Email**: Receive email notifications with execution details
+- **Email**: Receive email notifications with run details
 - **Slack**: Post messages to a Slack channel
 
 **Workflow Selection:**
@@ -269,38 +269,38 @@ Configure notifications from the Logs page by clicking the menu button and selec
 
 **Optional Data:**
 - `includeFinalOutput`: Include the workflow's final output
-- `includeTraceSpans`: Include detailed execution trace spans
+- `includeTraceSpans`: Include detailed trace spans
 - `includeRateLimits`: Include rate limit information (sync/async limits and remaining)
 - `includeUsageData`: Include billing period usage and limits
 
 ### Alert Rules
 
-Instead of receiving notifications for every execution, configure alert rules to be notified only when issues are detected:
+Instead of receiving notifications for every run, configure alert rules to be notified only when issues are detected:
 
 **Consecutive Failures**
-- Alert after X consecutive failed executions (e.g., 3 failures in a row)
-- Resets when an execution succeeds
+- Alert after X consecutive failed runs (e.g., 3 failures in a row)
+- Resets when a run succeeds
 
 **Failure Rate**
 - Alert when failure rate exceeds X% over the last Y hours
-- Requires minimum 5 executions in the window
+- Requires minimum 5 runs in the window
 - Only triggers after the full time window has elapsed
 
 **Latency Threshold**
-- Alert when any execution takes longer than X seconds
+- Alert when any run takes longer than X seconds
 - Useful for catching slow or hanging workflows
 
 **Latency Spike**
-- Alert when execution is X% slower than the average
+- Alert when a run is X% slower than the average
 - Compares against the average duration over the configured time window
-- Requires minimum 5 executions to establish baseline
+- Requires minimum 5 runs to establish baseline
 
 **Cost Threshold**
-- Alert when a single execution costs more than $X
+- Alert when a single run costs more than $X
 - Useful for catching expensive LLM calls
 
 **No Activity**
-- Alert when no executions occur within X hours
+- Alert when no runs occur within X hours
 - Useful for monitoring scheduled workflows that should run regularly
 
 **Error Count**
@@ -317,7 +317,7 @@ For webhooks, additional options are available:
 
 ### Payload Structure
 
-When a workflow execution completes, Sim sends the following payload (via webhook POST, email, or Slack):
+When a workflow run completes, Sim sends the following payload (via webhook POST, email, or Slack):
 
 ```json
 {
@@ -456,7 +456,7 @@ Failed webhook deliveries are retried with exponential backoff and jitter:
 - Deliveries timeout after 30 seconds
 
 <Callout type="info">
-  Webhook deliveries are processed asynchronously and don't affect workflow execution performance.
+  Webhook deliveries are processed asynchronously and don't affect workflow run performance.
 </Callout>
 
 ## Best Practices
@@ -596,11 +596,11 @@ app.listen(3000, () => {
 import { FAQ } from '@/components/ui/faq'
 
 <FAQ items={[
-  { question: "How do I trigger async execution via the API?", answer: "Set the X-Execution-Mode header to 'async' on your POST request to /api/workflows/{id}/execute. The API returns a 202 response with a jobId, executionId, and a statusUrl you can poll to check when the job completes. Async mode does not support draft state, workflow overrides, or selective output options." },
+  { question: "How do I trigger an async run via the API?", answer: "Set the X-Execution-Mode header to 'async' on your POST request to /api/workflows/{id}/execute. The API returns a 202 response with a jobId, executionId, and a statusUrl you can poll to check when the job completes. Async mode does not support draft state, workflow overrides, or selective output options." },
   { question: "What authentication methods does the API support?", answer: "The API supports two authentication methods: API keys passed in the x-api-key header, and session-based authentication for logged-in users. API keys can be generated from Settings > Sim Keys in the platform. Workflows with public API access enabled can also be called without authentication." },
   { question: "How does the webhook retry policy work?", answer: "Failed webhook deliveries are retried up to 5 times with exponential backoff: 5 seconds, 15 seconds, 1 minute, 3 minutes, and 10 minutes, plus up to 10% jitter. Only HTTP 5xx and 429 responses trigger retries. Each delivery times out after 30 seconds." },
-  { question: "What rate limits apply to the Logs API?", answer: "Rate limits use a token bucket algorithm. Free plans get 30 requests/minute with 60 burst capacity, Pro gets 100/200, Team gets 200/400, and Enterprise gets 500/1000. These are separate from workflow execution rate limits, which are shown in the response body." },
+  { question: "What rate limits apply to the Logs API?", answer: "Rate limits use a token bucket algorithm. Free plans get 30 requests/minute with 60 burst capacity, Pro gets 100/200, Team gets 200/400, and Enterprise gets 500/1000. These are separate from workflow run rate limits, which are shown in the response body." },
   { question: "How do I verify that a webhook is from Sim?", answer: "Configure a webhook secret when setting up notifications. Sim signs each delivery with HMAC-SHA256 using the format 't={timestamp},v1={signature}' in the sim-signature header. Compute the HMAC of '{timestamp}.{body}' with your secret and compare it to the signature value." },
   { question: "What alert rules are available for notifications?", answer: "You can configure alerts for consecutive failures, failure rate thresholds, latency thresholds, latency spikes (percentage above average), cost thresholds, no-activity periods, and error counts within a time window. All alert types include a 1-hour cooldown to prevent notification spam." },
-  { question: "Can I filter which executions trigger notifications?", answer: "Yes. You can filter notifications by specific workflows (or select all), log level (info or error), and trigger type (api, webhook, schedule, manual, chat). You can also choose whether to include final output, trace spans, rate limits, and usage data in the notification payload." },
+  { question: "Can I filter which runs trigger notifications?", answer: "Yes. You can filter notifications by specific workflows (or select all), log level (info or error), and trigger type (api, webhook, schedule, manual, chat). You can also choose whether to include final output, trace spans, rate limits, and usage data in the notification payload." },
 ]} />

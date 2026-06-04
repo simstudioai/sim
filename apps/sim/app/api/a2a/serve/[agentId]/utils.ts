@@ -1,7 +1,7 @@
 import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
+import { generateId } from '@sim/utils/id'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 
 /** A2A v0.3 JSON-RPC method names */
 export const A2A_METHODS = {
@@ -28,7 +28,7 @@ export const A2A_ERROR_CODES = {
   AUTHENTICATION_REQUIRED: -32004,
 } as const
 
-export interface JSONRPCRequest {
+interface JSONRPCRequest {
   jsonrpc: '2.0'
   id: string | number
   method: string
@@ -46,7 +46,7 @@ export interface JSONRPCResponse {
   }
 }
 
-export interface MessageSendParams {
+interface MessageSendParams {
   message: Message
   configuration?: {
     acceptedOutputModes?: string[]
@@ -55,12 +55,12 @@ export interface MessageSendParams {
   }
 }
 
-export interface TaskIdParams {
+interface TaskIdParams {
   id: string
   historyLength?: number
 }
 
-export interface PushNotificationSetParams {
+interface PushNotificationSetParams {
   id: string
   pushNotificationConfig: PushNotificationConfig
 }

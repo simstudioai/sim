@@ -57,13 +57,6 @@ export function buildAttioTriggerSubBlocks(triggerId: string): SubBlockConfig[] 
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
     {
-      id: 'triggerSave',
-      title: 'Save',
-      type: 'trigger-save',
-      mode: 'trigger',
-      condition: { field: 'selectedTriggerId', value: triggerId },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

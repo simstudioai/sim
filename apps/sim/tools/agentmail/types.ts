@@ -366,6 +366,8 @@ export interface GetThreadResult extends ToolResponse {
       subject: string | null
       text: string | null
       html: string | null
+      labels: string[]
+      timestamp: string | null
       createdAt: string
     }>
   }
@@ -417,6 +419,7 @@ export interface ListMessagesResult extends ToolResponse {
       to: string[]
       subject: string | null
       preview: string | null
+      timestamp: string | null
       createdAt: string
     }>
     count: number
@@ -442,6 +445,8 @@ export interface GetMessageResult extends ToolResponse {
     subject: string | null
     text: string | null
     html: string | null
+    labels: string[]
+    timestamp: string | null
     createdAt: string
   }
 }

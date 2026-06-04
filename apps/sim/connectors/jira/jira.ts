@@ -1,13 +1,28 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { JiraIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraConnector')
 
 const PAGE_SIZE = 50
+
+/**
+ * Builds a JQL clause restricting issues to the given project keys.
+ * Single key uses `project = "X"`; multiple keys use `project in ("X","Y")`.
+ * Each key is escaped for inclusion in a JQL double-quoted string.
+ */
+function buildProjectClause(projectKeys: string[]): string {
+  const escapeKey = (key: string) => key.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  if (projectKeys.length === 1) {
+    return `project = "${escapeKey(projectKeys[0])}"`
+  }
+  const list = projectKeys.map((k) => `"${escapeKey(k)}"`).join(',')
+  return `project in (${list})`
+}
 
 /**
  * Builds a plain-text representation of a Jira issue for knowledge base indexing.
@@ -33,16 +48,12 @@ function buildIssueContent(fields: Record<string, unknown>): string {
 }
 
 /**
- * Converts a Jira issue API response to an ExternalDocument.
+ * Extracts common metadata fields from a Jira issue into an ExternalDocument
+ * stub with deferred content. The contentHash is metadata-based so it is
+ * identical whether produced during listing or full fetch.
  */
-async function issueToDocument(
-  issue: Record<string, unknown>,
-  domain: string
-): Promise<ExternalDocument> {
+function issueToStub(issue: Record<string, unknown>, domain: string): ExternalDocument {
   const fields = (issue.fields || {}) as Record<string, unknown>
-  const content = buildIssueContent(fields)
-  const contentHash = await computeContentHash(content)
-
   const key = issue.key as string
   const issueType = fields.issuetype as Record<string, unknown> | undefined
   const status = fields.status as Record<string, unknown> | undefined
@@ -51,14 +62,16 @@ async function issueToDocument(
   const reporter = fields.reporter as Record<string, unknown> | undefined
   const project = fields.project as Record<string, unknown> | undefined
   const labels = Array.isArray(fields.labels) ? (fields.labels as string[]) : []
+  const updated = (fields.updated as string) ?? ''
 
   return {
     externalId: String(issue.id),
     title: `${key}: ${(fields.summary as string) || 'Untitled'}`,
-    content,
+    content: '',
+    contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: `https://${domain}/browse/${key}`,
-    contentHash,
+    contentHash: `jira:${issue.id}:${updated}`,
     metadata: {
       key,
       issueType: issueType?.name,
@@ -74,10 +87,26 @@ async function issueToDocument(
   }
 }
 
+/**
+ * Converts a fully-fetched Jira issue (with description and comments) into an
+ * ExternalDocument with resolved content.
+ */
+function issueToFullDocument(issue: Record<string, unknown>, domain: string): ExternalDocument {
+  const stub = issueToStub(issue, domain)
+  const fields = (issue.fields || {}) as Record<string, unknown>
+  const content = buildIssueContent(fields)
+
+  return {
+    ...stub,
+    content,
+    contentDeferred: false,
+  }
+}
+
 export const jiraConnector: ConnectorConfig = {
   id: 'jira',
   name: 'Jira',
-  description: 'Sync issues from a Jira project into your knowledge base',
+  description: 'Sync issues from a Jira project',
   version: '1.0.0',
   icon: JiraIcon,
 
@@ -93,22 +122,24 @@ export const jiraConnector: ConnectorConfig = {
     },
     {
       id: 'projectSelector',
-      title: 'Project',
+      title: 'Projects',
       type: 'selector',
       selectorKey: 'jira.projects',
       canonicalParamId: 'projectKey',
       mode: 'basic',
+      multi: true,
       dependsOn: ['domain'],
-      placeholder: 'Select a project',
+      placeholder: 'Select one or more projects',
       required: true,
     },
     {
       id: 'projectKey',
-      title: 'Project Key',
+      title: 'Project Keys',
       type: 'short-input',
       canonicalParamId: 'projectKey',
       mode: 'advanced',
-      placeholder: 'e.g. ENG, PROJ',
+      multi: true,
+      placeholder: 'e.g. ENG, PROJ (comma-separated for multiple)',
       required: true,
     },
     {
@@ -134,9 +165,13 @@ export const jiraConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const domain = sourceConfig.domain as string
-    const projectKey = sourceConfig.projectKey as string
+    const projectKeys = parseMultiValue(sourceConfig.projectKey)
     const jqlFilter = (sourceConfig.jql as string) || ''
     const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
+
+    if (projectKeys.length === 0) {
+      throw new Error('At least one project key is required')
+    }
 
     let cloudId = syncContext?.cloudId as string | undefined
     if (!cloudId) {
@@ -144,30 +179,51 @@ export const jiraConnector: ConnectorConfig = {
       if (syncContext) syncContext.cloudId = cloudId
     }
 
-    const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-    let jql = `project = "${safeKey}" ORDER BY updated DESC`
+    const projectClause = buildProjectClause(projectKeys)
+    let jql = `${projectClause} ORDER BY updated DESC`
     if (jqlFilter.trim()) {
-      jql = `project = "${safeKey}" AND (${jqlFilter.trim()}) ORDER BY updated DESC`
+      jql = `${projectClause} AND (${jqlFilter.trim()}) ORDER BY updated DESC`
     }
 
-    const startAt = cursor ? Number(cursor) : 0
+    /**
+     * Collected-count is encoded in the cursor as `${pageToken}|${count}` so
+     * the maxIssues cap works correctly even when the caller doesn't pass
+     * syncContext. Falls back to syncContext.collectedCount for backwards
+     * compatibility with cursors emitted before this format existed.
+     */
+    let pageToken: string | undefined
+    let collectedSoFar = (syncContext?.collectedCount as number | undefined) ?? 0
+    if (cursor) {
+      const sep = cursor.lastIndexOf('|')
+      if (sep > 0) {
+        pageToken = cursor.slice(0, sep)
+        const parsed = Number(cursor.slice(sep + 1))
+        if (Number.isFinite(parsed) && parsed >= 0) collectedSoFar = parsed
+      } else {
+        pageToken = cursor
+      }
+    }
+
+    const remaining = maxIssues > 0 ? Math.max(0, maxIssues - collectedSoFar) : PAGE_SIZE
+    if (maxIssues > 0 && remaining === 0) {
+      return { documents: [], hasMore: false }
+    }
 
     const params = new URLSearchParams()
     params.append('jql', jql)
-    params.append('startAt', String(startAt))
-    const remaining = maxIssues > 0 ? Math.max(0, maxIssues - startAt) : PAGE_SIZE
-    if (remaining === 0) {
-      return { documents: [], hasMore: false }
-    }
     params.append('maxResults', String(Math.min(PAGE_SIZE, remaining)))
     params.append(
       'fields',
-      'summary,description,comment,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
+      'summary,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
     )
+    if (pageToken) params.append('nextPageToken', pageToken)
 
-    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params.toString()}`
+    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
 
-    logger.info(`Listing Jira issues for project ${projectKey}`, { startAt })
+    logger.info(`Listing Jira issues for ${projectKeys.length} project(s)`, {
+      projectKeys,
+      hasCursor: Boolean(cursor),
+    })
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -187,19 +243,31 @@ export const jiraConnector: ConnectorConfig = {
     }
 
     const data = await response.json()
-    const issues = (data.issues || []) as Record<string, unknown>[]
-    const total = (data.total as number) ?? 0
+    let issues = (data.issues || []) as Record<string, unknown>[]
+    /**
+     * `/rest/api/3/search/jql` signals end-of-results purely by the absence
+     * of `nextPageToken`. `data.isLast` is unreliable on this endpoint and
+     * has been observed returning `true` alongside a valid token
+     * (JRACLOUD-95477), so we ignore it.
+     */
+    const nextPageToken = data.nextPageToken as string | undefined
+    const isLast = !nextPageToken
 
-    const documents: ExternalDocument[] = await Promise.all(
-      issues.map((issue) => issueToDocument(issue, domain))
-    )
+    if (maxIssues > 0 && issues.length > remaining) {
+      issues = issues.slice(0, remaining)
+    }
 
-    const nextStart = startAt + issues.length
-    const hasMore = nextStart < total && (maxIssues <= 0 || nextStart < maxIssues)
+    const documents: ExternalDocument[] = issues.map((issue) => issueToStub(issue, domain))
+
+    const newCollected = collectedSoFar + issues.length
+    if (syncContext) syncContext.collectedCount = newCollected
+
+    const reachedCap = maxIssues > 0 && newCollected >= maxIssues
+    const hasMore = !isLast && !reachedCap
 
     return {
       documents,
-      nextCursor: hasMore ? String(nextStart) : undefined,
+      nextCursor: hasMore && nextPageToken ? `${nextPageToken}|${newCollected}` : undefined,
       hasMore,
     }
   },
@@ -239,7 +307,7 @@ export const jiraConnector: ConnectorConfig = {
     }
 
     const issue = await response.json()
-    return issueToDocument(issue, domain)
+    return issueToFullDocument(issue, domain)
   },
 
   validateConfig: async (
@@ -247,10 +315,10 @@ export const jiraConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const domain = sourceConfig.domain as string
-    const projectKey = sourceConfig.projectKey as string
+    const projectKeys = parseMultiValue(sourceConfig.projectKey)
 
-    if (!domain || !projectKey) {
-      return { valid: false, error: 'Domain and project key are required' }
+    if (!domain || projectKeys.length === 0) {
+      return { valid: false, error: 'Domain and at least one project key are required' }
     }
 
     const maxIssues = sourceConfig.maxIssues as string | undefined
@@ -261,14 +329,14 @@ export const jiraConnector: ConnectorConfig = {
     const jqlFilter = (sourceConfig.jql as string | undefined)?.trim() || ''
 
     try {
-      const cloudId = await getJiraCloudId(domain, accessToken)
+      const cloudId = await getJiraCloudId(domain, accessToken, VALIDATE_RETRY_OPTIONS)
 
+      const projectClause = buildProjectClause(projectKeys)
       const params = new URLSearchParams()
-      const safeKey = projectKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-      params.append('jql', `project = "${safeKey}"`)
-      params.append('maxResults', '0')
+      params.append('jql', projectClause)
+      params.append('maxResults', '1')
 
-      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params.toString()}`
+      const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${params.toString()}`
       const response = await fetchWithRetry(
         url,
         {
@@ -284,17 +352,20 @@ export const jiraConnector: ConnectorConfig = {
       if (!response.ok) {
         const errorText = await response.text()
         if (response.status === 400) {
-          return { valid: false, error: `Project "${projectKey}" not found or JQL is invalid` }
+          return {
+            valid: false,
+            error: `One or more projects not found (${projectKeys.join(', ')}) or JQL is invalid`,
+          }
         }
         return { valid: false, error: `Failed to validate: ${response.status} - ${errorText}` }
       }
 
       if (jqlFilter) {
         const filterParams = new URLSearchParams()
-        filterParams.append('jql', `project = "${safeKey}" AND (${jqlFilter})`)
-        filterParams.append('maxResults', '0')
+        filterParams.append('jql', `${projectClause} AND (${jqlFilter})`)
+        filterParams.append('maxResults', '1')
 
-        const filterUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${filterParams.toString()}`
+        const filterUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql?${filterParams.toString()}`
         const filterResponse = await fetchWithRetry(
           filterUrl,
           {
@@ -314,8 +385,7 @@ export const jiraConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 

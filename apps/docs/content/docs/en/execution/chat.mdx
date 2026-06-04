@@ -1,0 +1,184 @@
+---
+title: Chat Deployment
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Deploy your workflow as a conversational chat interface that users can interact with via a shareable link or embedded widget. Chat supports multi-turn conversations, file uploads, and voice input.
+
+<Image src="/static/chat/chat-live.png" alt="A deployed chat interface showing a conversation with Friendly Assistant" width={800} height={500} />
+
+Every chat message triggers a fresh workflow execution, with the full conversation history passed in as context. Responses stream back to the user in real time.
+
+<Callout type="info">
+Chat executions run against your workflow's active deployment snapshot. Publish a new deployment after making canvas changes so the chat uses the updated version.
+</Callout>
+
+## Creating a Chat
+
+Open your workflow, click **Deploy**, and select the **Chat** tab. You'll see the chat configuration panel:
+
+<Image src="/static/chat/chat-deploy-config.png" alt="Chat deployment configuration panel showing URL, Title, Output, Access control, and Welcome message fields" width={800} height={500} />
+
+Configure the following fields, then click **Launch Chat**:
+
+| Field | Description |
+|-------|-------------|
+| **URL** | Slug that forms the public URL, e.g. `https://www.sim.ai/chat/your-slug`. Lowercase letters, numbers, and hyphens only. Must be unique across all workspaces. |
+| **Title** | Display name shown in the chat header. |
+| **Output** | Output fields from your workflow blocks returned as the chat response. At least one must be selected. |
+| **Welcome Message** | Greeting shown before the user sends their first message. Defaults to `"Hi there! How can I help you today?"`. |
+| **Access Control** | Controls who can access the chat. See [Access Control](#access-control) below. |
+
+### Output Selection
+
+<Image src="/static/chat/chat-deploy-output.png" alt="Output dropdown showing Agent 1 block with selectable fields: content, model, tokens, toolCalls, providerTiming, cost" width={800} height={400} />
+
+The output dropdown groups available fields by block. For an Agent block, you can choose from `content`, `model`, `tokens`, `toolCalls`, `providerTiming`, and `cost`. In most cases, selecting `content` from the final Agent block is all you need — it streams the agent's text response directly to the user.
+
+## Access Control
+
+<Image src="/static/chat/chat-deploy-access-email.png" alt="Access control section with Email tab selected, showing an Allowed emails field with @sim.ai domain added" width={800} height={300} />
+
+| Mode | Description |
+|------|-------------|
+| **Public** | Anyone with the link can chat — no authentication required |
+| **Password** | Users must enter a password before they can start chatting |
+| **Email** | Only specific email addresses or domains can access. Users verify with a 6-digit OTP sent to their email |
+| **SSO** | OIDC-based single sign-on (enterprise only) |
+
+**Email access:** Add individual addresses (`user@example.com`) or entire domains (`@example.com`) to the **Allowed emails** field. Users receive a one-time 6-digit OTP to their inbox — once verified, they can chat for the duration of their session.
+
+**Password access:** A password field appears when this mode is selected. Share the password with users directly; they enter it before the conversation begins.
+
+**SSO:** Uses OIDC to authenticate users through your identity provider. Available on enterprise plans.
+
+## Sharing
+
+### Direct Link
+
+```
+https://www.sim.ai/chat/your-slug
+```
+
+### Iframe
+
+```html
+<iframe
+  src="https://www.sim.ai/chat/your-slug"
+  width="100%"
+  height="600"
+  frameborder="0"
+  title="Chat"
+></iframe>
+```
+
+## API Submission
+
+You can also send messages to a chat programmatically. Responses are streamed using server-sent events (SSE).
+
+<Tabs items={['cURL', 'TypeScript']}>
+  <Tab value="cURL">
+```bash
+curl -X POST https://www.sim.ai/api/chat/your-slug \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "Hello, I need help with my order",
+    "conversationId": "optional-conversation-id"
+  }'
+```
+  </Tab>
+  <Tab value="TypeScript">
+```typescript
+const response = await fetch('https://www.sim.ai/api/chat/your-slug', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    input: 'Hello, I need help with my order',
+    conversationId: 'optional-conversation-id'
+  })
+});
+
+// Response is an SSE stream
+const reader = response.body?.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader!.read();
+  if (done) break;
+  console.log(decoder.decode(value));
+}
+```
+  </Tab>
+</Tabs>
+
+### With File Uploads
+
+```bash
+curl -X POST https://www.sim.ai/api/chat/your-slug \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "What does this document say?",
+    "files": [{
+      "name": "report.pdf",
+      "type": "application/pdf",
+      "size": 1048576,
+      "data": "data:application/pdf;base64,..."
+    }]
+  }'
+```
+
+### Protected Chats
+
+For password-protected chats, include the password in the request body:
+
+```bash
+curl -X POST https://www.sim.ai/api/chat/your-slug \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "secret", "input": "Hello" }'
+```
+
+For email-protected chats, authenticate with OTP first:
+
+```bash
+# Step 1: Request OTP — sends a 6-digit code to the email address
+curl -X POST https://www.sim.ai/api/chat/your-slug/otp \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "allowed@example.com" }'
+
+# Step 2: Verify OTP — save the Set-Cookie header for subsequent requests
+curl -X PUT https://www.sim.ai/api/chat/your-slug/otp \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{ "email": "allowed@example.com", "otp": "123456" }'
+
+# Step 3: Send messages using the auth cookie from Step 2
+curl -X POST https://www.sim.ai/api/chat/your-slug \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{ "input": "Hello" }'
+```
+
+## Troubleshooting
+
+**Chat returns 403** — The deployment is inactive. Open the Deploy modal and re-deploy the workflow.
+
+**"At least one output block is required"** — No output field is selected in the Output dropdown. Open the Deploy modal, go to the Chat tab, and select at least one output from a block.
+
+**OTP email not arriving** — Confirm the email address is on the allowed list and check spam folders. OTP codes expire after 15 minutes and can be resent after a 30-second cooldown.
+
+**Chat not loading in iframe** — Check your site's Content Security Policy allows iframes from `sim.ai`.
+
+**Responses not updating after workflow changes** — Chat uses the active deployment snapshot. Publish a new deployment from the Deploy modal to pick up your latest changes.
+
+<FAQ items={[
+  { question: "How is chat different from API deployment?", answer: "API deployment exposes your workflow as a REST endpoint for programmatic use. Chat wraps the workflow in a hosted conversational UI with streaming, file uploads, voice input, and access control — no application code required to use it." },
+  { question: "Which output field should I select?", answer: "For workflows built around Agent blocks, select the content field from the final Agent block — this streams the agent's text response to the user. You can select multiple fields if your workflow produces structured output you want to expose." },
+  { question: "How does conversation history work?", answer: "Each message triggers a new workflow execution. The full conversation history — all prior user messages and assistant responses — is passed as context so your workflow can maintain continuity across turns." },
+  { question: "How does email OTP authentication work?", answer: "When a user opens an email-protected chat, they enter their email address. If it matches the allowed list, Sim sends a 6-digit OTP to that address. The user enters the code, and a session cookie is set for the duration of their visit." },
+  { question: "Is there a message length limit?", answer: "There is no hard limit on message length. Very long messages may impact response time depending on your workflow's model context window." },
+  { question: "Can I use chat with any workflow?", answer: "Yes, any workflow can be deployed as a chat. The chat sends the user's message as the workflow input and streams the selected block outputs back as the response." },
+]} />

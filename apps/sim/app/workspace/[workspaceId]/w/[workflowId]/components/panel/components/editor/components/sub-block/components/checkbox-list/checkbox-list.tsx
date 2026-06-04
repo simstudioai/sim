@@ -1,48 +1,80 @@
-import { Checkbox, Label } from '@/components/emcn'
+import { Info } from 'lucide-react'
+import { Checkbox, Label, Tooltip } from '@/components/emcn'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+
+interface CheckboxListOption {
+  label: string
+  id: string
+  defaultChecked?: boolean
+  description?: string
+}
 
 interface CheckboxListProps {
   blockId: string
   subBlockId: string
-  title: string
-  options: { label: string; id: string }[]
+  options: CheckboxListOption[]
   isPreview?: boolean
   subBlockValues?: Record<string, any>
   disabled?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 interface CheckboxItemProps {
   blockId: string
-  option: { label: string; id: string }
+  subBlockId: string
+  option: CheckboxListOption
+  index: number
   isPreview: boolean
   subBlockValues?: Record<string, any>
   disabled: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
- * Individual checkbox item component that calls useSubBlockValue hook at top level
+ * Individual checkbox item component that calls useSubBlockValue hook at top level.
+ *
+ * @remarks
+ * A `null` store value means the user has never toggled the checkbox, in which
+ * case we fall back to `option.defaultChecked` for the displayed state. Any
+ * explicit boolean (including `false`) takes precedence over the default.
  */
-function CheckboxItem({ blockId, option, isPreview, subBlockValues, disabled }: CheckboxItemProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, option.id)
+function CheckboxItem({
+  blockId,
+  subBlockId,
+  option,
+  index,
+  isPreview,
+  subBlockValues,
+  disabled,
+  activeSearchTarget,
+}: CheckboxItemProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, option.id)
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    blockId,
+    subBlockId,
+    valuePath: ['options', index],
+    label: option.label,
+  })
 
-  // Get preview value for this specific option
   const previewValue = isPreview && subBlockValues ? subBlockValues[option.id]?.value : undefined
-
-  // Use preview value when in preview mode, otherwise use store value
-  const value = isPreview ? previewValue : storeValue
+  const rawValue = isPreview ? previewValue : storeValue
+  const effectiveValue = rawValue ?? option.defaultChecked ?? false
 
   const handleChange = (checked: boolean) => {
-    // Only update store when not in preview mode or disabled
     if (!isPreview && !disabled) {
       setStoreValue(checked)
     }
   }
 
   return (
-    <div className='flex items-center space-x-2'>
+    <div className='flex items-center gap-2'>
       <Checkbox
         id={`${blockId}-${option.id}`}
-        checked={Boolean(value)}
+        checked={Boolean(effectiveValue)}
         onCheckedChange={handleChange}
         disabled={isPreview || disabled}
       />
@@ -50,8 +82,18 @@ function CheckboxItem({ blockId, option, isPreview, subBlockValues, disabled }: 
         htmlFor={`${blockId}-${option.id}`}
         className='cursor-pointer font-medium font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
       >
-        {option.label}
+        {formatDisplayText(option.label, { workflowSearchHighlight })}
       </Label>
+      {option.description && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top' align='start' className='max-w-xs'>
+            <p>{option.description}</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
     </div>
   )
 }
@@ -59,22 +101,25 @@ function CheckboxItem({ blockId, option, isPreview, subBlockValues, disabled }: 
 export function CheckboxList({
   blockId,
   subBlockId,
-  title,
   options,
   isPreview = false,
   subBlockValues,
   disabled = false,
+  activeSearchTarget,
 }: CheckboxListProps) {
   return (
-    <div className='grid grid-cols-1 gap-4 pt-1'>
-      {options.map((option) => (
+    <div className='flex flex-col gap-y-2.5 pt-1'>
+      {options.map((option, index) => (
         <CheckboxItem
           key={option.id}
           blockId={blockId}
+          subBlockId={subBlockId}
           option={option}
+          index={index}
           isPreview={isPreview}
           subBlockValues={subBlockValues}
           disabled={disabled}
+          activeSearchTarget={activeSearchTarget}
         />
       ))}
     </div>

@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { Check, X } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
@@ -44,6 +45,8 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     const [errorType, setErrorType] = useState<'general' | 'belowUsage' | null>(null)
     const [isEditing, setIsEditing] = useState(false)
     const [pendingLimit, setPendingLimit] = useState<number | null>(null)
+    const pendingLimitRef = useRef(pendingLimit)
+    pendingLimitRef.current = pendingLimit
     const inputRef = useRef<HTMLInputElement>(null)
 
     const updateUserLimitMutation = useUpdateUsageLimit()
@@ -70,15 +73,16 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     )
 
     useEffect(() => {
-      if (pendingLimit !== null) {
-        if (currentLimit === pendingLimit) {
+      const pending = pendingLimitRef.current
+      if (pending !== null) {
+        if (currentLimit === pending) {
           setPendingLimit(null)
           setInputValue(currentLimit.toString())
         }
       } else {
         setInputValue(currentLimit.toString())
       }
-    }, [currentLimit, pendingLimit])
+    }, [currentLimit])
 
     useEffect(() => {
       if (isEditing && inputRef.current) {
@@ -140,7 +144,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       } catch (err) {
         logger.error('Failed to update usage limit', { error: err })
 
-        const message = err instanceof Error ? err.message : String(err)
+        const message = toError(err).message
         if (message.includes('below current usage')) {
           setErrorType('belowUsage')
         } else {
@@ -208,15 +212,15 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
             />
             <Button
               variant='ghost'
-              className='h-[12px] w-[12px] flex-shrink-0 p-0'
+              className='size-[12px] flex-shrink-0 p-0'
               onClick={handleSubmit}
               disabled={isUpdating}
               aria-label='Save limit'
             >
               {hasError ? (
-                <X className='h-[12px] w-[12px] text-[var(--text-error)]' />
+                <X className='size-[12px] text-[var(--text-error)]' />
               ) : (
-                <Check className='h-[12px] w-[12px]' />
+                <Check className='size-[12px]' />
               )}
             </Button>
           </>

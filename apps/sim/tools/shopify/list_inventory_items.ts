@@ -1,46 +1,10 @@
-import type { ShopifyBaseParams } from '@/tools/shopify/types'
 import {
   INVENTORY_ITEM_OUTPUT_PROPERTIES,
   PAGE_INFO_OUTPUT_PROPERTIES,
+  type ShopifyInventoryItemsResponse,
+  type ShopifyListInventoryItemsParams,
 } from '@/tools/shopify/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface ShopifyListInventoryItemsParams extends ShopifyBaseParams {
-  first?: number
-  query?: string
-}
-
-interface ShopifyInventoryItemsResponse extends ToolResponse {
-  output: {
-    inventoryItems?: Array<{
-      id: string
-      sku: string | null
-      tracked: boolean
-      createdAt: string
-      updatedAt: string
-      variant?: {
-        id: string
-        title: string
-        product?: {
-          id: string
-          title: string
-        }
-      }
-      inventoryLevels: Array<{
-        id: string
-        available: number
-        location: {
-          id: string
-          name: string
-        }
-      }>
-    }>
-    pageInfo?: {
-      hasNextPage: boolean
-      hasPreviousPage: boolean
-    }
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const shopifyListInventoryItemsTool: ToolConfig<
   ShopifyListInventoryItemsParams,

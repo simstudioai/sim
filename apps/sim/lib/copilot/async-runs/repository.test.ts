@@ -2,38 +2,10 @@
  * @vitest-environment node
  */
 
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelectLimit, mockUpdateSet, mockUpdateWhere, mockUpdateReturning } = vi.hoisted(() => ({
-  mockSelectLimit: vi.fn(),
-  mockUpdateSet: vi.fn(),
-  mockUpdateWhere: vi.fn(),
-  mockUpdateReturning: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: mockSelectLimit,
-        }),
-      }),
-    }),
-    update: () => ({
-      set: mockUpdateSet,
-    }),
-    insert: vi.fn(),
-  },
-}))
-
-mockUpdateSet.mockImplementation(() => ({
-  where: mockUpdateWhere,
-}))
-
-mockUpdateWhere.mockImplementation(() => ({
-  returning: mockUpdateReturning,
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 import {
   claimCompletedAsyncToolCall,
@@ -44,6 +16,7 @@ import {
 describe('async tool repository single-row semantics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('does not overwrite a delivered row on late completion', async () => {
@@ -53,7 +26,7 @@ describe('async tool repository single-row semantics', () => {
       result: { ok: true },
       error: null,
     }
-    mockSelectLimit.mockResolvedValueOnce([deliveredRow])
+    dbChainMockFns.limit.mockResolvedValueOnce([deliveredRow])
 
     const result = await completeAsyncToolCall({
       toolCallId: 'tool-1',
@@ -63,11 +36,11 @@ describe('async tool repository single-row semantics', () => {
     })
 
     expect(result).toEqual(deliveredRow)
-    expect(mockUpdateReturning).not.toHaveBeenCalled()
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
   })
 
   it('marks a row delivered and clears the claim fields', async () => {
-    mockUpdateReturning.mockResolvedValueOnce([
+    dbChainMockFns.returning.mockResolvedValueOnce([
       {
         toolCallId: 'tool-1',
         status: 'delivered',
@@ -76,7 +49,7 @@ describe('async tool repository single-row semantics', () => {
 
     await markAsyncToolDelivered('tool-1')
 
-    expect(mockUpdateSet).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'delivered',
         claimedBy: null,
@@ -86,7 +59,7 @@ describe('async tool repository single-row semantics', () => {
   })
 
   it('claims only completed rows for delivery handoff', async () => {
-    mockUpdateReturning.mockResolvedValueOnce([
+    dbChainMockFns.returning.mockResolvedValueOnce([
       {
         toolCallId: 'tool-1',
         status: 'completed',
@@ -101,7 +74,7 @@ describe('async tool repository single-row semantics', () => {
       status: 'completed',
       claimedBy: 'worker-1',
     })
-    expect(mockUpdateSet).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
         claimedBy: 'worker-1',
       })

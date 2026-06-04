@@ -1,5 +1,26 @@
-# Production values for Sim
-# This configuration is suitable for production deployments
+# values-production.yaml
+#
+# When to use: generic production deployment on any cluster. Enables HA
+# (replicaCount > 1, PDB), NetworkPolicy, HPA, ServiceMonitor, and
+# PSS-restricted security defaults.
+#
+# Prerequisites:
+#   - A premium StorageClass with reclaimPolicy: Retain
+#   - cert-manager (for TLS) or pre-provisioned certs
+#   - ingress-nginx (or equivalent) for ingress
+#   - metrics-server in the cluster (HPA)
+#   - (recommended) Prometheus Operator for ServiceMonitor
+#   - (recommended) External Secrets Operator — see values-external-secrets.yaml
+#
+# Install:
+#   helm install sim ./helm/sim \
+#     --namespace sim --create-namespace \
+#     --values ./helm/sim/examples/values-production.yaml \
+#     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+#     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set app.env.CRON_SECRET="$CRON_SECRET" \
+#     --set postgresql.auth.password="$POSTGRES_PASSWORD"
 
 # Global configuration
 global:
@@ -45,6 +66,8 @@ app:
     RESEND_API_KEY: "your-resend-api-key"
     GOOGLE_CLIENT_ID: "your-google-client-id"
     GOOGLE_CLIENT_SECRET: "your-google-client-secret"
+    # DISABLE_GOOGLE_AUTH: "true"                      # Uncomment to hide Google OAuth login
+    # DISABLE_GITHUB_AUTH: "true"                      # Uncomment to hide GitHub OAuth login
 
 # Realtime service
 realtime:
@@ -62,7 +85,6 @@ realtime:
   env:
     NEXT_PUBLIC_APP_URL: "https://sim.acme.ai"
     BETTER_AUTH_URL: "https://sim.acme.ai"
-    NEXT_PUBLIC_SOCKET_URL: "https://sim-ws.acme.ai"
     BETTER_AUTH_SECRET: "your-production-auth-secret-here"
     ALLOWED_ORIGINS: "https://sim.acme.ai"
 

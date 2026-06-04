@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sql } from 'drizzle-orm'
+import { SearchDocumentation } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
@@ -14,7 +15,7 @@ interface DocsSearchParams {
 const DEFAULT_DOCS_SIMILARITY_THRESHOLD = 0.3
 
 export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any> = {
-  name: 'search_documentation',
+  name: SearchDocumentation.id,
   async execute(params: DocsSearchParams): Promise<any> {
     const logger = createLogger('SearchDocumentationServerTool')
     const { query, topK = 10, threshold } = params

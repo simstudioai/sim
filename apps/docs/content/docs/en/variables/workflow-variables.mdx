@@ -5,6 +5,7 @@ title: Workflow Variables
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -42,11 +43,33 @@ The Variables feature serves as a central data store for your workflow, enabling
 
 ## Creating Variables
 
-You can create and manage variables from the Variables panel in the sidebar. Each variable has:
+To open the Variables panel, click **⋯ → Variables** in the top-right of the workflow editor.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables-menu.png"
+    alt="Opening the Variables panel from the toolbar menu"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+Each variable has:
 
 - **Name**: A unique identifier used to reference the variable
-- **Value**: The data stored in the variable (supports various data types)
-- **Description** (optional): A note explaining the variable's purpose
+- **Type**: The data type (Plain, Number, Boolean, Object, Array)
+- **Value**: The data stored in the variable
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/variables-panel.png"
+    alt="Variables panel with a number variable"
+    width={400}
+    height={400}
+    className="my-6"
+  />
+</div>
 
 ## Accessing Variables
 
@@ -69,12 +92,12 @@ Variables can be accessed from any block in your workflow using the variable dro
 
 Variables in Sim can store various types of data:
 
-<Tabs items={['Text', 'Numbers', 'Boolean', 'Objects', 'Arrays']}>
+<Tabs items={['Plain', 'Numbers', 'Boolean', 'Objects', 'Arrays']}>
   <Tab>
     ```
     "Hello, World!"
     ```
-    <p className="mt-2">Text variables store strings of characters. They're useful for storing messages, names, and other text data.</p>
+    <p className="mt-2">Plain variables store strings of characters. They're useful for storing messages, names, and other text data.</p>
   </Tab>
   <Tab>
     ```

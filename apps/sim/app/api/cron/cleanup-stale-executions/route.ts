@@ -1,11 +1,13 @@
 import { asyncJobs, db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CleanupStaleExecutions')
 
@@ -13,7 +15,7 @@ const STALE_THRESHOLD_MS = getMaxExecutionTimeout() + 5 * 60 * 1000
 const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
 const MAX_INT32 = 2_147_483_647
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const authError = verifyCronAuth(request, 'Stale execution cleanup')
     if (authError) {
@@ -73,7 +75,7 @@ export async function GET(request: NextRequest) {
         cleaned++
       } catch (error) {
         logger.error(`Failed to clean up execution ${execution.executionId}:`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         failed++
       }
@@ -104,7 +106,7 @@ export async function GET(request: NextRequest) {
       }
     } catch (error) {
       logger.error('Failed to clean up stale async jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 
@@ -131,7 +133,7 @@ export async function GET(request: NextRequest) {
       }
     } catch (error) {
       logger.error('Failed to clean up stale pending jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 
@@ -158,7 +160,7 @@ export async function GET(request: NextRequest) {
       }
     } catch (error) {
       logger.error('Failed to delete old async jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 
@@ -182,4 +184,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error in stale execution cleanup job:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

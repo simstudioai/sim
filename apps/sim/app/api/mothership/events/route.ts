@@ -7,12 +7,16 @@
  * Auth is handled via session cookies (EventSource sends cookies automatically).
  */
 
-import { taskPubSub } from '@/lib/copilot/task-events'
+import type { NextRequest } from 'next/server'
+import { mothershipEventsQuerySchema } from '@/lib/api/contracts/mothership-tasks'
+import { validationErrorResponse } from '@/lib/api/server'
+import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
 
 export const dynamic = 'force-dynamic'
 
-export const GET = createWorkspaceSSE({
+const mothershipEventsHandler = createWorkspaceSSE({
   label: 'mothership-events',
   subscriptions: [
     {
@@ -23,10 +27,19 @@ export const GET = createWorkspaceSSE({
           send('task_status', {
             chatId: event.chatId,
             type: event.type,
+            ...(event.streamId ? { streamId: event.streamId } : {}),
             timestamp: Date.now(),
           })
         })
       },
     },
   ],
+})
+
+export const GET = withRouteHandler((request: NextRequest) => {
+  const validation = mothershipEventsQuerySchema.safeParse(
+    Object.fromEntries(request.nextUrl.searchParams.entries())
+  )
+  if (!validation.success) return validationErrorResponse(validation.error)
+  return mothershipEventsHandler(request)
 })

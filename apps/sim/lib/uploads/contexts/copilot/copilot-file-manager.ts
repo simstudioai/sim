@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   deleteFile,
   downloadFile,
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
+  uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -38,7 +40,7 @@ export function isSupportedFileType(mimeType: string): boolean {
   return SUPPORTED_FILE_TYPES.includes(mimeType.toLowerCase())
 }
 
-export interface CopilotFileAttachment {
+interface CopilotFileAttachment {
   key: string
   filename: string
   media_type: string
@@ -50,6 +52,17 @@ export interface GenerateCopilotUploadUrlOptions {
   fileSize: number
   userId: string
   expirationSeconds?: number
+}
+
+export interface CopilotStoredFile {
+  id: string
+  key: string
+  context: 'copilot'
+  name: string
+  url: string
+  size: number
+  type: string
+  mimeType: string
 }
 
 /**
@@ -92,6 +105,45 @@ export async function generateCopilotUploadUrl(
   })
 
   return presignedUrlResponse
+}
+
+export async function uploadCopilotFile(options: {
+  buffer: Buffer
+  fileName: string
+  contentType: string
+  userId: string
+}): Promise<CopilotStoredFile> {
+  const fileInfo = await uploadFile({
+    file: options.buffer,
+    fileName: options.fileName,
+    contentType: options.contentType,
+    context: 'copilot',
+    metadata: {
+      userId: options.userId,
+      originalName: options.fileName,
+      uploadedAt: new Date().toISOString(),
+      purpose: 'copilot-tool-output',
+    },
+  })
+
+  const url = `${getBaseUrl()}${fileInfo.path}`
+
+  logger.info(`Stored copilot tool output: ${options.fileName}`, {
+    key: fileInfo.key,
+    size: fileInfo.size,
+    userId: options.userId,
+  })
+
+  return {
+    id: fileInfo.key,
+    key: fileInfo.key,
+    context: 'copilot',
+    name: fileInfo.name,
+    url,
+    size: fileInfo.size,
+    type: fileInfo.type,
+    mimeType: fileInfo.type,
+  }
 }
 
 /**

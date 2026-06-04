@@ -37,7 +37,7 @@ export interface EvernoteNote {
   tagNames: string[]
 }
 
-export interface EvernoteNoteMetadata {
+interface EvernoteNoteMetadata {
   guid: string
   title: string | null
   contentLength: number | null

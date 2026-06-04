@@ -8,7 +8,10 @@ import type {
   CloudWatchGetLogEventsResponse,
   CloudWatchGetMetricStatisticsResponse,
   CloudWatchListMetricsResponse,
+  CloudWatchMuteAlarmResponse,
+  CloudWatchPutMetricDataResponse,
   CloudWatchQueryLogsResponse,
+  CloudWatchUnmuteAlarmResponse,
 } from '@/tools/cloudwatch/types'
 
 export const CloudWatchBlock: BlockConfig<
@@ -19,6 +22,9 @@ export const CloudWatchBlock: BlockConfig<
   | CloudWatchDescribeAlarmsResponse
   | CloudWatchListMetricsResponse
   | CloudWatchGetMetricStatisticsResponse
+  | CloudWatchPutMetricDataResponse
+  | CloudWatchMuteAlarmResponse
+  | CloudWatchUnmuteAlarmResponse
 > = {
   type: 'cloudwatch',
   name: 'CloudWatch',
@@ -27,6 +33,7 @@ export const CloudWatchBlock: BlockConfig<
     'Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
+  docsLink: 'https://docs.sim.ai/tools/cloudwatch',
   tags: ['cloud', 'monitoring'],
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
   icon: CloudWatchIcon,
@@ -42,7 +49,10 @@ export const CloudWatchBlock: BlockConfig<
         { label: 'Describe Log Streams', id: 'describe_log_streams' },
         { label: 'List Metrics', id: 'list_metrics' },
         { label: 'Get Metric Statistics', id: 'get_metric_statistics' },
+        { label: 'Publish Metric', id: 'put_metric_data' },
         { label: 'Describe Alarms', id: 'describe_alarms' },
+        { label: 'Mute Alarm', id: 'mute_alarm' },
+        { label: 'Unmute Alarm', id: 'unmute_alarm' },
       ],
       value: () => 'query_logs',
     },
@@ -69,7 +79,6 @@ export const CloudWatchBlock: BlockConfig<
       password: true,
       required: true,
     },
-    // Query Logs fields
     {
       id: 'logGroupSelector',
       title: 'Log Group',
@@ -124,6 +133,14 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         value: ['query_logs', 'get_log_events', 'get_metric_statistics'],
       },
       required: { field: 'operation', value: ['query_logs', 'get_metric_statistics'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp (in seconds) based on the user's description of a point in time.
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "1 hour ago", "beginning of today")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endTime',
@@ -135,8 +152,15 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         value: ['query_logs', 'get_log_events', 'get_metric_statistics'],
       },
       required: { field: 'operation', value: ['query_logs', 'get_metric_statistics'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp (in seconds) based on the user's description of a point in time.
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "end of yesterday")...',
+        generationType: 'timestamp',
+      },
     },
-    // Describe Log Groups fields
     {
       id: 'prefix',
       title: 'Log Group Name Prefix',
@@ -144,7 +168,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       placeholder: '/aws/lambda/',
       condition: { field: 'operation', value: 'describe_log_groups' },
     },
-    // Get Log Events / Describe Log Streams — shared log group selector
     {
       id: 'logGroupNameSelector',
       title: 'Log Group',
@@ -167,7 +190,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       required: { field: 'operation', value: ['get_log_events', 'describe_log_streams'] },
       mode: 'advanced',
     },
-    // Describe Log Streams — stream prefix filter
     {
       id: 'streamPrefix',
       title: 'Stream Name Prefix',
@@ -175,7 +197,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       placeholder: '2024/03/31/',
       condition: { field: 'operation', value: 'describe_log_streams' },
     },
-    // Get Log Events — log stream selector (cascading: depends on log group)
     {
       id: 'logStreamNameSelector',
       title: 'Log Stream',
@@ -198,30 +219,92 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       required: { field: 'operation', value: 'get_log_events' },
       mode: 'advanced',
     },
-    // List Metrics fields
     {
       id: 'metricNamespace',
       title: 'Namespace',
       type: 'short-input',
-      placeholder: 'e.g., AWS/EC2, AWS/Lambda, AWS/RDS',
-      condition: { field: 'operation', value: ['list_metrics', 'get_metric_statistics'] },
-      required: { field: 'operation', value: 'get_metric_statistics' },
+      placeholder: 'e.g., AWS/EC2, AWS/Lambda, Custom/MyApp',
+      condition: {
+        field: 'operation',
+        value: ['list_metrics', 'get_metric_statistics', 'put_metric_data'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_metric_statistics', 'put_metric_data'],
+      },
     },
     {
       id: 'metricName',
       title: 'Metric Name',
       type: 'short-input',
-      placeholder: 'e.g., CPUUtilization, Invocations',
-      condition: { field: 'operation', value: ['list_metrics', 'get_metric_statistics'] },
-      required: { field: 'operation', value: 'get_metric_statistics' },
+      placeholder: 'e.g., CPUUtilization, Invocations, ErrorCount',
+      condition: {
+        field: 'operation',
+        value: ['list_metrics', 'get_metric_statistics', 'put_metric_data'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_metric_statistics', 'put_metric_data'],
+      },
     },
     {
       id: 'recentlyActive',
       title: 'Recently Active Only',
       type: 'switch',
       condition: { field: 'operation', value: 'list_metrics' },
+      mode: 'advanced',
     },
-    // Get Metric Statistics fields
+    {
+      id: 'metricValue',
+      title: 'Value',
+      type: 'short-input',
+      placeholder: 'e.g., 1, 42.5',
+      condition: { field: 'operation', value: 'put_metric_data' },
+      required: { field: 'operation', value: 'put_metric_data' },
+    },
+    {
+      id: 'metricUnit',
+      title: 'Unit',
+      type: 'dropdown',
+      options: [
+        { label: 'None', id: 'None' },
+        { label: 'Count', id: 'Count' },
+        { label: 'Percent', id: 'Percent' },
+        { label: 'Seconds', id: 'Seconds' },
+        { label: 'Milliseconds', id: 'Milliseconds' },
+        { label: 'Microseconds', id: 'Microseconds' },
+        { label: 'Bytes', id: 'Bytes' },
+        { label: 'Kilobytes', id: 'Kilobytes' },
+        { label: 'Megabytes', id: 'Megabytes' },
+        { label: 'Gigabytes', id: 'Gigabytes' },
+        { label: 'Terabytes', id: 'Terabytes' },
+        { label: 'Bits', id: 'Bits' },
+        { label: 'Kilobits', id: 'Kilobits' },
+        { label: 'Megabits', id: 'Megabits' },
+        { label: 'Gigabits', id: 'Gigabits' },
+        { label: 'Terabits', id: 'Terabits' },
+        { label: 'Bytes/Second', id: 'Bytes/Second' },
+        { label: 'Kilobytes/Second', id: 'Kilobytes/Second' },
+        { label: 'Megabytes/Second', id: 'Megabytes/Second' },
+        { label: 'Gigabytes/Second', id: 'Gigabytes/Second' },
+        { label: 'Terabytes/Second', id: 'Terabytes/Second' },
+        { label: 'Bits/Second', id: 'Bits/Second' },
+        { label: 'Kilobits/Second', id: 'Kilobits/Second' },
+        { label: 'Megabits/Second', id: 'Megabits/Second' },
+        { label: 'Gigabits/Second', id: 'Gigabits/Second' },
+        { label: 'Terabits/Second', id: 'Terabits/Second' },
+        { label: 'Count/Second', id: 'Count/Second' },
+      ],
+      value: () => 'None',
+      condition: { field: 'operation', value: 'put_metric_data' },
+    },
+    {
+      id: 'publishDimensions',
+      title: 'Dimensions',
+      type: 'table',
+      columns: ['name', 'value'],
+      condition: { field: 'operation', value: 'put_metric_data' },
+    },
     {
       id: 'metricPeriod',
       title: 'Period (seconds)',
@@ -251,7 +334,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       columns: ['name', 'value'],
       condition: { field: 'operation', value: 'get_metric_statistics' },
     },
-    // Describe Alarms fields
     {
       id: 'alarmNamePrefix',
       title: 'Alarm Name Prefix',
@@ -269,6 +351,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         { label: 'ALARM', id: 'ALARM' },
         { label: 'INSUFFICIENT_DATA', id: 'INSUFFICIENT_DATA' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'describe_alarms' },
     },
     {
@@ -280,9 +363,63 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         { label: 'Metric Alarm', id: 'MetricAlarm' },
         { label: 'Composite Alarm', id: 'CompositeAlarm' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'describe_alarms' },
     },
-    // Shared limit field
+    {
+      id: 'muteRuleName',
+      title: 'Mute Rule Name',
+      type: 'short-input',
+      placeholder: 'my-mute-rule',
+      condition: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+      required: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+    },
+    {
+      id: 'alarmNames',
+      title: 'Alarm Names',
+      type: 'short-input',
+      placeholder: 'my-alarm-1, my-alarm-2',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'durationValue',
+      title: 'Duration',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'durationUnit',
+      title: 'Duration Unit',
+      type: 'dropdown',
+      options: [
+        { label: 'Minutes', id: 'minutes' },
+        { label: 'Hours', id: 'hours' },
+        { label: 'Days', id: 'days' },
+      ],
+      value: () => 'hours',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'muteDescription',
+      title: 'Description',
+      type: 'short-input',
+      placeholder: 'Why these alarms are being muted',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      mode: 'advanced',
+    },
+    {
+      id: 'muteStartDate',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'e.g., 1711900800',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      mode: 'advanced',
+      description: 'Unix epoch seconds. Defaults to now (mute starts immediately).',
+    },
     {
       id: 'limit',
       title: 'Limit',
@@ -299,6 +436,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
           'describe_alarms',
         ],
       },
+      mode: 'advanced',
     },
   ],
   tools: {
@@ -309,7 +447,10 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       'cloudwatch_describe_log_streams',
       'cloudwatch_list_metrics',
       'cloudwatch_get_metric_statistics',
+      'cloudwatch_put_metric_data',
       'cloudwatch_describe_alarms',
+      'cloudwatch_mute_alarm',
+      'cloudwatch_unmute_alarm',
     ],
     config: {
       tool: (params) => {
@@ -326,8 +467,14 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
             return 'cloudwatch_list_metrics'
           case 'get_metric_statistics':
             return 'cloudwatch_get_metric_statistics'
+          case 'put_metric_data':
+            return 'cloudwatch_put_metric_data'
           case 'describe_alarms':
             return 'cloudwatch_describe_alarms'
+          case 'mute_alarm':
+            return 'cloudwatch_mute_alarm'
+          case 'unmute_alarm':
+            return 'cloudwatch_unmute_alarm'
           default:
             throw new Error(`Invalid CloudWatch operation: ${params.operation}`)
         }
@@ -479,6 +626,48 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
             }
           }
 
+          case 'put_metric_data': {
+            if (!rest.metricNamespace) {
+              throw new Error('Namespace is required')
+            }
+            if (!rest.metricName) {
+              throw new Error('Metric name is required')
+            }
+            if (rest.metricValue === undefined || rest.metricValue === '') {
+              throw new Error('Metric value is required')
+            }
+            const numericValue = Number(rest.metricValue)
+            if (!Number.isFinite(numericValue)) {
+              throw new Error('Metric value must be a finite number')
+            }
+
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              namespace: rest.metricNamespace,
+              metricName: rest.metricName,
+              value: numericValue,
+              ...(rest.metricUnit && rest.metricUnit !== 'None' && { unit: rest.metricUnit }),
+              ...(rest.publishDimensions && {
+                dimensions: (() => {
+                  const dims = rest.publishDimensions
+                  if (typeof dims === 'string') return dims
+                  if (Array.isArray(dims)) {
+                    const obj: Record<string, string> = {}
+                    for (const row of dims) {
+                      const name = row.cells?.name
+                      const value = row.cells?.value
+                      if (name && value !== undefined) obj[name] = String(value)
+                    }
+                    return JSON.stringify(obj)
+                  }
+                  return JSON.stringify(dims)
+                })(),
+              }),
+            }
+          }
+
           case 'describe_alarms':
             return {
               awsRegion,
@@ -489,6 +678,66 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
               ...(rest.alarmType && { alarmType: rest.alarmType }),
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
             }
+
+          case 'mute_alarm': {
+            const alarmNames = rest.alarmNames
+            if (!alarmNames) {
+              throw new Error('Alarm names are required')
+            }
+
+            const names =
+              typeof alarmNames === 'string'
+                ? alarmNames
+                    .split(',')
+                    .map((n: string) => n.trim())
+                    .filter(Boolean)
+                : alarmNames
+
+            if (!Array.isArray(names) || names.length === 0) {
+              throw new Error('At least one alarm name is required')
+            }
+
+            const durationValueRaw = rest.durationValue
+            const parsedDurationValue =
+              typeof durationValueRaw === 'number'
+                ? durationValueRaw
+                : Number.parseInt(String(durationValueRaw ?? ''), 10)
+            if (!Number.isFinite(parsedDurationValue) || parsedDurationValue < 1) {
+              throw new Error('Duration must be a positive integer')
+            }
+
+            const startDateRaw = rest.muteStartDate
+            const parsedStartDate =
+              startDateRaw === undefined || startDateRaw === ''
+                ? undefined
+                : typeof startDateRaw === 'number'
+                  ? startDateRaw
+                  : Number.parseInt(String(startDateRaw), 10)
+            if (parsedStartDate !== undefined && !Number.isFinite(parsedStartDate)) {
+              throw new Error('Start date must be a Unix epoch in seconds')
+            }
+
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              muteRuleName: rest.muteRuleName,
+              alarmNames: names,
+              durationValue: parsedDurationValue,
+              durationUnit: rest.durationUnit,
+              ...(rest.muteDescription && { description: rest.muteDescription }),
+              ...(parsedStartDate !== undefined && { startDate: parsedStartDate }),
+            }
+          }
+
+          case 'unmute_alarm': {
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              muteRuleName: rest.muteRuleName,
+            }
+          }
 
           default:
             throw new Error(`Invalid CloudWatch operation: ${operation}`)
@@ -518,12 +767,30 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
     metricPeriod: { type: 'number', description: 'Granularity in seconds' },
     metricStatistics: { type: 'string', description: 'Statistic type (Average, Sum, etc.)' },
     metricDimensions: { type: 'json', description: 'Metric dimensions (Name/Value pairs)' },
+    metricValue: { type: 'number', description: 'Metric value to publish' },
+    metricUnit: { type: 'string', description: 'Metric unit (Count, Seconds, Bytes, etc.)' },
+    publishDimensions: {
+      type: 'json',
+      description: 'Dimensions for published metric (Name/Value pairs)',
+    },
     alarmNamePrefix: { type: 'string', description: 'Alarm name prefix filter' },
     stateValue: {
       type: 'string',
       description: 'Alarm state filter (OK, ALARM, INSUFFICIENT_DATA)',
     },
     alarmType: { type: 'string', description: 'Alarm type filter (MetricAlarm, CompositeAlarm)' },
+    muteRuleName: { type: 'string', description: 'Unique name for the alarm mute rule' },
+    alarmNames: { type: 'string', description: 'Comma-separated alarm names to mute' },
+    durationValue: { type: 'number', description: 'Length of the mute window' },
+    durationUnit: {
+      type: 'string',
+      description: 'Unit for durationValue: minutes, hours, or days',
+    },
+    muteDescription: { type: 'string', description: 'Description of the mute rule' },
+    muteStartDate: {
+      type: 'number',
+      description: 'When the mute begins (Unix epoch seconds). Defaults to now.',
+    },
     limit: { type: 'number', description: 'Maximum number of results' },
   },
   outputs: {
@@ -566,6 +833,46 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
     alarms: {
       type: 'array',
       description: 'CloudWatch alarms with state and configuration',
+    },
+    alarmNames: {
+      type: 'array',
+      description: 'Names of the alarms targeted by the mute rule',
+    },
+    muteRuleName: {
+      type: 'string',
+      description: 'Name of the alarm mute rule that was created or deleted',
+    },
+    expression: {
+      type: 'string',
+      description: 'Schedule expression used by the mute rule',
+    },
+    duration: {
+      type: 'string',
+      description: 'ISO 8601 duration of the mute window',
+    },
+    success: {
+      type: 'boolean',
+      description: 'Whether the operation completed successfully',
+    },
+    namespace: {
+      type: 'string',
+      description: 'Metric namespace',
+    },
+    metricName: {
+      type: 'string',
+      description: 'Metric name',
+    },
+    value: {
+      type: 'number',
+      description: 'Published metric value',
+    },
+    unit: {
+      type: 'string',
+      description: 'Metric unit',
+    },
+    timestamp: {
+      type: 'string',
+      description: 'Timestamp when metric was published',
     },
   },
 }

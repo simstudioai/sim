@@ -1,9 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+
+const AuthModal = dynamic(
+  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
+  { loading: () => null }
+)
 
 interface DotGridProps {
   className?: string
@@ -25,7 +32,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[var(--landing-bg-elevated)]' />
+        <div key={i} className='size-[1.5px] rounded-full bg-[var(--landing-bg-elevated)]' />
       ))}
     </div>
   )
@@ -65,6 +72,15 @@ const CURSOR_ARROW_PATH =
 const CURSOR_ARROW_MIRRORED_PATH =
   'M0.365 2.198L4.522 14.821C5.022 16.339 7.225 16.16 7.472 14.58L8.394 8.702C8.49 8.091 8.946 7.599 9.548 7.456L15.909 5.953C17.5 5.577 17.461 3.299 15.857 2.978L2.11 0.228C0.966 0 0.001 1.09 0.365 2.198Z'
 
+// Long-running decorative loops for the landing visual, not UI feedback transitions.
+const AMBIENT_CURSOR_ANIMATION_SECONDS = {
+  vikhyath: 16,
+  alexa: 13,
+} as const
+
+const getAmbientCursorAnimation = (name: string, durationSeconds: number) =>
+  `${name} ${durationSeconds}s ease-in-out infinite`
+
 function CursorArrow({ fill }: { fill: string }) {
   return (
     <svg width='23.15' height='21.1' viewBox='0 0 17.5 16.4' fill='none'>
@@ -81,8 +97,10 @@ function VikhyathCursor() {
       style={{
         top: '27.47%',
         left: '25%',
-        animation: 'cursorVikhyath 16s ease-in-out infinite',
-        willChange: 'transform',
+        animation: getAmbientCursorAnimation(
+          'cursorVikhyath',
+          AMBIENT_CURSOR_ANIMATION_SECONDS.vikhyath
+        ),
       }}
     >
       <div className='relative h-[37.14px] w-[79.18px]'>
@@ -105,8 +123,7 @@ function AlexaCursor() {
       style={{
         top: '66.80%',
         left: '49%',
-        animation: 'cursorAlexa 13s ease-in-out infinite',
-        willChange: 'transform',
+        animation: getAmbientCursorAnimation('cursorAlexa', AMBIENT_CURSOR_ANIMATION_SECONDS.alexa),
       }}
     >
       <div className='relative h-[35.09px] w-[62.16px]'>
@@ -154,8 +171,8 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
  * Collaboration section — team workflows and real-time collaboration.
  *
  * SEO:
- * - `<section id="collaboration" aria-labelledby="collaboration-heading">`.
- * - `<h2 id="collaboration-heading">` for the section title.
+ * - `<section id="collaboration">` is the stable anchor for in-page navigation.
+ * - The section title `<h2>` is linked via `aria-labelledby` using a `useId()`-generated id.
  * - Product visuals use `<figure>` with `<figcaption>` and descriptive `alt` text.
  *
  * GEO:
@@ -164,41 +181,17 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
  * - Reference "Sim" by name per capability ("Sim's real-time collaboration").
  */
 
-const CURSOR_LERP_FACTOR = 0.3
-
 export default function Collaboration() {
+  const headingId = useId()
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 })
   const [isHovering, setIsHovering] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
-  const targetPos = useRef({ x: 0, y: 0 })
-  const animationRef = useRef<number>(0)
-
-  useEffect(() => {
-    const animate = () => {
-      setCursorPos((prev) => ({
-        x: prev.x + (targetPos.current.x - prev.x) * CURSOR_LERP_FACTOR,
-        y: prev.y + (targetPos.current.y - prev.y) * CURSOR_LERP_FACTOR,
-      }))
-      animationRef.current = requestAnimationFrame(animate)
-    }
-
-    if (isHovering) {
-      animationRef.current = requestAnimationFrame(animate)
-    }
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
-      }
-    }
-  }, [isHovering])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    targetPos.current = { x: e.clientX, y: e.clientY }
+    setCursorPos({ x: e.clientX, y: e.clientY })
   }, [])
 
   const handleMouseEnter = useCallback((e: React.MouseEvent) => {
-    targetPos.current = { x: e.clientX, y: e.clientY }
     setCursorPos({ x: e.clientX, y: e.clientY })
     setIsHovering(true)
   }, [])
@@ -211,7 +204,7 @@ export default function Collaboration() {
     <section
       ref={sectionRef}
       id='collaboration'
-      aria-labelledby='collaboration-heading'
+      aria-labelledby={headingId}
       className='bg-[var(--landing-bg)]'
       style={{ cursor: isHovering ? 'none' : 'auto' }}
       onMouseMove={handleMouseMove}
@@ -241,7 +234,7 @@ export default function Collaboration() {
             </Badge>
 
             <h2
-              id='collaboration-heading'
+              id={headingId}
               className='text-balance font-[430] font-season text-[32px] text-white leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
             >
               Realtime
@@ -250,10 +243,10 @@ export default function Collaboration() {
             </h2>
 
             <p className='sr-only'>
-              Sim supports real-time multiplayer collaboration. Teams can build AI agents together
-              in a shared workspace with live cursors, presence indicators, and concurrent editing.
-              Features include role-based access control, shared workflows, and team workspace
-              management.
+              Sim supports real-time multiplayer collaboration. Teams build AI agents together in a
+              shared workspace with live cursors, presence indicators, and concurrent editing.
+              Features include role-based access control, shared agents and workflows, and team
+              workspace management.
             </p>
 
             <p className='font-[430] font-season text-[#F6F6F0]/50 text-base leading-[150%] tracking-[0.02em] md:text-lg'>
@@ -261,45 +254,54 @@ export default function Collaboration() {
               in real-time inside your workspace.
             </p>
 
-            <Link
-              href='/signup'
-              className='group/cta mt-3 inline-flex h-[32px] cursor-none items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-            >
-              Build together
-              <svg
-                className='h-[10px] w-[10px] shrink-0'
-                viewBox='0 0 10 10'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
+            <AuthModal defaultView='signup' source='collaboration'>
+              <button
+                type='button'
+                className='group/cta mt-3 inline-flex h-[32px] cursor-none items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                onClick={() =>
+                  trackLandingCta({
+                    label: 'Build together',
+                    section: 'collaboration',
+                    destination: 'auth_modal',
+                  })
+                }
               >
-                <line
-                  x1='0'
-                  y1='5'
-                  x2='9'
-                  y2='5'
-                  stroke='currentColor'
-                  strokeWidth='1.33'
-                  strokeLinecap='square'
-                  className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/cta:scale-x-100'
-                />
-                <path
-                  d='M3.5 2L6.5 5L3.5 8'
-                  stroke='currentColor'
-                  strokeWidth='1.33'
-                  strokeLinecap='square'
-                  strokeLinejoin='miter'
+                Build together
+                <svg
+                  className='size-[10px] shrink-0'
+                  viewBox='0 0 10 10'
                   fill='none'
-                  className='transition-transform duration-200 ease-out group-hover/cta:translate-x-[30%]'
-                />
-              </svg>
-            </Link>
+                  xmlns='http://www.w3.org/2000/svg'
+                >
+                  <line
+                    x1='0'
+                    y1='5'
+                    x2='9'
+                    y2='5'
+                    stroke='currentColor'
+                    strokeWidth='1.33'
+                    strokeLinecap='square'
+                    className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/cta:scale-x-100'
+                  />
+                  <path
+                    d='M3.5 2L6.5 5L3.5 8'
+                    stroke='currentColor'
+                    strokeWidth='1.33'
+                    strokeLinecap='square'
+                    strokeLinejoin='miter'
+                    fill='none'
+                    className='transition-transform duration-200 ease-out group-hover/cta:translate-x-[30%]'
+                  />
+                </svg>
+              </button>
+            </AuthModal>
           </div>
 
           <figure className='pointer-events-none relative h-[220px] w-full md:h-[600px]'>
             <div className='md:-left-[18%] -top-[10%] absolute inset-y-0 left-[7%] min-w-full md:top-0'>
               <Image
                 src='/landing/collaboration-visual.svg'
-                alt='Collaboration visual showing team workflows with real-time editing, shared cursors, and version control interface'
+                alt='Collaboration visual showing teams building AI agents together with real-time editing, shared cursors, and version control'
                 width={876}
                 height={480}
                 className='h-full w-auto object-left md:min-w-[100vw]'
@@ -323,7 +325,13 @@ export default function Collaboration() {
           className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] px-3 py-2.5 transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-card)] sm:mx-8 md:absolute md:bottom-10 md:left-16 md:z-20 md:mx-0 md:mb-0'
         >
           <div className='relative h-7 w-11 shrink-0'>
-            <Image src='/landing/multiplayer-cursors.svg' alt='' fill className='object-contain' />
+            <Image
+              src='/landing/multiplayer-cursors.svg'
+              alt=''
+              fill
+              sizes='44px'
+              className='object-contain'
+            />
           </div>
           <div className='flex flex-col gap-0.5'>
             <span className='font-[430] font-season text-[#F6F6F0]/50 text-caption uppercase leading-[100%] tracking-[0.08em]'>

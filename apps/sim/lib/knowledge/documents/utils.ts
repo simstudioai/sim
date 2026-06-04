@@ -1,4 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { randomFloat } from '@sim/utils/random'
 
 const logger = createLogger('RetryUtils')
 
@@ -18,7 +21,7 @@ export interface RetryOptions {
   retryCondition?: (error: unknown) => boolean
 }
 
-export interface RetryResult<T> {
+interface RetryResult<T> {
   success: boolean
   data?: T
   error?: Error
@@ -53,7 +56,7 @@ export function isRetryableError(error: unknown): boolean {
   }
 
   // Check for network-level errors (DNS, connection, timeout)
-  const errorMessage = error instanceof Error ? error.message : String(error)
+  const errorMessage = toError(error).message
   const lowerMessage = errorMessage.toLowerCase()
 
   const networkKeywords = [
@@ -114,7 +117,7 @@ export async function retryWithExponentialBackoff<T>(
 
       return result
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
+      lastError = toError(error)
       logger.warn(`Operation failed on attempt ${attempt + 1}`, { error })
 
       // If this is the last attempt, throw the error
@@ -140,14 +143,14 @@ export async function retryWithExponentialBackoff<T>(
         )
       }
 
-      const jitter = Math.random() * 0.1 * delay
+      const jitter = randomFloat() * 0.1 * delay
       const actualDelay = cappedRetryAfter ?? Math.min(delay + jitter, maxDelayMs)
 
       logger.info(
         `Retrying in ${Math.round(actualDelay)}ms (attempt ${attempt + 1}/${maxRetries + 1})${cappedRetryAfter ? ' (Retry-After)' : ''}`
       )
 
-      await new Promise((resolve) => setTimeout(resolve, actualDelay))
+      await sleep(actualDelay)
 
       // Exponential backoff (skip if we used Retry-After)
       if (!cappedRetryAfter) {

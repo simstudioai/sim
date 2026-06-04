@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'es-toolkit'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   Popover,
   PopoverAnchor,
@@ -14,12 +16,11 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
-  getEffectiveBlockOutputPaths,
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
 } from '@/lib/workflows/blocks/block-outputs'
+import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'
 import type {
   BlockTagGroup,
@@ -34,9 +35,11 @@ import { normalizeName } from '@/executor/constants'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const EMPTY_VARIABLES: Variable[] = []
 
 /**
  * Context for sharing nested navigation state between components.
@@ -175,17 +178,6 @@ const ensureRootTag = (tags: string[], rootTag: string): string[] => {
   if (!rootTag) return tags
   if (tags.includes(rootTag)) return tags
   return [rootTag, ...tags]
-}
-
-/**
- * Gets a subblock value from the store.
- *
- * @param blockId - The block identifier
- * @param property - The property name to retrieve
- * @returns The value from the subblock store
- */
-const getSubBlockValue = (blockId: string, property: string): any => {
-  return useSubBlockStore.getState().getValue(blockId, property)
 }
 
 /**
@@ -394,7 +386,7 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
@@ -992,8 +984,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return new Set<string>(rawAccessiblePrefixes)
   }, [rawAccessiblePrefixes])
 
-  const workflowSubBlockValues = useSubBlockStore((state) =>
-    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
+  const workflowSubBlockValues = useSubBlockStore(
+    (state) => (workflowId ? state.workflowValues[workflowId] : undefined) ?? EMPTY_SUBBLOCK_VALUES
   )
 
   const getMergedSubBlocks = useCallback(
@@ -1009,8 +1001,17 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [blocks, workflowSubBlockValues]
   )
 
-  const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
-  const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
+  const workflowVariables = useStoreWithEqualityFn(
+    useVariablesStore,
+    useCallback(
+      (state) =>
+        workflowId
+          ? Object.values(state.variables).filter((variable) => variable.workflowId === workflowId)
+          : EMPTY_VARIABLES,
+      [workflowId]
+    ),
+    isEqual
+  )
 
   const searchTerm = useMemo(
     () => getTagSearchTerm(inputValue, cursorPosition),
@@ -1055,53 +1056,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
       }
 
-      const blockName = sourceBlock.name || sourceBlock.type
-      const normalizedBlockName = normalizeName(blockName)
-
       const mergedSubBlocks = getMergedSubBlocks(activeSourceBlockId)
-      let blockTags: string[]
-
-      if (sourceBlock.type === 'variables') {
-        const variablesValue = getSubBlockValue(activeSourceBlockId, 'variables')
-
-        if (variablesValue && Array.isArray(variablesValue) && variablesValue.length > 0) {
-          const validAssignments = variablesValue.filter((assignment: { variableName?: string }) =>
-            assignment?.variableName?.trim()
-          )
-          blockTags = validAssignments.map(
-            (assignment: { variableName: string }) =>
-              `${normalizedBlockName}.${assignment.variableName.trim()}`
-          )
-        } else {
-          blockTags = [normalizedBlockName]
-        }
-      } else {
-        const sourceBlockConfig = getBlock(sourceBlock.type)
-        const isTriggerCapable = sourceBlockConfig ? hasTriggerCapability(sourceBlockConfig) : false
-        const effectiveTriggerMode = Boolean(sourceBlock.triggerMode && isTriggerCapable)
-        const outputPaths = getEffectiveBlockOutputPaths(sourceBlock.type, mergedSubBlocks, {
-          triggerMode: effectiveTriggerMode,
-          preferToolOutputs: !effectiveTriggerMode,
-        })
-        const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-
-        if (sourceBlock.type === 'human_in_the_loop' && activeSourceBlockId === blockId) {
-          blockTags = allTags.filter(
-            (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
-          )
-        } else if (allTags.length === 0) {
-          blockTags = [normalizedBlockName]
-        } else {
-          blockTags = allTags
-        }
-      }
-
-      blockTags = ensureRootTag(blockTags, normalizedBlockName)
-      const shouldShowRootTag =
-        sourceBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK || sourceBlock.type === 'start_trigger'
-      if (!shouldShowRootTag) {
-        blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
-      }
+      const blockName = sourceBlock.name || sourceBlock.type
+      const blockTags = getBlockReferenceTags({
+        block: {
+          id: activeSourceBlockId,
+          type: sourceBlock.type,
+          name: sourceBlock.name,
+          triggerMode: sourceBlock.triggerMode,
+          subBlocks: mergedSubBlocks,
+        },
+        currentBlockId: blockId,
+        subBlocks: mergedSubBlocks,
+      })
 
       const blockTagGroups: BlockTagGroup[] = [
         {
@@ -1331,57 +1298,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         continue
       }
 
-      const blockName = accessibleBlock.name || accessibleBlock.type
-      const normalizedBlockName = normalizeName(blockName)
-
       const mergedSubBlocks = getMergedSubBlocks(accessibleBlockId)
-
-      let blockTags: string[]
-
-      if (accessibleBlock.type === 'variables') {
-        const variablesValue = getSubBlockValue(accessibleBlockId, 'variables')
-
-        if (variablesValue && Array.isArray(variablesValue) && variablesValue.length > 0) {
-          const validAssignments = variablesValue.filter((assignment: { variableName?: string }) =>
-            assignment?.variableName?.trim()
-          )
-          blockTags = validAssignments.map(
-            (assignment: { variableName: string }) =>
-              `${normalizedBlockName}.${assignment.variableName.trim()}`
-          )
-        } else {
-          blockTags = [normalizedBlockName]
-        }
-      } else {
-        const accessibleBlockConfig = getBlock(accessibleBlock.type)
-        const isTriggerCapable = accessibleBlockConfig
-          ? hasTriggerCapability(accessibleBlockConfig)
-          : false
-        const effectiveTriggerMode = Boolean(accessibleBlock.triggerMode && isTriggerCapable)
-        const outputPaths = getEffectiveBlockOutputPaths(accessibleBlock.type, mergedSubBlocks, {
-          triggerMode: effectiveTriggerMode,
-          preferToolOutputs: !effectiveTriggerMode,
-        })
-        const allTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
-
-        if (accessibleBlock.type === 'human_in_the_loop' && accessibleBlockId === blockId) {
-          blockTags = allTags.filter(
-            (tag) => tag.endsWith('.url') || tag.endsWith('.resumeEndpoint')
-          )
-        } else if (allTags.length === 0) {
-          blockTags = [normalizedBlockName]
-        } else {
-          blockTags = allTags
-        }
-      }
-
-      blockTags = ensureRootTag(blockTags, normalizedBlockName)
-      const shouldShowRootTag =
-        accessibleBlock.type === TRIGGER_TYPES.GENERIC_WEBHOOK ||
-        accessibleBlock.type === 'start_trigger'
-      if (!shouldShowRootTag) {
-        blockTags = blockTags.filter((tag) => tag !== normalizedBlockName)
-      }
+      const blockName = accessibleBlock.name || accessibleBlock.type
+      const blockTags = getBlockReferenceTags({
+        block: {
+          id: accessibleBlockId,
+          type: accessibleBlock.type,
+          name: accessibleBlock.name,
+          triggerMode: accessibleBlock.triggerMode,
+          subBlocks: mergedSubBlocks,
+        },
+        currentBlockId: blockId,
+        subBlocks: mergedSubBlocks,
+      })
 
       blockTagGroups.push({
         blockName,
@@ -1712,6 +1641,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     setSelectedIndex(0)
   }, [flatTagList.length])
 
+  const onCloseEvent = useEffectEvent(() => onClose?.())
+
   useEffect(() => {
     if (visible) {
       const handleKeyboardEvent = (e: KeyboardEvent) => {
@@ -1719,7 +1650,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           case 'Escape':
             e.preventDefault()
             e.stopPropagation()
-            onClose?.()
+            onCloseEvent()
             break
         }
       }
@@ -1727,7 +1658,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       window.addEventListener('keydown', handleKeyboardEvent, true)
       return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
-  }, [visible, onClose])
+  }, [visible])
 
   if (!visible || tags.length === 0 || flatTagList.length === 0) return null
 

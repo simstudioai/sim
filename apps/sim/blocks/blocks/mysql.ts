@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { MySQLIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -325,7 +326,7 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
           try {
             parsedData = JSON.parse(data)
           } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(`Invalid JSON data format: ${errorMsg}. Please check your JSON syntax.`)
           }
         } else if (data && typeof data === 'object') {

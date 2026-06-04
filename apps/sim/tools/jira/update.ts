@@ -42,7 +42,8 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New description for the issue',
+      description:
+        'New description for the issue. Accepts plain text (auto-wrapped in ADF) or a raw ADF document object',
     },
     priority: {
       type: 'string',
@@ -156,7 +157,14 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       }
     }
 
-    const data = JSON.parse(responseText)
+    let data: any
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      throw new Error(
+        `Jira update failed (${response.status} ${response.statusText}): non-JSON response from /api/tools/jira/update`
+      )
+    }
 
     if (data.success && data.output) {
       return data

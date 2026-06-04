@@ -1,0 +1,215 @@
+---
+title: Monday
+description: Available Monday triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="monday"
+  color="#FFFFFF"
+/>
+
+Monday provides 9 triggers for automating workflows based on events.
+
+## Triggers
+
+### Monday Column Value Changed
+
+Trigger workflow when any column value changes on a Monday.com board
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+| `columnId` | string | The ID of the changed column |
+| `columnType` | string | The type of the changed column |
+| `columnTitle` | string | The title of the changed column |
+| `value` | json | The new value of the column |
+| `previousValue` | json | The previous value of the column |
+
+
+---
+
+### Monday Item Archived
+
+Trigger workflow when an item is archived on a Monday.com board
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+
+
+---
+
+### Monday Item Created
+
+Trigger workflow when a new item is created on a Monday.com board
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+
+
+---
+
+### Monday Item Deleted
+
+Trigger workflow when an item is deleted on a Monday.com board
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+
+
+---
+
+### Monday Item Moved to Group
+
+Trigger workflow when an item is moved to any group on a Monday.com board
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+| `destGroupId` | string | The destination group ID the item was moved to |
+| `sourceGroupId` | string | The source group ID the item was moved from |
+
+
+---
+
+### Monday Item Name Changed
+
+Trigger workflow when an item name changes on a Monday.com board
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+| `columnId` | string | The ID of the changed column |
+| `columnType` | string | The type of the changed column |
+| `columnTitle` | string | The title of the changed column |
+| `value` | json | The new value of the column |
+| `previousValue` | json | The previous value of the column |
+
+
+---
+
+### Monday Status Changed
+
+Trigger workflow when a status column value changes on a Monday.com board
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+| `columnId` | string | The ID of the changed column |
+| `columnType` | string | The type of the changed column |
+| `columnTitle` | string | The title of the changed column |
+| `value` | json | The new value of the column |
+| `previousValue` | json | The previous value of the column |
+
+
+---
+
+### Monday Subitem Created
+
+Trigger workflow when a subitem is created on a Monday.com board
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+| `parentItemId` | string | The parent item ID |
+| `parentItemBoardId` | string | The parent item board ID |
+
+
+---
+
+### Monday Update Posted
+
+Trigger workflow when an update or comment is posted on a Monday.com item
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `boardId` | string | The board ID where the event occurred |
+| `itemId` | string | The item ID \(pulseId\) |
+| `itemName` | string | The item name \(pulseName\) |
+| `groupId` | string | The group ID of the item |
+| `userId` | string | The ID of the user who triggered the event |
+| `triggerTime` | string | ISO timestamp of when the event occurred |
+| `triggerUuid` | string | Unique identifier for this event |
+| `subscriptionId` | string | The webhook subscription ID |
+| `updateId` | string | The ID of the created update |
+| `body` | string | The HTML body of the update |
+| `textBody` | string | The plain text body of the update |
+

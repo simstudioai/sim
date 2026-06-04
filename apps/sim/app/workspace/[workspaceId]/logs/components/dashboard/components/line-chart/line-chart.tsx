@@ -1,4 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { generateShortId } from '@sim/utils/id'
+import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 
@@ -29,7 +31,7 @@ function LineChartComponent({
   series?: LineChartMultiSeries[]
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const uniqueId = useRef(`chart-${Math.random().toString(36).substring(2, 9)}`).current
+  const uniqueId = useRef(`chart-${generateShortId(7)}`).current
   const [containerWidth, setContainerWidth] = useState<number | null>(null)
   const width = containerWidth ?? 0
   const height = 166
@@ -241,7 +243,7 @@ function LineChartComponent({
         )}
         style={{ width, height }}
       >
-        <p className='text-muted-foreground text-sm'>No data</p>
+        <p className='text-[var(--text-muted)] text-sm'>No data</p>
       </div>
     )
   }
@@ -256,7 +258,7 @@ function LineChartComponent({
     >
       {!hasExternalWrapper && (
         <div className='mb-3 flex items-center gap-3'>
-          <h4 className='font-medium text-foreground text-sm'>{label}</h4>
+          <h4 className='font-medium text-[var(--text-primary)] text-sm'>{label}</h4>
           {allSeries.length > 1 && (
             <div className='flex items-center gap-2'>
               {scaledSeries.slice(1).map((s) => {
@@ -264,17 +266,16 @@ function LineChartComponent({
                 const isHovered = hoverSeriesId === s.id
                 const dimmed = activeSeriesId ? !isActive : false
                 return (
-                  <button
+                  <Button
                     key={`legend-${s.id}`}
                     type='button'
+                    variant='ghost'
                     aria-pressed={activeSeriesId === s.id}
                     aria-label={`Toggle ${s.label}`}
-                    className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-micro'
+                    className='inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-transparent px-1.5 py-0.5 text-micro'
                     style={{
                       color: resolvedColors[s.id || ''] || s.color,
                       opacity: dimmed ? 0.4 : isHovered ? 1 : 0.9,
-                      border: '1px solid hsl(var(--border))',
-                      background: 'transparent',
                     }}
                     onMouseEnter={() => setHoverSeriesId(s.id || null)}
                     onMouseLeave={() => setHoverSeriesId((prev) => (prev === s.id ? null : prev))}
@@ -290,11 +291,11 @@ function LineChartComponent({
                   >
                     <span
                       aria-hidden='true'
-                      className='inline-block h-[6px] w-[6px] rounded-xs'
+                      className='inline-block size-[6px] rounded-xs'
                       style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
                     />
-                    <span style={{ color: 'hsl(var(--muted-foreground))' }}>{s.label}</span>
-                  </button>
+                    <span className='text-[var(--text-muted)]'>{s.label}</span>
+                  </Button>
                 )
               })}
             </div>
@@ -432,7 +433,7 @@ function LineChartComponent({
               if (y === undefined) return null
               return (
                 <line
-                  key={`pt-${idx}`}
+                  key={s.id}
                   x1={padding.left}
                   y1={y}
                   x2={width - padding.right}
@@ -466,7 +467,7 @@ function LineChartComponent({
             })()
             return (
               <path
-                key={`series-${idx}`}
+                key={s.id}
                 d={p}
                 fill='none'
                 stroke={resolvedColors[s.id || ''] || s.color}
@@ -688,7 +689,7 @@ function LineChartComponent({
                   return (
                     <div key={`tt-${s.id}`} className='flex items-center gap-2'>
                       <span
-                        className='inline-block h-[6px] w-[6px] rounded-xs'
+                        className='inline-block size-[6px] rounded-xs'
                         style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
                       />
                       {showLabel && (
@@ -710,4 +711,3 @@ function LineChartComponent({
  * Memoized LineChart component to prevent re-renders when parent updates.
  */
 export const LineChart = memo(LineChartComponent)
-export default LineChart

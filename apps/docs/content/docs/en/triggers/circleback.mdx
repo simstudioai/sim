@@ -1,0 +1,163 @@
+---
+title: Circleback
+description: Available Circleback triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="circleback"
+  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
+/>
+
+Circleback provides 3 triggers for automating workflows based on events.
+
+## Triggers
+
+### Circleback Meeting Completed
+
+Trigger workflow when a meeting is processed and ready in Circleback
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Circleback meeting ID |
+| `name` | string | Meeting title/name |
+| `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
+| `createdAt` | string | ISO8601 timestamp when meeting was created |
+| `duration` | number | Meeting duration in seconds |
+| `recordingUrl` | string | Recording URL \(valid for 24 hours, if enabled\) |
+| `tags` | array | Array of tag strings |
+| `icalUid` | string | Calendar event identifier |
+| `attendees` | array | Array of attendee objects with name and email |
+|   ↳ `name` | string | Attendee name |
+|   ↳ `email` | string | Attendee email address |
+| `notes` | string | Meeting notes in Markdown format |
+| `actionItems` | array | Array of action item objects |
+|   ↳ `id` | number | Action item ID |
+|   ↳ `title` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `assignee` | object | Person assigned to the action item \(or null\) |
+|     ↳ `name` | string | Assignee name |
+|     ↳ `email` | string | Assignee email |
+|   ↳ `status` | string | Status: PENDING or DONE |
+| `transcript` | array | Array of transcript segments |
+|   ↳ `speaker` | string | Speaker name |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `timestamp` | number | Timestamp in seconds |
+| `insights` | object | User-created insights keyed by insight name |
+| `meeting` | object | Full meeting payload object |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `name` | string | Meeting name |
+|   ↳ `url` | string | Meeting URL |
+|   ↳ `duration` | number | Duration in seconds |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `recordingUrl` | string | Recording URL |
+
+
+---
+
+### Circleback Meeting Notes Ready
+
+Trigger workflow when meeting notes and action items are ready
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Circleback meeting ID |
+| `name` | string | Meeting title/name |
+| `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
+| `createdAt` | string | ISO8601 timestamp when meeting was created |
+| `duration` | number | Meeting duration in seconds |
+| `recordingUrl` | string | Recording URL \(valid for 24 hours, if enabled\) |
+| `tags` | array | Array of tag strings |
+| `icalUid` | string | Calendar event identifier |
+| `attendees` | array | Array of attendee objects with name and email |
+|   ↳ `name` | string | Attendee name |
+|   ↳ `email` | string | Attendee email address |
+| `notes` | string | Meeting notes in Markdown format |
+| `actionItems` | array | Array of action item objects |
+|   ↳ `id` | number | Action item ID |
+|   ↳ `title` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `assignee` | object | Person assigned to the action item \(or null\) |
+|     ↳ `name` | string | Assignee name |
+|     ↳ `email` | string | Assignee email |
+|   ↳ `status` | string | Status: PENDING or DONE |
+| `transcript` | array | Array of transcript segments |
+|   ↳ `speaker` | string | Speaker name |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `timestamp` | number | Timestamp in seconds |
+| `insights` | object | User-created insights keyed by insight name |
+| `meeting` | object | Full meeting payload object |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `name` | string | Meeting name |
+|   ↳ `url` | string | Meeting URL |
+|   ↳ `duration` | number | Duration in seconds |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `recordingUrl` | string | Recording URL |
+
+
+---
+
+### Circleback Webhook
+
+Generic webhook trigger for all Circleback events
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Circleback meeting ID |
+| `name` | string | Meeting title/name |
+| `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
+| `createdAt` | string | ISO8601 timestamp when meeting was created |
+| `duration` | number | Meeting duration in seconds |
+| `recordingUrl` | string | Recording URL \(valid for 24 hours, if enabled\) |
+| `tags` | array | Array of tag strings |
+| `icalUid` | string | Calendar event identifier |
+| `attendees` | array | Array of attendee objects with name and email |
+|   ↳ `name` | string | Attendee name |
+|   ↳ `email` | string | Attendee email address |
+| `notes` | string | Meeting notes in Markdown format |
+| `actionItems` | array | Array of action item objects |
+|   ↳ `id` | number | Action item ID |
+|   ↳ `title` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `assignee` | object | Person assigned to the action item \(or null\) |
+|     ↳ `name` | string | Assignee name |
+|     ↳ `email` | string | Assignee email |
+|   ↳ `status` | string | Status: PENDING or DONE |
+| `transcript` | array | Array of transcript segments |
+|   ↳ `speaker` | string | Speaker name |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `timestamp` | number | Timestamp in seconds |
+| `insights` | object | User-created insights keyed by insight name |
+| `meeting` | object | Full meeting payload object |
+|   ↳ `id` | number | Meeting ID |
+|   ↳ `name` | string | Meeting name |
+|   ↳ `url` | string | Meeting URL |
+|   ↳ `duration` | number | Duration in seconds |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `recordingUrl` | string | Recording URL |
+

@@ -5,13 +5,16 @@ description: Automatically sync documents from external sources into your knowle
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
 import { FAQ } from '@/components/ui/faq'
 
-Connectors let you pull documents directly from external services into your knowledge base. Instead of manually uploading files, a connector continuously syncs content from sources like Notion, Google Drive, GitHub, Slack, and more — keeping your knowledge base up to date automatically.
+Connectors continuously sync documents from external services into your knowledge base, so you never have to upload files manually. New content is added, changed content is re-processed, and deleted content is removed — all automatically.
 
 ## Available Connectors
 
-Sim ships with 30 built-in connectors spanning productivity tools, cloud storage, development platforms, and more.
+<Image src="/static/connectors/connectors-sources.png" alt="Connect Source picker showing a searchable list of available connectors including Airtable, Asana, Confluence, Discord, Dropbox, Evernote, Fireflies, GitHub, and Gmail" width={800} height={500} />
+
+Sim ships with 30 built-in connectors:
 
 | Category | Connectors |
 |----------|-----------|
@@ -29,24 +32,25 @@ Sim ships with 30 built-in connectors spanning productivity tools, cloud storage
 
 ## Adding a Connector
 
+From inside a knowledge base, click **+ New connector** in the top right to open the connector picker. Select a service, then complete the setup steps:
+
 <Steps>
-<Step>
-
-### Select a source
-
-Open a knowledge base and click **Add Connector**. You'll see the full list of available connectors — pick the service you want to sync from.
-
-</Step>
 <Step>
 
 ### Authenticate
 
-Most connectors use **OAuth** — select an existing credential from the dropdown, or click **Connect new account** to authorize through the service's login flow. Tokens are refreshed automatically, so you won't need to re-authenticate unless you revoke access.
+Most connectors use **OAuth** — select an existing credential from the dropdown or click **Connect new account** to authorize through the service. Tokens are refreshed automatically.
 
-A few connectors (Evernote, Obsidian, Fireflies) use **API keys** instead. Paste your key or developer token directly, and it will be stored securely.
+A few connectors use **API keys** instead:
+
+| Connector | Where to get the key |
+|-----------|---------------------|
+| **Evernote** | Developer Token (starts with `S=`) from your Evernote account settings |
+| **Obsidian** | Install the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin, then copy the key from its settings |
+| **Fireflies** | Generate from the Integrations page in your Fireflies account |
 
 <Callout type="info">
-  If you rotate an API key in the external service, you'll need to update it in Sim as well. OAuth tokens are refreshed automatically, but API keys are not.
+  If you rotate an API key in the external service, update it in Sim as well — OAuth tokens refresh automatically, but API keys do not.
 </Callout>
 
 </Step>
@@ -54,103 +58,135 @@ A few connectors (Evernote, Obsidian, Fireflies) use **API keys** instead. Paste
 
 ### Configure
 
-Each connector has its own configuration fields that control what gets synced. Some examples:
+Each connector has source-specific fields that control what gets synced. Examples:
 
-- **Notion**: Choose between syncing an entire workspace, a specific database, or a single page tree
-- **GitHub**: Specify a repository, branch, and optional file extension filter
-- **Confluence**: Enter your Atlassian domain and optionally filter by space key or content type
-- **Obsidian**: Provide your vault URL and optionally restrict to a folder path
+- **Notion** — sync an entire workspace, a specific database, or a single page tree
+- **GitHub** — specify a repository, branch, and optional file extension filter
+- **Confluence** — enter your Atlassian domain and optionally filter by space key or content type
+- **Obsidian** — provide your vault URL (`https://127.0.0.1:27124` by default) and optionally restrict to a folder path
+- **Fireflies** — optionally filter by host email or cap the number of transcripts synced
 
-All configuration is validated when you save — if a repository doesn't exist or a domain is unreachable, you'll get an immediate error.
+Configuration is validated on save — if a repository doesn't exist or a domain is unreachable, you'll see an error immediately.
 
 </Step>
 <Step>
 
 ### Choose sync frequency
 
-Select how often the connector should re-sync:
-
-| Frequency | Description |
-|-----------|-------------|
+| Frequency | Notes |
+|-----------|-------|
 | Every hour | Best for fast-moving sources |
-| Every 6 hours | Good balance for most use cases |
+| Every 6 hours | Good balance for most sources |
 | **Daily** (default) | Suitable for content that changes infrequently |
 | Weekly | For stable, rarely-updated sources |
-| Manual only | Sync only when you trigger it |
+| Manual only | Sync only when you trigger it manually |
+
+Sub-hourly frequencies require a Max or Enterprise plan.
 
 </Step>
 <Step>
 
 ### Configure metadata tags (optional)
 
-If the connector supports metadata tags, you'll see checkboxes for each tag type (e.g., Labels, Last Modified, Notebook). All are enabled by default — uncheck any you don't need.
+If the connector supports metadata tags, you'll see checkboxes for each available tag type (e.g., Labels, Last Modified, Notebook). All are enabled by default — uncheck any you don't need.
 
-See the [Metadata Tags](#metadata-tags) section below for details.
+Tag slots are shared across all documents in a knowledge base. See [Tags](/knowledgebase/tags) for details.
 
 </Step>
 <Step>
 
 ### Connect & Sync
 
-Click **Connect & Sync** to save the connector and trigger the first sync immediately. Documents will begin appearing in your knowledge base as they are processed.
+Click **Connect & Sync** to save the connector and trigger the first sync. Documents will start appearing as they're processed.
 
 </Step>
 </Steps>
 
-## How Syncing Works
+## Managing Connectors
 
-On each sync, the connector fetches documents from the external service and compares them against what's already in your knowledge base. Only documents that have actually changed are reprocessed — new content is added, updated content is re-chunked and re-embedded, and documents that no longer exist in the source are removed.
+Open **Connected Sources** from the knowledge base to see all active connectors. Each card shows the connector's status, the last sync time and document count, and the next scheduled sync:
 
-This means syncing is efficient even for large document sets. A connector with thousands of documents will only do meaningful work when something changes.
+<Image src="/static/connectors/connectors-sync-history.png" alt="Connected Sources panel showing a Google Docs connector with Active status, last sync details, and a sync history log with dated entries" width={800} height={450} />
 
-### Handling Failures
+The action buttons on each connector card:
 
-If a single document fails to fetch (e.g., due to a permission issue or timeout), the sync continues with the remaining documents. The failed document will be retried on the next sync cycle.
+| Button | Action |
+|--------|--------|
+| **↻** (Refresh) | Trigger a manual sync immediately. Disabled while syncing or disabled; a 5-minute cooldown applies after each manual trigger |
+| **⚙** (Settings) | Open the edit modal to change source config or sync frequency |
+| **⏸ / ▶** (Pause / Resume) | Pause scheduled syncs without removing the connector. Resume works from both paused and disabled states |
+| **🗑** (Delete) | Remove the connector. A confirmation modal appears with an option to also delete all synced documents |
+| **∨** (Chevron) | Expand to show sync history |
 
-If an entire sync fails (e.g., the service is down or credentials expired), the connector automatically backs off and retries later. The backoff resets as soon as a sync succeeds.
+### Editing a Connector
 
-## Metadata Tags
+Click the settings icon to open the edit modal. It has two tabs:
 
-Connectors can automatically populate [tags](/docs/knowledgebase/tags) with metadata from the source, letting you filter documents in the Knowledge block based on information from the external service.
+**Settings** — change any source-specific config fields (e.g., switch the GitHub branch) and update the sync frequency.
 
-For example, a Notion connector might tag documents with their **Labels**, **Last Modified** date, and **Created** date. A GitHub connector might tag documents with their **Repository** and **File Path**. This metadata becomes available for [tag-based filtering](/docs/knowledgebase/tags) in your workflows.
+**Documents** — browse all documents this connector has synced and manage exclusions (see [Excluding Documents](#excluding-documents) below).
 
-### Opting Out
+### Sync History
 
-You can disable specific metadata tags during connector setup. Disabled tags won't be populated, leaving those tag slots available for other connectors or manual tagging.
+Expand any connector card by clicking the chevron to see a log of recent syncs:
 
-<Callout type="info">
-  Tag slots are shared across all documents in a knowledge base. If you have multiple connectors, each one's metadata tags draw from the same pool of available slots.
-</Callout>
+- Each row shows the date/time and a summary of what changed: **+N** (added, green), **~N** (updated, amber), **-N** (deleted, red), **!N** (failed, red), or **No changes**
+- A spinner indicates a sync currently in progress
+- Error rows show a red icon and the failure message
+
+The log retains the most recent 10 sync runs.
 
 ## Excluding Documents
 
-You can manually exclude specific documents from a connector's sync. Excluded documents are skipped on every subsequent sync, even if they change in the source. This is useful for filtering out templates, drafts, or other content you don't want in your knowledge base.
+Sometimes a connector syncs documents you don't want in your knowledge base — drafts, templates, confidential pages, and so on. You can exclude them individually.
 
-## Source Links
+<Image src="/static/connectors/connectors-excluded.png" alt="Edit Google Docs modal showing the Documents tab with Active (37) and Excluded (0) filter buttons and a 'No excluded documents' message" width={800} height={450} />
 
-Every synced document retains a link back to the original in the external service. This lets you trace any knowledge base document to its source — whether that's a Notion page, a GitHub file, a Confluence article, or a Slack conversation.
+To exclude a document, open the connector's settings modal, go to the **Documents** tab, and click **Exclude** next to any document. Excluded documents are skipped on every subsequent sync even if the source content changes.
+
+To reverse an exclusion, switch to the **Excluded** tab and click **Restore** — the document will be pulled in on the next sync.
+
+## How Syncing Works
+
+On each run the connector fetches documents from the source and compares them against what's already stored. Only changed documents are reprocessed — new content is added, updated content is re-chunked and re-embedded, deleted content is removed. A connector syncing thousands of documents will only do real work when something actually changes.
+
+### Connector Status
+
+| Status | Meaning |
+|--------|---------|
+| **Active** | Running normally on schedule |
+| **Syncing** | A sync is currently in progress |
+| **Paused** | Scheduled syncs are suspended; manual sync is still available |
+| **Error** | The last sync failed; will retry on the next scheduled run with backoff |
+| **Disabled** | Syncing has been paused automatically after 10 consecutive failures |
+
+A disabled connector requires intervention — either reconnect the OAuth account or use the Resume button to re-enable syncing.
+
+### Handling Failures
+
+If a single document fails (e.g., a permission issue or timeout), the sync continues and retries that document next time. If an entire sync fails, the connector backs off and retries with increasing delays. After 10 consecutive full-sync failures the connector is automatically set to **Disabled** to avoid spinning indefinitely.
+
+## Metadata Tags
+
+Connectors can auto-populate [tags](/knowledgebase/tags) with metadata from the source — for example, a Notion connector can tag documents with their Labels and Last Modified date; a GitHub connector can tag documents with Repository and File Path. These tags are then available for filtered search in the Knowledge block.
+
+You can disable specific tag types during setup or at any time from the connector settings to free up tag slots for manual tagging or other connectors.
+
+<Callout type="info">
+  Tag slots are shared across all documents in a knowledge base. If multiple connectors each populate tags, they draw from the same pool of 17 slots.
+</Callout>
 
 ## Multiple Connectors
 
-You can add multiple connectors to a single knowledge base. For example, you might sync internal documentation from Confluence alongside code from GitHub and meeting notes from Fireflies — all searchable together through the Knowledge block.
+<Image src="/static/connectors/connectors-list.png" alt="Knowledge base document list showing synced Google Docs documents with Name, Size, Tokens, Chunks, Uploaded date, Status, and Tags columns" width={800} height={300} />
 
-Each connector manages its own documents independently. Metadata tag slots are shared across the knowledge base, so keep an eye on slot usage if you're combining several connectors that each populate tags.
-
-## Common Use Cases
-
-- **Internal knowledge base**: Sync your team's Notion workspace and Confluence spaces so AI agents can answer questions about internal processes, policies, and documentation
-- **Customer support**: Connect HubSpot or Salesforce alongside your help docs from WordPress or Google Docs to give support agents full context on customers and product information
-- **Engineering assistant**: Sync a GitHub repository and Jira or Linear issues so an AI agent can reference code, specs, and ticket history when answering developer questions
-- **Meeting intelligence**: Pull in Fireflies transcripts alongside Slack conversations to build a searchable archive of decisions and discussions
-- **Research and notes**: Sync Evernote notebooks or an Obsidian vault to make your personal notes available to AI workflows
+You can add as many connectors as you need to a single knowledge base. Each manages its own documents independently, and all content is searchable together through the Knowledge block. Keep tag slot usage in mind when combining connectors that each populate metadata tags.
 
 <FAQ items={[
-  { question: "How often do connectors sync?", answer: "You can choose from hourly, every 6 hours, daily (default), weekly, or manual-only sync frequencies. Each connector can have its own schedule." },
-  { question: "What happens if a source document is deleted?", answer: "On the next sync, the connector detects that the document no longer exists in the source and removes it from your knowledge base automatically." },
-  { question: "Can I connect multiple services to one knowledge base?", answer: "Yes. You can add as many connectors as you need to a single knowledge base. Each connector manages its documents independently." },
-  { question: "Do I need to re-authenticate connectors?", answer: "OAuth-based connectors refresh tokens automatically. API key-based connectors (Evernote, Obsidian, Fireflies) need manual updates if you rotate the key." },
-  { question: "What if a connector sync fails?", answer: "If a single document fails, the rest of the sync continues. If the entire sync fails (e.g., service is down), the connector backs off and retries automatically." },
-  { question: "Can I exclude specific documents from syncing?", answer: "Yes. You can manually exclude documents from any connector. Excluded documents are skipped on every subsequent sync, even if they change in the source." },
-  { question: "Do metadata tags count against a limit?", answer: "Tag slots are shared across all documents in a knowledge base. If you have multiple connectors, their metadata tags draw from the same pool of available slots." },
+  { question: "How often do connectors sync?", answer: "You choose from hourly, every 6 hours, daily (default), weekly, or manual-only. Sub-hourly frequencies require a Max or Enterprise plan. Each connector has its own schedule." },
+  { question: "What happens if a source document is deleted?", answer: "On the next sync the connector detects the document is gone and removes it from your knowledge base automatically." },
+  { question: "What happens when I delete a connector?", answer: "The connector is removed and future syncs stop. You're given the option to also delete all documents that were synced by that connector. If you don't check that option, they stay in the knowledge base as-is." },
+  { question: "What does the Disabled status mean?", answer: "After 10 consecutive full-sync failures, the connector is automatically disabled to stop retrying. Reconnect the OAuth account or click Resume to re-enable it." },
+  { question: "Do metadata tags count against a limit?", answer: "Yes. Tag slots are shared across all documents in a knowledge base — 17 slots total. Multiple connectors draw from the same pool, so plan accordingly if several connectors each auto-populate tags." },
+  { question: "Do I need to re-authenticate connectors?", answer: "OAuth connectors refresh tokens automatically. API key connectors (Evernote, Obsidian, Fireflies) need manual updates if you rotate the key in the external service." },
 ]} />

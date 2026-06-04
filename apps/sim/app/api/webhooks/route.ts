@@ -1,13 +1,22 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateId, generateShortId } from '@sim/utils/id'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId, generateShortId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
@@ -18,8 +27,10 @@ import {
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
-import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import {
+  findConflictingWebhookPathOwner,
+  syncWebhooksForCredentialSet,
+} from '@/lib/webhooks/utils.server'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
 const logger = createLogger('WebhooksAPI')
@@ -56,7 +67,7 @@ async function revertSavedWebhook(
 }
 
 // Get all webhooks for the current user
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -66,9 +77,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const workflowId = searchParams.get('workflowId')
-    const blockId = searchParams.get('blockId')
+    const parsed = await parseRequest(listWebhooksContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { workflowId, blockId } = parsed.data.query
 
     if (workflowId && blockId) {
       // Collaborative-aware path: allow collaborators with read access to view webhooks
@@ -168,10 +179,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching webhooks`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // Create or Update a webhook
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const session = await getSession()
   const userId = session?.user?.id
@@ -182,8 +193,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
-    const { workflowId, path, provider, providerConfig, blockId } = body
+    const parsed = await parseRequest(upsertWebhookContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
+    const { workflowId, path, providerConfig, blockId } = body
+    const provider = body.provider || ''
 
     // Validate input
     if (!workflowId) {
@@ -286,6 +301,7 @@ export async function POST(request: NextRequest) {
       )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
+    await assertWorkflowMutable(workflowId)
 
     // Determine existing webhook to update (prefer by workflow+block for credential-based providers)
     let targetWebhookId: string | null = null
@@ -317,21 +333,31 @@ export async function POST(request: NextRequest) {
       }
     }
     if (!targetWebhookId) {
-      const existingByPath = await db
-        .select({ id: webhook.id, workflowId: webhook.workflowId })
+      const conflictingOwner = await findConflictingWebhookPathOwner({
+        path: finalPath,
+        workflowId,
+      })
+      if (conflictingOwner) {
+        logger.warn(`[${requestId}] Webhook path conflict: ${finalPath}`)
+        return NextResponse.json(
+          { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
+          { status: 409 }
+        )
+      }
+
+      const ownExisting = await db
+        .select({ id: webhook.id })
         .from(webhook)
-        .where(and(eq(webhook.path, finalPath), isNull(webhook.archivedAt)))
-        .limit(1)
-      if (existingByPath.length > 0) {
-        // If a webhook with the same path exists but belongs to a different workflow, return an error
-        if (existingByPath[0].workflowId !== workflowId) {
-          logger.warn(`[${requestId}] Webhook path conflict: ${finalPath}`)
-          return NextResponse.json(
-            { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
-            { status: 409 }
+        .where(
+          and(
+            eq(webhook.path, finalPath),
+            eq(webhook.workflowId, workflowId),
+            isNull(webhook.archivedAt)
           )
-        }
-        targetWebhookId = existingByPath[0].id
+        )
+        .limit(1)
+      if (ownExisting.length > 0) {
+        targetWebhookId = ownExisting[0].id
       }
     }
 
@@ -375,7 +401,7 @@ export async function POST(request: NextRequest) {
         try {
           const syncResult = await syncWebhooksForCredentialSet({
             workflowId,
-            blockId,
+            blockId: blockId || '',
             provider,
             basePath: finalPath,
             credentialSetId,
@@ -475,7 +501,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,
-              details: err instanceof Error ? err.message : 'Unknown error',
+              details: getErrorMessage(err, 'Unknown error'),
             },
             { status: 500 }
           )
@@ -530,7 +556,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'Failed to create external webhook subscription',
-            details: err instanceof Error ? err.message : 'Unknown error',
+            details: getErrorMessage(err, 'Unknown error'),
           },
           { status: 500 }
         )
@@ -657,7 +683,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             {
               error: `Failed to configure ${provider} webhook`,
-              details: err instanceof Error ? err.message : 'Unknown error',
+              details: getErrorMessage(err, 'Unknown error'),
             },
             { status: 500 }
           )
@@ -687,7 +713,12 @@ export async function POST(request: NextRequest) {
         resourceId: savedWebhook.id,
         resourceName: provider || 'generic',
         description: `Created ${provider || 'generic'} webhook`,
-        metadata: { provider, workflowId },
+        metadata: {
+          provider: provider || 'generic',
+          workflowId,
+          webhookPath: finalPath,
+          blockId: blockId || undefined,
+        },
         request,
       })
 
@@ -708,10 +739,14 @@ export async function POST(request: NextRequest) {
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {
+    if (error instanceof WorkflowLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     logger.error(`[${requestId}] Error creating/updating webhook`, {
       message: error.message,
       stack: error.stack,
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -69,6 +69,13 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       mode: 'basic',
     },
     {
+      id: 'driveId',
+      title: 'Drive ID (SharePoint)',
+      type: 'short-input',
+      placeholder: 'Leave empty for OneDrive, or enter drive ID for SharePoint',
+      mode: 'advanced',
+    },
+    {
       id: 'manualSpreadsheetId',
       title: 'Spreadsheet ID',
       type: 'short-input',
@@ -249,9 +256,17 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
       },
       params: (params) => {
-        const { oauthCredential, values, spreadsheetId, tableName, worksheetName, ...rest } = params
+        const {
+          oauthCredential,
+          values,
+          spreadsheetId,
+          tableName,
+          worksheetName,
+          driveId,
+          siteId: _siteId,
+          ...rest
+        } = params
 
-        // Use canonical param ID (raw subBlock IDs are deleted after serialization)
         const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
 
         let parsedValues
@@ -276,6 +291,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         const baseParams = {
           ...rest,
           spreadsheetId: effectiveSpreadsheetId,
+          driveId: driveId ? String(driveId).trim() : undefined,
           values: parsedValues,
           oauthCredential,
         }
@@ -302,6 +318,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Microsoft Excel access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
+    driveId: { type: 'string', description: 'Drive ID for SharePoint document libraries' },
     range: { type: 'string', description: 'Cell range' },
     tableName: { type: 'string', description: 'Table name' },
     worksheetName: { type: 'string', description: 'Worksheet name' },
@@ -377,6 +394,46 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    // File Source selector (both modes)
+    {
+      id: 'fileSource',
+      title: 'File Source',
+      type: 'dropdown',
+      options: [
+        { label: 'OneDrive', id: 'onedrive' },
+        { label: 'SharePoint', id: 'sharepoint' },
+      ],
+      value: () => 'onedrive',
+    },
+    // SharePoint Site Selector (basic mode, only when SharePoint is selected)
+    {
+      id: 'siteSelector',
+      title: 'SharePoint Site',
+      type: 'file-selector',
+      canonicalParamId: 'siteId',
+      serviceId: 'sharepoint',
+      selectorKey: 'sharepoint.sites',
+      requiredScopes: [],
+      placeholder: 'Select a SharePoint site',
+      dependsOn: ['credential', 'fileSource'],
+      condition: { field: 'fileSource', value: 'sharepoint' },
+      required: { field: 'fileSource', value: 'sharepoint' },
+      mode: 'basic',
+    },
+    // SharePoint Drive Selector (basic mode, only when SharePoint is selected)
+    {
+      id: 'driveSelector',
+      title: 'Document Library',
+      type: 'file-selector',
+      canonicalParamId: 'driveId',
+      serviceId: 'microsoft-excel',
+      selectorKey: 'microsoft.excel.drives',
+      placeholder: 'Select a document library',
+      dependsOn: ['credential', 'siteSelector', 'fileSource'],
+      condition: { field: 'fileSource', value: 'sharepoint' },
+      required: { field: 'fileSource', value: 'sharepoint' },
+      mode: 'basic',
+    },
     // Spreadsheet Selector (basic mode)
     {
       id: 'spreadsheetId',
@@ -388,8 +445,19 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
-      dependsOn: ['credential'],
+      dependsOn: { all: ['credential', 'fileSource'], any: ['credential', 'driveSelector'] },
       mode: 'basic',
+    },
+    // Drive ID for SharePoint (advanced mode, only when SharePoint is selected)
+    {
+      id: 'manualDriveId',
+      title: 'Drive ID',
+      type: 'short-input',
+      canonicalParamId: 'driveId',
+      placeholder: 'Enter the SharePoint drive ID',
+      condition: { field: 'fileSource', value: 'sharepoint' },
+      dependsOn: ['fileSource'],
+      mode: 'advanced',
     },
     // Manual Spreadsheet ID (advanced mode)
     {
@@ -398,7 +466,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       type: 'short-input',
       canonicalParamId: 'spreadsheetId',
       placeholder: 'Enter spreadsheet ID',
-      dependsOn: ['credential'],
+      dependsOn: { all: ['credential'], any: ['credential', 'manualDriveId'] },
       mode: 'advanced',
     },
     // Sheet Name Selector (basic mode)
@@ -409,10 +477,12 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       canonicalParamId: 'sheetName',
       serviceId: 'microsoft-excel',
       selectorKey: 'microsoft.excel.sheets',
-      selectorAllowSearch: false,
       placeholder: 'Select a sheet',
       required: true,
-      dependsOn: { all: ['credential'], any: ['spreadsheetId', 'manualSpreadsheetId'] },
+      dependsOn: {
+        all: ['credential'],
+        any: ['spreadsheetId', 'manualSpreadsheetId', 'driveSelector'],
+      },
       mode: 'basic',
     },
     // Manual Sheet Name (advanced mode)
@@ -423,7 +493,10 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       canonicalParamId: 'sheetName',
       placeholder: 'Name of the sheet/tab (e.g., Sheet1)',
       required: true,
-      dependsOn: ['credential'],
+      dependsOn: {
+        all: ['credential'],
+        any: ['credential', 'manualDriveId'],
+      },
       mode: 'advanced',
     },
     // Cell Range (optional for read/write)
@@ -514,11 +587,20 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         fallbackToolId: 'microsoft_excel_read_v2',
       }),
       params: (params) => {
-        const { oauthCredential, values, spreadsheetId, sheetName, cellRange, ...rest } = params
+        const {
+          oauthCredential,
+          values,
+          spreadsheetId,
+          sheetName,
+          cellRange,
+          driveId,
+          siteId: _siteId,
+          fileSource: _fileSource,
+          ...rest
+        } = params
 
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
-        // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
         const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
         const effectiveSheetName = sheetName ? String(sheetName).trim() : ''
 
@@ -535,6 +617,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           spreadsheetId: effectiveSpreadsheetId,
           sheetName: effectiveSheetName,
           cellRange: cellRange ? (cellRange as string).trim() : undefined,
+          driveId: driveId ? String(driveId).trim() : undefined,
           values: parsedValues,
           oauthCredential,
         }
@@ -543,7 +626,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    fileSource: { type: 'string', description: 'File source (onedrive or sharepoint)' },
     oauthCredential: { type: 'string', description: 'Microsoft Excel access token' },
+    siteId: { type: 'string', description: 'SharePoint site ID (used for drive/file browsing)' },
+    driveId: { type: 'string', description: 'Drive ID for SharePoint document libraries' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
     sheetName: { type: 'string', description: 'Name of the sheet/tab (canonical param)' },
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },

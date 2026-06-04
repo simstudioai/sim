@@ -11,8 +11,11 @@ import {
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
+  inputValidationMock,
+  inputValidationMockFns,
   type MockFetchResponse,
 } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted mock state - these are available to vi.mock factories
@@ -26,6 +29,7 @@ const {
   mockListCustomTools,
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalToken,
+  mockResolveWorkspaceFileReference,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
   mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
@@ -40,7 +44,11 @@ const {
   mockListCustomTools: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
+  mockResolveWorkspaceFileReference: vi.fn(),
 }))
+
+const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 
 // Mock feature flags
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -71,10 +79,35 @@ vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateBlockType: vi.fn().mockResolvedValue(undefined),
+  validateMcpToolsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateCustomToolsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateSkillsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateModelProvider: vi.fn().mockResolvedValue(undefined),
+  validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
+  validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
+  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
+  ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
+  IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
+  McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
+  CustomToolsNotAllowedError: class CustomToolsNotAllowedError extends Error {},
+  SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
+  InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
+  PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
+}))
+
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  resolveWorkspaceFileReference: (...args: unknown[]) => mockResolveWorkspaceFileReference(...args),
 }))
 
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
@@ -168,6 +201,7 @@ vi.mock('@/tools/registry', () => {
       name: 'Gmail Read',
       description: 'Read Gmail messages',
       version: '1.0.0',
+      oauth: { required: true, provider: 'google-email' },
       params: {},
       request: { url: '/api/tools/gmail/read', method: 'GET' },
     },
@@ -176,8 +210,47 @@ vi.mock('@/tools/registry', () => {
       name: 'Gmail Send',
       description: 'Send Gmail messages',
       version: '1.0.0',
+      oauth: { required: true, provider: 'google-email' },
       params: {},
       request: { url: '/api/tools/gmail/send', method: 'POST' },
+    },
+    test_single_file_tool: {
+      id: 'test_single_file_tool',
+      name: 'Test Single File Tool',
+      description: 'Accepts a single file parameter',
+      version: '1.0.0',
+      params: {
+        attachment: { type: 'file', required: true },
+      },
+      request: {
+        url: '/api/tools/test/single-file',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (p: any) => ({ attachment: p.attachment }),
+      },
+      transformResponse: async (response: any) => {
+        const data = await response.json()
+        return { success: true, output: data }
+      },
+    },
+    test_file_array_tool: {
+      id: 'test_file_array_tool',
+      name: 'Test File Array Tool',
+      description: 'Accepts an array of file parameters',
+      version: '1.0.0',
+      params: {
+        attachments: { type: 'file[]', required: true },
+      },
+      request: {
+        url: '/api/tools/test/file-array',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (p: any) => ({ attachments: p.attachments }),
+      },
+      transformResponse: async (response: any) => {
+        const data = await response.json()
+        return { success: true, output: data }
+      },
     },
     google_drive_list: {
       id: 'google_drive_list',
@@ -194,6 +267,38 @@ vi.mock('@/tools/registry', () => {
       version: '1.0.0',
       params: {},
       request: { url: '/api/tools/serper/search', method: 'GET' },
+    },
+    notion_add_database_row: {
+      id: 'notion_add_database_row',
+      name: 'Add Notion Database Row',
+      description: 'Add a new row to a Notion database with specified properties',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+    },
+    notion_add_database_row_v2: {
+      id: 'notion_add_database_row_v2',
+      name: 'Add Notion Database Row',
+      description: 'Add a new row to a Notion database with specified properties',
+      version: '2.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+    },
+    notion_update_page: {
+      id: 'notion_update_page',
+      name: 'Notion Page Updater',
+      description: 'Update properties of a Notion page',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+    },
+    notion_update_page_v2: {
+      id: 'notion_update_page_v2',
+      name: 'Notion Page Updater',
+      description: 'Update properties of a Notion page',
+      version: '2.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
     },
   }
   return { tools: mockTools }
@@ -316,6 +421,19 @@ describe('Tools Registry', () => {
     expect(gmailTool?.name).toBe('Gmail Read')
   })
 
+  it.each([
+    ['notion_add_database_row', 'notion_add_database_row_v2'],
+    ['notion_update_page', 'notion_update_page_v2'],
+  ])('getTool resolves both the legacy and v2 ids for %s', (legacyId, v2Id) => {
+    const legacy = getTool(legacyId)
+    expect(legacy).toBeDefined()
+    expect(legacy?.id).toBe(legacyId)
+
+    const v2 = getTool(v2Id)
+    expect(v2).toBeDefined()
+    expect(v2?.id).toBe(v2Id)
+  })
+
   it('getTool should return undefined for non-existent tool', () => {
     const nonExistentTool = getTool('non_existent_tool')
     expect(nonExistentTool).toBeUndefined()
@@ -327,11 +445,20 @@ describe('Custom Tools', () => {
     expect(getTool('custom_remote-tool-123', 'workspace-1')).toBeUndefined()
   })
 
+  it('returns the legacy notion_add_database_row tool through the async helper', async () => {
+    const legacy = await getToolAsync('notion_add_database_row')
+    expect(legacy).toBeDefined()
+    expect(legacy?.id).toBe('notion_add_database_row')
+  })
+
   it('resolves custom tools through the async helper', async () => {
     mockGetCustomToolByIdOrTitle.mockResolvedValue({
       id: 'remote-tool-123',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
       title: 'Custom Weather Tool',
       schema: {
+        type: 'function',
         function: {
           name: 'weather_tool',
           description: 'Get weather information',
@@ -345,6 +472,8 @@ describe('Custom Tools', () => {
         },
       },
       code: '',
+      createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2024-01-01T00:00:00.000Z'),
     })
 
     const customTool = await getToolAsync('custom_remote-tool-123', {
@@ -403,7 +532,7 @@ describe('executeTool Function', () => {
         code: 'return 1',
         timeout: 5000,
       },
-      true
+      { skipPostProcess: true }
     )
 
     expect(result.success).toBe(true)
@@ -432,7 +561,7 @@ describe('executeTool Function', () => {
         code: 'return { result: "hello world" }',
         language: 'javascript',
       },
-      true
+      { skipPostProcess: true }
     ) // Skip proxy
 
     tools.function_execute = originalFunctionTool
@@ -454,13 +583,85 @@ describe('executeTool Function', () => {
     vi.restoreAllMocks()
   })
 
+  it('aborts the internal fetch when the caller signal is aborted', async () => {
+    const originalFunctionTool = { ...tools.function_execute }
+    tools.function_execute = {
+      ...tools.function_execute,
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+
+    let observedSignal: AbortSignal | undefined
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        observedSignal = init.signal as AbortSignal
+        return new Promise((_resolve, reject) => {
+          observedSignal!.addEventListener('abort', () => {
+            const err = new Error('aborted')
+            err.name = 'AbortError'
+            reject(err)
+          })
+        })
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const callerController = new AbortController()
+    const resultPromise = executeTool(
+      'function_execute',
+      { code: 'return 1', timeout: 5000 },
+      { skipPostProcess: true, signal: callerController.signal }
+    )
+
+    await sleep(1)
+    callerController.abort()
+    const result = await resultPromise
+
+    expect(observedSignal?.aborted).toBe(true)
+    expect(result.success).toBe(false)
+    expect(result.error).not.toMatch(/timed out/i)
+
+    tools.function_execute = originalFunctionTool
+  })
+
+  it('aborts immediately when the caller signal is already aborted at call time', async () => {
+    const originalFunctionTool = { ...tools.function_execute }
+    tools.function_execute = {
+      ...tools.function_execute,
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+
+    let observedAborted = false
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        observedAborted = (init.signal as AbortSignal).aborted
+        const err = new Error('aborted')
+        err.name = 'AbortError'
+        throw err
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const controller = new AbortController()
+    controller.abort()
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return 1', timeout: 5000 },
+      { skipPostProcess: true, signal: controller.signal }
+    )
+
+    expect(observedAborted).toBe(true)
+    expect(result.success).toBe(false)
+
+    tools.function_execute = originalFunctionTool
+  })
+
   it('should add timing information to results', async () => {
     const result = await executeTool(
       'http_request',
       {
         url: 'https://api.example.com/data',
       },
-      true
+      { skipPostProcess: true }
     )
 
     expect(result.timing).toBeDefined()
@@ -476,6 +677,19 @@ describe('Automatic Internal Route Detection', () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+        toRecord: () => ({ 'content-type': 'application/json' }),
+      },
+      text: async () => JSON.stringify({}),
+      json: async () => ({}),
+    })
   })
 
   afterEach(() => {
@@ -521,11 +735,93 @@ describe('Automatic Internal Route Detection', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const result = await executeTool('test_internal_tool', {}, false)
+    const result = await executeTool('test_internal_tool', {})
 
     expect(result.success).toBe(true)
     expect(result.output.result).toBe('Internal route success')
     expect(mockTool.transformResponse).toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should reject internal tool responses that exceed the response body cap', async () => {
+    const mockTool = {
+      id: 'test_oversized_internal_tool',
+      name: 'Test Oversized Internal Tool',
+      description: 'A test tool with an oversized response',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/oversized',
+        method: 'GET',
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'should not run' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_oversized_internal_tool = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response('too large', {
+          status: 200,
+          headers: {
+            'content-length': '10485761',
+            'content-type': 'text/plain',
+          },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_oversized_internal_tool', {})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('response size limit exceeded')
+    expect(mockTool.transformResponse).not.toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('preserves structured 413 errors from internal tool routes', async () => {
+    const mockTool = {
+      id: 'test_internal_route_413_tool',
+      name: 'Test Internal Route 413 Tool',
+      description: 'A test tool with a route-produced payload limit error',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/payload-limit',
+        method: 'GET',
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'should not run' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_internal_route_413_tool = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Generated image exceeds maximum size' }), {
+          status: 413,
+          headers: { 'content-type': 'application/json' },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const result = await executeTool('test_internal_route_413_tool', {})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Generated image exceeds maximum size')
+    expect(result.error).not.toContain('Request body size limit exceeded')
+    expect(mockTool.transformResponse).not.toHaveBeenCalled()
 
     Object.assign(tools, originalTools)
   })
@@ -725,6 +1021,225 @@ describe('Automatic Internal Route Detection', () => {
   })
 })
 
+describe('Copilot File Parameter Normalization', () => {
+  let cleanupEnvVars: () => void
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    mockResolveWorkspaceFileReference.mockReset()
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  it('resolves canonical file IDs for single-file params during copilot execution', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'wf_123',
+      name: 'brief.pdf',
+      path: '/api/files/wf_123',
+      size: 512,
+      type: 'application/pdf',
+      key: 'uploads/wf_123',
+    })
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url, options) => {
+        const body = JSON.parse(options?.body as string)
+        expect(body.attachment).toEqual({
+          id: 'wf_123',
+          name: 'brief.pdf',
+          url: '/api/files/wf_123',
+          size: 512,
+          type: 'application/pdf',
+          key: 'uploads/wf_123',
+          context: 'workspace',
+        })
+
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          json: () => Promise.resolve({ ok: true }),
+          text: () => Promise.resolve(JSON.stringify({ ok: true })),
+          clone: vi.fn().mockReturnThis(),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      copilotToolExecution: true,
+    } as any)
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: 'wf_123' },
+      { executionContext: context }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-456', 'wf_123')
+  })
+
+  it('resolves file-array params from strings and partial file objects, while preserving full file objects', async () => {
+    mockResolveWorkspaceFileReference.mockImplementation(
+      async (_workspaceId: string, fileId: string) => ({
+        id: fileId,
+        name: `${fileId}.txt`,
+        path: `/api/files/${fileId}`,
+        size: 128,
+        type: 'text/plain',
+        key: `uploads/${fileId}`,
+      })
+    )
+
+    const existingFileObject = {
+      id: 'wf_existing',
+      name: 'existing.txt',
+      url: '/api/files/wf_existing',
+      size: 64,
+      type: 'text/plain',
+      key: 'uploads/wf_existing',
+      context: 'workspace',
+    }
+
+    const partialFileObject = {
+      id: 'wf_partial',
+      name: 'partial.txt',
+    }
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url, options) => {
+        const body = JSON.parse(options?.body as string)
+        expect(body.attachments).toEqual([
+          {
+            id: 'wf_1',
+            name: 'wf_1.txt',
+            url: '/api/files/wf_1',
+            size: 128,
+            type: 'text/plain',
+            key: 'uploads/wf_1',
+            context: 'workspace',
+          },
+          {
+            id: 'wf_partial',
+            name: 'wf_partial.txt',
+            url: '/api/files/wf_partial',
+            size: 128,
+            type: 'text/plain',
+            key: 'uploads/wf_partial',
+            context: 'workspace',
+          },
+          existingFileObject,
+          {
+            id: 'wf_2',
+            name: 'wf_2.txt',
+            url: '/api/files/wf_2',
+            size: 128,
+            type: 'text/plain',
+            key: 'uploads/wf_2',
+            context: 'workspace',
+          },
+        ])
+
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          json: () => Promise.resolve({ ok: true }),
+          text: () => Promise.resolve(JSON.stringify({ ok: true })),
+          clone: vi.fn().mockReturnThis(),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      copilotToolExecution: true,
+    } as any)
+
+    const result = await executeTool(
+      'test_file_array_tool',
+      { attachments: ['wf_1', partialFileObject, existingFileObject, 'wf_2'] },
+      { executionContext: context }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not resolve file params outside copilot execution', async () => {
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url, options) => {
+        const body = JSON.parse(options?.body as string)
+        expect(body.attachment).toBe('wf_123')
+
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          json: () => Promise.resolve({ ok: true }),
+          text: () => Promise.resolve(JSON.stringify({ ok: true })),
+          clone: vi.fn().mockReturnThis(),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+    } as any)
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: 'wf_123' },
+      { executionContext: context }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
+  })
+})
+
+describe('Copilot OAuth Credential Enforcement', () => {
+  let cleanupEnvVars: () => void
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  it('fails fast when copilot executes an oauth tool without an explicit credential selector', async () => {
+    const fetchMock = vi.fn()
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      copilotToolExecution: true,
+    } as any)
+
+    const result = await executeTool('gmail_read', { maxResults: 5 }, { executionContext: context })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('credentialId')
+    expect(result.error).toContain('environment/credentials.json')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
 describe('Centralized Error Handling', () => {
   let cleanupEnvVars: () => void
 
@@ -760,7 +1275,7 @@ describe('Centralized Error Handling', () => {
     const result = await executeTool(
       'function_execute',
       { code: 'return { result: "test" }' },
-      true
+      { skipPostProcess: true }
     )
 
     expect(result.success).toBe(false)
@@ -861,7 +1376,7 @@ describe('Centralized Error Handling', () => {
     const result = await executeTool(
       'function_execute',
       { code: 'return { result: "test" }' },
-      true
+      { skipPostProcess: true }
     )
 
     expect(result.success).toBe(false)
@@ -891,7 +1406,7 @@ describe('Centralized Error Handling', () => {
     const result = await executeTool(
       'function_execute',
       { code: 'return { result: "test" }' },
-      true
+      { skipPostProcess: true }
     )
 
     expect(result.success).toBe(false)
@@ -920,7 +1435,7 @@ describe('Centralized Error Handling', () => {
     const result = await executeTool(
       'function_execute',
       { code: 'return { result: "test" }' },
-      true
+      { skipPostProcess: true }
     )
 
     expect(result.success).toBe(false)
@@ -998,7 +1513,11 @@ describe('MCP Tool Execution', () => {
 
     const mockContext = createToolExecutionContext()
 
-    const result = await executeTool('mcp-123-list_files', { path: '/test' }, false, mockContext)
+    const result = await executeTool(
+      'mcp-123-list_files',
+      { path: '/test' },
+      { executionContext: mockContext }
+    )
 
     expect(result.success).toBe(true)
     expect(result.output).toBeDefined()
@@ -1028,7 +1547,11 @@ describe('MCP Tool Execution', () => {
 
     const mockContext2 = createToolExecutionContext()
 
-    await executeTool('mcp-timestamp123-complex-tool-name', { param: 'value' }, false, mockContext2)
+    await executeTool(
+      'mcp-timestamp123-complex-tool-name',
+      { param: 'value' },
+      { executionContext: mockContext2 }
+    )
   })
 
   it('should handle MCP block arguments format', async () => {
@@ -1059,8 +1582,7 @@ describe('MCP Tool Execution', () => {
         server: 'mcp-123',
         tool: 'read_file',
       },
-      false,
-      mockContext3
+      { executionContext: mockContext3 }
     )
   })
 
@@ -1096,8 +1618,7 @@ describe('MCP Tool Execution', () => {
         workspaceId: 'workspace-456',
         requestId: 'req-123',
       },
-      false,
-      mockContext4
+      { executionContext: mockContext4 }
     )
   })
 
@@ -1121,8 +1642,7 @@ describe('MCP Tool Execution', () => {
     const result = await executeTool(
       'mcp-123-nonexistent_tool',
       { param: 'value' },
-      false,
-      mockContext5
+      { executionContext: mockContext5 }
     )
 
     expect(result.success).toBe(false)
@@ -1140,7 +1660,11 @@ describe('MCP Tool Execution', () => {
   it('should handle invalid MCP tool ID format', async () => {
     const mockContext6 = createToolExecutionContext()
 
-    const result = await executeTool('invalid-mcp-id', { param: 'value' }, false, mockContext6)
+    const result = await executeTool(
+      'invalid-mcp-id',
+      { param: 'value' },
+      { executionContext: mockContext6 }
+    )
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Tool not found')
@@ -1153,7 +1677,11 @@ describe('MCP Tool Execution', () => {
 
     const mockContext7 = createToolExecutionContext()
 
-    const result = await executeTool('mcp-123-test_tool', { param: 'value' }, false, mockContext7)
+    const result = await executeTool(
+      'mcp-123-test_tool',
+      { param: 'value' },
+      { executionContext: mockContext7 }
+    )
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Network error')
@@ -1464,7 +1992,7 @@ describe('Hosted Key Injection', () => {
     ) as typeof fetch
 
     const mockContext = createToolExecutionContext()
-    await executeTool('test_no_hosting', {}, false, mockContext)
+    await executeTool('test_no_hosting', {}, { executionContext: mockContext })
 
     // BYOK should not be called since there's no hosting config
     expect(mockGetBYOKKey).not.toHaveBeenCalled()
@@ -1527,7 +2055,7 @@ describe('Hosted Key Injection', () => {
     ) as typeof fetch
 
     const mockContext = createToolExecutionContext()
-    await executeTool('test_with_hosting', {}, false, mockContext)
+    await executeTool('test_with_hosting', {}, { executionContext: mockContext })
 
     // With isHosted=false, BYOK won't be called - this is expected behavior
     // The test documents the current behavior
@@ -1756,7 +2284,7 @@ describe('Rate Limiting and Retry Logic', () => {
     ) as typeof fetch
 
     const mockContext = createToolExecutionContext()
-    const resultPromise = executeTool('test_rate_limit', {}, false, mockContext)
+    const resultPromise = executeTool('test_rate_limit', {}, { executionContext: mockContext })
 
     // Advance timers to skip retry delays (1s + 2s exponential backoff)
     await vi.advanceTimersByTimeAsync(10000)
@@ -1817,7 +2345,11 @@ describe('Rate Limiting and Retry Logic', () => {
     ) as typeof fetch
 
     const mockContext = createToolExecutionContext()
-    const resultPromise = executeTool('test_persistent_rate_limit', {}, false, mockContext)
+    const resultPromise = executeTool(
+      'test_persistent_rate_limit',
+      {},
+      { executionContext: mockContext }
+    )
 
     // Advance timers to skip retry delays (1s + 2s + 4s exponential backoff)
     await vi.advanceTimersByTimeAsync(15000)
@@ -1880,7 +2412,7 @@ describe('Rate Limiting and Retry Logic', () => {
     ) as typeof fetch
 
     const mockContext = createToolExecutionContext()
-    const result = await executeTool('test_no_retry', {}, false, mockContext)
+    const result = await executeTool('test_no_retry', {}, { executionContext: mockContext })
 
     // Should fail immediately without retries
     expect(result.success).toBe(false)
@@ -1936,7 +2468,7 @@ describe('stripInternalFields Safety', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const result = await executeTool('test_string_output', {}, true)
+    const result = await executeTool('test_string_output', {}, { skipPostProcess: true })
 
     expect(result.success).toBe(true)
     expect(result.output).toBe(stringOutput)
@@ -1978,7 +2510,7 @@ describe('stripInternalFields Safety', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const result = await executeTool('test_array_output', {}, true)
+    const result = await executeTool('test_array_output', {}, { skipPostProcess: true })
 
     expect(result.success).toBe(true)
     expect(Array.isArray(result.output)).toBe(true)
@@ -2018,7 +2550,7 @@ describe('stripInternalFields Safety', () => {
       { preconnect: vi.fn() }
     ) as typeof fetch
 
-    const result = await executeTool('test_strip_internal', {}, true)
+    const result = await executeTool('test_strip_internal', {}, { skipPostProcess: true })
 
     expect(result.success).toBe(true)
     expect(result.output.result).toBe('ok')
@@ -2121,7 +2653,7 @@ describe('Cost Field Handling', () => {
     const mockContext = createToolExecutionContext({
       userId: 'user-123',
     } as any)
-    const result = await executeTool('test_cost_per_request', {}, false, mockContext)
+    const result = await executeTool('test_cost_per_request', {}, { executionContext: mockContext })
 
     expect(result.success).toBe(true)
     // Note: In test environment, hosted key injection may not work due to env mocking complexity.
@@ -2186,8 +2718,7 @@ describe('Cost Field Handling', () => {
     const result = await executeTool(
       'test_no_hosted_cost',
       { apiKey: 'user-api-key' },
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
 
     expect(result.success).toBe(true)
@@ -2254,8 +2785,7 @@ describe('Cost Field Handling', () => {
     const result = await executeTool(
       'test_custom_pricing_cost',
       { mode: 'advanced' },
-      false,
-      mockContext
+      { executionContext: mockContext }
     )
 
     expect(result.success).toBe(true)
@@ -2264,6 +2794,130 @@ describe('Cost Field Handling', () => {
 
     // getCost should have been called with params and output
     expect(mockGetCost).toHaveBeenCalled()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should skip hosted key injection when hosting predicate is false', async () => {
+    const mockTool = {
+      id: 'test_conditional_hosting',
+      name: 'Test Conditional Hosting',
+      description: 'A test tool with conditional hosted keys',
+      version: '1.0.0',
+      params: {
+        provider: { type: 'string', required: false },
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        enabled: (params: { provider?: string }) => params.provider === 'hosted-provider',
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/conditional-hosting',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_conditional_hosting = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const mockContext = createToolExecutionContext({
+      userId: 'user-123',
+    } as any)
+    const result = await executeTool(
+      'test_conditional_hosting',
+      { provider: 'user-provider' },
+      { executionContext: mockContext }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+    expect(result.output.cost).toBeUndefined()
+
+    Object.assign(tools, originalTools)
+  })
+
+  it('should skip hosted key injection when user provides an API key', async () => {
+    const mockTool = {
+      id: 'test_user_key_priority',
+      name: 'Test User Key Priority',
+      description: 'A test tool where user keys should win',
+      version: '1.0.0',
+      params: {
+        apiKey: { type: 'string', required: false },
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        pricing: {
+          type: 'per_request' as const,
+          cost: 0.005,
+        },
+        rateLimit: {
+          mode: 'per_request' as const,
+          requestsPerMinute: 100,
+        },
+      },
+      request: {
+        url: '/api/test/user-key-priority',
+        method: 'POST' as const,
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({
+        success: true,
+        output: { result: 'success' },
+      }),
+    }
+
+    const originalTools = { ...tools }
+    ;(tools as any).test_user_key_priority = mockTool
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ success: true }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const mockContext = createToolExecutionContext({
+      userId: 'user-123',
+    } as any)
+    const result = await executeTool(
+      'test_user_key_priority',
+      { apiKey: 'user-api-key' },
+      { executionContext: mockContext }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+    expect(result.output.cost).toBeUndefined()
 
     Object.assign(tools, originalTools)
   })

@@ -1,17 +1,11 @@
 /**
- * Options for configuring text chunkers
- *
  * Units:
- * - chunkSize: Maximum chunk size in TOKENS (1 token ≈ 4 characters)
- * - chunkOverlap: Overlap between chunks in TOKENS
- * - minCharactersPerChunk: Minimum chunk size in CHARACTERS (filters tiny fragments)
+ * - chunkSize/chunkOverlap: TOKENS (1 token ≈ 4 characters)
+ * - minCharactersPerChunk: CHARACTERS
  */
 export interface ChunkerOptions {
-  /** Maximum chunk size in tokens (default: 1024) */
   chunkSize?: number
-  /** Overlap between chunks in tokens (default: 0) */
   chunkOverlap?: number
-  /** Minimum chunk size in characters to avoid tiny fragments (default: 100) */
   minCharactersPerChunk?: number
 }
 
@@ -50,4 +44,35 @@ export interface DocChunk {
 
 export interface DocsChunkerOptions extends ChunkerOptions {
   baseUrl?: string
+}
+
+export type ChunkingStrategy = 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+
+export type RecursiveRecipe = 'plain' | 'markdown' | 'code'
+
+export interface StrategyOptions {
+  pattern?: string
+  separators?: string[]
+  recipe?: RecursiveRecipe
+  strictBoundaries?: boolean
+}
+
+export interface SentenceChunkerOptions extends ChunkerOptions {
+  minSentencesPerChunk?: number
+}
+
+export interface RecursiveChunkerOptions extends ChunkerOptions {
+  separators?: string[]
+  recipe?: RecursiveRecipe
+}
+
+export interface RegexChunkerOptions extends ChunkerOptions {
+  pattern: string
+  /**
+   * When true, each regex match becomes its own chunk and small adjacent
+   * segments are not merged together. Overlap is also disabled. Useful for
+   * structural inputs where boundaries (e.g. one record per match) must be
+   * preserved exactly.
+   */
+  strictBoundaries?: boolean
 }

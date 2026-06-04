@@ -1,6 +1,6 @@
 import { normalizeName, REFERENCE } from '@/executor/constants'
 
-export const SYSTEM_REFERENCE_PREFIXES = new Set(['start', 'loop', 'parallel', 'variable'])
+export const SYSTEM_REFERENCE_PREFIXES = new Set(['loop', 'parallel', 'variable'])
 
 const INVALID_REFERENCE_CHARS = /[+*/=<>!]/
 

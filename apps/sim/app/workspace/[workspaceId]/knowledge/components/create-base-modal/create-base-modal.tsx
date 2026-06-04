@@ -3,21 +3,28 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
-import { Loader2, RotateCcw, X } from 'lucide-react'
+import { getErrorMessage } from '@sim/utils/errors'
+import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
   Button,
+  Checkbox,
+  Combobox,
+  type ComboboxOption,
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
+import type { StrategyOptions } from '@/lib/chunkers/types'
 import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -35,6 +42,20 @@ interface CreateBaseModalProps {
   onOpenChange: (open: boolean) => void
 }
 
+const STRATEGY_OPTIONS = [
+  { value: 'auto', label: 'Auto (detect from content)' },
+  { value: 'text', label: 'Text (word boundary splitting)' },
+  { value: 'recursive', label: 'Recursive (configurable separators)' },
+  { value: 'sentence', label: 'Sentence' },
+  { value: 'token', label: 'Token (fixed-size)' },
+  { value: 'regex', label: 'Regex (custom pattern)' },
+] as const
+
+const STRATEGY_COMBOBOX_OPTIONS: ComboboxOption[] = STRATEGY_OPTIONS.map((o) => ({
+  label: o.label,
+  value: o.value,
+}))
+
 const FormSchema = z
   .object({
     name: z
@@ -43,25 +64,25 @@ const FormSchema = z
       .max(100, 'Name must be less than 100 characters')
       .refine((value) => value.trim().length > 0, 'Name cannot be empty'),
     description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-    /** Minimum chunk size in characters */
     minChunkSize: z
       .number()
       .min(1, 'Min chunk size must be at least 1 character')
       .max(2000, 'Min chunk size must be less than 2000 characters'),
-    /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
     maxChunkSize: z
       .number()
       .min(100, 'Max chunk size must be at least 100 tokens')
       .max(4000, 'Max chunk size must be less than 4000 tokens'),
-    /** Overlap between chunks in tokens */
     overlapSize: z
       .number()
       .min(0, 'Overlap must be non-negative')
       .max(500, 'Overlap must be less than 500 tokens'),
+    strategy: z.enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token']).default('auto'),
+    regexPattern: z.string().optional(),
+    regexStrictBoundaries: z.boolean().default(false),
+    customSeparators: z.string().optional(),
   })
   .refine(
     (data) => {
-      // Convert maxChunkSize from tokens to characters for comparison (1 token ≈ 4 chars)
       const maxChunkSizeInChars = data.maxChunkSize * 4
       return data.minChunkSize < maxChunkSizeInChars
     },
@@ -70,8 +91,30 @@ const FormSchema = z
       path: ['minChunkSize'],
     }
   )
+  .refine(
+    (data) => {
+      return data.overlapSize < data.maxChunkSize
+    },
+    {
+      message: 'Overlap must be less than max chunk size',
+      path: ['overlapSize'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.strategy === 'regex' && !data.regexPattern?.trim()) {
+        return false
+      }
+      return true
+    },
+    {
+      message: 'Regex pattern is required when using the regex strategy',
+      path: ['regexPattern'],
+    }
+  )
 
-type FormValues = z.infer<typeof FormSchema>
+type FormInputValues = z.input<typeof FormSchema>
+type FormValues = z.output<typeof FormSchema>
 
 interface SubmitStatus {
   type: 'success' | 'error'
@@ -124,8 +167,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
-  } = useForm<FormValues>({
+  } = useForm<FormInputValues, unknown, FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       name: '',
@@ -133,11 +177,17 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       minChunkSize: 100,
       maxChunkSize: 1024,
       overlapSize: 200,
+      strategy: 'auto',
+      regexPattern: '',
+      regexStrictBoundaries: false,
+      customSeparators: '',
     },
     mode: 'onSubmit',
   })
 
   const nameValue = watch('name')
+  const strategyValue = watch('strategy')
+  const regexStrictBoundariesValue = watch('regexStrictBoundaries')
 
   useEffect(() => {
     if (open) {
@@ -153,6 +203,10 @@ export const CreateBaseModal = memo(function CreateBaseModal({
         minChunkSize: 100,
         maxChunkSize: 1024,
         overlapSize: 200,
+        strategy: 'auto',
+        regexPattern: '',
+        regexStrictBoundaries: false,
+        customSeparators: '',
       })
     }
   }, [open, reset])
@@ -255,6 +309,20 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     setSubmitStatus(null)
 
     try {
+      const strategyOptions: StrategyOptions | undefined =
+        data.strategy === 'regex' && data.regexPattern
+          ? {
+              pattern: data.regexPattern,
+              ...(data.regexStrictBoundaries && { strictBoundaries: true }),
+            }
+          : data.strategy === 'recursive' && data.customSeparators?.trim()
+            ? {
+                separators: data.customSeparators
+                  .split(',')
+                  .map((s) => s.trim().replace(/\\n/g, '\n').replace(/\\t/g, '\t')),
+              }
+            : undefined
+
       const newKnowledgeBase = await createKnowledgeBaseMutation.mutateAsync({
         name: data.name,
         description: data.description || undefined,
@@ -263,6 +331,8 @@ export const CreateBaseModal = memo(function CreateBaseModal({
           maxSize: data.maxChunkSize,
           minSize: data.minChunkSize,
           overlap: data.overlapSize,
+          ...(data.strategy !== 'auto' && { strategy: data.strategy }),
+          ...(strategyOptions && { strategyOptions }),
         },
       })
 
@@ -296,7 +366,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       logger.error('Error creating knowledge base:', error)
       setSubmitStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'An unknown error occurred',
+        message: getErrorMessage(error, 'An unknown error occurred'),
       })
     }
   }
@@ -305,6 +375,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     <Modal open={open} onOpenChange={handleClose}>
       <ModalContent size='lg'>
         <ModalHeader>Create Knowledge Base</ModalHeader>
+        <ModalDescription className='sr-only'>
+          Set up a new knowledge base with documents and chunking options
+        </ModalDescription>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
@@ -312,7 +385,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               <div className='space-y-3'>
                 <div className='flex flex-col gap-2'>
                   <Label htmlFor='kb-name'>Name</Label>
-                  {/* Hidden decoy fields to prevent browser autofill */}
                   <input
                     type='text'
                     name='fakeusernameremembered'
@@ -404,6 +476,81 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 </div>
 
                 <div className='flex flex-col gap-2'>
+                  <Label>Chunking Strategy</Label>
+                  <Combobox
+                    options={STRATEGY_COMBOBOX_OPTIONS}
+                    value={strategyValue}
+                    onChange={(value) => setValue('strategy', value as FormValues['strategy'])}
+                    dropdownWidth='trigger'
+                    align='start'
+                  />
+                  <p className='text-[var(--text-muted)] text-xs'>
+                    Auto detects the best strategy based on file content type.
+                  </p>
+                </div>
+
+                {strategyValue === 'regex' && (
+                  <div className='flex flex-col gap-2'>
+                    <Label htmlFor='regexPattern'>Regex Pattern</Label>
+                    <Input
+                      id='regexPattern'
+                      placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
+                      {...register('regexPattern')}
+                      className={cn(errors.regexPattern && 'border-[var(--text-error)]')}
+                      autoComplete='off'
+                      data-form-type='other'
+                    />
+                    {errors.regexPattern && (
+                      <p className='text-[var(--text-error)] text-xs'>
+                        {errors.regexPattern.message}
+                      </p>
+                    )}
+                    <p className='text-[var(--text-muted)] text-xs'>
+                      Text will be split at each match of this regex pattern.
+                    </p>
+                    <label
+                      htmlFor='regexStrictBoundaries'
+                      className='mt-1 flex cursor-pointer items-start gap-2'
+                    >
+                      <Checkbox
+                        id='regexStrictBoundaries'
+                        checked={regexStrictBoundariesValue}
+                        onCheckedChange={(checked) =>
+                          setValue('regexStrictBoundaries', checked === true)
+                        }
+                        className='mt-0.5'
+                      />
+                      <div className='flex flex-col gap-0.5'>
+                        <span className='text-[var(--text-primary)] text-sm'>
+                          Each match is its own chunk (don&apos;t merge)
+                        </span>
+                        <span className='text-[var(--text-muted)] text-xs'>
+                          Preserve boundaries exactly. Recommended when each match is a discrete
+                          record (e.g. one QA pair per chunk).
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {strategyValue === 'recursive' && (
+                  <div className='flex flex-col gap-2'>
+                    <Label htmlFor='customSeparators'>Custom Separators (optional)</Label>
+                    <Input
+                      id='customSeparators'
+                      placeholder='e.g. \n\n, \n, . ,  '
+                      {...register('customSeparators')}
+                      autoComplete='off'
+                      data-form-type='other'
+                    />
+                    <p className='text-[var(--text-muted)] text-xs'>
+                      Comma-separated list of delimiters in priority order. Leave empty for default
+                      separators.
+                    </p>
+                  </div>
+                )}
+
+                <div className='flex flex-col gap-2'>
                   <Label>Upload Documents</Label>
                   <Button
                     type='button'
@@ -431,7 +578,8 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                         {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
                       </span>
                       <span className='text-[var(--text-tertiary)] text-xs'>
-                        PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)
+                        PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB
+                        each)
                       </span>
                     </div>
                   </Button>
@@ -449,7 +597,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
                         return (
                           <div
-                            key={index}
+                            key={`${file.name}-${file.size}`}
                             className={cn(
                               'flex items-center gap-2 rounded-sm border p-2',
                               isFailed && !isRetrying && 'border-[var(--text-error)]'
@@ -469,31 +617,31 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                             </span>
                             <div className='flex flex-shrink-0 items-center gap-1'>
                               {isProcessing ? (
-                                <Loader2 className='h-4 w-4 animate-spin text-[var(--text-muted)]' />
+                                <Loader className='size-4 text-[var(--text-muted)]' animate />
                               ) : (
                                 <>
                                   {isFailed && (
                                     <Button
                                       type='button'
                                       variant='ghost'
-                                      className='h-4 w-4 p-0'
+                                      className='size-4 p-0'
                                       onClick={() => {
                                         setRetryingIndexes((prev) => new Set(prev).add(index))
                                         removeFile(index)
                                       }}
                                       disabled={isUploading}
                                     >
-                                      <RotateCcw className='h-3 w-3' />
+                                      <RotateCcw className='size-3' />
                                     </Button>
                                   )}
                                   <Button
                                     type='button'
                                     variant='ghost'
-                                    className='h-4 w-4 p-0'
+                                    className='size-4 p-0'
                                     onClick={() => removeFile(index)}
                                     disabled={isUploading}
                                   >
-                                    <X className='h-3.5 w-3.5' />
+                                    <X className='size-3.5' />
                                   </Button>
                                 </>
                               )}

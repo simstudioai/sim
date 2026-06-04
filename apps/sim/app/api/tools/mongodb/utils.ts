@@ -1,5 +1,8 @@
 import { MongoClient } from 'mongodb'
-import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import {
+  createPinnedLookup,
+  validateDatabaseHost,
+} from '@/lib/core/security/input-validation.server'
 import type { MongoDBCollectionInfo, MongoDBConnectionConfig } from '@/tools/mongodb/types'
 
 export async function createMongoDBConnection(config: MongoDBConnectionConfig) {
@@ -30,6 +33,7 @@ export async function createMongoDBConnection(config: MongoDBConnectionConfig) {
     connectTimeoutMS: 10000,
     socketTimeoutMS: 10000,
     maxPoolSize: 1,
+    lookup: createPinnedLookup(hostValidation.resolvedIP ?? config.host),
   })
 
   await client.connect()

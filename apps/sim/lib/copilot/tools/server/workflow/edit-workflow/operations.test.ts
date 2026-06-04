@@ -4,15 +4,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { applyOperationsToWorkflowState } from './engine'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
 vi.mock('@/blocks/registry', () => ({
   getAllBlocks: () => [
     {

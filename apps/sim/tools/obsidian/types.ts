@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface ObsidianBaseParams {
+interface ObsidianBaseParams {
   apiKey: string
   baseUrl: string
 }

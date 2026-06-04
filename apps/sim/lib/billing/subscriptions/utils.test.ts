@@ -7,6 +7,7 @@ import {
   checkEnterprisePlan,
   checkProPlan,
   checkTeamPlan,
+  getEffectiveSeats,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
   hasUsableSubscriptionStatus,
@@ -41,5 +42,11 @@ describe('billing subscription status helpers', () => {
     expect(canEditUsageLimit({ plan: 'team_8000', status: 'past_due' })).toBe(false)
     expect(canEditUsageLimit({ plan: 'enterprise', status: 'active' })).toBe(false)
     expect(canEditUsageLimit({ plan: 'free', status: 'active' })).toBe(false)
+  })
+
+  it('falls back to one seat for entitled team subscriptions before seats sync completes', () => {
+    expect(getEffectiveSeats({ plan: 'team_8000', status: 'active', seats: null })).toBe(1)
+    expect(getEffectiveSeats({ plan: 'team_8000', status: 'past_due', seats: undefined })).toBe(1)
+    expect(getEffectiveSeats({ plan: 'team_8000', status: 'canceled', seats: null })).toBe(0)
   })
 })

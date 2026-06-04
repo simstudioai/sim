@@ -56,6 +56,16 @@ Integrate Pulse into the workflow. Extract text from PDF documents, images, and 
 
 #### Output
 
-This tool does not produce any outputs.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markdown` | string | Extracted content in markdown format |
+| `page_count` | number | Number of pages in the document |
+| `job_id` | string | Unique job identifier |
+| `bounding_boxes` | json | Bounding box layout information |
+| `extraction_url` | string | URL for extraction results \(for large documents\) |
+| `html` | string | HTML content if requested |
+| `structured_output` | json | Structured output if schema was provided |
+| `chunks` | json | Chunked content if chunking was enabled |
+| `figures` | json | Extracted figures if figure extraction was enabled |
 
 

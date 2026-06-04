@@ -1,20 +1,17 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { teamsDeleteChatMessageContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TeamsDeleteChatMessageAPI')
 
-const TeamsDeleteChatMessageSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  chatId: z.string().min(1, 'Chat ID is required'),
-  messageId: z.string().min(1, 'Message ID is required'),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -38,8 +35,9 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const body = await request.json()
-    const validatedData = TeamsDeleteChatMessageSchema.parse(body)
+    const parsed = await parseRequest(teamsDeleteChatMessageContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Deleting Teams chat message`, {
       chatId: validatedData.chatId,
@@ -113,9 +111,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )
   }
-}
+})

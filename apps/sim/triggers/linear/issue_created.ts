@@ -54,18 +54,6 @@ export const linearIssueCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'linear_issue_created',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_issue_created',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

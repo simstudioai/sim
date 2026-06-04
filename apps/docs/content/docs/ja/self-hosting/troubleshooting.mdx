@@ -27,7 +27,7 @@ OLLAMA_URL=http://192.168.1.x:11434           # Linux (use actual IP)
 
 ## WebSocket/リアルタイム機能が動作しない
 
-1. `NEXT_PUBLIC_SOCKET_URL` がドメインと一致しているか確認する
+1. リバースプロキシが `/socket.io` を realtime サービス（デフォルトポート 3002）にルーティングしているか確認してください。`NEXT_PUBLIC_SOCKET_URL` は realtime が別ホストにある場合のみ必要です。
 2. リアルタイムサービスが実行されているか確認する: `docker compose ps realtime`
 3. リバースプロキシがWebSocketアップグレードを通過させていることを確認する（[Dockerガイド](/self-hosting/docker)を参照）
 

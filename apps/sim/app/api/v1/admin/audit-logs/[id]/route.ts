@@ -10,8 +10,12 @@ import { db } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { v1AdminGetAuditLogContract } from '@/lib/api/contracts/v1/audit-logs'
+import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  adminValidationErrorResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -24,21 +28,28 @@ interface RouteParams {
   id: string
 }
 
-export const GET = withAdminAuthParams<RouteParams>(async (request, context) => {
-  const { id } = await context.params
+export const GET = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const parsed = await parseRequest(v1AdminGetAuditLogContract, request, context, {
+      validationErrorResponse: adminValidationErrorResponse,
+    })
+    if (!parsed.success) return parsed.response
 
-  try {
-    const [log] = await db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1)
+    const { id } = parsed.data.params
 
-    if (!log) {
-      return notFoundResponse('AuditLog')
+    try {
+      const [log] = await db.select().from(auditLog).where(eq(auditLog.id, id)).limit(1)
+
+      if (!log) {
+        return notFoundResponse('AuditLog')
+      }
+
+      logger.info(`Admin API: Retrieved audit log ${id}`)
+
+      return singleResponse(toAdminAuditLog(log))
+    } catch (error) {
+      logger.error('Admin API: Failed to get audit log', { error, id })
+      return internalErrorResponse('Failed to get audit log')
     }
-
-    logger.info(`Admin API: Retrieved audit log ${id}`)
-
-    return singleResponse(toAdminAuditLog(log))
-  } catch (error) {
-    logger.error('Admin API: Failed to get audit log', { error, id })
-    return internalErrorResponse('Failed to get audit log')
-  }
-})
+  })
+)

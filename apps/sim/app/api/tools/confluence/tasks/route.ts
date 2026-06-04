@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { confluenceTasksContract } from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import {
   validateAlphanumericId,
@@ -7,7 +9,9 @@ import {
   validatePaginationCursor,
   validatePathSegment,
 } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceTasksAPI')
 
@@ -17,14 +21,16 @@ export const dynamic = 'force-dynamic'
  * List, get, or update Confluence inline tasks.
  * Uses GET /wiki/api/v2/tasks, GET /wiki/api/v2/tasks/{id}, PUT /wiki/api/v2/tasks/{id}
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const parsed = await parseRequest(confluenceTasksContract, request, {})
+    if (!parsed.success) return parsed.response
+
     const {
       domain,
       accessToken,
@@ -37,7 +43,7 @@ export async function POST(request: NextRequest) {
       assignedTo,
       limit = 50,
       cursor,
-    } = body
+    } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -72,9 +78,17 @@ export async function POST(request: NextRequest) {
       })
 
       if (!getResponse.ok) {
-        const errorData = await getResponse.json().catch(() => null)
-        const errorMessage = errorData?.message || `Failed to fetch task (${getResponse.status})`
-        return NextResponse.json({ error: errorMessage }, { status: getResponse.status })
+        const errorText = await getResponse.text()
+        return NextResponse.json(
+          {
+            error: parseAtlassianErrorMessage(
+              getResponse.status,
+              getResponse.statusText,
+              errorText
+            ),
+          },
+          { status: getResponse.status }
+        )
       }
 
       const currentTask = await getResponse.json()
@@ -99,14 +113,16 @@ export async function POST(request: NextRequest) {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
+        const errorText = await response.text()
         logger.error('Confluence API error response:', {
           status: response.status,
           statusText: response.statusText,
-          error: JSON.stringify(errorData, null, 2),
+          error: errorText,
         })
-        const errorMessage = errorData?.message || `Failed to update task (${response.status})`
-        return NextResponse.json({ error: errorMessage }, { status: response.status })
+        return NextResponse.json(
+          { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+          { status: response.status }
+        )
       }
 
       const data = await response.json()
@@ -150,14 +166,16 @@ export async function POST(request: NextRequest) {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
+        const errorText = await response.text()
         logger.error('Confluence API error response:', {
           status: response.status,
           statusText: response.statusText,
-          error: JSON.stringify(errorData, null, 2),
+          error: errorText,
         })
-        const errorMessage = errorData?.message || `Failed to get task (${response.status})`
-        return NextResponse.json({ error: errorMessage }, { status: response.status })
+        return NextResponse.json(
+          { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+          { status: response.status }
+        )
       }
 
       const data = await response.json()
@@ -233,14 +251,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-      const errorMessage = errorData?.message || `Failed to list tasks (${response.status})`
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()
@@ -275,4 +295,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

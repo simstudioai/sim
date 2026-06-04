@@ -94,6 +94,111 @@ describe.concurrent('Blocks Module', () => {
     })
   })
 
+  describe('File block', () => {
+    it('should keep v3 read and get routed to the legacy tools', () => {
+      const block = getBlock('file_v3')
+
+      expect(block).toBeDefined()
+      expect(block?.hideFromToolbar).toBe(true)
+      expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_parser_v3',
+        'file_get',
+        'file_write',
+        'file_append',
+      ])
+      expect(block?.tools.config?.tool({ operation: 'file_parser_v3' })).toBe('file_parser_v3')
+      expect(block?.tools.config?.tool({ operation: 'file_get' })).toBe('file_get')
+    })
+
+    it('should expose v4 with read and fetch routed to the expected tools', () => {
+      const block = getBlock('file_v4')
+
+      expect(block).toBeDefined()
+      expect(block?.hideFromToolbar).toBe(false)
+      expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_read',
+        'file_fetch',
+        'file_write',
+        'file_append',
+      ])
+      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.multiple).toBe(true)
+      expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
+      expect(block?.tools.config?.tool({ operation: 'file_fetch' })).toBe('file_fetch')
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_read',
+          readFileInput: '["file-1","file-2"]',
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileId: ['file-1', 'file-2'],
+        workspaceId: 'workspace-1',
+      })
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_read',
+          readFileInput: [
+            {
+              key: 'workspace/workspace-1/example.md',
+              name: 'example.md',
+              path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+              size: 123,
+              type: 'text/markdown',
+            },
+          ],
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileInput: [
+          {
+            key: 'workspace/workspace-1/example.md',
+            name: 'example.md',
+            path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+            size: 123,
+            type: 'text/markdown',
+          },
+        ],
+        workspaceId: 'workspace-1',
+      })
+    })
+  })
+
+  describe('Agent block', () => {
+    it('should expose canonical file attachments and normalize file params', () => {
+      const block = getBlock('agent')
+
+      expect(block).toBeDefined()
+      const uploadSubBlock = block?.subBlocks.find((subBlock) => subBlock.id === 'attachmentFiles')
+      const advancedSubBlock = block?.subBlocks.find((subBlock) => subBlock.id === 'files')
+
+      expect(uploadSubBlock?.type).toBe('file-upload')
+      expect(uploadSubBlock?.canonicalParamId).toBe('files')
+      expect(uploadSubBlock?.multiple).toBe(true)
+      expect(advancedSubBlock?.canonicalParamId).toBe('files')
+      expect(block?.inputs.files).toEqual({
+        type: 'array',
+        description: 'Files to include with the latest user message',
+      })
+
+      expect(
+        block?.tools.config?.params?.({
+          model: 'gpt-4o',
+          files:
+            '[{"id":"file-1","key":"workspace/ws-1/example.png","name":"example.png","url":"/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace","size":123,"type":"image/png"}]',
+        })
+      ).toMatchObject({
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            type: 'image/png',
+          },
+        ],
+      })
+    })
+  })
+
   describe('getBlocksByCategory', () => {
     it('should return blocks in the "blocks" category', () => {
       const blocks = getBlocksByCategory('blocks')
@@ -399,7 +504,6 @@ describe.concurrent('Blocks Module', () => {
         'mcp-dynamic-args',
         'input-format',
         'response-format',
-        'trigger-save',
         'file-upload',
         'input-mapping',
         'variables-input',
@@ -412,6 +516,7 @@ describe.concurrent('Blocks Module', () => {
         'filter-builder',
         'sort-builder',
         'skill-input',
+        'modal',
       ]
 
       const blocks = getAllBlocks()
@@ -423,7 +528,7 @@ describe.concurrent('Blocks Module', () => {
     })
 
     it('should have valid mode values for subBlocks', () => {
-      const validModes = ['basic', 'advanced', 'both', 'trigger', undefined]
+      const validModes = ['basic', 'advanced', 'both', 'trigger', 'trigger-advanced', undefined]
       const blocks = getAllBlocks()
       for (const block of blocks) {
         for (const subBlock of block.subBlocks) {
@@ -629,6 +734,65 @@ describe.concurrent('Blocks Module', () => {
       expect(temperatureSubBlock?.min).toBe(0)
       expect(temperatureSubBlock?.max).toBe(2)
     })
+
+    it('should mark generator provider dropdowns as command-searchable', () => {
+      const imageGeneratorBlock = getBlock('image_generator_v2')
+      const videoGeneratorBlock = getBlock('video_generator_v3')
+
+      const imageProviderSubBlock = imageGeneratorBlock?.subBlocks.find(
+        (sb) => sb.id === 'provider'
+      )
+      const videoProviderSubBlock = videoGeneratorBlock?.subBlocks.find(
+        (sb) => sb.id === 'provider'
+      )
+      const imageProviderOptions = imageProviderSubBlock?.options
+      const videoProviderOptions = videoProviderSubBlock?.options
+
+      expect(imageGeneratorBlock?.hideFromToolbar).not.toBe(true)
+      expect(videoGeneratorBlock?.hideFromToolbar).not.toBe(true)
+      expect(imageProviderSubBlock?.commandSearchable).toBe(true)
+      expect(videoProviderSubBlock?.commandSearchable).toBe(true)
+      expect(imageProviderSubBlock?.value?.()).toBe('falai')
+      expect(videoProviderSubBlock?.value?.()).toBe('falai')
+      expect(
+        Array.isArray(imageProviderOptions) ? imageProviderOptions.map((option) => option.id) : []
+      ).toContain('falai')
+      expect(
+        Array.isArray(videoProviderOptions) ? videoProviderOptions.map((option) => option.id) : []
+      ).toContain('falai')
+      expect(getBlock('image_generator')?.hideFromToolbar).toBe(true)
+      expect(getBlock('video_generator_v2')?.hideFromToolbar).toBe(true)
+    })
+
+    it('should mark the agent model combobox as command-searchable', () => {
+      const agentBlock = getBlock('agent')
+      const modelSubBlock = agentBlock?.subBlocks.find((sb) => sb.id === 'model')
+
+      expect(agentBlock?.hideFromToolbar).not.toBe(true)
+      expect(modelSubBlock?.type).toBe('combobox')
+      expect(modelSubBlock?.commandSearchable).toBe(true)
+    })
+
+    it('should hide generator API keys on hosted only for Fal.ai providers', () => {
+      for (const blockType of ['image_generator_v2', 'video_generator_v3']) {
+        const block = getBlock(blockType)
+        const apiKeySubBlocks = block?.subBlocks.filter((sb) => sb.id === 'apiKey') ?? []
+
+        const falApiKeySubBlock = apiKeySubBlocks.find(
+          (sb) => sb.condition?.field === 'provider' && sb.condition.value === 'falai'
+        )
+        const nonFalApiKeySubBlock = apiKeySubBlocks.find(
+          (sb) =>
+            sb.condition?.field === 'provider' &&
+            sb.condition.value === 'falai' &&
+            sb.condition.not === true
+        )
+
+        expect(falApiKeySubBlock?.hideWhenHosted).toBe(true)
+        expect(nonFalApiKeySubBlock).toBeDefined()
+        expect(nonFalApiKeySubBlock?.hideWhenHosted).not.toBe(true)
+      }
+    })
   })
 
   describe('Block Consistency', () => {
@@ -669,7 +833,9 @@ describe.concurrent('Blocks Module', () => {
       for (const block of blocks) {
         // Exclude trigger-mode subBlocks — they operate in a separate rendering context
         // and their IDs don't participate in canonical param resolution
-        const nonTriggerSubBlocks = block.subBlocks.filter((sb) => sb.mode !== 'trigger')
+        const nonTriggerSubBlocks = block.subBlocks.filter(
+          (sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
+        )
         const allSubBlockIds = new Set(nonTriggerSubBlocks.map((sb) => sb.id))
         const canonicalParamIds = new Set(
           nonTriggerSubBlocks.filter((sb) => sb.canonicalParamId).map((sb) => sb.canonicalParamId)
@@ -795,6 +961,8 @@ describe.concurrent('Blocks Module', () => {
         >()
 
         for (const subBlock of block.subBlocks) {
+          // Skip trigger-mode subBlocks — they operate in a separate rendering context
+          if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') continue
           if (subBlock.canonicalParamId) {
             if (!canonicalGroups.has(subBlock.canonicalParamId)) {
               canonicalGroups.set(subBlock.canonicalParamId, [])
@@ -861,7 +1029,7 @@ describe.concurrent('Blocks Module', () => {
               continue
             }
             // Skip trigger-mode subBlocks — they operate in a separate rendering context
-            if (subBlock.mode === 'trigger') {
+            if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') {
               continue
             }
             const conditionKey = serializeCondition(subBlock.condition)
@@ -895,8 +1063,11 @@ describe.concurrent('Blocks Module', () => {
         if (!block.inputs) continue
 
         // Find all canonical groups (subBlocks with canonicalParamId)
+        // Skip trigger-mode subBlocks — they operate in a separate rendering context
+        // and are not wired to the block's inputs section
         const canonicalGroups = new Map<string, string[]>()
         for (const subBlock of block.subBlocks) {
+          if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') continue
           if (subBlock.canonicalParamId) {
             if (!canonicalGroups.has(subBlock.canonicalParamId)) {
               canonicalGroups.set(subBlock.canonicalParamId, [])
@@ -948,8 +1119,10 @@ describe.concurrent('Blocks Module', () => {
           .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
 
         // Find all canonical groups (subBlocks with canonicalParamId)
+        // Skip trigger-mode subBlocks — they are not passed through params function
         const canonicalGroups = new Map<string, string[]>()
         for (const subBlock of block.subBlocks) {
+          if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') continue
           if (subBlock.canonicalParamId) {
             if (!canonicalGroups.has(subBlock.canonicalParamId)) {
               canonicalGroups.set(subBlock.canonicalParamId, [])
@@ -995,8 +1168,11 @@ describe.concurrent('Blocks Module', () => {
 
       for (const block of blocks) {
         // Find all canonical groups (subBlocks with canonicalParamId)
+        // Skip trigger-mode subBlocks — they operate in a separate rendering context
+        // and may have different required semantics from their block counterparts
         const canonicalGroups = new Map<string, typeof block.subBlocks>()
         for (const subBlock of block.subBlocks) {
+          if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') continue
           if (subBlock.canonicalParamId) {
             if (!canonicalGroups.has(subBlock.canonicalParamId)) {
               canonicalGroups.set(subBlock.canonicalParamId, [])

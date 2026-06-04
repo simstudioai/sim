@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { toast } from '@/components/emcn'
+import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
+import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
@@ -104,8 +108,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   }, [])
 
   /**
-   * Processes and uploads files to S3
-   * @param fileList - Files to process
+   * Uploads files in parallel so a slow file does not block faster ones queued
+   * behind it. All placeholders insert in a single state update for a stable row.
    */
   const processFiles = useCallback(
     async (fileList: FileList) => {
@@ -113,68 +117,74 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         logger.error('User ID not available for file upload')
         return
       }
-
-      for (const file of Array.from(fileList)) {
-        let previewUrl: string | undefined
-        if (file.type.startsWith('image/')) {
-          previewUrl = URL.createObjectURL(file)
-        }
-
-        const resolvedType = resolveFileType(file)
-
-        const tempFile: AttachedFile = {
-          id: generateId(),
-          name: file.name,
-          size: file.size,
-          type: resolvedType,
-          path: '',
-          uploading: true,
-          previewUrl,
-        }
-
-        setAttachedFiles((prev) => [...prev, tempFile])
-
-        try {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('context', 'mothership')
-          if (workspaceId) {
-            formData.append('workspaceId', workspaceId)
-          }
-
-          const uploadResponse = await fetch('/api/files/upload', {
-            method: 'POST',
-            body: formData,
-          })
-
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json().catch(() => ({
-              error: `Upload failed: ${uploadResponse.status}`,
-            }))
-            throw new Error(errorData.error || `Failed to upload file: ${uploadResponse.status}`)
-          }
-
-          const uploadData = await uploadResponse.json()
-
-          logger.info(`File uploaded successfully: ${uploadData.fileInfo?.path || uploadData.path}`)
-
-          setAttachedFiles((prev) =>
-            prev.map((f) =>
-              f.id === tempFile.id
-                ? {
-                    ...f,
-                    path: uploadData.fileInfo?.path || uploadData.path || uploadData.url,
-                    key: uploadData.fileInfo?.key || uploadData.key,
-                    uploading: false,
-                  }
-                : f
-            )
-          )
-        } catch (error) {
-          logger.error(`File upload failed: ${error}`)
-          setAttachedFiles((prev) => prev.filter((f) => f.id !== tempFile.id))
-        }
+      if (!workspaceId) {
+        logger.error('workspaceId required for mothership uploads')
+        return
       }
+
+      const files = Array.from(fileList)
+      if (files.length === 0) return
+
+      const placeholders: AttachedFile[] = files.map((file) => ({
+        id: generateId(),
+        name: file.name,
+        size: file.size,
+        type: resolveFileType(file),
+        path: '',
+        uploading: true,
+        previewUrl:
+          file.type.startsWith('image/') || file.type.startsWith('video/')
+            ? URL.createObjectURL(file)
+            : undefined,
+      }))
+
+      setAttachedFiles((prev) => [...prev, ...placeholders])
+
+      const presignedEndpoint = `/api/files/presigned?type=mothership&workspaceId=${encodeURIComponent(workspaceId)}`
+
+      await Promise.all(
+        files.map(async (file, i) => {
+          const placeholder = placeholders[i]
+          try {
+            let result: { path: string; key: string }
+            try {
+              result = await runUploadStrategy({
+                file,
+                workspaceId,
+                context: 'mothership',
+                presignedEndpoint,
+              })
+            } catch (error) {
+              if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
+                const fallback = await uploadViaApiFallback(file, 'mothership', workspaceId)
+                if (!fallback.key) {
+                  throw new Error('Invalid upload response: missing key')
+                }
+                result = { path: fallback.path, key: fallback.key }
+              } else {
+                throw error
+              }
+            }
+
+            logger.info(`File uploaded successfully: ${result.path}`)
+
+            setAttachedFiles((prev) =>
+              prev.map((f) =>
+                f.id === placeholder.id
+                  ? { ...f, path: result.path, key: result.key, uploading: false }
+                  : f
+              )
+            )
+          } catch (error) {
+            logger.error(`File upload failed: ${error}`)
+            toast.error(`Couldn't upload "${file.name}"`, {
+              description: toError(error).message,
+            })
+            if (placeholder.previewUrl) URL.revokeObjectURL(placeholder.previewUrl)
+            setAttachedFiles((prev) => prev.filter((f) => f.id !== placeholder.id))
+          }
+        })
+      )
     },
     [userId, workspaceId]
   )
@@ -301,6 +311,19 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     setAttachedFiles([])
   }, [attachedFiles])
 
+  /**
+   * Replaces the current attached files with a given set.
+   * Cleans up preview URLs from the prior set before replacing.
+   */
+  const restoreAttachedFiles = useCallback((files: AttachedFile[]) => {
+    setAttachedFiles((prev) => {
+      prev.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+      })
+      return files
+    })
+  }, [])
+
   return {
     // State
     attachedFiles,
@@ -321,6 +344,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     handleDragOver,
     handleDrop,
     clearAttachedFiles,
+    restoreAttachedFiles,
     processFiles,
   }
 }

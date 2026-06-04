@@ -1,12 +1,34 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { toError } from '@sim/utils/errors'
+import { type NextRequest, NextResponse } from 'next/server'
+import { microsoftChatsSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TeamsChatsAPI')
+
+/**
+ * Largest page size the `me/chats` Microsoft Graph endpoint permits via `$top`.
+ */
+const CHATS_PAGE_SIZE = 50
+
+/**
+ * Upper bound on Microsoft Graph pages drained when listing the user's chats.
+ * Paging follows `@odata.nextLink`. The cap prevents an unbounded loop; hitting
+ * it is logged as a warning.
+ */
+const MAX_CHATS_PAGES = 20
+
+interface GraphChat {
+  id: string
+  topic?: string
+}
 
 /**
  * Helper function to get chat members and create a meaningful name
@@ -110,32 +132,25 @@ const getChatDisplayName = async (
       }
     } catch (error) {
       logger.warn(
-        `Failed to get better name from messages for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to get better name from messages for chat ${chatId}: ${toError(error).message}`
       )
     }
 
     return `Chat ${chatId.split(':')[0] || chatId.substring(0, 8)}...`
   } catch (error) {
-    logger.warn(
-      `Failed to get display name for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`
-    )
+    logger.warn(`Failed to get display name for chat ${chatId}: ${toError(error).message}`)
     return `Chat ${chatId.split(':')[0] || chatId.substring(0, 8)}...`
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const body = await request.json()
-
-    const { credential, workflowId } = body
-
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(microsoftChatsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId } = parsed.data.body
 
     try {
-      const authz = await authorizeCredentialUse(request as any, {
+      const authz = await authorizeCredentialUse(request, {
         credentialId: credential,
         workflowId,
       })
@@ -156,39 +171,62 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Could not retrieve access token' }, { status: 401 })
       }
 
-      const response = await fetch('https://graph.microsoft.com/v1.0/me/chats', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      })
+      const rawChats: GraphChat[] = []
+      let nextPageUrl: string | undefined =
+        `https://graph.microsoft.com/v1.0/me/chats?$top=${CHATS_PAGE_SIZE}`
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        logger.error('Microsoft Graph API error getting chats', {
-          status: response.status,
-          error: errorData,
-          endpoint: 'https://graph.microsoft.com/v1.0/me/chats',
+      for (let page = 0; page < MAX_CHATS_PAGES; page++) {
+        const response = await fetch(nextPageUrl, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
         })
 
-        if (response.status === 401) {
-          return NextResponse.json(
-            {
-              error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
-              authRequired: true,
-            },
-            { status: 401 }
-          )
+        if (!response.ok) {
+          const errorData = await response.json()
+          logger.error('Microsoft Graph API error getting chats', {
+            status: response.status,
+            error: errorData,
+            endpoint: nextPageUrl,
+          })
+
+          if (response.status === 401) {
+            return NextResponse.json(
+              {
+                error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
+                authRequired: true,
+              },
+              { status: 401 }
+            )
+          }
+
+          throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
         }
 
-        throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
+        const data = await response.json()
+        if (Array.isArray(data.value)) {
+          rawChats.push(...(data.value as GraphChat[]))
+        }
+
+        const rawNextLink = getGraphNextPageUrl(data)
+        if (!rawNextLink) {
+          nextPageUrl = undefined
+          break
+        }
+        nextPageUrl = assertGraphNextPageUrl(rawNextLink)
+
+        if (page === MAX_CHATS_PAGES - 1) {
+          logger.warn('Hit Microsoft Graph chats pagination cap; chat list may be incomplete', {
+            maxPages: MAX_CHATS_PAGES,
+            collected: rawChats.length,
+          })
+        }
       }
 
-      const data = await response.json()
-
       const chats = await Promise.all(
-        data.value.map(async (chat: any) => ({
+        rawChats.map(async (chat) => ({
           id: chat.id,
           displayName: await getChatDisplayName(chat.id, accessToken, chat.topic),
         }))
@@ -200,7 +238,7 @@ export async function POST(request: Request) {
     } catch (innerError) {
       logger.error('Error during API requests:', innerError)
 
-      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError)
+      const errorMessage = toError(innerError).message
       if (
         errorMessage.includes('auth') ||
         errorMessage.includes('token') ||
@@ -229,4 +267,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

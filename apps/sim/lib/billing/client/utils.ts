@@ -31,6 +31,8 @@ export function getSubscriptionStatus(
     isPro: subscriptionData?.isPro ?? false,
     isTeam: subscriptionData?.isTeam ?? false,
     isEnterprise: subscriptionData?.isEnterprise ?? false,
+    isOrgScoped: subscriptionData?.isOrgScoped ?? false,
+    organizationId: subscriptionData?.organizationId ?? null,
     isFree: !(subscriptionData?.isPaid ?? false),
     plan: subscriptionData?.plan ?? 'free',
     status: subscriptionData?.status ?? null,
@@ -45,7 +47,12 @@ export function getSubscriptionAccessState(
   const status = getSubscriptionStatus(subscriptionData)
   const billingBlocked = Boolean(subscriptionData?.billingBlocked)
   const hasUsablePaidAccess = hasUsableSubscriptionAccess(status.status, billingBlocked)
-  const hasUsableTeamAccess = hasUsablePaidAccess && (status.isTeam || status.isEnterprise)
+  // Team-management features (invitations, seats, roles) are available on
+  // any paid subscription attached to an organization — including `pro_*`
+  // plans that have been transferred to an org. Plan-name gating would
+  // miss those.
+  const hasUsableTeamAccess =
+    hasUsablePaidAccess && (status.isOrgScoped || status.isTeam || status.isEnterprise)
   const hasUsableEnterpriseAccess = hasUsablePaidAccess && status.isEnterprise
   const hasUsableMaxAccess =
     hasUsablePaidAccess && (getPlanTierCredits(status.plan) >= 25000 || isEnterprise(status.plan))

@@ -1,29 +1,40 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { evernoteCopyNoteContract } from '@/lib/api/contracts/tools/evernote'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { copyNote } from '@/app/api/tools/evernote/lib/client'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('EvernoteCopyNoteAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const body = await request.json()
-    const { apiKey, noteGuid, toNotebookGuid } = body
+    const parsed = await parseRequest(
+      evernoteCopyNoteContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { success: false, error: getValidationErrorMessage(error, 'Invalid request') },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!apiKey || !noteGuid || !toNotebookGuid) {
-      return NextResponse.json(
-        { success: false, error: 'apiKey, noteGuid, and toNotebookGuid are required' },
-        { status: 400 }
-      )
-    }
-
+    const { apiKey, noteGuid, toNotebookGuid } = parsed.data.body
     const note = await copyNote(apiKey, noteGuid, toNotebookGuid)
 
     return NextResponse.json({
@@ -31,8 +42,8 @@ export async function POST(request: NextRequest) {
       output: { note },
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     logger.error('Failed to copy note', { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-}
+})

@@ -166,14 +166,6 @@ export const stripeWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'stripe_webhook',
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

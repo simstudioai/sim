@@ -1,111 +1,20 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { createNotificationServerContract } from '@/lib/api/contracts/notifications'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
+import { MAX_NOTIFICATIONS_PER_TYPE } from './constants'
 
 const logger = createLogger('WorkspaceNotificationsAPI')
-
-const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
-const levelFilterSchema = z.array(z.enum(['info', 'error']))
-const triggerFilterSchema = z.array(z.string().min(1))
-
-const alertRuleSchema = z.enum([
-  'consecutive_failures',
-  'failure_rate',
-  'latency_threshold',
-  'latency_spike',
-  'cost_threshold',
-  'no_activity',
-  'error_count',
-])
-
-const alertConfigSchema = z
-  .object({
-    rule: alertRuleSchema,
-    consecutiveFailures: z.number().int().min(1).max(100).optional(),
-    failureRatePercent: z.number().int().min(1).max(100).optional(),
-    windowHours: z.number().int().min(1).max(168).optional(),
-    durationThresholdMs: z.number().int().min(1000).max(3600000).optional(),
-    latencySpikePercent: z.number().int().min(10).max(1000).optional(),
-    costThresholdDollars: z.number().min(0.01).max(1000).optional(),
-    inactivityHours: z.number().int().min(1).max(168).optional(),
-    errorCountThreshold: z.number().int().min(1).max(1000).optional(),
-  })
-  .refine(
-    (data) => {
-      switch (data.rule) {
-        case 'consecutive_failures':
-          return data.consecutiveFailures !== undefined
-        case 'failure_rate':
-          return data.failureRatePercent !== undefined && data.windowHours !== undefined
-        case 'latency_threshold':
-          return data.durationThresholdMs !== undefined
-        case 'latency_spike':
-          return data.latencySpikePercent !== undefined && data.windowHours !== undefined
-        case 'cost_threshold':
-          return data.costThresholdDollars !== undefined
-        case 'no_activity':
-          return data.inactivityHours !== undefined
-        case 'error_count':
-          return data.errorCountThreshold !== undefined && data.windowHours !== undefined
-        default:
-          return false
-      }
-    },
-    { message: 'Missing required fields for alert rule' }
-  )
-  .nullable()
-
-const webhookConfigSchema = z.object({
-  url: z.string().url(),
-  secret: z.string().optional(),
-})
-
-const slackConfigSchema = z.object({
-  channelId: z.string(),
-  channelName: z.string(),
-  accountId: z.string(),
-})
-
-const createNotificationSchema = z
-  .object({
-    notificationType: notificationTypeSchema,
-    workflowIds: z.array(z.string()).max(MAX_WORKFLOW_IDS).default([]),
-    allWorkflows: z.boolean().default(false),
-    levelFilter: levelFilterSchema.default(['info', 'error']),
-    triggerFilter: triggerFilterSchema.default([]),
-    includeFinalOutput: z.boolean().default(false),
-    includeTraceSpans: z.boolean().default(false),
-    includeRateLimits: z.boolean().default(false),
-    includeUsageData: z.boolean().default(false),
-    alertConfig: alertConfigSchema.optional(),
-    webhookConfig: webhookConfigSchema.optional(),
-    emailRecipients: z.array(z.string().email()).max(MAX_EMAIL_RECIPIENTS).optional(),
-    slackConfig: slackConfigSchema.optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.notificationType === 'webhook') return !!data.webhookConfig?.url
-      if (data.notificationType === 'email')
-        return !!data.emailRecipients && data.emailRecipients.length > 0
-      if (data.notificationType === 'slack')
-        return !!data.slackConfig?.channelId && !!data.slackConfig?.accountId
-      return false
-    },
-    { message: 'Missing required fields for notification type' }
-  )
-  .refine((data) => !(data.allWorkflows && data.workflowIds.length > 0), {
-    message: 'Cannot specify both allWorkflows and workflowIds',
-  })
 
 async function checkWorkspaceWriteAccess(
   userId: string,
@@ -116,194 +25,203 @@ async function checkWorkspaceWriteAccess(
   return { hasAccess, permission }
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const { id: workspaceId } = await params
+      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+
+      if (!permission) {
+        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+      }
+
+      const subscriptions = await db
+        .select({
+          id: workspaceNotificationSubscription.id,
+          notificationType: workspaceNotificationSubscription.notificationType,
+          workflowIds: workspaceNotificationSubscription.workflowIds,
+          allWorkflows: workspaceNotificationSubscription.allWorkflows,
+          levelFilter: workspaceNotificationSubscription.levelFilter,
+          triggerFilter: workspaceNotificationSubscription.triggerFilter,
+          includeFinalOutput: workspaceNotificationSubscription.includeFinalOutput,
+          includeTraceSpans: workspaceNotificationSubscription.includeTraceSpans,
+          includeRateLimits: workspaceNotificationSubscription.includeRateLimits,
+          includeUsageData: workspaceNotificationSubscription.includeUsageData,
+          webhookConfig: workspaceNotificationSubscription.webhookConfig,
+          emailRecipients: workspaceNotificationSubscription.emailRecipients,
+          slackConfig: workspaceNotificationSubscription.slackConfig,
+          alertConfig: workspaceNotificationSubscription.alertConfig,
+          active: workspaceNotificationSubscription.active,
+          createdAt: workspaceNotificationSubscription.createdAt,
+          updatedAt: workspaceNotificationSubscription.updatedAt,
+        })
+        .from(workspaceNotificationSubscription)
+        .where(eq(workspaceNotificationSubscription.workspaceId, workspaceId))
+        .orderBy(workspaceNotificationSubscription.createdAt)
+
+      return NextResponse.json({ data: subscriptions })
+    } catch (error) {
+      logger.error('Error fetching notifications', { error })
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
-
-    const { id: workspaceId } = await params
-    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-
-    if (!permission) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-    }
-
-    const subscriptions = await db
-      .select({
-        id: workspaceNotificationSubscription.id,
-        notificationType: workspaceNotificationSubscription.notificationType,
-        workflowIds: workspaceNotificationSubscription.workflowIds,
-        allWorkflows: workspaceNotificationSubscription.allWorkflows,
-        levelFilter: workspaceNotificationSubscription.levelFilter,
-        triggerFilter: workspaceNotificationSubscription.triggerFilter,
-        includeFinalOutput: workspaceNotificationSubscription.includeFinalOutput,
-        includeTraceSpans: workspaceNotificationSubscription.includeTraceSpans,
-        includeRateLimits: workspaceNotificationSubscription.includeRateLimits,
-        includeUsageData: workspaceNotificationSubscription.includeUsageData,
-        webhookConfig: workspaceNotificationSubscription.webhookConfig,
-        emailRecipients: workspaceNotificationSubscription.emailRecipients,
-        slackConfig: workspaceNotificationSubscription.slackConfig,
-        alertConfig: workspaceNotificationSubscription.alertConfig,
-        active: workspaceNotificationSubscription.active,
-        createdAt: workspaceNotificationSubscription.createdAt,
-        updatedAt: workspaceNotificationSubscription.updatedAt,
-      })
-      .from(workspaceNotificationSubscription)
-      .where(eq(workspaceNotificationSubscription.workspaceId, workspaceId))
-      .orderBy(workspaceNotificationSubscription.createdAt)
-
-    return NextResponse.json({ data: subscriptions })
-  } catch (error) {
-    logger.error('Error fetching notifications', { error })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+export const POST = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
 
-    const { id: workspaceId } = await params
-    const { hasAccess } = await checkWorkspaceWriteAccess(session.user.id, workspaceId)
+      const { id: workspaceId } = await context.params
+      const { hasAccess } = await checkWorkspaceWriteAccess(session.user.id, workspaceId)
 
-    if (!hasAccess) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
+      if (!hasAccess) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
 
-    const body = await request.json()
-    const validationResult = createNotificationSchema.safeParse(body)
+      const parsed = await parseRequest(createNotificationServerContract, request, context, {
+        validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request'),
+      })
+      if (!parsed.success) return parsed.response
+      const data = parsed.data.body
 
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid request', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
-
-    const data = validationResult.data
-
-    const existingCount = await db
-      .select({ id: workspaceNotificationSubscription.id })
-      .from(workspaceNotificationSubscription)
-      .where(
-        and(
-          eq(workspaceNotificationSubscription.workspaceId, workspaceId),
-          eq(workspaceNotificationSubscription.notificationType, data.notificationType)
+      const existingCount = await db
+        .select({ id: workspaceNotificationSubscription.id })
+        .from(workspaceNotificationSubscription)
+        .where(
+          and(
+            eq(workspaceNotificationSubscription.workspaceId, workspaceId),
+            eq(workspaceNotificationSubscription.notificationType, data.notificationType)
+          )
         )
-      )
 
-    if (existingCount.length >= MAX_NOTIFICATIONS_PER_TYPE) {
-      return NextResponse.json(
-        {
-          error: `Maximum ${MAX_NOTIFICATIONS_PER_TYPE} ${data.notificationType} notifications per workspace`,
-        },
-        { status: 400 }
-      )
-    }
-
-    if (!data.allWorkflows && data.workflowIds.length > 0) {
-      const workflowsInWorkspace = await db
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(and(eq(workflow.workspaceId, workspaceId), inArray(workflow.id, data.workflowIds)))
-
-      const validIds = new Set(workflowsInWorkspace.map((w) => w.id))
-      const invalidIds = data.workflowIds.filter((id) => !validIds.has(id))
-
-      if (invalidIds.length > 0) {
+      if (existingCount.length >= MAX_NOTIFICATIONS_PER_TYPE) {
         return NextResponse.json(
-          { error: 'Some workflow IDs do not belong to this workspace', invalidIds },
+          {
+            error: `Maximum ${MAX_NOTIFICATIONS_PER_TYPE} ${data.notificationType} notifications per workspace`,
+          },
           { status: 400 }
         )
       }
-    }
 
-    let webhookConfig = data.webhookConfig || null
-    if (webhookConfig?.secret) {
-      const { encrypted } = await encryptSecret(webhookConfig.secret)
-      webhookConfig = { ...webhookConfig, secret: encrypted }
-    }
+      if (!data.allWorkflows && data.workflowIds.length > 0) {
+        const workflowsInWorkspace = await db
+          .select({ id: workflow.id })
+          .from(workflow)
+          .where(and(eq(workflow.workspaceId, workspaceId), inArray(workflow.id, data.workflowIds)))
 
-    const [subscription] = await db
-      .insert(workspaceNotificationSubscription)
-      .values({
-        id: generateId(),
+        const validIds = new Set(workflowsInWorkspace.map((w) => w.id))
+        const invalidIds = data.workflowIds.filter((id) => !validIds.has(id))
+
+        if (invalidIds.length > 0) {
+          return NextResponse.json(
+            { error: 'Some workflow IDs do not belong to this workspace', invalidIds },
+            { status: 400 }
+          )
+        }
+      }
+
+      let webhookConfig = data.webhookConfig || null
+      if (webhookConfig?.secret) {
+        const { encrypted } = await encryptSecret(webhookConfig.secret)
+        webhookConfig = { ...webhookConfig, secret: encrypted }
+      }
+
+      const [subscription] = await db
+        .insert(workspaceNotificationSubscription)
+        .values({
+          id: generateId(),
+          workspaceId,
+          notificationType: data.notificationType,
+          workflowIds: data.workflowIds,
+          allWorkflows: data.allWorkflows,
+          levelFilter: data.levelFilter,
+          triggerFilter: data.triggerFilter,
+          includeFinalOutput: data.includeFinalOutput,
+          includeTraceSpans: data.includeTraceSpans,
+          includeRateLimits: data.includeRateLimits,
+          includeUsageData: data.includeUsageData,
+          alertConfig: data.alertConfig || null,
+          webhookConfig,
+          emailRecipients: data.emailRecipients || null,
+          slackConfig: data.slackConfig || null,
+          createdBy: session.user.id,
+        })
+        .returning()
+
+      logger.info('Created notification subscription', {
         workspaceId,
-        notificationType: data.notificationType,
-        workflowIds: data.workflowIds,
-        allWorkflows: data.allWorkflows,
-        levelFilter: data.levelFilter,
-        triggerFilter: data.triggerFilter,
-        includeFinalOutput: data.includeFinalOutput,
-        includeTraceSpans: data.includeTraceSpans,
-        includeRateLimits: data.includeRateLimits,
-        includeUsageData: data.includeUsageData,
-        alertConfig: data.alertConfig || null,
-        webhookConfig,
-        emailRecipients: data.emailRecipients || null,
-        slackConfig: data.slackConfig || null,
-        createdBy: session.user.id,
+        subscriptionId: subscription.id,
+        type: data.notificationType,
       })
-      .returning()
 
-    logger.info('Created notification subscription', {
-      workspaceId,
-      subscriptionId: subscription.id,
-      type: data.notificationType,
-    })
+      captureServerEvent(
+        session.user.id,
+        'notification_channel_created',
+        {
+          workspace_id: workspaceId,
+          notification_type: data.notificationType,
+          alert_rule: data.alertConfig?.rule ?? null,
+        },
+        { groups: { workspace: workspaceId } }
+      )
 
-    captureServerEvent(
-      session.user.id,
-      'notification_channel_created',
-      {
-        workspace_id: workspaceId,
-        notification_type: data.notificationType,
-        alert_rule: data.alertConfig?.rule ?? null,
-      },
-      { groups: { workspace: workspaceId } }
-    )
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        action: AuditAction.NOTIFICATION_CREATED,
+        resourceType: AuditResourceType.NOTIFICATION,
+        resourceId: subscription.id,
+        resourceName: data.notificationType,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        description: `Created ${data.notificationType} notification subscription`,
+        metadata: {
+          notificationType: data.notificationType,
+          allWorkflows: data.allWorkflows,
+          workflowCount: data.workflowIds.length,
+          levelFilter: data.levelFilter,
+          alertRule: data.alertConfig?.rule ?? null,
+          ...(data.notificationType === 'email' && {
+            recipientCount: data.emailRecipients?.length ?? 0,
+          }),
+          ...(data.notificationType === 'slack' && { channelName: data.slackConfig?.channelName }),
+        },
+        request,
+      })
 
-    recordAudit({
-      workspaceId,
-      actorId: session.user.id,
-      action: AuditAction.NOTIFICATION_CREATED,
-      resourceType: AuditResourceType.NOTIFICATION,
-      resourceId: subscription.id,
-      resourceName: data.notificationType,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      description: `Created ${data.notificationType} notification subscription`,
-      request,
-    })
-
-    return NextResponse.json({
-      data: {
-        id: subscription.id,
-        notificationType: subscription.notificationType,
-        workflowIds: subscription.workflowIds,
-        allWorkflows: subscription.allWorkflows,
-        levelFilter: subscription.levelFilter,
-        triggerFilter: subscription.triggerFilter,
-        includeFinalOutput: subscription.includeFinalOutput,
-        includeTraceSpans: subscription.includeTraceSpans,
-        includeRateLimits: subscription.includeRateLimits,
-        includeUsageData: subscription.includeUsageData,
-        webhookConfig: subscription.webhookConfig,
-        emailRecipients: subscription.emailRecipients,
-        slackConfig: subscription.slackConfig,
-        alertConfig: subscription.alertConfig,
-        active: subscription.active,
-        createdAt: subscription.createdAt,
-        updatedAt: subscription.updatedAt,
-      },
-    })
-  } catch (error) {
-    logger.error('Error creating notification', { error })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      return NextResponse.json({
+        data: {
+          id: subscription.id,
+          notificationType: subscription.notificationType,
+          workflowIds: subscription.workflowIds,
+          allWorkflows: subscription.allWorkflows,
+          levelFilter: subscription.levelFilter,
+          triggerFilter: subscription.triggerFilter,
+          includeFinalOutput: subscription.includeFinalOutput,
+          includeTraceSpans: subscription.includeTraceSpans,
+          includeRateLimits: subscription.includeRateLimits,
+          includeUsageData: subscription.includeUsageData,
+          webhookConfig: subscription.webhookConfig,
+          emailRecipients: subscription.emailRecipients,
+          slackConfig: subscription.slackConfig,
+          alertConfig: subscription.alertConfig,
+          active: subscription.active,
+          createdAt: subscription.createdAt,
+          updatedAt: subscription.updatedAt,
+        },
+      })
+    } catch (error) {
+      logger.error('Error creating notification', { error })
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
   }
-}
+)

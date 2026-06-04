@@ -1,7 +1,7 @@
 {
-  "name": "Sim Documentation — Build AI Agents & Run Your Agentic Workforce",
+  "name": "Sim Documentation — The AI Workspace for Teams",
   "short_name": "Sim Docs",
-  "description": "Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.",
+  "description": "Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.",
   "start_url": "/",
   "scope": "/",
   "icons": [
@@ -33,7 +33,7 @@
       "type": "image/png"
     }
   ],
-  "theme_color": "#33C482",
+  "theme_color": "#000000",
   "background_color": "#ffffff",
   "display": "standalone",
   "categories": ["productivity", "developer", "business"],

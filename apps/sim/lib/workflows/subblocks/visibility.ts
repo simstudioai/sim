@@ -32,6 +32,54 @@ export interface CanonicalValueSelection {
   advancedSourceId?: string
 }
 
+interface TriggerVisibilityBlockConfig {
+  category?: string
+  triggers?: {
+    enabled?: boolean
+  }
+}
+
+export function parseDependsOn(dependsOn: SubBlockConfig['dependsOn']): {
+  allFields: string[]
+  anyFields: string[]
+  allDependsOnFields: string[]
+} {
+  if (!dependsOn) {
+    return { allFields: [], anyFields: [], allDependsOnFields: [] }
+  }
+
+  if (Array.isArray(dependsOn)) {
+    return { allFields: dependsOn, anyFields: [], allDependsOnFields: dependsOn }
+  }
+
+  const allFields = dependsOn.all || []
+  const anyFields = dependsOn.any || []
+  return {
+    allFields,
+    anyFields,
+    allDependsOnFields: [...allFields, ...anyFields],
+  }
+}
+
+export function normalizeDependencyValue(rawValue: unknown): unknown {
+  if (rawValue === null || rawValue === undefined) return null
+
+  if (typeof rawValue === 'object') {
+    if (Array.isArray(rawValue)) {
+      if (rawValue.length === 0) return null
+      return rawValue.map((item) => normalizeDependencyValue(item))
+    }
+
+    const record = rawValue as Record<string, unknown>
+    if ('value' in record) return normalizeDependencyValue(record.value)
+    if ('id' in record) return record.id
+
+    return record
+  }
+
+  return rawValue
+}
+
 /**
  * Build a flat map of subblock values keyed by subblock id.
  */
@@ -58,10 +106,17 @@ export function buildCanonicalIndex(subBlocks: SubBlockConfig[]): CanonicalIndex
       groupsById[canonicalId] = { canonicalId, advancedIds: [] }
     }
     const group = groupsById[canonicalId]
-    if (subBlock.mode === 'advanced') {
-      group.advancedIds.push(subBlock.id)
+    if (subBlock.mode === 'advanced' || subBlock.mode === 'trigger-advanced') {
+      // Deduplicate: trigger spreads may repeat the same advanced ID as the regular block
+      if (!group.advancedIds.includes(subBlock.id)) {
+        group.advancedIds.push(subBlock.id)
+      }
     } else {
-      group.basicId = subBlock.id
+      // A trigger-mode subblock must not overwrite a basicId already claimed by a non-trigger subblock.
+      // Blocks spread their trigger's subBlocks after their own, so the regular subblock always wins.
+      if (!group.basicId || subBlock.mode !== 'trigger') {
+        group.basicId = subBlock.id
+      }
     }
     canonicalIdBySubBlockId[subBlock.id] = canonicalId
   })
@@ -255,6 +310,38 @@ export function isSubBlockVisibleForMode(
   return true
 }
 
+export function isTriggerModeSubBlock(subBlock: Pick<SubBlockConfig, 'mode'>): boolean {
+  return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
+}
+
+export function isTriggerConfigSubBlock(subBlock: Pick<SubBlockConfig, 'type'>): boolean {
+  return String(subBlock.type) === 'trigger-config'
+}
+
+export function shouldUseSubBlockForTriggerModeCanonicalIndex(
+  subBlock: Pick<SubBlockConfig, 'mode' | 'type'>
+): boolean {
+  return isTriggerModeSubBlock(subBlock) || isTriggerConfigSubBlock(subBlock)
+}
+
+export function isPureTriggerBlockConfig(blockConfig?: TriggerVisibilityBlockConfig): boolean {
+  return Boolean(blockConfig?.triggers?.enabled && blockConfig.category === 'triggers')
+}
+
+export function isSubBlockVisibleForTriggerMode(
+  subBlock: Pick<SubBlockConfig, 'mode' | 'type'>,
+  displayTriggerMode: boolean,
+  blockConfig?: TriggerVisibilityBlockConfig
+): boolean {
+  if (isTriggerConfigSubBlock(subBlock)) {
+    return displayTriggerMode || isPureTriggerBlockConfig(blockConfig)
+  }
+
+  if (isTriggerModeSubBlock(subBlock)) return displayTriggerMode
+  if (displayTriggerMode) return false
+  return true
+}
+
 /**
  * Resolve the dependency value for a dependsOn key, honoring canonical swaps.
  */
@@ -277,8 +364,20 @@ export function resolveDependencyValue(
 
   const { basicValue, advancedValue } = getCanonicalValues(group, values)
   const mode = resolveCanonicalMode(group, values, overrides)
-  if (mode === 'advanced') return advancedValue ?? basicValue
-  return basicValue ?? advancedValue
+  const canonicalResult =
+    mode === 'advanced' ? (advancedValue ?? basicValue) : (basicValue ?? advancedValue)
+
+  if (canonicalResult != null) return canonicalResult
+
+  for (const [memberId, memberCanonicalId] of Object.entries(
+    canonicalIndex.canonicalIdBySubBlockId
+  )) {
+    if (memberCanonicalId === canonicalId && isNonEmptyValue(values[memberId])) {
+      return values[memberId]
+    }
+  }
+
+  return values[dependencyKey]
 }
 
 /**

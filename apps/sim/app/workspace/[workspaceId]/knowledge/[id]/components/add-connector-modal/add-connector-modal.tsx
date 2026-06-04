@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Loader2, Plus, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowLeft, ArrowLeftRight, Info, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -12,22 +12,26 @@ import {
   type ComboboxOption,
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Tooltip,
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
-import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/components/connector-selector-field'
+import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
+import type { ConfigFieldValue } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
+import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { getDependsOnFields } from '@/blocks/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
@@ -57,13 +61,11 @@ export function AddConnectorModal({
 }: AddConnectorModalProps) {
   const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
   const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
-  const [sourceConfig, setSourceConfig] = useState<Record<string, string>>({})
   const [syncInterval, setSyncInterval] = useState(1440)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
   const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>({})
 
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
@@ -100,54 +102,18 @@ export function AddConnectorModal({
   const effectiveCredentialId =
     selectedCredentialId ?? (credentials.length === 1 ? credentials[0].id : null)
 
-  const canonicalGroups = useMemo(() => {
-    if (!connectorConfig) return new Map<string, ConnectorConfigField[]>()
-    const groups = new Map<string, ConnectorConfigField[]>()
-    for (const field of connectorConfig.configFields) {
-      if (field.canonicalParamId) {
-        const existing = groups.get(field.canonicalParamId)
-        if (existing) {
-          existing.push(field)
-        } else {
-          groups.set(field.canonicalParamId, [field])
-        }
-      }
-    }
-    return groups
-  }, [connectorConfig])
-
-  const dependentFieldIds = useMemo(() => {
-    if (!connectorConfig) return new Map<string, string[]>()
-    const map = new Map<string, string[]>()
-    for (const field of connectorConfig.configFields) {
-      const deps = getDependsOnFields(field.dependsOn)
-      for (const dep of deps) {
-        const existing = map.get(dep) ?? []
-        existing.push(field.id)
-        map.set(dep, existing)
-      }
-    }
-    for (const group of canonicalGroups.values()) {
-      const allDependents = new Set<string>()
-      for (const field of group) {
-        for (const dep of map.get(field.id) ?? []) {
-          allDependents.add(dep)
-          const depField = connectorConfig.configFields.find((f) => f.id === dep)
-          if (depField?.canonicalParamId) {
-            for (const sibling of canonicalGroups.get(depField.canonicalParamId) ?? []) {
-              allDependents.add(sibling.id)
-            }
-          }
-        }
-      }
-      if (allDependents.size > 0) {
-        for (const field of group) {
-          map.set(field.id, [...allDependents])
-        }
-      }
-    }
-    return map
-  }, [connectorConfig, canonicalGroups])
+  const {
+    sourceConfig,
+    setSourceConfig,
+    canonicalModes,
+    setCanonicalModes,
+    canonicalGroups,
+    isFieldVisible,
+    isFieldPopulated,
+    handleFieldChange,
+    toggleCanonicalMode,
+    resolveSourceConfig,
+  } = useConnectorConfigFields({ connectorConfig })
 
   const handleSelectType = (type: string) => {
     setSelectedType(type)
@@ -163,63 +129,17 @@ export function AddConnectorModal({
     onConnectorTypeChange?.(type)
   }
 
-  const handleFieldChange = useCallback(
-    (fieldId: string, value: string) => {
-      setSourceConfig((prev) => {
-        const next = { ...prev, [fieldId]: value }
-        const toClear = dependentFieldIds.get(fieldId)
-        if (toClear) {
-          for (const depId of toClear) {
-            next[depId] = ''
-          }
-        }
-        return next
-      })
-    },
-    [dependentFieldIds]
-  )
-
-  const toggleCanonicalMode = useCallback((canonicalId: string) => {
-    setCanonicalModes((prev) => ({
-      ...prev,
-      [canonicalId]: prev[canonicalId] === 'advanced' ? 'basic' : 'advanced',
-    }))
-  }, [])
-
-  const isFieldVisible = useCallback(
-    (field: ConnectorConfigField): boolean => {
-      if (!field.canonicalParamId || !field.mode) return true
-      const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
-      return field.mode === activeMode
-    },
-    [canonicalModes]
-  )
-
-  const resolveSourceConfig = useCallback((): Record<string, string> => {
-    const resolved: Record<string, string> = {}
-    const processedCanonicals = new Set<string>()
-
-    if (!connectorConfig) return resolved
-
-    for (const field of connectorConfig.configFields) {
-      if (field.canonicalParamId) {
-        if (processedCanonicals.has(field.canonicalParamId)) continue
-        processedCanonicals.add(field.canonicalParamId)
-
-        const group = canonicalGroups.get(field.canonicalParamId)
-        if (!group) continue
-
-        const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
-        const activeField = group.find((f) => f.mode === activeMode) ?? group[0]
-        const value = sourceConfig[activeField.id]
-        if (value) resolved[field.canonicalParamId] = value
+  const toggleTagDefinition = (tagId: string) => {
+    setDisabledTagIds((prev) => {
+      const next = new Set(prev)
+      if (prev.has(tagId)) {
+        next.delete(tagId)
       } else {
-        if (sourceConfig[field.id]) resolved[field.id] = sourceConfig[field.id]
+        next.add(tagId)
       }
-    }
-
-    return resolved
-  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig])
+      return next
+    })
+  }
 
   const canSubmit = useMemo(() => {
     if (!connectorConfig) return false
@@ -232,7 +152,7 @@ export function AddConnectorModal({
     for (const field of connectorConfig.configFields) {
       if (!field.required) continue
       if (!isFieldVisible(field)) continue
-      if (!sourceConfig[field.id]?.trim()) return false
+      if (!isFieldPopulated(field)) return false
     }
     return true
   }, [
@@ -240,8 +160,8 @@ export function AddConnectorModal({
     isApiKeyMode,
     apiKeyValue,
     effectiveCredentialId,
-    sourceConfig,
     isFieldVisible,
+    isFieldPopulated,
   ])
 
   const handleSubmit = () => {
@@ -249,11 +169,23 @@ export function AddConnectorModal({
 
     setError(null)
 
-    const resolvedConfig = resolveSourceConfig()
-    const finalSourceConfig =
-      disabledTagIds.size > 0
-        ? { ...resolvedConfig, disabledTagIds: Array.from(disabledTagIds) }
-        : resolvedConfig
+    const resolvedConfig: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(resolveSourceConfig())) {
+      if (Array.isArray(value)) {
+        if (value.length > 0) resolvedConfig[key] = value
+      } else if (typeof value === 'string') {
+        if (value) resolvedConfig[key] = value
+      } else if (value !== undefined && value !== null) {
+        resolvedConfig[key] = value
+      }
+    }
+    if (disabledTagIds.size > 0) {
+      resolvedConfig.disabledTagIds = Array.from(disabledTagIds)
+    }
+    if (Object.keys(canonicalModes).length > 0) {
+      resolvedConfig._canonicalModes = canonicalModes
+    }
+    const finalSourceConfig = resolvedConfig
 
     createConnector(
       {
@@ -274,10 +206,6 @@ export function AddConnectorModal({
     )
   }
 
-  const handleConnectNewAccount = useCallback(() => {
-    setShowOAuthModal(true)
-  }, [])
-
   const filteredEntries = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
     if (!term) return CONNECTOR_ENTRIES
@@ -290,40 +218,48 @@ export function AddConnectorModal({
   return (
     <>
       <Modal open={open} onOpenChange={(val) => !isCreating && onOpenChange(val)}>
-        <ModalContent size='md' className='h-[80vh] max-h-[560px]'>
+        <ModalContent
+          size='md'
+          className={step === 'select-type' ? 'max-h-[520px]' : 'h-[80vh] max-h-[560px]'}
+        >
           <ModalHeader>
             {step === 'configure' && (
               <Button
                 variant='ghost'
-                className='mr-2 h-6 w-6 p-0'
+                className='mr-2 size-6 p-0'
                 onClick={() => {
                   setStep('select-type')
                   onConnectorTypeChange?.('')
                 }}
               >
-                <ArrowLeft className='h-4 w-4' />
+                <ArrowLeft className='size-4' />
               </Button>
             )}
             {step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
           </ModalHeader>
+          <ModalDescription className='sr-only'>
+            {step === 'select-type'
+              ? 'Select a data source to connect to this knowledge base'
+              : `Configure the ${connectorConfig?.name} connector settings`}
+          </ModalDescription>
 
-          <ModalBody>
+          <ModalBody className={step === 'select-type' ? 'pt-2 pb-3' : 'pb-3'}>
             {step === 'select-type' ? (
-              <div className='flex flex-col gap-2'>
-                <div className='flex items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+              <div className='flex min-h-0 flex-col gap-2.5'>
+                <div className='flex h-8 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-3)] px-2 transition-colors duration-100 hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-4)]'>
                   <Search
-                    className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                    className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
                     strokeWidth={2}
                   />
                   <Input
                     placeholder='Search sources...'
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    className='h-auto flex-1 border-0 bg-transparent p-0 font-medium text-small leading-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
-                <div className='min-h-[400px] overflow-y-auto'>
-                  <div className='flex flex-col gap-0.5'>
+                <div className='max-h-[390px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
+                  <div className='flex flex-col gap-0.5 pr-1'>
                     {filteredEntries.map(([type, config]) => (
                       <ConnectorTypeCard
                         key={type}
@@ -332,7 +268,7 @@ export function AddConnectorModal({
                       />
                     ))}
                     {filteredEntries.length === 0 && (
-                      <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                      <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-caption'>
                         {CONNECTOR_ENTRIES.length === 0
                           ? 'No connectors available.'
                           : `No sources found matching "${searchTerm}"`}
@@ -343,7 +279,6 @@ export function AddConnectorModal({
               </div>
             ) : connectorConfig ? (
               <div className='flex flex-col gap-3'>
-                {/* Auth: API key input or OAuth credential selection */}
                 {isApiKeyMode ? (
                   <div className='flex flex-col gap-2'>
                     <Label>
@@ -369,7 +304,6 @@ export function AddConnectorModal({
                   <div className='flex flex-col gap-2'>
                     <Label>Account</Label>
                     <Combobox
-                      size='sm'
                       options={[
                         ...credentials.map(
                           (cred): ComboboxOption => ({
@@ -385,9 +319,7 @@ export function AddConnectorModal({
                               : `Connect ${connectorConfig.name} account`,
                           value: '__connect_new__',
                           icon: Plus,
-                          onSelect: () => {
-                            void handleConnectNewAccount()
-                          },
+                          onSelect: () => setShowOAuthModal(true),
                         },
                       ]}
                       value={effectiveCredentialId ?? undefined}
@@ -395,17 +327,12 @@ export function AddConnectorModal({
                       onOpenChange={(isOpen) => {
                         if (isOpen) void refetchCredentials()
                       }}
-                      placeholder={
-                        credentials.length === 0
-                          ? `No ${connectorConfig.name} accounts`
-                          : 'Select account'
-                      }
+                      placeholder={`Select ${connectorConfig.name} account`}
                       isLoading={credentialsLoading}
                     />
                   </div>
                 )}
 
-                {/* Config fields */}
                 {connectorConfig.configFields.map((field) => {
                   if (!isFieldVisible(field)) return null
 
@@ -416,22 +343,38 @@ export function AddConnectorModal({
                   return (
                     <div key={field.id} className='flex flex-col gap-2'>
                       <div className='flex items-center justify-between'>
-                        <Label>
-                          {field.title}
-                          {field.required && (
-                            <span className='ml-0.5 text-[var(--text-error)]'>*</span>
+                        <div className='flex items-center gap-1'>
+                          <Label>
+                            {field.title}
+                            {field.required && <span className='ml-0.5'>*</span>}
+                          </Label>
+                          {field.description && (
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                                  aria-label={`About ${field.title}`}
+                                >
+                                  <Info className='size-[12px]' />
+                                </Button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
+                            </Tooltip.Root>
                           )}
-                        </Label>
+                        </div>
                         {hasCanonicalPair && canonicalId && (
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
-                              <button
+                              <Button
                                 type='button'
-                                className='flex h-[18px] w-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
+                                variant='ghost'
+                                className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
                                 onClick={() => toggleCanonicalMode(canonicalId)}
                               >
-                                <ArrowLeftRight className='h-[12px] w-[12px]' />
-                              </button>
+                                <ArrowLeftRight className='size-[12px]' />
+                              </Button>
                             </Tooltip.Trigger>
                             <Tooltip.Content side='top'>
                               {field.mode === 'basic'
@@ -441,14 +384,11 @@ export function AddConnectorModal({
                           </Tooltip.Root>
                         )}
                       </div>
-                      {field.description && (
-                        <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
-                      )}
                       {field.type === 'selector' && field.selectorKey ? (
                         <ConnectorSelectorField
                           field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
-                          value={sourceConfig[field.id] || ''}
-                          onChange={(value) => handleFieldChange(field.id, value)}
+                          value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
+                          onChange={(value: ConfigFieldValue) => handleFieldChange(field.id, value)}
                           credentialId={effectiveCredentialId}
                           sourceConfig={sourceConfig}
                           configFields={connectorConfig.configFields}
@@ -457,18 +397,25 @@ export function AddConnectorModal({
                         />
                       ) : field.type === 'dropdown' && field.options ? (
                         <Combobox
-                          size='sm'
                           options={field.options.map((opt) => ({
                             label: opt.label,
                             value: opt.id,
                           }))}
-                          value={sourceConfig[field.id] || undefined}
+                          value={
+                            typeof sourceConfig[field.id] === 'string'
+                              ? (sourceConfig[field.id] as string) || undefined
+                              : undefined
+                          }
                           onChange={(value) => handleFieldChange(field.id, value)}
                           placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
                         />
                       ) : (
                         <Input
-                          value={sourceConfig[field.id] || ''}
+                          value={
+                            Array.isArray(sourceConfig[field.id])
+                              ? (sourceConfig[field.id] as string[]).join(', ')
+                              : (sourceConfig[field.id] as string) || ''
+                          }
                           onChange={(e) => handleFieldChange(field.id, e.target.value)}
                           placeholder={field.placeholder}
                         />
@@ -477,24 +424,20 @@ export function AddConnectorModal({
                   )
                 })}
 
-                {/* Tag definitions (opt-out) */}
                 {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
                   <div className='flex flex-col gap-2'>
                     <Label>Metadata Tags</Label>
                     {connectorConfig.tagDefinitions.map((tagDef) => (
                       <div
                         key={tagDef.id}
-                        className='flex cursor-pointer items-center gap-2 rounded-sm px-0.5 py-0.5 text-small'
-                        onClick={() => {
-                          setDisabledTagIds((prev) => {
-                            const next = new Set(prev)
-                            if (prev.has(tagDef.id)) {
-                              next.delete(tagDef.id)
-                            } else {
-                              next.add(tagDef.id)
-                            }
-                            return next
-                          })
+                        role='checkbox'
+                        aria-checked={!disabledTagIds.has(tagDef.id)}
+                        tabIndex={0}
+                        className='flex cursor-pointer items-center gap-2 rounded-sm p-0.5 text-small'
+                        onClick={() => toggleTagDefinition(tagDef.id)}
+                        onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget) return
+                          handleKeyboardActivation(event, () => toggleTagDefinition(tagDef.id))
                         }}
                       >
                         <Checkbox
@@ -512,8 +455,10 @@ export function AddConnectorModal({
                             })
                           }}
                         />
-                        <span className='text-[var(--text-primary)]'>{tagDef.displayName}</span>
-                        <span className='text-[var(--text-muted)] text-xs'>
+                        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
+                          {tagDef.displayName}
+                        </span>
+                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
                           ({tagDef.fieldType})
                         </span>
                       </div>
@@ -521,7 +466,6 @@ export function AddConnectorModal({
                   </div>
                 )}
 
-                {/* Sync interval */}
                 <div className='flex flex-col gap-2'>
                   <Label>Sync Frequency</Label>
                   <ButtonGroup
@@ -556,8 +500,8 @@ export function AddConnectorModal({
               <Button variant='primary' onClick={handleSubmit} disabled={!canSubmit || isCreating}>
                 {isCreating ? (
                   <>
-                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-                    Connecting...
+                    <Loader className='mr-1.5 size-3.5' animate />
+                    Connecting…
                   </>
                 ) : (
                   'Connect & Sync'
@@ -599,18 +543,19 @@ function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
   const Icon = config.icon
 
   return (
-    <button
+    <Button
       type='button'
-      className='flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover-hover:bg-[var(--surface-3)]'
+      variant='ghost'
+      className='group flex min-h-10 w-full justify-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
       onClick={onClick}
     >
-      <Icon className='h-[18px] w-[18px] flex-shrink-0' />
-      <div className='flex min-w-0 flex-col gap-[1px]'>
-        <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+      <Icon className='size-[18px] flex-shrink-0 text-[var(--text-icon)]' />
+      <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
+        <span className='truncate font-medium text-[var(--text-body)] text-small'>
           {config.name}
         </span>
-        <span className='truncate text-[var(--text-muted)] text-xs'>{config.description}</span>
+        <span className='truncate text-[var(--text-muted)] text-caption'>{config.description}</span>
       </div>
-    </button>
+    </Button>
   )
 }

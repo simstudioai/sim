@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   ButtonGroup,
@@ -12,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -188,7 +190,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
   const [lifecycle, setLifecycle] = useState<'persistent' | 'until_complete'>(
     schedule?.lifecycle === 'until_complete' ? 'until_complete' : 'persistent'
   )
-  const [maxRuns, setMaxRuns] = useState(schedule?.maxRuns ? String(schedule.maxRuns) : '')
+  const [maxRuns, setMaxRuns] = useState(schedule?.maxRuns != null ? String(schedule.maxRuns) : '')
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const computedCron = useMemo(
@@ -221,10 +223,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
     [scheduleType]
   )
 
-  const resolvedTimezone = useMemo(
-    () => (showTimezone ? timezone : 'UTC'),
-    [showTimezone, timezone]
-  )
+  const resolvedTimezone = showTimezone ? timezone : 'UTC'
 
   const schedulePreview = useMemo(() => {
     if (!computedCron) return null
@@ -302,9 +301,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
       handleClose()
     } catch (error: unknown) {
       logger.error('Schedule submission failed:', { error })
-      setSubmitError(
-        error instanceof Error ? error.message : 'Failed to save scheduled task. Please try again.'
-      )
+      setSubmitError(getErrorMessage(error, 'Failed to save scheduled task. Please try again.'))
     }
   }
 
@@ -313,6 +310,9 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
       <ModalContent size='lg'>
         <ModalHeader>{isEditing ? 'Edit scheduled task' : 'Create new scheduled task'}</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            {isEditing ? 'Edit the scheduled task settings' : 'Configure a new scheduled task'}
+          </ModalDescription>
           <div className='flex flex-col gap-4.5'>
             <div className='flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>
@@ -324,7 +324,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
                 }}
                 placeholder='e.g., Daily report generation'
                 className='h-9'
-                autoFocus
                 autoComplete='off'
               />
             </div>

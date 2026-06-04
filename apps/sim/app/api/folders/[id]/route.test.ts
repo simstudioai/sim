@@ -3,17 +3,21 @@
  *
  * @vitest-environment node
  */
-import { auditMock, createMockRequest, type MockUser } from '@sim/testing'
+import {
+  auditMock,
+  authMockFns,
+  createMockRequest,
+  type MockUser,
+  permissionsMock,
+  permissionsMockFns,
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockGetUserEntityPermissions,
-  mockLogger,
-  mockDbRef,
-  mockPerformDeleteFolder,
-  mockCheckForCircularReference,
-} = vi.hoisted(() => {
+const { mockLogger, mockDbRef } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -24,48 +28,32 @@ const {
     child: vi.fn(),
   }
   return {
-    mockGetSession: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
     mockLogger: logger,
     mockDbRef: { current: null as any },
-    mockPerformDeleteFolder: vi.fn(),
-    mockCheckForCircularReference: vi.fn(),
   }
 })
 
-vi.mock('@/lib/audit/log', () => auditMock)
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+const mockPerformDeleteFolder = workflowsOrchestrationMockFns.mockPerformDeleteFolder
+const mockPerformUpdateFolder = workflowsOrchestrationMockFns.mockPerformUpdateFolder
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
+
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
+  getRequestContext: () => undefined,
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@sim/db', () => ({
   get db() {
     return mockDbRef.current
   },
 }))
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performDeleteFolder: mockPerformDeleteFolder,
-}))
-vi.mock('@/lib/workflows/utils', () => ({
-  checkForCircularReference: mockCheckForCircularReference,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { DELETE, PUT } from '@/app/api/folders/[id]/route'
-
-/** Type for captured folder values in tests */
-interface CapturedFolderValues {
-  name?: string
-  color?: string
-  parentId?: string | null
-  isExpanded?: boolean
-  sortOrder?: number
-  updatedAt?: Date
-}
 
 interface FolderDbMockOptions {
   folderLookupResult?: any
@@ -146,11 +134,11 @@ function createFolderDbMock(options: FolderDbMockOptions = {}) {
 }
 
 function mockAuthenticatedUser(user?: MockUser) {
-  mockGetSession.mockResolvedValue({ user: user || TEST_USER })
+  authMockFns.mockGetSession.mockResolvedValue({ user: user || TEST_USER })
 }
 
 function mockUnauthenticated() {
-  mockGetSession.mockResolvedValue(null)
+  authMockFns.mockGetSession.mockResolvedValue(null)
 }
 
 describe('Individual Folder API Route', () => {
@@ -163,7 +151,42 @@ describe('Individual Folder API Route', () => {
       success: true,
       deletedItems: { folders: 1, workflows: 0 },
     })
-    mockCheckForCircularReference.mockResolvedValue(false)
+    mockPerformUpdateFolder.mockImplementation(async (params) => {
+      if (params.parentId && params.parentId === params.folderId) {
+        return {
+          success: false,
+          error: 'Folder cannot be its own parent',
+          errorCode: 'validation',
+        }
+      }
+      if (
+        params.parentId &&
+        (await workflowsUtilsMockFns.mockCheckForCircularReference(
+          params.folderId,
+          params.parentId
+        ))
+      ) {
+        return {
+          success: false,
+          error: 'Cannot create circular folder reference',
+          errorCode: 'validation',
+        }
+      }
+      return {
+        success: true,
+        folder: {
+          ...mockFolder,
+          id: params.folderId,
+          name: params.name !== undefined ? params.name.trim() : 'Updated Folder',
+          color: params.color ?? mockFolder.color,
+          parentId: params.parentId ?? mockFolder.parentId,
+          isExpanded: params.isExpanded,
+          sortOrder: params.sortOrder ?? mockFolder.sortOrder,
+          updatedAt: new Date(),
+        },
+      }
+    })
+    workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(false)
   })
 
   describe('PUT /api/folders/[id]', () => {
@@ -183,7 +206,7 @@ describe('Individual Folder API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('folder')
       expect(data.folder).toMatchObject({
-        name: 'Updated Folder',
+        name: 'Updated Folder Name',
       })
     })
 
@@ -288,44 +311,15 @@ describe('Individual Folder API Route', () => {
     it('should trim folder name when updating', async () => {
       mockAuthenticatedUser()
 
-      let capturedUpdates: CapturedFolderValues | null = null
-
-      const mockSelect = vi.fn().mockImplementation(() => ({
-        from: vi.fn().mockImplementation(() => ({
-          where: vi.fn().mockImplementation(() => ({
-            then: vi.fn().mockImplementation((callback) => {
-              return Promise.resolve(callback([mockFolder]))
-            }),
-          })),
-        })),
-      }))
-
-      const mockUpdate = vi.fn().mockImplementation(() => ({
-        set: vi.fn().mockImplementation((updates) => {
-          capturedUpdates = updates
-          return {
-            where: vi.fn().mockImplementation(() => ({
-              returning: vi.fn().mockReturnValue([{ ...mockFolder, name: 'Folder With Spaces' }]),
-            })),
-          }
-        }),
-      }))
-
-      mockDbRef.current = {
-        select: mockSelect,
-        update: mockUpdate,
-        delete: vi.fn(),
-      }
-
       const req = createMockRequest('PUT', {
         name: '  Folder With Spaces  ',
       })
       const params = Promise.resolve({ id: 'folder-1' })
 
-      await PUT(req, { params })
+      const response = await PUT(req, { params })
+      const data = await response.json()
 
-      expect(capturedUpdates).not.toBeNull()
-      expect(capturedUpdates!.name).toBe('Folder With Spaces')
+      expect(data.folder.name).toBe('Folder With Spaces')
     })
 
     it('should handle database errors gracefully', async () => {
@@ -398,7 +392,7 @@ describe('Individual Folder API Route', () => {
         },
       })
 
-      mockCheckForCircularReference.mockResolvedValue(true)
+      workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(true)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder 3',
@@ -412,7 +406,10 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Cannot create circular folder reference')
-      expect(mockCheckForCircularReference).toHaveBeenCalledWith('folder-3', 'folder-1')
+      expect(workflowsUtilsMockFns.mockCheckForCircularReference).toHaveBeenCalledWith(
+        'folder-3',
+        'folder-1'
+      )
     })
   })
 
@@ -468,22 +465,27 @@ describe('Individual Folder API Route', () => {
       expect(response.status).toBe(403)
 
       const data = await response.json()
-      expect(data).toHaveProperty('error', 'Admin access required to delete folders')
+      expect(data).toHaveProperty('error', 'Write or Admin access required to delete folders')
     })
 
-    it('should return 403 when user has only write permissions for delete', async () => {
+    it('should allow folder deletion for write permissions', async () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      mockDbRef.current = createFolderDbMock({
+        folderLookupResult: mockFolder,
+      })
 
       const req = createMockRequest('DELETE')
       const params = Promise.resolve({ id: 'folder-1' })
 
       const response = await DELETE(req, { params })
 
-      expect(response.status).toBe(403)
+      expect(response.status).toBe(200)
 
       const data = await response.json()
-      expect(data).toHaveProperty('error', 'Admin access required to delete folders')
+      expect(data).toHaveProperty('success', true)
+      expect(mockPerformDeleteFolder).toHaveBeenCalled()
     })
 
     it('should allow folder deletion for admin permissions', async () => {

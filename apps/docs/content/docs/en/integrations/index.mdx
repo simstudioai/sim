@@ -1,0 +1,140 @@
+---
+title: Integrations
+description: Connect third-party services and OAuth accounts for your workflows
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Integrations are authenticated connections to third-party services like Gmail, Slack, GitHub, Dropbox, and more. Sim handles the OAuth flow, token storage, and automatic token refresh — you connect once and select the account in any block that needs it.
+
+You can connect **multiple accounts per service** — for example, two separate Gmail accounts for different workflows.
+
+## Managing Integrations
+
+To manage integrations, open your workspace **Settings** and navigate to the **Integrations** tab.
+
+<Image
+  src="/static/integrations/integrations-list.png"
+  alt="Integrations tab showing connected accounts with service icons, names, and Details/Disconnect buttons"
+  width={700}
+  height={500}
+/>
+
+The list shows all your connected accounts with the service icon, display name, and provider. Each entry has a **Details** button and a **Disconnect** button.
+
+## Connecting an Account
+
+Click **+ Connect** in the top right to open the connection modal.
+
+<Image
+  src="/static/integrations/connect-service-picker.png"
+  alt="Connect Integration modal showing a searchable list of available services"
+  width={500}
+  height={400}
+/>
+
+Search for or select the service you want to connect, then fill in the connection details:
+
+<Image
+  src="/static/integrations/connect-modal.png"
+  alt="Connect Gmail modal showing permissions requested, display name field, and description field"
+  width={500}
+  height={450}
+/>
+
+1. Review the **Permissions requested** — these are the scopes Sim will request from the provider
+2. Enter a **Display name** to identify this connection (e.g. "Work Gmail" or "Marketing Slack")
+3. Optionally add a **Description**
+4. Click **Connect** and complete the authorization flow
+
+## Using Integrations in Workflows
+
+Blocks that require authentication (e.g. Gmail, Slack, Google Sheets) display a credential selector. Select the connected account you want that block to use.
+
+<Image
+  src="/static/credentials/oauth-selector.png"
+  alt="Gmail block showing the account selector dropdown with connected accounts"
+  width={500}
+  height={350}
+/>
+
+You can also connect additional accounts directly from the block by selecting **Connect another [service] account** at the bottom of the dropdown.
+
+<Callout type="info">
+If a block requires an integration and none is selected, the workflow will fail at that step.
+</Callout>
+
+## Using a Credential ID
+
+Each integration has a unique credential ID you can use to reference it dynamically. This is useful when you have multiple accounts for the same service and want to switch between them programmatically — for example, routing different workflow runs to different Gmail accounts based on a variable.
+
+To copy a credential ID, open **Details** on any integration and click the clipboard icon next to the Display Name.
+
+<Image
+  src="/static/integrations/copy-credential-id.png"
+  alt="Integration details showing the Copy credential ID tooltip on the clipboard icon next to the Display Name"
+  width={700}
+  height={150}
+/>
+
+In any block that requires an integration, click **Switch to manual ID** next to the credential selector to switch from the dropdown to a text field.
+
+<Image
+  src="/static/integrations/switch-to-manual-id.png"
+  alt="Block showing the Switch to manual ID button next to the account selector"
+  width={500}
+  height={200}
+/>
+
+Paste or reference the credential ID in that field. You can use a `{{SECRET}}` reference or a block output variable to make it dynamic.
+
+<Image
+  src="/static/integrations/manual-credential-id.png"
+  alt="Block showing the Enter credential ID text field after switching to manual mode"
+  width={500}
+  height={200}
+/>
+
+## Integration Details
+
+Click **Details** on any integration to open its detail view.
+
+<Image
+  src="/static/integrations/integration-details.png"
+  alt="Integration details view showing Display Name, Description, Members, Reconnect, and Disconnect"
+  width={700}
+  height={420}
+/>
+
+From here you can:
+
+- Edit the **Display Name** and **Description**
+- Manage **Members** — invite teammates by email and assign them an **Admin** or **Member** role
+- **Reconnect** — re-authorize the connection if it has expired or if you need to update permissions
+- **Disconnect** — remove the integration entirely
+
+Click **Save** to apply changes, or **Back** to return to the list.
+
+<Callout type="warn">
+If you disconnect an integration that is used in a workflow, that workflow will fail at any block referencing it. Update blocks before disconnecting.
+</Callout>
+
+## Access Control
+
+Each integration has role-based access:
+
+- **Admin** — can view, edit, disconnect, reconnect, and manage member access
+- **Member** — can use the integration in workflows (read-only)
+
+When you connect an integration, you are automatically set as its Admin. You can share it with teammates from the Details view.
+
+<FAQ items={[
+  { question: "Does Sim handle OAuth token refresh automatically?", answer: "Yes. When an integration is used during execution, Sim checks whether the access token has expired and automatically refreshes it using the stored refresh token before making the API call. You do not need to handle token refresh manually." },
+  { question: "Can I connect multiple accounts for the same service?", answer: "Yes. You can connect multiple accounts per service (for example, two separate Gmail accounts). Each block lets you select which account to use from the credential dropdown. This is useful when different workflows need different identities or permissions." },
+  { question: "What is a credential ID and when should I use it?", answer: "Each integration has a unique credential ID that you can use instead of the dropdown selector. This lets you pass the credential dynamically — for example, from a variable or a previous block's output — so the same workflow can use different accounts depending on the context. Copy the ID from the Details view and use Switch to manual ID in any block to paste or reference it." },
+  { question: "What happens if an OAuth token can no longer be refreshed?", answer: "If a refresh fails (e.g. the user revoked access or the refresh token expired), the workflow will fail at the block using that integration. Open Settings → Integrations, find the connection, and use the Reconnect button to re-authorize it." },
+  { question: "Are OAuth tokens encrypted at rest?", answer: "Yes. OAuth tokens are encrypted before being stored in the database and are never exposed in the workflow editor, logs, or API responses." },
+  { question: "What happens if I disconnect an integration that is used in a workflow?", answer: "Any block referencing the disconnected integration will fail at runtime. Make sure to update those blocks before disconnecting, or reconnect the integration to restore access." },
+]} />

@@ -1,11 +1,13 @@
 'use client'
 
 import {
+  Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Upload,
 } from '@/components/emcn'
 import { Copy, Database, Pencil, Trash } from '@/components/emcn/icons'
 
@@ -17,8 +19,12 @@ interface TableContextMenuProps {
   onDelete?: () => void
   onViewSchema?: () => void
   onRename?: () => void
+  onImportCsv?: () => void
+  onExportCsv?: () => void
   disableDelete?: boolean
   disableRename?: boolean
+  disableImport?: boolean
+  disableExport?: boolean
   menuRef?: React.RefObject<HTMLDivElement | null>
 }
 
@@ -30,8 +36,12 @@ export function TableContextMenu({
   onDelete,
   onViewSchema,
   onRename,
+  onImportCsv,
+  onExportCsv,
   disableDelete = false,
   disableRename = false,
+  disableImport = false,
+  disableExport = false,
 }: TableContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -67,7 +77,21 @@ export function TableContextMenu({
             Rename
           </DropdownMenuItem>
         )}
-        {(onViewSchema || onRename) && (onCopyId || onDelete) && <DropdownMenuSeparator />}
+        {onImportCsv && (
+          <DropdownMenuItem disabled={disableImport} onSelect={onImportCsv}>
+            <Upload />
+            Import CSV…
+          </DropdownMenuItem>
+        )}
+        {onExportCsv && (
+          <DropdownMenuItem disabled={disableExport} onSelect={onExportCsv}>
+            <Download />
+            Export CSV
+          </DropdownMenuItem>
+        )}
+        {(onViewSchema || onRename || onImportCsv || onExportCsv) && (onCopyId || onDelete) && (
+          <DropdownMenuSeparator />
+        )}
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
             <Copy />

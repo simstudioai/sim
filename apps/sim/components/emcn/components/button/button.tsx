@@ -20,7 +20,7 @@ const buttonVariants = cva(
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
         tertiary:
-          'bg-[var(--brand-accent)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[#2DAC72] dark:bg-[var(--brand-accent)] dark:hover-hover:bg-[#2DAC72] dark:text-[var(--text-inverse)] dark:hover-hover:text-[var(--text-inverse)]',
+          'bg-[var(--brand-accent)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--brand-accent-hover)] dark:bg-[var(--brand-accent)] dark:hover-hover:bg-[var(--brand-accent-hover)] dark:text-[var(--text-inverse)] dark:hover-hover:text-[var(--text-inverse)]',
         ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
         subtle:
           'text-[var(--text-body)] hover-hover:text-[var(--text-body)] hover-hover:bg-[var(--surface-4)]',

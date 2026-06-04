@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { useShallow } from 'zustand/react/shallow'
-import { generateId } from '@/lib/core/utils/uuid'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCodeUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'

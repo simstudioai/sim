@@ -1,18 +1,32 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { SalesforceIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('SalesforceConnector')
 
-const USERINFO_URL = 'https://login.salesforce.com/services/oauth2/userinfo'
+/**
+ * Salesforce serves the userinfo endpoint at the org's authentication host.
+ * Tokens issued at test.salesforce.com (sandbox) are rejected at login.salesforce.com,
+ * so we try each host in order and cache the working one in syncContext.
+ */
+const USERINFO_HOSTS = ['https://login.salesforce.com', 'https://test.salesforce.com'] as const
+const USERINFO_PATH = '/services/oauth2/userinfo'
 const API_VERSION = 'v62.0'
 const PAGE_SIZE = 200
 
 /** SOQL field lists per object type. */
 const OBJECT_FIELDS: Record<string, string[]> = {
-  KnowledgeArticleVersion: ['Id', 'Title', 'Summary', 'LastModifiedDate', 'ArticleNumber'],
+  KnowledgeArticleVersion: [
+    'Id',
+    'Title',
+    'Summary',
+    'LastModifiedDate',
+    'ArticleNumber',
+    'PublishStatus',
+  ],
   Case: ['Id', 'Subject', 'Description', 'Status', 'LastModifiedDate', 'CaseNumber'],
   Account: ['Id', 'Name', 'Description', 'Industry', 'LastModifiedDate'],
   Opportunity: [
@@ -28,8 +42,74 @@ const OBJECT_FIELDS: Record<string, string[]> = {
 
 /** SOQL WHERE clause additions per object type. */
 const OBJECT_WHERE: Record<string, string> = {
-  KnowledgeArticleVersion: " WHERE PublishStatus='Online' AND Language='en_US'",
+  KnowledgeArticleVersion:
+    " WHERE PublishStatus='Online' AND IsLatestVersion=true AND Language='en_US'",
 } as const
+
+/**
+ * Result of a userinfo lookup: either the parsed payload + the auth host that
+ * served it, or a structured failure describing the last response we saw.
+ */
+type UserinfoResult =
+  | { ok: true; data: Record<string, unknown>; host: string }
+  | { ok: false; status: number | undefined; errorText: string }
+
+/**
+ * Fetches the Salesforce userinfo payload, trying each candidate auth host in
+ * order. Sandbox-issued tokens are rejected at login.salesforce.com with 401/403,
+ * so on those statuses we fall through to test.salesforce.com. The working host
+ * is cached in syncContext under `_salesforceInstanceUrl` so subsequent calls in
+ * the same sync run skip the fallback dance.
+ */
+async function fetchUserinfo(
+  accessToken: string,
+  retryOptions?: Parameters<typeof fetchWithRetry>[2],
+  syncContext?: Record<string, unknown>
+): Promise<UserinfoResult> {
+  const cachedHost =
+    typeof syncContext?._salesforceInstanceUrl === 'string'
+      ? (syncContext._salesforceInstanceUrl as string)
+      : undefined
+  const orderedHosts = cachedHost
+    ? [cachedHost, ...USERINFO_HOSTS.filter((h) => h !== cachedHost)]
+    : [...USERINFO_HOSTS]
+
+  let lastStatus: number | undefined
+  let lastErrorText = ''
+
+  for (const host of orderedHosts) {
+    const response = await fetchWithRetry(
+      `${host}${USERINFO_PATH}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+      retryOptions
+    )
+
+    if (response.ok) {
+      const data = (await response.json()) as Record<string, unknown>
+      if (syncContext) {
+        syncContext._salesforceInstanceUrl = host
+      }
+      return { ok: true, data, host }
+    }
+
+    lastStatus = response.status
+    lastErrorText = await response.text()
+
+    // Only fall through to the next host on auth-shaped failures; surface
+    // other errors (e.g. 5xx) immediately so we don't mask real problems.
+    if (response.status !== 401 && response.status !== 403) {
+      break
+    }
+  }
+
+  return { ok: false, status: lastStatus, errorText: lastErrorText }
+}
 
 /**
  * Resolves the Salesforce instance REST URL from the userinfo endpoint.
@@ -43,21 +123,14 @@ async function resolveInstanceUrl(
     return syncContext.instanceUrl as string
   }
 
-  const response = await fetchWithRetry(USERINFO_URL, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Failed to resolve Salesforce instance URL: ${response.status} - ${errorText}`)
+  const result = await fetchUserinfo(accessToken, undefined, syncContext)
+  if (!result.ok) {
+    throw new Error(
+      `Failed to resolve Salesforce instance URL: ${result.status ?? 'unknown'} - ${result.errorText}`
+    )
   }
 
-  const data = await response.json()
-  const urls = data.urls as Record<string, string> | undefined
+  const urls = result.data.urls as Record<string, string> | undefined
   let restUrl = urls?.rest
 
   if (!restUrl) {
@@ -146,40 +219,56 @@ function getRecordStatus(objectType: string, record: Record<string, unknown>): s
 }
 
 /**
- * Converts a Salesforce record to an ExternalDocument.
+ * Creates a lightweight stub for a Salesforce record with metadata-based hash.
+ * Content is deferred and fetched later via getDocument only for new/changed docs.
  */
-async function recordToDocument(
+function recordToStub(
   record: Record<string, unknown>,
   objectType: string,
   instanceUrl: string
-): Promise<ExternalDocument> {
+): ExternalDocument {
   const id = record.Id as string
-  const content = buildRecordContent(objectType, record)
-  const contentHash = await computeContentHash(content)
   const title = buildRecordTitle(objectType, record)
-
+  const lastModified = (record.LastModifiedDate as string) || ''
   const baseUrl = instanceUrl.replace(`/services/data/${API_VERSION}/`, '')
 
   return {
     externalId: id,
     title,
-    content,
+    content: '',
+    contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: `${baseUrl}/${id}`,
-    contentHash,
+    contentHash: `salesforce:${id}:${lastModified}`,
     metadata: {
       objectType,
-      lastModified: (record.LastModifiedDate as string) || undefined,
+      lastModified: lastModified || undefined,
       recordNumber: getRecordNumber(objectType, record),
       status: getRecordStatus(objectType, record),
     },
   }
 }
 
+/**
+ * Builds a full ExternalDocument with content from a Salesforce record.
+ */
+function recordToDocument(
+  record: Record<string, unknown>,
+  objectType: string,
+  instanceUrl: string
+): ExternalDocument {
+  const stub = recordToStub(record, objectType, instanceUrl)
+  return {
+    ...stub,
+    content: buildRecordContent(objectType, record),
+    contentDeferred: false,
+  }
+}
+
 export const salesforceConnector: ConnectorConfig = {
   id: 'salesforce',
   name: 'Salesforce',
-  description: 'Sync records from Salesforce into your knowledge base',
+  description: 'Sync records from Salesforce',
   version: '1.0.0',
   icon: SalesforceIcon,
 
@@ -257,8 +346,8 @@ export const salesforceConnector: ConnectorConfig = {
     const records = (data.records || []) as Record<string, unknown>[]
     const nextRecordsUrl = data.nextRecordsUrl as string | undefined
 
-    const documents: ExternalDocument[] = await Promise.all(
-      records.map((record) => recordToDocument(record, objectType, instanceUrl))
+    const documents: ExternalDocument[] = records.map((record) =>
+      recordToStub(record, objectType, instanceUrl)
     )
 
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
@@ -298,11 +387,10 @@ export const salesforceConnector: ConnectorConfig = {
 
     let instanceUrl = syncContext?.instanceUrl as string | undefined
     if (!instanceUrl) {
-      instanceUrl = await resolveInstanceUrl(accessToken)
-      if (syncContext) syncContext.instanceUrl = instanceUrl
+      instanceUrl = await resolveInstanceUrl(accessToken, syncContext)
     }
 
-    const url = `${instanceUrl}sobjects/${objectType}/${externalId}?fields=${fields.join(',')}`
+    const url = `${instanceUrl}sobjects/${objectType}/${encodeURIComponent(externalId)}?fields=${fields.join(',')}`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -349,28 +437,16 @@ export const salesforceConnector: ConnectorConfig = {
     }
 
     try {
-      const userinfoResponse = await fetchWithRetry(
-        USERINFO_URL,
-        {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
-        VALIDATE_RETRY_OPTIONS
-      )
+      const userinfoResult = await fetchUserinfo(accessToken, VALIDATE_RETRY_OPTIONS)
 
-      if (!userinfoResponse.ok) {
-        const errorText = await userinfoResponse.text()
+      if (!userinfoResult.ok) {
         return {
           valid: false,
-          error: `Failed to authenticate with Salesforce: ${userinfoResponse.status} - ${errorText}`,
+          error: `Failed to authenticate with Salesforce: ${userinfoResult.status ?? 'unknown'} - ${userinfoResult.errorText}`,
         }
       }
 
-      const userinfo = await userinfoResponse.json()
-      const urls = userinfo.urls as Record<string, string> | undefined
+      const urls = userinfoResult.data.urls as Record<string, string> | undefined
       let restUrl = urls?.rest
 
       if (!restUrl) {
@@ -404,8 +480,7 @@ export const salesforceConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 

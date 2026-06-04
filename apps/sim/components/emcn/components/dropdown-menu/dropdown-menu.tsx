@@ -87,9 +87,20 @@ const DropdownMenuSubContent = React.forwardRef<
 ))
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName
 
+type DropdownMenuContentProps = React.ComponentPropsWithoutRef<
+  typeof DropdownMenuPrimitive.Content
+> & {
+  /**
+   * Forwarded to Radix's internal FocusScope. The Radix primitive supports this prop at
+   * runtime but does not expose it in its public TypeScript types — surface it here so
+   * callers can opt out of the default focus-into-menu behavior on open.
+   */
+  onOpenAutoFocus?: (event: Event) => void
+}
+
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
+  DropdownMenuContentProps
 >(({ className, sideOffset = 6, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.Content
@@ -137,9 +148,9 @@ const DropdownMenuCheckboxItem = React.forwardRef<
     checked={checked}
     {...props}
   >
-    <span className='absolute left-2 flex h-[14px] w-[14px] items-center justify-center'>
+    <span className='absolute left-2 flex size-[14px] items-center justify-center'>
       <DropdownMenuPrimitive.ItemIndicator>
-        <Check className='h-[14px] w-[14px]' />
+        <Check className='size-[14px]' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -159,9 +170,9 @@ const DropdownMenuRadioItem = React.forwardRef<
     )}
     {...props}
   >
-    <span className='absolute left-2 flex h-[14px] w-[14px] items-center justify-center'>
+    <span className='absolute left-2 flex size-[14px] items-center justify-center'>
       <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className='h-[6px] w-[6px] fill-current' />
+        <Circle className='size-[6px] fill-current' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -222,7 +233,7 @@ const DropdownMenuSearchInput = React.forwardRef<
 
   return (
     <div className='mx-0.5 mt-0.5 mb-0.5 flex shrink-0 items-center gap-2 rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-      <Search className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
+      <Search className='size-[14px] shrink-0 text-[var(--text-muted)]' />
       <input
         ref={setRefs}
         onKeyDown={(e) => {

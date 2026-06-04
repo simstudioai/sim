@@ -241,7 +241,7 @@ export const WEBHOOK_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Raw Attio record shape from the API */
-export interface AttioRecord {
+interface AttioRecord {
   id: { workspace_id: string; object_id: string; record_id: string }
   created_at: string
   web_url: string
@@ -249,7 +249,7 @@ export interface AttioRecord {
 }
 
 /** Raw Attio note shape from the API */
-export interface AttioNote {
+interface AttioNote {
   id: { workspace_id: string; note_id: string }
   parent_object: string
   parent_record_id: string
@@ -263,7 +263,7 @@ export interface AttioNote {
 }
 
 /** Raw Attio task shape from the API */
-export interface AttioTask {
+interface AttioTask {
   id: { workspace_id: string; task_id: string }
   content_plaintext: string
   deadline_at: string | null

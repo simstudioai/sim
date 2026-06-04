@@ -1,20 +1,22 @@
+import type { AshbyOpening } from '@/tools/ashby/types'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  mapOpenings,
+  OPENINGS_OUTPUT,
+} from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListOpeningsParams {
   apiKey: string
   cursor?: string
   perPage?: number
+  createdAfter?: string
 }
 
 interface AshbyListOpeningsResponse extends ToolResponse {
   output: {
-    openings: Array<{
-      id: string
-      openingState: string | null
-      isArchived: boolean
-      openedAt: string | null
-      closedAt: string | null
-    }>
+    openings: AshbyOpening[]
     moreDataAvailable: boolean
     nextCursor: string | null
   }
@@ -45,19 +47,27 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
       visibility: 'user-or-llm',
       description: 'Number of results per page (default 100)',
     },
+    createdAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only return openings created after this ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/opening.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
+      if (params.createdAfter) {
+        const ms = new Date(params.createdAfter).getTime()
+        if (!Number.isNaN(ms)) body.createdAfter = ms
+      }
       return body
     },
   },
@@ -66,19 +76,13 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list openings')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list openings'))
     }
 
     return {
       success: true,
       output: {
-        openings: (data.results ?? []).map((o: Record<string, unknown>) => ({
-          id: o.id ?? null,
-          openingState: o.openingState ?? null,
-          isArchived: o.isArchived ?? false,
-          openedAt: o.openedAt ?? null,
-          closedAt: o.closedAt ?? null,
-        })),
+        openings: mapOpenings(data.results),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
       },
@@ -86,24 +90,7 @@ export const listOpeningsTool: ToolConfig<AshbyListOpeningsParams, AshbyListOpen
   },
 
   outputs: {
-    openings: {
-      type: 'array',
-      description: 'List of openings',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Opening UUID' },
-          openingState: {
-            type: 'string',
-            description: 'Opening state (Approved, Closed, Draft, Filled, Open)',
-            optional: true,
-          },
-          isArchived: { type: 'boolean', description: 'Whether the opening is archived' },
-          openedAt: { type: 'string', description: 'ISO 8601 opened timestamp', optional: true },
-          closedAt: { type: 'string', description: 'ISO 8601 closed timestamp', optional: true },
-        },
-      },
-    },
+    openings: OPENINGS_OUTPUT,
     moreDataAvailable: {
       type: 'boolean',
       description: 'Whether more pages of results exist',

@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  normalizeRecord,
+  normalizeStringRecord,
+  normalizeWorkflowVariables,
+} from '@/lib/core/utils/records'
 import type { EnvironmentVariable } from '@/lib/environment/api'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
@@ -254,14 +259,12 @@ export function createCustomToolRequestBody(customTool: any, isClient = true, wo
     // 1. envVars parameter (passed from provider/agent context)
     // 2. Client-side store (if running in browser)
     // 3. Empty object (fallback)
-    const envVars = params.envVars || (isClient ? getClientEnvVars() : {})
+    const envVars = normalizeStringRecord(params.envVars || (isClient ? getClientEnvVars() : {}))
 
-    // Get workflow variables from params (passed from execution context)
-    const workflowVariables = params.workflowVariables || {}
+    const workflowVariables = normalizeWorkflowVariables(params.workflowVariables)
 
-    // Get block data and mapping from params (passed from execution context)
-    const blockData = params.blockData || {}
-    const blockNameMapping = params.blockNameMapping || {}
+    const blockData = normalizeRecord(params.blockData)
+    const blockNameMapping = normalizeStringRecord(params.blockNameMapping)
 
     // Include everything needed for execution
     return {
@@ -282,7 +285,7 @@ export function createCustomToolRequestBody(customTool: any, isClient = true, wo
 // Get a tool by its ID
 export function getTool(toolId: string, _workspaceId?: string): ToolConfig | undefined {
   // Check for built-in tools
-  const builtInTool = tools[toolId]
+  const builtInTool = tools[resolveToolId(toolId)]
   if (builtInTool) return builtInTool
 
   // If not found or running on the server, return undefined

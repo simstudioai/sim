@@ -11,7 +11,7 @@ export const EnrichBlock: BlockConfig = {
     'Access real-time B2B data intelligence with Enrich.so. Enrich profiles from email addresses, find work emails from LinkedIn, verify email deliverability, search for people and companies, and analyze LinkedIn post engagement.',
   docsLink: 'https://docs.enrich.so/',
   category: 'tools',
-  integrationType: IntegrationType.SalesIntelligence,
+  integrationType: IntegrationType.Sales,
   tags: ['enrichment', 'data-analytics'],
   bgColor: '#E5E5E6',
   icon: EnrichSoIcon,

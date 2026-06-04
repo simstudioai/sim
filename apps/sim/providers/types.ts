@@ -1,4 +1,4 @@
-import type { StreamingExecution } from '@/executor/types'
+import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
 export type ProviderId =
   | 'openai'
@@ -13,9 +13,13 @@ export type ProviderId =
   | 'groq'
   | 'mistral'
   | 'ollama'
+  | 'ollama-cloud'
   | 'openrouter'
   | 'fireworks'
+  | 'together'
+  | 'baseten'
   | 'vllm'
+  | 'litellm'
   | 'bedrock'
   | 'avian'
 
@@ -28,13 +32,13 @@ export interface ModelPricing {
 
 export type ModelPricingMap = Record<string, ModelPricing>
 
-export interface TokenInfo {
+interface TokenInfo {
   input?: number
   output?: number
   total?: number
 }
 
-export interface TransformedResponse {
+interface TransformedResponse {
   content: string
   tokens?: TokenInfo
 }
@@ -64,13 +68,12 @@ export interface FunctionCallResponse {
   success?: boolean
 }
 
-export interface TimeSegment {
-  type: 'model' | 'tool'
-  name: string
-  startTime: number
-  endTime: number
-  duration: number
-}
+/**
+ * Provider-side alias for the canonical segment type. Providers push these into
+ * `providerTiming.timeSegments` during execution; the trace pipeline reads them
+ * verbatim when constructing child spans.
+ */
+export type TimeSegment = ProviderTimingSegment
 
 export interface ProviderResponse {
   content: string
@@ -123,6 +126,7 @@ export interface ProviderToolConfig {
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'function' | 'tool'
   content: string | null
+  files?: UserFile[]
   name?: string
   function_call?: {
     name: string

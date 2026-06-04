@@ -80,17 +80,19 @@ Retrieve details of a previously sent email by its ID
 | --------- | ---- | ----------- |
 | `id` | string | Email ID |
 | `from` | string | Sender email address |
-| `to` | json | Recipient email addresses |
+| `to` | array | Recipient email addresses |
 | `subject` | string | Email subject |
 | `html` | string | HTML email content |
 | `text` | string | Plain text email content |
-| `cc` | json | CC email addresses |
-| `bcc` | json | BCC email addresses |
-| `replyTo` | json | Reply-to email addresses |
+| `cc` | array | CC email addresses |
+| `bcc` | array | BCC email addresses |
+| `replyTo` | array | Reply-to email addresses |
 | `lastEvent` | string | Last event status \(e.g., delivered, bounced\) |
 | `createdAt` | string | Email creation timestamp |
 | `scheduledAt` | string | Scheduled send timestamp |
-| `tags` | json | Email tags as name-value pairs |
+| `tags` | array | Email tags as name-value pairs |
+|   ↳ `name` | string | Tag name |
+|   ↳ `value` | string | Tag value |
 
 ### `resend_create_contact`
 
@@ -126,7 +128,13 @@ List all contacts in Resend
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contacts` | json | Array of contacts with id, email, first_name, last_name, created_at, unsubscribed |
+| `contacts` | array | Array of contacts |
+|   ↳ `id` | string | Contact ID |
+|   ↳ `email` | string | Contact email address |
+|   ↳ `first_name` | string | Contact first name |
+|   ↳ `last_name` | string | Contact last name |
+|   ↳ `created_at` | string | Contact creation timestamp |
+|   ↳ `unsubscribed` | boolean | Whether the contact is unsubscribed |
 | `hasMore` | boolean | Whether there are more contacts to retrieve |
 
 ### `resend_get_contact`
@@ -203,7 +211,12 @@ List all verified domains in your Resend account
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `domains` | json | Array of domains with id, name, status, region, and createdAt |
+| `domains` | array | Array of domains |
+|   ↳ `id` | string | Domain ID |
+|   ↳ `name` | string | Domain name |
+|   ↳ `status` | string | Domain verification status |
+|   ↳ `region` | string | Region the domain is configured in |
+|   ↳ `createdAt` | string | Domain creation timestamp |
 | `hasMore` | boolean | Whether there are more domains to retrieve |
 
 

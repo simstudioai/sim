@@ -3,7 +3,17 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  authMockFns,
+  createMockRequest,
+  hybridAuthMockFns,
+  inputValidationMock,
+  inputValidationMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  storageServiceMock,
+  storageServiceMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,18 +25,13 @@ const {
   mockIsSupportedFileType,
   mockParseFile,
   mockParseBuffer,
-  mockDownloadFile,
-  mockHasCloudStorage,
   mockFsAccess,
   mockFsStat,
   mockFsReadFile,
   mockFsWriteFile,
   mockJoin,
-  mockGetSession,
-  mockCheckInternalAuth,
-  mockCheckHybridAuth,
-  mockCheckSessionOrInternalAuth,
   actualPath,
+  mockUploadWorkspaceFile,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const actualPath = require('path') as typeof import('path')
@@ -44,10 +49,8 @@ const {
       content: 'parsed buffer content',
       metadata: { pageCount: 1 },
     }),
-    mockDownloadFile: vi.fn(),
-    mockHasCloudStorage: vi.fn().mockReturnValue(true),
     mockFsAccess: vi.fn().mockResolvedValue(undefined),
-    mockFsStat: vi.fn().mockImplementation(() => ({ isFile: () => true })),
+    mockFsStat: vi.fn().mockImplementation(() => ({ isFile: () => true, size: 17 })),
     mockFsReadFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
     mockFsWriteFile: vi.fn().mockResolvedValue(undefined),
     mockJoin: vi.fn((...args: string[]): string => {
@@ -56,11 +59,20 @@ const {
       }
       return actualPath.join(...args)
     }),
-    mockGetSession: vi.fn(),
-    mockCheckInternalAuth: vi.fn(),
-    mockCheckHybridAuth: vi.fn(),
-    mockCheckSessionOrInternalAuth: vi.fn(),
     actualPath,
+    mockUploadWorkspaceFile: vi
+      .fn()
+      .mockImplementation(
+        async (workspaceId: string, _userId: string, _buffer: Buffer, fileName: string) => ({
+          id: 'wf_test',
+          name: fileName,
+          size: 0,
+          type: 'application/octet-stream',
+          url: `/api/files/serve/${workspaceId}/${fileName}`,
+          key: `${workspaceId}/${fileName}`,
+          context: 'workspace',
+        })
+      ),
   }
 })
 
@@ -72,6 +84,7 @@ vi.mock('@/app/api/files/authorization', () => ({
 vi.mock('@/lib/uploads', () => ({
   getStorageProvider: mockGetStorageProvider,
   isUsingCloudStorage: mockIsUsingCloudStorage,
+  StorageService: storageServiceMock,
 }))
 
 vi.mock('@/lib/file-parsers', () => ({
@@ -80,10 +93,7 @@ vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mockParseBuffer,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  hasCloudStorage: mockHasCloudStorage,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('path', () => ({
   default: actualPath,
@@ -98,24 +108,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   UPLOAD_DIR_SERVER: '/test/uploads',
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-  auth: vi.fn(),
-  signIn: vi.fn(),
-  signUp: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkInternalAuth: mockCheckInternalAuth,
-  checkHybridAuth: mockCheckHybridAuth,
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('@/lib/core/utils/logging', () => ({
   sanitizeUrlForLog: vi.fn((url: string) => url),
@@ -125,13 +118,15 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
   uploadExecutionFile: vi.fn(),
 }))
 
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  uploadWorkspaceFile: mockUploadWorkspaceFile,
+}))
+
 vi.mock('@/lib/uploads/server/metadata', () => ({
   getFileMetadataByKey: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: vi.fn().mockResolvedValue({ canView: true }),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('fs/promises', () => ({
   default: {
@@ -158,26 +153,26 @@ function setupFileApiMocks(
   const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
 
   if (authenticated) {
-    mockGetSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'test-user-id', email: 'test@example.com' },
     })
   } else {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
   }
 
-  mockCheckInternalAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  mockCheckHybridAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  mockCheckSessionOrInternalAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
@@ -195,7 +190,13 @@ describe('File Parse API Route', () => {
       authenticated: true,
     })
 
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue({ canView: true })
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('test file content'))
+    mockFsStat.mockResolvedValue({ isFile: () => true, size: 17 })
+    mockFsReadFile.mockResolvedValue(Buffer.from('test file content'))
     mockIsSupportedFileType.mockReturnValue(true)
+    mockUploadWorkspaceFile.mockClear()
     mockParseFile.mockResolvedValue({
       content: 'parsed content',
       metadata: { pageCount: 1 },
@@ -268,6 +269,48 @@ describe('File Parse API Route', () => {
     }
   })
 
+  it('should keep known binary extensions as binary even when the bytes are valid UTF-8', async () => {
+    setupFileApiMocks({
+      cloudEnabled: true,
+      storageProvider: 's3',
+      authenticated: true,
+    })
+    mockIsSupportedFileType.mockReturnValue(false)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('valid utf8 bytes'))
+
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/image.png',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.output.content).toBe('[Binary PNG file - 16 bytes]')
+  })
+
+  it('should parse unknown extensions as text when the bytes look like UTF-8 text', async () => {
+    setupFileApiMocks({
+      cloudEnabled: true,
+      storageProvider: 's3',
+      authenticated: true,
+    })
+    mockIsSupportedFileType.mockReturnValue(false)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('plain text content'))
+
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/readme.customtext',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.output.content).toBe('plain text content')
+  })
+
   it('should handle multiple files', async () => {
     setupFileApiMocks({
       cloudEnabled: false,
@@ -287,6 +330,265 @@ describe('File Parse API Route', () => {
     expect(data).toHaveProperty('results')
     expect(Array.isArray(data.results)).toBe(true)
     expect(data.results).toHaveLength(2)
+  })
+
+  it('should keep the multi-file download cap independent from the remaining parsed-output cap', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        new Response('file content', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('second file content', {
+          status: 200,
+          headers: {
+            'content-length': String(20 * 1024 * 1024),
+            'content-type': 'text/plain',
+          },
+        })
+      )
+
+    const fourMbContent = 'a'.repeat(4 * 1024 * 1024)
+    mockParseBuffer
+      .mockResolvedValueOnce({
+        content: fourMbContent,
+        metadata: { pageCount: 1 },
+      })
+      .mockResolvedValueOnce({
+        content: 'second file',
+        metadata: { pageCount: 1 },
+      })
+
+    const req = createMockRequest('POST', {
+      filePath: ['https://example.com/file1.txt', 'https://example.com/file2.txt'],
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.results).toHaveLength(2)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      1,
+      'https://example.com/file1.txt',
+      '203.0.113.10',
+      expect.objectContaining({ maxResponseBytes: 100 * 1024 * 1024 })
+    )
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      2,
+      'https://example.com/file2.txt',
+      '203.0.113.10',
+      expect.objectContaining({ maxResponseBytes: 100 * 1024 * 1024 })
+    )
+  })
+
+  it('should never dedup external URL fetches by path filename — two URLs sharing image.png both download', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        new Response('first image bytes', {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('second image bytes — different content', {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        })
+      )
+    mockIsSupportedFileType.mockReturnValue(false)
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+    const req = createMockRequest('POST', {
+      filePath: [
+        'https://files.slack.com/files-pri/T07-FAAA/download/image.png',
+        'https://files.slack.com/files-pri/T07-FBBB/download/image.png',
+      ],
+      workspaceId: 'workspace-id',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.results).toHaveLength(2)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      1,
+      'https://files.slack.com/files-pri/T07-FAAA/download/image.png',
+      '203.0.113.10',
+      expect.any(Object)
+    )
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenNthCalledWith(
+      2,
+      'https://files.slack.com/files-pri/T07-FBBB/download/image.png',
+      '203.0.113.10',
+      expect.any(Object)
+    )
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(2)
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+  })
+
+  it('should stop multi-file parsing once the combined parsed output is too large', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('file content', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+
+    mockParseBuffer.mockResolvedValueOnce({
+      content: 'a'.repeat(5 * 1024 * 1024 + 1),
+      metadata: { pageCount: 1 },
+    })
+
+    const req = createMockRequest('POST', {
+      filePath: ['https://example.com/file1.txt', 'https://example.com/file2.txt'],
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(413)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('too large')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(1)
+  })
+
+  it('should include successful multi-file parse results when a later file exceeds the cap', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('file content', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+
+    mockParseBuffer
+      .mockResolvedValueOnce({
+        content: 'first file',
+        metadata: { pageCount: 1 },
+      })
+      .mockResolvedValueOnce({
+        content: 'a'.repeat(5 * 1024 * 1024),
+        metadata: { pageCount: 1 },
+      })
+
+    const req = createMockRequest('POST', {
+      filePath: ['https://example.com/file1.txt', 'https://example.com/file2.txt'],
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.error).toContain('too large')
+    expect(data.results).toHaveLength(1)
+    expect(data.results[0].output.content).toBe('first file')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
+  })
+
+  it('should pass custom headers when fetching external URLs', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('private file content', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+
+    const headers = { Authorization: 'Bearer xoxb-test-token' }
+    const req = createMockRequest('POST', {
+      filePath: 'https://files.slack.com/files-pri/T000-F000/download/report.txt',
+      headers,
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://files.slack.com/files-pri/T000-F000/download/report.txt',
+      '203.0.113.10',
+      expect.objectContaining({
+        timeout: 30000,
+        headers,
+      })
+    )
+  })
+
+  it('should reject oversized external downloads before reading the body', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('oversized', {
+        status: 200,
+        headers: { 'content-length': '104857601', 'content-type': 'text/plain' },
+      })
+    )
+
+    const req = createMockRequest('POST', {
+      filePath: 'https://example.com/large.txt',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('too large')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://example.com/large.txt',
+      '203.0.113.10',
+      expect.objectContaining({
+        maxResponseBytes: 104857600,
+      })
+    )
+  })
+
+  it('should reject oversized local files before materializing them', async () => {
+    setupFileApiMocks({
+      cloudEnabled: false,
+      storageProvider: 'local',
+      authenticated: true,
+    })
+    mockFsStat.mockResolvedValue({ isFile: () => true, size: 104857601 })
+
+    const req = createMockRequest('POST', {
+      filePath: 'workspace/large.txt',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('too large')
+    expect(mockFsReadFile).not.toHaveBeenCalled()
   })
 
   it('should process execution file URLs with context query param', async () => {
@@ -344,8 +646,8 @@ describe('File Parse API Route', () => {
       authenticated: true,
     })
 
-    mockDownloadFile.mockRejectedValue(new Error('Access denied'))
-    mockHasCloudStorage.mockReturnValue(true)
+    storageServiceMockFns.mockDownloadFile.mockRejectedValue(new Error('Access denied'))
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
 
     const req = new NextRequest('http://localhost:3000/api/files/parse', {
       method: 'POST',
@@ -389,6 +691,7 @@ describe('Files Parse API - Path Traversal Security', () => {
     setupFileApiMocks({
       authenticated: true,
     })
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue({ canView: true })
   })
 
   describe('Path Traversal Prevention', () => {
@@ -491,6 +794,68 @@ describe('Files Parse API - Path Traversal Security', () => {
           )
         }
       }
+    })
+
+    it('should not treat .. inside external URLs as path traversal', async () => {
+      inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+        isValid: true,
+        resolvedIP: '203.0.113.10',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+        new Response('slack file content', {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        })
+      )
+      permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+
+      // Slack truncates long titles with a literal ellipsis, so the slug contains `..`
+      const slackUrl =
+        'https://files.slack.com/files-pri/T08-F0B/_other__no_invitation_messages_get_sent_-_sim_on_railway...txt'
+
+      const request = new NextRequest('http://localhost:3000/api/files/parse', {
+        method: 'POST',
+        body: JSON.stringify({ filePath: slackUrl, workspaceId: 'workspace-id' }),
+      })
+
+      const response = await POST(request)
+      const result = await response.json()
+
+      expect(result.success).toBe(true)
+      // The URL reaching the pinned fetch proves it passed validation and routed
+      // to external-URL handling rather than being rejected as a local path.
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+        slackUrl,
+        '203.0.113.10',
+        expect.any(Object)
+      )
+    })
+
+    it('should still reject traversal in https URLs that look like internal serve URLs', async () => {
+      inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+        isValid: true,
+        resolvedIP: '203.0.113.10',
+      })
+      inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+        new Response('should never be fetched', { status: 200 })
+      )
+
+      // Absolute https URL containing `/api/files/serve/` matches isInternalFileUrl and would
+      // route to handleCloudFile — so it must keep traversal protection, not be waved through
+      // as an external URL.
+      const request = new NextRequest('http://localhost:3000/api/files/parse', {
+        method: 'POST',
+        body: JSON.stringify({
+          filePath: 'https://attacker.com/api/files/serve/../../../etc/passwd',
+        }),
+      })
+
+      const response = await POST(request)
+      const result = await response.json()
+
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/Access denied: path traversal detected/)
+      expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     })
 
     it('should handle encoded path traversal attempts', async () => {

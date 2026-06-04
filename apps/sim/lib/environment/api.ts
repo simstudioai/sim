@@ -1,27 +1,20 @@
-import { API_ENDPOINTS } from '@/stores/constants'
+import type { z } from 'zod'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type environmentVariableSchema,
+  getPersonalEnvironmentContract,
+  getWorkspaceEnvironmentContract,
+  type workspaceEnvironmentDataSchema,
+} from '@/lib/api/contracts'
 
-export interface EnvironmentVariable {
-  key: string
-  value: string
-}
+export type EnvironmentVariable = z.output<typeof environmentVariableSchema>
 
-export interface WorkspaceEnvironmentData {
-  workspace: Record<string, string>
-  personal: Record<string, string>
-  conflicts: string[]
-}
+export type WorkspaceEnvironmentData = z.output<typeof workspaceEnvironmentDataSchema>
 
 export async function fetchPersonalEnvironment(
   signal?: AbortSignal
 ): Promise<Record<string, EnvironmentVariable>> {
-  const response = await fetch(API_ENDPOINTS.ENVIRONMENT, { signal })
-
-  if (!response.ok) {
-    await response.text().catch(() => {})
-    throw new Error(`Failed to load environment variables: ${response.statusText}`)
-  }
-
-  const { data } = await response.json()
+  const { data } = await requestJson(getPersonalEnvironmentContract, { signal })
 
   if (data && typeof data === 'object') {
     return data
@@ -34,14 +27,10 @@ export async function fetchWorkspaceEnvironment(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<WorkspaceEnvironmentData> {
-  const response = await fetch(API_ENDPOINTS.WORKSPACE_ENVIRONMENT(workspaceId), { signal })
-
-  if (!response.ok) {
-    await response.text().catch(() => {})
-    throw new Error(`Failed to load workspace environment: ${response.statusText}`)
-  }
-
-  const { data } = await response.json()
+  const { data } = await requestJson(getWorkspaceEnvironmentContract, {
+    params: { id: workspaceId },
+    signal,
+  })
 
   return {
     workspace: data.workspace || {},

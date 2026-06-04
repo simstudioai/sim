@@ -1,9 +1,55 @@
 import { createLogger } from '@sim/logger'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 
 const logger = createLogger('JiraUtils')
 
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024
+
+/**
+ * Converts a value to ADF format. If the value is already an ADF document object,
+ * it is returned as-is. If it is a plain string, it is wrapped in a single-paragraph ADF doc.
+ */
+export function toAdf(value: string | Record<string, unknown>): Record<string, unknown> {
+  if (typeof value === 'object') {
+    if (value.type === 'doc') {
+      return value
+    }
+    if (value.type && Array.isArray(value.content)) {
+      return { type: 'doc', version: 1, content: [value] }
+    }
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (typeof parsed === 'object' && parsed !== null && parsed.type === 'doc') {
+        return parsed
+      }
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        parsed.type &&
+        Array.isArray(parsed.content)
+      ) {
+        return { type: 'doc', version: 1, content: [parsed] }
+      }
+    } catch {
+      // Not JSON — treat as plain text below
+    }
+  }
+  return {
+    type: 'doc',
+    version: 1,
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) },
+        ],
+      },
+    ],
+  }
+}
 
 /**
  * Extracts plain text from Atlassian Document Format (ADF) content.
@@ -16,6 +62,9 @@ export function extractAdfText(content: any): string | null {
     return content.map(extractAdfText).filter(Boolean).join(' ')
   }
   if (content.type === 'text') return content.text || ''
+  if (content.type === 'hardBreak') return '\n'
+  if (content.type === 'mention') return content.attrs?.text || ''
+  if (content.type === 'emoji') return content.attrs?.shortName || content.attrs?.text || ''
   if (content.content) return extractAdfText(content.content)
   return ''
 }
@@ -27,11 +76,11 @@ export function extractAdfText(content: any): string | null {
 export function transformUser(user: any): {
   accountId: string
   displayName: string
-  active?: boolean
-  emailAddress?: string
-  avatarUrl?: string
-  accountType?: string
-  timeZone?: string
+  active: boolean | null
+  emailAddress: string | null
+  avatarUrl: string | null
+  accountType: string | null
+  timeZone: string | null
 } | null {
   if (!user) return null
   return {
@@ -97,14 +146,32 @@ export async function downloadJiraAttachments(
   return downloaded
 }
 
-function normalizeDomain(domain: string): string {
+/**
+ * Normalizes an ISO timestamp into the format Jira's worklog API requires:
+ * `YYYY-MM-DDTHH:mm:ss.sss±HHMM` (offset without colon). Accepts trailing `Z`
+ * and `±HH:MM` offsets and rewrites them to `±HHMM`. If milliseconds are
+ * missing, `.000` is inserted before the offset.
+ */
+export function normalizeJiraWorklogTimestamp(value: string): string {
+  let s = value.trim()
+  s = s.replace(/Z$/i, '+0000')
+  s = s.replace(/([+-]\d{2}):(\d{2})$/, '$1$2')
+  s = s.replace(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})([+-]\d{4})$/, '$1.000$2')
+  return s
+}
+
+export function normalizeDomain(domain: string): string {
   return `https://${domain
     .trim()
     .replace(/^https?:\/\//i, '')
     .replace(/\/+$/, '')}`.toLowerCase()
 }
 
-export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
+export async function getJiraCloudId(
+  domain: string,
+  accessToken: string,
+  retryOptions?: RetryOptions
+): Promise<string> {
   const response = await fetchWithRetry(
     'https://api.atlassian.com/oauth/token/accessible-resources',
     {
@@ -113,7 +180,8 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
       },
-    }
+    },
+    retryOptions
   )
 
   if (!response.ok) {
@@ -144,4 +212,45 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
     `Could not match Jira domain "${domain}" to any accessible resource. ` +
       `Available sites: ${resources.map((r: { url: string }) => r.url).join(', ')}`
   )
+}
+
+/**
+ * Parse error messages from Atlassian API responses (Jira, JSM, Confluence).
+ * Handles all known error formats: errorMessage, errorMessages[], errors[].title/detail,
+ * field-level errors object, and generic message fallback.
+ */
+export function parseAtlassianErrorMessage(
+  status: number,
+  statusText: string,
+  errorText: string
+): string {
+  try {
+    const errorData = JSON.parse(errorText)
+    if (errorData.errorMessage) {
+      return errorData.errorMessage
+    }
+    if (Array.isArray(errorData.errorMessages) && errorData.errorMessages.length > 0) {
+      return errorData.errorMessages.join(', ')
+    }
+    if (Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+      const err = errorData.errors[0]
+      if (err?.title) {
+        return err.detail ? `${err.title}: ${err.detail}` : err.title
+      }
+    }
+    if (errorData.errors && !Array.isArray(errorData.errors)) {
+      const fieldErrors = Object.entries(errorData.errors)
+        .map(([field, msg]) => `${field}: ${msg}`)
+        .join(', ')
+      if (fieldErrors) return fieldErrors
+    }
+    if (errorData.message) {
+      return errorData.message
+    }
+  } catch {
+    if (errorText) {
+      return errorText
+    }
+  }
+  return `${status} ${statusText}`
 }

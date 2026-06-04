@@ -72,6 +72,8 @@ Run an autonomous web agent to complete tasks and extract structured data
 | `provider` | string | No | AI provider to use: openai or anthropic |
 | `apiKey` | string | Yes | API key for the selected provider |
 | `outputSchema` | json | No | Optional JSON schema defining the structure of data the agent should return |
+| `mode` | string | No | Agent tool mode: dom \(default\), hybrid, or cua |
+| `maxSteps` | number | No | Maximum agent steps \(default 20, max 200\) |
 
 #### Output
 
@@ -92,5 +94,7 @@ Run an autonomous web agent to complete tasks and extract structured data
 |     ↳ `timestamp` | number | Unix timestamp when the action was performed |
 |     ↳ `timeMs` | number | Time in milliseconds \(for wait actions\) |
 | `structuredOutput` | object | Extracted data matching the provided output schema |
+| `liveViewUrl` | string | Embeddable Browserbase live view URL \(active only while the session is running\) |
+| `sessionId` | string | Browserbase session identifier |
 
 

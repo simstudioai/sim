@@ -1,0 +1,52 @@
+---
+title: Google Drive
+description: Available Google Drive triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="google_drive"
+  color="#E0E0E0"
+/>
+
+Google Drive provides 1 trigger for automating workflows based on events.
+
+All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
+
+## Triggers
+
+### Google Drive File Trigger
+
+Triggers when files are created, modified, or deleted in Google Drive
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Connect your Google account to access Google Drive. |
+| `folderId` | file-selector | No | Optional: The folder to monitor. Leave empty to monitor all files in Drive. |
+| `manualFolderId` | string | No | Optional: The folder ID from the Google Drive URL to monitor. Leave empty to monitor all files. |
+| `mimeTypeFilter` | string | No | Optional: Only trigger for specific file types. |
+| `eventTypeFilter` | string | No | Only trigger for specific change types. Defaults to all changes. |
+| `includeSharedDrives` | boolean | No | Include files from shared \(team\) drives. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | object | file output from the tool |
+|   ↳ `id` | string | Google Drive file ID |
+|   ↳ `name` | string | File name |
+|   ↳ `mimeType` | string | File MIME type |
+|   ↳ `modifiedTime` | string | Last modified time \(ISO\) |
+|   ↳ `createdTime` | string | File creation time \(ISO\) |
+|   ↳ `size` | string | File size in bytes |
+|   ↳ `webViewLink` | string | URL to view file in browser |
+|   ↳ `parents` | json | Parent folder IDs |
+|   ↳ `lastModifyingUser` | json | User who last modified the file |
+|   ↳ `shared` | boolean | Whether file is shared |
+|   ↳ `starred` | boolean | Whether file is starred |
+| `eventType` | string | Change type: "created", "modified", or "deleted" |
+| `timestamp` | string | Event timestamp in ISO format |
+

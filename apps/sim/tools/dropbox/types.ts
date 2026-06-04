@@ -3,7 +3,7 @@ import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 // ===== Core Types =====
 
-export interface DropboxFileMetadata {
+interface DropboxFileMetadata {
   '.tag': 'file'
   id: string
   name: string
@@ -17,7 +17,7 @@ export interface DropboxFileMetadata {
   is_downloadable?: boolean
 }
 
-export interface DropboxFolderMetadata {
+interface DropboxFolderMetadata {
   '.tag': 'folder'
   id: string
   name: string
@@ -25,7 +25,7 @@ export interface DropboxFolderMetadata {
   path_lower: string
 }
 
-export interface DropboxDeletedMetadata {
+interface DropboxDeletedMetadata {
   '.tag': 'deleted'
   name: string
   path_display: string
@@ -34,7 +34,7 @@ export interface DropboxDeletedMetadata {
 
 export type DropboxMetadata = DropboxFileMetadata | DropboxFolderMetadata | DropboxDeletedMetadata
 
-export interface DropboxSharedLinkMetadata {
+interface DropboxSharedLinkMetadata {
   url: string
   name: string
   path_lower: string
@@ -51,7 +51,7 @@ export interface DropboxSharedLinkMetadata {
   id?: string
 }
 
-export interface DropboxSearchMatch {
+interface DropboxSearchMatch {
   match_type: {
     '.tag': 'filename' | 'content' | 'both'
   }
@@ -63,7 +63,7 @@ export interface DropboxSearchMatch {
 
 // ===== Base Params =====
 
-export interface DropboxBaseParams {
+interface DropboxBaseParams {
   accessToken?: string
 }
 
@@ -221,11 +221,11 @@ export interface DropboxSearchResponse extends ToolResponse {
 
 // ===== Get Temporary Link Params =====
 
-export interface DropboxGetTemporaryLinkParams extends DropboxBaseParams {
+interface DropboxGetTemporaryLinkParams extends DropboxBaseParams {
   path: string
 }
 
-export interface DropboxGetTemporaryLinkResponse extends ToolResponse {
+interface DropboxGetTemporaryLinkResponse extends ToolResponse {
   output: {
     metadata?: DropboxFileMetadata
     link?: string

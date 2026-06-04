@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
-import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { toError } from '@sim/utils/errors'
+import { z } from 'zod'
+import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { registry as blockRegistry } from '@/blocks/registry'
@@ -14,7 +15,7 @@ import { tools as toolsRegistry } from '@/tools/registry'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
-export interface CopilotSubblockMetadata {
+interface CopilotSubblockMetadata {
   id: string
   type: string
   title?: string
@@ -59,7 +60,7 @@ export interface CopilotSubblockMetadata {
   value?: string // 'function' if it's a function, undefined otherwise
 }
 
-export interface CopilotToolMetadata {
+interface CopilotToolMetadata {
   id: string
   name: string
   description?: string
@@ -67,13 +68,13 @@ export interface CopilotToolMetadata {
   outputs?: any
 }
 
-export interface CopilotTriggerMetadata {
+interface CopilotTriggerMetadata {
   id: string
   outputs?: any
   configFields?: any
 }
 
-export interface CopilotBlockMetadata {
+interface CopilotBlockMetadata {
   id: string
   name: string
   description: string
@@ -100,21 +101,27 @@ export interface CopilotBlockMetadata {
   yamlDocumentation?: string
 }
 
+const GetBlocksMetadataInputSchema = z.object({ blockIds: z.array(z.string()).min(1) })
+const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.string(), z.any()) })
+
 export const getBlocksMetadataServerTool: BaseServerTool<
-  ReturnType<typeof GetBlocksMetadataInput.parse>,
-  ReturnType<typeof GetBlocksMetadataResult.parse>
+  z.infer<typeof GetBlocksMetadataInputSchema>,
+  z.infer<typeof GetBlocksMetadataResultSchema>
 > = {
   name: 'get_blocks_metadata',
-  inputSchema: GetBlocksMetadataInput,
-  outputSchema: GetBlocksMetadataResult,
+  inputSchema: GetBlocksMetadataInputSchema,
+  outputSchema: GetBlocksMetadataResultSchema,
   async execute(
-    { blockIds }: ReturnType<typeof GetBlocksMetadataInput.parse>,
-    context?: { userId: string }
-  ): Promise<ReturnType<typeof GetBlocksMetadataResult.parse>> {
+    { blockIds }: z.infer<typeof GetBlocksMetadataInputSchema>,
+    context?: { userId: string; workspaceId?: string }
+  ): Promise<z.infer<typeof GetBlocksMetadataResultSchema>> {
     const logger = createLogger('GetBlocksMetadataServerTool')
     logger.debug('Executing get_blocks_metadata', { count: blockIds?.length })
 
-    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const permissionConfig =
+      context?.userId && context?.workspaceId
+        ? await getUserPermissionConfig(context.userId, context.workspaceId)
+        : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 
@@ -185,7 +192,10 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
           const configFields: Record<string, any> = {}
           for (const subBlock of trig.subBlocks) {
-            if (subBlock.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)) {
+            if (
+              (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
+              !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
+            ) {
               const fieldDef: any = {
                 type: subBlock.type,
                 required: subBlock.required || false,
@@ -227,7 +237,9 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         const blockInputs = computeBlockLevelInputs(blockConfig)
         const { commonParameters, operationParameters } = splitParametersByOperation(
           Array.isArray(blockConfig.subBlocks)
-            ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+            ? blockConfig.subBlocks.filter(
+                (sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
+              )
             : [],
           blockInputs
         )
@@ -305,7 +317,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         }
       } catch (error) {
         logger.warn('Failed to read YAML documentation file', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
 
@@ -319,7 +331,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       transformedResult[blockId] = transformBlockMetadata(metadata)
     }
 
-    return GetBlocksMetadataResult.parse({ metadata: transformedResult })
+    return GetBlocksMetadataResultSchema.parse({ metadata: transformedResult })
   },
 }
 
@@ -424,7 +436,7 @@ function extractInputs(metadata: CopilotBlockMetadata): {
 
   for (const schema of metadata.inputSchema || []) {
     // Skip trigger subBlocks - they're handled separately in triggers.configFields
-    if (schema.mode === 'trigger') {
+    if (schema.mode === 'trigger' || schema.mode === 'trigger-advanced') {
       continue
     }
 
@@ -711,7 +723,7 @@ function resolveAuthType(
 /**
  * Gets all available models from PROVIDER_DEFINITIONS as static options.
  * This provides fallback data when store state is not available server-side.
- * Excludes dynamic providers (ollama, vllm, openrouter, fireworks) which require runtime fetching.
+ * Excludes dynamic providers (ollama, ollama-cloud, vllm, openrouter, fireworks) which require runtime fetching.
  */
 function getStaticModelOptions(): { id: string; label?: string }[] {
   const models: { id: string; label?: string }[] = []
@@ -720,9 +732,12 @@ function getStaticModelOptions(): { id: string; label?: string }[] {
     // Skip providers with dynamic/fetched models
     if (
       provider.id === 'ollama' ||
+      provider.id === 'ollama-cloud' ||
       provider.id === 'vllm' ||
       provider.id === 'openrouter' ||
-      provider.id === 'fireworks'
+      provider.id === 'fireworks' ||
+      provider.id === 'together' ||
+      provider.id === 'baseten'
     ) {
       continue
     }
@@ -755,9 +770,13 @@ function callOptionsWithFallback(
     providers: {
       base: { models: staticModels.map((m) => m.id) },
       ollama: { models: [] },
+      'ollama-cloud': { models: [] },
       vllm: { models: [] },
+      litellm: { models: [] },
       openrouter: { models: [] },
       fireworks: { models: [] },
+      together: { models: [] },
+      baseten: { models: [] },
     },
   }
 
@@ -910,7 +929,7 @@ function splitParametersByOperation(
 function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> {
   const inputs = blockConfig.inputs || {}
   const subBlocks: any[] = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
     : []
 
   const byParamKey: Record<string, any[]> = {}
@@ -945,7 +964,7 @@ function computeOperationLevelInputs(
 ): Record<string, Record<string, any>> {
   const inputs = blockConfig.inputs || {}
   const subBlocks = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
     : []
 
   const opInputs: Record<string, Record<string, any>> = {}
@@ -992,7 +1011,7 @@ function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): stri
   } catch (error) {
     const toolLogger = createLogger('GetBlocksMetadataServerTool')
     toolLogger.warn('Failed to resolve tool ID for operation', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
   return undefined

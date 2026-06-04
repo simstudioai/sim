@@ -1,15 +1,24 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { ttsToolContract } from '@/lib/api/contracts/tools/media/tts'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import {
+  isPayloadSizeLimitError,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { StorageService } from '@/lib/uploads'
 
 const logger = createLogger('ProxyTTSAPI')
+const MAX_TTS_AUDIO_BYTES = 25 * 1024 * 1024
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success) {
@@ -17,20 +26,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const parsed = await parseRequest(
+      ttsToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Missing required parameters') },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
     const {
       text,
       voiceId,
       apiKey,
-      modelId = 'eleven_monolingual_v1',
+      modelId,
+      stability,
+      similarityBoost,
       workspaceId,
       workflowId,
       executionId,
-    } = body
-
-    if (!text || !voiceId || !apiKey) {
-      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 })
-    }
+    } = parsed.data.body
 
     const voiceIdValidation = validateAlphanumericId(voiceId, 'voiceId', 255)
     if (!voiceIdValidation.isValid) {
@@ -39,16 +59,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if this is an execution context (from workflow tool execution)
-    const hasExecutionContext = workspaceId && workflowId && executionId
+    const executionContext =
+      workspaceId && workflowId && executionId ? { workspaceId, workflowId, executionId } : null
     logger.info('Proxying TTS request for voice:', {
       voiceId,
-      hasExecutionContext,
+      hasExecutionContext: Boolean(executionContext),
       workspaceId,
       workflowId,
       executionId,
     })
 
     const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`
+
+    const hasVoiceSetting = stability !== undefined || similarityBoost !== undefined
+    const voiceSettings = hasVoiceSetting
+      ? {
+          stability: stability ?? 0.5,
+          similarity_boost: similarityBoost ?? 0.75,
+        }
+      : undefined
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -60,6 +89,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         text,
         model_id: modelId,
+        ...(voiceSettings ? { voice_settings: voiceSettings } : {}),
       }),
       signal: AbortSignal.timeout(DEFAULT_EXECUTION_TIMEOUT_MS),
     })
@@ -73,27 +103,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const audioBlob = await response.blob()
+    const audioBuffer = await readResponseToBufferWithLimit(response, {
+      maxBytes: MAX_TTS_AUDIO_BYTES,
+      label: 'TTS audio response',
+      signal: request.signal,
+    })
 
-    if (audioBlob.size === 0) {
+    if (audioBuffer.length === 0) {
       logger.error('Empty audio received from ElevenLabs')
       return NextResponse.json({ error: 'Empty audio received' }, { status: 422 })
     }
 
-    const audioBuffer = Buffer.from(await audioBlob.arrayBuffer())
     const timestamp = Date.now()
 
     // Use execution storage for workflow tool calls, copilot for chat UI
-    if (hasExecutionContext) {
+    if (executionContext) {
       const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
       const fileName = `tts-${timestamp}.mp3`
 
       const userFile = await uploadExecutionFile(
-        {
-          workspaceId,
-          workflowId,
-          executionId,
-        },
+        executionContext,
         audioBuffer,
         fileName,
         'audio/mpeg',
@@ -137,9 +166,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        error: `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: `Internal Server Error: ${getErrorMessage(error, 'Unknown error')}`,
       },
-      { status: 500 }
+      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
     )
   }
-}
+})

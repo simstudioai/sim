@@ -1,37 +1,45 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { quiverImageToSvgContract } from '@/lib/api/contracts/tools/quiver'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { FileInputSchema, type RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 const logger = createLogger('QuiverImageToSvgAPI')
 
-const RequestSchema = z.object({
-  apiKey: z.string().min(1),
-  model: z.string().min(1),
-  image: z.union([FileInputSchema, z.string()]),
-  temperature: z.number().min(0).max(2).optional().nullable(),
-  top_p: z.number().min(0).max(1).optional().nullable(),
-  max_output_tokens: z.number().int().min(1).max(131072).optional().nullable(),
-  presence_penalty: z.number().min(-2).max(2).optional().nullable(),
-  auto_crop: z.boolean().optional().nullable(),
-  target_size: z.number().int().min(128).max(4096).optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-  if (!authResult.success) {
+  if (!authResult.success || !authResult.userId) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const body = await request.json()
-    const data = RequestSchema.parse(body)
+    const parsed = await parseRequest(
+      quiverImageToSvgContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
     let apiImage: { url: string } | { base64: string }
 
@@ -41,6 +49,13 @@ export async function POST(request: NextRequest) {
         if (parsed && typeof parsed === 'object') {
           const userFiles = processFilesToUserFiles([parsed as RawFileInput], requestId, logger)
           if (userFiles.length > 0) {
+            const denied = await assertToolFileAccess(
+              userFiles[0].key,
+              authResult.userId,
+              requestId,
+              logger
+            )
+            if (denied) return denied
             const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger)
             apiImage = { base64: buffer.toString('base64') }
           } else {
@@ -58,6 +73,13 @@ export async function POST(request: NextRequest) {
     } else if (typeof data.image === 'object' && data.image !== null) {
       const userFiles = processFilesToUserFiles([data.image as RawFileInput], requestId, logger)
       if (userFiles.length > 0) {
+        const denied = await assertToolFileAccess(
+          userFiles[0].key,
+          authResult.userId,
+          requestId,
+          logger
+        )
+        if (denied) return denied
         const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger)
         apiImage = { base64: buffer.toString('base64') }
       } else {
@@ -135,7 +157,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     logger.error(`[${requestId}] Error in Quiver image-to-svg:`, error)
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-}
+})

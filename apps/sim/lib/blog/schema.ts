@@ -57,6 +57,7 @@ export interface BlogMeta {
   about?: string[]
   timeRequired?: string
   faq?: { q: string; a: string }[]
+  wordCount?: number
   canonical: string
   draft: boolean
   featured: boolean

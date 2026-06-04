@@ -1,15 +1,17 @@
 import { db } from '@sim/db'
 import { academyCertificate, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { getCourseById } from '@/lib/academy/content'
 import type { CertificateMetadata } from '@/lib/academy/types'
+import { issueAcademyCertificateContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AcademyCertificatesAPI')
 
@@ -20,18 +22,13 @@ const CERT_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60 * 60_000, // 1 per hour refill
 }
 
-const IssueCertificateSchema = z.object({
-  courseId: z.string(),
-  completedLessonIds: z.array(z.string()),
-})
-
 /**
  * POST /api/academy/certificates
  * Issues a certificate for the given course after verifying all lessons are completed.
  * Completion is client-attested: the client sends completed lesson IDs and the server
  * validates them against the full lesson list for the course.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -46,13 +43,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     }
 
-    const body = await req.json()
-    const parsed = IssueCertificateSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
-    }
+    const parsed = await parseRequest(issueAcademyCertificateContract, req, {})
+    if (!parsed.success) return parsed.response
 
-    const { courseId, completedLessonIds } = parsed.data
+    const { courseId, completedLessonIds } = parsed.data.body
 
     const course = getCourseById(courseId)
     if (!course) {
@@ -150,7 +144,7 @@ export async function POST(req: NextRequest) {
     logger.error('Failed to issue certificate', { error })
     return NextResponse.json({ error: 'Failed to issue certificate' }, { status: 500 })
   }
-}
+})
 
 /**
  * GET /api/academy/certificates?certificateNumber=SIM-2026-00042
@@ -159,7 +153,7 @@ export async function POST(req: NextRequest) {
  * GET /api/academy/certificates?courseId=...
  * Authenticated endpoint for looking up the current user's certificate for a course.
  */
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url)
     const certificateNumber = searchParams.get('certificateNumber')
@@ -206,7 +200,7 @@ export async function GET(req: NextRequest) {
     logger.error('Failed to verify certificate', { error })
     return NextResponse.json({ error: 'Failed to verify certificate' }, { status: 500 })
   }
-}
+})
 
 /** Generates a human-readable certificate number, e.g. SIM-2026-A3K9XZ2P */
 function generateCertificateNumber(): string {

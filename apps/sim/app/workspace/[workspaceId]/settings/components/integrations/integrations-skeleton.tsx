@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/emcn'
-import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
+import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/credential-skeleton'
 
 /**
  * Skeleton for the Integrations section shown during dynamic import loading.

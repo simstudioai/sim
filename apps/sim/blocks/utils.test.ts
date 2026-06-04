@@ -27,6 +27,7 @@ const { mockProviders } = vi.hoisted(() => ({
       base: { models: [] as string[], isLoading: false },
       ollama: { models: [] as string[], isLoading: false },
       vllm: { models: [] as string[], isLoading: false },
+      litellm: { models: [] as string[], isLoading: false },
       openrouter: { models: [] as string[], isLoading: false },
       fireworks: { models: [] as string[], isLoading: false },
     },
@@ -66,7 +67,15 @@ vi.mock('@/lib/oauth/utils', () => ({
   getScopesForService: vi.fn(() => []),
 }))
 
-import { getApiKeyCondition } from '@/blocks/utils'
+import type { SubBlockConfig } from '@/blocks/types'
+import {
+  getApiKeyCondition,
+  getDependsOnFields,
+  getSubBlocksDependingOnChange,
+  parseOptionalBooleanInput,
+  parseOptionalJsonInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
   'gpt-4o': 'openai',
@@ -93,6 +102,7 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       base: { models: [], isLoading: false },
       ollama: { models: [], isLoading: false },
       vllm: { models: [], isLoading: false },
+      litellm: { models: [], isLoading: false },
       openrouter: { models: [], isLoading: false },
       fireworks: { models: [], isLoading: false },
     }
@@ -175,6 +185,11 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     it('does not require API key when model is in the vLLM store bucket', () => {
       mockProviders.value.vllm.models = ['my-custom-model']
       expect(evaluateCondition('my-custom-model')).toBe(false)
+    })
+
+    it('does not require API key when model is in the LiteLLM store bucket', () => {
+      mockProviders.value.litellm.models = ['litellm/anthropic/claude-sonnet-4-6']
+      expect(evaluateCondition('litellm/anthropic/claude-sonnet-4-6')).toBe(false)
     })
 
     it('requires API key when model is in the fireworks store bucket', () => {
@@ -263,5 +278,184 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       expect(evaluateCondition('mistral:latest')).toBe(true)
       expect(evaluateCondition('gpt-4o')).toBe(true)
     })
+  })
+})
+
+describe('parseOptionalJsonInput', () => {
+  it('returns undefined for empty values', () => {
+    expect(parseOptionalJsonInput('', 'payload')).toBeUndefined()
+    expect(parseOptionalJsonInput('   ', 'payload')).toBeUndefined()
+    expect(parseOptionalJsonInput(undefined, 'payload')).toBeUndefined()
+  })
+
+  it('parses JSON strings', () => {
+    expect(parseOptionalJsonInput('{"a":1}', 'payload')).toEqual({ a: 1 })
+    expect(parseOptionalJsonInput('["a","b"]', 'payload')).toEqual(['a', 'b'])
+  })
+
+  it('returns non-string values as-is', () => {
+    const value = { a: 1 }
+    expect(parseOptionalJsonInput(value, 'payload')).toBe(value)
+  })
+
+  it('throws a helpful error for invalid JSON', () => {
+    expect(() => parseOptionalJsonInput('{', 'payload')).toThrow(/Invalid JSON for payload/)
+  })
+})
+
+describe('parseOptionalNumberInput', () => {
+  it('returns undefined for empty values', () => {
+    expect(parseOptionalNumberInput('', 'limit')).toBeUndefined()
+    expect(parseOptionalNumberInput('   ', 'limit')).toBeUndefined()
+    expect(parseOptionalNumberInput(undefined, 'limit')).toBeUndefined()
+  })
+
+  it('parses number strings and number values', () => {
+    expect(parseOptionalNumberInput('42', 'limit')).toBe(42)
+    expect(parseOptionalNumberInput(7, 'limit')).toBe(7)
+  })
+
+  it('validates integer-only values', () => {
+    expect(parseOptionalNumberInput('42', 'limit', { integer: true })).toBe(42)
+    expect(() => parseOptionalNumberInput('1.5', 'limit', { integer: true })).toThrow(
+      /expected an integer/i
+    )
+  })
+
+  it('validates min and max bounds', () => {
+    expect(parseOptionalNumberInput('10', 'limit', { min: 1, max: 20 })).toBe(10)
+    expect(() => parseOptionalNumberInput('0', 'limit', { min: 1 })).toThrow(
+      /limit must be at least 1/i
+    )
+    expect(() => parseOptionalNumberInput('21', 'limit', { max: 20 })).toThrow(
+      /limit must be at most 20/i
+    )
+  })
+
+  it('throws a helpful error for invalid numbers', () => {
+    expect(() => parseOptionalNumberInput('abc', 'limit')).toThrow(/Invalid number for limit/i)
+  })
+})
+
+describe('parseOptionalBooleanInput', () => {
+  it('returns undefined for empty values', () => {
+    expect(parseOptionalBooleanInput('')).toBeUndefined()
+    expect(parseOptionalBooleanInput('   ')).toBeUndefined()
+    expect(parseOptionalBooleanInput(undefined)).toBeUndefined()
+  })
+
+  it('passes through boolean values', () => {
+    expect(parseOptionalBooleanInput(true)).toBe(true)
+    expect(parseOptionalBooleanInput(false)).toBe(false)
+  })
+
+  it('supports numeric boolean values', () => {
+    expect(parseOptionalBooleanInput(1)).toBe(true)
+    expect(parseOptionalBooleanInput(0)).toBe(false)
+    expect(parseOptionalBooleanInput(5)).toBe(true)
+  })
+
+  it('supports trimmed and case-insensitive string values', () => {
+    expect(parseOptionalBooleanInput('true')).toBe(true)
+    expect(parseOptionalBooleanInput(' TRUE ')).toBe(true)
+    expect(parseOptionalBooleanInput('1')).toBe(true)
+    expect(parseOptionalBooleanInput('false')).toBe(false)
+    expect(parseOptionalBooleanInput(' False ')).toBe(false)
+    expect(parseOptionalBooleanInput('0')).toBe(false)
+  })
+
+  it('returns undefined for unrecognized string values', () => {
+    expect(parseOptionalBooleanInput('yes')).toBeUndefined()
+    expect(parseOptionalBooleanInput('no')).toBeUndefined()
+  })
+})
+
+describe('getDependsOnFields', () => {
+  it('returns an empty array when dependsOn is unset', () => {
+    expect(getDependsOnFields(undefined)).toEqual([])
+  })
+
+  it('returns array dependencies unchanged', () => {
+    expect(getDependsOnFields(['credential', 'projectId'])).toEqual(['credential', 'projectId'])
+  })
+
+  it('flattens all and any dependencies', () => {
+    expect(getDependsOnFields({ all: ['credential'], any: ['teamId', 'manualTeamId'] })).toEqual([
+      'credential',
+      'teamId',
+      'manualTeamId',
+    ])
+  })
+})
+
+describe('getSubBlocksDependingOnChange', () => {
+  it('finds direct dependents of a changed subblock', () => {
+    const subBlocks: SubBlockConfig[] = [
+      { id: 'provider', title: 'Provider', type: 'dropdown' },
+      { id: 'model', title: 'Model', type: 'dropdown', dependsOn: ['provider'] },
+      { id: 'prompt', title: 'Prompt', type: 'long-input' },
+    ]
+
+    expect(
+      getSubBlocksDependingOnChange(subBlocks, 'provider').map((subBlock) => subBlock.id)
+    ).toEqual(['model'])
+  })
+
+  it('matches dependents through canonical basic and advanced siblings', () => {
+    const subBlocks: SubBlockConfig[] = [
+      {
+        id: 'channel',
+        title: 'Channel',
+        type: 'channel-selector',
+        canonicalParamId: 'channelId',
+        mode: 'basic',
+      },
+      {
+        id: 'manualChannel',
+        title: 'Channel ID',
+        type: 'short-input',
+        canonicalParamId: 'channelId',
+        mode: 'advanced',
+      },
+      {
+        id: 'messageId',
+        title: 'Message ID',
+        type: 'short-input',
+        dependsOn: ['channelId'],
+      },
+      {
+        id: 'threadTs',
+        title: 'Thread Timestamp',
+        type: 'short-input',
+        dependsOn: ['otherField'],
+      },
+    ]
+
+    expect(
+      getSubBlocksDependingOnChange(subBlocks, 'manualChannel').map((subBlock) => subBlock.id)
+    ).toEqual(['messageId'])
+    expect(
+      getSubBlocksDependingOnChange(subBlocks, 'channel').map((subBlock) => subBlock.id)
+    ).toEqual(['messageId'])
+  })
+
+  it('matches object-form dependencies when any listed dependency changes', () => {
+    const subBlocks: SubBlockConfig[] = [
+      { id: 'credential', title: 'Credential', type: 'oauth-input' },
+      { id: 'teamId', title: 'Team', type: 'short-input' },
+      {
+        id: 'projectId',
+        title: 'Project',
+        type: 'short-input',
+        dependsOn: { all: ['credential'], any: ['teamId'] },
+      },
+    ]
+
+    expect(
+      getSubBlocksDependingOnChange(subBlocks, 'credential').map((subBlock) => subBlock.id)
+    ).toEqual(['projectId'])
+    expect(
+      getSubBlocksDependingOnChange(subBlocks, 'teamId').map((subBlock) => subBlock.id)
+    ).toEqual(['projectId'])
   })
 })

@@ -1,5 +1,8 @@
-import { getEnv } from '@/lib/core/config/env'
+import { env, getEnv } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
+
+/** Canonical base URL for the public-facing marketing site. No trailing slash. */
+export const SITE_URL = 'https://www.sim.ai'
 
 function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
@@ -96,4 +99,111 @@ export function getEmailDomain(): string {
   } catch (_e) {
     return isProd ? 'sim.ai' : 'localhost:3000'
   }
+}
+
+const DEFAULT_SOCKET_URL = 'http://localhost:3002'
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
+export const LOCALHOST_HOSTNAMES: ReadonlySet<string> = new Set([
+  'localhost',
+  '127.0.0.1',
+  '[::1]',
+  '::1',
+])
+
+export function isLoopbackHostname(hostname: string): boolean {
+  return LOCALHOST_HOSTNAMES.has(hostname)
+}
+
+/**
+ * Parses a comma-separated list of origins (e.g. from a `TRUSTED_ORIGINS` env
+ * var) into a deduped array of normalized origins. Invalid entries are dropped.
+ *
+ * @param raw - Comma-separated origin list, or undefined/empty
+ * @param onInvalid - Optional callback invoked once per invalid entry
+ */
+export function parseOriginList(
+  raw: string | undefined | null,
+  onInvalid?: (value: string) => void
+): string[] {
+  if (!raw) return []
+  const seen = new Set<string>()
+  const origins: string[] = []
+  for (const candidate of raw.split(',')) {
+    const trimmed = candidate.trim()
+    if (!trimmed) continue
+    try {
+      const { origin } = new URL(trimmed)
+      if (!seen.has(origin)) {
+        seen.add(origin)
+        origins.push(origin)
+      }
+    } catch {
+      onInvalid?.(trimmed)
+    }
+  }
+  return origins
+}
+
+/**
+ * Returns true when the given URL points at a localhost loopback host.
+ * Used to detect misconfigured deployments where `NEXT_PUBLIC_APP_URL` is left
+ * at its development default in production.
+ */
+export function isLocalhostUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url)
+    return LOCALHOST_HOSTNAMES.has(hostname)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Returns the current browser origin, or `null` when called server-side.
+ *
+ * Use this when an absolute URL is needed for a same-origin resource (auth API,
+ * reverse-proxied socket, etc.) so a misconfigured `NEXT_PUBLIC_*` env var
+ * baked into the client bundle at build time can't pin requests to the wrong host.
+ */
+export function getBrowserOrigin(): string | null {
+  return typeof window !== 'undefined' ? window.location.origin : null
+}
+
+/**
+ * Returns the socket server URL for server-side internal API calls.
+ * Reads from SOCKET_SERVER_URL with a localhost fallback for development.
+ */
+export function getSocketServerUrl(): string {
+  return env.SOCKET_SERVER_URL || DEFAULT_SOCKET_URL
+}
+
+/**
+ * Returns the socket server URL for client-side Socket.IO connections.
+ *
+ * Resolution order:
+ * 1. `NEXT_PUBLIC_SOCKET_URL` if explicitly set (subdomain, separate host:port)
+ * 2. In the browser when the page is served from a non-localhost origin, the
+ *    page's own origin — assumes the reverse proxy routes `/socket.io` to the
+ *    realtime service. This avoids shipping a hardcoded `localhost:3002` to
+ *    self-hosters behind nginx/Cloudflare.
+ * 3. `http://localhost:3002` for local development and SSR.
+ */
+export function getSocketUrl(): string {
+  const explicit = getEnv('NEXT_PUBLIC_SOCKET_URL')?.trim()
+  if (explicit) return explicit
+
+  const browserOrigin = getBrowserOrigin()
+  if (browserOrigin && !LOCALHOST_HOSTNAMES.has(new URL(browserOrigin).hostname)) {
+    return browserOrigin
+  }
+
+  return DEFAULT_SOCKET_URL
+}
+
+/**
+ * Returns the Ollama server URL.
+ * Reads from OLLAMA_URL with a localhost fallback for development.
+ */
+export function getOllamaUrl(): string {
+  return env.OLLAMA_URL || DEFAULT_OLLAMA_URL
 }

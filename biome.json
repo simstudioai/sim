@@ -6,6 +6,8 @@
     "includes": [
       "**",
       "!**/.next",
+      "!**/.next",
+      "!**/next-env.d.ts",
       "!**/out",
       "!**/dist",
       "!**/build",
@@ -27,7 +29,8 @@
       "!**/apps/docs/.source",
       "!**/venv",
       "!**/.venv",
-      "!**/uploads"
+      "!**/uploads",
+      "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs"
     ]
   },
   "formatter": {
@@ -66,8 +69,7 @@
     "rules": {
       "recommended": true,
       "nursery": {
-        "useSortedClasses": "warn",
-        "noNestedComponentDefinitions": "off"
+        "useSortedClasses": "warn"
       },
       "a11y": {
         "noSvgWithoutTitle": "off",
@@ -99,6 +101,7 @@
         "noDangerouslySetInnerHtml": "off"
       },
       "style": {
+        "noDescendingSpecificity": "off",
         "noNonNullAssertion": "off",
         "noParameterAssign": "off",
         "useNodejsImportProtocol": "off",
@@ -110,7 +113,16 @@
         "noUnusedTemplateLiteral": "off",
         "useNumberNamespace": "error",
         "noInferrableTypes": "error",
-        "noUselessElse": "error"
+        "noUselessElse": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "nanoid": "Use generateId() or generateShortId() from @sim/utils/id instead",
+              "uuid": "Use generateId() from @sim/utils/id instead"
+            }
+          }
+        }
       },
       "complexity": {
         "noForEach": "off",

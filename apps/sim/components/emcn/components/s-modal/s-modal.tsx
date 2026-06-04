@@ -30,6 +30,7 @@ import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
+import { focusFirstTextInput } from '../modal/auto-focus'
 import { Modal, type ModalContentProps, ModalOverlay, ModalPortal } from '../modal/modal'
 
 const ANIMATION_CLASSES =
@@ -59,7 +60,7 @@ const SModalClose = DialogPrimitive.Close
 const SModalContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   ModalContentProps
->(({ className, children, style, ...props }, ref) => {
+>(({ className, children, style, onOpenAutoFocus, ...props }, ref) => {
   const [isInteractionReady, setIsInteractionReady] = React.useState(false)
 
   React.useEffect(() => {
@@ -95,6 +96,7 @@ const SModalContent = React.forwardRef<
         onPointerUp={(e) => {
           e.stopPropagation()
         }}
+        onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
         {...props}
       >
         {children}
@@ -162,7 +164,7 @@ const SModalSidebarSectionTitle = React.forwardRef<
 
 SModalSidebarSectionTitle.displayName = 'SModalSidebarSectionTitle'
 
-export interface SModalSidebarItemProps extends React.ComponentPropsWithoutRef<typeof Button> {
+interface SModalSidebarItemProps extends React.ComponentPropsWithoutRef<typeof Button> {
   /** Whether the item is currently active/selected */
   active?: boolean
   /** Icon element to display */
@@ -191,9 +193,7 @@ function SModalSidebarItem({
       {...props}
     >
       {icon && (
-        <span className='h-[14px] w-[14px] flex-shrink-0 [&>svg]:h-full [&>svg]:w-full'>
-          {icon}
-        </span>
+        <span className='size-[14px] flex-shrink-0 [&>svg]:h-full [&>svg]:w-full'>{icon}</span>
       )}
       {children}
     </Button>
@@ -228,9 +228,9 @@ const SModalMainHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<H
       <DialogPrimitive.Close asChild>
         <Button
           variant='ghost'
-          className='relative h-[16px] w-[16px] p-0 before:absolute before:inset-[-14px] before:content-[""]'
+          className='relative size-[16px] p-0 before:absolute before:inset-[-14px] before:content-[""]'
         >
-          <X className='h-[16px] w-[16px]' />
+          <X className='size-[16px]' />
           <span className='sr-only'>Close</span>
         </Button>
       </DialogPrimitive.Close>
