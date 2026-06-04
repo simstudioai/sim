@@ -101,6 +101,18 @@ describe('microsoftTeamsHandler verifyAuth (chat subscription clientState)', () 
     expect(res?.status).toBe(401)
   })
 
+  it('fails closed when the webhook record has no id', async () => {
+    const res = await microsoftTeamsHandler.verifyAuth!({
+      webhook: {},
+      workflow: {},
+      request: makeRequest(makeNotificationBody('')),
+      rawBody: makeNotificationBody(''),
+      requestId: 'test-req',
+      providerConfig: chatSubscriptionConfig,
+    })
+    expect(res?.status).toBe(401)
+  })
+
   it('does not require clientState for non-subscription trigger types', async () => {
     const res = await runVerifyAuth(JSON.stringify({ type: 'message', text: 'hi' }), {})
     expect(res).toBeNull()

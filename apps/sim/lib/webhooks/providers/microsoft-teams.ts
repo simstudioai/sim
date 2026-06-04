@@ -498,6 +498,13 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
     if (providerConfig.triggerId === 'microsoftteams_chat_subscription') {
       const expectedClientState = String(webhook.id ?? '')
+      if (!expectedClientState) {
+        logger.warn(
+          `[${requestId}] Microsoft Teams chat subscription webhook missing id for clientState verification`
+        )
+        return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
+      }
+
       let notifications: unknown[] = []
       try {
         const parsed = JSON.parse(rawBody) as Record<string, unknown>
