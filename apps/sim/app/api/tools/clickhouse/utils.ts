@@ -244,14 +244,36 @@ function isMutatingStatement(sql: string): boolean {
   return MUTATING_STATEMENT.some((pattern) => pattern.test(masked))
 }
 
+/**
+ * Strips leading whitespace, `--`/`/* … *​/` comments, and opening parens from a
+ * statement so the read-only leader keyword can be detected even when a query
+ * starts with a comment (e.g. `-- note\nSELECT …`) or wrapping parens.
+ */
+function stripLeadingNoise(sql: string): string {
+  let s = sql.trim()
+  for (;;) {
+    if (s.startsWith('--')) {
+      const newline = s.indexOf('\n')
+      s = (newline === -1 ? '' : s.slice(newline + 1)).trim()
+    } else if (s.startsWith('/*')) {
+      const close = s.indexOf('*/')
+      s = (close === -1 ? '' : s.slice(close + 2)).trim()
+    } else if (s.startsWith('(')) {
+      s = s.slice(1).trim()
+    } else {
+      return s
+    }
+  }
+}
+
 export async function executeClickHouseQuery(
   config: ClickHouseConnectionConfig,
   query: string,
   options: { enforceReadOnly?: boolean } = {}
 ): Promise<ClickHouseRowsResult> {
   if (options.enforceReadOnly) {
-    // Strip leading parens so wrapped selects like "(SELECT ...)" still validate.
-    const leader = query.trim().replace(/^\(+\s*/, '')
+    // Strip leading comments/parens so wrapped or commented selects still validate.
+    const leader = stripLeadingNoise(query)
     if (!READ_ONLY_STATEMENT.test(leader)) {
       throw new Error(
         'The query operation only allows read-only statements (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN, EXISTS). Use the Execute Raw SQL operation to run writes or DDL.'
@@ -495,6 +517,43 @@ function validateExpression(expression: string, label: string): void {
 }
 
 /**
+ * Validates an ORDER BY / PARTITION BY expression that is spliced inside wrapping
+ * parentheses in the generated DDL. In addition to rejecting terminators/comments,
+ * it requires balanced parentheses (quote-aware) so the expression cannot close
+ * the wrapping `(...)` early and append extra clauses (e.g. `id) SETTINGS …`).
+ */
+function validateClauseExpression(expression: string, label: string): void {
+  const trimmed = expression.trim()
+  if (!trimmed) {
+    throw new Error(`${label} is required`)
+  }
+  if (/;|--|\/\*|\*\//.test(trimmed)) {
+    throw new Error(`${label} contains a disallowed sequence`)
+  }
+  let depth = 0
+  let inString = false
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i]
+    if (inString) {
+      if (ch === '\\') i++
+      else if (ch === "'") inString = false
+      continue
+    }
+    if (ch === "'") inString = true
+    else if (ch === '(') depth++
+    else if (ch === ')') {
+      depth--
+      if (depth < 0) {
+        throw new Error(`${label} has unbalanced parentheses`)
+      }
+    }
+  }
+  if (inString || depth !== 0) {
+    throw new Error(`${label} has unbalanced parentheses or quotes`)
+  }
+}
+
+/**
  * Validates a partition value for `DROP PARTITION`. ClickHouse partition values
  * are literals (signed numbers or single-quoted strings) or a parenthesised tuple
  * of such literals, so anything else is rejected — barewords like `ALL`, function
@@ -716,12 +775,12 @@ export async function executeClickHouseCreateTable(
   if (!orderBy?.trim()) {
     throw new Error('ORDER BY expression is required')
   }
-  validateExpression(orderBy, 'ORDER BY')
+  validateClauseExpression(orderBy, 'ORDER BY')
 
   let statement = `CREATE TABLE IF NOT EXISTS ${sanitizeIdentifier(table)} (${columnDefs.join(', ')}) ENGINE = ${engine.trim()}`
   if (partitionBy?.trim()) {
-    validateExpression(partitionBy, 'PARTITION BY')
-    statement += ` PARTITION BY ${partitionBy.trim()}`
+    validateClauseExpression(partitionBy, 'PARTITION BY')
+    statement += ` PARTITION BY (${partitionBy.trim()})`
   }
   statement += ` ORDER BY (${orderBy.trim()})`
 
