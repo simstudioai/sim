@@ -1944,7 +1944,6 @@ export const copilotChats = pgTable(
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
-    messages: jsonb('messages').notNull().default('[]'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'),
