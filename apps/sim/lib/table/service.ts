@@ -18,6 +18,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, gt, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/feature-flags'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -25,6 +26,7 @@ import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { areGroupDepsSatisfied } from './deps'
 import { CSV_MAX_BATCH_SIZE } from './import'
+import { keyBetween } from './order-key'
 import { buildFilterClause, buildSortClause } from './sql'
 import { fireTableTrigger } from './trigger'
 import type {
@@ -1148,9 +1150,48 @@ export function buildOrderedRowValues(opts: {
 }
 
 /**
- * Inserts a single row in its own transaction: sets timeouts, reserves the
- * position, and inserts. Validation and side-effect dispatch stay with the
- * caller. Capacity is enforced by the `increment_user_table_row_count` trigger.
+ * Computes the fractional `order_key` for a row being inserted at
+ * `requestedPosition` (or appended when omitted). Neighbors are resolved by the
+ * current `position` order — valid because keys are kept consistent with
+ * position order while the flag is off. Caller holds the row-order lock.
+ *
+ * NOTE: flag-on insert-*at a position* will resolve neighbors by `order_key`
+ * (via beforeRowId/afterRowId) once the wire contract carries them; until then
+ * append (the common path) is exact and at-position is position-derived.
+ */
+async function resolveInsertOrderKey(
+  trx: DbTransaction,
+  tableId: string,
+  requestedPosition?: number
+): Promise<string> {
+  const orderKeyAtPosition = async (pos: number): Promise<string | null> => {
+    if (pos < 0) return null
+    const [r] = await trx
+      .select({ orderKey: userTableRows.orderKey })
+      .from(userTableRows)
+      .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, pos)))
+      .limit(1)
+    return r?.orderKey ?? null
+  }
+  if (requestedPosition === undefined) {
+    const [{ maxKey }] = await trx
+      .select({ maxKey: sql<string | null>`max(${userTableRows.orderKey})` })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, tableId))
+    return keyBetween(maxKey ?? null, null)
+  }
+  const lo = await orderKeyAtPosition(requestedPosition - 1)
+  const hi = await orderKeyAtPosition(requestedPosition)
+  return keyBetween(lo, hi)
+}
+
+/**
+ * Inserts a single row in its own transaction. Always assigns a fractional
+ * `order_key`. When the fractional-ordering flag is on, `order_key` is
+ * authoritative and `position` is a best-effort append (no O(N) shift); when
+ * off, `position` is reserved as before (shifting to open the slot). Validation
+ * and side-effect dispatch stay with the caller; capacity is enforced by the
+ * `increment_user_table_row_count` trigger.
  */
 async function insertOrderedRow(params: {
   tableId: string
@@ -1164,7 +1205,25 @@ async function insertOrderedRow(params: {
   const { tableId, workspaceId, data, rowId, position, createdBy, now } = params
   const [row] = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
-    const targetPosition = await reserveInsertPosition(trx, tableId, position)
+    await acquireRowOrderLock(trx, tableId)
+    const orderKey = await resolveInsertOrderKey(trx, tableId, position)
+
+    let targetPosition: number
+    if (isTablesFractionalOrderingEnabled) {
+      // order_key is authoritative — keep a best-effort, no-shift position.
+      targetPosition = await nextRowPosition(trx, tableId)
+    } else if (position !== undefined) {
+      const [existing] = await trx
+        .select({ id: userTableRows.id })
+        .from(userTableRows)
+        .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, position)))
+        .limit(1)
+      if (existing) await shiftRowsUpFrom(trx, tableId, position)
+      targetPosition = position
+    } else {
+      targetPosition = await nextRowPosition(trx, tableId)
+    }
+
     return trx
       .insert(userTableRows)
       .values({
@@ -1173,6 +1232,7 @@ async function insertOrderedRow(params: {
         workspaceId,
         data,
         position: targetPosition,
+        orderKey,
         createdAt: now,
         updatedAt: now,
         ...(createdBy ? { createdBy } : {}),
@@ -1211,7 +1271,11 @@ async function deleteOrderedRow(params: {
       )
       .returning({ position: userTableRows.position })
     if (!deleted) return false
-    await shiftRowsDownAfter(trx, tableId, deleted.position)
+    // Fractional ordering: deleting a row never changes another row's order_key,
+    // so the O(N) position reshift is skipped entirely.
+    if (!isTablesFractionalOrderingEnabled) {
+      await shiftRowsDownAfter(trx, tableId, deleted.position)
+    }
     return true
   })
 }
@@ -1246,7 +1310,8 @@ async function deleteOrderedRowsByIds(params: {
         .returning({ id: userTableRows.id, position: userTableRows.position })
       deleted.push(...rows)
     }
-    if (deleted.length > 0) {
+    // Fractional ordering: deletes leave order_key untouched, so no recompaction.
+    if (!isTablesFractionalOrderingEnabled && deleted.length > 0) {
       const minDeletedPos = deleted.reduce(
         (min, r) => (r.position < min ? r.position : min),
         deleted[0].position
@@ -2154,7 +2219,14 @@ export async function queryRows(
     .from(userTableRows)
     .where(whereClause ?? baseConditions)
   if (orderByClause) {
-    query = query.orderBy(orderByClause) as typeof query
+    // Explicit data-column sort: tiebreak by the default order for stability.
+    query = query.orderBy(
+      orderByClause,
+      isTablesFractionalOrderingEnabled ? userTableRows.orderKey : userTableRows.position,
+      userTableRows.id
+    ) as typeof query
+  } else if (isTablesFractionalOrderingEnabled) {
+    query = query.orderBy(userTableRows.orderKey, userTableRows.id) as typeof query
   } else {
     query = query.orderBy(userTableRows.position) as typeof query
   }
