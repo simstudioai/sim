@@ -207,6 +207,32 @@ function hasChainedStatement(sql: string): boolean {
   return /;\s*\S/.test(maskSqlNoise(sql))
 }
 
+/**
+ * Write/DDL statement shapes that must never run under the read-only query
+ * operation, even when wrapped by a leading `WITH` CTE (e.g. `WITH … INSERT INTO …`).
+ * Patterns require the keyword's statement context (e.g. `insert into`, `alter table`)
+ * so SQL functions/columns like `truncate(x)` or `created_at` are not false-positives.
+ */
+const MUTATING_STATEMENT = [
+  /\binsert\s+into\b/i,
+  /\bdelete\s+from\b/i,
+  /\bupdate\s+[\w.`"]+\s+set\b/i,
+  /\balter\s+table\b/i,
+  /\b(?:create|attach)\s+(?:or\s+replace\s+)?(?:temporary\s+)?(?:table|database|dictionary|view|materialized\s+view|live\s+view|function|user|role)\b/i,
+  /\bdrop\s+(?:table|database|dictionary|view|column|partition|index|function|user|role)\b/i,
+  /\btruncate\s+table\b/i,
+  /\brename\s+(?:table|database|dictionary)\b/i,
+  /\bdetach\s+(?:table|database|dictionary|view|permanently)\b/i,
+  /\b(?:grant|revoke)\b/i,
+  /\boptimize\s+table\b/i,
+]
+
+/** Whether a statement performs a write/DDL anywhere (comments and strings masked out). */
+function isMutatingStatement(sql: string): boolean {
+  const masked = maskSqlNoise(sql)
+  return MUTATING_STATEMENT.some((pattern) => pattern.test(masked))
+}
+
 export async function executeClickHouseQuery(
   config: ClickHouseConnectionConfig,
   query: string,
@@ -223,6 +249,11 @@ export async function executeClickHouseQuery(
     if (hasChainedStatement(query)) {
       throw new Error(
         'The query operation only allows a single statement; chained statements separated by ";" are not allowed. Use the Execute Raw SQL operation to run multiple statements.'
+      )
+    }
+    if (isMutatingStatement(query)) {
+      throw new Error(
+        'The query operation only allows read-only statements; a write or DDL statement (e.g. INSERT/ALTER/DROP, including after a WITH clause) was detected. Use the Execute Raw SQL operation instead.'
       )
     }
   }
