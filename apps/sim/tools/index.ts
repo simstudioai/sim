@@ -21,6 +21,7 @@ import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
+import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
@@ -382,6 +383,14 @@ function isRateLimitError(error: unknown): boolean {
   return false
 }
 
+/** Map a thrown tool error to a hosted-key failure reason for metrics. */
+function classifyHostedKeyFailure(error: unknown): 'rate_limited' | 'auth' | 'other' {
+  const status = (error as { status?: number } | null)?.status
+  if (status === 429 || status === 503) return 'rate_limited'
+  if (status === 401 || status === 403) return 'auth'
+  return 'other'
+}
+
 /** Context for retry with rate limit tracking */
 interface RetryContext {
   requestId: string
@@ -618,7 +627,8 @@ async function applyHostedKeyCostToResult(
   tool: ToolConfig,
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
-  requestId: string
+  requestId: string,
+  envVarName: string | undefined
 ): Promise<void> {
   await reportCustomDimensionUsage(tool, params, finalResult.output, executionContext, requestId)
 
@@ -629,6 +639,12 @@ async function applyHostedKeyCostToResult(
     executionContext,
     requestId
   )
+
+  const provider = tool.hosting?.byokProviderId || tool.id
+  const key = envVarName ?? 'unknown'
+  hostedKeyMetrics.recordUsed({ provider, tool: tool.id, key })
+  hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
+
   if (hostedKeyCost > 0) {
     finalResult.output = {
       ...finalResult.output,
@@ -883,6 +899,9 @@ export async function executeTool(
   const startTimeISO = startTime.toISOString()
   const requestId = generateRequestId()
 
+  // Hoisted so the outer catch can attribute a thrown failure to the chosen key.
+  let hostedKeyForMetrics: { provider: string; tool: string; key: string } | undefined
+
   try {
     let tool: ToolConfig | undefined
 
@@ -1003,6 +1022,14 @@ export async function executeTool(
       executionContext,
       requestId
     )
+
+    if (hostedKeyInfo.isUsingHostedKey) {
+      hostedKeyForMetrics = {
+        provider: tool.hosting?.byokProviderId || tool.id,
+        tool: tool.id,
+        key: hostedKeyInfo.envVarName ?? 'unknown',
+      }
+    }
 
     // If we have a credential parameter, fetch the access token
     if (contextParams.oauthCredential) {
@@ -1148,7 +1175,8 @@ export async function executeTool(
           tool,
           contextParams,
           executionContext,
-          requestId
+          requestId,
+          hostedKeyInfo.envVarName
         )
       }
 
@@ -1213,7 +1241,8 @@ export async function executeTool(
         tool,
         contextParams,
         executionContext,
-        requestId
+        requestId,
+        hostedKeyInfo.envVarName
       )
     }
 
@@ -1233,6 +1262,13 @@ export async function executeTool(
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
+
+    if (hostedKeyForMetrics) {
+      hostedKeyMetrics.recordFailed({
+        ...hostedKeyForMetrics,
+        reason: classifyHostedKeyFailure(error),
+      })
+    }
 
     // Default error handling
     let errorMessage = 'Unknown error occurred'
