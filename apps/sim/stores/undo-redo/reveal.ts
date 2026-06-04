@@ -15,6 +15,8 @@ export interface UndoRedoRevealTarget {
 export function getRevealTarget(operation: Operation): UndoRedoRevealTarget | null {
   if (operation.type !== UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS) return null
   const { updates, subflowUpdates } = (operation as BatchUpdateSubblocksOperation).data
+  // A batch that spans multiple blocks (e.g. a search-replace across several fields)
+  // reveals only its first block — we can't open multiple editor panels at once.
   const blockId = updates[0]?.blockId ?? subflowUpdates?.[0]?.blockId
   return blockId ? { blockId } : null
 }

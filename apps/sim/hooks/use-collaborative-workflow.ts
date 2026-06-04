@@ -1684,6 +1684,15 @@ export function useCollaborativeWorkflow() {
         (update) => !isSyntheticToolSubBlockId(update.subblockId)
       )
 
+      // Capture each field's real prior value before mutating, so undo restores the
+      // actual value rather than `undefined` when a caller omits `expectedValue`.
+      const undoChanges = persistedUpdates.map((update) => ({
+        blockId: update.blockId,
+        subBlockId: update.subblockId,
+        before: useSubBlockStore.getState().getValue(update.blockId, update.subblockId),
+        after: update.value,
+      }))
+
       if (updates.length > 0) {
         updates.forEach((update) => {
           useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
@@ -1707,15 +1716,7 @@ export function useCollaborativeWorkflow() {
         }
       }
 
-      undoRedo.recordBatchUpdateSubblocks(
-        persistedUpdates.map((update) => ({
-          blockId: update.blockId,
-          subBlockId: update.subblockId,
-          before: update.expectedValue,
-          after: update.value,
-        })),
-        undoSubflowUpdates
-      )
+      undoRedo.recordBatchUpdateSubblocks(undoChanges, undoSubflowUpdates)
 
       return true
     },
@@ -1953,7 +1954,7 @@ export function useCollaborativeWorkflow() {
         )
       }
     },
-    [executeQueuedOperation]
+    [executeQueuedOperation, recordSubflowFieldUpdate]
   )
 
   const collaborativeUpdateIterationCollection = useCallback(
@@ -2054,7 +2055,7 @@ export function useCollaborativeWorkflow() {
         )
       }
     },
-    [executeQueuedOperation]
+    [executeQueuedOperation, recordSubflowFieldUpdate]
   )
 
   const collaborativeUpdateParallelBatchSize = useCallback(
@@ -2093,7 +2094,7 @@ export function useCollaborativeWorkflow() {
         () => useWorkflowStore.getState().updateParallelBatchSize(parallelId, clampedBatchSize)
       )
     },
-    [executeQueuedOperation]
+    [executeQueuedOperation, recordSubflowFieldUpdate]
   )
 
   const collaborativeUpdateVariable = useCallback(
