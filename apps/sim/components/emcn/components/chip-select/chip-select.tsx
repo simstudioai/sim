@@ -212,7 +212,7 @@ export function ChipSelect({
           aria-label={ariaLabel}
           className={cn(
             chipVariants({ variant: 'filled', flush: true, fullWidth }),
-            fullWidth ? 'w-full justify-between' : 'max-w-[240px]',
+            fullWidth ? 'w-full justify-between' : 'w-fit max-w-[240px]',
             className
           )}
         >
