@@ -9,17 +9,15 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Checkbox,
-  Combobox,
+  Chip,
+  ChipCombobox,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   type ComboboxOption,
   Input,
   Label,
-  Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Tooltip,
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
@@ -224,16 +222,18 @@ export function AddConnectorModal({
 
   return (
     <>
-      <Modal open={open} onOpenChange={(val) => !isCreating && onOpenChange(val)}>
-        <ModalContent
-          size='md'
-          className={step === 'select-type' ? 'max-h-[520px]' : 'h-[80vh] max-h-[560px]'}
-        >
-          <ModalHeader>
-            {step === 'configure' && (
+      <ChipModal
+        open={open}
+        onOpenChange={(val) => !isCreating && onOpenChange(val)}
+        srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
+        size='md'
+      >
+        <ChipModalHeader onClose={() => onOpenChange(false)}>
+          {step === 'configure' ? (
+            <span className='flex items-center gap-2'>
               <Button
                 variant='ghost'
-                className='mr-2 size-6 p-0'
+                className='size-6 p-0'
                 onClick={() => {
                   setStep('select-type')
                   onConnectorTypeChange?.('')
@@ -241,281 +241,282 @@ export function AddConnectorModal({
               >
                 <ArrowLeft className='size-4' />
               </Button>
-            )}
-            {step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
-          </ModalHeader>
-          <ModalDescription className='sr-only'>
-            {step === 'select-type'
-              ? 'Select a data source to connect to this knowledge base'
-              : `Configure the ${connectorConfig?.name} connector settings`}
-          </ModalDescription>
+              {`Configure ${connectorConfig?.name}`}
+            </span>
+          ) : (
+            'Connect Source'
+          )}
+        </ChipModalHeader>
 
-          <ModalBody className={step === 'select-type' ? 'pt-2 pb-3' : 'pb-3'}>
-            {step === 'select-type' ? (
-              <div className='flex min-h-0 flex-col gap-2.5'>
-                <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-                  <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-                  <Input
-                    placeholder='Search sources...'
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-full w-full border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                  />
-                </div>
-                <div className='max-h-[390px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
-                  <div className='flex flex-col gap-0.5 pr-1'>
-                    {filteredEntries.map(([type, config]) => (
-                      <ConnectorTypeCard
-                        key={type}
-                        type={type}
-                        config={config}
-                        onClick={() => handleSelectType(type)}
-                      />
-                    ))}
-                    {filteredEntries.length === 0 && (
-                      <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-caption'>
-                        {CONNECTOR_ENTRIES.length === 0
-                          ? 'No connectors available.'
-                          : `No sources found matching "${searchTerm}"`}
-                      </div>
-                    )}
-                  </div>
+        <ChipModalBody
+          className={
+            step === 'select-type' ? 'max-h-[520px] pt-2 pb-3' : 'h-[80vh] max-h-[560px] pb-3'
+          }
+        >
+          {step === 'select-type' ? (
+            <div className='flex min-h-0 flex-col gap-2.5'>
+              <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+                <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
+                <Input
+                  placeholder='Search sources...'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className='h-full w-full border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                />
+              </div>
+              <div className='max-h-[390px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
+                <div className='flex flex-col gap-0.5 pr-1'>
+                  {filteredEntries.map(([type, config]) => (
+                    <ConnectorTypeCard
+                      key={type}
+                      type={type}
+                      config={config}
+                      onClick={() => handleSelectType(type)}
+                    />
+                  ))}
+                  {filteredEntries.length === 0 && (
+                    <div className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-caption'>
+                      {CONNECTOR_ENTRIES.length === 0
+                        ? 'No connectors available.'
+                        : `No sources found matching "${searchTerm}"`}
+                    </div>
+                  )}
                 </div>
               </div>
-            ) : connectorConfig ? (
-              <div className='flex flex-col gap-3'>
-                {isApiKeyMode ? (
-                  <div className='flex flex-col gap-2'>
-                    <Label>
-                      {connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
-                        ? connectorConfig.auth.label
-                        : 'API Key'}
-                    </Label>
-                    <Input
-                      type={apiKeyFocused ? 'text' : 'password'}
-                      autoComplete='new-password'
-                      value={apiKeyValue}
-                      onChange={(e) => setApiKeyValue(e.target.value)}
-                      onFocus={() => setApiKeyFocused(true)}
-                      onBlur={() => setApiKeyFocused(false)}
-                      placeholder={
-                        connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
-                          ? connectorConfig.auth.placeholder
-                          : 'Enter API key'
-                      }
-                    />
-                  </div>
-                ) : (
-                  <div className='flex flex-col gap-2'>
-                    <Label>Account</Label>
-                    <Combobox
-                      options={[
-                        ...credentials.map(
-                          (cred): ComboboxOption => ({
-                            label: cred.name || cred.provider,
-                            value: cred.id,
-                            icon: connectorConfig.icon,
-                          })
-                        ),
-                        {
-                          label:
-                            credentials.length > 0
-                              ? `Connect another ${connectorConfig.name} account`
-                              : `Connect ${connectorConfig.name} account`,
-                          value: '__connect_new__',
-                          icon: Plus,
-                          onSelect: () => setShowOAuthModal(true),
-                        },
-                      ]}
-                      value={effectiveCredentialId ?? undefined}
-                      onChange={(value) => setSelectedCredentialId(value)}
-                      onOpenChange={(isOpen) => {
-                        if (isOpen) void refetchCredentials()
-                      }}
-                      placeholder={`Select ${connectorConfig.name} account`}
-                      isLoading={credentialsLoading}
-                    />
-                  </div>
-                )}
+            </div>
+          ) : connectorConfig ? (
+            <div className='flex flex-col gap-3'>
+              {isApiKeyMode ? (
+                <div className='flex flex-col gap-2'>
+                  <Label>
+                    {connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
+                      ? connectorConfig.auth.label
+                      : 'API Key'}
+                  </Label>
+                  <Input
+                    variant='chip'
+                    type={apiKeyFocused ? 'text' : 'password'}
+                    autoComplete='new-password'
+                    value={apiKeyValue}
+                    onChange={(e) => setApiKeyValue(e.target.value)}
+                    onFocus={() => setApiKeyFocused(true)}
+                    onBlur={() => setApiKeyFocused(false)}
+                    placeholder={
+                      connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
+                        ? connectorConfig.auth.placeholder
+                        : 'Enter API key'
+                    }
+                  />
+                </div>
+              ) : (
+                <div className='flex flex-col gap-2'>
+                  <Label>Account</Label>
+                  <ChipCombobox
+                    options={[
+                      ...credentials.map(
+                        (cred): ComboboxOption => ({
+                          label: cred.name || cred.provider,
+                          value: cred.id,
+                          icon: connectorConfig.icon,
+                        })
+                      ),
+                      {
+                        label:
+                          credentials.length > 0
+                            ? `Connect another ${connectorConfig.name} account`
+                            : `Connect ${connectorConfig.name} account`,
+                        value: '__connect_new__',
+                        icon: Plus,
+                        onSelect: () => setShowOAuthModal(true),
+                      },
+                    ]}
+                    value={effectiveCredentialId ?? undefined}
+                    onChange={(value) => setSelectedCredentialId(value)}
+                    onOpenChange={(isOpen) => {
+                      if (isOpen) void refetchCredentials()
+                    }}
+                    placeholder={`Select ${connectorConfig.name} account`}
+                    isLoading={credentialsLoading}
+                  />
+                </div>
+              )}
 
-                {connectorConfig.configFields.map((field) => {
-                  if (!isFieldVisible(field)) return null
+              {connectorConfig.configFields.map((field) => {
+                if (!isFieldVisible(field)) return null
 
-                  const canonicalId = field.canonicalParamId
-                  const hasCanonicalPair =
-                    canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
+                const canonicalId = field.canonicalParamId
+                const hasCanonicalPair =
+                  canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
 
-                  return (
-                    <div key={field.id} className='flex flex-col gap-2'>
-                      <div className='flex items-center justify-between'>
-                        <div className='flex items-center gap-1'>
-                          <Label>
-                            {field.title}
-                            {field.required && <span className='ml-0.5'>*</span>}
-                          </Label>
-                          {field.description && (
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  type='button'
-                                  variant='ghost'
-                                  className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
-                                  aria-label={`About ${field.title}`}
-                                >
-                                  <Info className='size-[12px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
-                            </Tooltip.Root>
-                          )}
-                        </div>
-                        {hasCanonicalPair && canonicalId && (
+                return (
+                  <div key={field.id} className='flex flex-col gap-2'>
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center gap-1'>
+                        <Label>
+                          {field.title}
+                          {field.required && <span className='ml-0.5'>*</span>}
+                        </Label>
+                        {field.description && (
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
                               <Button
                                 type='button'
                                 variant='ghost'
-                                className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
-                                onClick={() => toggleCanonicalMode(canonicalId)}
+                                className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                                aria-label={`About ${field.title}`}
                               >
-                                <ArrowLeftRight className='size-[12px]' />
+                                <Info className='size-[12px]' />
                               </Button>
                             </Tooltip.Trigger>
-                            <Tooltip.Content side='top'>
-                              {field.mode === 'basic'
-                                ? 'Switch to manual input'
-                                : 'Switch to selector'}
-                            </Tooltip.Content>
+                            <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
                           </Tooltip.Root>
                         )}
                       </div>
-                      {field.type === 'selector' && field.selectorKey ? (
-                        <ConnectorSelectorField
-                          field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
-                          value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
-                          onChange={(value: ConfigFieldValue) => handleFieldChange(field.id, value)}
-                          credentialId={effectiveCredentialId}
-                          sourceConfig={sourceConfig}
-                          configFields={connectorConfig.configFields}
-                          canonicalModes={canonicalModes}
-                          disabled={isCreating}
-                        />
-                      ) : field.type === 'dropdown' && field.options ? (
-                        <Combobox
-                          options={field.options.map((opt) => ({
-                            label: opt.label,
-                            value: opt.id,
-                          }))}
-                          value={
-                            typeof sourceConfig[field.id] === 'string'
-                              ? (sourceConfig[field.id] as string) || undefined
-                              : undefined
-                          }
-                          onChange={(value) => handleFieldChange(field.id, value)}
-                          placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
-                        />
-                      ) : (
-                        <Input
-                          value={
-                            Array.isArray(sourceConfig[field.id])
-                              ? (sourceConfig[field.id] as string[]).join(', ')
-                              : (sourceConfig[field.id] as string) || ''
-                          }
-                          onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                          placeholder={field.placeholder}
-                        />
+                      {hasCanonicalPair && canonicalId && (
+                        <Tooltip.Root>
+                          <Tooltip.Trigger asChild>
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
+                              onClick={() => toggleCanonicalMode(canonicalId)}
+                            >
+                              <ArrowLeftRight className='size-[12px]' />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side='top'>
+                            {field.mode === 'basic'
+                              ? 'Switch to manual input'
+                              : 'Switch to selector'}
+                          </Tooltip.Content>
+                        </Tooltip.Root>
                       )}
                     </div>
-                  )
-                })}
-
-                {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
-                  <div className='flex flex-col gap-2'>
-                    <Label>Metadata Tags</Label>
-                    {connectorConfig.tagDefinitions.map((tagDef) => (
-                      <div
-                        key={tagDef.id}
-                        role='checkbox'
-                        aria-checked={!disabledTagIds.has(tagDef.id)}
-                        tabIndex={0}
-                        className='flex cursor-pointer items-center gap-2 rounded-sm p-0.5 text-small'
-                        onClick={() => toggleTagDefinition(tagDef.id)}
-                        onKeyDown={(event) => {
-                          if (event.target !== event.currentTarget) return
-                          handleKeyboardActivation(event, () => toggleTagDefinition(tagDef.id))
-                        }}
-                      >
-                        <Checkbox
-                          checked={!disabledTagIds.has(tagDef.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          onCheckedChange={(checked) => {
-                            setDisabledTagIds((prev) => {
-                              const next = new Set(prev)
-                              if (checked) {
-                                next.delete(tagDef.id)
-                              } else {
-                                next.add(tagDef.id)
-                              }
-                              return next
-                            })
-                          }}
-                        />
-                        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
-                          {tagDef.displayName}
-                        </span>
-                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
-                          ({tagDef.fieldType})
-                        </span>
-                      </div>
-                    ))}
+                    {field.type === 'selector' && field.selectorKey ? (
+                      <ConnectorSelectorField
+                        field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
+                        value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
+                        onChange={(value: ConfigFieldValue) => handleFieldChange(field.id, value)}
+                        credentialId={effectiveCredentialId}
+                        sourceConfig={sourceConfig}
+                        configFields={connectorConfig.configFields}
+                        canonicalModes={canonicalModes}
+                        disabled={isCreating}
+                      />
+                    ) : field.type === 'dropdown' && field.options ? (
+                      <ChipCombobox
+                        options={field.options.map((opt) => ({
+                          label: opt.label,
+                          value: opt.id,
+                        }))}
+                        value={
+                          typeof sourceConfig[field.id] === 'string'
+                            ? (sourceConfig[field.id] as string) || undefined
+                            : undefined
+                        }
+                        onChange={(value) => handleFieldChange(field.id, value)}
+                        placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
+                      />
+                    ) : (
+                      <Input
+                        variant='chip'
+                        value={
+                          Array.isArray(sourceConfig[field.id])
+                            ? (sourceConfig[field.id] as string[]).join(', ')
+                            : (sourceConfig[field.id] as string) || ''
+                        }
+                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                        placeholder={field.placeholder}
+                      />
+                    )}
                   </div>
-                )}
+                )
+              })}
 
+              {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
                 <div className='flex flex-col gap-2'>
-                  <Label>Sync Frequency</Label>
-                  <ButtonGroup
-                    value={String(syncInterval)}
-                    onValueChange={(val) => setSyncInterval(Number(val))}
-                  >
-                    {SYNC_INTERVALS.map((interval) => (
-                      <ButtonGroupItem
-                        key={interval.value}
-                        value={String(interval.value)}
-                        disabled={interval.requiresMax && !hasMaxAccess}
-                      >
-                        {interval.label}
-                        {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
-                      </ButtonGroupItem>
-                    ))}
-                  </ButtonGroup>
+                  <Label>Metadata Tags</Label>
+                  {connectorConfig.tagDefinitions.map((tagDef) => (
+                    <div
+                      key={tagDef.id}
+                      role='checkbox'
+                      aria-checked={!disabledTagIds.has(tagDef.id)}
+                      tabIndex={0}
+                      className='flex cursor-pointer items-center gap-2 rounded-sm p-0.5 text-small'
+                      onClick={() => toggleTagDefinition(tagDef.id)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return
+                        handleKeyboardActivation(event, () => toggleTagDefinition(tagDef.id))
+                      }}
+                    >
+                      <Checkbox
+                        checked={!disabledTagIds.has(tagDef.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={(checked) => {
+                          setDisabledTagIds((prev) => {
+                            const next = new Set(prev)
+                            if (checked) {
+                              next.delete(tagDef.id)
+                            } else {
+                              next.add(tagDef.id)
+                            }
+                            return next
+                          })
+                        }}
+                      />
+                      <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
+                        {tagDef.displayName}
+                      </span>
+                      <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                        ({tagDef.fieldType})
+                      </span>
+                    </div>
+                  ))}
                 </div>
+              )}
 
-                {error && (
-                  <p className='text-[var(--text-error)] text-caption leading-tight'>{error}</p>
-                )}
+              <div className='flex flex-col gap-2'>
+                <Label>Sync Frequency</Label>
+                <ButtonGroup
+                  value={String(syncInterval)}
+                  onValueChange={(val) => setSyncInterval(Number(val))}
+                >
+                  {SYNC_INTERVALS.map((interval) => (
+                    <ButtonGroupItem
+                      key={interval.value}
+                      value={String(interval.value)}
+                      disabled={interval.requiresMax && !hasMaxAccess}
+                    >
+                      {interval.label}
+                      {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
+                    </ButtonGroupItem>
+                  ))}
+                </ButtonGroup>
               </div>
-            ) : null}
-          </ModalBody>
 
-          {step === 'configure' && (
-            <ModalFooter>
-              <Button variant='default' onClick={() => onOpenChange(false)} disabled={isCreating}>
-                Cancel
-              </Button>
-              <Button variant='primary' onClick={handleSubmit} disabled={!canSubmit || isCreating}>
-                {isCreating ? (
-                  <>
-                    <Loader className='mr-1.5 size-3.5' animate />
-                    Connecting…
-                  </>
-                ) : (
-                  'Connect & Sync'
-                )}
-              </Button>
-            </ModalFooter>
-          )}
-        </ModalContent>
-      </Modal>
+              {error && (
+                <p className='text-[var(--text-error)] text-caption leading-tight'>{error}</p>
+              )}
+            </div>
+          ) : null}
+        </ChipModalBody>
+
+        {step === 'configure' && (
+          <ChipModalFooter>
+            <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isCreating}>
+              Cancel
+            </Chip>
+            <Chip
+              variant='primary'
+              flush
+              onClick={handleSubmit}
+              disabled={!canSubmit || isCreating}
+            >
+              {isCreating ? 'Connecting…' : 'Connect & Sync'}
+            </Chip>
+          </ChipModalFooter>
+        )}
+      </ChipModal>
       {showOAuthModal &&
         connectorConfig &&
         connectorConfig.auth.mode === 'oauth' &&

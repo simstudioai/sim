@@ -2,18 +2,9 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { formatRelativeTime } from '@sim/utils/formatting'
-import { ChevronDown, Paperclip, Search } from 'lucide-react'
+import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Badge,
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Input } from '@/components/ui'
+import { Badge, ChipSelect, SearchInput } from '@/components/emcn'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 
@@ -76,58 +67,39 @@ export function InboxTaskList() {
   return (
     <div className='flex flex-col gap-3'>
       <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-          <Search
-            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-            strokeWidth={2}
-          />
-          <Input
-            placeholder='Search tasks...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant='ghost'
-              className='h-[32px] gap-1 px-2 text-[var(--text-secondary)] text-small'
-            >
-              {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? 'All statuses'}
-              <ChevronDown className='size-[12px]' />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuRadioGroup
-              value={statusFilter}
-              onValueChange={(value) => {
-                if (STATUS_OPTIONS.some((option) => option.value === value)) {
-                  setStatusFilter(value as StatusFilter)
-                }
-              }}
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <DropdownMenuRadioItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <SearchInput
+          placeholder='Search tasks...'
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className='min-w-0 flex-1'
+        />
+        <ChipSelect
+          align='start'
+          value={statusFilter}
+          onChange={(value) => {
+            if (STATUS_OPTIONS.some((option) => option.value === value)) {
+              setStatusFilter(value as StatusFilter)
+            }
+          }}
+          options={STATUS_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
+        />
       </div>
 
       <div className='min-h-0 flex-1 overflow-y-auto'>
         {isLoading ? null : filteredTasks.length === 0 ? (
-          <div className='flex h-[200px] items-center justify-center text-[var(--text-muted)] text-sm'>
-            {searchTerm.trim()
-              ? `No tasks matching "${searchTerm}"`
-              : config?.address
+          searchTerm.trim() ? (
+            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+              {`No tasks matching "${searchTerm}"`}
+            </div>
+          ) : (
+            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+              {config?.address
                 ? `No email tasks yet. Send an email to ${config.address} to get started.`
                 : 'No email tasks yet.'}
-          </div>
+            </div>
+          )
         ) : (
-          <div className='flex flex-col gap-1'>
+          <div className='flex flex-col gap-0.5'>
             {filteredTasks.map((task) => {
               const statusBadge = STATUS_BADGES[task.status] || STATUS_BADGES.received
               const isClickable =
@@ -135,8 +107,10 @@ export function InboxTaskList() {
               return (
                 <div
                   key={task.id}
-                  className={`flex flex-col gap-1 rounded-lg border border-[var(--border)] p-3 transition-colors ${
-                    isClickable ? 'cursor-pointer hover-hover:bg-[var(--surface-2)]' : ''
+                  className={`flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors ${
+                    isClickable
+                      ? 'cursor-pointer hover-hover:bg-[var(--surface-active)]'
+                      : 'cursor-default'
                   }`}
                   role='button'
                   aria-disabled={!isClickable}
@@ -149,53 +123,56 @@ export function InboxTaskList() {
                     }
                   }}
                 >
-                  <div className='flex items-center justify-between'>
-                    <span className='max-w-[70%] truncate font-medium text-[var(--text-primary)] text-sm'>
-                      {task.subject}
-                    </span>
-                    <div className='flex items-center gap-1.5'>
-                      {task.hasAttachments && (
-                        <Paperclip className='size-[12px] text-[var(--text-muted)]' />
-                      )}
-                      <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
-                        {formatRelativeTime(task.createdAt)}
+                  <div className='flex min-w-0 flex-1 flex-col'>
+                    <div className='flex min-w-0 items-center gap-1.5'>
+                      <span className='truncate text-[14px] text-[var(--text-body)]'>
+                        {task.subject}
                       </span>
+                      {task.hasAttachments && (
+                        <Paperclip className='size-[12px] flex-shrink-0 text-[var(--text-muted)]' />
+                      )}
                     </div>
-                  </div>
-                  <div className='flex items-center justify-between'>
-                    <span className='max-w-[60%] truncate text-[var(--text-muted)] text-caption'>
+                    <span className='truncate text-[12px] text-[var(--text-muted)]'>
                       {task.fromName || task.fromEmail}
+                    </span>
+                    {task.status === 'rejected' && task.rejectionReason && (
+                      <span className='truncate text-[12px] text-[var(--text-muted)] line-through'>
+                        {formatRejectionReason(task.rejectionReason)}
+                      </span>
+                    )}
+                    {task.status === 'failed' && task.errorMessage && (
+                      <span className='truncate text-[12px] text-[var(--text-error)]'>
+                        {task.errorMessage}
+                      </span>
+                    )}
+                    {task.status === 'completed' && task.resultSummary && (
+                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                        {task.resultSummary}
+                      </span>
+                    )}
+                    {task.status !== 'completed' &&
+                      task.status !== 'failed' &&
+                      task.status !== 'rejected' &&
+                      task.bodyPreview && (
+                        <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                          {task.bodyPreview}
+                        </span>
+                      )}
+                  </div>
+                  <div className='flex flex-shrink-0 items-center gap-2'>
+                    <span className='whitespace-nowrap text-[12px] text-[var(--text-muted)]'>
+                      {formatRelativeTime(task.createdAt)}
                     </span>
                     <Badge variant={statusBadge.variant} className='text-xs'>
                       {task.status === 'processing' && (
-                        <span className='mr-1 inline-block size-[6px] animate-pulse rounded-full bg-yellow-500' />
+                        <span className='mr-1 inline-block size-[6px] animate-pulse rounded-full bg-[var(--badge-amber-text)]' />
                       )}
                       {statusBadge.label}
                     </Badge>
-                  </div>
-                  {task.status === 'rejected' && task.rejectionReason && (
-                    <span className='text-[var(--text-muted)] text-caption line-through'>
-                      {formatRejectionReason(task.rejectionReason)}
-                    </span>
-                  )}
-                  {task.status === 'failed' && task.errorMessage && (
-                    <span className='truncate text-[var(--text-error)] text-caption'>
-                      {task.errorMessage}
-                    </span>
-                  )}
-                  {task.status === 'completed' && task.resultSummary && (
-                    <span className='truncate text-[var(--text-muted)] text-caption'>
-                      {task.resultSummary}
-                    </span>
-                  )}
-                  {task.status !== 'completed' &&
-                    task.status !== 'failed' &&
-                    task.status !== 'rejected' &&
-                    task.bodyPreview && (
-                      <span className='truncate text-[var(--text-muted)] text-caption'>
-                        {task.bodyPreview}
-                      </span>
+                    {isClickable && (
+                      <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
                     )}
+                  </div>
                 </div>
               )
             })}

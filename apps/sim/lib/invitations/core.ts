@@ -625,6 +625,7 @@ export async function listInvitationsForWorkspaces(workspaceIds: string[]) {
       id: invitation.id,
       kind: invitation.kind,
       email: invitation.email,
+      token: invitation.token,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
       createdAt: invitation.createdAt,

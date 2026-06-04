@@ -116,7 +116,7 @@ export function MemberInvitationCard({
                 </span>
                 <ChevronDown
                   className={cn(
-                    'h-3.5 w-3.5 transition-transform',
+                    'size-3.5 transition-transform',
                     showWorkspaceInvite && 'rotate-180'
                   )}
                 />

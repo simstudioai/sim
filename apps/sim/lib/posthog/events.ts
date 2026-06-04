@@ -505,6 +505,26 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  /** A home-page suggested action was clicked. `action_id` is the candidate id (e.g. `gmail-0`). */
+  suggested_action_clicked: {
+    workspace_id: string
+    kind: 'prompt' | 'integration'
+    action_id: string
+    label: string
+    position: number
+    connected_provider_count: number
+  }
+
+  suggested_actions_shuffled: {
+    workspace_id: string
+    connected_provider_count: number
+  }
+
+  suggested_actions_toggled: {
+    workspace_id: string
+    expanded: boolean
+  }
+
   workflow_imported: {
     workspace_id: string
     workflow_count: number

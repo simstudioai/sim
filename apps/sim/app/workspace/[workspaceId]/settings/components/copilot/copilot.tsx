@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 // import { useParams } from 'next/navigation'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
-import { Plus, Search } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import {
   Chip,
   ChipModal,
@@ -13,10 +13,10 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  SearchInput,
   SecretReveal,
   // Switch,
 } from '@/components/emcn'
-import { Input } from '@/components/ui'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import {
   type CopilotKey,
@@ -196,18 +196,11 @@ export function Copilot() {
             */}
 
             {/* Search Input */}
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search API keys...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+            <SearchInput
+              placeholder='Search API keys...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
 
             {/* Keys List */}
             {isLoading ? null : showEmptyState ? (
@@ -220,14 +213,16 @@ export function Copilot() {
                   <div key={key.id} className='flex items-center justify-between gap-3'>
                     <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                       <div className='flex items-center gap-1.5'>
-                        <span className='max-w-[280px] truncate font-medium text-base'>
+                        <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
                           {key.name || 'Unnamed Key'}
                         </span>
                         <span className='text-[var(--text-secondary)] text-sm'>
                           (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                         </span>
                       </div>
-                      <p className='truncate text-[var(--text-muted)] text-sm'>{key.displayKey}</p>
+                      <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                        {key.displayKey}
+                      </p>
                     </div>
                     <Chip
                       className='flex-shrink-0'

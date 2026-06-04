@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff, Search } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -15,6 +15,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Input as EmcnInput,
+  SearchInput,
 } from '@/components/emcn'
 import {
   AnthropicIcon,
@@ -41,7 +42,7 @@ import {
   TogetherIcon,
   WizaIcon,
 } from '@/components/icons'
-import { Input } from '@/components/ui'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type BYOKKey,
   useBYOKKeys,
@@ -222,6 +223,45 @@ const PROVIDERS: {
   },
 ]
 
+/**
+ * Provider groupings rendered as labeled sections. Every provider id in
+ * {@link PROVIDERS} belongs to exactly one section; rows keep their
+ * {@link PROVIDERS} order within each group.
+ */
+const PROVIDER_SECTIONS: { label: string; ids: BYOKProviderId[] }[] = [
+  {
+    label: 'Models',
+    ids: [
+      'openai',
+      'anthropic',
+      'google',
+      'mistral',
+      'fireworks',
+      'together',
+      'baseten',
+      'ollama-cloud',
+      'falai',
+    ],
+  },
+  {
+    label: 'Search & web',
+    ids: [
+      'firecrawl',
+      'exa',
+      'serper',
+      'linkup',
+      'parallel_ai',
+      'perplexity',
+      'jina',
+      'google_cloud',
+    ],
+  },
+  {
+    label: 'Enrichment',
+    ids: ['brandfetch', 'hunter', 'peopledatalabs', 'findymail', 'prospeo', 'wiza'],
+  },
+]
+
 export function BYOK() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -248,6 +288,11 @@ export function BYOK() {
         p.description.toLowerCase().includes(searchLower)
     )
   }, [searchTerm])
+
+  const filteredIds = useMemo(
+    () => new Set(filteredProviders.map((p) => p.id)),
+    [filteredProviders]
+  )
 
   const showNoResults = searchTerm.trim() && filteredProviders.length === 0
 
@@ -300,60 +345,70 @@ export function BYOK() {
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
-          <div className='flex items-center gap-2'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search providers...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={isLoading}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-          </div>
+          <SearchInput
+            placeholder='Search providers...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            disabled={isLoading}
+          />
 
-          {isLoading ? null : (
-            <div className='flex flex-col gap-2'>
-              {filteredProviders.map((provider) => {
-                const existingKey = getKeyForProvider(provider.id)
-                const Icon = provider.icon
+          {isLoading ? null : showNoResults ? (
+            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+              No providers found matching "{searchTerm}"
+            </div>
+          ) : (
+            <div className='flex flex-col gap-7'>
+              {PROVIDER_SECTIONS.map((section) => {
+                const rows = PROVIDERS.filter(
+                  (p) => section.ids.includes(p.id) && filteredIds.has(p.id)
+                )
+                if (rows.length === 0) return null
 
                 return (
-                  <div key={provider.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex items-center gap-3'>
-                      <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-[var(--surface-6)]'>
-                        <Icon className='size-4' />
-                      </div>
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='font-medium text-base'>{provider.name}</span>
-                        <p className='truncate text-[var(--text-muted)] text-sm'>
-                          {provider.description}
-                        </p>
-                      </div>
-                    </div>
+                  <SettingsSection key={section.label} label={section.label}>
+                    <div className='flex flex-col gap-2'>
+                      {rows.map((provider) => {
+                        const existingKey = getKeyForProvider(provider.id)
+                        const Icon = provider.icon
 
-                    {existingKey ? (
-                      <div className='flex flex-shrink-0 items-center gap-2'>
-                        <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
-                        <Chip onClick={() => setDeleteConfirmProvider(provider.id)}>Delete</Chip>
-                      </div>
-                    ) : (
-                      <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
-                        Add Key
-                      </Chip>
-                    )}
-                  </div>
+                        return (
+                          <div
+                            key={provider.id}
+                            className='flex items-center justify-between gap-2.5'
+                          >
+                            <div className='flex min-w-0 items-center gap-2.5'>
+                              <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+                                <Icon className='size-5' />
+                              </div>
+                              <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                                <span className='truncate text-[14px] text-[var(--text-body)]'>
+                                  {provider.name}
+                                </span>
+                                <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                                  {provider.description}
+                                </span>
+                              </div>
+                            </div>
+
+                            {existingKey ? (
+                              <div className='flex flex-shrink-0 items-center gap-2'>
+                                <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
+                                <Chip onClick={() => setDeleteConfirmProvider(provider.id)}>
+                                  Delete
+                                </Chip>
+                              </div>
+                            ) : (
+                              <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
+                                Add Key
+                              </Chip>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </SettingsSection>
                 )
               })}
-              {showNoResults && (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                  No providers found matching "{searchTerm}"
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -408,6 +463,7 @@ export function BYOK() {
             />
             <div className='relative'>
               <EmcnInput
+                variant='chip'
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => {
@@ -415,7 +471,7 @@ export function BYOK() {
                   if (error) setError(null)
                 }}
                 placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
-                className='h-9 pr-9'
+                className='pr-9'
                 name='byok_api_key'
                 autoComplete='off'
                 autoCorrect='off'
@@ -454,7 +510,7 @@ export function BYOK() {
             onClick={handleSave}
             disabled={!apiKeyInput.trim() || upsertKey.isPending}
           >
-            Save
+            {upsertKey.isPending ? 'Saving...' : 'Save'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>

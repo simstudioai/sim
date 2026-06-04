@@ -563,11 +563,12 @@ function DetailCodeSection({
             >
               <Input
                 ref={searchInputRef}
+                variant='chip'
                 type='text'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder='Search...'
-                className='mr-0.5 h-[23px] w-[94px] text-caption'
+                className='mr-0.5 w-[94px]'
               />
               <span
                 className={cn(
@@ -1037,11 +1038,12 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
           <div className='relative'>
             <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] size-[11px] text-[var(--text-tertiary)]' />
             <Input
+              variant='chip'
               type='text'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder='Filter spans'
-              className='h-[24px] w-[140px] pl-[22px] text-caption'
+              className='w-[140px] pl-[22px]'
             />
           </div>
           <Tooltip.Root>

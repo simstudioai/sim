@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
-import { Info, Plus, Search } from 'lucide-react'
+import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Chip,
@@ -11,12 +11,13 @@ import {
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  SearchInput,
   Switch,
   Tooltip,
 } from '@/components/emcn'
-import { Input } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type ApiKey,
   useApiKeys,
@@ -125,7 +126,7 @@ export function ApiKeys() {
             }}
             disabled={createButtonDisabled}
           >
-            Create Sim Key
+            Create API Key
           </Chip>
         </div>
       </div>
@@ -134,50 +135,40 @@ export function ApiKeys() {
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
           {/* Search Input */}
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-2 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <Input
-              placeholder='Search Sim keys...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-          </div>
+          <SearchInput
+            placeholder='Search API keys...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
 
           {/* Key list */}
           {isLoading ? null : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
             <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-              Click "Create Sim Key" above to get started
+              Click "Create API Key" above to get started
             </div>
           ) : (
-            <div className='flex flex-col gap-4.5'>
-              <>
-                {/* Workspace section */}
-                {!searchTerm.trim() ? (
-                  <div className='flex flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-secondary)] text-sm'>
-                      Workspace
+            <div className='flex flex-col gap-6'>
+              {/* Workspace section */}
+              {!searchTerm.trim() ? (
+                <SettingsSection label='Workspace'>
+                  {workspaceKeys.length === 0 ? (
+                    <div className='text-[var(--text-muted)] text-sm'>
+                      No workspace API keys yet
                     </div>
-                    {workspaceKeys.length === 0 ? (
-                      <div className='text-[var(--text-muted)] text-sm'>
-                        No workspace Sim keys yet
-                      </div>
-                    ) : (
-                      workspaceKeys.map((key) => (
+                  ) : (
+                    <div className='flex flex-col gap-2'>
+                      {workspaceKeys.map((key) => (
                         <div key={key.id} className='flex items-center justify-between gap-3'>
                           <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                             <div className='flex items-center gap-1.5'>
-                              <span className='max-w-[280px] truncate font-medium text-base'>
+                              <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
                                 {key.name}
                               </span>
                               <span className='text-[var(--text-secondary)] text-sm'>
                                 (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
-                            <p className='truncate text-[var(--text-muted)] text-sm'>
+                            <p className='truncate text-[12px] text-[var(--text-muted)]'>
                               {key.displayKey || key.key}
                             </p>
                           </div>
@@ -192,26 +183,25 @@ export function ApiKeys() {
                             Delete
                           </Chip>
                         </div>
-                      ))
-                    )}
-                  </div>
-                ) : filteredWorkspaceKeys.length > 0 ? (
-                  <div className='flex flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-secondary)] text-sm'>
-                      Workspace
+                      ))}
                     </div>
+                  )}
+                </SettingsSection>
+              ) : filteredWorkspaceKeys.length > 0 ? (
+                <SettingsSection label='Workspace'>
+                  <div className='flex flex-col gap-2'>
                     {filteredWorkspaceKeys.map(({ key }) => (
                       <div key={key.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[280px] truncate font-medium text-base'>
+                            <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
                               {key.name}
                             </span>
                             <span className='text-[var(--text-secondary)] text-sm'>
                               (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
-                          <p className='truncate text-[var(--text-muted)] text-sm'>
+                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
                             {key.displayKey || key.key}
                           </p>
                         </div>
@@ -228,12 +218,13 @@ export function ApiKeys() {
                       </div>
                     ))}
                   </div>
-                ) : null}
+                </SettingsSection>
+              ) : null}
 
-                {/* Personal section */}
-                {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+              {/* Personal section */}
+              {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+                <SettingsSection label='Personal'>
                   <div className='flex flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-secondary)] text-sm'>Personal</div>
                     {filteredPersonalKeys.map(({ key }) => {
                       const isConflict = conflicts.includes(key.name)
                       return (
@@ -241,14 +232,14 @@ export function ApiKeys() {
                           <div className='flex items-center justify-between gap-3'>
                             <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                               <div className='flex items-center gap-1.5'>
-                                <span className='max-w-[280px] truncate font-medium text-base'>
+                                <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
                                   {key.name}
                                 </span>
                                 <span className='text-[var(--text-secondary)] text-sm'>
                                   (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                                 </span>
                               </div>
-                              <p className='truncate text-[var(--text-muted)] text-sm'>
+                              <p className='truncate text-[12px] text-[var(--text-muted)]'>
                                 {key.displayKey || key.key}
                               </p>
                             </div>
@@ -264,7 +255,7 @@ export function ApiKeys() {
                           </div>
                           {isConflict && (
                             <div className='text-[var(--text-error)] text-small leading-tight'>
-                              Workspace Sim key with the same name overrides this. Rename your
+                              Workspace API key with the same name overrides this. Rename your
                               personal key to use it.
                             </div>
                           )}
@@ -272,61 +263,63 @@ export function ApiKeys() {
                       )
                     })}
                   </div>
-                )}
+                </SettingsSection>
+              )}
 
-                {/* Show message when search has no results across both sections */}
-                {searchTerm.trim() &&
-                  filteredPersonalKeys.length === 0 &&
-                  filteredWorkspaceKeys.length === 0 &&
-                  (personalKeys.length > 0 || workspaceKeys.length > 0) && (
-                    <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                      No Sim keys found matching "{searchTerm}"
-                    </div>
-                  )}
-              </>
+              {/* Show message when search has no results across both sections */}
+              {searchTerm.trim() &&
+                filteredPersonalKeys.length === 0 &&
+                filteredWorkspaceKeys.length === 0 &&
+                (personalKeys.length > 0 || workspaceKeys.length > 0) && (
+                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                    No API keys found matching "{searchTerm}"
+                  </div>
+                )}
             </div>
           )}
 
           {/* Allow Personal API Keys Toggle */}
           {!isLoading && canManageWorkspaceKeys && (
             <Tooltip.Provider delayDuration={150}>
-              <div className='mt-6 flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                    Allow personal Sim keys
-                  </span>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        type='button'
-                        className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
-                      >
-                        <Info className='size-[12px]' strokeWidth={2} />
-                      </button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top' className='max-w-xs text-small'>
-                      Allow collaborators to create and use their own keys with billing charged to
-                      them.
-                    </Tooltip.Content>
-                  </Tooltip.Root>
+              <SettingsSection label='Permissions'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-[14px] text-[var(--text-body)]'>
+                      Allow personal API keys
+                    </span>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          type='button'
+                          className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
+                        >
+                          <Info className='size-[12px]' strokeWidth={2} />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top' className='max-w-xs text-small'>
+                        Allow collaborators to create and use their own keys with billing charged to
+                        them.
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </div>
+                  {isLoadingSettings ? null : (
+                    <Switch
+                      checked={allowPersonalApiKeys}
+                      disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          await updateSettingsMutation.mutateAsync({
+                            workspaceId,
+                            allowPersonalApiKeys: checked,
+                          })
+                        } catch (error) {
+                          logger.error('Error updating workspace settings:', { error })
+                        }
+                      }}
+                    />
+                  )}
                 </div>
-                {isLoadingSettings ? null : (
-                  <Switch
-                    checked={allowPersonalApiKeys}
-                    disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
-                    onCheckedChange={async (checked) => {
-                      try {
-                        await updateSettingsMutation.mutateAsync({
-                          workspaceId,
-                          allowPersonalApiKeys: checked,
-                        })
-                      } catch (error) {
-                        logger.error('Error updating workspace settings:', { error })
-                      }
-                    }}
-                  />
-                )}
-              </div>
+              </SettingsSection>
             </Tooltip.Provider>
           )}
         </div>
@@ -347,9 +340,9 @@ export function ApiKeys() {
       <ChipModal
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
-        srTitle='Delete Sim key'
+        srTitle='Delete API key'
       >
-        <ChipModalHeader showDivider={false}>Delete Sim key</ChipModalHeader>
+        <ChipModalHeader showDivider={false}>Delete API key</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Deleting{' '}

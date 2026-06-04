@@ -14,6 +14,7 @@ import {
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization'
@@ -88,6 +89,7 @@ export function SettingsSidebar({
   const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
+  const isEnterprisePlan = isEnterprise(subscriptionData?.data?.plan)
 
   const isSuperUser = session?.user?.role === 'admin'
 
@@ -100,6 +102,10 @@ export function SettingsSidebar({
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
       if (item.hideWhenBillingDisabled && !isBillingEnabled) {
+        return false
+      }
+
+      if (item.hideForEnterprise && isEnterprisePlan) {
         return false
       }
 
@@ -162,6 +168,7 @@ export function SettingsSidebar({
   }, [
     hasTeamPlan,
     hasEnterprisePlan,
+    isEnterprisePlan,
     subscriptionAccess.hasUsableMaxAccess,
     isOrgAdminOrOwner,
     isSSOProviderOwner,

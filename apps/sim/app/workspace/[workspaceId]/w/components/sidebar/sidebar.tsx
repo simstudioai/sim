@@ -237,7 +237,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
             )}
             <button
               type='button'
-              aria-label='Task options'
+              aria-label='Chat options'
               onPointerDown={onMorePointerDown}
               onClick={(e) => {
                 e.preventDefault()
@@ -1158,7 +1158,7 @@ export const Sidebar = memo(function Sidebar() {
   }, [workspaceId, navigateToPage])
 
   const tasksPrimaryAction = {
-    label: 'New task',
+    label: 'New chat',
     onSelect: handleNewTask,
   }
 
@@ -1371,7 +1371,7 @@ export const Sidebar = memo(function Sidebar() {
                       )}
                     >
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                        <div className='text-[var(--text-muted)] text-small'>Tasks</div>
+                        <div className='text-[var(--text-muted)] text-small'>Chats</div>
                         {!isCollapsed && (
                           <div className='flex items-center justify-center gap-2'>
                             <Tooltip.Root>
@@ -1387,7 +1387,7 @@ export const Sidebar = memo(function Sidebar() {
                               </Tooltip.Trigger>
                               <Tooltip.Content>
                                 <Tooltip.Shortcut keys={isMac ? '⌘⇧K' : 'Ctrl+Shift+K'}>
-                                  New task
+                                  New chat
                                 </Tooltip.Shortcut>
                               </Tooltip.Content>
                             </Tooltip.Root>
@@ -1398,7 +1398,7 @@ export const Sidebar = memo(function Sidebar() {
                         <CollapsedSidebarMenu
                           icon={tasksCollapsedIcon}
                           hover={tasksHover}
-                          ariaLabel='Tasks'
+                          ariaLabel='Chats'
                           className='mt-2'
                           primaryAction={tasksPrimaryAction}
                         >
@@ -1408,7 +1408,7 @@ export const Sidebar = memo(function Sidebar() {
                               Loading...
                             </DropdownMenuItem>
                           ) : tasks.length === 0 ? (
-                            <DropdownMenuItem disabled>No tasks yet</DropdownMenuItem>
+                            <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
                           ) : (
                             tasks.map((task) => (
                               <CollapsedTaskFlyoutItem
@@ -1438,7 +1438,7 @@ export const Sidebar = memo(function Sidebar() {
                             <>
                               {tasks.length === 0 ? (
                                 <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
-                                  No tasks yet
+                                  No chats yet
                                 </div>
                               ) : null}
                               {/* `selectTaskOnly` populates `selectedTasks` on every click, so

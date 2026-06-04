@@ -96,6 +96,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   }
 
   const isValid = name.trim().length > 0
+  const isDirty = name !== initialName || description !== initialDescription
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Edit Knowledge Base'>
@@ -159,7 +160,12 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
         <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isSubmitting}>
           Cancel
         </Chip>
-        <Chip variant='primary' flush onClick={handleSubmit} disabled={!isValid || isSubmitting}>
+        <Chip
+          variant='primary'
+          flush
+          onClick={handleSubmit}
+          disabled={!isValid || !isDirty || isSubmitting}
+        >
           {isSubmitting ? 'Saving...' : 'Save'}
         </Chip>
       </ChipModalFooter>

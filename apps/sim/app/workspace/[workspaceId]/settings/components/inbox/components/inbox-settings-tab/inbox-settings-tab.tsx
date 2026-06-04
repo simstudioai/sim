@@ -6,7 +6,6 @@ import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
-  Button,
   Chip,
   ChipModal,
   ChipModalBody,
@@ -17,6 +16,7 @@ import {
   Input as EmcnInput,
   Tooltip,
 } from '@/components/emcn'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useAddInboxSender,
   useInboxConfig,
@@ -98,139 +98,143 @@ export function InboxSettingsTab() {
 
   return (
     <>
-      <div className='flex flex-col gap-6'>
+      <div className='flex flex-col gap-7'>
         {config?.address && (
-          <div className='flex flex-col gap-1.5'>
-            <div className='font-medium text-[var(--text-secondary)] text-sm'>Sim&apos;s email</div>
-            <div className='flex items-center justify-between'>
-              <p className='text-[var(--text-muted)] text-small'>
-                Send emails here to create tasks.
-              </p>
-              <div className='flex items-center gap-1.5'>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <button
-                      type='button'
-                      onClick={handleCopyAddress}
-                      className='-my-1 flex size-5 items-center justify-center'
-                      aria-label='Copy address'
-                    >
-                      {copiedAddress ? (
-                        <Check className='size-3 text-green-500' />
-                      ) : (
-                        <Clipboard className='size-3 text-muted-foreground' />
-                      )}
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>
-                    <p>{copiedAddress ? 'Copied!' : 'Copy'}</p>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <button
-                      type='button'
-                      onClick={() => {
-                        setNewUsername('')
-                        setEditAddressError(null)
-                        setIsEditAddressOpen(true)
-                      }}
-                      className='-my-1 flex size-5 items-center justify-center'
-                      aria-label='Edit address'
-                    >
-                      <Pencil className='size-3 text-muted-foreground' />
-                    </button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>
-                    <p>Edit</p>
-                  </Tooltip.Content>
-                </Tooltip.Root>
+          <SettingsSection label="Sim's email">
+            <div className='flex flex-col gap-1.5'>
+              <div className='flex items-center justify-between'>
+                <p className='text-[12px] text-[var(--text-muted)]'>
+                  Send emails here to create tasks.
+                </p>
+                <div className='flex items-center gap-1.5'>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type='button'
+                        onClick={handleCopyAddress}
+                        className='-my-1 flex size-5 items-center justify-center'
+                        aria-label='Copy address'
+                      >
+                        {copiedAddress ? (
+                          <Check className='size-[14px] text-[var(--text-success)]' />
+                        ) : (
+                          <Clipboard className='size-[14px] text-[var(--text-icon)]' />
+                        )}
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>
+                      <p>{copiedAddress ? 'Copied!' : 'Copy'}</p>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type='button'
+                        onClick={() => {
+                          setNewUsername('')
+                          setEditAddressError(null)
+                          setIsEditAddressOpen(true)
+                        }}
+                        className='-my-1 flex size-5 items-center justify-center'
+                        aria-label='Edit address'
+                      >
+                        <Pencil className='size-[14px] text-[var(--text-icon)]' />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>
+                      <p>Edit</p>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                </div>
               </div>
+              <EmcnInput
+                variant='chip'
+                value={config.address}
+                readOnly
+                className='cursor-default font-mono text-small'
+              />
             </div>
-            <EmcnInput
-              value={config.address}
-              readOnly
-              className='h-9 cursor-default font-mono text-small'
-            />
-          </div>
+          </SettingsSection>
         )}
 
-        <div className='flex flex-col gap-1.5'>
-          <div className='font-medium text-[var(--text-secondary)] text-sm'>Allowed senders</div>
-          <p className='text-[var(--text-muted)] text-small'>
-            Only emails from these addresses can create tasks.
-          </p>
-
-          <div className='mt-1 flex flex-col gap-[1px] overflow-hidden rounded-lg border border-[var(--border)]'>
-            {sendersLoading ? null : (
-              <>
-                {sendersData?.workspaceMembers.map((member) => (
-                  <div
-                    key={member.email}
-                    className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
-                  >
-                    <div className='flex items-center gap-2'>
-                      <span className='text-[var(--text-primary)] text-small'>{member.email}</span>
-                      <Badge variant='gray' className='text-xs'>
-                        member
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-
-                {sendersData?.senders.map((sender) => (
-                  <div
-                    key={sender.id}
-                    className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
-                  >
-                    <div className='flex items-center gap-2'>
-                      <span className='text-[var(--text-primary)] text-small'>{sender.email}</span>
-                      {sender.label && (
-                        <span className='text-[var(--text-muted)] text-caption'>
-                          ({sender.label})
-                        </span>
-                      )}
-                    </div>
-                    <Button
-                      variant='ghost'
-                      className='size-[28px] p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
-                      onClick={() => handleRemoveSender(sender.id)}
-                    >
-                      <Trash2 className='size-[14px]' />
-                    </Button>
-                  </div>
-                ))}
-
-                {sendersData?.workspaceMembers.length === 0 &&
-                  sendersData?.senders.length === 0 && (
-                    <div className='px-3 py-2.5 text-[var(--text-muted)] text-small'>
-                      No allowed senders configured.
-                    </div>
-                  )}
-              </>
-            )}
-          </div>
-
-          {removeSenderError && (
-            <p className='px-3 text-[var(--text-error)] text-small leading-tight'>
-              {removeSenderError}
+        <SettingsSection label='Allowed senders'>
+          <div className='flex flex-col gap-1.5'>
+            <p className='text-[12px] text-[var(--text-muted)]'>
+              Only emails from these addresses can create tasks.
             </p>
-          )}
 
-          <Button
-            variant='ghost'
-            className='mt-1 w-fit'
-            onClick={() => {
-              setNewSenderEmail('')
-              setNewSenderLabel('')
-              setAddSenderError(null)
-              setIsAddSenderOpen(true)
-            }}
-          >
-            <Plus className='mr-1.5 size-[13px]' />
-            Add sender
-          </Button>
-        </div>
+            <div className='mt-1 flex flex-col gap-[1px] overflow-hidden rounded-lg border border-[var(--border)]'>
+              {sendersLoading ? null : (
+                <>
+                  {sendersData?.workspaceMembers.map((member) => (
+                    <div
+                      key={member.email}
+                      className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
+                    >
+                      <div className='flex items-center gap-2'>
+                        <span className='text-[14px] text-[var(--text-body)]'>{member.email}</span>
+                        <Badge variant='gray' className='text-xs'>
+                          member
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+
+                  {sendersData?.senders.map((sender) => (
+                    <div
+                      key={sender.id}
+                      className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
+                    >
+                      <div className='flex items-center gap-2'>
+                        <span className='text-[14px] text-[var(--text-body)]'>{sender.email}</span>
+                        {sender.label && (
+                          <span className='text-[12px] text-[var(--text-muted)]'>
+                            ({sender.label})
+                          </span>
+                        )}
+                      </div>
+                      <Chip
+                        variant='ghost'
+                        flush
+                        className='text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
+                        leftIcon={Trash2}
+                        aria-label='Remove sender'
+                        onClick={() => handleRemoveSender(sender.id)}
+                      />
+                    </div>
+                  ))}
+
+                  {sendersData?.workspaceMembers.length === 0 &&
+                    sendersData?.senders.length === 0 && (
+                      <div className='px-3 py-2.5 text-[12px] text-[var(--text-muted)]'>
+                        No allowed senders configured.
+                      </div>
+                    )}
+                </>
+              )}
+            </div>
+
+            {removeSenderError && (
+              <p className='px-3 text-[12px] text-[var(--text-error)] leading-tight'>
+                {removeSenderError}
+              </p>
+            )}
+
+            <Chip
+              variant='ghost'
+              className='mt-1 w-fit'
+              leftIcon={Plus}
+              onClick={() => {
+                setNewSenderEmail('')
+                setNewSenderLabel('')
+                setAddSenderError(null)
+                setIsAddSenderOpen(true)
+              }}
+            >
+              Add sender
+            </Chip>
+          </div>
+        </SettingsSection>
       </div>
 
       <ChipModal
@@ -293,13 +297,13 @@ export function InboxSettingsTab() {
           <div className='mt-4 flex flex-col gap-1 px-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>New email prefix</p>
             <EmcnInput
+              variant='chip'
               value={newUsername}
               onChange={(e) => {
                 setNewUsername(e.target.value)
                 if (editAddressError) setEditAddressError(null)
               }}
               placeholder='e.g., new-acme'
-              className='h-9'
             />
             {editAddressError && (
               <p className='text-[var(--text-error)] text-small leading-tight'>
@@ -312,7 +316,7 @@ export function InboxSettingsTab() {
           <Chip
             variant='filled'
             flush
-            disabled={!newUsername.trim() || updateAddress.isPending}
+            disabled={updateAddress.isPending}
             onClick={() => setIsEditAddressOpen(false)}
           >
             Cancel

@@ -18,6 +18,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
+  getWorkspaceEnvKeyAdminAccess,
 } from '@/lib/credentials/environment'
 import {
   getPersonalAndWorkspaceEnv,
@@ -91,14 +92,45 @@ export const PUT = withRouteHandler(
       }
 
       const userId = session.user.id
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!permission || (permission !== 'admin' && permission !== 'write')) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
 
       const parsed = await parseRequest(upsertWorkspaceEnvironmentContract, request, context)
       if (!parsed.success) return parsed.response
       const { variables } = parsed.data.body
+
+      // Caller must have workspace access at all (blocks non-member writes);
+      // per-key gating below then requires credential-admin to edit existing
+      // secrets and write/admin to add brand-new keys.
+      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+      if (!permission) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const incomingKeys = Object.keys(variables)
+      if (incomingKeys.length === 0) {
+        return NextResponse.json({ success: true })
+      }
+      const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+        workspaceId,
+        envKeys: incomingKeys,
+        userId,
+      })
+      const forbiddenExisting = incomingKeys.filter((k) => knownKeys.has(k) && !adminKeys.has(k))
+      if (forbiddenExisting.length > 0) {
+        return NextResponse.json(
+          { error: 'You must be an admin of these secrets to edit them' },
+          { status: 403 }
+        )
+      }
+      if (
+        incomingKeys.some((k) => !knownKeys.has(k)) &&
+        permission !== 'admin' &&
+        permission !== 'write'
+      ) {
+        return NextResponse.json(
+          { error: 'Write access is required to add new secrets' },
+          { status: 403 }
+        )
+      }
 
       const encryptedIncoming = await Promise.all(
         Object.entries(variables).map(async ([key, value]) => {
@@ -184,14 +216,37 @@ export const DELETE = withRouteHandler(
       }
 
       const userId = session.user.id
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!permission || (permission !== 'admin' && permission !== 'write')) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
 
       const parsed = await parseRequest(removeWorkspaceEnvironmentContract, request, context)
       if (!parsed.success) return parsed.response
       const { keys } = parsed.data.body
+
+      // Caller must have workspace access at all; deleting an existing secret then
+      // requires being its credential admin, while a key with no credential yet
+      // (legacy) falls back to workspace write/admin.
+      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+      if (!permission) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+        workspaceId,
+        envKeys: keys,
+        userId,
+      })
+      const forbiddenExisting = keys.filter((k) => knownKeys.has(k) && !adminKeys.has(k))
+      if (forbiddenExisting.length > 0) {
+        return NextResponse.json(
+          { error: 'You must be an admin of these secrets to delete them' },
+          { status: 403 }
+        )
+      }
+      if (keys.some((k) => !knownKeys.has(k)) && permission !== 'admin' && permission !== 'write') {
+        return NextResponse.json(
+          { error: 'Write access is required to remove these secrets' },
+          { status: 403 }
+        )
+      }
 
       const result = await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`)

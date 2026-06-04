@@ -41,6 +41,7 @@ import * as React from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
 import { ChipDropdown } from '@/components/emcn/components/chip-dropdown/chip-dropdown'
+import { ChipSwitch } from '@/components/emcn/components/chip-switch/chip-switch'
 import { Label } from '@/components/emcn/components/label/label'
 import { Modal, ModalContent } from '@/components/emcn/components/modal/modal'
 import { TagInput, type TagItem } from '@/components/emcn/components/tag-input/tag-input'
@@ -71,13 +72,6 @@ const CHIP_MODAL_TEXT_CHROME =
  */
 const CHIP_MODAL_FIELD_ERROR_CLASS = 'text-[var(--text-error)] text-caption'
 
-const CHIP_MODAL_WIDTHS = {
-  sm: 'w-full max-w-[440px]',
-  md: 'w-full max-w-[500px]',
-  lg: 'w-full max-w-[600px]',
-  xl: 'w-full max-w-[720px]',
-} as const
-
 export interface ChipModalProps {
   /** Controlled open state. */
   open: boolean
@@ -86,11 +80,12 @@ export interface ChipModalProps {
   /** Screen-reader title for the underlying dialog. */
   srTitle?: string
   /**
-   * Panel width preset. Defaults to `'md'` (500px). Use `'lg'` for forms
-   * with more fields or wider content (e.g. textareas, code).
+   * Panel width preset. Matches the underlying `Modal` widths exactly:
+   * `sm` 440 · `md` 500 · `lg` 600 · `xl` 800 · `full` 1200 (px max, `w-[90vw]`
+   * on smaller viewports). Defaults to `'md'`.
    * @default 'md'
    */
-  size?: keyof typeof CHIP_MODAL_WIDTHS
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
   /** Optional className forwarded to the outer panel ring. */
   className?: string
   children?: React.ReactNode
@@ -99,7 +94,9 @@ export interface ChipModalProps {
 /**
  * Root component. Wraps the Radix dialog and renders the panel chrome.
  * Subcomponents (`ChipModalHeader`, `ChipModalBody`, `ChipModalField`,
- * `ChipModalFooter`) are composed as children.
+ * `ChipModalFooter`) are composed as children. The `size` is forwarded to the
+ * underlying `ModalContent` so the panel width matches a plain `Modal` of the
+ * same size — the inner ring just fills it.
  */
 function ChipModal({
   open,
@@ -111,11 +108,10 @@ function ChipModal({
 }: ChipModalProps) {
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent bare showClose={false} srTitle={srTitle}>
+      <ModalContent bare showClose={false} srTitle={srTitle} size={size}>
         <div
           className={cn(
-            'rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
-            CHIP_MODAL_WIDTHS[size],
+            'w-full rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
             className
           )}
         >
@@ -188,6 +184,71 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
 
 ChipModalHeader.displayName = 'ChipModalHeader'
 
+/** Tab entry for {@link ChipModalTabs}. */
+export interface ChipModalTab {
+  /** Stable value used to track the active tab. */
+  value: string
+  /** Visible tab label. */
+  label: React.ReactNode
+  /** Optional leading icon rendered before the label. */
+  icon?: React.ComponentType<{ className?: string }>
+}
+
+export interface ChipModalTabsProps {
+  /** Tab definitions in display order. */
+  tabs: ReadonlyArray<ChipModalTab>
+  /** Currently-active tab value. */
+  value: string
+  /** Called with the next tab value when a tab is selected. */
+  onChange: (value: string) => void
+  /** Optional accessible label for the underlying radio group. */
+  'aria-label'?: string
+  /** Forwarded to the switch container. */
+  className?: string
+}
+
+/**
+ * Tab switcher for tabbed modals, rendered as a {@link ChipSwitch} segmented
+ * control so the chrome reads as a single pill — `--surface` trough with the
+ * active tab a clean lifted surface — instead of loose floating chips. Render
+ * it at the top of a `ChipModalBody`; the consumer renders the active tab's
+ * content conditionally below.
+ *
+ * Reusing `ChipSwitch` keeps every tabbed modal visually identical to the
+ * segmented toggles elsewhere in the app (e.g. the billing-period switch).
+ *
+ * @example
+ * ```tsx
+ * <ChipModalBody>
+ *   <ChipModalTabs
+ *     tabs={[{ value: 'settings', label: 'Settings' }, { value: 'documents', label: 'Documents' }]}
+ *     value={tab}
+ *     onChange={setTab}
+ *   />
+ *   {tab === 'settings' ? <SettingsFields /> : <DocumentsList />}
+ * </ChipModalBody>
+ * ```
+ */
+function ChipModalTabs({
+  tabs,
+  value,
+  onChange,
+  'aria-label': ariaLabel,
+  className,
+}: ChipModalTabsProps) {
+  return (
+    <ChipSwitch
+      value={value}
+      onChange={onChange}
+      aria-label={ariaLabel}
+      options={tabs.map((tab) => ({ value: tab.value, label: tab.label, icon: tab.icon }))}
+      className={className}
+    />
+  )
+}
+
+ChipModalTabs.displayName = 'ChipModalTabs'
+
 /**
  * Body container. Applies the panel's standard vertical spacing between
  * fields and matching horizontal gutter.
@@ -218,8 +279,14 @@ interface ChipModalFieldBaseProps {
    * @default false
    */
   required?: boolean
-  /** Inline error message rendered below the control. */
+  /** Inline error message rendered below the control. Takes precedence over `hint`. */
   error?: React.ReactNode
+  /**
+   * Helper text rendered below the control when there is no active `error`.
+   * Use for format hints, constraints, or contextual guidance.
+   * @example hint='Lowercase letters, numbers, and hyphens (e.g. my-skill)'
+   */
+  hint?: React.ReactNode
   /** Disables the underlying control. */
   disabled?: boolean
   /**
@@ -260,6 +327,12 @@ interface ChipModalTextareaFieldProps extends ChipModalFieldBaseProps {
   rows?: number
   /** Min visible height in pixels. */
   minHeight?: number
+  /**
+   * Whether the textarea is user-resizable. Defaults to `false`.
+   * Enable for long-form content (e.g. markdown instructions) where
+   * the user benefits from controlling height.
+   */
+  resizable?: boolean
 }
 
 interface ChipModalDropdownFieldProps extends ChipModalFieldBaseProps {
@@ -320,7 +393,8 @@ export type ChipModalFieldProps =
 function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
   const errorId = `${id}-error`
-  const { title, required, error, flush = false, className } = props
+  const hintId = `${id}-hint`
+  const { title, required, error, hint, flush = false, className } = props
   const associatesLabel =
     props.type === 'input' ||
     props.type === 'email' ||
@@ -340,12 +414,16 @@ function ChipModalField(props: ChipModalFieldProps) {
           </span>
         )}
       </Label>
-      {renderChipModalControl(props, id, errorId)}
-      {error && props.type !== 'emails' && (
+      {renderChipModalControl(props, id, errorId, hintId)}
+      {error && props.type !== 'emails' ? (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
           {error}
         </p>
-      )}
+      ) : hint ? (
+        <p id={hintId} className='text-[var(--text-muted)] text-caption'>
+          {hint}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -360,12 +438,13 @@ ChipModalField.displayName = 'ChipModalField'
 function renderChipModalControl(
   props: ChipModalFieldProps,
   id: string,
-  errorId: string
+  errorId: string,
+  hintId: string
 ): React.ReactNode {
   const aria = {
     'aria-required': props.required || undefined,
     'aria-invalid': Boolean(props.error) || undefined,
-    'aria-describedby': props.error ? errorId : undefined,
+    'aria-describedby': props.error ? errorId : props.hint ? hintId : undefined,
   } as const
 
   switch (props.type) {
@@ -396,7 +475,11 @@ function renderChipModalControl(
           rows={props.rows}
           disabled={props.disabled}
           style={props.minHeight ? { minHeight: props.minHeight } : undefined}
-          className={cn(CHIP_MODAL_TEXT_CHROME, 'resize-none py-2')}
+          className={cn(
+            CHIP_MODAL_TEXT_CHROME,
+            'py-2',
+            props.resizable ? 'resize-y' : 'resize-none'
+          )}
           {...aria}
         />
       )
@@ -410,6 +493,7 @@ function renderChipModalControl(
           align={props.align}
           disabled={props.disabled}
           fullWidth
+          {...aria}
         />
       )
     case 'emails':
@@ -535,22 +619,36 @@ function ChipModalEmailsControl({
   )
 }
 
+export interface ChipModalFooterProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Optional leading slot rendered on the left side of the footer — use for
+   * a destructive secondary action (e.g. a Delete button in an edit flow).
+   * When provided, the footer switches to `justify-between` automatically.
+   */
+  leading?: React.ReactNode
+}
+
 /**
- * Footer row. Renders the leading inset separator and a right-aligned
- * tinted action bar.
+ * Footer row. Renders the leading inset separator and a tinted action bar.
+ * Pass `leading` to left-dock a secondary action (e.g. Delete in edit mode);
+ * primary actions always go in `children` and are right-aligned.
  */
-const ChipModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+const ChipModalFooter = React.forwardRef<HTMLDivElement, ChipModalFooterProps>(
+  ({ className, leading, children, ...props }, ref) => (
     <div className='flex flex-col'>
       <ChipModalSeparator />
       <div
         ref={ref}
         className={cn(
-          'flex items-center justify-end gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
+          'flex items-center gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
+          leading ? 'justify-between' : 'justify-end',
           className
         )}
         {...props}
-      />
+      >
+        {leading && <div>{leading}</div>}
+        <div className='flex gap-2'>{children}</div>
+      </div>
     </div>
   )
 )
@@ -600,4 +698,5 @@ export {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipModalTabs,
 }

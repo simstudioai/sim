@@ -7,11 +7,11 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Badge,
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  Combobox,
   Trash,
 } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
@@ -597,7 +597,7 @@ export function Document({
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'enabled', label: 'Enabled' },
               { value: 'disabled', label: 'Disabled' },
@@ -614,8 +614,7 @@ export function Document({
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {enabledFilter.length > 0 && (

@@ -6,11 +6,11 @@ import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import {
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  Combobox,
 } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
@@ -285,7 +285,7 @@ export function ScheduledTasks() {
           <span className='font-medium text-[var(--text-secondary)] text-caption'>
             Schedule Type
           </span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'recurring', label: 'Recurring' },
               { value: 'once', label: 'One-time' },
@@ -300,13 +300,12 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'active', label: 'Active' },
               { value: 'paused', label: 'Paused' },
@@ -319,13 +318,12 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Health</span>
-          <Combobox
+          <ChipCombobox
             options={[{ value: 'has-failures', label: 'Has failures' }]}
             multiSelect
             multiSelectValues={healthFilter}
@@ -335,8 +333,7 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {hasActiveFilters && (

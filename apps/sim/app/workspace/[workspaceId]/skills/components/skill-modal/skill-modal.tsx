@@ -1,6 +1,5 @@
 'use client'
 
-import type { ChangeEvent } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
@@ -11,8 +10,8 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipModalTabs,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
@@ -26,10 +25,6 @@ interface SkillModalProps {
 }
 
 const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
-
-/** Matches ChipModalField's internal input/textarea chrome. */
-const TEXT_CHROME =
-  'w-full rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium font-sans text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
 
 interface FieldErrors {
   name?: string
@@ -160,49 +155,32 @@ export function SkillModal({
       <ChipModalBody>
         {/* Tab switcher — only on create flow */}
         {!isEditing && (
-          <div className='flex gap-1 px-2'>
-            <Chip
-              variant={activeTab === 'create' ? 'filled' : 'ghost'}
-              flush
-              onClick={() => setActiveTab('create')}
-            >
-              Create
-            </Chip>
-            <Chip
-              variant={activeTab === 'import' ? 'filled' : 'ghost'}
-              flush
-              onClick={() => setActiveTab('import')}
-            >
-              Import
-            </Chip>
-          </div>
+          <ChipModalTabs
+            tabs={[
+              { value: 'create', label: 'Create' },
+              { value: 'import', label: 'Import' },
+            ]}
+            value={activeTab}
+            onChange={(value) => setActiveTab(value as TabValue)}
+          />
         )}
 
         {activeTab === 'create' || isEditing ? (
           <>
-            {/* Name — custom to support helper text below input */}
-            <ChipModalField type='custom' title='Name' required>
-              <div className='flex flex-col gap-[6px]'>
-                <input
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value)
-                    if (errors.name || errors.general)
-                      setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
-                  }}
-                  placeholder='my-skill-name'
-                  className={cn(TEXT_CHROME, 'h-[30px]')}
-                  aria-invalid={!!errors.name}
-                />
-                {errors.name ? (
-                  <p className='text-[12px] text-[var(--text-error)]'>{errors.name}</p>
-                ) : (
-                  <p className='text-[11px] text-[var(--text-muted)]'>
-                    Lowercase letters, numbers, and hyphens (e.g. my-skill)
-                  </p>
-                )}
-              </div>
-            </ChipModalField>
+            <ChipModalField
+              type='input'
+              title='Name'
+              value={name}
+              onChange={(value) => {
+                setName(value)
+                if (errors.name || errors.general)
+                  setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
+              }}
+              placeholder='my-skill-name'
+              required
+              error={errors.name}
+              hint='Lowercase letters, numbers, and hyphens (e.g. my-skill)'
+            />
 
             <ChipModalField
               type='input'
@@ -219,25 +197,21 @@ export function SkillModal({
               error={errors.description}
             />
 
-            {/* Content — custom to support monospace + resizable textarea */}
-            <ChipModalField type='custom' title='Content' required>
-              <div className='flex flex-col gap-[6px]'>
-                <textarea
-                  value={content}
-                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
-                    setContent(e.target.value)
-                    if (errors.content || errors.general)
-                      setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
-                  }}
-                  placeholder='Skill instructions in markdown...'
-                  className={cn(TEXT_CHROME, 'min-h-[200px] resize-y py-2')}
-                  aria-invalid={!!errors.content}
-                />
-                {errors.content && (
-                  <p className='text-[12px] text-[var(--text-error)]'>{errors.content}</p>
-                )}
-              </div>
-            </ChipModalField>
+            <ChipModalField
+              type='textarea'
+              title='Content'
+              value={content}
+              onChange={(value) => {
+                setContent(value)
+                if (errors.content || errors.general)
+                  setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
+              }}
+              placeholder='Skill instructions in markdown...'
+              minHeight={200}
+              resizable
+              required
+              error={errors.content}
+            />
 
             <ChipModalError>{errors.general}</ChipModalError>
           </>
@@ -247,20 +221,21 @@ export function SkillModal({
       </ChipModalBody>
 
       {showFooter && (
-        <ChipModalFooter className={isEditing && onDelete ? 'justify-between' : undefined}>
-          {isEditing && onDelete && (
-            <Chip variant='destructive' flush onClick={() => onDelete(initialValues.id)}>
-              Delete
-            </Chip>
-          )}
-          <div className='flex gap-2'>
-            <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
-              Cancel
-            </Chip>
-            <Chip variant='primary' flush onClick={handleSave} disabled={saving || !hasChanges}>
-              {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
-            </Chip>
-          </div>
+        <ChipModalFooter
+          leading={
+            isEditing && onDelete ? (
+              <Chip variant='destructive' flush onClick={() => onDelete(initialValues.id)}>
+                Delete
+              </Chip>
+            ) : undefined
+          }
+        >
+          <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
+            Cancel
+          </Chip>
+          <Chip variant='primary' flush onClick={handleSave} disabled={saving || !hasChanges}>
+            {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
+          </Chip>
         </ChipModalFooter>
       )}
     </ChipModal>

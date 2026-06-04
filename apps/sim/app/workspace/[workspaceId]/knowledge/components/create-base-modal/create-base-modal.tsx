@@ -11,17 +11,17 @@ import { z } from 'zod'
 import {
   Button,
   Checkbox,
-  Combobox,
+  Chip,
+  ChipCombobox,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalFooter,
+  ChipModalHeader,
   type ComboboxOption,
   Input,
   Label,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Textarea,
 } from '@/components/emcn'
 import type { StrategyOptions } from '@/lib/chunkers/types'
@@ -372,332 +372,321 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent size='lg'>
-        <ModalHeader>Create Knowledge Base</ModalHeader>
-        <ModalDescription className='sr-only'>
-          Set up a new knowledge base with documents and chunking options
-        </ModalDescription>
+    <ChipModal open={open} onOpenChange={handleClose} srTitle='Create Knowledge Base' size='lg'>
+      <ChipModalHeader onClose={() => handleClose(false)}>Create Knowledge Base</ChipModalHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody>
-            <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-              <div className='space-y-3'>
+      <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+        <ChipModalBody className='max-h-[70vh] overflow-y-auto'>
+          <div ref={scrollContainerRef} className='min-h-0 flex-1'>
+            <div className='space-y-3'>
+              <div className='flex flex-col gap-2'>
+                <Label htmlFor='kb-name'>Name</Label>
+                <input
+                  type='text'
+                  name='fakeusernameremembered'
+                  autoComplete='username'
+                  style={{
+                    position: 'absolute',
+                    left: '-9999px',
+                    opacity: 0,
+                    pointerEvents: 'none',
+                  }}
+                  tabIndex={-1}
+                  readOnly
+                />
+                <Input
+                  id='kb-name'
+                  variant='chip'
+                  placeholder='Enter knowledge base name'
+                  {...register('name')}
+                  className={cn(errors.name && 'border-[var(--text-error)]')}
+                  autoComplete='off'
+                  autoCorrect='off'
+                  autoCapitalize='off'
+                  data-lpignore='true'
+                  data-form-type='other'
+                />
+              </div>
+
+              <div className='flex flex-col gap-2'>
+                <Label htmlFor='description'>Description</Label>
+                <Textarea
+                  id='description'
+                  placeholder='Describe this knowledge base (optional)'
+                  rows={4}
+                  {...register('description')}
+                  className={cn(errors.description && 'border-[var(--text-error)]')}
+                />
+              </div>
+
+              <div className='grid grid-cols-2 gap-3'>
                 <div className='flex flex-col gap-2'>
-                  <Label htmlFor='kb-name'>Name</Label>
-                  <input
-                    type='text'
-                    name='fakeusernameremembered'
-                    autoComplete='username'
-                    style={{
-                      position: 'absolute',
-                      left: '-9999px',
-                      opacity: 0,
-                      pointerEvents: 'none',
-                    }}
-                    tabIndex={-1}
-                    readOnly
-                  />
+                  <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
                   <Input
-                    id='kb-name'
-                    placeholder='Enter knowledge base name'
-                    {...register('name')}
-                    className={cn(errors.name && 'border-[var(--text-error)]')}
-                    autoComplete='off'
-                    autoCorrect='off'
-                    autoCapitalize='off'
-                    data-lpignore='true'
-                    data-form-type='other'
-                  />
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                  <Label htmlFor='description'>Description</Label>
-                  <Textarea
-                    id='description'
-                    placeholder='Describe this knowledge base (optional)'
-                    rows={4}
-                    {...register('description')}
-                    className={cn(errors.description && 'border-[var(--text-error)]')}
-                  />
-                </div>
-
-                <div className='grid grid-cols-2 gap-3'>
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
-                    <Input
-                      id='minChunkSize'
-                      type='number'
-                      min={1}
-                      max={2000}
-                      step={1}
-                      placeholder='100'
-                      {...register('minChunkSize', { valueAsNumber: true })}
-                      className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
-                      autoComplete='off'
-                      data-form-type='other'
-                    />
-                  </div>
-
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
-                    <Input
-                      id='maxChunkSize'
-                      type='number'
-                      min={100}
-                      max={4000}
-                      step={1}
-                      placeholder='1024'
-                      {...register('maxChunkSize', { valueAsNumber: true })}
-                      className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
-                      autoComplete='off'
-                      data-form-type='other'
-                    />
-                  </div>
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                  <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
-                  <Input
-                    id='overlapSize'
+                    id='minChunkSize'
+                    variant='chip'
                     type='number'
-                    min={0}
-                    max={500}
+                    min={1}
+                    max={2000}
                     step={1}
-                    placeholder='200'
-                    {...register('overlapSize', { valueAsNumber: true })}
-                    className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
+                    placeholder='100'
+                    {...register('minChunkSize', { valueAsNumber: true })}
+                    className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
                     autoComplete='off'
                     data-form-type='other'
                   />
-                  <p className='text-[var(--text-muted)] text-xs'>
-                    1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
-                  </p>
                 </div>
 
                 <div className='flex flex-col gap-2'>
-                  <Label>Chunking Strategy</Label>
-                  <Combobox
-                    options={STRATEGY_COMBOBOX_OPTIONS}
-                    value={strategyValue}
-                    onChange={(value) => setValue('strategy', value as FormValues['strategy'])}
-                    dropdownWidth='trigger'
-                    align='start'
+                  <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
+                  <Input
+                    id='maxChunkSize'
+                    variant='chip'
+                    type='number'
+                    min={100}
+                    max={4000}
+                    step={1}
+                    placeholder='1024'
+                    {...register('maxChunkSize', { valueAsNumber: true })}
+                    className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
+                    autoComplete='off'
+                    data-form-type='other'
                   />
-                  <p className='text-[var(--text-muted)] text-xs'>
-                    Auto detects the best strategy based on file content type.
-                  </p>
                 </div>
+              </div>
 
-                {strategyValue === 'regex' && (
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='regexPattern'>Regex Pattern</Label>
-                    <Input
-                      id='regexPattern'
-                      placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
-                      {...register('regexPattern')}
-                      className={cn(errors.regexPattern && 'border-[var(--text-error)]')}
-                      autoComplete='off'
-                      data-form-type='other'
-                    />
-                    {errors.regexPattern && (
-                      <p className='text-[var(--text-error)] text-xs'>
-                        {errors.regexPattern.message}
-                      </p>
-                    )}
-                    <p className='text-[var(--text-muted)] text-xs'>
-                      Text will be split at each match of this regex pattern.
-                    </p>
-                    <label
-                      htmlFor='regexStrictBoundaries'
-                      className='mt-1 flex cursor-pointer items-start gap-2'
-                    >
-                      <Checkbox
-                        id='regexStrictBoundaries'
-                        checked={regexStrictBoundariesValue}
-                        onCheckedChange={(checked) =>
-                          setValue('regexStrictBoundaries', checked === true)
-                        }
-                        className='mt-0.5'
-                      />
-                      <div className='flex flex-col gap-0.5'>
-                        <span className='text-[var(--text-primary)] text-sm'>
-                          Each match is its own chunk (don&apos;t merge)
-                        </span>
-                        <span className='text-[var(--text-muted)] text-xs'>
-                          Preserve boundaries exactly. Recommended when each match is a discrete
-                          record (e.g. one QA pair per chunk).
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-                )}
+              <div className='flex flex-col gap-2'>
+                <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
+                <Input
+                  id='overlapSize'
+                  variant='chip'
+                  type='number'
+                  min={0}
+                  max={500}
+                  step={1}
+                  placeholder='200'
+                  {...register('overlapSize', { valueAsNumber: true })}
+                  className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
+                  autoComplete='off'
+                  data-form-type='other'
+                />
+                <p className='text-[var(--text-muted)] text-xs'>
+                  1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
+                </p>
+              </div>
 
-                {strategyValue === 'recursive' && (
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='customSeparators'>Custom Separators (optional)</Label>
-                    <Input
-                      id='customSeparators'
-                      placeholder='e.g. \n\n, \n, . ,  '
-                      {...register('customSeparators')}
-                      autoComplete='off'
-                      data-form-type='other'
-                    />
-                    <p className='text-[var(--text-muted)] text-xs'>
-                      Comma-separated list of delimiters in priority order. Leave empty for default
-                      separators.
-                    </p>
-                  </div>
-                )}
+              <div className='flex flex-col gap-2'>
+                <Label>Chunking Strategy</Label>
+                <ChipCombobox
+                  options={STRATEGY_COMBOBOX_OPTIONS}
+                  value={strategyValue}
+                  onChange={(value) => setValue('strategy', value as FormValues['strategy'])}
+                  dropdownWidth='trigger'
+                  align='start'
+                />
+                <p className='text-[var(--text-muted)] text-xs'>
+                  Auto detects the best strategy based on file content type.
+                </p>
+              </div>
 
+              {strategyValue === 'regex' && (
                 <div className='flex flex-col gap-2'>
-                  <Label>Upload Documents</Label>
-                  <Button
-                    type='button'
-                    variant='default'
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragEnter={handleDragEnter}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={cn(
-                      '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
-                      isDragging && 'border-[var(--surface-7)]'
-                    )}
+                  <Label htmlFor='regexPattern'>Regex Pattern</Label>
+                  <Input
+                    id='regexPattern'
+                    variant='chip'
+                    placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
+                    {...register('regexPattern')}
+                    className={cn(errors.regexPattern && 'border-[var(--text-error)]')}
+                    autoComplete='off'
+                    data-form-type='other'
+                  />
+                  {errors.regexPattern && (
+                    <p className='text-[var(--text-error)] text-xs'>
+                      {errors.regexPattern.message}
+                    </p>
+                  )}
+                  <p className='text-[var(--text-muted)] text-xs'>
+                    Text will be split at each match of this regex pattern.
+                  </p>
+                  <label
+                    htmlFor='regexStrictBoundaries'
+                    className='mt-1 flex cursor-pointer items-start gap-2'
                   >
-                    <input
-                      ref={fileInputRef}
-                      type='file'
-                      accept={ACCEPT_ATTRIBUTE}
-                      onChange={handleFileChange}
-                      className='hidden'
-                      multiple
+                    <Checkbox
+                      id='regexStrictBoundaries'
+                      checked={regexStrictBoundariesValue}
+                      onCheckedChange={(checked) =>
+                        setValue('regexStrictBoundaries', checked === true)
+                      }
+                      className='mt-0.5'
                     />
-                    <div className='flex flex-col gap-0.5 text-center'>
-                      <span className='text-[var(--text-primary)]'>
-                        {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
+                    <div className='flex flex-col gap-0.5'>
+                      <span className='text-[var(--text-primary)] text-sm'>
+                        Each match is its own chunk (don&apos;t merge)
                       </span>
-                      <span className='text-[var(--text-tertiary)] text-xs'>
-                        PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB
-                        each)
+                      <span className='text-[var(--text-muted)] text-xs'>
+                        Preserve boundaries exactly. Recommended when each match is a discrete
+                        record (e.g. one QA pair per chunk).
                       </span>
                     </div>
-                  </Button>
+                  </label>
                 </div>
+              )}
 
-                {files.length > 0 && (
+              {strategyValue === 'recursive' && (
+                <div className='flex flex-col gap-2'>
+                  <Label htmlFor='customSeparators'>Custom Separators (optional)</Label>
+                  <Input
+                    id='customSeparators'
+                    variant='chip'
+                    placeholder='e.g. \n\n, \n, . ,  '
+                    {...register('customSeparators')}
+                    autoComplete='off'
+                    data-form-type='other'
+                  />
+                  <p className='text-[var(--text-muted)] text-xs'>
+                    Comma-separated list of delimiters in priority order. Leave empty for default
+                    separators.
+                  </p>
+                </div>
+              )}
+
+              <div className='flex flex-col gap-2'>
+                <Label>Upload Documents</Label>
+                <Button
+                  type='button'
+                  variant='default'
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={cn(
+                    '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
+                    isDragging && 'border-[var(--surface-7)]'
+                  )}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type='file'
+                    accept={ACCEPT_ATTRIBUTE}
+                    onChange={handleFileChange}
+                    className='hidden'
+                    multiple
+                  />
+                  <div className='flex flex-col gap-0.5 text-center'>
+                    <span className='text-[var(--text-primary)]'>
+                      {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
+                    </span>
+                    <span className='text-[var(--text-tertiary)] text-xs'>
+                      PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB
+                      each)
+                    </span>
+                  </div>
+                </Button>
+              </div>
+
+              {files.length > 0 && (
+                <div className='space-y-2'>
+                  <Label>Selected Files</Label>
                   <div className='space-y-2'>
-                    <Label>Selected Files</Label>
-                    <div className='space-y-2'>
-                      {files.map((file, index) => {
-                        const fileStatus = uploadProgress.fileStatuses?.[index]
-                        const isFailed = fileStatus?.status === 'failed'
-                        const isRetrying = retryingIndexes.has(index)
-                        const isProcessing = fileStatus?.status === 'uploading' || isRetrying
+                    {files.map((file, index) => {
+                      const fileStatus = uploadProgress.fileStatuses?.[index]
+                      const isFailed = fileStatus?.status === 'failed'
+                      const isRetrying = retryingIndexes.has(index)
+                      const isProcessing = fileStatus?.status === 'uploading' || isRetrying
 
-                        return (
-                          <div
-                            key={`${file.name}-${file.size}`}
+                      return (
+                        <div
+                          key={`${file.name}-${file.size}`}
+                          className={cn(
+                            'flex items-center gap-2 rounded-sm border p-2',
+                            isFailed && !isRetrying && 'border-[var(--text-error)]'
+                          )}
+                        >
+                          <span
                             className={cn(
-                              'flex items-center gap-2 rounded-sm border p-2',
-                              isFailed && !isRetrying && 'border-[var(--text-error)]'
+                              'min-w-0 flex-1 truncate text-caption',
+                              isFailed && !isRetrying && 'text-[var(--text-error)]'
                             )}
+                            title={file.name}
                           >
-                            <span
-                              className={cn(
-                                'min-w-0 flex-1 truncate text-caption',
-                                isFailed && !isRetrying && 'text-[var(--text-error)]'
-                              )}
-                              title={file.name}
-                            >
-                              {file.name}
-                            </span>
-                            <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
-                              {formatFileSize(file.size)}
-                            </span>
-                            <div className='flex flex-shrink-0 items-center gap-1'>
-                              {isProcessing ? (
-                                <Loader className='size-4 text-[var(--text-muted)]' animate />
-                              ) : (
-                                <>
-                                  {isFailed && (
-                                    <Button
-                                      type='button'
-                                      variant='ghost'
-                                      className='size-4 p-0'
-                                      onClick={() => {
-                                        setRetryingIndexes((prev) => new Set(prev).add(index))
-                                        removeFile(index)
-                                      }}
-                                      disabled={isUploading}
-                                    >
-                                      <RotateCcw className='size-3' />
-                                    </Button>
-                                  )}
+                            {file.name}
+                          </span>
+                          <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                            {formatFileSize(file.size)}
+                          </span>
+                          <div className='flex flex-shrink-0 items-center gap-1'>
+                            {isProcessing ? (
+                              <Loader className='size-4 text-[var(--text-muted)]' animate />
+                            ) : (
+                              <>
+                                {isFailed && (
                                   <Button
                                     type='button'
                                     variant='ghost'
                                     className='size-4 p-0'
-                                    onClick={() => removeFile(index)}
+                                    onClick={() => {
+                                      setRetryingIndexes((prev) => new Set(prev).add(index))
+                                      removeFile(index)
+                                    }}
                                     disabled={isUploading}
                                   >
-                                    <X className='size-3.5' />
+                                    <RotateCcw className='size-3' />
                                   </Button>
-                                </>
-                              )}
-                            </div>
+                                )}
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  className='size-4 p-0'
+                                  onClick={() => removeFile(index)}
+                                  disabled={isUploading}
+                                >
+                                  <X className='size-3.5' />
+                                </Button>
+                              </>
+                            )}
                           </div>
-                        )
-                      })}
-                    </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                )}
-
-                {fileError && (
-                  <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
-                )}
-              </div>
-            </div>
-          </ModalBody>
-
-          <ModalFooter>
-            <div className='flex w-full items-center justify-between gap-3'>
-              {submitStatus?.type === 'error' || uploadError ? (
-                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
-                  {uploadError?.message || submitStatus?.message}
-                </p>
-              ) : (
-                <div />
+                </div>
               )}
-              <div className='flex flex-shrink-0 gap-2'>
-                <Button
-                  variant='default'
-                  onClick={() => handleClose(false)}
-                  type='button'
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant='primary'
-                  type='submit'
-                  disabled={isSubmitting || !nameValue?.trim()}
-                >
-                  {isSubmitting
-                    ? isUploading
-                      ? uploadProgress.stage === 'uploading'
-                        ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
-                        : uploadProgress.stage === 'processing'
-                          ? 'Processing...'
-                          : 'Creating...'
-                      : 'Creating...'
-                    : 'Create'}
-                </Button>
-              </div>
+
+              {fileError && (
+                <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
+              )}
             </div>
-          </ModalFooter>
-        </form>
-      </ModalContent>
-    </Modal>
+          </div>
+
+          <ChipModalError>{uploadError?.message || submitStatus?.message}</ChipModalError>
+        </ChipModalBody>
+
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => handleClose(false)}
+            type='button'
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Chip>
+          <Chip variant='primary' flush type='submit' disabled={isSubmitting || !nameValue?.trim()}>
+            {isSubmitting
+              ? isUploading
+                ? uploadProgress.stage === 'uploading'
+                  ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+                  : uploadProgress.stage === 'processing'
+                    ? 'Processing...'
+                    : 'Creating...'
+                : 'Creating...'
+              : 'Create'}
+          </Chip>
+        </ChipModalFooter>
+      </form>
+    </ChipModal>
   )
 })

@@ -7,20 +7,15 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Combobox,
+  Chip,
+  ChipCombobox,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalTabs,
   Input,
   Label,
-  Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
@@ -277,68 +272,58 @@ export function EditConnectorModal({
   const Icon = connectorConfig?.icon
 
   return (
-    <Modal open={open} onOpenChange={(val) => !isSaving && onOpenChange(val)}>
-      <ModalContent size='md'>
-        <ModalHeader>
-          <div className='flex items-center gap-2'>
-            {Icon && <Icon className='size-5' />}
-            Edit {displayName}
-          </div>
-        </ModalHeader>
-        <ModalDescription className='sr-only'>
-          Configure settings and manage documents for this connector
-        </ModalDescription>
+    <ChipModal
+      open={open}
+      onOpenChange={(val) => !isSaving && onOpenChange(val)}
+      srTitle={`Edit ${displayName}`}
+      size='md'
+    >
+      <ChipModalHeader icon={Icon ?? null} onClose={() => onOpenChange(false)}>
+        Edit {displayName}
+      </ChipModalHeader>
 
-        <ModalTabs value={activeTab} onValueChange={setActiveTab}>
-          <ModalTabsList>
-            <ModalTabsTrigger value='settings'>Settings</ModalTabsTrigger>
-            <ModalTabsTrigger value='documents'>Documents</ModalTabsTrigger>
-          </ModalTabsList>
+      <ChipModalBody className='pb-3'>
+        <ChipModalTabs
+          tabs={[
+            { value: 'settings', label: 'Settings' },
+            { value: 'documents', label: 'Documents' },
+          ]}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
 
-          <ModalBody className='pb-3'>
-            <ModalTabsContent value='settings'>
-              <SettingsTab
-                connectorConfig={connectorConfig}
-                sourceConfig={sourceConfig}
-                credentialId={connector.credentialId}
-                canonicalGroups={canonicalGroups}
-                canonicalModes={canonicalModes}
-                onToggleCanonicalMode={toggleCanonicalMode}
-                onFieldChange={handleFieldChange}
-                isFieldVisible={isFieldVisible}
-                syncInterval={syncInterval}
-                setSyncInterval={setSyncInterval}
-                hasMaxAccess={hasMaxAccess}
-                isSaving={isSaving}
-                error={error}
-              />
-            </ModalTabsContent>
-
-            <ModalTabsContent value='documents'>
-              <DocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
-            </ModalTabsContent>
-          </ModalBody>
-        </ModalTabs>
-
-        {activeTab === 'settings' && (
-          <ModalFooter>
-            <Button variant='default' onClick={() => onOpenChange(false)} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button variant='primary' onClick={handleSave} disabled={!hasChanges || isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader className='mr-1.5 size-3.5' animate />
-                  Saving…
-                </>
-              ) : (
-                'Save'
-              )}
-            </Button>
-          </ModalFooter>
+        {activeTab === 'settings' ? (
+          <SettingsTab
+            connectorConfig={connectorConfig}
+            sourceConfig={sourceConfig}
+            credentialId={connector.credentialId}
+            canonicalGroups={canonicalGroups}
+            canonicalModes={canonicalModes}
+            onToggleCanonicalMode={toggleCanonicalMode}
+            onFieldChange={handleFieldChange}
+            isFieldVisible={isFieldVisible}
+            syncInterval={syncInterval}
+            setSyncInterval={setSyncInterval}
+            hasMaxAccess={hasMaxAccess}
+            isSaving={isSaving}
+            error={error}
+          />
+        ) : (
+          <DocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
         )}
-      </ModalContent>
-    </Modal>
+      </ChipModalBody>
+
+      {activeTab === 'settings' && (
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isSaving}>
+            Cancel
+          </Chip>
+          <Chip variant='primary' flush onClick={handleSave} disabled={!hasChanges || isSaving}>
+            {isSaving ? 'Saving…' : 'Save'}
+          </Chip>
+        </ChipModalFooter>
+      )}
+    </ChipModal>
   )
 }
 
@@ -436,7 +421,7 @@ function SettingsTab({
                 disabled={isSaving}
               />
             ) : field.type === 'dropdown' && field.options ? (
-              <Combobox
+              <ChipCombobox
                 options={field.options.map((opt) => ({
                   label: opt.label,
                   value: opt.id,
@@ -451,6 +436,7 @@ function SettingsTab({
               />
             ) : (
               <Input
+                variant='chip'
                 value={
                   Array.isArray(sourceConfig[field.id])
                     ? (sourceConfig[field.id] as string[]).join(', ')
@@ -514,9 +500,9 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
     return (
       <div className='flex flex-col gap-2'>
         <Skeleton className='h-7 w-[180px] rounded-md' />
-        <Skeleton className='h-9 w-full rounded-lg' />
-        <Skeleton className='h-9 w-full rounded-lg' />
-        <Skeleton className='h-9 w-full rounded-lg' />
+        <Skeleton className='h-[30px] w-full rounded-lg' />
+        <Skeleton className='h-[30px] w-full rounded-lg' />
+        <Skeleton className='h-[30px] w-full rounded-lg' />
       </div>
     )
   }

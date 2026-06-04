@@ -19,7 +19,7 @@ import {
   Send,
   Skeleton,
 } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
+import { ManageWorkspace, PanelLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -154,18 +154,6 @@ function WorkspaceHeaderImpl({
   const { isInvitationsDisabled: isInvitationsDisabledByConfig } = usePermissionConfig()
   const inviteDisabledReason = activeWorkspaceFull?.inviteDisabledReason ?? null
   const isInvitationsDisabled = isInvitationsDisabledByConfig || inviteDisabledReason !== null
-
-  useEffect(() => {
-    const handleOpenInvite = () => {
-      if (isInvitationsDisabled) {
-        if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
-        return
-      }
-      setIsInviteModalOpen(true)
-    }
-    window.addEventListener('open-invite-modal', handleOpenInvite)
-    return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
-  }, [isInvitationsDisabled, navigateToSettings])
 
   /**
    * Save and exit edit mode when popover closes
@@ -663,6 +651,23 @@ function WorkspaceHeaderImpl({
                 >
                   Invite teammates
                 </Chip>
+                <Chip
+                  leftIcon={ManageWorkspace}
+                  onClick={() => {
+                    setIsWorkspaceMenuOpen(false)
+                    if (isInvitationsDisabled) {
+                      if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
+                      return
+                    }
+                    navigateToSettings({ section: 'teammates' })
+                  }}
+                  title={inviteDisabledReason ?? undefined}
+                  fullWidth
+                  flush
+                  className='w-full select-none'
+                >
+                  Manage workspace
+                </Chip>
               </>
             )}
           </DropdownMenuContent>
@@ -767,7 +772,7 @@ function WorkspaceHeaderImpl({
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to leave{' '}
-            <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
+            <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
             will lose access to all workflows and data in this workspace. This action cannot be
             undone.
           </p>

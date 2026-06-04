@@ -192,7 +192,7 @@ export const TasksGroup = memo(function TasksGroup({
 }) {
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Tasks' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading='Chats' className={GROUP_HEADING_CLASSNAME}>
       {items.map((task) => (
         <MemoizedTaskItem
           key={task.id}

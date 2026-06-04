@@ -64,9 +64,9 @@ export function InboxEnableToggle() {
   return (
     <>
       <div className='flex items-center justify-between'>
-        <div className='flex flex-col gap-0.5'>
-          <span className='font-medium text-[var(--text-primary)] text-sm'>Enable email inbox</span>
-          <span className='text-[var(--text-muted)] text-small'>
+        <div className='flex flex-col gap-1'>
+          <span className='text-[13px] text-[var(--text-primary)]'>Enable email inbox</span>
+          <span className='text-[12px] text-[var(--text-muted)]'>
             Allow this workspace to receive tasks via email
           </span>
         </div>

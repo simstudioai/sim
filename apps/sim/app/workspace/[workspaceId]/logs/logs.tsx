@@ -16,7 +16,7 @@ import { useShallow } from 'zustand/react/shallow'
 import {
   Bell,
   Button,
-  Combobox,
+  ChipCombobox,
   type ComboboxOption,
   DatePicker,
   Library,
@@ -1394,7 +1394,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
     <div className='flex w-[240px] flex-col gap-3 p-3'>
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-        <Combobox
+        <ChipCombobox
           options={statusOptions}
           multiSelect
           multiSelectValues={selectedStatuses}
@@ -1413,14 +1413,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           }
           showAllOption
           allOptionLabel='All statuses'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
+          className='w-full'
         />
       </div>
 
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Workflow</span>
-        <Combobox
+        <ChipCombobox
           options={workflowOptions}
           multiSelect
           multiSelectValues={workflowIds}
@@ -1445,14 +1444,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           searchPlaceholder='Search workflows...'
           showAllOption
           allOptionLabel='All workflows'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
+          className='w-full'
         />
       </div>
 
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Folder</span>
-        <Combobox
+        <ChipCombobox
           options={folderOptions}
           multiSelect
           multiSelectValues={folderIds}
@@ -1465,14 +1463,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           searchPlaceholder='Search folders...'
           showAllOption
           allOptionLabel='All folders'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
+          className='w-full'
         />
       </div>
 
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Trigger</span>
-        <Combobox
+        <ChipCombobox
           options={triggerOptions}
           multiSelect
           multiSelectValues={triggers}
@@ -1485,15 +1482,14 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           searchPlaceholder='Search triggers...'
           showAllOption
           allOptionLabel='All triggers'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
+          className='w-full'
         />
       </div>
 
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Time Range</span>
         <div className='relative'>
-          <Combobox
+          <ChipCombobox
             options={TIME_RANGE_OPTIONS}
             value={timeRange}
             onChange={handleTimeRangeChange}
@@ -1501,8 +1497,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             overlayContent={
               <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
             }
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
             maxHeight={320}
           />
           <DatePicker

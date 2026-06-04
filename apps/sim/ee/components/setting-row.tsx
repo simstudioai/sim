@@ -1,15 +1,30 @@
-import { Label } from '@/components/emcn'
+import { Info } from 'lucide-react'
+import { Label, Tooltip } from '@/components/emcn'
 
 interface SettingRowProps {
   label: string
   description?: string
+  /** Optional supplementary guidance shown in a tooltip on an info icon beside the label. */
+  labelTooltip?: string
   children: React.ReactNode
 }
 
-export function SettingRow({ label, description, children }: SettingRowProps) {
+export function SettingRow({ label, description, labelTooltip, children }: SettingRowProps) {
   return (
     <div className='flex flex-col gap-1.5'>
-      <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
+      <div className='flex items-center gap-1.5'>
+        <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
+        {labelTooltip && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom' align='start'>
+              {labelTooltip}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+      </div>
       {description && <p className='text-[12px] text-[var(--text-muted)]'>{description}</p>}
       {children}
     </div>

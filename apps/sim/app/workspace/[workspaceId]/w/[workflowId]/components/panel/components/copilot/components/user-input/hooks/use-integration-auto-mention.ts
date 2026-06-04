@@ -22,9 +22,11 @@ function isMentionPrefixAt(text: string, atIndex: number): boolean {
 }
 
 /**
- * Scans `text` for known integration names and rewrites each bare
- * occurrence to `@CanonicalName` (case-normalized). Names already
- * preceded by `@` are surfaced as contexts but not double-prefixed.
+ * Scans `text` for explicit `@`-prefixed integration mentions and
+ * canonicalizes their casing (`@slack` → `@Slack`). Bare integration names
+ * are left untouched — plain words like `Monday` or `Notion` in prose must
+ * never be rewritten or chipped (the scunthorpe problem); only a deliberate
+ * `@` opt-in gets mention treatment.
  */
 function convertText(text: string): { text: string; contexts: IntegrationContext[] } {
   const { regex, byName } = getIntegrationMatcher()
@@ -42,23 +44,17 @@ function convertText(text: string): { text: string; contexts: IntegrationContext
   while ((match = regex.exec(text)) !== null) {
     const info = byName.get(match[0].toLowerCase())
     if (!info) continue
-    const atIndex = match.index - 1
-    const hasAtChar = atIndex >= 0 && text[atIndex] === '@'
-    // Email-like prefix (`foo@slack`): the `@` is not a token-starting
-    // prefix. Skip entirely so we neither rewrite nor surface a context —
-    // the downstream sync effect would strip it anyway and we'd just be
-    // doing wasted work that flickers a chip for one render.
-    if (hasAtChar && !isMentionPrefixAt(text, atIndex)) continue
+    // Only explicit, token-starting `@` mentions count. Bare names and
+    // email-like prefixes (`foo@slack`) are skipped entirely.
+    if (!isMentionPrefixAt(text, match.index - 1)) continue
     if (!seen.has(info.name)) {
       seen.add(info.name)
       contexts.push({ kind: 'integration', blockType: info.blockType, label: info.name })
     }
-    const isPrefixed = hasAtChar
     // Skip rewrite when the match is already in canonical `@Slack` form;
-    // otherwise rewrite (either insert `@` or canonicalize the casing).
-    if (isPrefixed && match[0] === info.name) continue
-    const replacement = isPrefixed ? info.name : `@${info.name}`
-    result += text.slice(lastEnd, match.index) + replacement
+    // otherwise canonicalize the casing.
+    if (match[0] === info.name) continue
+    result += text.slice(lastEnd, match.index) + info.name
     lastEnd = match.index + match[0].length
     mutated = true
   }
@@ -78,15 +74,17 @@ interface ProcessChangeArgs {
 }
 
 /**
- * Auto-converts organic integration names (`Slack`, `AWS Textract`,
- * `Gmail`, any casing) into proper `@CanonicalName` mentions so they
- * render with the exact same chip UI as resource mentions — preserving
- * caret alignment, undo grouping, and copy/paste round-tripping.
+ * Canonicalizes explicit `@`-prefixed integration mentions (`@slack`,
+ * `@aws textract`, any casing) into `@CanonicalName` form so they render
+ * with the exact same chip UI as resource mentions — preserving caret
+ * alignment, undo grouping, and copy/paste round-tripping. Bare integration
+ * names in prose are deliberately left untouched: mention treatment is
+ * strictly opt-in via `@`.
  *
  * Two entry points share one dedup helper:
  * - `processChange`: keystroke fast-path. Detects a typed word-boundary
- *   char that just completed an integration name and rewrites the
- *   textarea in a single `setRangeText` edit (joined with the typed
+ *   char that just completed an `@`-prefixed integration name and rewrites
+ *   the textarea in a single `setRangeText` edit (joined with the typed
  *   boundary char in native undo history).
  * - `applyToText`: bulk path for paste, template insertion, draft
  *   restore, speech-to-text, and any other programmatic value source.
@@ -139,22 +137,18 @@ export function useIntegrationAutoMention({ setSelectedContexts }: UseIntegratio
       const info = byName.get(completed.name.toLowerCase())
       if (!info) return nextValue
 
-      const atIndex = completed.start - 1
-      const hasAtChar = atIndex >= 0 && nextValue[atIndex] === '@'
-      // Email-like prefix (`foo@slack`): bail out — neither rewrite nor
-      // record a context. The `@` is not a token-starting prefix.
-      if (hasAtChar && !isMentionPrefixAt(nextValue, atIndex)) return nextValue
-      const hasAtPrefix = hasAtChar
+      // Only explicit, token-starting `@` mentions count. Bare names and
+      // email-like prefixes (`foo@slack`) are left untouched — a plain word
+      // like `Monday` in prose must never be rewritten or chipped.
+      if (!isMentionPrefixAt(nextValue, completed.start - 1)) return nextValue
       // If the user already typed canonical `@Slack`, nothing to rewrite —
-      // just record the context. Otherwise either insert `@` (bare name)
-      // or canonicalize the casing (e.g. `@slack` → `@Slack` so the
-      // mention pipeline's case-sensitive token match finds it).
-      if (!hasAtPrefix || completed.name !== info.name) {
+      // just record the context. Otherwise canonicalize the casing
+      // (e.g. `@slack` → `@Slack` so the mention pipeline's case-sensitive
+      // token match finds it).
+      if (completed.name !== info.name) {
         const caret = textarea.selectionStart ?? diffIndex + 1
-        const replacement = hasAtPrefix ? info.name : `@${info.name}`
-        const caretShift = hasAtPrefix ? 0 : 1
-        textarea.setRangeText(replacement, completed.start, completed.end, 'preserve')
-        textarea.setSelectionRange(caret + caretShift, caret + caretShift)
+        textarea.setRangeText(info.name, completed.start, completed.end, 'preserve')
+        textarea.setSelectionRange(caret, caret)
       }
 
       mergeContexts([{ kind: 'integration', blockType: info.blockType, label: info.name }])

@@ -341,9 +341,10 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   /**
    * Bulk-chipifies a block of text on the non-keystroke paths (mount, template,
-   * draft restore, STT, queued message, multi-char paste): integration `@`
-   * names first (rewrites the text), then skill `/` triggers (swapped to the
-   * sentinel). Returns the fully converted text and registers both context kinds.
+   * draft restore, STT, queued message, multi-char paste): explicit integration
+   * `@`-mentions first (casing canonicalized; bare names are never touched),
+   * then skill `/` triggers (swapped to the sentinel). Returns the fully
+   * converted text and registers both context kinds.
    */
   const applyAutoMentions = useCallback(
     (text: string) => skillAutoMention.applyToText(integrationAutoMention.applyToText(text)),
@@ -353,11 +354,11 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
 
   /**
-   * Convert integration names on mount for any initial value seeded by
-   * `defaultValue` or a restored mothership draft. Mid-typing conversion
-   * is intentionally NOT handled here — the keystroke fast-path in
-   * `handleInputChange` covers that case via `processChange`, and running
-   * it on every value change would inject `@` while the user is still
+   * Canonicalize integration `@`-mentions on mount for any initial value
+   * seeded by `defaultValue` or a restored mothership draft. Mid-typing
+   * conversion is intentionally NOT handled here — the keystroke fast-path
+   * in `handleInputChange` covers that case via `processChange`, and running
+   * it on every value change would rewrite tokens while the user is still
    * typing the name and prematurely open the mention menu.
    */
   useEffect(() => {
@@ -372,8 +373,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
    * Sync `value` when the `defaultValue` prop changes post-mount — e.g.
    * the user clicks a different template while UserInput is already
    * mounted. Mirrors the previously inline render-phase derivation but
-   * now runs the prompt through `applyToText` so integration names get
-   * chipified consistently with paste / draft restore flows.
+   * now runs the prompt through `applyToText` so integration `@`-mentions
+   * get chipified consistently with paste / draft restore flows.
    */
   useEffect(() => {
     if (defaultValue === prevDefaultValueRef.current) return
