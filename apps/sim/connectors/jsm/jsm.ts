@@ -338,6 +338,13 @@ export const jsmConnector: ConnectorConfig = {
       'read:request:jira-service-management',
       'read:request.comment:jira-service-management',
       'read:request.status:jira-service-management',
+      /**
+       * Requests embed a `reporter` user object whose `displayName` is surfaced
+       * in document content and the Reporter tag. Atlassian only populates
+       * embedded user data when the user-read scope is granted, so request it
+       * here. Present in the `jira` OAuth provider config as `read:jira-user`.
+       */
+      'read:jira-user',
       'offline_access',
     ],
   },

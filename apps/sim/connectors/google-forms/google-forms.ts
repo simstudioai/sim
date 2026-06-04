@@ -573,6 +573,14 @@ export const googleFormsConnector: ConnectorConfig = {
     const data = await response.json()
     let files = (data.files || []) as DriveFormFile[]
 
+    /**
+     * Drive sets `incompleteSearch` when it could not search every corpus (it
+     * arises with the `allDrives` scope enabled by `includeItemsFromAllDrives`).
+     * A partial listing drops still-existing forms, so reconciliation must be
+     * suppressed to avoid hard-deleting valid documents.
+     */
+    const incompleteSearch = data.incompleteSearch === true
+
     let slicedSome = false
     if (maxForms > 0) {
       const remaining = maxForms - previouslyFetched
@@ -633,11 +641,16 @@ export const googleFormsConnector: ConnectorConfig = {
      * - `hitLimit` with a next page: the cap was reached while more pages of
      *   forms remain in the source.
      * - `skippedOnError`: a transient error dropped a still-present form.
+     * - `incompleteSearch`: Drive could not search every corpus, so the page
+     *   itself is partial and may omit still-existing forms.
      * Deleting any of those would wipe valid documents from the knowledge base.
      * When the cap merely coincides with source exhaustion (no slice, no next
      * page), reconciliation stays enabled so deleted forms are cleaned up.
      */
-    if (syncContext && (slicedSome || (hitLimit && Boolean(nextPageToken)) || skippedOnError)) {
+    if (
+      syncContext &&
+      (slicedSome || (hitLimit && Boolean(nextPageToken)) || skippedOnError || incompleteSearch)
+    ) {
       syncContext.listingCapped = true
     }
 

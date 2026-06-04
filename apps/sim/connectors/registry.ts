@@ -45,6 +45,7 @@ import { typeformConnector } from '@/connectors/typeform'
 import type { ConnectorRegistry } from '@/connectors/types'
 import { webflowConnector } from '@/connectors/webflow'
 import { wordpressConnector } from '@/connectors/wordpress'
+import { xConnector } from '@/connectors/x'
 import { youtubeConnector } from '@/connectors/youtube'
 import { zendeskConnector } from '@/connectors/zendesk'
 import { zoomConnector } from '@/connectors/zoom'
@@ -96,6 +97,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   typeform: typeformConnector,
   webflow: webflowConnector,
   wordpress: wordpressConnector,
+  x: xConnector,
   youtube: youtubeConnector,
   zendesk: zendeskConnector,
   zoom: zoomConnector,

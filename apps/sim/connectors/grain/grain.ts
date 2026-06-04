@@ -471,10 +471,11 @@ export const grainConnector: ConnectorConfig = {
     try {
       if (!externalId) return null
 
-      const recording = await fetchRecording(accessToken, externalId)
+      const [recording, segments] = await Promise.all([
+        fetchRecording(accessToken, externalId),
+        fetchTranscript(accessToken, externalId),
+      ])
       if (!recording) return null
-
-      const segments = await fetchTranscript(accessToken, externalId)
       if (!segments) return null
 
       const hasTranscript = segments.some((segment) => segment.text?.trim())

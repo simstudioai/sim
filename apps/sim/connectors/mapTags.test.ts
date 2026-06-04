@@ -18,6 +18,11 @@ vi.mock('@/components/icons', () => ({
   S3Icon: () => null,
   GoogleFormsIcon: () => null,
   AzureDevOpsIcon: () => null,
+  xIcon: () => null,
+  GranolaIcon: () => null,
+  GreenhouseIcon: () => null,
+  FathomIcon: () => null,
+  RootlyIcon: () => null,
 }))
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: vi.fn(),
@@ -40,16 +45,21 @@ vi.mock('@/tools/s3/utils', () => ({
 import { airtableConnector } from '@/connectors/airtable/airtable'
 import { azureDevopsConnector } from '@/connectors/azure-devops/azure-devops'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
+import { fathomConnector } from '@/connectors/fathom/fathom'
 import { githubConnector } from '@/connectors/github/github'
 import { googleDriveConnector } from '@/connectors/google-drive/google-drive'
 import { googleFormsConnector } from '@/connectors/google-forms/google-forms'
+import { granolaConnector } from '@/connectors/granola/granola'
+import { greenhouseConnector } from '@/connectors/greenhouse/greenhouse'
 import { jiraConnector } from '@/connectors/jira/jira'
 import { jsmConnector } from '@/connectors/jsm/jsm'
 import { linearConnector } from '@/connectors/linear/linear'
 import { notionConnector } from '@/connectors/notion/notion'
+import { rootlyConnector } from '@/connectors/rootly/rootly'
 import { s3Connector } from '@/connectors/s3/s3'
 import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
+import { xConnector } from '@/connectors/x/x'
 import { youtubeConnector } from '@/connectors/youtube/youtube'
 
 const ISO_DATE = '2025-06-15T10:30:00.000Z'
@@ -784,6 +794,343 @@ describe('Azure DevOps mapTags', () => {
 
   it.concurrent('skips changedDate when date is invalid', () => {
     const result = mapTags({ changedDate: 'garbage' })
+    expect(result).toEqual({})
+  })
+})
+
+describe('X mapTags', () => {
+  const mapTags = xConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      author: 'jack',
+      createdAt: ISO_DATE,
+      likeCount: 1500,
+      retweetCount: 300,
+    })
+
+    expect(result).toEqual({
+      author: 'jack',
+      createdAt: new Date(ISO_DATE),
+      likeCount: 1500,
+      retweetCount: 300,
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      author: 123,
+      createdAt: 99999,
+      likeCount: 'not-a-number',
+      retweetCount: 'nope',
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips createdAt when date is invalid', () => {
+    const result = mapTags({ createdAt: 'not-a-date' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('converts string counts to numbers', () => {
+    const result = mapTags({ likeCount: '42', retweetCount: '7' })
+    expect(result).toEqual({ likeCount: 42, retweetCount: 7 })
+  })
+
+  it.concurrent('maps counts of zero', () => {
+    const result = mapTags({ likeCount: 0, retweetCount: 0 })
+    expect(result).toEqual({ likeCount: 0, retweetCount: 0 })
+  })
+})
+
+describe('Granola mapTags', () => {
+  const mapTags = granolaConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      title: 'Weekly Sync',
+      owner: 'Alice',
+      attendees: ['Alice', 'Bob'],
+      folders: ['Team', 'Projects'],
+      meeting: 'Q3 Planning',
+      noteDate: ISO_DATE,
+      meetingDate: '2025-01-01T00:00:00.000Z',
+    })
+
+    expect(result).toEqual({
+      title: 'Weekly Sync',
+      owner: 'Alice',
+      attendees: 'Alice, Bob',
+      folders: 'Team, Projects',
+      meeting: 'Q3 Planning',
+      noteDate: new Date(ISO_DATE),
+      meetingDate: new Date('2025-01-01T00:00:00.000Z'),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      title: 123,
+      owner: null,
+      attendees: 'not-an-array',
+      folders: 'not-an-array',
+      meeting: true,
+      noteDate: 99999,
+      meetingDate: false,
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('trims text fields in output', () => {
+    const result = mapTags({ title: '  Weekly Sync  ', owner: '  Alice  ', meeting: '  Q3  ' })
+    expect(result).toEqual({ title: 'Weekly Sync', owner: 'Alice', meeting: 'Q3' })
+  })
+
+  it.concurrent('skips blank text fields', () => {
+    const result = mapTags({ title: '   ', owner: '', meeting: '  ' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips array fields when empty', () => {
+    const result = mapTags({ attendees: [], folders: [] })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips noteDate when date is invalid', () => {
+    const result = mapTags({ noteDate: 'not-a-date' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips meetingDate when date is invalid', () => {
+    const result = mapTags({ meetingDate: 'garbage' })
+    expect(result).toEqual({})
+  })
+})
+
+describe('Greenhouse mapTags', () => {
+  const mapTags = greenhouseConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      candidateName: 'Jane Doe',
+      company: 'Acme',
+      title: 'Engineer',
+      recruiter: 'Alice',
+      coordinator: 'Bob',
+      source: 'LinkedIn',
+      applicationCount: 3,
+      updatedAt: ISO_DATE,
+      lastActivity: '2025-01-01T00:00:00.000Z',
+    })
+
+    expect(result).toEqual({
+      candidateName: 'Jane Doe',
+      company: 'Acme',
+      title: 'Engineer',
+      recruiter: 'Alice',
+      coordinator: 'Bob',
+      source: 'LinkedIn',
+      applicationCount: 3,
+      updatedAt: new Date(ISO_DATE),
+      lastActivity: new Date('2025-01-01T00:00:00.000Z'),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      candidateName: 123,
+      company: null,
+      title: true,
+      recruiter: [],
+      coordinator: false,
+      source: 99999,
+      applicationCount: 'not-a-number',
+      updatedAt: 12345,
+      lastActivity: 'bad-date',
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('trims text fields in output', () => {
+    const result = mapTags({ candidateName: '  Jane Doe  ', company: '  Acme  ' })
+    expect(result).toEqual({ candidateName: 'Jane Doe', company: 'Acme' })
+  })
+
+  it.concurrent('skips blank text fields', () => {
+    const result = mapTags({ candidateName: '   ', company: '', source: '  ' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('maps applicationCount of zero', () => {
+    const result = mapTags({ applicationCount: 0 })
+    expect(result).toEqual({ applicationCount: 0 })
+  })
+
+  it.concurrent('skips applicationCount when string', () => {
+    const result = mapTags({ applicationCount: '3' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips updatedAt when date is invalid', () => {
+    const result = mapTags({ updatedAt: 'not-a-date' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips lastActivity when date is invalid', () => {
+    const result = mapTags({ lastActivity: 'garbage' })
+    expect(result).toEqual({})
+  })
+})
+
+describe('Fathom mapTags', () => {
+  const mapTags = fathomConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      title: 'Sales Call',
+      recordedByEmail: 'john@example.com',
+      recordedByName: 'John Smith',
+      team: 'Sales',
+      meetingType: 'external',
+      transcriptLanguage: 'en',
+      durationSeconds: 1800,
+      meetingDate: ISO_DATE,
+    })
+
+    expect(result).toEqual({
+      title: 'Sales Call',
+      recordedByEmail: 'john@example.com',
+      recordedByName: 'John Smith',
+      team: 'Sales',
+      meetingType: 'external',
+      transcriptLanguage: 'en',
+      durationSeconds: 1800,
+      meetingDate: new Date(ISO_DATE),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      title: 123,
+      recordedByEmail: null,
+      recordedByName: true,
+      team: [],
+      meetingType: false,
+      transcriptLanguage: 99999,
+      durationSeconds: 'not-a-number',
+      meetingDate: 12345,
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips blank string fields', () => {
+    const result = mapTags({ title: '   ', team: '', transcriptLanguage: '  ' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('converts string durationSeconds to number', () => {
+    const result = mapTags({ durationSeconds: '900' })
+    expect(result).toEqual({ durationSeconds: 900 })
+  })
+
+  it.concurrent('maps durationSeconds of zero', () => {
+    const result = mapTags({ durationSeconds: 0 })
+    expect(result).toEqual({ durationSeconds: 0 })
+  })
+
+  it.concurrent('skips meetingDate when date is invalid', () => {
+    const result = mapTags({ meetingDate: 'not-a-date' })
+    expect(result).toEqual({})
+  })
+})
+
+describe('Rootly mapTags', () => {
+  const mapTags = rootlyConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      status: 'resolved',
+      severityName: 'SEV1',
+      kind: 'incident',
+      services: ['api', 'web'],
+      teams: ['platform'],
+      environments: ['production'],
+      labels: ['platform:osx'],
+      incidentDate: ISO_DATE,
+      resolvedDate: '2025-01-01T00:00:00.000Z',
+    })
+
+    expect(result).toEqual({
+      status: 'resolved',
+      severity: 'SEV1',
+      kind: 'incident',
+      services: 'api, web',
+      teams: 'platform',
+      environments: 'production',
+      labels: 'platform:osx',
+      incidentDate: new Date(ISO_DATE),
+      resolvedDate: new Date('2025-01-01T00:00:00.000Z'),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      status: 123,
+      severityName: null,
+      severityLevel: true,
+      kind: [],
+      services: 'not-an-array',
+      teams: 'not-an-array',
+      environments: 'not-an-array',
+      labels: 'not-an-array',
+      incidentDate: 99999,
+      resolvedDate: false,
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('falls back to severityLevel when severityName is absent', () => {
+    const result = mapTags({ severityLevel: 'sev0' })
+    expect(result).toEqual({ severity: 'sev0' })
+  })
+
+  it.concurrent('prefers severityName over severityLevel', () => {
+    const result = mapTags({ severityName: 'Critical', severityLevel: 'sev0' })
+    expect(result).toEqual({ severity: 'Critical' })
+  })
+
+  it.concurrent('skips array fields when empty', () => {
+    const result = mapTags({ services: [], teams: [], environments: [], labels: [] })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips incidentDate when date is invalid', () => {
+    const result = mapTags({ incidentDate: 'not-a-date' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips resolvedDate when date is invalid', () => {
+    const result = mapTags({ resolvedDate: 'garbage' })
     expect(result).toEqual({})
   })
 })
