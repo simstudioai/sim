@@ -143,6 +143,18 @@ interface FormStubInput {
   revisionId?: string
   latestResponseTime?: string
   contentScope: ContentScope
+  responseCap: number
+}
+
+/**
+ * Resolves the effective per-form response cap applied when rendering content:
+ * the user-configured `maxResponsesPerForm` clamped to the hard
+ * `MAX_RESPONSES_PER_FORM` ceiling. Part of the content hash so changing the
+ * cap re-syncs every form (the rendered content depends on it).
+ */
+function resolveResponseCap(sourceConfig: Record<string, unknown>): number {
+  const configured = parsePositiveInt(sourceConfig.maxResponsesPerForm)
+  return configured > 0 ? Math.min(configured, MAX_RESPONSES_PER_FORM) : MAX_RESPONSES_PER_FORM
 }
 
 /**
@@ -334,7 +346,10 @@ function latestResponseTime(responses: FormResponse[]): string | undefined {
  * forces a re-sync of every document.
  */
 function formContentHash(input: FormStubInput): string {
-  const responsePart = input.contentScope === 'both' ? (input.latestResponseTime ?? '') : 'none'
+  const responsePart =
+    input.contentScope === 'both'
+      ? `${input.latestResponseTime ?? ''}:${input.responseCap}`
+      : 'none'
   return `gforms:${input.file.id}:${input.contentScope}:${input.revisionId ?? ''}:${responsePart}`
 }
 
@@ -514,6 +529,7 @@ export const googleFormsConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const maxForms = parsePositiveInt(sourceConfig.maxForms)
     const contentScope = resolveContentScope(sourceConfig.contentScope)
+    const responseCap = resolveResponseCap(sourceConfig)
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     if (maxForms > 0 && previouslyFetched >= maxForms) {
@@ -586,6 +602,7 @@ export const googleFormsConnector: ConnectorConfig = {
           revisionId: form.revisionId,
           latestResponseTime: latest,
           contentScope,
+          responseCap,
         })
       } catch (error) {
         skippedOnError = true
@@ -661,16 +678,14 @@ export const googleFormsConnector: ConnectorConfig = {
       const form = await fetchFormStructure(accessToken, file.id)
       if (!form) return null
 
-      const maxResponses = parsePositiveInt(sourceConfig.maxResponsesPerForm)
+      const responseCap = resolveResponseCap(sourceConfig)
       const fetched =
         contentScope === 'both'
           ? await fetchFormResponses(accessToken, file.id)
           : { responses: [], latestSubmittedTime: undefined }
       const responses = fetched.responses
       const cappedResponses =
-        maxResponses > 0 && responses.length > maxResponses
-          ? responses.slice(0, maxResponses)
-          : responses
+        responses.length > responseCap ? responses.slice(0, responseCap) : responses
 
       const content = renderFormDocument(form, cappedResponses)
       if (!content.trim()) return null
@@ -681,6 +696,7 @@ export const googleFormsConnector: ConnectorConfig = {
         revisionId: form.revisionId,
         latestResponseTime: fetched.latestSubmittedTime,
         contentScope,
+        responseCap,
       })
       return { ...stub, content, contentDeferred: false }
     } catch (error) {

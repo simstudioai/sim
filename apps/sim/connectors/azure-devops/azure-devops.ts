@@ -287,7 +287,8 @@ async function listWikis(
   accessToken: string,
   organization: string,
   project: string,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+  retryOptions?: Parameters<typeof fetchWithRetry>[2],
+  syncContext?: Record<string, unknown>
 ): Promise<WikiV2[]> {
   const url = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/wiki/wikis?api-version=${WIKIS_LIST_API_VERSION}`
   const response = await fetchWithRetry(
@@ -300,6 +301,15 @@ async function listWikis(
   )
   if (!response.ok) {
     if (response.status === 401 || response.status === 403 || response.status === 404) {
+      /**
+       * 401/403 mean the wikis still exist but this PAT cannot read them right
+       * now — flag the listing as incomplete so reconciliation does not delete
+       * previously synced wiki pages. A 404 means the wiki feature/content is
+       * genuinely absent, so reconciliation stays enabled.
+       */
+      if ((response.status === 401 || response.status === 403) && syncContext) {
+        syncContext.listingCapped = true
+      }
       logger.warn('Azure DevOps wikis unavailable; skipping wiki listing', {
         organization,
         project,
@@ -327,7 +337,7 @@ async function resolveWikis(
 ): Promise<WikiV2[]> {
   const cached = syncContext?.wikis as WikiV2[] | undefined
   if (cached) return cached
-  const wikis = await listWikis(accessToken, organization, project)
+  const wikis = await listWikis(accessToken, organization, project, undefined, syncContext)
   if (syncContext) syncContext.wikis = wikis
   return wikis
 }
@@ -642,7 +652,8 @@ async function listRepositories(
   accessToken: string,
   organization: string,
   project: string,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+  retryOptions?: Parameters<typeof fetchWithRetry>[2],
+  syncContext?: Record<string, unknown>
 ): Promise<GitRepository[]> {
   const url = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/git/repositories?api-version=${GIT_API_VERSION}`
   const response = await fetchWithRetry(
@@ -655,6 +666,15 @@ async function listRepositories(
   )
   if (!response.ok) {
     if (response.status === 401 || response.status === 403 || response.status === 404) {
+      /**
+       * 401/403 mean repositories still exist but this PAT cannot read them
+       * right now — flag the listing as incomplete so reconciliation does not
+       * delete previously synced repository files. A 404 means the Git feature
+       * is genuinely absent, so reconciliation stays enabled.
+       */
+      if ((response.status === 401 || response.status === 403) && syncContext) {
+        syncContext.listingCapped = true
+      }
       logger.warn('Azure DevOps repositories unavailable; skipping file listing', {
         organization,
         project,
@@ -686,7 +706,8 @@ async function resolveRepositories(
   syncContext?: Record<string, unknown>
 ): Promise<GitRepository[]> {
   const cached = syncContext?.repositories as GitRepository[] | undefined
-  const all = cached ?? (await listRepositories(accessToken, organization, project))
+  const all =
+    cached ?? (await listRepositories(accessToken, organization, project, undefined, syncContext))
   if (syncContext && !cached) syncContext.repositories = all
 
   const needle = repositoryFilter.toLowerCase()
@@ -707,7 +728,8 @@ async function listRepositoryBlobs(
   organization: string,
   project: string,
   repoId: string,
-  branch: string
+  branch: string,
+  syncContext?: Record<string, unknown>
 ): Promise<GitItem[]> {
   const params = new URLSearchParams({
     recursionLevel: 'Full',
@@ -722,6 +744,16 @@ async function listRepositoryBlobs(
   })
   if (!response.ok) {
     if (response.status === 401 || response.status === 403 || response.status === 404) {
+      /**
+       * 401/403 mean the repository's files still exist but this PAT cannot
+       * read them right now — flag the listing as incomplete so reconciliation
+       * does not delete previously synced files. A 404 means the branch/repo
+       * content is genuinely absent (empty repo, deleted branch), so
+       * reconciliation stays enabled.
+       */
+      if ((response.status === 401 || response.status === 403) && syncContext) {
+        syncContext.listingCapped = true
+      }
       logger.warn('Azure DevOps repository items unavailable; skipping repository', {
         repoId,
         branch,
@@ -824,7 +856,14 @@ async function resolveRepoFiles(
       })
       continue
     }
-    const blobs = await listRepositoryBlobs(accessToken, organization, project, repo.id, branch)
+    const blobs = await listRepositoryBlobs(
+      accessToken,
+      organization,
+      project,
+      repo.id,
+      branch,
+      syncContext
+    )
     for (const item of blobs) {
       if (normalizedPrefix && !item.path.startsWith(normalizedPrefix)) continue
       if (!matchesExtension(item.path, filters.extensions)) continue

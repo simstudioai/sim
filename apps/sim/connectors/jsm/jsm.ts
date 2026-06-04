@@ -518,7 +518,9 @@ export const jsmConnector: ConnectorConfig = {
     const data = (await response.json()) as JsmPage<JsmRequest>
     let requests = data.values ?? []
 
+    let slicedSome = false
     if (maxRequests > 0 && requests.length > remaining) {
+      slicedSome = true
       requests = requests.slice(0, remaining)
     }
 
@@ -533,8 +535,12 @@ export const jsmConnector: ConnectorConfig = {
      * When `maxRequests` truncates the listing before the source is exhausted,
      * flag the run as capped so the sync engine skips deletion reconciliation —
      * otherwise unseen requests beyond the cap would be deleted on every sync.
+     * `slicedSome` covers truncation on the final page: requests dropped from
+     * this page still exist even when `isLastPage` is true. (The requested
+     * `limit` never exceeds the remaining budget, so a slice should be
+     * impossible — this is defense in depth against the API over-returning.)
      */
-    if (reachedCap && !data.isLastPage && syncContext) {
+    if (((reachedCap && !data.isLastPage) || slicedSome) && syncContext) {
       syncContext.listingCapped = true
     }
 
