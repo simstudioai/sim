@@ -13,8 +13,8 @@ import {
   Skeleton,
   Textarea,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
-import { cn } from '@/lib/utils'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
