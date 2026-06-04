@@ -334,11 +334,11 @@ async function reacquireHostedKey(
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
   requestId: string
-): Promise<boolean> {
-  if (!tool.hosting) return false
+): Promise<string | null> {
+  if (!tool.hosting) return null
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
   const { workspaceId } = resolveToolScope(params, executionContext)
-  if (!workspaceId) return false
+  if (!workspaceId) return null
 
   const provider = byokProviderId || tool.id
   const acquireResult = await getHostedKeyRateLimiter().acquireKey(
@@ -353,14 +353,14 @@ async function reacquireHostedKey(
     logger.warn(
       `[${requestId}] Re-acquire of hosted key for ${tool.id} failed: ${acquireResult.error ?? 'unknown'}`
     )
-    return false
+    return null
   }
 
   params[apiKeyParam] = acquireResult.key
   logger.info(
     `[${requestId}] Re-acquired hosted key for ${tool.id} (${acquireResult.envVarName}) after upstream throttling`
   )
-  return true
+  return acquireResult.envVarName ?? 'unknown'
 }
 
 /**
@@ -383,11 +383,19 @@ function isRateLimitError(error: unknown): boolean {
   return false
 }
 
-/** Map a thrown tool error to a hosted-key failure reason for metrics. */
+/**
+ * Map a thrown tool error to a hosted-key failure reason for metrics. Mirrors
+ * `isRateLimitError`: some providers signal quota/rate-limit via 401/403 with a
+ * descriptive message, so those count as `rate_limited`, not `auth`.
+ */
 function classifyHostedKeyFailure(error: unknown): 'rate_limited' | 'auth' | 'other' {
   const status = (error as { status?: number } | null)?.status
   if (status === 429 || status === 503) return 'rate_limited'
-  if (status === 401 || status === 403) return 'auth'
+  if (status === 401 || status === 403) {
+    const message = ((error as { message?: string } | null)?.message ?? '').toLowerCase()
+    if (message.includes('quota') || message.includes('rate limit')) return 'rate_limited'
+    return 'auth'
+  }
   return 'other'
 }
 
@@ -1178,6 +1186,8 @@ export async function executeTool(
           requestId,
           hostedKeyInfo.envVarName
         )
+      } else if (hostedKeyForMetrics) {
+        hostedKeyMetrics.recordFailed({ ...hostedKeyForMetrics, reason: 'other' })
       }
 
       const strippedOutput = postProcessToolOutput(normalizedToolId, finalResult.output ?? {})
@@ -1202,13 +1212,16 @@ export async function executeTool(
           envVarName: hostedKeyInfo.envVarName!,
           executionContext,
           reacquireAfterRetriesExhausted: async () => {
-            const reacquired = await reacquireHostedKey(
+            const reacquiredEnvVar = await reacquireHostedKey(
               tool,
               contextParams,
               executionContext,
               requestId
             )
-            if (!reacquired) return null
+            if (!reacquiredEnvVar) return null
+            // Re-point metric labels at the freshly acquired key.
+            hostedKeyInfo.envVarName = reacquiredEnvVar
+            if (hostedKeyForMetrics) hostedKeyForMetrics.key = reacquiredEnvVar
             return () => executeToolRequest(toolId, tool, contextParams)
           },
         })
@@ -1244,6 +1257,8 @@ export async function executeTool(
         requestId,
         hostedKeyInfo.envVarName
       )
+    } else if (hostedKeyForMetrics) {
+      hostedKeyMetrics.recordFailed({ ...hostedKeyForMetrics, reason: 'other' })
     }
 
     const strippedOutput = postProcessToolOutput(normalizedToolId, finalResult.output ?? {})
