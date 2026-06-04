@@ -39,7 +39,12 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024
 const MAX_IMAGE_JSON_BYTES = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 256 * 1024
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 600
+/**
+ * Mirrors the maximum plan execution timeout (enterprise async, 90 minutes) used by
+ * `getMaxExecutionTimeout()` for the provider polling loop below. Next.js requires a
+ * static literal for `maxDuration`, so this value must be kept in sync with that source.
+ */
+export const maxDuration = 5400
 
 type ImageProvider = (typeof imageProviders)[number]
 

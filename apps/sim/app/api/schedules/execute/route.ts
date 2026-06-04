@@ -27,12 +27,12 @@ import {
   SCHEDULE_WORKFLOW_ENQUEUE_LIMIT,
 } from '@/lib/workflows/schedules/execution-limits'
 import {
+  buildScheduleFailureUpdate,
   executeJobInline,
   executeScheduleJob,
   releaseScheduleLock,
   type ScheduleExecutionPayload,
 } from '@/background/schedule-execution'
-import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 3600
@@ -321,15 +321,7 @@ async function markClaimedScheduleFailed(
   const now = new Date()
   await db
     .update(workflowSchedule)
-    .set({
-      updatedAt: now,
-      lastQueuedAt: null,
-      lastFailedAt: now,
-      nextRunAt: getScheduleNextRunAt(schedule, now),
-      failedCount: sql`COALESCE(${workflowSchedule.failedCount}, 0) + 1`,
-      status: sql`CASE WHEN COALESCE(${workflowSchedule.failedCount}, 0) + 1 >= ${MAX_CONSECUTIVE_FAILURES} THEN 'disabled' ELSE 'active' END`,
-      infraRetryCount: 0,
-    })
+    .set(buildScheduleFailureUpdate(now, getScheduleNextRunAt(schedule, now)))
     .where(
       and(
         eq(workflowSchedule.id, schedule.id),
@@ -482,15 +474,7 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
 
       await tx
         .update(workflowSchedule)
-        .set({
-          updatedAt: now,
-          lastQueuedAt: null,
-          lastFailedAt: now,
-          nextRunAt: getScheduleNextRunAt(payload, now),
-          failedCount: sql`COALESCE(${workflowSchedule.failedCount}, 0) + 1`,
-          status: sql`CASE WHEN COALESCE(${workflowSchedule.failedCount}, 0) + 1 >= ${MAX_CONSECUTIVE_FAILURES} THEN 'disabled' ELSE 'active' END`,
-          infraRetryCount: 0,
-        })
+        .set(buildScheduleFailureUpdate(now, getScheduleNextRunAt(payload, now)))
         .where(
           and(
             eq(workflowSchedule.id, payload.scheduleId),

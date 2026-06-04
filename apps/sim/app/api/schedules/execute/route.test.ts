@@ -50,6 +50,15 @@ vi.mock('@/background/schedule-execution', () => ({
   executeScheduleJob: mockExecuteScheduleJob,
   executeJobInline: mockExecuteJobInline,
   releaseScheduleLock: mockReleaseScheduleLock,
+  buildScheduleFailureUpdate: (now: Date, nextRunAt: Date | null) => ({
+    updatedAt: now,
+    lastQueuedAt: null,
+    nextRunAt,
+    failedCount: { type: 'sql' },
+    lastFailedAt: now,
+    status: { type: 'sql' },
+    infraRetryCount: 0,
+  }),
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => mockFeatureFlags)

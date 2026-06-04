@@ -772,7 +772,7 @@
     "slug": "apify",
     "name": "Apify",
     "description": "Run Apify actors and retrieve results",
-    "longDescription": "Integrate Apify into your workflow. Run any Apify actor with custom input and retrieve results. Supports both synchronous and asynchronous execution with automatic dataset fetching.",
+    "longDescription": "Integrate Apify into your workflow. Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.",
     "bgColor": "#E0E0E0",
     "iconName": "ApifyIcon",
     "docsUrl": "https://docs.sim.ai/tools/apify",
@@ -784,9 +784,21 @@
       {
         "name": "Run Actor (Async)",
         "description": "Run an APIFY actor asynchronously with polling for long-running tasks"
+      },
+      {
+        "name": "Run Task",
+        "description": "Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)"
+      },
+      {
+        "name": "Get Dataset Items",
+        "description": "Retrieve items stored in an APIFY dataset"
+      },
+      {
+        "name": "Get Run",
+        "description": "Get the status and details of an APIFY actor run"
       }
     ],
-    "operationCount": 2,
+    "operationCount": 5,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -13528,7 +13540,8 @@
       "privacy": {
         "body": "Sim requests only the Slack permissions its actions and triggers need, and never shows private channel names or messages to people who are not members of those channels in Slack.",
         "href": "/privacy"
-      }
+      },
+      "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete — review automated outputs before relying on them, especially for important communications."
     }
   },
   {

@@ -5,7 +5,7 @@ import { randomFloat } from '@sim/utils/random'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
   secureFetchWithPinnedIP,
@@ -19,6 +19,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
@@ -430,8 +431,14 @@ async function executeWithRetry<T>(
   maxRetries = 3,
   baseDelayMs = 1000
 ): Promise<T> {
-  const { requestId, toolId, provider, envVarName, executionContext, reacquireAfterRetriesExhausted } =
-    context
+  const {
+    requestId,
+    toolId,
+    provider,
+    envVarName,
+    executionContext,
+    reacquireAfterRetriesExhausted,
+  } = context
   let lastError: unknown
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -904,6 +911,9 @@ export async function executeTool(
   options: ExecuteToolOptions = {}
 ): Promise<ToolResponse> {
   const { skipPostProcess = false, executionContext, signal } = options
+  // Fall back to the workflow execution's abort signal so plan-based execution timeouts
+  // and cancellation propagate to tool fetches when the caller passes no explicit signal.
+  const effectiveSignal = signal ?? executionContext?.abortSignal
   // Capture start time for precise timing
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
@@ -1000,7 +1010,7 @@ export async function executeTool(
         executionContext,
         requestId,
         startTimeISO,
-        signal
+        effectiveSignal
       )
     } else {
       // For built-in tools, use the synchronous version
@@ -1208,27 +1218,30 @@ export async function executeTool(
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
     // Wrap with retry logic for hosted keys to handle rate limiting due to higher usage
     const result = hostedKeyInfo.isUsingHostedKey
-      ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams, signal), {
-          requestId,
-          toolId,
-          provider: tool.hosting?.byokProviderId || tool.id,
-          envVarName: hostedKeyInfo.envVarName!,
-          executionContext,
-          reacquireAfterRetriesExhausted: async () => {
-            const reacquiredEnvVar = await reacquireHostedKey(
-              tool,
-              contextParams,
-              executionContext,
-              requestId
-            )
-            if (!reacquiredEnvVar) return null
-            // Re-point metric labels at the freshly acquired key.
-            hostedKeyInfo.envVarName = reacquiredEnvVar
-            if (hostedKeyForMetrics) hostedKeyForMetrics.key = reacquiredEnvVar
-            return () => executeToolRequest(toolId, tool, contextParams)
-          },
-        })
-      : await executeToolRequest(toolId, tool, contextParams, signal)
+      ? await executeWithRetry(
+          () => executeToolRequest(toolId, tool, contextParams, effectiveSignal),
+          {
+            requestId,
+            toolId,
+            provider: tool.hosting?.byokProviderId || tool.id,
+            envVarName: hostedKeyInfo.envVarName!,
+            executionContext,
+            reacquireAfterRetriesExhausted: async () => {
+              const reacquiredEnvVar = await reacquireHostedKey(
+                tool,
+                contextParams,
+                executionContext,
+                requestId
+              )
+              if (!reacquiredEnvVar) return null
+              // Re-point metric labels at the freshly acquired key.
+              hostedKeyInfo.envVarName = reacquiredEnvVar
+              if (hostedKeyForMetrics) hostedKeyForMetrics.key = reacquiredEnvVar
+              return () => executeToolRequest(toolId, tool, contextParams, effectiveSignal)
+            },
+          }
+        )
+      : await executeToolRequest(toolId, tool, contextParams, effectiveSignal)
 
     // Apply post-processing if available and not skipped
     let finalResult = result
@@ -1418,17 +1431,7 @@ function isErrorResponse(
  * the platform's own workflow execution endpoints via absolute URL.
  */
 function isSelfOriginUrl(url: string): boolean {
-  try {
-    const targetOrigin = new URL(url).origin
-    const publicOrigin = new URL(getBaseUrl()).origin
-    if (targetOrigin === publicOrigin) return true
-
-    const internalOrigin = new URL(getInternalApiBaseUrl()).origin
-    if (targetOrigin === internalOrigin) return true
-  } catch {
-    return false
-  }
-  return false
+  return isSameOrigin(url, getBaseUrl()) || isSameOrigin(url, getInternalApiBaseUrl())
 }
 
 /**
@@ -1639,7 +1642,11 @@ async function executeToolRequest(
       try {
         if (isInternalRoute) {
           const controller = new AbortController()
-          const timeout = requestParams.timeout || DEFAULT_EXECUTION_TIMEOUT_MS
+          // With a caller/execution abort signal present, the plan-based timeout bounds the call and
+          // this only acts as a ceiling; without one, keep the tighter default as the hang safety net.
+          const timeout =
+            requestParams.timeout ||
+            (signal ? getMaxExecutionTimeout() : DEFAULT_EXECUTION_TIMEOUT_MS)
           const timeoutId = setTimeout(
             () => controller.abort(`timeout:internal_tool_fetch:${timeout}ms`),
             timeout

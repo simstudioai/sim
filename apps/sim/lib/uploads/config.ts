@@ -1,4 +1,4 @@
-import { env } from '@/lib/core/config/env'
+import { env, envBoolean } from '@/lib/core/config/env'
 import type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
 export type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
@@ -17,6 +17,15 @@ export const USE_S3_STORAGE = hasS3Config && !USE_BLOB_STORAGE
 export const S3_CONFIG = {
   bucket: env.S3_BUCKET_NAME || '',
   region: env.AWS_REGION || '',
+  /**
+   * Custom endpoint for S3-compatible providers (Cloudflare R2, MinIO, Backblaze B2).
+   * Unset means the AWS SDK derives the host from `region`, targeting AWS S3.
+   * This is trusted operator configuration (not user input), so it is passed
+   * through verbatim — `http://` and private hosts are allowed for on-prem MinIO.
+   */
+  endpoint: env.S3_ENDPOINT || undefined,
+  /** Path-style addressing — required by MinIO/Ceph RGW; AWS S3 and R2 use the default `false`. */
+  forcePathStyle: envBoolean(env.S3_FORCE_PATH_STYLE) ?? false,
 }
 
 export const BLOB_CONFIG = {

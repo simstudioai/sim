@@ -17,8 +17,6 @@ import {
   customSession,
   emailOTP,
   genericOAuth,
-  jwt,
-  oidcProvider,
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
@@ -32,12 +30,6 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
-import {
-  evictCachedMetadata,
-  isMetadataUrl,
-  resolveClientMetadata,
-  upsertCimdClient,
-} from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import {
@@ -79,6 +71,7 @@ import {
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
   isSignupMxValidationEnabled,
+  isSsoEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
@@ -172,6 +165,20 @@ const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
   logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
 )
 
+/**
+ * SSO provider IDs to trust for automatic account linking when an SSO sign-in
+ * matches an existing account's email. Includes `SSO_PROVIDER_ID` when it is set
+ * in the app environment, plus any IDs from `SSO_TRUSTED_PROVIDER_IDS`. Empty when
+ * SSO is disabled, so `trustedProviders` is unchanged for non-SSO deployments.
+ * Resolved once at startup; `trustEmailVerified` on the SSO plugin handles IdPs
+ * that assert `email_verified` live, so this is only needed for IdPs that omit it.
+ */
+const additionalTrustedSsoProviders = isSsoEnabled
+  ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id))
+  : []
+
 if (env.NODE_ENV === 'production') {
   const baseUrl = getBaseUrl()
   if (isLocalhostUrl(baseUrl)) {
@@ -197,8 +204,6 @@ export const auth = betterAuth({
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
     ...additionalTrustedOrigins,
-    'https://claude.ai',
-    'https://claude.com',
   ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -695,6 +700,7 @@ export const auth = betterAuth({
         'calcom',
         'docusign',
         ...SSO_TRUSTED_PROVIDERS,
+        ...additionalTrustedSsoProviders,
       ],
     },
   },
@@ -854,25 +860,19 @@ export const auth = betterAuth({
         }
       }
 
-      if (ctx.path === '/oauth2/authorize' || ctx.path === '/oauth2/token') {
-        const clientId = (ctx.query?.client_id ?? ctx.body?.client_id) as string | undefined
-        if (clientId && isMetadataUrl(clientId)) {
-          try {
-            const { metadata, fromCache } = await resolveClientMetadata(clientId)
-            if (!fromCache) {
-              try {
-                await upsertCimdClient(metadata)
-              } catch (upsertErr) {
-                evictCachedMetadata(clientId)
-                throw upsertErr
-              }
-            }
-          } catch (err) {
-            logger.warn('CIMD resolution failed', {
-              clientId,
-              error: toError(err).message,
-            })
-          }
+      if (ctx.path === '/sign-up/email' && ctx.body?.email) {
+        const signupEmail = ctx.body.email.toLowerCase()
+        const [existingUser] = await db
+          .select({ id: schema.user.id })
+          .from(schema.user)
+          .where(eq(schema.user.email, signupEmail))
+          .limit(1)
+
+        if (existingUser) {
+          throw new APIError('UNPROCESSABLE_ENTITY', {
+            message: 'User already exists',
+            code: 'USER_ALREADY_EXISTS',
+          })
         }
       }
 
@@ -891,24 +891,6 @@ export const auth = betterAuth({
         ]
       : []),
     admin(),
-    jwt({
-      jwks: {
-        keyPairConfig: { alg: 'RS256' },
-      },
-      disableSettingJwtHeader: true,
-    }),
-    oidcProvider({
-      loginPage: '/login',
-      consentPage: '/oauth/consent',
-      requirePKCE: true,
-      allowPlainCodeChallengeMethod: false,
-      allowDynamicClientRegistration: true,
-      useJWTPlugin: true,
-      scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:tools'],
-      metadata: {
-        client_id_metadata_document_supported: true,
-      } as Record<string, unknown>,
-    }),
     oneTimeToken({
       expiresIn: 24 * 60, // 24 hours in minutes (better-auth's expiresIn unit)
     }),
@@ -2950,6 +2932,12 @@ export const auth = betterAuth({
     ...(env.SSO_ENABLED
       ? [
           sso({
+            /**
+             * Honor the IdP's verified-email claim. Without this the SSO plugin
+             * forces `emailVerified: false`, blocking automatic linking of an SSO
+             * login to an existing same-email account (Better Auth "account not linked").
+             */
+            trustEmailVerified: true,
             organizationProvisioning: {
               disabled: false,
               defaultRole: 'member',

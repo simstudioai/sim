@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Enrichment"
+  short_description: "Build a table enrichment cascade"
+  brand_color: "#16A34A"
+  default_prompt: "Use $add-enrichment to add a code-defined Sim table enrichment backed by a provider cascade."

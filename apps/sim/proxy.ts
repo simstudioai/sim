@@ -52,15 +52,6 @@ const CORS_RULES: readonly CorsRule[] = [
     }),
   },
   {
-    match: (p) => p === '/api/auth/jwks' || p.startsWith('/api/auth/.well-known/'),
-    policy: () => ({
-      origin: '*',
-      credentials: false,
-      methods: 'GET, OPTIONS',
-      headers: 'Content-Type, Accept',
-    }),
-  },
-  {
     match: (p) => p === '/api/mcp/copilot',
     policy: () => ({
       origin: '*',

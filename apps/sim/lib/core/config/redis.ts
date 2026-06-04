@@ -54,55 +54,65 @@ export function getRedisConnectionDefaults(
   }
 }
 
-let globalRedisClient: Redis | null = null
-let pingFailures = 0
-let pingInterval: NodeJS.Timeout | null = null
-let pingInFlight = false
+interface RedisState {
+  client: Redis | null
+  pingFailures: number
+  pingInterval: NodeJS.Timeout | null
+  pingInFlight: boolean
+  reconnectListeners: Array<() => void>
+}
+
+const g = globalThis as typeof globalThis & { _redisState?: RedisState }
+if (!g._redisState) {
+  g._redisState = {
+    client: null,
+    pingFailures: 0,
+    pingInterval: null,
+    pingInFlight: false,
+    reconnectListeners: [],
+  }
+}
+const state = g._redisState
 
 const PING_INTERVAL_MS = 15_000
 const MAX_PING_FAILURES = 2
-
-/** Callbacks invoked when the PING health check forces a reconnect. */
-const reconnectListeners: Array<() => void> = []
 
 /**
  * Register a callback that fires when the PING health check forces a reconnect.
  * Useful for resetting cached adapters that hold a stale Redis reference.
  */
 export function onRedisReconnect(cb: () => void): void {
-  reconnectListeners.push(cb)
+  state.reconnectListeners.push(cb)
 }
 
 function startPingHealthCheck(redis: Redis): void {
-  if (pingInterval) return
+  if (state.pingInterval) return
 
-  pingInterval = setInterval(async () => {
-    if (pingInFlight) return
-    pingInFlight = true
+  state.pingInterval = setInterval(async () => {
+    if (state.pingInFlight) return
+    state.pingInFlight = true
     try {
       await redis.ping()
-      pingFailures = 0
+      state.pingFailures = 0
     } catch (error) {
-      pingFailures++
+      state.pingFailures++
       logger.warn('Redis PING failed', {
-        consecutiveFailures: pingFailures,
+        consecutiveFailures: state.pingFailures,
         error: toError(error).message,
       })
 
-      if (pingFailures >= MAX_PING_FAILURES) {
+      if (state.pingFailures >= MAX_PING_FAILURES) {
         logger.error('Redis PING failed consecutive times — forcing reconnect', {
-          consecutiveFailures: pingFailures,
+          consecutiveFailures: state.pingFailures,
         })
-        pingFailures = 0
-        // Drop the cached client and stop this health check before disconnecting,
-        // so the next getRedisClient() builds a fresh client and a fresh PING loop.
-        // Listeners may call getRedisClient() and must observe the cleared global.
-        globalRedisClient = null
-        if (pingInterval) {
-          clearInterval(pingInterval)
-          pingInterval = null
+        state.pingFailures = 0
+        // Clear before notifying listeners — they may call getRedisClient() and must see the reset state.
+        state.client = null
+        if (state.pingInterval) {
+          clearInterval(state.pingInterval)
+          state.pingInterval = null
         }
-        for (const cb of reconnectListeners) {
+        for (const cb of state.reconnectListeners) {
           try {
             cb()
           } catch (cbError) {
@@ -116,7 +126,7 @@ function startPingHealthCheck(redis: Redis): void {
         }
       }
     } finally {
-      pingInFlight = false
+      state.pingInFlight = false
     }
   }, PING_INTERVAL_MS)
 }
@@ -131,7 +141,7 @@ function startPingHealthCheck(redis: Redis): void {
 export function getRedisClient(): Redis | null {
   if (typeof window !== 'undefined') return null
   if (!redisUrl) return null
-  if (globalRedisClient) return globalRedisClient
+  if (state.client) return state.client
 
   // Outside the try/catch so config errors aren't silently swallowed.
   const defaults = getRedisConnectionDefaults(redisUrl)
@@ -139,7 +149,7 @@ export function getRedisClient(): Redis | null {
   try {
     logger.info('Initializing Redis client')
 
-    globalRedisClient = new Redis(redisUrl, {
+    state.client = new Redis(redisUrl, {
       ...defaults,
       commandTimeout: 5000,
       maxRetriesPerRequest: 5,
@@ -162,17 +172,17 @@ export function getRedisClient(): Redis | null {
       },
     })
 
-    globalRedisClient.on('connect', () => logger.info('Redis connected'))
-    globalRedisClient.on('ready', () => logger.info('Redis ready'))
-    globalRedisClient.on('error', (err: Error) => {
+    state.client.on('connect', () => logger.info('Redis connected'))
+    state.client.on('ready', () => logger.info('Redis ready'))
+    state.client.on('error', (err: Error) => {
       logger.error('Redis error', { error: err.message, code: (err as any).code })
     })
-    globalRedisClient.on('close', () => logger.warn('Redis connection closed'))
-    globalRedisClient.on('end', () => logger.error('Redis connection ended'))
+    state.client.on('close', () => logger.warn('Redis connection closed'))
+    state.client.on('end', () => logger.error('Redis connection ended'))
 
-    startPingHealthCheck(globalRedisClient)
+    startPingHealthCheck(state.client)
 
-    return globalRedisClient
+    return state.client
   } catch (error) {
     logger.error('Failed to initialize Redis client', { error })
     return null
@@ -274,18 +284,18 @@ export async function extendLock(
  * Use for graceful shutdown.
  */
 export async function closeRedisConnection(): Promise<void> {
-  if (pingInterval) {
-    clearInterval(pingInterval)
-    pingInterval = null
+  if (state.pingInterval) {
+    clearInterval(state.pingInterval)
+    state.pingInterval = null
   }
 
-  if (globalRedisClient) {
+  if (state.client) {
     try {
-      await globalRedisClient.quit()
+      await state.client.quit()
     } catch (error) {
       logger.error('Error closing Redis connection', { error })
     } finally {
-      globalRedisClient = null
+      state.client = null
     }
   }
 }
@@ -294,12 +304,12 @@ export async function closeRedisConnection(): Promise<void> {
  * Reset all module-level state. Only intended for use in tests.
  */
 export function resetForTesting(): void {
-  if (pingInterval) {
-    clearInterval(pingInterval)
-    pingInterval = null
+  if (state.pingInterval) {
+    clearInterval(state.pingInterval)
+    state.pingInterval = null
   }
-  globalRedisClient = null
-  pingFailures = 0
-  pingInFlight = false
-  reconnectListeners.length = 0
+  state.client = null
+  state.pingFailures = 0
+  state.pingInFlight = false
+  state.reconnectListeners.length = 0
 }
