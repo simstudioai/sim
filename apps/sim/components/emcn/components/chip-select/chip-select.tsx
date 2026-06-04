@@ -62,6 +62,11 @@ export interface ChipSelectProps {
   allOptionLabel?: string
   /** Menu alignment relative to the trigger. */
   align?: 'start' | 'center' | 'end'
+  /**
+   * Stretch the trigger to fill its container and right-align the chevron —
+   * use inside form fields. Defaults to a content-width chip (toolbar filters).
+   */
+  fullWidth?: boolean
   /** Menu width — 'trigger' matches the trigger, a number is px; defaults to a 160px min. */
   dropdownWidth?: 'trigger' | number
   /** Max height of the menu in px (defaults to the menu's 240px). */
@@ -110,6 +115,7 @@ export function ChipSelect({
   showAllOption = false,
   allOptionLabel = 'All',
   align = 'end',
+  fullWidth = false,
   dropdownWidth,
   maxHeight,
   className,
@@ -205,8 +211,8 @@ export function ChipSelect({
           disabled={disabled}
           aria-label={ariaLabel}
           className={cn(
-            chipVariants({ variant: 'filled', flush: true }),
-            'max-w-[240px]',
+            chipVariants({ variant: 'filled', flush: true, fullWidth }),
+            fullWidth ? 'w-full justify-between' : 'max-w-[240px]',
             className
           )}
         >
@@ -220,7 +226,7 @@ export function ChipSelect({
         align={align}
         onOpenAutoFocus={searchable ? (e) => e.preventDefault() : undefined}
         style={contentStyle}
-        className={cn('min-w-[160px]', contentClassName)}
+        className={cn('z-[var(--z-popover)] min-w-[160px]', contentClassName)}
       >
         {searchable ? (
           <DropdownMenuSearchInput
