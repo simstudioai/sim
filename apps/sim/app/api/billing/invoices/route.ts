@@ -1,14 +1,14 @@
 import { db } from '@sim/db'
-import { subscription as subscriptionTable, user } from '@sim/db/schema'
+import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, or } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getInvoicesContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getStripeClient } from '@/lib/billing/stripe-client'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingInvoices')
@@ -48,21 +48,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
     }
 
-    const rows = await db
-      .select({ customer: subscriptionTable.stripeCustomerId })
-      .from(subscriptionTable)
-      .where(
-        and(
-          eq(subscriptionTable.referenceId, organizationId!),
-          or(
-            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
-            eq(subscriptionTable.cancelAtPeriodEnd, true)
-          )
-        )
-      )
-      .limit(1)
-
-    stripeCustomerId = rows.length > 0 ? rows[0].customer || null : null
+    // Resolve the org's customer via the canonical resolver so we deterministically
+    // pick the same subscription (most recent entitled, ordered) the rest of the
+    // billing UI uses — a bare limit(1) here could select a stale row.
+    const orgSubscription = await getOrganizationSubscription(organizationId!)
+    stripeCustomerId = orgSubscription?.stripeCustomerId ?? null
   } else {
     const rows = await db
       .select({ customer: user.stripeCustomerId })
