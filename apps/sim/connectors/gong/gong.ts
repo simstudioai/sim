@@ -417,19 +417,31 @@ export const gongConnector: ConnectorConfig = {
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = allDocuments
+    let capDroppedDocs = false
     if (maxCalls > 0) {
       const remaining = Math.max(0, maxCalls - prevFetched)
       if (allDocuments.length > remaining) {
         documents = allDocuments.slice(0, remaining)
+        capDroppedDocs = true
       }
     }
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxCalls > 0 && totalFetched >= maxCalls
-    if (hitLimit && syncContext) syncContext.listingCapped = true
-
     const hasMore = !hitLimit && Boolean(nextPageCursor)
+
+    /**
+     * Only flag the listing as capped when the `maxCalls` limit actually
+     * truncated calls that still exist in the source — either by dropping calls
+     * from the current page or by stopping while another page remains. Reaching
+     * the limit exactly at source exhaustion (no dropped calls, no further
+     * cursor) yields a complete listing, so deletion reconciliation must still
+     * run for calls removed in Gong.
+     */
+    if (syncContext && (capDroppedDocs || (hitLimit && Boolean(nextPageCursor)))) {
+      syncContext.listingCapped = true
+    }
 
     return {
       documents,
