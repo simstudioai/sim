@@ -621,7 +621,7 @@ export function Billing() {
                   <button
                     type='button'
                     onClick={handleOpenBillingPortal}
-                    disabled={openBillingPortal.isPending}
+                    disabled={openBillingPortal.isPending || !canManageBilling}
                     className={cn(
                       chipVariants({ fullWidth: true }),
                       'text-[var(--text-muted)] text-small'
