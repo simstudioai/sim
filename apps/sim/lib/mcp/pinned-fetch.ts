@@ -67,6 +67,12 @@ export function createMcpPinnedFetch(resolvedIP: string): FetchLike {
  * per request and rejects private/reserved/loopback targets (honoring
  * `ALLOWED_MCP_DOMAINS` and self-hosted localhost rules).
  *
+ * Note: a caller-provided `AbortSignal` in `init` only bounds the HTTP request,
+ * not the validation DNS lookup — Node's `dns.lookup` does not accept a signal,
+ * so a hanging resolution can extend the overall call past the caller's timeout
+ * by up to the OS DNS timeout. Acceptable here because all consumers are
+ * best-effort, non-blocking flows (OAuth discovery and RFC 7009 revocation).
+ *
  * @throws McpSsrfError if a request URL resolves to a blocked IP address
  */
 export function createSsrfGuardedMcpFetch(): FetchLike {
