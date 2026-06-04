@@ -11,6 +11,13 @@ vi.mock('@/components/icons', () => ({
   NotionIcon: () => null,
   GoogleDriveIcon: () => null,
   AirtableIcon: () => null,
+  SentryIcon: () => null,
+  TypeformIcon: () => null,
+  YouTubeIcon: () => null,
+  JiraServiceManagementIcon: () => null,
+  S3Icon: () => null,
+  GoogleFormsIcon: () => null,
+  AzureDevOpsIcon: () => null,
 }))
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: vi.fn(),
@@ -18,14 +25,32 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
 }))
 vi.mock('@/tools/jira/utils', () => ({ extractAdfText: vi.fn(), getJiraCloudId: vi.fn() }))
 vi.mock('@/tools/confluence/utils', () => ({ getConfluenceCloudId: vi.fn() }))
+vi.mock('@/tools/jsm/utils', () => ({
+  getJsmApiBaseUrl: vi.fn(),
+  getJsmFormsApiBaseUrl: vi.fn(),
+  getJsmHeaders: vi.fn(),
+}))
+vi.mock('@/tools/s3/utils', () => ({
+  encodeS3PathComponent: vi.fn(),
+  getSignatureKey: vi.fn(),
+  parseS3Uri: vi.fn(),
+  generatePresignedUrl: vi.fn(),
+}))
 
 import { airtableConnector } from '@/connectors/airtable/airtable'
+import { azureDevopsConnector } from '@/connectors/azure-devops/azure-devops'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import { githubConnector } from '@/connectors/github/github'
 import { googleDriveConnector } from '@/connectors/google-drive/google-drive'
+import { googleFormsConnector } from '@/connectors/google-forms/google-forms'
 import { jiraConnector } from '@/connectors/jira/jira'
+import { jsmConnector } from '@/connectors/jsm/jsm'
 import { linearConnector } from '@/connectors/linear/linear'
 import { notionConnector } from '@/connectors/notion/notion'
+import { s3Connector } from '@/connectors/s3/s3'
+import { sentryConnector } from '@/connectors/sentry/sentry'
+import { typeformConnector } from '@/connectors/typeform/typeform'
+import { youtubeConnector } from '@/connectors/youtube/youtube'
 
 const ISO_DATE = '2025-06-15T10:30:00.000Z'
 
@@ -386,5 +411,379 @@ describe('Airtable mapTags', () => {
   it.concurrent('ignores unrelated metadata fields', () => {
     const result = mapTags({ foo: 'bar', count: 42, createdTime: ISO_DATE })
     expect(result).toEqual({ createdTime: new Date(ISO_DATE) })
+  })
+})
+
+describe('Sentry mapTags', () => {
+  const mapTags = sentryConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      level: 'error',
+      status: 'unresolved',
+      count: 1234,
+      firstSeen: '2025-01-01T00:00:00.000Z',
+      lastSeen: ISO_DATE,
+    })
+
+    expect(result).toEqual({
+      level: 'error',
+      status: 'unresolved',
+      count: 1234,
+      firstSeen: new Date('2025-01-01T00:00:00.000Z'),
+      lastSeen: new Date(ISO_DATE),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      level: 123,
+      status: null,
+      count: 'not-a-number',
+      firstSeen: 'bad-date',
+      lastSeen: 99999,
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips blank string fields', () => {
+    const result = mapTags({ level: '   ', status: '' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('converts string count to number', () => {
+    const result = mapTags({ count: '42' })
+    expect(result).toEqual({ count: 42 })
+  })
+
+  it.concurrent('maps count of zero', () => {
+    const result = mapTags({ count: 0 })
+    expect(result).toEqual({ count: 0 })
+  })
+})
+
+describe('Typeform mapTags', () => {
+  const mapTags = typeformConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      formTitle: 'Customer Survey',
+      platform: 'web',
+      submittedAt: ISO_DATE,
+    })
+
+    expect(result).toEqual({
+      formTitle: 'Customer Survey',
+      platform: 'web',
+      submittedAt: new Date(ISO_DATE),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      formTitle: 123,
+      platform: null,
+      submittedAt: 99999,
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips submittedAt when date is invalid', () => {
+    const result = mapTags({ submittedAt: 'not-a-date' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips empty string fields', () => {
+    const result = mapTags({ formTitle: '', platform: '' })
+    expect(result).toEqual({})
+  })
+})
+
+describe('YouTube mapTags', () => {
+  const mapTags = youtubeConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      channelTitle: 'Tech Channel',
+      publishedAt: ISO_DATE,
+      duration: 'PT10M30S',
+      tags: ['tutorial', 'coding'],
+    })
+
+    expect(result).toEqual({
+      channelTitle: 'Tech Channel',
+      publishedAt: new Date(ISO_DATE),
+      duration: 'PT10M30S',
+      tags: 'tutorial, coding',
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      channelTitle: 123,
+      publishedAt: 99999,
+      duration: null,
+      tags: 'not-an-array',
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips publishedAt when date is invalid', () => {
+    const result = mapTags({ publishedAt: 'bad-date' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips blank string fields', () => {
+    const result = mapTags({ channelTitle: '  ', duration: '' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips tags when array is empty', () => {
+    const result = mapTags({ tags: [] })
+    expect(result).toEqual({})
+  })
+})
+
+describe('JSM mapTags', () => {
+  const mapTags = jsmConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      status: 'Waiting for support',
+      requestTypeId: 'rt-123',
+      reporter: 'Carol',
+      created: '2025-01-01T00:00:00.000Z',
+      statusDate: ISO_DATE,
+    })
+
+    expect(result).toEqual({
+      status: 'Waiting for support',
+      requestTypeId: 'rt-123',
+      reporter: 'Carol',
+      created: new Date('2025-01-01T00:00:00.000Z'),
+      updated: new Date(ISO_DATE),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      status: 123,
+      requestTypeId: null,
+      reporter: true,
+      created: 'bad-date',
+      statusDate: 99999,
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips created when date is invalid', () => {
+    const result = mapTags({ created: 'not-a-date' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('maps statusDate to updated key', () => {
+    const result = mapTags({ statusDate: ISO_DATE })
+    expect(result).toEqual({ updated: new Date(ISO_DATE) })
+    expect(result).not.toHaveProperty('statusDate')
+  })
+})
+
+describe('S3 mapTags', () => {
+  const mapTags = s3Connector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      prefix: 'documents/reports/',
+      fileSize: 2048,
+      lastModified: ISO_DATE,
+    })
+
+    expect(result).toEqual({
+      prefix: 'documents/reports/',
+      fileSize: 2048,
+      lastModified: new Date(ISO_DATE),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      prefix: 123,
+      fileSize: 'not-a-number',
+      lastModified: 99999,
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips prefix when empty string', () => {
+    const result = mapTags({ prefix: '' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips lastModified when date is invalid', () => {
+    const result = mapTags({ lastModified: 'bad-date' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('converts string fileSize to number', () => {
+    const result = mapTags({ fileSize: '512' })
+    expect(result).toEqual({ fileSize: 512 })
+  })
+
+  it.concurrent('maps fileSize of zero', () => {
+    const result = mapTags({ fileSize: 0 })
+    expect(result).toEqual({ fileSize: 0 })
+  })
+})
+
+describe('Google Forms mapTags', () => {
+  const mapTags = googleFormsConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      formTitle: 'Feedback Form',
+      owners: ['Alice', 'Bob'],
+      modifiedTime: ISO_DATE,
+      latestResponseTime: '2025-01-01T00:00:00.000Z',
+    })
+
+    expect(result).toEqual({
+      formTitle: 'Feedback Form',
+      owners: 'Alice, Bob',
+      lastModified: new Date(ISO_DATE),
+      lastResponse: new Date('2025-01-01T00:00:00.000Z'),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      formTitle: 123,
+      owners: 'not-an-array',
+      modifiedTime: 99999,
+      latestResponseTime: false,
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('trims formTitle in output', () => {
+    const result = mapTags({ formTitle: '  Feedback Form  ' })
+    expect(result).toEqual({ formTitle: 'Feedback Form' })
+  })
+
+  it.concurrent('skips formTitle when blank', () => {
+    const result = mapTags({ formTitle: '   ' })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips owners when array is empty', () => {
+    const result = mapTags({ owners: [] })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('maps modifiedTime to lastModified key', () => {
+    const result = mapTags({ modifiedTime: ISO_DATE })
+    expect(result).toEqual({ lastModified: new Date(ISO_DATE) })
+    expect(result).not.toHaveProperty('modifiedTime')
+  })
+
+  it.concurrent('maps latestResponseTime to lastResponse key', () => {
+    const result = mapTags({ latestResponseTime: ISO_DATE })
+    expect(result).toEqual({ lastResponse: new Date(ISO_DATE) })
+    expect(result).not.toHaveProperty('latestResponseTime')
+  })
+})
+
+describe('Azure DevOps mapTags', () => {
+  const mapTags = azureDevopsConnector.mapTags!
+
+  it.concurrent('maps all fields when present', () => {
+    const result = mapTags({
+      kind: 'workItem',
+      wikiName: 'Engineering Wiki',
+      workItemType: 'Bug',
+      state: 'Active',
+      areaPath: 'Project\\Team',
+      tags: ['frontend', 'urgent'],
+      repository: 'owner/repo',
+      path: 'src/index.ts',
+      changedDate: ISO_DATE,
+    })
+
+    expect(result).toEqual({
+      kind: 'workItem',
+      wikiName: 'Engineering Wiki',
+      workItemType: 'Bug',
+      state: 'Active',
+      areaPath: 'Project\\Team',
+      tags: 'frontend, urgent',
+      repository: 'owner/repo',
+      path: 'src/index.ts',
+      changedDate: new Date(ISO_DATE),
+    })
+  })
+
+  it.concurrent('returns empty object for empty metadata', () => {
+    expect(mapTags({})).toEqual({})
+  })
+
+  it.concurrent('skips fields with wrong types', () => {
+    const result = mapTags({
+      kind: 123,
+      wikiName: null,
+      workItemType: true,
+      state: [],
+      areaPath: 99999,
+      tags: 'not-an-array',
+      repository: false,
+      path: 42,
+      changedDate: 'bad-date',
+    })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips empty string fields except kind', () => {
+    const result = mapTags({
+      kind: '',
+      wikiName: '',
+      workItemType: '',
+      state: '',
+      areaPath: '',
+      repository: '',
+      path: '',
+    })
+    expect(result).toEqual({ kind: '' })
+  })
+
+  it.concurrent('skips tags when array is empty', () => {
+    const result = mapTags({ tags: [] })
+    expect(result).toEqual({})
+  })
+
+  it.concurrent('skips changedDate when date is invalid', () => {
+    const result = mapTags({ changedDate: 'garbage' })
+    expect(result).toEqual({})
   })
 })
