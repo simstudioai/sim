@@ -322,7 +322,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           </Chip>
         </div>
         <div className='flex min-h-0 flex-1 items-center justify-center'>
-          <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
+          <p className='text-[var(--text-error)] text-xs leading-tight'>
             Failed to load server details
           </p>
         </div>
@@ -417,8 +417,10 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         {tools.map((tool) => (
                           <div key={tool.id} className='flex items-center justify-between gap-3'>
                             <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                              <span className='font-medium text-base'>{tool.toolName}</span>
-                              <p className='truncate text-[var(--text-muted)] text-sm'>
+                              <span className='text-[14px] text-[var(--text-body)]'>
+                                {tool.toolName}
+                              </span>
+                              <p className='truncate text-[12px] text-[var(--text-muted)]'>
                                 {tool.toolDescription || 'No description'}
                               </p>
                             </div>
@@ -546,12 +548,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                               'Adding...'
                             ) : addedToWorkspace ? (
                               <>
-                                <Check className='mr-1.5 size-[13px]' />
+                                <Check className='mr-1.5 size-[14px]' />
                                 Added to Workspace
                               </>
                             ) : (
                               <>
-                                <Server className='mr-1.5 size-[13px]' />
+                                <Server className='mr-1.5 size-[14px]' />
                                 Add to Workspace
                               </>
                             )}
@@ -575,9 +577,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                             className='!p-1.5 -my-1.5'
                           >
                             {copiedConfig ? (
-                              <Check className='size-3' />
+                              <Check className='size-[14px]' />
                             ) : (
-                              <Clipboard className='size-3' />
+                              <Clipboard className='size-[14px]' />
                             )}
                           </Button>
                         </div>
@@ -1055,7 +1057,7 @@ export function WorkflowMcpServers() {
                       <div key={server.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[200px] truncate font-medium text-base'>
+                            <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
                               {server.name}
                             </span>
                             {server.isPublic && (
@@ -1064,7 +1066,9 @@ export function WorkflowMcpServers() {
                               </Badge>
                             )}
                           </div>
-                          <p className='truncate text-[var(--text-muted)] text-sm'>{toolsLabel}</p>
+                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                            {toolsLabel}
+                          </p>
                         </div>
                         <div className='flex flex-shrink-0 items-center gap-1'>
                           <Chip onClick={() => setSelectedServerId(server.id)}>Details</Chip>

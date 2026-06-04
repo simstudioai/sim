@@ -337,7 +337,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
                 Run now
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleTest}>Test connection</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDelete} className='text-red-600'>
+              <DropdownMenuItem onClick={handleDelete} className='text-[var(--text-error)]'>
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -415,12 +415,12 @@ function DrainRunsPanel({ organizationId, drainId }: DrainRunsPanelProps) {
 function RunRow({ run }: { run: DataDrainRun }) {
   const statusColor =
     run.status === 'success'
-      ? 'text-green-600'
+      ? 'text-[var(--text-success)]'
       : run.status === 'failed'
-        ? 'text-red-600'
+        ? 'text-[var(--text-error)]'
         : 'text-[var(--text-muted)]'
   return (
-    <div className='flex items-start justify-between gap-4 rounded border border-[var(--border)] px-3 py-2 text-[12px]'>
+    <div className='flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] px-3 py-2 text-[12px]'>
       <div className='flex flex-col gap-0.5'>
         <div className='flex items-center gap-2'>
           <span className={cn('font-medium', statusColor)}>{run.status}</span>
@@ -429,7 +429,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
             {new Date(run.startedAt).toLocaleString()}
           </span>
         </div>
-        {run.error && <div className='text-red-600'>{run.error}</div>}
+        {run.error && <div className='text-[var(--text-error)]'>{run.error}</div>}
       </div>
       <div className='text-right text-[var(--text-muted)]'>
         <div>{run.rowsExported.toLocaleString()} rows</div>

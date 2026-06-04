@@ -8,7 +8,6 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  Button,
   Checkbox,
   Chip,
   ChipModal,
@@ -156,9 +155,9 @@ function AddMembersModal({
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className='min-w-0 flex-1'
                 />
-                <Button variant='default' onClick={handleToggleAll}>
+                <Chip variant='filled' onClick={handleToggleAll}>
                   {allFilteredSelected ? 'Deselect All' : 'Select All'}
-                </Button>
+                </Chip>
               </div>
 
               <div className='max-h-[280px] overflow-y-auto'>
@@ -179,7 +178,7 @@ function AddMembersModal({
                           key={member.userId}
                           type='button'
                           onClick={() => handleToggleMember(member.userId)}
-                          className='flex items-center gap-2.5 rounded-sm px-2 py-1.5 hover:bg-[var(--surface-2)]'
+                          className='flex items-center gap-2.5 rounded-sm px-2 py-1.5 hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
                           <Avatar size='sm'>
@@ -194,9 +193,7 @@ function AddMembersModal({
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0 flex-1 text-left'>
-                            <div className='truncate text-[var(--text-primary)] text-sm'>
-                              {name}
-                            </div>
+                            <div className='truncate text-[var(--text-body)] text-sm'>{name}</div>
                             <div className='truncate text-[var(--text-muted)] text-xs'>{email}</div>
                           </div>
                         </button>
@@ -285,13 +282,12 @@ function ModelCheckboxGrid({
           onChange={(e) => setSearch(e.target.value)}
           className='min-w-0 flex-1'
         />
-        <Button
-          variant='default'
-          className='h-8'
+        <Chip
+          variant='filled'
           onClick={() => onSetModelsDenied(filteredModels, allFilteredAllowed)}
         >
           {allFilteredAllowed ? 'Block All' : 'Allow All'}
-        </Button>
+        </Chip>
       </div>
       <div className='grid grid-cols-2 gap-x-2 gap-y-0.5'>
         {filteredModels.map((model) => {
@@ -300,7 +296,7 @@ function ModelCheckboxGrid({
             <label
               key={model}
               htmlFor={checkboxId}
-              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <Checkbox
                 id={checkboxId}
@@ -362,7 +358,7 @@ function ProviderRow({
 
   return (
     <div>
-      <div className='flex items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'>
+      <div className='flex items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'>
         <Checkbox
           id={checkboxId}
           checked={isProviderAllowed}
@@ -1009,7 +1005,7 @@ export function AccessControl() {
           <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
             <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
               <div className='flex flex-col gap-1'>
-                <h3 className='font-medium text-[var(--text-primary)] text-base'>
+                <h3 className='font-medium text-[14px] text-[var(--text-body)]'>
                   {viewingGroup.name}
                 </h3>
                 {viewingGroup.description && (
@@ -1084,7 +1080,7 @@ export function AccessControl() {
 
                             <div className='min-w-0'>
                               <div className='flex items-center gap-2'>
-                                <span className='truncate font-medium text-[var(--text-primary)] text-base'>
+                                <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>
                                   {name}
                                 </span>
                               </div>
@@ -1094,14 +1090,14 @@ export function AccessControl() {
                             </div>
                           </div>
 
-                          <Button
+                          <Chip
                             variant='ghost'
                             onClick={() => handleRemoveMember(member.id)}
                             disabled={removeMember.isPending}
                             className='flex-shrink-0'
                           >
                             Remove
-                          </Button>
+                          </Chip>
                         </div>
                       )
                     })}
@@ -1162,9 +1158,8 @@ export function AccessControl() {
                     onChange={(e) => setProviderSearchTerm(e.target.value)}
                     className='min-w-0 flex-1'
                   />
-                  <Button
-                    variant='default'
-                    className='h-8'
+                  <Chip
+                    variant='filled'
                     onClick={() => {
                       const allAllowed =
                         editingConfig?.allowedModelProviders === null ||
@@ -1180,7 +1175,7 @@ export function AccessControl() {
                     allProviderIds.every((id) => editingConfig?.allowedModelProviders?.includes(id))
                       ? 'Deselect All'
                       : 'Select All'}
-                  </Button>
+                  </Chip>
                 </div>
                 <div className='flex flex-col gap-0.5'>
                   {filteredProviders.map((providerId) => (
@@ -1208,9 +1203,8 @@ export function AccessControl() {
                     onChange={(e) => setIntegrationSearchTerm(e.target.value)}
                     className='min-w-0 flex-1'
                   />
-                  <Button
-                    variant='default'
-                    className='h-8'
+                  <Chip
+                    variant='filled'
                     onClick={() => {
                       const allAllowed =
                         editingConfig?.allowedIntegrations === null ||
@@ -1229,7 +1223,7 @@ export function AccessControl() {
                     allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
                       ? 'Deselect All'
                       : 'Select All'}
-                  </Button>
+                  </Chip>
                 </div>
                 <div className='flex flex-col gap-4'>
                   {filteredCoreBlocks.length > 0 && (
@@ -1245,7 +1239,7 @@ export function AccessControl() {
                             <label
                               key={block.type}
                               htmlFor={checkboxId}
-                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
                             >
                               <Checkbox
                                 id={checkboxId}
@@ -1280,7 +1274,7 @@ export function AccessControl() {
                             <label
                               key={block.type}
                               htmlFor={checkboxId}
-                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
                             >
                               <Checkbox
                                 id={checkboxId}
@@ -1314,9 +1308,8 @@ export function AccessControl() {
                     onChange={(e) => setPlatformSearchTerm(e.target.value)}
                     className='min-w-0 flex-1'
                   />
-                  <Button
-                    variant='default'
-                    className='h-8'
+                  <Chip
+                    variant='filled'
                     onClick={() => {
                       const allVisible = platformFeatures.every(
                         (f) => !editingConfig?.[f.configKey]
@@ -1336,7 +1329,7 @@ export function AccessControl() {
                     {platformFeatures.every((f) => !editingConfig?.[f.configKey])
                       ? 'Deselect All'
                       : 'Select All'}
-                  </Button>
+                  </Chip>
                 </div>
                 <div className='grid grid-cols-3 gap-x-6'>
                   {platformCategoryColumns.map((column, columnIndex) => (
@@ -1351,7 +1344,7 @@ export function AccessControl() {
                               <label
                                 key={feature.id}
                                 htmlFor={feature.id}
-                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
                               >
                                 <Checkbox
                                   id={feature.id}

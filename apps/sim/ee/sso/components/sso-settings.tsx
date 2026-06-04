@@ -778,7 +778,7 @@ export function SSO() {
                   spellCheck={false}
                   onChange={(e) => handleInputChange('cert', e.target.value)}
                   className={cn(
-                    'min-h-[80px] rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] font-mono dark:bg-[var(--surface-4)]',
+                    'min-h-[80px] rounded-lg font-mono focus-visible:border-[var(--border-focus)] dark:bg-[var(--surface-4)]',
                     showErrors && errors.cert.length > 0 && 'border-[var(--text-error)]'
                   )}
                   rows={3}
@@ -844,7 +844,7 @@ export function SSO() {
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
-                          className='min-h-[60px] rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] font-mono dark:bg-[var(--surface-4)]'
+                          className='min-h-[60px] rounded-lg font-mono focus-visible:border-[var(--border-focus)] dark:bg-[var(--surface-4)]'
                           rows={2}
                         />
                       </FormField>

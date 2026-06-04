@@ -98,10 +98,10 @@ function ServerListItem({
     <div className='flex items-center justify-between gap-3'>
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
         <div className='flex items-center gap-1.5'>
-          <span className='max-w-[200px] truncate font-medium text-base'>
+          <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
             {server.name || 'Unnamed Server'}
           </span>
-          <span className='text-[var(--text-secondary)] text-sm'>({transportLabel})</span>
+          <span className='text-[12px] text-[var(--text-muted)]'>({transportLabel})</span>
         </div>
         <p
           className={cn(
@@ -405,29 +405,27 @@ export function MCP({ initialServerId }: MCPProps) {
             <SettingsSection label='Server'>
               <div className='flex flex-col gap-4.5'>
                 <div className='flex flex-col gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>
-                    Server Name
-                  </span>
-                  <p className='text-[var(--text-secondary)] text-base'>
+                  <span className='text-[12px] text-[var(--text-muted)]'>Server Name</span>
+                  <p className='text-[14px] text-[var(--text-body)]'>
                     {server.name || 'Unnamed Server'}
                   </p>
                 </div>
 
                 <div className='flex flex-col gap-2'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>Transport</span>
-                  <p className='text-[var(--text-secondary)] text-base'>{transportLabel}</p>
+                  <span className='text-[12px] text-[var(--text-muted)]'>Transport</span>
+                  <p className='text-[14px] text-[var(--text-body)]'>{transportLabel}</p>
                 </div>
 
                 {server.url && (
                   <div className='flex flex-col gap-2'>
-                    <span className='font-medium text-[var(--text-primary)] text-sm'>URL</span>
-                    <p className='break-all text-[var(--text-secondary)] text-base'>{server.url}</p>
+                    <span className='text-[12px] text-[var(--text-muted)]'>URL</span>
+                    <p className='break-all text-[14px] text-[var(--text-body)]'>{server.url}</p>
                   </div>
                 )}
 
                 {server.connectionStatus === 'error' && (
                   <div className='flex flex-col gap-2'>
-                    <span className='font-medium text-[var(--text-primary)] text-sm'>Status</span>
+                    <span className='text-[12px] text-[var(--text-muted)]'>Status</span>
                     <p className='text-[var(--text-error)] text-base'>
                       {server.lastError || 'Unable to connect'}
                     </p>
@@ -436,9 +434,7 @@ export function MCP({ initialServerId }: MCPProps) {
 
                 {server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
                   <div className='flex flex-col gap-2'>
-                    <span className='font-medium text-[var(--text-primary)] text-sm'>
-                      Authentication
-                    </span>
+                    <span className='text-[12px] text-[var(--text-muted)]'>Authentication</span>
                     <div>
                       <Chip
                         variant='primary'
@@ -474,7 +470,7 @@ export function MCP({ initialServerId }: MCPProps) {
                     return (
                       <div
                         key={tool.name}
-                        className='overflow-hidden rounded-md border bg-[var(--surface-3)]'
+                        className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-3)]'
                       >
                         <Button
                           type='button'

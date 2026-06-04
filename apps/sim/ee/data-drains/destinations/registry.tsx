@@ -431,7 +431,11 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
         />
       </FormField>
       <FormField label='Role (optional)'>
-        <Input value={state.role} onChange={(e) => setState({ ...state, role: e.target.value })} />
+        <Input
+          variant='chip'
+          value={state.role}
+          onChange={(e) => setState({ ...state, role: e.target.value })}
+        />
       </FormField>
       <FormField label='Private key (PEM, PKCS8)'>
         <Textarea

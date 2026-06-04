@@ -13,6 +13,10 @@ import { HEX_COLOR_REGEX } from '@/lib/branding'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import {
+  CHIP_FIELD_INPUT,
+  CHIP_FIELD_SHELL,
+} from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { SettingRow } from '@/ee/components/setting-row'
@@ -76,15 +80,10 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
   return (
     <div className='flex flex-col gap-1.5'>
       <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
-      <div
-        className={cn(
-          'flex h-[30px] w-full items-center gap-2 rounded-lg border bg-[var(--surface-5)] px-2 transition-colors dark:bg-[var(--surface-4)]',
-          isValidHex ? 'border-[var(--border-1)]' : 'border-[var(--text-error)]'
-        )}
-      >
+      <div className={cn(CHIP_FIELD_SHELL, !isValidHex && 'border-[var(--text-error)]')}>
         <div
           className={cn(
-            'size-[16px] flex-shrink-0 rounded-sm border border-black/10',
+            'size-[16px] flex-shrink-0 rounded-sm border border-[var(--border-1)]',
             !showColor && 'bg-[var(--surface-3)]'
           )}
           style={showColor ? { backgroundColor: value } : undefined}
@@ -102,7 +101,7 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
           onFocus={(e) => e.target.select()}
           placeholder={placeholder}
           maxLength={7}
-          className='h-full w-full bg-transparent font-mono text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+          className={cn(CHIP_FIELD_INPUT, 'font-mono')}
         />
       </div>
       {!isValidHex && (
@@ -383,7 +382,7 @@ export function WhitelabelingSettings() {
                           onClick={logoUpload.handleRemove}
                           className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                         >
-                          <X className='size-3.5' />
+                          <X className='size-[14px]' />
                         </Button>
                       )}
                     </div>
@@ -441,7 +440,7 @@ export function WhitelabelingSettings() {
                           onClick={wordmarkUpload.handleRemove}
                           className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                         >
-                          <X className='size-3.5' />
+                          <X className='size-[14px]' />
                         </Button>
                       )}
                     </div>

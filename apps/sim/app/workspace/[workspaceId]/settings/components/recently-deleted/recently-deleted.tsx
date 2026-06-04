@@ -443,7 +443,7 @@ export function RecentlyDeleted() {
                 return (
                   <div
                     key={resource.id}
-                    className='flex items-center gap-3 rounded-md px-2 py-2 hover-hover:bg-[var(--bg-hover)]'
+                    className='flex items-center gap-2.5 rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
                   >
                     <ResourceIcon resource={resource} />
 
@@ -451,7 +451,7 @@ export function RecentlyDeleted() {
                       <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                         {resource.name}
                       </span>
-                      <span className='text-[var(--text-tertiary)] text-caption'>
+                      <span className='text-[var(--text-muted)] text-small'>
                         {TYPE_LABEL[resource.type]}
                         {' \u00b7 '}
                         Deleted {formatDate(resource.deletedAt)}
@@ -464,7 +464,7 @@ export function RecentlyDeleted() {
                       </Button>
                     ) : isRestored ? (
                       <div className='flex shrink-0 items-center gap-2'>
-                        <span className='text-[var(--text-tertiary)] text-small'>Restored</span>
+                        <span className='text-[var(--text-muted)] text-small'>Restored</span>
                         <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
                           View
                         </Button>
