@@ -330,6 +330,36 @@ function buildListQueryString(params: Record<string, string>): string {
 }
 
 /**
+ * Reads a response body as UTF-8 text while enforcing a hard byte cap. The
+ * declared `content-length` header cannot be trusted as the sole guard:
+ * S3-compatible stores (MinIO, Cloudflare R2) may use chunked transfer
+ * encoding and omit the header entirely. Bytes are accumulated from the
+ * stream and reading aborts as soon as the cap is exceeded, so an oversized
+ * body is never fully buffered. Returns null when the cap is exceeded.
+ */
+async function readBodyWithLimit(response: Response, maxBytes: number): Promise<string | null> {
+  if (!response.body) {
+    const text = await response.text()
+    return Buffer.byteLength(text) > maxBytes ? null : text
+  }
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks).toString('utf-8')
+}
+
+/**
  * Decodes XML entities found in S3 response text values. `&amp;` is decoded
  * last so sequences like `&amp;lt;` resolve to `&lt;` rather than `<`.
  */
@@ -626,21 +656,28 @@ export const s3Connector: ConnectorConfig = {
 
       const etag = normalizeEtag(response.headers.get('etag') ?? '')
       const lastModified = response.headers.get('last-modified') ?? ''
-      const contentLength = Number(response.headers.get('content-length') ?? '0')
+      const declaredLength = Number(response.headers.get('content-length') ?? '')
 
-      if (contentLength > MAX_FILE_SIZE) {
-        logger.warn('Skipping oversized S3 object', { key, size: contentLength })
+      if (declaredLength > MAX_FILE_SIZE) {
+        logger.warn('Skipping oversized S3 object', { key, size: declaredLength })
         return null
       }
 
-      const content = await response.text()
+      const content = await readBodyWithLimit(response, MAX_FILE_SIZE)
+      if (content === null) {
+        logger.warn('Skipping oversized S3 object (size cap exceeded while streaming)', { key })
+        return null
+      }
       if (!content.trim()) return null
 
       const entry: S3ObjectEntry = {
         key,
         etag,
         lastModified,
-        size: Number.isNaN(contentLength) ? 0 : contentLength,
+        size:
+          Number.isNaN(declaredLength) || declaredLength <= 0
+            ? Buffer.byteLength(content)
+            : declaredLength,
       }
       const stub = objectToStub(ctx, entry)
       return { ...stub, content, contentDeferred: false }
