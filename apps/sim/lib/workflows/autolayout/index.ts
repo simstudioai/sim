@@ -12,6 +12,7 @@ import {
   filterLayoutEligibleBlockIds,
   getBlocksByParent,
   prepareContainerDimensions,
+  resolveNoteOverlaps,
 } from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -73,6 +74,8 @@ export function applyAutoLayout(
     }
 
     layoutContainers(blocksCopy, edges, options)
+
+    resolveNoteOverlaps(blocksCopy, verticalSpacing)
 
     logger.info('Auto layout completed successfully', {
       blockCount: Object.keys(blocksCopy).length,
