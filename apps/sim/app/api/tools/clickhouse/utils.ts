@@ -131,6 +131,9 @@ function parseRowsResult(result: ClickHouseHttpResult): ClickHouseRowsResult {
   return { rows: [], rowCount: written || read || 0 }
 }
 
+/** Read-only statement leaders that return a result set and never mutate data. */
+const READ_ONLY_STATEMENT = /^(select|with|show|describe|desc|explain|exists)\b/i
+
 /**
  * Appends `FORMAT JSON` to read statements that do not already specify an output
  * format, so the HTTP interface returns a structured result set.
@@ -140,7 +143,7 @@ function ensureJsonFormat(query: string): string {
   if (/\bformat\s+[a-z0-9_]+$/i.test(trimmed)) {
     return trimmed
   }
-  if (/^(select|with|show|describe|desc|explain|exists)\b/i.test(trimmed)) {
+  if (READ_ONLY_STATEMENT.test(trimmed)) {
     return `${trimmed}\nFORMAT JSON`
   }
   return trimmed
@@ -148,8 +151,18 @@ function ensureJsonFormat(query: string): string {
 
 export async function executeClickHouseQuery(
   config: ClickHouseConnectionConfig,
-  query: string
+  query: string,
+  options: { enforceReadOnly?: boolean } = {}
 ): Promise<ClickHouseRowsResult> {
+  if (options.enforceReadOnly) {
+    // Strip leading parens so wrapped selects like "(SELECT ...)" still validate.
+    const leader = query.trim().replace(/^\(+\s*/, '')
+    if (!READ_ONLY_STATEMENT.test(leader)) {
+      throw new Error(
+        'The query operation only allows read-only statements (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN, EXISTS). Use the Execute Raw SQL operation to run writes or DDL.'
+      )
+    }
+  }
   const result = await clickhouseRequest(config, ensureJsonFormat(query))
   return parseRowsResult(result)
 }
@@ -327,6 +340,12 @@ function validateWhereClause(where: string): void {
     /\band\s+false\b/i,
     /\bsleep\s*\(/i,
     /;\s*\w+/,
+    // Constant / tautological conditions that don't reference columns and would
+    // broaden a mutation to all rows (e.g. "1=1", "1 < 2", "'a'='a'", bare "1"/"true").
+    /\b\d+\s*(?:=|==|<>|!=|<=|>=|<|>)\s*\d+\b/,
+    /(['"])([^'"]*)\1\s*(?:=|==|<>|!=)\s*\1\2\1/,
+    /\b(\w+)\s*=\s*\1\b/i,
+    /^\s*(?:\d+|true|false)\s*$/i,
   ]
 
   for (const pattern of dangerousPatterns) {

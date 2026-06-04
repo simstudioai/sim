@@ -28,7 +28,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       `[${requestId}] Executing ClickHouse query on ${params.host}:${params.port}/${params.database}`
     )
 
-    const result = await executeClickHouseQuery(params, params.query)
+    const result = await executeClickHouseQuery(params, params.query, { enforceReadOnly: true })
 
     logger.info(`[${requestId}] Query executed successfully, returned ${result.rowCount} rows`)
 
