@@ -275,6 +275,8 @@ async function fetchFormResponses(accessToken: string, formId: string): Promise<
  * Reads the latest response submission time for change detection without
  * retaining every response. Returns the greatest `lastSubmittedTime` (falling
  * back to `createTime`) across all responses, or undefined when there are none.
+ * Throws on a failed read so the caller skips the form for this run instead of
+ * computing a hash from incomplete data.
  */
 async function fetchLatestResponseTime(
   accessToken: string,
@@ -293,13 +295,17 @@ async function fetchLatestResponseTime(
 
   if (!response.ok) {
     /**
-     * Treat response-listing failures as "no responses" for hashing purposes
-     * so a transient error never silently drops the form from the sync.
+     * Propagate the failure rather than hashing with an empty response segment.
+     * A swallowed error here would poison the stub's content hash (listing
+     * would hash "no responses" while getDocument hashes the real latest
+     * submission time), making the form re-process on every sync. Throwing lets
+     * the per-form catch in listDocuments skip the form for this run and set
+     * `skippedOnError` → `listingCapped`, so the form is neither deleted nor
+     * hashed incorrectly.
      */
-    logger.warn(`Failed to read responses for change detection on form ${formId}`, {
-      status: response.status,
-    })
-    return undefined
+    throw new Error(
+      `Failed to read responses for change detection on form ${formId}: ${response.status}`
+    )
   }
 
   const data = (await response.json()) as FormResponseList

@@ -943,35 +943,57 @@ async function getFileDocument(
     return null
   }
 
-  const params = new URLSearchParams({
+  const metadataParams = new URLSearchParams({
     path,
     'versionDescriptor.version': branch,
     'versionDescriptor.versionType': 'Branch',
-    includeContent: 'true',
     includeContentMetadata: 'true',
     $format: 'json',
     'api-version': GIT_API_VERSION,
   })
-  const url = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/git/repositories/${encodeURIComponent(repoId)}/items?${params.toString()}`
-  const response = await fetchWithRetry(url, {
+  const metadataUrl = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/git/repositories/${encodeURIComponent(repoId)}/items?${metadataParams.toString()}`
+  const metadataResponse = await fetchWithRetry(metadataUrl, {
     method: 'GET',
     headers: { Accept: 'application/json', Authorization: patAuthHeader(accessToken) },
   })
 
-  if (!response.ok) {
-    if (response.status === 404) return null
-    throw new Error(`Failed to fetch repository file: ${response.status}`)
+  if (!metadataResponse.ok) {
+    if (metadataResponse.status === 404) return null
+    throw new Error(`Failed to fetch repository file metadata: ${metadataResponse.status}`)
   }
 
-  const item = (await response.json()) as GitItem
+  const item = (await metadataResponse.json()) as GitItem
   if (!item.objectId) return null
   if (item.contentMetadata?.isBinary) {
     logger.info('Skipping binary Azure DevOps file', { path })
     return null
   }
 
-  const raw = typeof item.content === 'string' ? item.content : ''
-  const buffer = Buffer.from(raw, 'utf8')
+  /**
+   * Content is fetched as raw bytes (Accept: application/octet-stream) rather
+   * than via `includeContent=true` JSON. The JSON `content` field's encoding is
+   * ambiguous (the API may deliver base64 or codepage-transcoded text per
+   * `ItemContentType`), whereas the octet-stream response is the byte-exact git
+   * blob, which is then binary-sniffed and decoded as UTF-8.
+   */
+  const contentParams = new URLSearchParams({
+    path,
+    'versionDescriptor.version': branch,
+    'versionDescriptor.versionType': 'Branch',
+    'api-version': GIT_API_VERSION,
+  })
+  const contentUrl = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/git/repositories/${encodeURIComponent(repoId)}/items?${contentParams.toString()}`
+  const contentResponse = await fetchWithRetry(contentUrl, {
+    method: 'GET',
+    headers: { Accept: 'application/octet-stream', Authorization: patAuthHeader(accessToken) },
+  })
+
+  if (!contentResponse.ok) {
+    if (contentResponse.status === 404) return null
+    throw new Error(`Failed to fetch repository file content: ${contentResponse.status}`)
+  }
+
+  const buffer = Buffer.from(await contentResponse.arrayBuffer())
   if (isBinaryBuffer(buffer)) {
     logger.info('Skipping binary Azure DevOps file', { path })
     return null
