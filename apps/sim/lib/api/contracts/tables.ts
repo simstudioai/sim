@@ -959,8 +959,6 @@ export const runColumnContract = defineRouteContract({
 
 export type AddWorkflowGroupBodyInput = z.input<typeof addWorkflowGroupBodySchema>
 export type UpdateWorkflowGroupBodyInput = z.input<typeof updateWorkflowGroupBodySchema>
-/** Which workflow state a group runs against — shared by UI / hooks. */
-export type WorkflowGroupDeploymentMode = z.input<typeof workflowGroupDeploymentModeSchema>
 export type DeleteWorkflowGroupBodyInput = z.input<typeof deleteWorkflowGroupBodySchema>
 export type CancelTableRunsBodyInput = z.input<typeof cancelTableRunsBodySchema>
 export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>

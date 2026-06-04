@@ -162,17 +162,12 @@ async function runWorkflowAndWriteTerminal(
   table: TableDefinition,
   group: WorkflowGroup
 ): Promise<'completed' | 'error' | 'paused' | 'blocked'> {
-  const {
-    tableId,
-    tableName,
-    rowId,
-    groupId,
-    workflowId,
-    workspaceId,
-    executionId,
-    dispatchId,
-    deploymentMode,
-  } = payload
+  const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId, dispatchId } =
+    payload
+  // Read from the live `group`, not the payload: in a cascade the payload is the
+  // first group's snapshot, so a downstream group with a different version must
+  // use its own setting (same reason `workflowId` is re-derived per iteration).
+  const deploymentMode = group.deploymentMode
   const requestId = `wfgrp-${executionId}`
 
   return runWithRequestContext({ requestId }, async () => {
@@ -399,13 +394,15 @@ async function runWorkflowAndWriteTerminal(
       if (deploymentMode === 'deployed') {
         try {
           normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
-        } catch {
+        } catch (err) {
+          // Surface the real reason (missing deployment vs. transient DB/migration
+          // failure) rather than always claiming the workflow isn't deployed.
           await writeState({
             status: 'error',
             executionId,
             jobId: null,
             workflowId,
-            error: 'Workflow has no deployed version',
+            error: toError(err).message,
           })
           return 'error'
         }
