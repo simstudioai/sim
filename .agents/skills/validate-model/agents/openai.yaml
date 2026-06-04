@@ -1,0 +1,5 @@
+interface:
+  display_name: "Validate Model"
+  short_description: "Audit model entries vs live docs"
+  brand_color: "#0891B2"
+  default_prompt: "Use $validate-model to audit Sim model entries against the provider's live API docs."

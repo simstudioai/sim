@@ -1,6 +1,6 @@
 ---
-description: Add a new LLM model to apps/sim/providers/models.ts with specs verified against the provider's live API docs (no hallucination)
-argument-hint: <provider> <model-id> [docs-url]
+name: add-model
+description: Add a new LLM model to `apps/sim/providers/models.ts` with every pricing and capability value verified against the provider's live API docs (no hallucination), plus the repo-side touchpoints that are not data-driven — hosted-key billing, tests, and provider-code handling. Use when adding a model to an existing provider in `apps/sim/providers/models.ts`.
 ---
 
 # Add Model Skill
