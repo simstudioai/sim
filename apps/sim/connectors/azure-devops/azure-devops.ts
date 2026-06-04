@@ -220,6 +220,7 @@ interface GitRepository {
   isDisabled?: boolean
   remoteUrl?: string
   webUrl?: string
+  size?: number
 }
 
 interface GitItem {
@@ -850,9 +851,23 @@ async function resolveRepoFiles(
   for (const repo of repositories) {
     const branch = filters.branch || stripRefsHeads(repo.defaultBranch ?? '')
     if (!branch) {
+      /**
+       * No branch override and no resolvable default branch. An empty
+       * repository (size 0) has nothing to list and nothing previously synced,
+       * so it is skipped without flagging — flagging here would permanently
+       * suppress deletion reconciliation for any project containing an empty
+       * repo. A non-empty repository reaching this branch means content exists
+       * but its default branch ref is missing/unreadable, so the listing is
+       * flagged incomplete to protect previously synced files from
+       * reconciliation deletion.
+       */
+      if ((repo.size ?? 0) > 0 && syncContext) {
+        syncContext.listingCapped = true
+      }
       logger.warn('Skipping Azure DevOps repository with no default branch', {
         repoId: repo.id,
         repoName: repo.name,
+        size: repo.size ?? 0,
       })
       continue
     }
