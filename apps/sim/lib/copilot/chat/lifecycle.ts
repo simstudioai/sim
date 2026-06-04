@@ -101,12 +101,14 @@ export type CopilotChatDetailRow = Pick<
   | 'workspaceId'
   | 'type'
   | 'title'
-  | 'messages'
   | 'conversationId'
   | 'resources'
   | 'createdAt'
   | 'updatedAt'
->
+> & {
+  /** Transcript assembled from `copilot_messages` (no longer a chat-row column). */
+  messages: unknown[]
+}
 
 export type CopilotChatLegacyDetailRow = CopilotChatDetailRow &
   Pick<typeof copilotChats.$inferSelect, 'model' | 'planArtifact' | 'config'>
