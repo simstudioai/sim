@@ -389,6 +389,23 @@ function validateExpression(expression: string, label: string): void {
   }
 }
 
+/**
+ * Validates a partition value for `DROP PARTITION`. ClickHouse partition values
+ * are literals (signed numbers or single-quoted strings) or a parenthesised tuple
+ * of such literals, so anything else is rejected — barewords like `ALL`, function
+ * calls, operators, and extra tokens that could broaden the statement beyond
+ * dropping a single partition.
+ */
+function validatePartitionExpression(partition: string): void {
+  const partitionPattern =
+    /^\(?\s*(?:'(?:[^'\\]|\\.)*'|-?\d+(?:\.\d+)?)(?:\s*,\s*(?:'(?:[^'\\]|\\.)*'|-?\d+(?:\.\d+)?))*\s*\)?$/
+  if (!partitionPattern.test(partition.trim())) {
+    throw new Error(
+      "Partition must be a literal value or a tuple of literals (number or single-quoted string), e.g. 202401, '2024-01', or (2024, 'EU')"
+    )
+  }
+}
+
 export function executeClickHouseListDatabases(
   config: ClickHouseConnectionConfig
 ): Promise<ClickHouseRowsResult> {
@@ -609,7 +626,7 @@ export async function executeClickHouseDropPartition(
   table: string,
   partition: string
 ): Promise<void> {
-  validateExpression(partition, 'Partition')
+  validatePartitionExpression(partition)
   await clickhouseRequest(
     config,
     `ALTER TABLE ${sanitizeIdentifier(table)} DROP PARTITION ${partition.trim()}`
