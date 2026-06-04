@@ -278,6 +278,12 @@ export interface QueryOptions {
    * is returned as `null` to signal it was not computed.
    */
   includeTotal?: boolean
+  /**
+   * When true (default), each returned row's `executions` is populated from the
+   * `tableRowExecutions` sidecar. Pass `false` to skip the join and return `{}`
+   * (the public v1 route does not expose executions).
+   */
+  withExecutions?: boolean
 }
 
 export interface QueryResult {
