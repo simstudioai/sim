@@ -64,9 +64,14 @@ export const OVERLAP_MARGIN = 30
 export const MAX_OVERLAP_ITERATIONS = 20
 
 /**
+ * Note block type identifier
+ */
+export const NOTE_BLOCK_TYPE = 'note'
+
+/**
  * Block types excluded from autolayout
  */
-export const AUTO_LAYOUT_EXCLUDED_TYPES = new Set(['note'])
+export const AUTO_LAYOUT_EXCLUDED_TYPES = new Set([NOTE_BLOCK_TYPE])
 
 /**
  * Container block types that can have children
