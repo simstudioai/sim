@@ -12,12 +12,16 @@ const {
   mockReplaceTableRowsWithTx,
   mockAddTableColumnsWithTx,
   mockDispatchAfterBatchInsert,
+  mockMarkTableImporting,
+  mockReleaseImportClaim,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockBatchInsertRowsWithTx: vi.fn(),
   mockReplaceTableRowsWithTx: vi.fn(),
   mockAddTableColumnsWithTx: vi.fn(),
   mockDispatchAfterBatchInsert: vi.fn(),
+  mockMarkTableImporting: vi.fn(),
+  mockReleaseImportClaim: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -53,6 +57,8 @@ vi.mock('@/lib/table/service', () => ({
   replaceTableRowsWithTx: mockReplaceTableRowsWithTx,
   addTableColumnsWithTx: mockAddTableColumnsWithTx,
   dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
+  markTableImporting: mockMarkTableImporting,
+  releaseImportClaim: mockReleaseImportClaim,
 }))
 
 import { POST } from '@/app/api/table/[tableId]/import/route'
@@ -142,6 +148,8 @@ describe('POST /api/table/[tableId]/import', () => {
       data.rows.map((_, i) => ({ id: `row_${i}` }))
     )
     mockReplaceTableRowsWithTx.mockResolvedValue({ deletedCount: 0, insertedCount: 0 })
+    mockMarkTableImporting.mockResolvedValue(true)
+    mockReleaseImportClaim.mockResolvedValue(undefined)
     mockAddTableColumnsWithTx.mockImplementation(
       async (
         _trx,
@@ -166,6 +174,22 @@ describe('POST /api/table/[tableId]/import', () => {
     })
     const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
     expect(response.status).toBe(401)
+  })
+
+  it('returns 409 when a background import already holds the table (claim lost)', async () => {
+    mockMarkTableImporting.mockResolvedValueOnce(false)
+    const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
+    expect(response.status).toBe(409)
+    expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
+    expect(mockReplaceTableRowsWithTx).not.toHaveBeenCalled()
+    expect(mockReleaseImportClaim).not.toHaveBeenCalled()
+  })
+
+  it('releases the import claim after a successful write', async () => {
+    const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
+    expect(response.status).toBe(200)
+    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
+    expect(mockReleaseImportClaim).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
   })
 
   it('returns 400 when the mode is invalid', async () => {

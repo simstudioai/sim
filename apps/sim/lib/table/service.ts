@@ -1372,6 +1372,24 @@ export async function markTableImporting(tableId: string, importId: string): Pro
 }
 
 /**
+ * Releases a claim taken by {@link markTableImporting} for a synchronous import — clears the
+ * import state back to idle. Scoped to `importId` so it only clears its own claim, never a newer
+ * run that may have taken over. A sync route claims, writes, then releases here in a `finally`.
+ */
+export async function releaseImportClaim(tableId: string, importId: string): Promise<void> {
+  await db
+    .update(userTableDefinitions)
+    .set({ importStatus: null, importId: null, importStartedAt: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(userTableDefinitions.id, tableId),
+        eq(userTableDefinitions.importId, importId),
+        eq(userTableDefinitions.importStatus, 'importing')
+      )
+    )
+}
+
+/**
  * Records import progress (rows processed so far). Also bumps `updatedAt` so the
  * stale-import janitor (`cleanup-stale-executions`) sees a live heartbeat and doesn't mark a
  * still-running import as failed.

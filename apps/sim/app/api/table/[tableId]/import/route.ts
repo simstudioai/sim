@@ -29,6 +29,8 @@ import {
   createCsvParser,
   dispatchAfterBatchInsert,
   inferColumnType,
+  markTableImporting,
+  releaseImportClaim,
   replaceTableRowsWithTx,
   sanitizeName,
   type TableDefinition,
@@ -57,6 +59,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const requestId = generateRequestId()
   const { tableId } = tableIdParamsSchema.parse(await params)
   let fileStream: Readable | undefined
+  let claimedImportId: string | null = null
 
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -247,6 +250,19 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     const coerced = coerceRowsForTable(rows, prospectiveTable.schema, validation.effectiveMap)
 
+    // Atomically claim the table before writing. The pre-check above reads a checkAccess snapshot
+    // taken before the parse/validation; a background import could claim the table in that window.
+    // markTableImporting is the single atomic gate (same one the async kickoff uses) — released in
+    // the finally so a sync import can't write concurrently with a background one (corrupts replace).
+    const syncImportId = generateId()
+    if (!(await markTableImporting(tableId, syncImportId))) {
+      return NextResponse.json(
+        { error: 'An import is already in progress for this table' },
+        { status: 409 }
+      )
+    }
+    claimedImportId = syncImportId
+
     if (mode === 'append') {
       if (prospectiveTable.rowCount + coerced.length > prospectiveTable.maxRows) {
         const deficit = prospectiveTable.rowCount + coerced.length - prospectiveTable.maxRows
@@ -407,5 +423,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     )
   } finally {
     fileStream?.destroy()
+    // Release before the response returns, so a client refetch never observes the transient claim.
+    if (claimedImportId) await releaseImportClaim(tableId, claimedImportId).catch(() => {})
   }
 })
