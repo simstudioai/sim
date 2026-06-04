@@ -14,6 +14,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { cn } from '@/lib/utils'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -31,6 +32,10 @@ import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subb
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('McpToolDeploy')
+
+/** MCP tool names allow lowercase letters, numbers, and underscores only */
+const TOOL_NAME_PATTERN = /^[a-z0-9_]+$/
+const MAX_TOOL_NAME_LENGTH = 64
 
 /** InputFormatField with guaranteed name (after normalization) */
 type NormalizedField = InputFormatField & { name: string }
@@ -166,6 +171,18 @@ export function McpDeploy({
     [inputFormat, parameterDescriptions]
   )
 
+  const toolNameError = useMemo(() => {
+    const trimmed = toolName.trim()
+    if (!trimmed) return null
+    if (trimmed.length > MAX_TOOL_NAME_LENGTH) {
+      return `Tool name must be ${MAX_TOOL_NAME_LENGTH} characters or fewer`
+    }
+    if (!TOOL_NAME_PATTERN.test(trimmed)) {
+      return 'Tool name can only contain lowercase letters, numbers, and underscores'
+    }
+    return null
+  }, [toolName])
+
   const [serverToolsMap, setServerToolsMap] = useState<
     Record<string, { tool: WorkflowMcpTool | null; isLoading: boolean }>
   >({})
@@ -270,11 +287,11 @@ export function McpDeploy({
     (hasToolConfigurationChanges && selectedServerIdsForForm.length > 0)
 
   useEffect(() => {
-    onCanSaveChange?.(hasChanges && !!toolName.trim())
-  }, [hasChanges, toolName, onCanSaveChange])
+    onCanSaveChange?.(hasChanges && !!toolName.trim() && !toolNameError)
+  }, [hasChanges, toolName, toolNameError, onCanSaveChange])
 
   const handleSave = async () => {
-    if (!toolName.trim()) return
+    if (!toolName.trim() || toolNameError) return
 
     const currentIds = new Set(selectedServerIds)
     const nextIds = new Set(selectedServerIdsForForm)
@@ -492,9 +509,16 @@ export function McpDeploy({
           value={toolName}
           onChange={(e) => setToolName(e.target.value)}
           placeholder='e.g., book_flight'
+          aria-invalid={!!toolNameError}
+          className={cn(toolNameError && 'border-[var(--text-error)]')}
         />
-        <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-          Use lowercase letters, numbers, and underscores only
+        <p
+          className={cn(
+            'mt-[6.5px] text-xs',
+            toolNameError ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
+          )}
+        >
+          {toolNameError ?? 'Use lowercase letters, numbers, and underscores only'}
         </p>
       </div>
 
@@ -564,7 +588,7 @@ export function McpDeploy({
           placeholder='Select servers...'
           searchable
           searchPlaceholder='Search servers...'
-          disabled={!toolName.trim() || isPending}
+          disabled={!toolName.trim() || !!toolNameError || isPending}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
           }
