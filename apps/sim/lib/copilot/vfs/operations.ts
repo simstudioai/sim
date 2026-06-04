@@ -21,6 +21,60 @@ export interface GrepCountEntry {
   count: number
 }
 
+/**
+ * Thrown when a single-file content grep (see `WorkspaceVFS.grepFile`) hits an
+ * expected, user-facing condition: the path is not a single workspace file, the
+ * file has no searchable text (image/binary), or it exceeds the inline read cap.
+ * The grep handler surfaces the message verbatim instead of treating it as an
+ * internal failure. Defined here (rather than in `workspace-vfs.ts`) so the
+ * handler can reference it without pulling in the VFS module's heavy deps.
+ */
+export class WorkspaceFileGrepError extends Error {
+  readonly code = 'WORKSPACE_FILE_GREP' as const
+  constructor(message: string) {
+    super(message)
+    this.name = 'WorkspaceFileGrepError'
+  }
+}
+
+/**
+ * True when file content is one of `readFileRecord`'s non-text placeholders
+ * (binary, unparseable, or over the inline read cap) — these carry no searchable
+ * content, so grepping them should report the placeholder instead.
+ */
+function isNonGreppablePlaceholder(content: string, totalLines: number): boolean {
+  if (totalLines !== 1) return false
+  return /^\[(File too large|Image too large|Document too large|Could not parse|Binary file|Compiled artifact too large)/.test(
+    content.trim()
+  )
+}
+
+/**
+ * Run a single-file content grep over an already-resolved file read result,
+ * shared by workspace-file grep (`WorkspaceVFS.grepFile`) and chat-upload grep.
+ * Throws {@link WorkspaceFileGrepError} when the file has no searchable text
+ * (image/binary attachment) or is a size/parse placeholder; otherwise greps the
+ * text with the standard {@link grep} engine over a one-entry map keyed by
+ * `path`. `readHint` is the path to suggest in the "use read(...)" message.
+ */
+export function grepReadResult(
+  path: string,
+  result: { content: string; totalLines: number; attachment?: unknown },
+  pattern: string,
+  readHint: string,
+  options?: GrepOptions
+): GrepMatch[] | string[] | GrepCountEntry[] {
+  if (result.attachment) {
+    throw new WorkspaceFileGrepError(
+      `Cannot grep "${path}" — it has no searchable text (image/binary). Use read("${readHint}") to view it.`
+    )
+  }
+  if (isNonGreppablePlaceholder(result.content, result.totalLines)) {
+    throw new WorkspaceFileGrepError(result.content)
+  }
+  return grep(new Map([[path, result.content]]), pattern, undefined, options)
+}
+
 export interface ReadResult {
   content: string
   totalLines: number

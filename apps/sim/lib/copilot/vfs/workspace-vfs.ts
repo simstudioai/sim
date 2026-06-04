@@ -467,6 +467,56 @@ export class WorkspaceVFS {
     return ops.grep(this.filesForPath(path), pattern, path, options)
   }
 
+  /**
+   * Grep the *content* of a single workspace file (under `files/`), as opposed to
+   * {@link grep} which searches the in-memory VFS map (workflow JSON, metadata,
+   * plans, memories — workspace files appear there only as metadata).
+   *
+   * Content search applies to workspace files only and must target exactly one
+   * file (`files/<name>` or `files/<name>/content`, plus the `recently-deleted/`
+   * variants). A folder, the whole `files/` tree, or any path that does not
+   * resolve to a single file leaf throws — grepping multiple workspace files at
+   * once is intentionally unsupported.
+   *
+   * Per file type the file's text is resolved via {@link readFileContent} (the
+   * same extraction `read` uses): text-like files are read as UTF-8, parseable
+   * documents (pdf/docx/xlsx/pptx/…) are parsed to text, and the regex runs over
+   * that text. Images and binary files have no searchable text and throw, as do
+   * files too large for the inline read cap. Reading exactly one file (bounded by
+   * the existing per-type read caps) keeps this from loading the workspace into
+   * memory.
+   */
+  async grepFile(
+    path: string,
+    pattern: string,
+    options?: GrepOptions
+  ): Promise<GrepMatch[] | string[] | ops.GrepCountEntry[]> {
+    const normalized = path.replace(/^\/+/, '')
+    // Prefer the path verbatim when it is itself a file leaf (e.g. a file literally
+    // named "content"); otherwise drop a trailing "/content" read suffix.
+    const leaf = this.files.has(normalized) ? normalized : normalized.replace(/\/content$/, '')
+
+    const isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+    if (!isWorkspaceFilePath || !this.files.has(leaf)) {
+      const suggestions = this.suggestSimilar(leaf)
+      const hint =
+        suggestions.length > 0
+          ? ` Did you mean: ${suggestions.join(', ')}?`
+          : ' Use glob to find the exact file path, then grep that single file.'
+      throw new ops.WorkspaceFileGrepError(
+        `Grep over workspace file content must target a single workspace file (e.g. path: "files/report.csv"). "${path}" is not a single workspace file.${hint}`
+      )
+    }
+
+    const contentPath = `${leaf}/content`
+    const result = await this.readFileContent(contentPath)
+    if (!result) {
+      throw new ops.WorkspaceFileGrepError(`Workspace file content not found for "${path}".`)
+    }
+
+    return ops.grepReadResult(leaf, result, pattern, contentPath, options)
+  }
+
   glob(pattern: string): string[] {
     const target = pattern.startsWith('recently-deleted') ? this.files : this.activeFiles()
     return ops.glob(target, pattern)

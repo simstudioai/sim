@@ -3,9 +3,42 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
-import { listChatUploads, readChatUpload } from './upload-file-reader'
+import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
+import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { grepChatUpload, listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
+
+/**
+ * Encode a chat-upload display name as a single canonical VFS path segment so
+ * `uploads/` paths follow the same percent-encoded convention as `files/`.
+ * Falls back to the raw name if the segment cannot be encoded (so a listing
+ * never fails wholesale over one odd name).
+ */
+function encodeUploadSegment(name: string): string {
+  try {
+    return encodeVfsSegment(name)
+  } catch {
+    return name
+  }
+}
+
+/**
+ * True when a grep `path` targets the workspace files tree (`files/` or
+ * `recently-deleted/files/`). Such greps search a single file's content via
+ * {@link WorkspaceVFS.grepFile}; every other path searches the VFS map.
+ */
+function isWorkspaceFileGrepPath(path: string | undefined): path is string {
+  if (!path) return false
+  return /^(recently-deleted\/)?files(\/|$)/.test(path.replace(/^\/+/, ''))
+}
+
+/** True when a grep `path` targets the chat-scoped uploads namespace. */
+function isChatUploadGrepPath(path: string | undefined): path is string {
+  if (!path) return false
+  return /^uploads(\/|$)/.test(path.replace(/^\/+/, ''))
+}
 
 function serializedResultSize(value: unknown): number {
   try {
@@ -48,15 +81,44 @@ export async function executeVfsGrep(
     return { success: false, error: 'No workspace context available' }
   }
 
+  const rawPath = typeof params.path === 'string' ? params.path : undefined
+
   try {
-    const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
-    const result = vfs.grep(pattern, params.path as string | undefined, {
+    const grepOptions = {
       maxResults: (params.maxResults as number) ?? 50,
       outputMode: outputMode as 'content' | 'files_with_matches' | 'count',
       ignoreCase: (params.ignoreCase as boolean) ?? false,
       lineNumbers: (params.lineNumbers as boolean) ?? true,
       context: (params.context as number) ?? 0,
-    })
+    }
+
+    // Routing mirrors read/glob:
+    //  - uploads/<file>  -> grep one chat upload's content (chat-scoped)
+    //  - files/<file>    -> grep one workspace file's content (one file only)
+    //  - everything else -> grep the in-memory VFS map (workflow JSON, metadata)
+    // Chat uploads are opt-in like recently-deleted/: they are never in the VFS
+    // map, so an unscoped grep can't touch them — only an explicit uploads/<file>
+    // path does, and only one upload at a time.
+    let result: GrepMatch[] | string[] | GrepCountEntry[]
+    if (isChatUploadGrepPath(rawPath)) {
+      if (!context.chatId) {
+        return { success: false, error: 'No chat context available for uploads/' }
+      }
+      const filename = rawPath.replace(/^\/+/, '').replace(/^uploads\/?/, '')
+      if (!filename) {
+        return {
+          success: false,
+          error:
+            'Grep over chat uploads must target a single upload (e.g. path: "uploads/report.json"). Use glob("uploads/*") to list uploads.',
+        }
+      }
+      result = await grepChatUpload(filename, context.chatId, pattern, grepOptions)
+    } else {
+      const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
+      result = isWorkspaceFileGrepPath(rawPath)
+        ? await vfs.grepFile(rawPath, pattern, grepOptions)
+        : vfs.grep(pattern, rawPath, grepOptions)
+    }
     const key =
       outputMode === 'files_with_matches' ? 'files' : outputMode === 'count' ? 'counts' : 'matches'
     const matchCount = Array.isArray(result)
@@ -72,12 +134,22 @@ export async function executeVfsGrep(
           'Grep result too large to return inline. Retry grep with a more specific pattern or narrower path, and reduce context or maxResults. Avoid catch-all greps because smaller searches save context window and make follow-up reads cheaper.',
       }
     }
-    logger.debug('vfs_grep result', { pattern, path: params.path, outputMode, matchCount })
+    logger.debug('vfs_grep result', { pattern, path: rawPath, outputMode, matchCount })
     return { success: true, output }
   } catch (err) {
+    // Expected single-file scoping / no-text / too-large conditions: surface the
+    // message verbatim instead of logging an internal failure.
+    if (err instanceof WorkspaceFileGrepError) {
+      logger.debug('vfs_grep workspace file rejected', {
+        pattern,
+        path: rawPath,
+        error: err.message,
+      })
+      return { success: false, error: err.message }
+    }
     logger.error('vfs_grep failed', {
       pattern,
-      path: params.path,
+      path: rawPath,
       error: toError(err).message,
     })
     return { success: false, error: getErrorMessage(err, 'vfs_grep failed') }
@@ -104,7 +176,9 @@ export async function executeVfsGlob(
 
     if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
       const uploads = await listChatUploads(context.chatId)
-      const uploadPaths = uploads.map((f) => `uploads/${f.name}`)
+      // Encode per segment so uploads/ paths match the files/ convention; the
+      // upload resolver accepts both the encoded path and the raw display name.
+      const uploadPaths = uploads.map((f) => `uploads/${encodeUploadSegment(f.name)}`)
       files = [...files, ...uploadPaths]
     }
 

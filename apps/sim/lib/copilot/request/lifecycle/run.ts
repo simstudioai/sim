@@ -277,6 +277,13 @@ async function runCheckpointLoop(
       hasCheckpoint: !!context.awaitingAsyncContinuation,
     })
 
+    // Snapshot recorded errors before this attempt. If the attempt fails with
+    // a retryable resume error, we roll back to this baseline before retrying
+    // so a subsequent successful retry doesn't inherit the failed attempt's
+    // errors (e.g. "backend stream ended before a terminal event") and get
+    // mis-finalized as `error`.
+    const errorsBeforeAttempt = context.errors.length
+
     try {
       await runStreamLoop(
         `${mothershipBaseURL}${route}`,
@@ -314,6 +321,9 @@ async function runCheckpointLoop(
         isRetryableStreamError(streamError) &&
         resumeAttempt < MAX_RESUME_ATTEMPTS - 1
       ) {
+        // Discard errors recorded during this failed attempt; we're about to
+        // redo this leg and a clean retry must not finalize as `error`.
+        context.errors.length = errorsBeforeAttempt
         resumeAttempt++
         const backoff = RESUME_BACKOFF_MS[resumeAttempt - 1] ?? 1000
         logger.warn('Resume stream failed, retrying', {

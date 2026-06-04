@@ -6,6 +6,7 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
+import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
 import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -281,9 +282,18 @@ export async function buildCopilotRequestPayload(
           mediaType,
           f.size
         )
+        // Encode the read path per the percent-encoded VFS convention (matches
+        // files/ and the uploads glob output). The materialize_file `fileName`
+        // arg stays the raw display name — the upload resolver accepts both.
+        let encodedUploadName = displayName
+        try {
+          encodedUploadName = encodeVfsSegment(displayName)
+        } catch {
+          encodedUploadName = displayName
+        }
         const lines = [
           `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
-          `Read with: read("uploads/${displayName}")`,
+          `Read with: read("uploads/${encodedUploadName}")`,
           `To save permanently: materialize_file(fileName: "${displayName}")`,
         ]
         if (displayName.endsWith('.json')) {

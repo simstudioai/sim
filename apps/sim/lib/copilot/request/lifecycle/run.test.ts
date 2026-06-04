@@ -86,6 +86,8 @@ vi.mock('@/lib/copilot/request/tools/executor', () => ({
   executeToolAndReport: vi.fn(),
 }))
 
+import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
+import { CopilotBackendError } from '@/lib/copilot/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 
 describe('runCopilotLifecycle', () => {
@@ -337,6 +339,89 @@ describe('runCopilotLifecycle', () => {
         workspaceId: 'ws-1',
         chatId: 'chat-1',
         userPermission: 'write',
+      })
+    )
+  })
+
+  it('finalizes as success when a resume fails with a retryable error then the retry succeeds', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    // 1) Initial stream pauses on an async tool checkpoint with a resolved
+    //    tool result, so the lifecycle transitions into a resume leg.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    // 2) First resume leg dies mid-stream like a transient provider error:
+    //    it records an error AND throws a retryable 5xx.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.errors.push(
+          'Copilot backend stream ended before a terminal event on /api/tools/resume'
+        )
+        throw new CopilotBackendError('backend stream ended before a terminal event', {
+          status: 503,
+        })
+      }
+    )
+
+    // 3) Retry of the same resume leg succeeds cleanly.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'Recovered final answer.'
+        context.finalAssistantContent = 'Recovered final answer.'
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    // Three legs ran (initial + failed resume + retried resume), and the
+    // recovered retry must NOT inherit the failed attempt's error.
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(3)
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        cancelled: false,
+        errors: undefined,
       })
     )
   })

@@ -7,6 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
@@ -58,14 +59,21 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
 
   logger.info('Materialized file', { fileName, fileId: updated.id, chatId })
 
+  // Canonical, per-segment-encoded path — matches how the workspace VFS serves
+  // the file (files/<encoded>), rather than echoing the raw display name.
+  const canonicalPath = canonicalWorkspaceFilePath({
+    folderPath: null,
+    name: updated.originalName,
+  })
+
   return {
     success: true,
     output: {
-      message: `File "${fileName}" materialized. It is now available at files/${fileName} and will persist independently of this chat.`,
+      message: `File "${updated.originalName}" materialized. It is now available at ${canonicalPath} and will persist independently of this chat.`,
       fileId: updated.id,
-      path: `files/${fileName}`,
+      path: canonicalPath,
     },
-    resources: [{ type: 'file', id: updated.id, title: fileName }],
+    resources: [{ type: 'file', id: updated.id, title: updated.originalName }],
   }
 }
 
