@@ -149,6 +149,39 @@ function ensureJsonFormat(query: string): string {
   return trimmed
 }
 
+/**
+ * Detects whether a statement chains a second statement after a `;` that is not
+ * inside a string ('...'), quoted identifier ("..." / `...`) span. A trailing
+ * semicolon with nothing after it is allowed.
+ */
+function hasChainedStatement(sql: string): boolean {
+  let inSingle = false
+  let inDouble = false
+  let inBacktick = false
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i]
+    if (inSingle) {
+      if (ch === '\\') i++
+      else if (ch === "'") inSingle = false
+      continue
+    }
+    if (inDouble) {
+      if (ch === '\\') i++
+      else if (ch === '"') inDouble = false
+      continue
+    }
+    if (inBacktick) {
+      if (ch === '`') inBacktick = false
+      continue
+    }
+    if (ch === "'") inSingle = true
+    else if (ch === '"') inDouble = true
+    else if (ch === '`') inBacktick = true
+    else if (ch === ';' && sql.slice(i + 1).trim().length > 0) return true
+  }
+  return false
+}
+
 export async function executeClickHouseQuery(
   config: ClickHouseConnectionConfig,
   query: string,
@@ -160,6 +193,11 @@ export async function executeClickHouseQuery(
     if (!READ_ONLY_STATEMENT.test(leader)) {
       throw new Error(
         'The query operation only allows read-only statements (SELECT, WITH, SHOW, DESCRIBE, EXPLAIN, EXISTS). Use the Execute Raw SQL operation to run writes or DDL.'
+      )
+    }
+    if (hasChainedStatement(query)) {
+      throw new Error(
+        'The query operation only allows a single statement; chained statements separated by ";" are not allowed. Use the Execute Raw SQL operation to run multiple statements.'
       )
     }
   }
