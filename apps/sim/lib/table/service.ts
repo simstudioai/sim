@@ -26,7 +26,7 @@ import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { areGroupDepsSatisfied } from './deps'
 import { CSV_MAX_BATCH_SIZE } from './import'
-import { keyBetween } from './order-key'
+import { keyBetween, nKeysBetween } from './order-key'
 import { buildFilterClause, buildSortClause } from './sql'
 import { fireTableTrigger } from './trigger'
 import type {
@@ -450,11 +450,13 @@ export async function createTable(
 
       const initialRowCount = data.initialRowCount ?? 0
       if (initialRowCount > 0) {
+        const orderKeys = nKeysBetween(null, null, initialRowCount)
         const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({
           id: `row_${generateId().replace(/-/g, '')}`,
           tableId,
           data: {},
           position: i,
+          orderKey: orderKeys[i],
           workspaceId: data.workspaceId,
           createdAt: now,
           updatedAt: now,
@@ -1109,13 +1111,14 @@ async function compactPositions(trx: DbTransaction, tableId: string, minDeletedP
   `)
 }
 
-/** A row value ready to INSERT into `user_table_rows`, with its assigned position. */
+/** A row value ready to INSERT into `user_table_rows`, with its assigned order. */
 export interface OrderedRowValue {
   id: string
   tableId: string
   workspaceId: string
   data: RowData
   position: number
+  orderKey: string
   createdAt: Date
   updatedAt: Date
   createdBy?: string
@@ -1123,26 +1126,29 @@ export interface OrderedRowValue {
 
 /**
  * Builds INSERT values for a contiguous run of rows, assigning sequential
- * positions `startPosition, startPosition + 1, …`. Centralizes position
- * assignment for callers that write a fresh ordered run (e.g. the copilot tool's
- * replace-all write).
+ * positions `startPosition + i` and the supplied `orderKeys[i]`. Centralizes
+ * row assignment for callers that write a fresh ordered run (e.g. the copilot
+ * tool's replace-all write). `orderKeys` must be index-aligned with `rows` —
+ * mint them once for the whole run with {@link nKeysBetween}.
  */
 export function buildOrderedRowValues(opts: {
   tableId: string
   workspaceId: string
   rows: RowData[]
   startPosition: number
+  orderKeys: string[]
   now: Date
   createdBy?: string
   makeId: () => string
 }): OrderedRowValue[] {
-  const { tableId, workspaceId, rows, startPosition, now, createdBy, makeId } = opts
+  const { tableId, workspaceId, rows, startPosition, orderKeys, now, createdBy, makeId } = opts
   return rows.map((data, i) => ({
     id: makeId(),
     tableId,
     workspaceId,
     data,
     position: startPosition + i,
+    orderKey: orderKeys[i],
     createdAt: now,
     updatedAt: now,
     ...(createdBy ? { createdBy } : {}),
@@ -1183,6 +1189,32 @@ async function resolveInsertOrderKey(
   const lo = await orderKeyAtPosition(requestedPosition - 1)
   const hi = await orderKeyAtPosition(requestedPosition)
   return keyBetween(lo, hi)
+}
+
+/**
+ * Computes fractional `order_key`s for a batch insert. With no `positions`,
+ * appends a contiguous run after the current max key. With explicit `positions`
+ * (undo restore), keys each row between its pre-shift position neighbors —
+ * correct because requested positions are distinct. Caller holds the lock.
+ */
+async function resolveBatchInsertOrderKeys(
+  trx: DbTransaction,
+  tableId: string,
+  count: number,
+  positions?: number[]
+): Promise<string[]> {
+  if (!positions || positions.length === 0) {
+    const [{ maxKey }] = await trx
+      .select({ maxKey: sql<string | null>`max(${userTableRows.orderKey})` })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, tableId))
+    return nKeysBetween(maxKey ?? null, null, count)
+  }
+  const keys: string[] = []
+  for (const pos of positions) {
+    keys.push(await resolveInsertOrderKey(trx, tableId, pos))
+  }
+  return keys
 }
 
 /**
@@ -1475,19 +1507,34 @@ export async function batchInsertRowsWithTx(
 
   await setTableTxTimeouts(trx, { statementMs: 60_000 })
 
-  const buildRow = (rowData: RowData, position: number) => ({
+  const buildRow = (rowData: RowData, position: number, orderKey: string) => ({
     id: `row_${generateId().replace(/-/g, '')}`,
     tableId: data.tableId,
     workspaceId: data.workspaceId,
     data: rowData,
     position,
+    orderKey,
     createdAt: now,
     updatedAt: now,
     ...(data.userId ? { createdBy: data.userId } : {}),
   })
 
-  const positions = await reserveBatchPositions(trx, data.tableId, data.rows.length, data.positions)
-  const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, positions[i]))
+  await acquireRowOrderLock(trx, data.tableId)
+  const orderKeys = await resolveBatchInsertOrderKeys(
+    trx,
+    data.tableId,
+    data.rows.length,
+    data.positions
+  )
+  let positions: number[]
+  if (isTablesFractionalOrderingEnabled) {
+    // order_key authoritative — best-effort append positions, no shift.
+    const start = await nextRowPosition(trx, data.tableId)
+    positions = Array.from({ length: data.rows.length }, (_, i) => start + i)
+  } else {
+    positions = await reserveBatchPositions(trx, data.tableId, data.rows.length, data.positions)
+  }
+  const rowsToInsert = data.rows.map((rowData, i) => buildRow(rowData, positions[i], orderKeys[i]))
   const insertedRows = await trx.insert(userTableRows).values(rowsToInsert).returning()
 
   logger.info(`[${requestId}] Batch inserted ${data.rows.length} rows into table ${data.tableId}`)
@@ -1586,12 +1633,19 @@ export async function bulkInsertImportBatch(
   }
 
   const now = new Date()
+  // Import worker is the table's sole writer; append keys after the current max.
+  const [{ maxKey }] = await db
+    .select({ maxKey: sql<string | null>`max(${userTableRows.orderKey})` })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, data.tableId))
+  const orderKeys = nKeysBetween(maxKey ?? null, null, data.rows.length)
   const rowsToInsert = data.rows.map((rowData, i) => ({
     id: `row_${generateId().replace(/-/g, '')}`,
     tableId: data.tableId,
     workspaceId: data.workspaceId,
     data: rowData,
     position: data.startPosition + i,
+    orderKey: orderKeys[i],
     createdAt: now,
     updatedAt: now,
     ...(data.userId ? { createdBy: data.userId } : {}),
@@ -1862,12 +1916,15 @@ export async function replaceTableRowsWithTx(
 
   let insertedCount = 0
   if (data.rows.length > 0) {
+    // All prior rows were just deleted — assign a fresh contiguous key run.
+    const orderKeys = nKeysBetween(null, null, data.rows.length)
     const rowsToInsert = data.rows.map((rowData, i) => ({
       id: `row_${generateId().replace(/-/g, '')}`,
       tableId: data.tableId,
       workspaceId: data.workspaceId,
       data: rowData,
       position: i,
+      orderKey: orderKeys[i],
       createdAt: now,
       updatedAt: now,
       ...(data.userId ? { createdBy: data.userId } : {}),
@@ -2106,6 +2163,7 @@ export async function upsertRow(
         workspaceId: data.workspaceId,
         data: data.data,
         position: await reserveInsertPosition(trx, data.tableId),
+        orderKey: await resolveInsertOrderKey(trx, data.tableId),
         createdAt: now,
         updatedAt: now,
         ...(data.userId ? { createdBy: data.userId } : {}),
