@@ -177,7 +177,7 @@ export function FolderItem({
     try {
       const result = await createFolderMutation.mutateAsync({
         workspaceId,
-        name: 'New Folder',
+        name: 'New folder',
         parentId: folder.id,
         id: generateId(),
       })

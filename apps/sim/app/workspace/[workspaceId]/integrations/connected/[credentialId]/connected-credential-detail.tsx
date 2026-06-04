@@ -15,11 +15,14 @@ import {
   toast,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
+import { cn } from '@/lib/core/utils/cn'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { INTEGRATIONS } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
   AddPeopleModal,
+  CHIP_FIELD_INPUT,
+  CHIP_FIELD_SHELL,
   CopyableValueField,
   CredentialDetailHeading,
   CredentialDetailLayout,
@@ -263,7 +266,7 @@ export function ConnectedCredentialDetail({
         </DetailSection>
 
         <DetailSection title='Display Name'>
-          <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+          <div className={CHIP_FIELD_SHELL}>
             <input
               id='credential-display-name'
               value={form.displayNameDraft}
@@ -271,13 +274,13 @@ export function ConnectedCredentialDetail({
               autoComplete='off'
               data-lpignore='true'
               disabled={!isAdmin}
-              className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
+              className={cn(CHIP_FIELD_INPUT, 'disabled:cursor-not-allowed disabled:opacity-60')}
             />
           </div>
         </DetailSection>
 
         <DetailSection title='Description'>
-          <div className='flex items-start gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-2 dark:bg-[var(--surface-4)]'>
+          <div className={cn(CHIP_FIELD_SHELL, 'h-auto items-start py-2')}>
             <textarea
               id='credential-description'
               rows={4}
@@ -288,7 +291,10 @@ export function ConnectedCredentialDetail({
               autoComplete='off'
               data-lpignore='true'
               disabled={!isAdmin}
-              className='w-full resize-none bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60'
+              className={cn(
+                CHIP_FIELD_INPUT,
+                'h-auto resize-none disabled:cursor-not-allowed disabled:opacity-60'
+              )}
             />
           </div>
         </DetailSection>

@@ -490,7 +490,7 @@ export function CredentialSets() {
 
                           <div className='min-w-0'>
                             <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-[var(--text-primary)] text-base'>
+                              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
                                 {name}
                               </span>
                               {member.credentials.length === 0 && (
@@ -537,7 +537,7 @@ export function CredentialSets() {
 
                           <div className='min-w-0'>
                             <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-[var(--text-primary)] text-base'>
+                              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
                                 {emailPrefix}
                               </span>
                               <Badge variant='gray-secondary' size='sm'>
@@ -607,7 +607,7 @@ export function CredentialSets() {
 
             <div className='relative'>
               {hasNoContent && !canManageCredentialSets ? (
-                <div className='py-8 text-center text-[var(--text-muted)] text-sm'>
+                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
                   You're not a member of any polling groups yet. When someone invites you, it will
                   appear here.
                 </div>
@@ -623,17 +623,17 @@ export function CredentialSets() {
                         {filteredInvitations.map((invitation) => (
                           <div
                             key={invitation.invitationId}
-                            className='flex items-center justify-between rounded-lg px-2 py-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                            className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
                           >
-                            <div className='flex items-center gap-3'>
-                              <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
+                            <div className='flex items-center gap-2.5'>
+                              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
                                 {getProviderIcon(invitation.providerId)}
                               </div>
                               <div className='flex flex-col'>
-                                <span className='font-medium text-base'>
+                                <span className='text-[14px] text-[var(--text-body)]'>
                                   {invitation.credentialSetName}
                                 </span>
-                                <span className='text-[var(--text-muted)] text-sm'>
+                                <span className='text-[12px] text-[var(--text-muted)]'>
                                   {invitation.organizationName}
                                 </span>
                               </div>
@@ -657,17 +657,17 @@ export function CredentialSets() {
                         {filteredMemberships.map((membership) => (
                           <div
                             key={membership.membershipId}
-                            className='flex items-center justify-between rounded-lg px-2 py-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                            className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
                           >
-                            <div className='flex items-center gap-3'>
-                              <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
+                            <div className='flex items-center gap-2.5'>
+                              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
                                 {getProviderIcon(membership.providerId)}
                               </div>
                               <div className='flex flex-col'>
-                                <span className='font-medium text-base'>
+                                <span className='text-[14px] text-[var(--text-body)]'>
                                   {membership.credentialSetName}
                                 </span>
-                                <span className='text-[var(--text-muted)] text-sm'>
+                                <span className='text-[12px] text-[var(--text-muted)]'>
                                   {membership.organizationName}
                                 </span>
                               </div>
@@ -703,15 +703,17 @@ export function CredentialSets() {
                             {filteredOwnedSets.map((set) => (
                               <div
                                 key={set.id}
-                                className='flex items-center justify-between rounded-lg px-2 py-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                                className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
                               >
-                                <div className='flex items-center gap-3'>
-                                  <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
+                                <div className='flex items-center gap-2.5'>
+                                  <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
                                     {getProviderIcon(set.providerId)}
                                   </div>
                                   <div className='flex flex-col'>
-                                    <span className='font-medium text-base'>{set.name}</span>
-                                    <span className='text-[var(--text-muted)] text-sm'>
+                                    <span className='text-[14px] text-[var(--text-body)]'>
+                                      {set.name}
+                                    </span>
+                                    <span className='text-[12px] text-[var(--text-muted)]'>
                                       {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
                                     </span>
                                   </div>
@@ -771,7 +773,7 @@ export function CredentialSets() {
               <ButtonGroupItem value='google-email'>Gmail</ButtonGroupItem>
               <ButtonGroupItem value='outlook'>Outlook</ButtonGroupItem>
             </ButtonGroup>
-            <p className='mt-1 text-[var(--text-tertiary)] text-xs'>
+            <p className='mt-1 text-[var(--text-muted)] text-small'>
               Members will connect their {getProviderDisplayName(newSetProvider)} account
             </p>
           </ChipModalField>

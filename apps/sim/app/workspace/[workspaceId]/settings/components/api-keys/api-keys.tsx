@@ -17,6 +17,7 @@ import {
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type ApiKey,
   useApiKeys,
@@ -146,31 +147,28 @@ export function ApiKeys() {
               Click "Create API Key" above to get started
             </div>
           ) : (
-            <div className='flex flex-col gap-4.5'>
-              <>
-                {/* Workspace section */}
-                {!searchTerm.trim() ? (
-                  <div className='flex flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-secondary)] text-sm'>
-                      Workspace
+            <div className='flex flex-col gap-6'>
+              {/* Workspace section */}
+              {!searchTerm.trim() ? (
+                <SettingsSection label='Workspace'>
+                  {workspaceKeys.length === 0 ? (
+                    <div className='text-[var(--text-muted)] text-sm'>
+                      No workspace API keys yet
                     </div>
-                    {workspaceKeys.length === 0 ? (
-                      <div className='text-[var(--text-muted)] text-sm'>
-                        No workspace API keys yet
-                      </div>
-                    ) : (
-                      workspaceKeys.map((key) => (
+                  ) : (
+                    <div className='flex flex-col gap-2'>
+                      {workspaceKeys.map((key) => (
                         <div key={key.id} className='flex items-center justify-between gap-3'>
                           <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                             <div className='flex items-center gap-1.5'>
-                              <span className='max-w-[280px] truncate font-medium text-base'>
+                              <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
                                 {key.name}
                               </span>
                               <span className='text-[var(--text-secondary)] text-sm'>
                                 (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
-                            <p className='truncate text-[var(--text-muted)] text-sm'>
+                            <p className='truncate text-[12px] text-[var(--text-muted)]'>
                               {key.displayKey || key.key}
                             </p>
                           </div>
@@ -185,26 +183,25 @@ export function ApiKeys() {
                             Delete
                           </Chip>
                         </div>
-                      ))
-                    )}
-                  </div>
-                ) : filteredWorkspaceKeys.length > 0 ? (
-                  <div className='flex flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-secondary)] text-sm'>
-                      Workspace
+                      ))}
                     </div>
+                  )}
+                </SettingsSection>
+              ) : filteredWorkspaceKeys.length > 0 ? (
+                <SettingsSection label='Workspace'>
+                  <div className='flex flex-col gap-2'>
                     {filteredWorkspaceKeys.map(({ key }) => (
                       <div key={key.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[280px] truncate font-medium text-base'>
+                            <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
                               {key.name}
                             </span>
                             <span className='text-[var(--text-secondary)] text-sm'>
                               (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
-                          <p className='truncate text-[var(--text-muted)] text-sm'>
+                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
                             {key.displayKey || key.key}
                           </p>
                         </div>
@@ -221,12 +218,13 @@ export function ApiKeys() {
                       </div>
                     ))}
                   </div>
-                ) : null}
+                </SettingsSection>
+              ) : null}
 
-                {/* Personal section */}
-                {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+              {/* Personal section */}
+              {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
+                <SettingsSection label='Personal'>
                   <div className='flex flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-secondary)] text-sm'>Personal</div>
                     {filteredPersonalKeys.map(({ key }) => {
                       const isConflict = conflicts.includes(key.name)
                       return (
@@ -234,14 +232,14 @@ export function ApiKeys() {
                           <div className='flex items-center justify-between gap-3'>
                             <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                               <div className='flex items-center gap-1.5'>
-                                <span className='max-w-[280px] truncate font-medium text-base'>
+                                <span className='max-w-[280px] truncate text-[14px] text-[var(--text-body)]'>
                                   {key.name}
                                 </span>
                                 <span className='text-[var(--text-secondary)] text-sm'>
                                   (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                                 </span>
                               </div>
-                              <p className='truncate text-[var(--text-muted)] text-sm'>
+                              <p className='truncate text-[12px] text-[var(--text-muted)]'>
                                 {key.displayKey || key.key}
                               </p>
                             </div>
@@ -265,61 +263,63 @@ export function ApiKeys() {
                       )
                     })}
                   </div>
-                )}
+                </SettingsSection>
+              )}
 
-                {/* Show message when search has no results across both sections */}
-                {searchTerm.trim() &&
-                  filteredPersonalKeys.length === 0 &&
-                  filteredWorkspaceKeys.length === 0 &&
-                  (personalKeys.length > 0 || workspaceKeys.length > 0) && (
-                    <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                      No API keys found matching "{searchTerm}"
-                    </div>
-                  )}
-              </>
+              {/* Show message when search has no results across both sections */}
+              {searchTerm.trim() &&
+                filteredPersonalKeys.length === 0 &&
+                filteredWorkspaceKeys.length === 0 &&
+                (personalKeys.length > 0 || workspaceKeys.length > 0) && (
+                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                    No API keys found matching "{searchTerm}"
+                  </div>
+                )}
             </div>
           )}
 
           {/* Allow Personal API Keys Toggle */}
           {!isLoading && canManageWorkspaceKeys && (
             <Tooltip.Provider delayDuration={150}>
-              <div className='mt-6 flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                    Allow personal API keys
-                  </span>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        type='button'
-                        className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
-                      >
-                        <Info className='size-[12px]' strokeWidth={2} />
-                      </button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top' className='max-w-xs text-small'>
-                      Allow collaborators to create and use their own keys with billing charged to
-                      them.
-                    </Tooltip.Content>
-                  </Tooltip.Root>
+              <SettingsSection label='Permissions'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-[14px] text-[var(--text-body)]'>
+                      Allow personal API keys
+                    </span>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          type='button'
+                          className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
+                        >
+                          <Info className='size-[12px]' strokeWidth={2} />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top' className='max-w-xs text-small'>
+                        Allow collaborators to create and use their own keys with billing charged to
+                        them.
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  </div>
+                  {isLoadingSettings ? null : (
+                    <Switch
+                      checked={allowPersonalApiKeys}
+                      disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          await updateSettingsMutation.mutateAsync({
+                            workspaceId,
+                            allowPersonalApiKeys: checked,
+                          })
+                        } catch (error) {
+                          logger.error('Error updating workspace settings:', { error })
+                        }
+                      }}
+                    />
+                  )}
                 </div>
-                {isLoadingSettings ? null : (
-                  <Switch
-                    checked={allowPersonalApiKeys}
-                    disabled={!canManageWorkspaceKeys || updateSettingsMutation.isPending}
-                    onCheckedChange={async (checked) => {
-                      try {
-                        await updateSettingsMutation.mutateAsync({
-                          workspaceId,
-                          allowPersonalApiKeys: checked,
-                        })
-                      } catch (error) {
-                        logger.error('Error updating workspace settings:', { error })
-                      }
-                    }}
-                  />
-                )}
-              </div>
+              </SettingsSection>
             </Tooltip.Provider>
           )}
         </div>

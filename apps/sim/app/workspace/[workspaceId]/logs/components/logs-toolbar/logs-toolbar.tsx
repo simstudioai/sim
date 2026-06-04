@@ -7,7 +7,7 @@ import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
-  Combobox,
+  ChipCombobox,
   type ComboboxOption,
   DatePicker,
   DropdownMenu,
@@ -536,7 +536,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Status
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={statusOptions}
                     multiSelect
                     multiSelectValues={selectedStatuses}
@@ -555,8 +555,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     }
                     showAllOption
                     allOptionLabel='All statuses'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
 
@@ -565,7 +564,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Workflow
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={workflowOptions}
                     multiSelect
                     multiSelectValues={workflowIds}
@@ -590,8 +589,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     searchPlaceholder='Search workflows...'
                     showAllOption
                     allOptionLabel='All workflows'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
 
@@ -600,7 +598,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Folder
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={folderOptions}
                     multiSelect
                     multiSelectValues={folderIds}
@@ -615,8 +613,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     searchPlaceholder='Search folders...'
                     showAllOption
                     allOptionLabel='All folders'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
 
@@ -625,7 +622,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Trigger
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={triggerOptions}
                     multiSelect
                     multiSelectValues={triggers}
@@ -640,8 +637,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     searchPlaceholder='Search triggers...'
                     showAllOption
                     allOptionLabel='All triggers'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
 
@@ -650,7 +646,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Time Range
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={TIME_RANGE_OPTIONS}
                     value={timeRange}
                     onChange={handleTimeRangeChange}
@@ -660,8 +656,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                         {timeDisplayLabel}
                       </span>
                     }
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
               </div>
@@ -671,7 +666,7 @@ export const LogsToolbar = memo(function LogsToolbar({
           {/* Inline Filters - Large screens only */}
           <div className='hidden items-center gap-2 xl:flex'>
             {/* Status Filter */}
-            <Combobox
+            <ChipCombobox
               options={statusOptions}
               multiSelect
               multiSelectValues={selectedStatuses}
@@ -690,13 +685,12 @@ export const LogsToolbar = memo(function LogsToolbar({
               }
               showAllOption
               allOptionLabel='All statuses'
-              size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-md'
+              className='w-[120px]'
             />
 
             {/* Workflow Filter */}
-            <Combobox
+            <ChipCombobox
               options={workflowOptions}
               multiSelect
               multiSelectValues={workflowIds}
@@ -721,13 +715,12 @@ export const LogsToolbar = memo(function LogsToolbar({
               searchPlaceholder='Search workflows...'
               showAllOption
               allOptionLabel='All workflows'
-              size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-md'
+              className='w-[120px]'
             />
 
             {/* Folder Filter */}
-            <Combobox
+            <ChipCombobox
               options={folderOptions}
               multiSelect
               multiSelectValues={folderIds}
@@ -740,13 +733,12 @@ export const LogsToolbar = memo(function LogsToolbar({
               searchPlaceholder='Search folders...'
               showAllOption
               allOptionLabel='All folders'
-              size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-md'
+              className='w-[120px]'
             />
 
             {/* Trigger Filter */}
-            <Combobox
+            <ChipCombobox
               options={triggerOptions}
               multiSelect
               multiSelectValues={triggers}
@@ -759,14 +751,13 @@ export const LogsToolbar = memo(function LogsToolbar({
               searchPlaceholder='Search triggers...'
               showAllOption
               allOptionLabel='All triggers'
-              size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-md'
+              className='w-[120px]'
             />
 
             {/* Timeline Filter */}
             <div className='relative'>
-              <Combobox
+              <ChipCombobox
                 options={TIME_RANGE_OPTIONS}
                 value={timeRange}
                 onChange={handleTimeRangeChange}
@@ -774,9 +765,8 @@ export const LogsToolbar = memo(function LogsToolbar({
                 overlayContent={
                   <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
                 }
-                size='sm'
                 align='end'
-                className='h-[32px] w-[160px] rounded-md'
+                className='w-[160px]'
                 maxHeight={320}
               />
               <DatePicker

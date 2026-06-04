@@ -58,6 +58,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
             <path d='m21 21-4.35-4.35' />
           </svg>
           <Input
+            variant='chip'
             type='search'
             placeholder='Search integrations, tools, or triggers…'
             value={query}

@@ -3,6 +3,11 @@
 import { useState } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
 import { Check, Duplicate } from '@/components/emcn/icons'
+import { cn } from '@/lib/core/utils/cn'
+import {
+  CHIP_FIELD_INPUT,
+  CHIP_FIELD_SHELL,
+} from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
 
 interface CopyableValueFieldProps {
   value: string
@@ -19,13 +24,8 @@ export function CopyableValueField({ value, copyLabel, id }: CopyableValueFieldP
   const [copied, setCopied] = useState(false)
 
   return (
-    <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-      <input
-        id={id}
-        readOnly
-        value={value}
-        className='h-full w-full cursor-default bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
-      />
+    <div className={CHIP_FIELD_SHELL}>
+      <input id={id} readOnly value={value} className={cn(CHIP_FIELD_INPUT, 'cursor-default')} />
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button

@@ -369,9 +369,9 @@ export function SettingsSidebar({
       <ChipModal
         open={showDiscardDialog}
         onOpenChange={(open) => !open && handleCancelDiscard()}
-        srTitle='Unsaved Changes'
+        srTitle='Unsaved changes'
       >
-        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+        <ChipModalHeader showDivider={false}>Unsaved changes</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             You have unsaved changes. Are you sure you want to discard them?
@@ -379,10 +379,10 @@ export function SettingsSidebar({
         </ChipModalBody>
         <ChipModalFooter>
           <Chip variant='filled' flush onClick={handleCancelDiscard}>
-            Keep Editing
+            Keep editing
           </Chip>
           <Chip variant='destructive' flush onClick={handleConfirmDiscard}>
-            Discard Changes
+            Discard changes
           </Chip>
         </ChipModalFooter>
       </ChipModal>

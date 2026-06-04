@@ -6,7 +6,7 @@
  *
  * Query Parameters:
  *   - action: string (optional) - Filter by action (e.g., "workflow.created")
- *   - resourceType: string (optional) - Filter by resource type (e.g., "workflow")
+ *   - resourceType: string (optional) - Filter by resource type(s), comma-separated (e.g., "workflow,api_key")
  *   - resourceId: string (optional) - Filter by resource ID
  *   - workspaceId: string (optional) - Filter by workspace ID
  *   - actorId: string (optional) - Filter by actor user ID (must be an org member)

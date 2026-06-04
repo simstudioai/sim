@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth'
 import { Home } from '@/app/workspace/[workspaceId]/home/home'
 
 export const metadata: Metadata = {
-  title: 'Task',
+  title: 'Chat',
 }
 
 interface TaskPageProps {

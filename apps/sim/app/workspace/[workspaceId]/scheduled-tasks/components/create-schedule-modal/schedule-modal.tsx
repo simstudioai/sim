@@ -4,18 +4,16 @@ import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Button,
   ButtonGroup,
   ButtonGroupItem,
-  Combobox,
+  Chip,
+  ChipCombobox,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   DatePicker,
   Input as EmcnInput,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Textarea,
   TimePicker,
 } from '@/components/emcn'
@@ -305,244 +303,241 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
     }
   }
 
+  const modalTitle = isEditing ? 'Edit scheduled task' : 'Create new scheduled task'
+
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='lg'>
-        <ModalHeader>{isEditing ? 'Edit scheduled task' : 'Create new scheduled task'}</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='sr-only'>
-            {isEditing ? 'Edit the scheduled task settings' : 'Configure a new scheduled task'}
-          </ModalDescription>
-          <div className='flex flex-col gap-4.5'>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={modalTitle} size='lg'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{modalTitle}</ChipModalHeader>
+      <ChipModalBody className='max-h-[70vh] overflow-y-auto'>
+        <div className='flex flex-col gap-4.5'>
+          <div className='flex flex-col gap-2'>
+            <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>
+            <EmcnInput
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value)
+                if (submitError) setSubmitError(null)
+              }}
+              placeholder='e.g., Daily report generation'
+              variant='chip'
+              autoComplete='off'
+            />
+          </div>
+
+          <div className='flex flex-col gap-2'>
+            <p className='font-medium text-[var(--text-secondary)] text-sm'>Task description</p>
+            <Textarea
+              value={prompt}
+              onChange={(e) => {
+                setPrompt(e.target.value)
+                if (submitError) setSubmitError(null)
+              }}
+              placeholder='Describe what this scheduled task should do...'
+              className='min-h-[80px] resize-none'
+            />
+          </div>
+
+          <div className='flex flex-col gap-2'>
+            <p className='font-medium text-[var(--text-secondary)] text-sm'>Run frequency</p>
+            <ChipCombobox
+              options={SCHEDULE_TYPE_OPTIONS}
+              value={scheduleType}
+              onChange={(v) => setScheduleType(v as ScheduleType)}
+              placeholder='Select frequency'
+            />
+          </div>
+
+          {scheduleType === 'minutes' && (
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Interval (minutes)</p>
               <EmcnInput
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value)
-                  if (submitError) setSubmitError(null)
-                }}
-                placeholder='e.g., Daily report generation'
-                className='h-9'
+                type='number'
+                value={minutesInterval}
+                onChange={(e) => setMinutesInterval(e.target.value)}
+                placeholder='15'
+                min={1}
+                max={1440}
+                variant='chip'
+              />
+            </div>
+          )}
+
+          {scheduleType === 'hourly' && (
+            <div className='flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Minute of hour</p>
+              <EmcnInput
+                type='number'
+                value={hourlyMinute}
+                onChange={(e) => setHourlyMinute(e.target.value)}
+                placeholder='0'
+                min={0}
+                max={59}
+                variant='chip'
+              />
+            </div>
+          )}
+
+          {scheduleType === 'daily' && (
+            <div className='flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
+              <TimePicker value={dailyTime} onChange={setDailyTime} />
+            </div>
+          )}
+
+          {scheduleType === 'weekly' && (
+            <div className='flex gap-3'>
+              <div className='flex flex-1 flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of week</p>
+                <ChipCombobox options={WEEKDAY_OPTIONS} value={weeklyDay} onChange={setWeeklyDay} />
+              </div>
+              <div className='flex flex-1 flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
+                <TimePicker value={weeklyDayTime} onChange={setWeeklyDayTime} />
+              </div>
+            </div>
+          )}
+
+          {scheduleType === 'monthly' && (
+            <div className='flex gap-3'>
+              <div className='flex flex-1 flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of month</p>
+                <EmcnInput
+                  type='number'
+                  value={monthlyDay}
+                  onChange={(e) => setMonthlyDay(e.target.value)}
+                  placeholder='1'
+                  min={1}
+                  max={31}
+                  variant='chip'
+                />
+              </div>
+              <div className='flex flex-1 flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
+                <TimePicker value={monthlyTime} onChange={setMonthlyTime} />
+              </div>
+            </div>
+          )}
+
+          {scheduleType === 'custom' && (
+            <div className='flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Cron expression</p>
+              <EmcnInput
+                value={cronExpression}
+                onChange={(e) => setCronExpression(e.target.value)}
+                placeholder='0 9 * * *'
+                variant='chip'
+                className='font-mono'
                 autoComplete='off'
               />
             </div>
+          )}
 
+          {showTimezone && (
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Task description</p>
-              <Textarea
-                value={prompt}
-                onChange={(e) => {
-                  setPrompt(e.target.value)
-                  if (submitError) setSubmitError(null)
-                }}
-                placeholder='Describe what this scheduled task should do...'
-                className='min-h-[80px] resize-none'
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Timezone</p>
+              <ChipCombobox
+                options={TIMEZONE_OPTIONS}
+                value={timezone}
+                onChange={setTimezone}
+                searchable
+                searchPlaceholder='Search timezones...'
+                maxHeight={240}
               />
             </div>
+          )}
 
+          {!isEditing && (
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Run frequency</p>
-              <Combobox
-                options={SCHEDULE_TYPE_OPTIONS}
-                value={scheduleType}
-                onChange={(v) => setScheduleType(v as ScheduleType)}
-                placeholder='Select frequency'
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                Start date
+                <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
+              </p>
+              <DatePicker
+                value={startDate}
+                onChange={setStartDate}
+                placeholder='Starts immediately'
               />
             </div>
+          )}
 
-            {scheduleType === 'minutes' && (
-              <div className='flex flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Interval (minutes)
-                </p>
-                <EmcnInput
-                  type='number'
-                  value={minutesInterval}
-                  onChange={(e) => setMinutesInterval(e.target.value)}
-                  placeholder='15'
-                  min={1}
-                  max={1440}
-                  className='h-9'
-                />
-              </div>
-            )}
-
-            {scheduleType === 'hourly' && (
-              <div className='flex flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Minute of hour</p>
-                <EmcnInput
-                  type='number'
-                  value={hourlyMinute}
-                  onChange={(e) => setHourlyMinute(e.target.value)}
-                  placeholder='0'
-                  min={0}
-                  max={59}
-                  className='h-9'
-                />
-              </div>
-            )}
-
-            {scheduleType === 'daily' && (
-              <div className='flex flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
-                <TimePicker value={dailyTime} onChange={setDailyTime} />
-              </div>
-            )}
-
-            {scheduleType === 'weekly' && (
-              <div className='flex gap-3'>
-                <div className='flex flex-1 flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of week</p>
-                  <Combobox options={WEEKDAY_OPTIONS} value={weeklyDay} onChange={setWeeklyDay} />
-                </div>
-                <div className='flex flex-1 flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
-                  <TimePicker value={weeklyDayTime} onChange={setWeeklyDayTime} />
-                </div>
-              </div>
-            )}
-
-            {scheduleType === 'monthly' && (
-              <div className='flex gap-3'>
-                <div className='flex flex-1 flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of month</p>
-                  <EmcnInput
-                    type='number'
-                    value={monthlyDay}
-                    onChange={(e) => setMonthlyDay(e.target.value)}
-                    placeholder='1'
-                    min={1}
-                    max={31}
-                    className='h-9'
-                  />
-                </div>
-                <div className='flex flex-1 flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
-                  <TimePicker value={monthlyTime} onChange={setMonthlyTime} />
-                </div>
-              </div>
-            )}
-
-            {scheduleType === 'custom' && (
-              <div className='flex flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Cron expression</p>
-                <EmcnInput
-                  value={cronExpression}
-                  onChange={(e) => setCronExpression(e.target.value)}
-                  placeholder='0 9 * * *'
-                  className='h-9 font-mono'
-                  autoComplete='off'
-                />
-              </div>
-            )}
-
-            {showTimezone && (
-              <div className='flex flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Timezone</p>
-                <Combobox
-                  options={TIMEZONE_OPTIONS}
-                  value={timezone}
-                  onChange={setTimezone}
-                  searchable
-                  searchPlaceholder='Search timezones...'
-                  maxHeight={240}
-                />
-              </div>
-            )}
-
-            {!isEditing && (
-              <div className='flex flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Start date
-                  <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
-                </p>
-                <DatePicker
-                  value={startDate}
-                  onChange={setStartDate}
-                  placeholder='Starts immediately'
-                />
-              </div>
-            )}
-
-            <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Lifecycle</p>
-              <ButtonGroup
-                value={lifecycle}
-                onValueChange={(value) => setLifecycle(value as 'persistent' | 'until_complete')}
-              >
-                <ButtonGroupItem value='persistent'>Recurring</ButtonGroupItem>
-                <ButtonGroupItem value='until_complete'>Number of runs</ButtonGroupItem>
-              </ButtonGroup>
-            </div>
-
-            {lifecycle === 'until_complete' && (
-              <div className='flex flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Max runs
-                  <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
-                </p>
-                <EmcnInput
-                  type='number'
-                  value={maxRuns}
-                  onChange={(e) => setMaxRuns(e.target.value)}
-                  placeholder='No limit'
-                  min={1}
-                  className='h-9'
-                />
-              </div>
-            )}
-
-            {computedCron && schedulePreview && (
-              <div>
-                {'error' in schedulePreview ? (
-                  <p className='text-[var(--text-error)] text-small'>{schedulePreview.error}</p>
-                ) : (
-                  <div className='flex flex-col gap-1'>
-                    <p className='text-[var(--text-secondary)] text-small'>
-                      {schedulePreview.humanReadable}
-                    </p>
-                    {schedulePreview.nextRun && (
-                      <p className='text-[var(--text-muted)] text-caption'>
-                        Next run:{' '}
-                        {schedulePreview.nextRun.toLocaleString(undefined, {
-                          dateStyle: 'medium',
-                          timeStyle: 'short',
-                        })}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {submitError && (
-              <p className='text-[var(--text-error)] text-small leading-tight'>{submitError}</p>
-            )}
+          <div className='flex flex-col gap-2'>
+            <p className='font-medium text-[var(--text-secondary)] text-sm'>Lifecycle</p>
+            <ButtonGroup
+              value={lifecycle}
+              onValueChange={(value) => setLifecycle(value as 'persistent' | 'until_complete')}
+            >
+              <ButtonGroupItem value='persistent'>Recurring</ButtonGroupItem>
+              <ButtonGroupItem value='until_complete'>Number of runs</ButtonGroupItem>
+            </ButtonGroup>
           </div>
-        </ModalBody>
 
-        <ModalFooter>
-          <Button variant='default' onClick={handleClose}>
-            Cancel
-          </Button>
-          <Button
-            variant='primary'
-            onClick={handleSubmit}
-            disabled={
-              !isFormValid || createScheduleMutation.isPending || updateScheduleMutation.isPending
-            }
-          >
-            {isEditing
-              ? updateScheduleMutation.isPending
-                ? 'Saving...'
-                : 'Save changes'
-              : createScheduleMutation.isPending
-                ? 'Creating...'
-                : 'Create'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+          {lifecycle === 'until_complete' && (
+            <div className='flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                Max runs
+                <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
+              </p>
+              <EmcnInput
+                type='number'
+                value={maxRuns}
+                onChange={(e) => setMaxRuns(e.target.value)}
+                placeholder='No limit'
+                min={1}
+                variant='chip'
+              />
+            </div>
+          )}
+
+          {computedCron && schedulePreview && (
+            <div>
+              {'error' in schedulePreview ? (
+                <p className='text-[var(--text-error)] text-small'>{schedulePreview.error}</p>
+              ) : (
+                <div className='flex flex-col gap-1'>
+                  <p className='text-[var(--text-secondary)] text-small'>
+                    {schedulePreview.humanReadable}
+                  </p>
+                  {schedulePreview.nextRun && (
+                    <p className='text-[var(--text-muted)] text-caption'>
+                      Next run:{' '}
+                      {schedulePreview.nextRun.toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {submitError && (
+            <p className='text-[var(--text-error)] text-small leading-tight'>{submitError}</p>
+          )}
+        </div>
+      </ChipModalBody>
+
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={handleClose}>
+          Cancel
+        </Chip>
+        <Chip
+          variant='primary'
+          flush
+          onClick={handleSubmit}
+          disabled={
+            !isFormValid || createScheduleMutation.isPending || updateScheduleMutation.isPending
+          }
+        >
+          {isEditing
+            ? updateScheduleMutation.isPending
+              ? 'Saving...'
+              : 'Save changes'
+            : createScheduleMutation.isPending
+              ? 'Creating...'
+              : 'Create'}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }

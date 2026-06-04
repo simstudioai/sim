@@ -10,6 +10,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipModalTabs,
 } from '@/components/emcn'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import type { SkillDefinition } from '@/hooks/queries/skills'
@@ -154,22 +155,14 @@ export function SkillModal({
       <ChipModalBody>
         {/* Tab switcher — only on create flow */}
         {!isEditing && (
-          <div className='flex gap-1 px-2'>
-            <Chip
-              variant={activeTab === 'create' ? 'filled' : 'ghost'}
-              flush
-              onClick={() => setActiveTab('create')}
-            >
-              Create
-            </Chip>
-            <Chip
-              variant={activeTab === 'import' ? 'filled' : 'ghost'}
-              flush
-              onClick={() => setActiveTab('import')}
-            >
-              Import
-            </Chip>
-          </div>
+          <ChipModalTabs
+            tabs={[
+              { value: 'create', label: 'Create' },
+              { value: 'import', label: 'Import' },
+            ]}
+            value={activeTab}
+            onChange={(value) => setActiveTab(value as TabValue)}
+          />
         )}
 
         {activeTab === 'create' || isEditing ? (

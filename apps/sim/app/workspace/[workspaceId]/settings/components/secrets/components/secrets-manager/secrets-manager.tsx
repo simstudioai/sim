@@ -14,7 +14,11 @@ import {
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
-import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import {
+  CHIP_FIELD_SHELL as CHIP_FIELD,
+  CHIP_FIELD_INPUT,
+  UnsavedChangesModal,
+} from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
@@ -36,10 +40,6 @@ const logger = createLogger('SecretsManager')
 
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto_auto] items-center'
 const COL_SPAN_ALL = 'col-span-5'
-const CHIP_FIELD =
-  'flex items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'
-const CHIP_FIELD_INPUT =
-  'h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
 
 const generateRowId = (() => {
   let counter = 0
@@ -184,7 +184,7 @@ function WorkspaceVariableRow({
 }: WorkspaceVariableRowProps) {
   return (
     <div className='contents'>
-      <div className={cn(CHIP_FIELD, 'h-9', !canRename && 'cursor-not-allowed opacity-50')}>
+      <div className={cn(CHIP_FIELD, !canRename && 'cursor-not-allowed opacity-50')}>
         <input
           value={renamingKey === envKey ? pendingKeyValue : envKey}
           onChange={(e) => {
@@ -209,10 +209,9 @@ function WorkspaceVariableRow({
         onChange={(next) => onValueChange(envKey, next)}
         canEdit={canEdit}
         name={`workspace_env_value_${envKey}_${generateShortId()}`}
-        className='h-9'
       />
       <Chip
-        variant='primary'
+        variant='ghost'
         onClick={() => onViewDetails(envKey)}
         disabled={!hasCredential}
         className={cn('ml-2', !hasCredential && 'opacity-40')}
@@ -251,7 +250,7 @@ function NewWorkspaceVariableRow({
 
   return (
     <div className='contents'>
-      <div className={cn(CHIP_FIELD, 'h-9', keyError && 'border-[var(--text-error)]')}>
+      <div className={cn(CHIP_FIELD, keyError && 'border-[var(--text-error)]')}>
         <input
           data-input-type='key'
           value={envVar.key}
@@ -275,7 +274,7 @@ function NewWorkspaceVariableRow({
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
         name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
-        className='col-span-2 ml-0 h-9'
+        className='col-span-2 ml-0'
       />
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
@@ -854,7 +853,6 @@ export function SecretsManager() {
         <div
           className={cn(
             CHIP_FIELD,
-            'h-9',
             isConflicted && 'border-[var(--text-error)]',
             keyError && 'border-[var(--text-error)]'
           )}
@@ -884,7 +882,7 @@ export function SecretsManager() {
           readOnly={isConflicted}
           placeholder={isConflicted ? 'Workspace override active' : 'Enter value'}
           name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
-          className={cn('col-span-2 h-9', isConflicted && 'cursor-not-allowed opacity-50')}
+          className={cn('col-span-2', isConflicted && 'cursor-not-allowed opacity-50')}
         />
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -955,7 +953,12 @@ export function SecretsManager() {
         {/* Fixed header bar */}
         <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
           <div />
-          <div className='flex items-center'>
+          <div className='flex items-center gap-2'>
+            {hasChanges && (
+              <Chip variant='filled' onClick={handleCancel} disabled={isListSaving}>
+                Discard
+              </Chip>
+            )}
             {hasConflicts || hasInvalidKeys ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -1074,7 +1077,7 @@ export function SecretsManager() {
                   (envVars.length > 0 ||
                     Object.keys(workspaceVars).length > 0 ||
                     newWorkspaceRows.length > 0) && (
-                    <div className='py-4 text-center text-[var(--text-muted)] text-small'>
+                    <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                       No secrets found matching &ldquo;{searchTerm}&rdquo;
                     </div>
                   )}

@@ -115,7 +115,7 @@ export const ToolOpsGroup = memo(function ToolOpsGroup({
 }) {
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Tool Operations' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading='Tool operations' className={GROUP_HEADING_CLASSNAME}>
       {items.map((op) => (
         <MemoizedCommandItem
           key={op.id}
@@ -192,7 +192,7 @@ export const TasksGroup = memo(function TasksGroup({
 }) {
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Tasks' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading='Chats' className={GROUP_HEADING_CLASSNAME}>
       {items.map((task) => (
         <MemoizedTaskItem
           key={task.id}
@@ -253,7 +253,7 @@ export const PagesGroup = memo(function PagesGroup({
 })
 
 export const TablesGroup = createIconGroup('Tables', 'table', Table)
-export const KnowledgeBasesGroup = createIconGroup('Knowledge Bases', 'knowledge-base', Database)
+export const KnowledgeBasesGroup = createIconGroup('Knowledge bases', 'knowledge-base', Database)
 
 export const ConnectedAccountsGroup = createColoredIconGroup('Connected', 'connected-account')
 export const IntegrationsGroup = createColoredIconGroup('Integrations', 'integration')

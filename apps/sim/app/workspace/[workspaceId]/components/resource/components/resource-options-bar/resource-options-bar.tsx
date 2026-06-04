@@ -259,7 +259,11 @@ interface SortDropdownProps {
   onOpenChange?: (open: boolean) => void
 }
 
-const SortDropdown = memo(function SortDropdown({ config, open, onOpenChange }: SortDropdownProps) {
+export const SortDropdown = memo(function SortDropdown({
+  config,
+  open,
+  onOpenChange,
+}: SortDropdownProps) {
   const { options, active, onSort, onClear } = config
 
   return (

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { X } from 'lucide-react'
-import { Badge, Combobox, type ComboboxOption, Label, Skeleton } from '@/components/emcn'
+import { Badge, ChipCombobox, type ComboboxOption, Label, Skeleton } from '@/components/emcn'
 import { useWorkflows } from '@/hooks/queries/workflows'
 
 interface WorkflowSelectorProps {
@@ -108,7 +108,7 @@ export function WorkflowSelector({
   return (
     <div className='flex flex-col gap-2'>
       <Label>Workflows</Label>
-      <Combobox
+      <ChipCombobox
         options={options}
         multiSelect
         multiSelectValues={currentValues}

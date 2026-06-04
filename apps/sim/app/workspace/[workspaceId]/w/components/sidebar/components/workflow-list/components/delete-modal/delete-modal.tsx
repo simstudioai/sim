@@ -75,15 +75,15 @@ export function DeleteModal({
 
   let title = ''
   if (itemType === 'workflow') {
-    title = isMultiple ? 'Delete Workflows' : 'Delete Workflow'
+    title = isMultiple ? 'Delete workflows' : 'Delete workflow'
   } else if (itemType === 'folder') {
-    title = isMultiple ? 'Delete Folders' : 'Delete Folder'
+    title = isMultiple ? 'Delete folders' : 'Delete folder'
   } else if (itemType === 'task') {
-    title = isMultiple ? 'Delete Tasks' : 'Delete Task'
+    title = isMultiple ? 'Delete chats' : 'Delete chat'
   } else if (itemType === 'mixed') {
-    title = 'Delete Items'
+    title = 'Delete items'
   } else {
-    title = 'Delete Workspace'
+    title = 'Delete workspace'
   }
 
   const restorableTypes = new Set<string>(['workflow', 'folder', 'mixed'])
@@ -167,7 +167,7 @@ export function DeleteModal({
           <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>
-              {displayNames.length} tasks
+              {displayNames.length} chats
             </span>
             ?{' '}
             <span className='text-[var(--text-error)]'>
@@ -189,7 +189,7 @@ export function DeleteModal({
       }
       return (
         <>
-          Are you sure you want to delete this task?{' '}
+          Are you sure you want to delete this chat?{' '}
           <span className='text-[var(--text-error)]'>
             This will permanently remove all conversation history.
           </span>
@@ -258,7 +258,7 @@ export function DeleteModal({
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
           {renderDescription()}{' '}
           {restorableTypes.has(itemType)
-            ? 'You can restore it from Recently Deleted in Settings.'
+            ? 'You can restore it from Recently deleted in Settings.'
             : 'This action cannot be undone.'}
         </p>
         {isWorkspace && workspaceName && (

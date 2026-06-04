@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
-  Combobox,
+  ChipCombobox,
   Input,
   Modal,
   ModalBody,
@@ -56,7 +56,7 @@ const INITIAL_FORM_STATE: DemoRequestFormState = {
 }
 
 const LANDING_INPUT =
-  'h-[32px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 font-[430] font-season text-[13.5px] text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none'
+  'rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 font-[430] font-season text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none'
 
 async function submitDemoRequest(payload: DemoRequestPayload) {
   return requestJson(submitDemoRequestContract, { body: payload })
@@ -161,6 +161,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                   <LandingField htmlFor='firstName' label='First name' error={errors.firstName}>
                     <Input
                       id='firstName'
+                      variant='chip'
                       value={form.firstName}
                       onChange={(event) => updateField('firstName', event.target.value)}
                       placeholder='First'
@@ -170,6 +171,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                   <LandingField htmlFor='lastName' label='Last name' error={errors.lastName}>
                     <Input
                       id='lastName'
+                      variant='chip'
                       value={form.lastName}
                       onChange={(event) => updateField('lastName', event.target.value)}
                       placeholder='Last'
@@ -185,6 +187,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                 >
                   <Input
                     id='companyEmail'
+                    variant='chip'
                     type='email'
                     value={form.companyEmail}
                     onChange={(event) => updateField('companyEmail', event.target.value)}
@@ -201,6 +204,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                 >
                   <Input
                     id='phoneNumber'
+                    variant='chip'
                     type='tel'
                     value={form.phoneNumber}
                     onChange={(event) => updateField('phoneNumber', event.target.value)}
@@ -210,7 +214,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                 </LandingField>
 
                 <LandingField htmlFor='companySize' label='Company size' error={errors.companySize}>
-                  <Combobox
+                  <ChipCombobox
                     options={COMBOBOX_COMPANY_SIZES}
                     value={form.companySize}
                     selectedValue={form.companySize}
@@ -220,7 +224,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                     placeholder='Select'
                     editable={false}
                     filterOptions={false}
-                    className='h-[32px] rounded-[5px] px-2.5 font-[430] font-season text-[13.5px]'
+                    className='rounded-[5px] px-2.5 font-[430] font-season'
                   />
                 </LandingField>
 
