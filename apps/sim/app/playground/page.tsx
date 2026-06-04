@@ -85,7 +85,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tag,
   TagInput,
   type TagItem,
   Textarea,
@@ -380,16 +379,6 @@ export default function PlaygroundPage() {
                   placeholderWithTags='Add another'
                 />
               </div>
-            </VariantRow>
-            <VariantRow label='tag variants'>
-              <Tag value='valid@email.com' variant='default' />
-              <Tag value='secondary-tag' variant='secondary' />
-              <Tag value='invalid-email' variant='invalid' />
-            </VariantRow>
-            <VariantRow label='tag with remove'>
-              <Tag value='removable@tag.com' variant='default' onRemove={() => {}} />
-              <Tag value='secondary-removable' variant='secondary' onRemove={() => {}} />
-              <Tag value='invalid-removable' variant='invalid' onRemove={() => {}} />
             </VariantRow>
             <VariantRow label='secondary variant'>
               <div className='w-80'>
