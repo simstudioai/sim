@@ -8,12 +8,12 @@ import { useRouter } from 'next/navigation'
 import {
   Button,
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalFooter,
   ChipModalHeader,
-  Combobox,
   Input,
   Label,
   Switch,
@@ -393,8 +393,7 @@ export function General() {
               <div className='flex items-center justify-between'>
                 <Label htmlFor='theme-select'>Theme</Label>
                 <div className='w-[100px]'>
-                  <Combobox
-                    size='sm'
+                  <ChipCombobox
                     align='end'
                     dropdownWidth={140}
                     value={settings?.theme}
@@ -459,8 +458,7 @@ export function General() {
               <div className='flex items-center justify-between'>
                 <Label htmlFor='snap-to-grid'>Snap to grid</Label>
                 <div className='w-[100px]'>
-                  <Combobox
-                    size='sm'
+                  <ChipCombobox
                     align='end'
                     dropdownWidth={140}
                     value={String(snapToGridValue)}

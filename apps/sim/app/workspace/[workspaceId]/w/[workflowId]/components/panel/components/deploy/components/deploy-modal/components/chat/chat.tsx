@@ -340,6 +340,7 @@ export function ChatDeploy({
               Title
             </Label>
             <Input
+              variant='chip'
               id='title'
               placeholder='Customer Support Assistant'
               value={formData.title}
@@ -724,6 +725,7 @@ function AuthSelector({
           </Label>
           <div className='relative'>
             <Input
+              variant='chip'
               type={showPassword ? 'text' : 'password'}
               placeholder={getPasswordPlaceholder(hasExistingPassword)}
               value={password}

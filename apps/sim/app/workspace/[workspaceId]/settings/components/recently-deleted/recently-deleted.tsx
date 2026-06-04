@@ -6,7 +6,6 @@ import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
-  Combobox,
   SearchInput,
   SModalTabs,
   SModalTabsList,
@@ -14,6 +13,10 @@ import {
 } from '@/components/emcn'
 import { Folder } from '@/components/emcn/icons'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
+import {
+  type ColumnOption,
+  SortDropdown,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options-bar'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
@@ -68,10 +71,10 @@ interface SortConfig {
 
 const DEFAULT_SORT: SortConfig = { column: 'deleted', direction: 'desc' }
 
-const SORT_OPTIONS: { column: SortColumn; direction: 'asc' | 'desc'; label: string }[] = [
-  { column: 'deleted', direction: 'desc', label: 'Deleted (newest first)' },
-  { column: 'name', direction: 'asc', label: 'Name (A–Z)' },
-  { column: 'type', direction: 'asc', label: 'Type (A–Z)' },
+const SORT_OPTIONS: ColumnOption[] = [
+  { id: 'deleted', label: 'Deleted' },
+  { id: 'name', label: 'Name' },
+  { id: 'type', label: 'Type' },
 ]
 
 const ICON_CLASS = 'size-[14px]'
@@ -310,7 +313,6 @@ export function RecentlyDeleted() {
   }, [resources, activeTab, searchTerm, activeSort, restoredItems])
 
   const showNoResults = searchTerm.trim() && filtered.length === 0 && resources.length > 0
-  const selectedSort = activeSort ?? DEFAULT_SORT
 
   function handleView(resource: DeletedResource) {
     if (resource.type === 'folder') {
@@ -395,27 +397,15 @@ export function RecentlyDeleted() {
               disabled={isLoading}
               className='min-w-0 flex-1'
             />
-            <div className='w-[190px] shrink-0'>
-              <Combobox
-                size='sm'
-                align='end'
-                disabled={isLoading}
-                value={`${selectedSort.column}:${selectedSort.direction}`}
-                onChange={(value) => {
-                  const option = SORT_OPTIONS.find(
-                    (sortOption) => `${sortOption.column}:${sortOption.direction}` === value
-                  )
-                  if (option) {
-                    setActiveSort({ column: option.column, direction: option.direction })
-                  }
-                }}
-                options={SORT_OPTIONS.map((option) => ({
-                  label: option.label,
-                  value: `${option.column}:${option.direction}`,
-                }))}
-                className='h-[30px] rounded-lg border-[var(--border)] bg-transparent px-2.5 text-small dark:bg-[var(--surface-4)]'
-              />
-            </div>
+            <SortDropdown
+              config={{
+                options: SORT_OPTIONS,
+                active: activeSort,
+                onSort: (column, direction) =>
+                  setActiveSort({ column: column as SortColumn, direction }),
+                onClear: () => setActiveSort(null),
+              }}
+            />
           </div>
 
           <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
@@ -429,17 +419,21 @@ export function RecentlyDeleted() {
           </SModalTabs>
 
           {error ? (
-            <div className='flex flex-col items-center justify-center gap-2 py-16'>
-              <p className='text-[var(--text-error)] text-xs leading-tight'>
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[var(--text-error)] text-sm leading-tight'>
                 {toError(error).message || 'Failed to load deleted items'}
               </p>
             </div>
           ) : isLoading ? null : filtered.length === 0 ? (
-            <div className='flex items-center justify-center py-16 text-[var(--text-muted)] text-sm'>
-              {showNoResults
-                ? `No items found matching \u201c${searchTerm}\u201d`
-                : 'No deleted items'}
-            </div>
+            showNoResults ? (
+              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                {`No items found matching \u201c${searchTerm}\u201d`}
+              </div>
+            ) : (
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                No deleted items
+              </div>
+            )
           ) : (
             <div className='flex flex-col gap-2'>
               {filtered.map((resource) => {

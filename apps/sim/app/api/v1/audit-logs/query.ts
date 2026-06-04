@@ -38,7 +38,11 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
   const conditions: SQL<unknown>[] = []
 
   if (params.action) conditions.push(eq(auditLog.action, params.action))
-  if (params.resourceType) conditions.push(eq(auditLog.resourceType, params.resourceType))
+  if (params.resourceType) {
+    const types = params.resourceType.split(',').filter(Boolean)
+    if (types.length === 1) conditions.push(eq(auditLog.resourceType, types[0]))
+    else if (types.length > 1) conditions.push(inArray(auditLog.resourceType, types))
+  }
   if (params.resourceId) conditions.push(eq(auditLog.resourceId, params.resourceId))
   if (params.workspaceId) conditions.push(eq(auditLog.workspaceId, params.workspaceId))
   if (params.actorId) conditions.push(eq(auditLog.actorId, params.actorId))

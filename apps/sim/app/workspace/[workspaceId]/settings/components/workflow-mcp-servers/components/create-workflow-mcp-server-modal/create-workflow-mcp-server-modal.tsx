@@ -6,13 +6,13 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Combobox,
   type ComboboxOption,
 } from '@/components/emcn'
 import { useCreateWorkflowMcpServer } from '@/hooks/queries/workflow-mcp-servers'
@@ -94,7 +94,7 @@ export function CreateWorkflowMcpServerModal({
         />
         {showWorkflows && (
           <ChipModalField type='custom' title='Workflows'>
-            <Combobox
+            <ChipCombobox
               options={workflowOptions ?? []}
               multiSelect
               multiSelectValues={selectedWorkflowIds}

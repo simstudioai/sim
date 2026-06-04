@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Combobox, type ComboboxOption, Loader } from '@/components/emcn'
+import { ChipCombobox, type ComboboxOption, Loader } from '@/components/emcn'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type {
   ConfigFieldMap,
@@ -72,7 +72,7 @@ export function ConnectorSelectorField({
 
   if (isLoading && isEnabled) {
     return (
-      <div className='flex items-center gap-2 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium text-[var(--text-muted)] text-small'>
+      <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
         <Loader className='size-3.5' animate />
         Loading…
       </div>
@@ -82,7 +82,7 @@ export function ConnectorSelectorField({
   if (isMulti) {
     const multiValues = Array.isArray(value) ? value : value ? [value] : []
     return (
-      <Combobox
+      <ChipCombobox
         multiSelect
         options={comboboxOptions}
         multiSelectValues={multiValues}
@@ -104,7 +104,7 @@ export function ConnectorSelectorField({
 
   const singleValue = Array.isArray(value) ? value[0] : value
   return (
-    <Combobox
+    <ChipCombobox
       options={comboboxOptions}
       value={singleValue || undefined}
       onChange={(next) => onChange(next)}

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, Plus } from 'lucide-react'
+import { ArrowRight, ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Avatar,
@@ -17,17 +17,8 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipModalTabs,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
   SearchInput,
   Skeleton,
   Switch,
@@ -466,6 +457,7 @@ export function AccessControl() {
   const removeMember = useRemovePermissionGroupMember()
 
   const [showConfigModal, setShowConfigModal] = useState(false)
+  const [configTab, setConfigTab] = useState<'providers' | 'blocks' | 'platform'>('providers')
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig | null>(null)
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
   const [addMembersError, setAddMembersError] = useState<string | null>(null)
@@ -1002,7 +994,14 @@ export function AccessControl() {
             <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
               Access Control
             </Chip>
-            <div className='flex items-center'>
+            <div className='flex items-center gap-2'>
+              <Chip
+                variant='destructive'
+                onClick={() => handleDeleteClick(viewingGroup)}
+                disabled={deletingGroupIds.has(viewingGroup.id)}
+              >
+                {deletingGroupIds.has(viewingGroup.id) ? 'Deleting...' : 'Delete'}
+              </Chip>
               <Chip onClick={handleOpenConfigModal}>Configure</Chip>
             </div>
           </div>
@@ -1037,10 +1036,9 @@ export function AccessControl() {
               <div className='flex flex-col gap-2'>
                 <div className='flex items-center justify-between'>
                   <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
-                  <Button variant='primary' onClick={handleOpenAddMembersModal}>
-                    <Plus className='mr-1.5 h-[13px] w-[13px]' />
+                  <Chip variant='primary' leftIcon={Plus} onClick={handleOpenAddMembersModal}>
                     Add
-                  </Button>
+                  </Chip>
                 </div>
 
                 {membersLoading ? (
@@ -1114,7 +1112,7 @@ export function AccessControl() {
           </div>
         </div>
 
-        <Modal
+        <ChipModal
           open={showConfigModal}
           onOpenChange={(open) => {
             if (!open && hasConfigChanges) {
@@ -1128,271 +1126,283 @@ export function AccessControl() {
               }
             }
           }}
+          srTitle='Configure Permissions'
+          size='xl'
         >
-          <ModalContent size='xl' className='h-[76vh]'>
-            <ModalHeader>Configure Permissions</ModalHeader>
-            <ModalTabs defaultValue='providers' className='flex min-h-0 flex-1 flex-col'>
-              <ModalTabsList>
-                <ModalTabsTrigger value='providers'>Model Providers</ModalTabsTrigger>
-                <ModalTabsTrigger value='blocks'>Blocks</ModalTabsTrigger>
-                <ModalTabsTrigger value='platform'>Platform</ModalTabsTrigger>
-              </ModalTabsList>
-
-              <ModalBody className='min-h-0 flex-1'>
-                <ModalDescription className='sr-only'>
-                  Configure model provider, block, and platform permissions for this permission
-                  group
-                </ModalDescription>
-                <ModalTabsContent value='providers'>
-                  <div className='flex items-center gap-2 pb-3'>
-                    <SearchInput
-                      placeholder='Search providers...'
-                      value={providerSearchTerm}
-                      onChange={(e) => setProviderSearchTerm(e.target.value)}
-                      className='min-w-0 flex-1'
-                    />
-                    <Button
-                      variant='default'
-                      className='h-8'
-                      onClick={() => {
-                        const allAllowed =
-                          editingConfig?.allowedModelProviders === null ||
-                          allProviderIds.every((id) =>
-                            editingConfig?.allowedModelProviders?.includes(id)
-                          )
-                        setEditingConfig((prev) =>
-                          prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
+          <ChipModalHeader
+            onClose={() => {
+              if (hasConfigChanges) {
+                setShowUnsavedChanges(true)
+              } else {
+                setShowConfigModal(false)
+                setProviderSearchTerm('')
+                setIntegrationSearchTerm('')
+                setPlatformSearchTerm('')
+              }
+            }}
+          >
+            Configure Permissions
+          </ChipModalHeader>
+          <ChipModalBody className='max-h-[70vh] overflow-y-auto'>
+            <ChipModalTabs
+              tabs={[
+                { value: 'providers', label: 'Model Providers' },
+                { value: 'blocks', label: 'Blocks' },
+                { value: 'platform', label: 'Platform' },
+              ]}
+              value={configTab}
+              onChange={(value) => setConfigTab(value as 'providers' | 'blocks' | 'platform')}
+            />
+            {configTab === 'providers' && (
+              <div>
+                <div className='flex items-center gap-2 pb-3'>
+                  <SearchInput
+                    placeholder='Search providers...'
+                    value={providerSearchTerm}
+                    onChange={(e) => setProviderSearchTerm(e.target.value)}
+                    className='min-w-0 flex-1'
+                  />
+                  <Button
+                    variant='default'
+                    className='h-8'
+                    onClick={() => {
+                      const allAllowed =
+                        editingConfig?.allowedModelProviders === null ||
+                        allProviderIds.every((id) =>
+                          editingConfig?.allowedModelProviders?.includes(id)
                         )
-                      }}
-                    >
-                      {editingConfig?.allowedModelProviders === null ||
-                      allProviderIds.every((id) =>
-                        editingConfig?.allowedModelProviders?.includes(id)
+                      setEditingConfig((prev) =>
+                        prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
                       )
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </Button>
-                  </div>
-                  <div className='flex flex-col gap-0.5'>
-                    {filteredProviders.map((providerId) => (
-                      <ProviderRow
-                        key={providerId}
-                        providerId={providerId}
-                        isProviderAllowed={isProviderAllowed(providerId)}
-                        onToggleProvider={() => toggleProvider(providerId)}
-                        deniedCount={deniedCountByProvider[providerId] ?? 0}
-                        workspaceId={workspaceId}
-                        isModelAllowed={isModelAllowed}
-                        onToggleModel={toggleModel}
-                        onSetModelsDenied={setModelsDenied}
-                      />
-                    ))}
-                  </div>
-                </ModalTabsContent>
-
-                <ModalTabsContent value='blocks'>
-                  <div className='flex items-center gap-2 pb-3'>
-                    <SearchInput
-                      placeholder='Search blocks...'
-                      value={integrationSearchTerm}
-                      onChange={(e) => setIntegrationSearchTerm(e.target.value)}
-                      className='min-w-0 flex-1'
+                    }}
+                  >
+                    {editingConfig?.allowedModelProviders === null ||
+                    allProviderIds.every((id) => editingConfig?.allowedModelProviders?.includes(id))
+                      ? 'Deselect All'
+                      : 'Select All'}
+                  </Button>
+                </div>
+                <div className='flex flex-col gap-0.5'>
+                  {filteredProviders.map((providerId) => (
+                    <ProviderRow
+                      key={providerId}
+                      providerId={providerId}
+                      isProviderAllowed={isProviderAllowed(providerId)}
+                      onToggleProvider={() => toggleProvider(providerId)}
+                      deniedCount={deniedCountByProvider[providerId] ?? 0}
+                      workspaceId={workspaceId}
+                      isModelAllowed={isModelAllowed}
+                      onToggleModel={toggleModel}
+                      onSetModelsDenied={setModelsDenied}
                     />
-                    <Button
-                      variant='default'
-                      className='h-8'
-                      onClick={() => {
-                        const allAllowed =
-                          editingConfig?.allowedIntegrations === null ||
-                          allBlocks.every((b) =>
-                            editingConfig?.allowedIntegrations?.includes(b.type)
+                  ))}
+                </div>
+              </div>
+            )}
+            {configTab === 'blocks' && (
+              <div>
+                <div className='flex items-center gap-2 pb-3'>
+                  <SearchInput
+                    placeholder='Search blocks...'
+                    value={integrationSearchTerm}
+                    onChange={(e) => setIntegrationSearchTerm(e.target.value)}
+                    className='min-w-0 flex-1'
+                  />
+                  <Button
+                    variant='default'
+                    className='h-8'
+                    onClick={() => {
+                      const allAllowed =
+                        editingConfig?.allowedIntegrations === null ||
+                        allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
+                      setEditingConfig((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              allowedIntegrations: allAllowed ? ['start_trigger'] : null,
+                            }
+                          : prev
+                      )
+                    }}
+                  >
+                    {editingConfig?.allowedIntegrations === null ||
+                    allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
+                      ? 'Deselect All'
+                      : 'Select All'}
+                  </Button>
+                </div>
+                <div className='flex flex-col gap-4'>
+                  {filteredCoreBlocks.length > 0 && (
+                    <div className='flex flex-col gap-1.5'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                        Core Blocks
+                      </span>
+                      <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
+                        {filteredCoreBlocks.map((block) => {
+                          const BlockIcon = block.icon
+                          const checkboxId = `block-${block.type}`
+                          return (
+                            <label
+                              key={block.type}
+                              htmlFor={checkboxId}
+                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                            >
+                              <Checkbox
+                                id={checkboxId}
+                                checked={isIntegrationAllowed(block.type)}
+                                onCheckedChange={() => toggleIntegration(block.type)}
+                              />
+                              <div
+                                className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                style={{ background: block.bgColor }}
+                              >
+                                {BlockIcon && (
+                                  <BlockIcon className='!h-[10px] !w-[10px] text-white' />
+                                )}
+                              </div>
+                              <span className='truncate font-medium text-sm'>{block.name}</span>
+                            </label>
                           )
-                        setEditingConfig((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                allowedIntegrations: allAllowed ? ['start_trigger'] : null,
-                              }
-                            : prev
-                        )
-                      }}
-                    >
-                      {editingConfig?.allowedIntegrations === null ||
-                      allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </Button>
-                  </div>
-                  <div className='flex flex-col gap-4'>
-                    {filteredCoreBlocks.length > 0 && (
-                      <div className='flex flex-col gap-1.5'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                          Core Blocks
-                        </span>
-                        <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
-                          {filteredCoreBlocks.map((block) => {
-                            const BlockIcon = block.icon
-                            const checkboxId = `block-${block.type}`
-                            return (
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {filteredToolBlocks.length > 0 && (
+                    <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                        Tools
+                      </span>
+                      <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
+                        {filteredToolBlocks.map((block) => {
+                          const BlockIcon = block.icon
+                          const checkboxId = `block-${block.type}`
+                          return (
+                            <label
+                              key={block.type}
+                              htmlFor={checkboxId}
+                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+                            >
+                              <Checkbox
+                                id={checkboxId}
+                                checked={isIntegrationAllowed(block.type)}
+                                onCheckedChange={() => toggleIntegration(block.type)}
+                              />
+                              <div
+                                className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                style={{ background: block.bgColor }}
+                              >
+                                {BlockIcon && (
+                                  <BlockIcon className='!h-[10px] !w-[10px] text-white' />
+                                )}
+                              </div>
+                              <span className='truncate font-medium text-sm'>{block.name}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {configTab === 'platform' && (
+              <div>
+                <div className='flex items-center gap-2 pb-3'>
+                  <SearchInput
+                    placeholder='Search features...'
+                    value={platformSearchTerm}
+                    onChange={(e) => setPlatformSearchTerm(e.target.value)}
+                    className='min-w-0 flex-1'
+                  />
+                  <Button
+                    variant='default'
+                    className='h-8'
+                    onClick={() => {
+                      const allVisible = platformFeatures.every(
+                        (f) => !editingConfig?.[f.configKey]
+                      )
+                      setEditingConfig((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              ...Object.fromEntries(
+                                platformFeatures.map((f) => [f.configKey, allVisible])
+                              ),
+                            }
+                          : prev
+                      )
+                    }}
+                  >
+                    {platformFeatures.every((f) => !editingConfig?.[f.configKey])
+                      ? 'Deselect All'
+                      : 'Select All'}
+                  </Button>
+                </div>
+                <div className='grid grid-cols-3 gap-x-6'>
+                  {platformCategoryColumns.map((column, columnIndex) => (
+                    <div key={columnIndex} className='flex flex-col gap-8'>
+                      {column.map(({ category, features }) => (
+                        <div key={category} className='flex flex-col gap-1.5'>
+                          <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                            {category}
+                          </span>
+                          <div className='flex flex-col gap-0.5'>
+                            {features.map((feature) => (
                               <label
-                                key={block.type}
-                                htmlFor={checkboxId}
+                                key={feature.id}
+                                htmlFor={feature.id}
                                 className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
                               >
                                 <Checkbox
-                                  id={checkboxId}
-                                  checked={isIntegrationAllowed(block.type)}
-                                  onCheckedChange={() => toggleIntegration(block.type)}
+                                  id={feature.id}
+                                  checked={!editingConfig?.[feature.configKey]}
+                                  onCheckedChange={(checked) =>
+                                    setEditingConfig((prev) =>
+                                      prev
+                                        ? { ...prev, [feature.configKey]: checked !== true }
+                                        : prev
+                                    )
+                                  }
                                 />
-                                <div
-                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                                  style={{ background: block.bgColor }}
-                                >
-                                  {BlockIcon && (
-                                    <BlockIcon className='!h-[10px] !w-[10px] text-white' />
-                                  )}
-                                </div>
-                                <span className='truncate font-medium text-sm'>{block.name}</span>
+                                <span className='font-normal text-sm'>{feature.label}</span>
                               </label>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    {filteredToolBlocks.length > 0 && (
-                      <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                          Tools
-                        </span>
-                        <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
-                          {filteredToolBlocks.map((block) => {
-                            const BlockIcon = block.icon
-                            const checkboxId = `block-${block.type}`
-                            return (
-                              <label
-                                key={block.type}
-                                htmlFor={checkboxId}
-                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
-                              >
-                                <Checkbox
-                                  id={checkboxId}
-                                  checked={isIntegrationAllowed(block.type)}
-                                  onCheckedChange={() => toggleIntegration(block.type)}
-                                />
-                                <div
-                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                                  style={{ background: block.bgColor }}
-                                >
-                                  {BlockIcon && (
-                                    <BlockIcon className='!h-[10px] !w-[10px] text-white' />
-                                  )}
-                                </div>
-                                <span className='truncate font-medium text-sm'>{block.name}</span>
-                              </label>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </ModalTabsContent>
-
-                <ModalTabsContent value='platform'>
-                  <div className='flex items-center gap-2 pb-3'>
-                    <SearchInput
-                      placeholder='Search features...'
-                      value={platformSearchTerm}
-                      onChange={(e) => setPlatformSearchTerm(e.target.value)}
-                      className='min-w-0 flex-1'
-                    />
-                    <Button
-                      variant='default'
-                      className='h-8'
-                      onClick={() => {
-                        const allVisible = platformFeatures.every(
-                          (f) => !editingConfig?.[f.configKey]
-                        )
-                        setEditingConfig((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                ...Object.fromEntries(
-                                  platformFeatures.map((f) => [f.configKey, allVisible])
-                                ),
-                              }
-                            : prev
-                        )
-                      }}
-                    >
-                      {platformFeatures.every((f) => !editingConfig?.[f.configKey])
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </Button>
-                  </div>
-                  <div className='grid grid-cols-3 gap-x-6'>
-                    {platformCategoryColumns.map((column, columnIndex) => (
-                      <div key={columnIndex} className='flex flex-col gap-8'>
-                        {column.map(({ category, features }) => (
-                          <div key={category} className='flex flex-col gap-1.5'>
-                            <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                              {category}
-                            </span>
-                            <div className='flex flex-col gap-0.5'>
-                              {features.map((feature) => (
-                                <label
-                                  key={feature.id}
-                                  htmlFor={feature.id}
-                                  className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
-                                >
-                                  <Checkbox
-                                    id={feature.id}
-                                    checked={!editingConfig?.[feature.configKey]}
-                                    onCheckedChange={(checked) =>
-                                      setEditingConfig((prev) =>
-                                        prev
-                                          ? { ...prev, [feature.configKey]: checked !== true }
-                                          : prev
-                                      )
-                                    }
-                                  />
-                                  <span className='font-normal text-sm'>{feature.label}</span>
-                                </label>
-                              ))}
-                            </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </ModalTabsContent>
-              </ModalBody>
-            </ModalTabs>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => {
-                  if (hasConfigChanges) {
-                    setShowUnsavedChanges(true)
-                  } else {
-                    setShowConfigModal(false)
-                    setProviderSearchTerm('')
-                    setIntegrationSearchTerm('')
-                    setPlatformSearchTerm('')
-                  }
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant='primary'
-                onClick={handleSaveConfig}
-                disabled={updatePermissionGroup.isPending || !hasConfigChanges}
-              >
-                {updatePermissionGroup.isPending ? 'Saving...' : 'Save'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </ChipModalBody>
+          <ChipModalFooter>
+            <Chip
+              variant='filled'
+              flush
+              onClick={() => {
+                if (hasConfigChanges) {
+                  setShowUnsavedChanges(true)
+                } else {
+                  setShowConfigModal(false)
+                  setProviderSearchTerm('')
+                  setIntegrationSearchTerm('')
+                  setPlatformSearchTerm('')
+                }
+              }}
+            >
+              Cancel
+            </Chip>
+            <Chip
+              variant='primary'
+              flush
+              onClick={handleSaveConfig}
+              disabled={updatePermissionGroup.isPending || !hasConfigChanges}
+            >
+              {updatePermissionGroup.isPending ? 'Saving...' : 'Save'}
+            </Chip>
+          </ChipModalFooter>
+        </ChipModal>
 
         <ChipModal
           open={showUnsavedChanges}
@@ -1481,35 +1491,31 @@ export function AccessControl() {
                 Click "Create Group" above to get started
               </div>
             ) : (
-              <div className='flex flex-col gap-2'>
+              <div className='flex flex-col gap-1'>
                 {filteredGroups.map((group) => (
-                  <div key={group.id} className='flex items-center justify-between'>
-                    <div className='flex flex-col'>
+                  <button
+                    key={group.id}
+                    type='button'
+                    onClick={() => setViewingGroup(group)}
+                    className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+                  >
+                    <div className='flex min-w-0 flex-1 flex-col'>
                       <div className='flex items-center gap-2'>
-                        <span className='font-medium text-base'>{group.name}</span>
+                        <span className='truncate text-[14px] text-[var(--text-body)]'>
+                          {group.name}
+                        </span>
                         {group.autoAddNewMembers && (
-                          <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+                          <span className='flex-shrink-0 rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
                             Auto-enrolls
                           </span>
                         )}
                       </div>
-                      <span className='text-[var(--text-muted)] text-sm'>
+                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
                         {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
                       </span>
                     </div>
-                    <div className='flex flex-shrink-0 items-center gap-2'>
-                      <Button variant='default' onClick={() => setViewingGroup(group)}>
-                        Details
-                      </Button>
-                      <Button
-                        variant='ghost'
-                        onClick={() => handleDeleteClick(group)}
-                        disabled={deletingGroupIds.has(group.id)}
-                      >
-                        {deletingGroupIds.has(group.id) ? 'Deleting...' : 'Delete'}
-                      </Button>
-                    </div>
-                  </div>
+                    <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+                  </button>
                 ))}
               </div>
             )}

@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
   type ComboboxOption,
   Input,
   Label,
@@ -489,6 +489,7 @@ export function McpDeploy({
           Tool name
         </Label>
         <Input
+          variant='chip'
           value={toolName}
           onChange={(e) => setToolName(e.target.value)}
           placeholder='e.g., book_flight'
@@ -535,6 +536,7 @@ export function McpDeploy({
                   <div className='flex flex-col gap-1.5'>
                     <Label className='text-small'>Description</Label>
                     <Input
+                      variant='chip'
                       value={parameterDescriptions[field.name] || ''}
                       onChange={(e) =>
                         setParameterDescriptions((prev) => ({
@@ -556,7 +558,7 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Servers
         </Label>
-        <Combobox
+        <ChipCombobox
           options={serverOptions}
           multiSelect
           multiSelectValues={selectedServerIdsForForm}

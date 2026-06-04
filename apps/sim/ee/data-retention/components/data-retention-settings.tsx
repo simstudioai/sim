@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Callout, Chip, Combobox, toast } from '@/components/emcn'
+import { Callout, Chip, ChipCombobox, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingRow } from '@/ee/components/setting-row'
 import {
   useOrganizationRetention,
@@ -56,13 +57,7 @@ function RetentionSelect({ value, onChange }: RetentionSelectProps) {
 
   return (
     <div className='w-[200px]'>
-      <Combobox
-        value={value}
-        onChange={onChange}
-        options={options}
-        dropdownWidth='trigger'
-        className='h-[36px] text-[13px]'
-      />
+      <ChipCombobox value={value} onChange={onChange} options={options} dropdownWidth='trigger' />
     </div>
   )
 }
@@ -183,7 +178,7 @@ export function DataRetentionSettings() {
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-8 pt-6 pb-6'>
           <Callout>Applies organization-wide</Callout>
-          <section>
+          <SettingsSection label='Data Retention'>
             <div className='flex flex-col gap-5'>
               <SettingRow
                 label='Log retention'
@@ -204,7 +199,7 @@ export function DataRetentionSettings() {
                 <RetentionSelect value={taskCleanupDays} onChange={setTaskCleanupDays} />
               </SettingRow>
             </div>
-          </section>
+          </SettingsSection>
         </div>
       </div>
     </div>

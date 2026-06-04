@@ -6,11 +6,11 @@ import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
 import {
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  Combobox,
   toast,
   Upload,
 } from '@/components/emcn'
@@ -254,7 +254,7 @@ export function Tables() {
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
               { value: 'small', label: 'Small (1–100 rows)' },
@@ -268,14 +268,13 @@ export function Tables() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
             <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
-            <Combobox
+            <ChipCombobox
               options={memberOptions}
               multiSelect
               multiSelectValues={ownerFilter}
@@ -287,8 +286,7 @@ export function Tables() {
               searchPlaceholder='Search members...'
               showAllOption
               allOptionLabel='All'
-              size='sm'
-              className='h-[32px] w-full rounded-md'
+              className='w-full'
             />
           </div>
         )}

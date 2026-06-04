@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
   type ComboboxOptionGroup,
   Input as EmcnInput,
   Label,
@@ -342,8 +342,7 @@ export function Admin() {
                     </p>
                   </div>
                   <div className='w-[160px]'>
-                    <Combobox
-                      size='sm'
+                    <ChipCombobox
                       align='end'
                       dropdownWidth={160}
                       value={settings?.mothershipEnvironment ?? 'default'}
@@ -365,8 +364,7 @@ export function Admin() {
                     </p>
                   </div>
                   <div className='w-[160px]'>
-                    <Combobox
-                      size='sm'
+                    <ChipCombobox
                       align='end'
                       dropdownWidth={320}
                       options={[]}
@@ -408,6 +406,7 @@ export function Admin() {
             </p>
             <div className='flex gap-2'>
               <EmcnInput
+                variant='chip'
                 value={workflowId}
                 onChange={(e) => {
                   setWorkflowId(e.target.value)
@@ -587,10 +586,11 @@ export function Admin() {
                       {banUserId === u.id && !u.banned && (
                         <div className='flex items-center gap-2 pl-[200px]'>
                           <EmcnInput
+                            variant='chip'
                             value={banReason}
                             onChange={(e) => setBanReason(e.target.value)}
                             placeholder='Reason (optional)'
-                            className='h-[28px] flex-1 text-caption'
+                            className='flex-1'
                           />
                           <Button
                             variant='primary'

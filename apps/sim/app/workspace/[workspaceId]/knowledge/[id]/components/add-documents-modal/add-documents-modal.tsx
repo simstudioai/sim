@@ -6,14 +6,14 @@ import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalFooter,
+  ChipModalHeader,
   Label,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
@@ -220,154 +220,138 @@ export function AddDocumentsModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleOpenChange}>
-      <ModalContent size='md'>
-        <ModalHeader>New Documents</ModalHeader>
-        <ModalDescription className='sr-only'>
-          Upload files to add as documents to this knowledge base
-        </ModalDescription>
+    <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='New Documents' size='md'>
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>New Documents</ChipModalHeader>
 
-        <ModalBody>
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='space-y-3'>
-              {fileError && (
-                <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
-              )}
+      <ChipModalBody>
+        <div className='min-h-0 flex-1 overflow-y-auto'>
+          <div className='space-y-3'>
+            {fileError && (
+              <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
+            )}
 
-              <div className='flex flex-col gap-2'>
-                <Label>Upload Documents</Label>
-                <Button
-                  type='button'
-                  variant='default'
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragEnter={handleDragEnter}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={cn(
-                    '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
-                    isDragging && 'border-[var(--surface-7)]'
-                  )}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type='file'
-                    accept={ACCEPT_ATTRIBUTE}
-                    onChange={handleFileChange}
-                    className='hidden'
-                    multiple
-                  />
-                  <div className='flex flex-col gap-0.5 text-center'>
-                    <span className='text-[var(--text-primary)]'>
-                      {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
-                    </span>
-                    <span className='text-[var(--text-tertiary)] text-xs'>
-                      PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB
-                      each)
-                    </span>
-                  </div>
-                </Button>
-              </div>
+            <div className='flex flex-col gap-2'>
+              <Label>Upload Documents</Label>
+              <Button
+                type='button'
+                variant='default'
+                onClick={() => fileInputRef.current?.click()}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={cn(
+                  '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
+                  isDragging && 'border-[var(--surface-7)]'
+                )}
+              >
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  accept={ACCEPT_ATTRIBUTE}
+                  onChange={handleFileChange}
+                  className='hidden'
+                  multiple
+                />
+                <div className='flex flex-col gap-0.5 text-center'>
+                  <span className='text-[var(--text-primary)]'>
+                    {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
+                  </span>
+                  <span className='text-[var(--text-tertiary)] text-xs'>
+                    PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)
+                  </span>
+                </div>
+              </Button>
+            </div>
 
-              {files.length > 0 && (
+            {files.length > 0 && (
+              <div className='space-y-2'>
+                <Label>Selected Files</Label>
                 <div className='space-y-2'>
-                  <Label>Selected Files</Label>
-                  <div className='space-y-2'>
-                    {files.map((file, index) => {
-                      const fileStatus = uploadProgress.fileStatuses?.[index]
-                      const isFailed = fileStatus?.status === 'failed'
-                      const isRetrying = retryingIndexes.has(index)
-                      const isProcessing = fileStatus?.status === 'uploading' || isRetrying
+                  {files.map((file, index) => {
+                    const fileStatus = uploadProgress.fileStatuses?.[index]
+                    const isFailed = fileStatus?.status === 'failed'
+                    const isRetrying = retryingIndexes.has(index)
+                    const isProcessing = fileStatus?.status === 'uploading' || isRetrying
 
-                      return (
-                        <div
-                          key={`${file.name}-${file.size}`}
+                    return (
+                      <div
+                        key={`${file.name}-${file.size}`}
+                        className={cn(
+                          'flex items-center gap-2 rounded-sm border p-2',
+                          isFailed && !isRetrying && 'border-[var(--text-error)]'
+                        )}
+                      >
+                        <span
                           className={cn(
-                            'flex items-center gap-2 rounded-sm border p-2',
-                            isFailed && !isRetrying && 'border-[var(--text-error)]'
+                            'min-w-0 flex-1 truncate text-caption',
+                            isFailed && !isRetrying && 'text-[var(--text-error)]'
                           )}
+                          title={file.name}
                         >
-                          <span
-                            className={cn(
-                              'min-w-0 flex-1 truncate text-caption',
-                              isFailed && !isRetrying && 'text-[var(--text-error)]'
-                            )}
-                            title={file.name}
-                          >
-                            {file.name}
-                          </span>
-                          <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
-                            {formatFileSize(file.size)}
-                          </span>
-                          <div className='flex flex-shrink-0 items-center gap-1'>
-                            {isProcessing ? (
-                              <Loader className='size-4 text-[var(--text-muted)]' animate />
-                            ) : (
-                              <>
-                                {isFailed && (
-                                  <Button
-                                    type='button'
-                                    variant='ghost'
-                                    className='size-4 p-0'
-                                    onClick={() => handleRetryFile(index)}
-                                    disabled={isUploading}
-                                  >
-                                    <RotateCcw className='size-3' />
-                                  </Button>
-                                )}
+                          {file.name}
+                        </span>
+                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                          {formatFileSize(file.size)}
+                        </span>
+                        <div className='flex flex-shrink-0 items-center gap-1'>
+                          {isProcessing ? (
+                            <Loader className='size-4 text-[var(--text-muted)]' animate />
+                          ) : (
+                            <>
+                              {isFailed && (
                                 <Button
                                   type='button'
                                   variant='ghost'
                                   className='size-4 p-0'
-                                  onClick={() => removeFile(index)}
+                                  onClick={() => handleRetryFile(index)}
                                   disabled={isUploading}
                                 >
-                                  <X className='size-3.5' />
+                                  <RotateCcw className='size-3' />
                                 </Button>
-                              </>
-                            )}
-                          </div>
+                              )}
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                className='size-4 p-0'
+                                onClick={() => removeFile(index)}
+                                disabled={isUploading}
+                              >
+                                <X className='size-3.5' />
+                              </Button>
+                            </>
+                          )}
                         </div>
-                      )
-                    })}
-                  </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )}
-            </div>
-          </div>
-        </ModalBody>
-
-        <ModalFooter>
-          <div className='flex w-full items-center justify-between gap-3'>
-            {uploadError ? (
-              <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
-                {uploadError.message}
-              </p>
-            ) : (
-              <div />
+              </div>
             )}
-            <div className='flex flex-shrink-0 gap-2'>
-              <Button variant='default' onClick={handleClose} type='button' disabled={isUploading}>
-                Cancel
-              </Button>
-              <Button
-                variant='primary'
-                type='button'
-                onClick={handleUpload}
-                disabled={files.length === 0 || isUploading}
-              >
-                {isUploading
-                  ? uploadProgress.stage === 'uploading'
-                    ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
-                    : uploadProgress.stage === 'processing'
-                      ? 'Processing...'
-                      : 'Uploading...'
-                  : 'Upload'}
-              </Button>
-            </div>
           </div>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        </div>
+        {uploadError && <ChipModalError>{uploadError.message}</ChipModalError>}
+      </ChipModalBody>
+
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={handleClose} disabled={isUploading}>
+          Cancel
+        </Chip>
+        <Chip
+          variant='primary'
+          flush
+          onClick={handleUpload}
+          disabled={files.length === 0 || isUploading}
+        >
+          {isUploading
+            ? uploadProgress.stage === 'uploading'
+              ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+              : uploadProgress.stage === 'processing'
+                ? 'Processing...'
+                : 'Uploading...'
+            : 'Upload'}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }

@@ -11,14 +11,13 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
   Button,
-  Combobox,
+  Chip,
+  ChipCombobox,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -303,154 +302,155 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   }
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='md'>
-        <ModalHeader>Help &amp; Support</ModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Help & Support' size='md'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; Support</ChipModalHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody>
-            <ModalDescription className='sr-only'>
-              Submit a help or support request
-            </ModalDescription>
-            <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-              <div className='space-y-3'>
-                <div className='flex flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Request</p>
-                  <Combobox
-                    id='type'
-                    options={REQUEST_TYPE_OPTIONS}
-                    value={watch('type') || DEFAULT_REQUEST_TYPE}
-                    selectedValue={watch('type') || DEFAULT_REQUEST_TYPE}
-                    onChange={(value) => setValue('type', value as FormValues['type'])}
-                    placeholder='Select a request type'
-                    editable={false}
-                    filterOptions={false}
-                    className={cn(errors.type && 'border-[var(--text-error)]')}
-                  />
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Subject</p>
-                  <Input
-                    id='subject'
-                    placeholder='Brief description of your request'
-                    {...register('subject')}
-                    className={cn(errors.subject && 'border-[var(--text-error)]')}
-                  />
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Message</p>
-                  <Textarea
-                    id='message'
-                    placeholder='Please provide details about your request...'
-                    rows={6}
-                    {...register('message')}
-                    className={cn(errors.message && 'border-[var(--text-error)]')}
-                  />
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    Attach Images (Optional)
-                  </p>
-                  <Button
-                    type='button'
-                    variant='default'
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragEnter={handleDragEnter}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={cn(
-                      '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
-                      {
-                        'border-[var(--surface-7)]': isDragging,
-                      }
-                    )}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type='file'
-                      accept={ACCEPTED_IMAGE_TYPES.join(',')}
-                      onChange={handleFileChange}
-                      className='hidden'
-                      multiple
-                    />
-                    <div className='flex flex-col gap-0.5 text-center'>
-                      <span className='text-[var(--text-primary)]'>
-                        {isDragging ? 'Drop images here' : 'Drop images here or click to browse'}
-                      </span>
-                      <span className='text-[var(--text-tertiary)] text-xs'>
-                        PNG, JPEG, WebP, GIF (max 20MB each)
-                      </span>
-                    </div>
-                  </Button>
-                </div>
-
-                {images.length > 0 && (
-                  <div className='space-y-2'>
-                    <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                      Uploaded Images
-                    </p>
-                    <div className='grid grid-cols-2 gap-3'>
-                      {images.map((image, index) => (
-                        <div
-                          className='group relative overflow-hidden rounded-sm border'
-                          key={image.preview}
-                        >
-                          <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center'>
-                            <Image
-                              src={image.preview}
-                              alt={`Preview ${index + 1}`}
-                              fill
-                              unoptimized
-                              sizes='(max-width: 768px) 100vw, 50vw'
-                              className='object-contain'
-                            />
-                            <button
-                              type='button'
-                              className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
-                              onClick={() => removeImage(index)}
-                            >
-                              <X className='size-[18px] text-white' />
-                            </button>
-                          </div>
-                          <div className='truncate p-1.5 text-caption'>{image.name}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+      <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+        <ChipModalBody className='min-h-0'>
+          <div
+            ref={scrollContainerRef}
+            className='max-h-[60vh] min-h-0 flex-1 overflow-y-auto px-2'
+          >
+            <div className='space-y-3'>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Request</p>
+                <ChipCombobox
+                  id='type'
+                  options={REQUEST_TYPE_OPTIONS}
+                  value={watch('type') || DEFAULT_REQUEST_TYPE}
+                  selectedValue={watch('type') || DEFAULT_REQUEST_TYPE}
+                  onChange={(value) => setValue('type', value as FormValues['type'])}
+                  placeholder='Select a request type'
+                  editable={false}
+                  filterOptions={false}
+                  className={cn(errors.type && 'border-[var(--text-error)]')}
+                />
               </div>
-            </div>
-          </ModalBody>
 
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => onOpenChange(false)}
-              type='button'
-              disabled={helpMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type='submit'
-              variant='primary'
-              disabled={helpMutation.isPending || isProcessing}
-            >
-              {helpMutation.isPending
-                ? 'Submitting...'
-                : submitStatus === 'error'
-                  ? 'Error'
-                  : submitStatus === 'success'
-                    ? 'Success'
-                    : 'Submit'}
-            </Button>
-          </ModalFooter>
-        </form>
-      </ModalContent>
-    </Modal>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Subject</p>
+                <Input
+                  variant='chip'
+                  id='subject'
+                  placeholder='Brief description of your request'
+                  {...register('subject')}
+                  className={cn(errors.subject && 'border-[var(--text-error)]')}
+                />
+              </div>
+
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Message</p>
+                <Textarea
+                  id='message'
+                  placeholder='Please provide details about your request...'
+                  rows={6}
+                  {...register('message')}
+                  className={cn(errors.message && 'border-[var(--text-error)]')}
+                />
+              </div>
+
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                  Attach Images (Optional)
+                </p>
+                <Button
+                  type='button'
+                  variant='default'
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={cn(
+                    '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
+                    {
+                      'border-[var(--surface-7)]': isDragging,
+                    }
+                  )}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type='file'
+                    accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                    onChange={handleFileChange}
+                    className='hidden'
+                    multiple
+                  />
+                  <div className='flex flex-col gap-0.5 text-center'>
+                    <span className='text-[var(--text-primary)]'>
+                      {isDragging ? 'Drop images here' : 'Drop images here or click to browse'}
+                    </span>
+                    <span className='text-[var(--text-tertiary)] text-xs'>
+                      PNG, JPEG, WebP, GIF (max 20MB each)
+                    </span>
+                  </div>
+                </Button>
+              </div>
+
+              {images.length > 0 && (
+                <div className='space-y-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                    Uploaded Images
+                  </p>
+                  <div className='grid grid-cols-2 gap-3'>
+                    {images.map((image, index) => (
+                      <div
+                        className='group relative overflow-hidden rounded-sm border'
+                        key={image.preview}
+                      >
+                        <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center'>
+                          <Image
+                            src={image.preview}
+                            alt={`Preview ${index + 1}`}
+                            fill
+                            unoptimized
+                            sizes='(max-width: 768px) 100vw, 50vw'
+                            className='object-contain'
+                          />
+                          <button
+                            type='button'
+                            className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
+                            onClick={() => removeImage(index)}
+                          >
+                            <X className='size-[18px] text-white' />
+                          </button>
+                        </div>
+                        <div className='truncate p-1.5 text-caption'>{image.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </ChipModalBody>
+
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => onOpenChange(false)}
+            type='button'
+            disabled={helpMutation.isPending}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            type='submit'
+            variant='primary'
+            flush
+            disabled={helpMutation.isPending || isProcessing}
+          >
+            {helpMutation.isPending
+              ? 'Submitting...'
+              : submitStatus === 'error'
+                ? 'Error'
+                : submitStatus === 'success'
+                  ? 'Success'
+                  : 'Submit'}
+          </Chip>
+        </ChipModalFooter>
+      </form>
+    </ChipModal>
   )
 }

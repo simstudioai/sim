@@ -118,7 +118,7 @@ export function CustomTools() {
 
             {error ? (
               <div className='flex h-full flex-col items-center justify-center gap-2'>
-                <p className='text-[var(--text-error)] text-xs leading-tight'>
+                <p className='text-[var(--text-error)] text-sm leading-tight'>
                   {getErrorMessage(error, 'Failed to load tools')}
                 </p>
               </div>

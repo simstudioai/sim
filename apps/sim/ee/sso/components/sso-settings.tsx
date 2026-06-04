@@ -6,7 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
-  Combobox,
+  ChipCombobox,
   Expandable,
   ExpandableContent,
   FormField,
@@ -439,7 +439,7 @@ export function SSO() {
 
             <FormField label='Callback URL'>
               <div className='relative'>
-                <Input value={providerCallbackUrl} readOnly className='h-9 pr-9' />
+                <Input value={providerCallbackUrl} readOnly variant='chip' className='pr-9' />
                 <Button
                   type='button'
                   variant='ghost'
@@ -540,7 +540,7 @@ export function SSO() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
           {/* Provider Type */}
           <FormField label='Provider Type'>
-            <Combobox
+            <ChipCombobox
               value={formData.providerType}
               onChange={(value: string) =>
                 handleInputChange('providerType', value as 'oidc' | 'saml')
@@ -551,7 +551,6 @@ export function SSO() {
               ]}
               placeholder='Select provider type'
               editable={false}
-              className='h-9'
             />
             <p className='text-[var(--text-muted)] text-small'>
               {formData.providerType === 'oidc'
@@ -567,7 +566,7 @@ export function SSO() {
               showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
             }
           >
-            <Combobox
+            <ChipCombobox
               value={formData.providerId}
               onChange={(value: string) => handleInputChange('providerId', value)}
               options={SSO_TRUSTED_PROVIDERS.map((id) => ({
@@ -577,7 +576,6 @@ export function SSO() {
               placeholder='Select or enter a provider ID'
               editable={true}
               className={cn(
-                'h-9',
                 showErrors && errors.providerId.length > 0 && 'border-[var(--text-error)]'
               )}
             />
@@ -602,8 +600,8 @@ export function SSO() {
               readOnly
               onFocus={(e) => e.target.removeAttribute('readOnly')}
               onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
+              variant='chip'
               className={cn(
-                'h-9',
                 showErrors && errors.issuerUrl.length > 0 && 'border-[var(--text-error)]'
               )}
             />
@@ -626,10 +624,8 @@ export function SSO() {
               readOnly
               onFocus={(e) => e.target.removeAttribute('readOnly')}
               onChange={(e) => handleInputChange('domain', e.target.value)}
-              className={cn(
-                'h-9',
-                showErrors && errors.domain.length > 0 && 'border-[var(--text-error)]'
-              )}
+              variant='chip'
+              className={cn(showErrors && errors.domain.length > 0 && 'border-[var(--text-error)]')}
             />
             <p className='text-[var(--text-muted)] text-small'>
               The email domain users sign in with (e.g. company.com)
@@ -657,8 +653,8 @@ export function SSO() {
                   readOnly
                   onFocus={(e) => e.target.removeAttribute('readOnly')}
                   onChange={(e) => handleInputChange('clientId', e.target.value)}
+                  variant='chip'
                   className={cn(
-                    'h-9',
                     showErrors && errors.clientId.length > 0 && 'border-[var(--text-error)]'
                   )}
                 />
@@ -695,8 +691,9 @@ export function SSO() {
                         ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
                         : undefined
                     }
+                    variant='chip'
                     className={cn(
-                      'h-9 pr-9',
+                      'pr-9',
                       showErrors && errors.clientSecret.length > 0 && 'border-[var(--text-error)]'
                     )}
                   />
@@ -730,8 +727,8 @@ export function SSO() {
                   autoCapitalize='none'
                   spellCheck={false}
                   onChange={(e) => handleInputChange('scopes', e.target.value)}
+                  variant='chip'
                   className={cn(
-                    'h-9',
                     showErrors && errors.scopes.length > 0 && 'border-[var(--text-error)]'
                   )}
                 />
@@ -760,8 +757,8 @@ export function SSO() {
                   autoCapitalize='none'
                   spellCheck={false}
                   onChange={(e) => handleInputChange('entryPoint', e.target.value)}
+                  variant='chip'
                   className={cn(
-                    'h-9',
                     showErrors && errors.entryPoint.length > 0 && 'border-[var(--text-error)]'
                   )}
                 />
@@ -781,7 +778,7 @@ export function SSO() {
                   spellCheck={false}
                   onChange={(e) => handleInputChange('cert', e.target.value)}
                   className={cn(
-                    'min-h-[80px] font-mono',
+                    'min-h-[80px] rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] font-mono dark:bg-[var(--surface-4)]',
                     showErrors && errors.cert.length > 0 && 'border-[var(--text-error)]'
                   )}
                   rows={3}
@@ -796,10 +793,7 @@ export function SSO() {
                   className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
                 >
                   <ChevronDown
-                    className={cn(
-                      'h-[14px] w-[14px] transition-transform',
-                      showAdvanced && 'rotate-180'
-                    )}
+                    className={cn('size-[14px] transition-transform', showAdvanced && 'rotate-180')}
                   />
                   Advanced Options
                 </Button>
@@ -816,7 +810,7 @@ export function SSO() {
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('audience', e.target.value)}
-                          className='h-9'
+                          variant='chip'
                         />
                       </FormField>
 
@@ -829,7 +823,7 @@ export function SSO() {
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
-                          className='h-9'
+                          variant='chip'
                         />
                       </FormField>
 
@@ -850,7 +844,7 @@ export function SSO() {
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
-                          className='min-h-[60px] font-mono'
+                          className='min-h-[60px] rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] font-mono dark:bg-[var(--surface-4)]'
                           rows={2}
                         />
                       </FormField>
@@ -864,7 +858,7 @@ export function SSO() {
           {/* Callback URL */}
           <FormField label='Callback URL'>
             <div className='relative'>
-              <Input value={callbackUrl} readOnly className='h-9 pr-9' />
+              <Input value={callbackUrl} readOnly variant='chip' className='pr-9' />
               <Button
                 type='button'
                 variant='ghost'

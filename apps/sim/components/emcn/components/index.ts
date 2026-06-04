@@ -23,6 +23,7 @@ export {
   checkboxVariants,
 } from './checkbox/checkbox'
 export { Chip, ChipLink, type ChipLinkProps, type ChipProps, chipVariants } from './chip/chip'
+export { ChipCombobox } from './chip-combobox/chip-combobox'
 export { ChipDatePicker, type ChipDatePickerProps } from './chip-date-picker/chip-date-picker'
 export {
   ChipDropdown,
@@ -42,6 +43,9 @@ export {
   ChipModalHeader,
   type ChipModalHeaderProps,
   type ChipModalProps,
+  type ChipModalTab,
+  ChipModalTabs,
+  type ChipModalTabsProps,
 } from './chip-modal/chip-modal'
 export {
   ChipMultiSelect,

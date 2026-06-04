@@ -399,6 +399,7 @@ export function BYOK() {
             />
             <div className='relative'>
               <EmcnInput
+                variant='chip'
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => {
@@ -406,7 +407,7 @@ export function BYOK() {
                   if (error) setError(null)
                 }}
                 placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
-                className='h-9 pr-9'
+                className='pr-9'
                 name='byok_api_key'
                 autoComplete='off'
                 autoCorrect='off'

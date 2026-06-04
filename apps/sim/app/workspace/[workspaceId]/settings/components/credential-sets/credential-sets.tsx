@@ -607,7 +607,7 @@ export function CredentialSets() {
 
             <div className='relative'>
               {hasNoContent && !canManageCredentialSets ? (
-                <div className='py-8 text-center text-[var(--text-muted)] text-sm'>
+                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
                   You're not a member of any polling groups yet. When someone invites you, it will
                   appear here.
                 </div>

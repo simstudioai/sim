@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -18,7 +19,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Code,
-  Combobox,
   type ComboboxOption,
   Input as EmcnInput,
   Label,
@@ -703,6 +703,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         <div className='flex flex-col gap-1.5'>
                           <Label className='text-sm'>Description</Label>
                           <EmcnInput
+                            variant='chip'
                             value={editingParameterDescriptions[name] || ''}
                             onChange={(e) =>
                               setEditingParameterDescriptions((prev) => ({
@@ -818,7 +819,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             a tool.
           </p>
           <ChipModalField type='custom' title='Select Workflow'>
-            <Combobox
+            <ChipCombobox
               options={workflowOptions}
               value={selectedWorkflowId || undefined}
               onChange={(value: string) => setSelectedWorkflowId(value)}
@@ -1036,15 +1037,13 @@ export function WorkflowMcpServers() {
             <div className='min-h-0 flex-1'>
               {error ? (
                 <div className='flex h-full flex-col items-center justify-center gap-2'>
-                  <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
+                  <p className='text-[var(--text-error)] text-sm leading-tight'>
                     {getErrorMessage(error, 'Failed to load MCP servers')}
                   </p>
                 </div>
               ) : isLoading ? null : !hasServers ? (
-                <div className='flex h-full items-center justify-center'>
-                  <p className='text-[var(--text-muted)] text-sm'>
-                    Click &quot;Add Server&quot; above to get started
-                  </p>
+                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                  Click &quot;Add Server&quot; above to get started
                 </div>
               ) : (
                 <div className='flex flex-col gap-2'>

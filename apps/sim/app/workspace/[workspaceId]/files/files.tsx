@@ -7,12 +7,12 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Button,
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
   Columns2,
-  Combobox,
   type ComboboxOption,
   Eye,
   File as FilesIcon,
@@ -1708,7 +1708,7 @@ export function Files() {
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'document', label: 'Documents' },
               { value: 'image', label: 'Images' },
@@ -1723,13 +1723,12 @@ export function Files() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'small', label: 'Small (< 1 MB)' },
               { value: 'medium', label: 'Medium (1–10 MB)' },
@@ -1743,8 +1742,7 @@ export function Files() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {memberOptions.length > 0 && (
@@ -1752,7 +1750,7 @@ export function Files() {
             <span className='font-medium text-[var(--text-secondary)] text-caption'>
               Uploaded By
             </span>
-            <Combobox
+            <ChipCombobox
               options={memberOptions}
               multiSelect
               multiSelectValues={uploadedByFilter}
@@ -1766,8 +1764,7 @@ export function Files() {
               searchPlaceholder='Search members...'
               showAllOption
               allOptionLabel='All'
-              size='sm'
-              className='h-[32px] w-full rounded-md'
+              className='w-full'
             />
           </div>
         )}

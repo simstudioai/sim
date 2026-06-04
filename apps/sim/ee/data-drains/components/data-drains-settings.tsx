@@ -9,23 +9,16 @@ import {
   Button,
   Callout,
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Combobox,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  FormField,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   MoreHorizontal,
   SearchInput,
   Switch,
@@ -188,9 +181,11 @@ export function DataDrainsSettings() {
 
           <div>
             {drainsError ? (
-              <Callout variant='destructive'>
-                Failed to load data drains: {toError(drainsError).message}
-              </Callout>
+              <div className='flex h-full flex-col items-center justify-center gap-2'>
+                <p className='text-[var(--text-error)] text-sm leading-tight'>
+                  Failed to load data drains: {toError(drainsError).message}
+                </p>
+              </div>
             ) : drains && drains.length > 0 ? (
               filteredDrains.length > 0 ? (
                 <Table>
@@ -220,12 +215,12 @@ export function DataDrainsSettings() {
                   </TableBody>
                 </Table>
               ) : (
-                <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No results for "{searchTerm.trim()}"
                 </div>
               )
             ) : (
-              <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
                 Click "New drain" above to get started
               </div>
             )}
@@ -490,72 +485,67 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
   }
 
   return (
-    <Modal open onOpenChange={(open) => !open && onClose()}>
-      <ModalContent size='md' className='max-h-[76vh]'>
-        <ModalHeader>New data drain</ModalHeader>
-        <ModalBody className='flex min-h-0 flex-1 flex-col gap-3'>
-          <ModalDescription className='sr-only'>
-            Configure a new data drain to export workflow logs to an external destination
-          </ModalDescription>
-          <section className='flex flex-col gap-3'>
-            <FormField label='Name'>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder='Workflow logs export'
-              />
-            </FormField>
-            <FormField label='Source'>
-              <Combobox
-                value={source}
-                onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
-                options={SOURCE_OPTIONS}
-                dropdownWidth='trigger'
-              />
-            </FormField>
-            <FormField label='Cadence'>
-              <Combobox
-                value={cadence}
-                onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
-                options={CADENCE_OPTIONS}
-                dropdownWidth='trigger'
-              />
-            </FormField>
-            <FormField label='Destination'>
-              <Combobox
-                value={destinationType}
-                onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
-                options={DESTINATION_OPTIONS}
-                dropdownWidth='trigger'
-                overlayContent={
-                  <div className='flex items-center gap-2'>
-                    {getDestinationIcon(destinationType)}
-                    <span className='truncate text-[var(--text-primary)]'>
-                      {DESTINATION_LABELS[destinationType]}
-                    </span>
-                  </div>
-                }
-              />
-            </FormField>
-          </section>
+    <ChipModal open onOpenChange={(open) => !open && onClose()} srTitle='New data drain' size='md'>
+      <ChipModalHeader onClose={() => onClose()}>New data drain</ChipModalHeader>
+      <ChipModalBody>
+        <ChipModalField
+          type='input'
+          title='Name'
+          value={name}
+          onChange={setName}
+          placeholder='Workflow logs export'
+          required
+        />
+        <ChipModalField type='custom' title='Source'>
+          <ChipCombobox
+            value={source}
+            onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
+            options={SOURCE_OPTIONS}
+            dropdownWidth='trigger'
+          />
+        </ChipModalField>
+        <ChipModalField type='custom' title='Cadence'>
+          <ChipCombobox
+            value={cadence}
+            onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
+            options={CADENCE_OPTIONS}
+            dropdownWidth='trigger'
+          />
+        </ChipModalField>
+        <ChipModalField type='custom' title='Destination'>
+          <ChipCombobox
+            value={destinationType}
+            onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
+            options={DESTINATION_OPTIONS}
+            dropdownWidth='trigger'
+            overlayContent={
+              <div className='flex items-center gap-2'>
+                {getDestinationIcon(destinationType)}
+                <span className='truncate text-[var(--text-primary)]'>
+                  {DESTINATION_LABELS[destinationType]}
+                </span>
+              </div>
+            }
+          />
+        </ChipModalField>
 
-          <section className='flex flex-col gap-3'>
-            <spec.FormFields state={destState} setState={setDestState} />
-          </section>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant='primary'
-            onClick={handleSubmit}
-            disabled={!canSubmit || createMutation.isPending}
-          >
-            {createMutation.isPending ? 'Creating...' : 'Create drain'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        <section className='flex flex-col gap-3 px-2'>
+          <spec.FormFields state={destState} setState={setDestState} />
+        </section>
+      </ChipModalBody>
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={onClose} disabled={createMutation.isPending}>
+          Cancel
+        </Chip>
+        <Chip
+          variant='primary'
+          flush
+          onClick={handleSubmit}
+          disabled={!canSubmit || createMutation.isPending}
+        >
+          {createMutation.isPending ? 'Creating...' : 'Create drain'}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }

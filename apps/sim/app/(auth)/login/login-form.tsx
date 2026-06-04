@@ -381,11 +381,11 @@ export default function LoginPage({
                 className={cn(
                   showEmailValidationError &&
                     emailErrors.length > 0 &&
-                    'border-red-500 focus:border-red-500'
+                    'border-[var(--text-error)] focus:border-[var(--text-error)]'
                 )}
               />
               {showEmailValidationError && emailErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
                   {emailErrors.map((error) => (
                     <p key={error}>{error}</p>
                   ))}
@@ -419,7 +419,7 @@ export default function LoginPage({
                     'pr-10',
                     showValidationError &&
                       passwordErrors.length > 0 &&
-                      'border-red-500 focus:border-red-500'
+                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
                   )}
                 />
                 <button
@@ -432,7 +432,7 @@ export default function LoginPage({
                 </button>
               </div>
               {showValidationError && passwordErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
                   {passwordErrors.map((error) => (
                     <p key={error}>{error}</p>
                   ))}
@@ -448,7 +448,7 @@ export default function LoginPage({
           )}
 
           {formError && (
-            <div className='text-red-400 text-xs'>
+            <div className='text-[var(--text-error)] text-xs'>
               <p>{formError}</p>
             </div>
           )}

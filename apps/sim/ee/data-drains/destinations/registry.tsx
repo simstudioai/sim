@@ -1,7 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { Combobox, FormField, Input, SecretInput, Switch, Textarea } from '@/components/emcn'
+import { ChipCombobox, FormField, Input, SecretInput, Switch, Textarea } from '@/components/emcn'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import type { DestinationType } from '@/lib/data-drains/types'
 
@@ -46,18 +46,21 @@ const s3FormSpec: DestinationFormSpec<S3State> = {
     <>
       <FormField label='Bucket'>
         <Input
+          variant='chip'
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
         />
       </FormField>
       <FormField label='Region'>
         <Input
+          variant='chip'
           value={state.region}
           onChange={(e) => setState({ ...state, region: e.target.value })}
         />
       </FormField>
       <FormField label='Prefix (optional)'>
         <Input
+          variant='chip'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
@@ -65,6 +68,7 @@ const s3FormSpec: DestinationFormSpec<S3State> = {
       </FormField>
       <FormField label='Endpoint (optional, S3-compatible stores)'>
         <Input
+          variant='chip'
           value={state.endpoint}
           onChange={(e) => setState({ ...state, endpoint: e.target.value })}
           placeholder='https://s3.example.com'
@@ -124,12 +128,14 @@ const gcsFormSpec: DestinationFormSpec<GCSState> = {
     <>
       <FormField label='Bucket'>
         <Input
+          variant='chip'
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
         />
       </FormField>
       <FormField label='Prefix (optional)'>
         <Input
+          variant='chip'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
@@ -174,18 +180,21 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
     <>
       <FormField label='Account name'>
         <Input
+          variant='chip'
           value={state.accountName}
           onChange={(e) => setState({ ...state, accountName: e.target.value })}
         />
       </FormField>
       <FormField label='Container'>
         <Input
+          variant='chip'
           value={state.containerName}
           onChange={(e) => setState({ ...state, containerName: e.target.value })}
         />
       </FormField>
       <FormField label='Prefix (optional)'>
         <Input
+          variant='chip'
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
@@ -193,6 +202,7 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
       </FormField>
       <FormField label='Endpoint suffix (optional)'>
         <Input
+          variant='chip'
           value={state.endpointSuffix}
           onChange={(e) => setState({ ...state, endpointSuffix: e.target.value })}
           placeholder='blob.core.windows.net'
@@ -243,7 +253,7 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='Site'>
-        <Combobox
+        <ChipCombobox
           value={state.site}
           onChange={(v) => setState({ ...state, site: v as DatadogState['site'] })}
           options={DATADOG_SITE_OPTIONS}
@@ -252,6 +262,7 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
       </FormField>
       <FormField label='Service (optional)'>
         <Input
+          variant='chip'
           value={state.service}
           onChange={(e) => setState({ ...state, service: e.target.value })}
           placeholder='sim'
@@ -259,6 +270,7 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
       </FormField>
       <FormField label='Tags (optional, comma-separated)'>
         <Input
+          variant='chip'
           value={state.tags}
           onChange={(e) => setState({ ...state, tags: e.target.value })}
           placeholder='env:prod,team:platform'
@@ -295,6 +307,7 @@ const bigqueryFormSpec: DestinationFormSpec<BigQueryState> = {
     <>
       <FormField label='Project ID'>
         <Input
+          variant='chip'
           value={state.projectId}
           onChange={(e) => setState({ ...state, projectId: e.target.value })}
           placeholder='my-gcp-project'
@@ -302,6 +315,7 @@ const bigqueryFormSpec: DestinationFormSpec<BigQueryState> = {
       </FormField>
       <FormField label='Dataset'>
         <Input
+          variant='chip'
           value={state.datasetId}
           onChange={(e) => setState({ ...state, datasetId: e.target.value })}
           placeholder='sim_drains'
@@ -309,6 +323,7 @@ const bigqueryFormSpec: DestinationFormSpec<BigQueryState> = {
       </FormField>
       <FormField label='Table'>
         <Input
+          variant='chip'
           value={state.tableId}
           onChange={(e) => setState({ ...state, tableId: e.target.value })}
           placeholder='workflow_logs'
@@ -365,6 +380,7 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
     <>
       <FormField label='Account identifier'>
         <Input
+          variant='chip'
           value={state.account}
           onChange={(e) => setState({ ...state, account: e.target.value })}
           placeholder='orgname-accountname'
@@ -372,6 +388,7 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
       </FormField>
       <FormField label='User'>
         <Input
+          variant='chip'
           value={state.user}
           onChange={(e) => setState({ ...state, user: e.target.value })}
           placeholder='SIM_DRAIN_USER'
@@ -379,30 +396,35 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
       </FormField>
       <FormField label='Warehouse'>
         <Input
+          variant='chip'
           value={state.warehouse}
           onChange={(e) => setState({ ...state, warehouse: e.target.value })}
         />
       </FormField>
       <FormField label='Database'>
         <Input
+          variant='chip'
           value={state.database}
           onChange={(e) => setState({ ...state, database: e.target.value })}
         />
       </FormField>
       <FormField label='Schema'>
         <Input
+          variant='chip'
           value={state.schema}
           onChange={(e) => setState({ ...state, schema: e.target.value })}
         />
       </FormField>
       <FormField label='Table'>
         <Input
+          variant='chip'
           value={state.table}
           onChange={(e) => setState({ ...state, table: e.target.value })}
         />
       </FormField>
       <FormField label='Column (optional, defaults to "DATA")'>
         <Input
+          variant='chip'
           value={state.column}
           onChange={(e) => setState({ ...state, column: e.target.value })}
           placeholder='DATA'
@@ -459,6 +481,7 @@ const webhookFormSpec: DestinationFormSpec<WebhookState> = {
     <>
       <FormField label='URL'>
         <Input
+          variant='chip'
           value={state.url}
           onChange={(e) => setState({ ...state, url: e.target.value })}
           placeholder='https://example.com/sim-drain'
@@ -466,6 +489,7 @@ const webhookFormSpec: DestinationFormSpec<WebhookState> = {
       </FormField>
       <FormField label='Signature header (optional)'>
         <Input
+          variant='chip'
           value={state.signatureHeader}
           onChange={(e) => setState({ ...state, signatureHeader: e.target.value })}
           placeholder='X-Sim-Signature'

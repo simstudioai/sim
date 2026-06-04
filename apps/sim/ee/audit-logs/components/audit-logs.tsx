@@ -3,20 +3,40 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
-import { ChevronDown, RefreshCw } from 'lucide-react'
-import { Badge, Button, Combobox, type ComboboxOption, SearchInput } from '@/components/emcn'
+import { ChevronDown } from 'lucide-react'
+import {
+  Badge,
+  Button,
+  ChipCombobox,
+  type ComboboxOption,
+  DatePicker,
+  RefreshCw,
+  SearchInput,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
+import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
+import type { TimeRange } from '@/stores/logs/filters/types'
 
 const logger = createLogger('AuditLogs')
 
-const DATE_RANGE_OPTIONS: ComboboxOption[] = [
-  { label: 'Last 7 days', value: '7' },
-  { label: 'Last 30 days', value: '30' },
-  { label: 'Last 90 days', value: '90' },
-  { label: 'All time', value: '' },
+const REFRESH_SPINNER_DURATION_MS = 1000
+
+const TIME_RANGE_OPTIONS: ComboboxOption[] = [
+  { value: 'All time', label: 'All time' },
+  { value: 'Past 30 minutes', label: 'Past 30 minutes' },
+  { value: 'Past hour', label: 'Past hour' },
+  { value: 'Past 6 hours', label: 'Past 6 hours' },
+  { value: 'Past 12 hours', label: 'Past 12 hours' },
+  { value: 'Past 24 hours', label: 'Past 24 hours' },
+  { value: 'Past 3 days', label: 'Past 3 days' },
+  { value: 'Past 7 days', label: 'Past 7 days' },
+  { value: 'Past 14 days', label: 'Past 14 days' },
+  { value: 'Past 30 days', label: 'Past 30 days' },
+  { value: 'Custom range', label: 'Custom range' },
 ]
 
 function formatResourceType(type: string): string {
@@ -24,13 +44,6 @@ function formatResourceType(type: string): string {
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
-}
-
-function getStartOfDay(daysAgo: number): string {
-  const start = new Date()
-  start.setDate(start.getDate() - daysAgo)
-  start.setHours(0, 0, 0, 0)
-  return start.toISOString()
 }
 
 function formatAction(action: string): string {
@@ -182,7 +195,7 @@ function AuditLogRow({ entry }: AuditLogRowProps) {
           </span>
           <ChevronDown
             className={cn(
-              'h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+              'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
               expanded && 'rotate-180'
             )}
           />
@@ -190,7 +203,7 @@ function AuditLogRow({ entry }: AuditLogRowProps) {
       </button>
       {expanded && (
         <div className='px-3 pb-2'>
-          <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border-1)] bg-[var(--surface-3)] p-3 text-small'>
+          <div className='flex flex-col gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)] p-3 text-small'>
             <div className='flex gap-2'>
               <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Resource</span>
               <span className='text-[var(--text-primary)]'>
@@ -239,11 +252,18 @@ function AuditLogRow({ entry }: AuditLogRowProps) {
 }
 
 export function AuditLogs() {
-  const [resourceType, setResourceType] = useState('')
-  const [dateRange, setDateRange] = useState('30')
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
+  const [timeRange, setTimeRange] = useState<TimeRange>('Past 30 days')
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const previousTimeRangeRef = useRef<TimeRange>('Past 30 days')
+  const dateRangeAppliedRef = useRef(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
+  const refreshTimersRef = useRef(new Set<number>())
 
   useEffect(() => {
     const trimmed = searchTerm.trim()
@@ -256,15 +276,23 @@ export function AuditLogs() {
     }
   }, [searchTerm, debouncedSearch])
 
+  useEffect(() => {
+    const timers = refreshTimersRef.current
+    return () => {
+      for (const timerId of timers) window.clearTimeout(timerId)
+    }
+  }, [])
+
   const filters = useMemo<AuditLogFilters>(() => {
     return {
       search: debouncedSearch || undefined,
-      resourceType: resourceType || undefined,
-      startDate: dateRange ? getStartOfDay(Number(dateRange)) : undefined,
+      resourceType: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+      startDate: getStartDateFromTimeRange(timeRange, customStartDate)?.toISOString(),
+      endDate: getEndDateFromTimeRange(timeRange, customEndDate)?.toISOString(),
     }
-  }, [debouncedSearch, resourceType, dateRange])
+  }, [debouncedSearch, selectedTypes, timeRange, customStartDate, customEndDate])
 
-  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, refetch, isRefetching } =
+  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, refetch } =
     useAuditLogs(filters)
 
   const allEntries = useMemo(() => {
@@ -272,7 +300,51 @@ export function AuditLogs() {
     return data.pages.flatMap((page) => page.data)
   }, [data])
 
+  const typeDisplayLabel =
+    selectedTypes.length === 0
+      ? 'All types'
+      : selectedTypes.length === 1
+        ? RESOURCE_TYPE_OPTIONS.find((t) => t.value === selectedTypes[0])?.label || '1 selected'
+        : `${selectedTypes.length} types`
+
+  const timeDisplayLabel =
+    timeRange === 'Custom range' && customStartDate && customEndDate
+      ? `${formatDateShort(customStartDate)} - ${formatDateShort(customEndDate)}`
+      : timeRange
+
+  const handleTimeRangeChange = (value: string) => {
+    if (value === 'Custom range') {
+      previousTimeRangeRef.current = timeRange
+      setDatePickerOpen(true)
+    } else {
+      setCustomStartDate('')
+      setCustomEndDate('')
+      setTimeRange(value as TimeRange)
+    }
+  }
+
+  const handleDateRangeApply = (start: string, end: string) => {
+    dateRangeAppliedRef.current = true
+    setCustomStartDate(start)
+    setCustomEndDate(end)
+    setTimeRange('Custom range')
+    setDatePickerOpen(false)
+  }
+
+  const handleDatePickerCancel = () => {
+    if (timeRange === 'Custom range' && !customStartDate) {
+      setTimeRange(previousTimeRangeRef.current)
+    }
+    setDatePickerOpen(false)
+  }
+
   const handleRefresh = useCallback(() => {
+    setIsVisuallyRefreshing(true)
+    const timerId = window.setTimeout(() => {
+      setIsVisuallyRefreshing(false)
+      refreshTimersRef.current.delete(timerId)
+    }, REFRESH_SPINNER_DURATION_MS)
+    refreshTimersRef.current.add(timerId)
     refetch().catch((error: unknown) => {
       logger.error('Failed to refresh audit logs', { error })
     })
@@ -299,44 +371,78 @@ export function AuditLogs() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             <div className='w-[160px]'>
-              <Combobox
+              <ChipCombobox
                 options={RESOURCE_TYPE_OPTIONS}
-                value={resourceType}
-                onChange={setResourceType}
-                placeholder='Resource type'
-                size='sm'
+                multiSelect
+                multiSelectValues={selectedTypes}
+                onMultiSelectChange={setSelectedTypes}
+                placeholder='All types'
+                overlayContent={
+                  <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
+                }
+                searchable
+                searchPlaceholder='Search types...'
+                showAllOption
+                allOptionLabel='All types'
+                className='w-full'
               />
             </div>
-            <div className='w-[140px]'>
-              <Combobox
-                options={DATE_RANGE_OPTIONS}
-                value={dateRange}
-                onChange={setDateRange}
-                placeholder='Date range'
-                size='sm'
+            <div className='relative w-[160px]'>
+              <ChipCombobox
+                options={TIME_RANGE_OPTIONS}
+                value={timeRange}
+                onChange={handleTimeRangeChange}
+                placeholder='All time'
+                overlayContent={
+                  <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+                }
+                className='w-full'
+                maxHeight={320}
+              />
+              <DatePicker
+                mode='range'
+                showTrigger={false}
+                showTime
+                open={datePickerOpen}
+                onOpenChange={(isOpen) => {
+                  if (!isOpen) {
+                    if (dateRangeAppliedRef.current) {
+                      dateRangeAppliedRef.current = false
+                    } else {
+                      handleDatePickerCancel()
+                    }
+                  }
+                }}
+                startDate={customStartDate}
+                endDate={customEndDate}
+                onRangeChange={handleDateRangeApply}
+                onCancel={handleDatePickerCancel}
               />
             </div>
-            <Button variant='ghost' onClick={handleRefresh} disabled={isRefetching}>
-              <RefreshCw
-                className={cn('size-[14px]', isRefetching && 'animate-spin')}
-                strokeWidth={2}
-              />
+            <Button variant='ghost' onClick={handleRefresh} disabled={isVisuallyRefreshing}>
+              <RefreshCw animate={isVisuallyRefreshing} className='size-[14px]' />
             </Button>
           </div>
 
           {/* Table */}
           <div className='flex flex-col'>
             <div className='flex items-center gap-3 px-3 pb-1 text-[var(--text-tertiary)] text-caption'>
-              <span className='w-[130px] flex-shrink-0'>Timestamp</span>
-              <span className='w-[150px] flex-shrink-0'>Event</span>
+              <span className='w-[160px] flex-shrink-0'>Timestamp</span>
+              <span className='w-[180px] flex-shrink-0'>Event</span>
               <span className='min-w-0 flex-1'>Description</span>
-              <span className='w-[130px] flex-shrink-0 text-right'>Actor</span>
+              <span className='w-[160px] flex-shrink-0 text-right'>Actor</span>
             </div>
 
             {isLoading ? null : allEntries.length === 0 ? (
-              <div className='flex items-center justify-center py-12 text-[var(--text-muted)] text-small'>
-                {debouncedSearch ? `No results for "${debouncedSearch}"` : 'No audit logs found'}
-              </div>
+              debouncedSearch ? (
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  No results for "{debouncedSearch}"
+                </div>
+              ) : (
+                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                  No audit logs found
+                </div>
+              )
             ) : (
               <div className='flex flex-col gap-0.5'>
                 {allEntries.map((entry) => (

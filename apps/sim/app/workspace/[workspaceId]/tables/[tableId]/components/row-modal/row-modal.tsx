@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
-  Button,
   Checkbox,
   Chip,
   ChipModal,
@@ -15,12 +14,6 @@ import {
   DatePicker,
   Input,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Textarea,
 } from '@/components/emcn'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
@@ -198,61 +191,49 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   const isAddMode = mode === 'add'
 
   return (
-    <Modal open={isOpen} onOpenChange={handleClose}>
-      <ModalContent size='lg'>
-        <ModalHeader>
-          <div className='flex flex-col gap-1'>
-            <h2 className='font-semibold text-md'>{isAddMode ? 'Add New Row' : 'Edit Row'}</h2>
-            <p className='font-normal text-[var(--text-tertiary)] text-small'>
-              {isAddMode ? 'Fill in the values for' : 'Update values for'} {table?.name ?? 'table'}
-            </p>
-          </div>
-        </ModalHeader>
-        <ModalBody className='max-h-[60vh] overflow-y-auto'>
-          <ModalDescription className='sr-only'>
-            {isAddMode ? 'Fill in values to add a new row' : 'Update values for the selected row'}
-          </ModalDescription>
-          <form onSubmit={handleFormSubmit} className='flex flex-col gap-4'>
-            <ErrorMessage error={error} />
+    <ChipModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      srTitle={isAddMode ? 'Add New Row' : 'Edit Row'}
+      size='lg'
+    >
+      <ChipModalHeader onClose={() => handleClose()}>
+        <div className='flex flex-col gap-1'>
+          <h2 className='font-semibold text-md'>{isAddMode ? 'Add New Row' : 'Edit Row'}</h2>
+          <p className='font-normal text-[var(--text-tertiary)] text-small'>
+            {isAddMode ? 'Fill in the values for' : 'Update values for'} {table?.name ?? 'table'}
+          </p>
+        </div>
+      </ChipModalHeader>
+      <ChipModalBody className='max-h-[60vh] overflow-y-auto'>
+        <form onSubmit={handleFormSubmit} className='flex flex-col gap-4'>
+          <ErrorMessage error={error} />
 
-            {columns.map((column) => (
-              <ColumnField
-                key={column.name}
-                column={column}
-                value={rowData[column.name]}
-                onChange={(value) => setRowData((prev) => ({ ...prev, [column.name]: value }))}
-              />
-            ))}
-          </form>
-        </ModalBody>
-        <ModalFooter className='gap-2.5'>
-          <Button
-            type='button'
-            variant='default'
-            onClick={handleClose}
-            className='min-w-[90px]'
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type='button'
-            variant='primary'
-            onClick={handleFormSubmit}
-            disabled={isSubmitting}
-            className='min-w-[120px]'
-          >
-            {isSubmitting
-              ? isAddMode
-                ? 'Adding...'
-                : 'Updating...'
-              : isAddMode
-                ? 'Add Row'
-                : 'Update Row'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+          {columns.map((column) => (
+            <ColumnField
+              key={column.name}
+              column={column}
+              value={rowData[column.name]}
+              onChange={(value) => setRowData((prev) => ({ ...prev, [column.name]: value }))}
+            />
+          ))}
+        </form>
+      </ChipModalBody>
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={handleClose} disabled={isSubmitting}>
+          Cancel
+        </Chip>
+        <Chip variant='primary' flush onClick={handleFormSubmit} disabled={isSubmitting}>
+          {isSubmitting
+            ? isAddMode
+              ? 'Adding...'
+              : 'Updating...'
+            : isAddMode
+              ? 'Add Row'
+              : 'Update Row'}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }
 
@@ -317,11 +298,11 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
       ) : (
         <Input
           id={column.name}
+          variant='chip'
           type={column.type === 'number' ? 'number' : 'text'}
           value={formatValueForInput(value, column.type)}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Enter ${column.name}`}
-          className='h-[38px]'
           required={column.required}
         />
       )}

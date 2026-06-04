@@ -634,16 +634,14 @@ export function MCP({ initialServerId }: MCPProps) {
             />
 
             {error ? (
-              <div className='flex flex-col items-center justify-center gap-2 py-8'>
+              <div className='flex h-full flex-col items-center justify-center gap-2'>
                 <p className='text-[var(--text-error)] text-xs leading-tight'>
                   {getErrorMessage(error, 'Failed to load MCP servers')}
                 </p>
               </div>
             ) : serversLoading ? null : !hasServers ? (
-              <div className='flex items-center justify-center py-8'>
-                <p className='text-[var(--text-muted)] text-sm'>
-                  Click &quot;Add Server&quot; above to get started
-                </p>
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                Click &quot;Add Server&quot; above to get started
               </div>
             ) : (
               <div className='flex flex-col gap-2'>
