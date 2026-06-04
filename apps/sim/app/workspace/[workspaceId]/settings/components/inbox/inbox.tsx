@@ -45,7 +45,7 @@ export function Inbox() {
               </div>
               <Button
                 variant='primary'
-                onClick={() => router.push(`/workspace/${workspaceId}/settings/subscription`)}
+                onClick={() => router.push(`/workspace/${workspaceId}/settings/billing`)}
               >
                 Upgrade to Max
                 <ArrowRight className='ml-1.5 size-[14px]' />

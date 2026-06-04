@@ -198,9 +198,9 @@ export function SettingsSidebar({
           prefetchWorkspaceCredentials(queryClient, workspaceId)
           void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
           break
-        case 'subscription':
+        case 'billing':
           prefetchSubscriptionData(queryClient)
-          void import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription')
+          void import('@/app/workspace/[workspaceId]/settings/components/billing/billing')
           break
       }
     },

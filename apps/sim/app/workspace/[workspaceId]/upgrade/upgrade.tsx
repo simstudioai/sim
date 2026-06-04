@@ -11,21 +11,10 @@ import {
   type UpgradeCardId,
 } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
-import {
-  getDisplayPlanName,
-  getPlanTierCredits,
-  getPlanTierDollars,
-} from '@/lib/billing/plan-helpers'
-import { UsageHeader } from '@/app/workspace/[workspaceId]/settings/components/usage-header/usage-header'
-import { UsageLimit } from '@/app/workspace/[workspaceId]/settings/components/usage-limit'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   BillingPeriodToggle,
-  BillingUsageNotificationsToggle,
   ComparisonTable,
-  CreditBalance,
-  ManagePlanModal,
-  type PlanName,
   UpgradePlanCard,
 } from '@/app/workspace/[workspaceId]/upgrade/components'
 import { useUpgradeState } from '@/app/workspace/[workspaceId]/upgrade/hooks'
@@ -49,10 +38,10 @@ export interface UpgradeProps {
 }
 
 /**
- * Full-screen Upgrade page. Renders the plan cards, the billing-period toggle,
- * and the manage-plan modal on top of the derived state from
- * {@link useUpgradeState}. All usage and billing controls live inside
- * {@link ManagePlanModal} for paid customers.
+ * Full-screen Upgrade page. Renders the plan cards and the billing-period
+ * toggle on top of the derived state from {@link useUpgradeState}. Plan and
+ * billing management (payment method, cancellation, invoices) lives on the
+ * Billing settings page.
  */
 export function Upgrade({ workspaceId }: UpgradeProps) {
   const state = useUpgradeState()
@@ -63,22 +52,6 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const handleBack = useCallback(() => {
     router.replace(origin ?? `/workspace/${workspaceId}/home`)
   }, [origin, router, workspaceId])
-
-  const handleSelectPlan = useCallback(
-    (plan: PlanName) => {
-      if (plan === 'Enterprise') {
-        window.open(TYPEFORM_ENTERPRISE_URL, '_blank')
-      } else if (plan === 'Pro') {
-        state.doUpgrade('pro', state.proTier.credits)
-      } else if (plan === 'Max') {
-        if (state.subscription.isPaid) state.upgradeOrSwitchToMax()
-        else state.doUpgrade('pro', state.maxTier.credits)
-      } else {
-        handleBack()
-      }
-    },
-    [handleBack, state]
-  )
 
   // Enterprise manages billing out-of-band, and self-hosted deployments with
   // billing disabled have no plans to surface — redirect to home in both cases.
@@ -102,25 +75,30 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
    * handler. A same-tier "Manage plan" card flips to an interval switch when the
    * billing-period toggle differs from the active subscription interval.
    */
-  const resolveCta = (card: UpgradeCardId): PlanCardCta & { onClick: () => void } => {
+  const resolveCta = (
+    card: UpgradeCardId
+  ): PlanCardCta & { onClick: () => void; disabled?: boolean } => {
     const cta = getUpgradeCardCta(planTier, card)
 
-    if (cta.intent === 'manage' && state.wantsIntervalSwitch) {
-      return {
-        ...cta,
-        label: `Switch to ${state.isAnnual ? 'Annual' : 'Monthly'}`,
-        onClick: () =>
-          state
-            .handleSwitchInterval(state.isAnnual ? 'year' : 'month')
-            .catch((e) => alert(getErrorMessage(e, 'Failed to switch interval'))),
+    if (cta.intent === 'manage') {
+      // Same-tier card. A billing-period toggle mismatch turns it into an
+      // interval switch; otherwise it's a non-actionable "Current Plan" marker
+      // (plan management lives on the Billing settings page).
+      if (state.wantsIntervalSwitch) {
+        return {
+          ...cta,
+          label: `Switch to ${state.isAnnual ? 'Annual' : 'Monthly'}`,
+          onClick: () =>
+            state
+              .handleSwitchInterval(state.isAnnual ? 'year' : 'month')
+              .catch((e) => alert(getErrorMessage(e, 'Failed to switch interval'))),
+        }
       }
+      return { ...cta, onClick: () => {}, disabled: true }
     }
 
     const onClick = (): void => {
       switch (cta.intent) {
-        case 'manage':
-          state.setManagePlanModalOpen(true)
-          return
         case 'sales':
           window.open(TYPEFORM_ENTERPRISE_URL, '_blank')
           return
@@ -144,6 +122,10 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const maxCta = resolveCta('max')
   const enterpriseCta = resolveCta('enterprise')
 
+  // Comparison-table CTAs reuse the card CTAs verbatim so both stay in sync.
+  // Free has no card and intentionally renders no button.
+  const comparisonCtas = { Pro: proCta, Max: maxCta, Enterprise: enterpriseCta }
+
   const proBanner = state.isOnPro ? 'Your plan' : undefined
   const maxBanner = state.isOnMax ? 'Your plan' : undefined
 
@@ -157,108 +139,6 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const priceSubtext = state.isAnnual
     ? 'per user/month, billed annually'
     : 'per user/month, billed monthly'
-
-  const organizationBilling = state.organizationBillingData?.data
-
-  const usageHeaderCurrent =
-    state.subscription.isOrgScoped && organizationBilling?.totalCurrentUsage != null
-      ? organizationBilling.totalCurrentUsage
-      : state.usage.current
-  const usageHeaderLimit = state.subscription.isOrgScoped
-    ? (organizationBilling?.totalUsageLimit ?? state.usage.limit)
-    : !state.subscription.isFree &&
-        (state.permissions.canEditUsageLimit || state.permissions.showTeamMemberView)
-      ? state.usage.current
-      : state.usage.limit
-
-  const showUsageLimit =
-    !state.subscription.isFree &&
-    (state.permissions.canEditUsageLimit || state.permissions.showTeamMemberView)
-
-  const isPaidWithUsage = state.subscription.isPaid && state.permissions.canViewUsageInfo
-  const showStripeActions =
-    state.subscription.isPaid &&
-    !state.permissions.showTeamMemberView &&
-    !state.permissions.isEnterpriseMember
-  const showBilledAccount = state.isTeamAdmin && state.isGrandfatheredSharedWorkspace
-  const showPeriodEnd =
-    state.subscription.isPaid &&
-    !!state.periodEnd &&
-    !state.permissions.showTeamMemberView &&
-    !state.permissions.isEnterpriseMember
-
-  const billingDetailsUsageHeader = state.permissions.canViewUsageInfo ? (
-    <UsageHeader
-      title={getDisplayPlanName(state.subscription.plan)}
-      showBadge={state.showBadge}
-      badgeText={state.badgeConfig.text}
-      badgeVariant={state.badgeConfig.variant}
-      onBadgeClick={state.permissions.showTeamMemberView ? undefined : state.handleBadgeClick}
-      seatsText={
-        state.permissions.canManageTeam || state.subscription.isEnterprise
-          ? `${state.subscription.seats} Seats`
-          : undefined
-      }
-      onDemandState={state.onDemandState}
-      onToggleOnDemand={
-        state.onDemandState === 'enable'
-          ? state.handleToggleOnDemand
-          : state.onDemandState === 'disable' && state.canDisableOnDemand
-            ? state.handleToggleOnDemand
-            : undefined
-      }
-      current={usageHeaderCurrent}
-      limit={usageHeaderLimit}
-      isBlocked={state.isBlocked}
-      progressValue={Math.min(state.usage.percentUsed, 100)}
-      rightContent={
-        showUsageLimit ? (
-          <UsageLimit
-            ref={state.usageLimitRef}
-            currentLimit={
-              state.subscription.isOrgScoped && state.isTeamAdmin && organizationBilling
-                ? organizationBilling.totalUsageLimit
-                : state.usageLimitData.currentLimit || state.usage.limit
-            }
-            currentUsage={state.usage.current}
-            canEdit={state.permissions.canEditUsageLimit}
-            minimumLimit={
-              state.subscription.isOrgScoped && state.isTeamAdmin && organizationBilling
-                ? organizationBilling.minimumBillingAmount
-                : state.usageLimitData.minimumLimit
-            }
-            context={state.shouldUseOrganizationBillingContext ? 'organization' : 'user'}
-            organizationId={
-              state.shouldUseOrganizationBillingContext
-                ? (state.billingOrganizationId ?? undefined)
-                : undefined
-            }
-          />
-        ) : undefined
-      }
-    />
-  ) : (
-    <div className='flex items-center'>
-      <span className='font-medium text-[var(--text-primary)] text-base'>
-        {getDisplayPlanName(state.subscription.plan)}
-      </span>
-    </div>
-  )
-
-  const billingDetailsCreditBalance =
-    isPaidWithUsage && !state.subscription.isEnterprise ? (
-      <CreditBalance
-        balance={state.creditBalance}
-        canPurchase={state.hasUsablePaidAccess && state.permissions.canEditUsageLimit}
-        entityType={state.subscription.isOrgScoped ? 'organization' : 'user'}
-        isLoading={state.isLoading}
-        onPurchaseComplete={state.refetchSubscription}
-      />
-    ) : undefined
-
-  const billingDetailsNotifications = isPaidWithUsage ? (
-    <BillingUsageNotificationsToggle />
-  ) : undefined
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -293,6 +173,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   features={PRO_PLAN_FEATURES}
                   buttonText={proCta.label}
                   onButtonClick={proCta.onClick}
+                  buttonDisabled={proCta.disabled}
                   highlighted={proCta.variant === 'primary'}
                   bannerText={proBanner}
                 />
@@ -308,6 +189,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   features={MAX_PLAN_FEATURES}
                   buttonText={maxCta.label}
                   onButtonClick={maxCta.onClick}
+                  buttonDisabled={maxCta.disabled}
                   highlighted={maxCta.variant === 'primary'}
                   bannerText={maxBanner}
                 />
@@ -321,6 +203,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                   features={ENTERPRISE_PLAN_FEATURES}
                   buttonText={enterpriseCta.label}
                   onButtonClick={enterpriseCta.onClick}
+                  buttonDisabled={enterpriseCta.disabled}
                   highlighted={enterpriseCta.variant === 'primary'}
                 />
               </div>
@@ -341,7 +224,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
                     maxPrice={`$${maxPrice}`}
                     isAnnual={state.isAnnual}
                     onIsAnnualChange={state.setIsAnnual}
-                    onSelectPlan={handleSelectPlan}
+                    ctas={comparisonCtas}
                   />
                 )}
               </div>
@@ -349,50 +232,6 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
           )}
         </div>
       </div>
-
-      <ManagePlanModal
-        open={state.managePlanModalOpen}
-        onOpenChange={state.setManagePlanModalOpen}
-        currentPlanCredits={getPlanTierCredits(state.subscription.plan)}
-        currentPlanDollars={getPlanTierDollars(state.subscription.plan)}
-        currentInterval={state.currentInterval}
-        isTeamPlan={state.subscription.isTeam}
-        isCancelledAtPeriodEnd={state.isCancelledAtPeriodEnd}
-        isLegacyPlan={state.isLegacyPlan}
-        onSwitchInterval={async (interval) => {
-          await state.handleSwitchInterval(interval)
-          state.setManagePlanModalOpen(false)
-        }}
-        onUpgradeToOtherTier={state.onUpgradeToOtherTier}
-        onUpgradeToCurrentTier={state.onUpgradeToCurrentTier}
-        onCancel={state.onCancel}
-        onRestore={state.onRestore}
-        billingDetails={
-          state.subscription.isPaid || state.isTeamAdmin
-            ? {
-                usageHeader: billingDetailsUsageHeader,
-                creditBalance: billingDetailsCreditBalance,
-                notificationsToggle: billingDetailsNotifications,
-                periodEnd: showPeriodEnd ? state.periodEnd : null,
-                isCancelledAtPeriodEnd: state.isCancelledAtPeriodEnd,
-                showStripeActions,
-                isBillingPortalPending: state.isBillingPortalPending,
-                onOpenBillingPortal: state.openBillingPortalWindow,
-                showBilledAccount,
-                workspaceAdmins: state.workspaceAdmins.map((a) => ({
-                  userId: a.userId,
-                  email: a.email,
-                })),
-                billedAccountUserId: state.billedAccountUserId,
-                canManageWorkspaceKeys: state.canManageWorkspaceKeys,
-                isUpdatingWorkspace: state.isUpdatingWorkspace,
-                onChangeBilledAccount: async (userId: string) => {
-                  await state.updateWorkspaceSettings({ billedAccountUserId: userId })
-                },
-              }
-            : undefined
-        }
-      />
     </div>
   )
 }

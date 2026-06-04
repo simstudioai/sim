@@ -1,5 +1,1 @@
-export {
-  type UpgradeState,
-  type UpgradeStateWorkspaceAdmin,
-  useUpgradeState,
-} from './use-upgrade-state'
+export { type UpgradeState, useUpgradeState } from './use-upgrade-state'

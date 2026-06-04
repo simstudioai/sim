@@ -618,7 +618,7 @@ function WorkspaceHeaderImpl({
                       e.stopPropagation()
                       setIsWorkspaceMenuOpen(false)
                       if (!canCreateWorkspace) {
-                        if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
+                        if (isBillingEnabled) navigateToSettings({ section: 'billing' })
                         return
                       }
                       setIsCreateModalOpen(true)
@@ -639,7 +639,7 @@ function WorkspaceHeaderImpl({
                   onClick={() => {
                     setIsWorkspaceMenuOpen(false)
                     if (isInvitationsDisabled) {
-                      if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
+                      if (isBillingEnabled) navigateToSettings({ section: 'billing' })
                       return
                     }
                     setIsInviteModalOpen(true)
@@ -656,7 +656,7 @@ function WorkspaceHeaderImpl({
                   onClick={() => {
                     setIsWorkspaceMenuOpen(false)
                     if (isInvitationsDisabled) {
-                      if (isBillingEnabled) navigateToSettings({ section: 'subscription' })
+                      if (isBillingEnabled) navigateToSettings({ section: 'billing' })
                       return
                     }
                     navigateToSettings({ section: 'teammates' })

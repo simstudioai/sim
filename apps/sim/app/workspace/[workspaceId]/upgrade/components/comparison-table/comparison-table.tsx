@@ -15,6 +15,17 @@ import {
 const CELL_ICONS = { slack: SlackIcon } as const
 
 /**
+ * Resolved CTA for a plan column, mirroring the upgrade-page plan cards so the
+ * table and cards stay in lockstep (same label, variant, and disabled state).
+ */
+export interface ComparisonPlanCta {
+  label: string
+  variant: 'primary' | 'border-shadow'
+  onClick: () => void
+  disabled?: boolean
+}
+
+/**
  * Props for {@link ComparisonTable}.
  */
 export interface ComparisonTableProps {
@@ -38,8 +49,11 @@ export interface ComparisonTableProps {
    * Should point to the same setter as the page-level toggle.
    */
   onIsAnnualChange: (isAnnual: boolean) => void
-  /** Invoked with the plan name when a column's CTA chip is clicked. */
-  onSelectPlan: (planName: PlanName) => void
+  /**
+   * Resolved CTA per plan column, mirroring the upgrade-page plan cards. Plans
+   * without an entry (e.g. Free) render no button.
+   */
+  ctas: Partial<Record<PlanName, ComparisonPlanCta>>
 }
 
 /**
@@ -114,6 +128,7 @@ function Cell({ value }: { value: CellValue }) {
  *   maxPrice={`$${maxPrice}`}
  *   isAnnual={state.isAnnual}
  *   onIsAnnualChange={state.setIsAnnual}
+ *   ctas={{ Pro: proCta, Max: maxCta, Enterprise: enterpriseCta }}
  * />
  * ```
  */
@@ -122,7 +137,7 @@ export function ComparisonTable({
   maxPrice,
   isAnnual,
   onIsAnnualChange,
-  onSelectPlan,
+  ctas,
 }: ComparisonTableProps) {
   const runtimePrices: Partial<Record<PlanName, string>> = {
     Pro: proPrice,
@@ -145,6 +160,7 @@ export function ComparisonTable({
 
         {PLAN_COLUMNS.map((col) => {
           const price = runtimePrices[col.name] ?? col.staticPrice ?? ''
+          const cta = ctas[col.name]
 
           return (
             <div
@@ -155,21 +171,20 @@ export function ComparisonTable({
               <span className='font-medium text-[var(--text-primary)] text-md tabular-nums'>
                 {price}
               </span>
-              <button
-                type='button'
-                onClick={() => onSelectPlan(col.name)}
-                aria-label={`${col.ctaLabel} — ${col.name}`}
-                className={cn(
-                  chipVariants({
-                    variant: col.highlighted ? 'primary' : 'border-shadow',
-                    fullWidth: true,
-                    flush: true,
-                  }),
-                  'mt-2 w-full justify-center'
-                )}
-              >
-                {col.ctaLabel}
-              </button>
+              {cta && (
+                <button
+                  type='button'
+                  onClick={cta.onClick}
+                  disabled={cta.disabled}
+                  aria-label={`${cta.label} — ${col.name}`}
+                  className={cn(
+                    chipVariants({ variant: cta.variant, fullWidth: true, flush: true }),
+                    'mt-2 w-full justify-center'
+                  )}
+                >
+                  {cta.label}
+                </button>
+              )}
             </div>
           )
         })}

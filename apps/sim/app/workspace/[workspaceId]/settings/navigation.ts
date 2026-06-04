@@ -1,5 +1,4 @@
 import {
-  Card,
   ClipboardList,
   Database,
   HexSimple,
@@ -31,7 +30,6 @@ export type SettingsSection =
   | 'audit-logs'
   | 'apikeys'
   | 'byok'
-  | 'subscription'
   | 'billing'
   | 'teammates'
   | 'organization'
@@ -118,19 +116,11 @@ export const allNavigationItems: NavigationItem[] = [
     selfHostedOverride: isAuditLogsEnabled,
   },
   {
-    id: 'subscription',
-    label: 'Subscription',
-    icon: Card,
-    section: 'subscription',
-    hideWhenBillingDisabled: true,
-  },
-  {
     id: 'billing',
     label: 'Billing',
     icon: ClipboardList,
     section: 'subscription',
     hideWhenBillingDisabled: true,
-    hideForEnterprise: true,
   },
   {
     id: 'teammates',

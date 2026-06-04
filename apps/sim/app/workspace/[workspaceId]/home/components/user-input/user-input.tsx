@@ -392,7 +392,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   }
 
   function handleUsageLimitExceeded() {
-    navigateToSettings({ section: 'subscription' })
+    navigateToSettings({ section: 'billing' })
   }
 
   const {
