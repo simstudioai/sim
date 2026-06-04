@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { textractParseContract } from '@/lib/api/contracts/tools/media/document-parse'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { validateS3BucketName } from '@/lib/core/security/input-validation'
 import {
   secureFetchWithPinnedIP,
@@ -22,7 +22,12 @@ import {
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // 5 minutes for large multi-page PDF processing
+/**
+ * Mirrors the maximum plan execution timeout (enterprise async, 90 minutes) used by
+ * `getMaxExecutionTimeout()` for the job polling loop below. Next.js requires a static
+ * literal for `maxDuration`, so this value must be kept in sync with that source.
+ */
+export const maxDuration = 5400
 
 const logger = createLogger('TextractParseAPI')
 
@@ -184,7 +189,7 @@ async function pollForJobCompletion(
   requestId: string
 ): Promise<Record<string, unknown>> {
   const pollIntervalMs = 5000
-  const maxPollTimeMs = DEFAULT_EXECUTION_TIMEOUT_MS
+  const maxPollTimeMs = getMaxExecutionTimeout()
   const maxAttempts = Math.ceil(maxPollTimeMs / pollIntervalMs)
 
   const getTarget = useAnalyzeDocument
