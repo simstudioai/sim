@@ -5,7 +5,7 @@ import { randomFloat } from '@sim/utils/random'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
   secureFetchWithPinnedIP,
@@ -1582,7 +1582,11 @@ async function executeToolRequest(
       try {
         if (isInternalRoute) {
           const controller = new AbortController()
-          const timeout = requestParams.timeout || getMaxExecutionTimeout()
+          // With a caller/execution abort signal present, the plan-based timeout bounds the call and
+          // this only acts as a ceiling; without one, keep the tighter default as the hang safety net.
+          const timeout =
+            requestParams.timeout ||
+            (signal ? getMaxExecutionTimeout() : DEFAULT_EXECUTION_TIMEOUT_MS)
           const timeoutId = setTimeout(
             () => controller.abort(`timeout:internal_tool_fetch:${timeout}ms`),
             timeout
