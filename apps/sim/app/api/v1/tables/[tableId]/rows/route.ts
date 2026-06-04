@@ -1,8 +1,5 @@
-import { db } from '@sim/db'
-import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type V1BatchInsertTableRowsBody,
@@ -24,13 +21,13 @@ import {
   deleteRowsByFilter,
   deleteRowsByIds,
   insertRow,
-  USER_TABLE_ROWS_SQL_NAME,
   updateRowsByFilter,
   validateBatchRows,
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
-import { buildFilterClause, buildSortClause, TableQueryValidationError } from '@/lib/table/sql'
+import { queryRows } from '@/lib/table/service'
+import { TableQueryValidationError } from '@/lib/table/sql'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -153,92 +150,33 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const baseConditions = [
-      eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, validated.workspaceId),
-    ]
-
-    const schema = table.schema as TableSchema
-
-    if (validated.filter) {
-      const filterClause = buildFilterClause(
-        validated.filter as Filter,
-        USER_TABLE_ROWS_SQL_NAME,
-        schema.columns
-      )
-      if (filterClause) {
-        baseConditions.push(filterClause)
-      }
-    }
-
-    let query = db
-      .select({
-        id: userTableRows.id,
-        data: userTableRows.data,
-        position: userTableRows.position,
-        createdAt: userTableRows.createdAt,
-        updatedAt: userTableRows.updatedAt,
-      })
-      .from(userTableRows)
-      .where(and(...baseConditions))
-
-    if (validated.sort) {
-      const sortClause = buildSortClause(validated.sort, USER_TABLE_ROWS_SQL_NAME, schema.columns)
-      if (sortClause) {
-        query = query.orderBy(sortClause) as typeof query
-      } else {
-        query = query.orderBy(userTableRows.position) as typeof query
-      }
-    } else {
-      query = query.orderBy(userTableRows.position) as typeof query
-    }
-
-    const rowsPromise = query.limit(validated.limit).offset(validated.offset)
-
-    let totalCount: number | null = null
-    if (validated.includeTotal) {
-      const countQuery = db
-        .select({ count: sql<number>`count(*)` })
-        .from(userTableRows)
-        .where(and(...baseConditions))
-      const [countResult, rows] = await Promise.all([countQuery, rowsPromise])
-      totalCount = Number(countResult[0].count)
-      return NextResponse.json({
-        success: true,
-        data: {
-          rows: rows.map((r) => ({
-            id: r.id,
-            data: r.data,
-            position: r.position,
-            createdAt:
-              r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-            updatedAt:
-              r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
-          })),
-          rowCount: rows.length,
-          totalCount,
-          limit: validated.limit,
-          offset: validated.offset,
-        },
-      })
-    }
-
-    const rows = await rowsPromise
+    const result = await queryRows(
+      table,
+      {
+        filter: validated.filter as Filter | undefined,
+        sort: validated.sort,
+        limit: validated.limit,
+        offset: validated.offset,
+        includeTotal: validated.includeTotal,
+        withExecutions: false,
+      },
+      requestId
+    )
 
     return NextResponse.json({
       success: true,
       data: {
-        rows: rows.map((r) => ({
+        rows: result.rows.map((r) => ({
           id: r.id,
           data: r.data,
           position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
         })),
-        rowCount: rows.length,
-        totalCount,
-        limit: validated.limit,
-        offset: validated.offset,
+        rowCount: result.rowCount,
+        totalCount: result.totalCount,
+        limit: result.limit,
+        offset: result.offset,
       },
     })
   } catch (error) {
