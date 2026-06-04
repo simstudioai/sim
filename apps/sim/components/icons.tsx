@@ -2743,6 +2743,18 @@ export function ClerkIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ClickHouseIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 150 150' xmlns='http://www.w3.org/2000/svg'>
+      <path d='m0 0h150v150h-150z' fill='#f9ff69' />
+      <path
+        d='m30 28.3c0-.6.5-1.1 1.1-1.1h8.4c.6 0 1.1.5 1.1 1.1v93.3c0 .6-.5 1.1-1.1 1.1h-8.4c-.6 0-1.1-.5-1.1-1.1zm21.2 0c0-.6.5-1.1 1.1-1.1h8.4c.6 0 1.1.5 1.1 1.1v93.3c0 .6-.5 1.1-1.1 1.1h-8.4c-.6 0-1.1-.5-1.1-1.1zm21.2 0c0-.6.5-1.1 1.1-1.1h8.4c.6 0 1.1.5 1.1 1.1v93.3c0 .6-.5 1.1-1.1 1.1h-8.4c-.6 0-1.1-.5-1.1-1.1zm21.3 0c0-.6.5-1.1 1.1-1.1h8.4c.6 0 1.1.5 1.1 1.1v93.3c0 .6-.5 1.1-1.1 1.1h-8.4c-.6 0-1.1-.5-1.1-1.1zm21.2 37.2c0-.6.5-1.1 1.1-1.1h8.4c.6 0 1.1.5 1.1 1.1v19c0 .6-.5 1.1-1.1 1.1h-8.4c-.6 0-1.1-.5-1.1-1.1z'
+        fill='#161616'
+      />
+    </svg>
+  )
+}
+
 export function MicrosoftIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23 23' {...props}>

@@ -28,6 +28,7 @@ import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock } from '@/blocks/blocks/circleback'
 import { ClayBlock } from '@/blocks/blocks/clay'
 import { ClerkBlock } from '@/blocks/blocks/clerk'
+import { ClickHouseBlock } from '@/blocks/blocks/clickhouse'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock } from '@/blocks/blocks/cloudformation'
 import { CloudWatchBlock } from '@/blocks/blocks/cloudwatch'
@@ -285,6 +286,7 @@ export const registry: Record<string, BlockConfig> = {
   crowdstrike: CrowdStrikeBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
+  clickhouse: ClickHouseBlock,
   condition: ConditionBlock,
   credential: CredentialBlock,
   confluence: ConfluenceBlock,
