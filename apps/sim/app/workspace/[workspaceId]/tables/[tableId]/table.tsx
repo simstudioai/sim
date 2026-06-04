@@ -27,6 +27,7 @@ import {
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
+import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadTableExport,
@@ -519,13 +520,16 @@ export function Table({
           createTrigger={createTrigger}
           actions={headerActions}
           leadingActions={
-            selection.totalRunning > 0 || selection.hasActiveDispatch ? (
-              <RunStatusControl
-                running={selection.totalRunning}
-                onStopAll={onStopAll}
-                isStopping={cancelRunsMutation.isPending}
-              />
-            ) : null
+            <>
+              <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
+              {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
+                <RunStatusControl
+                  running={selection.totalRunning}
+                  onStopAll={onStopAll}
+                  isStopping={cancelRunsMutation.isPending}
+                />
+              ) : null}
+            </>
           }
         />
       )}

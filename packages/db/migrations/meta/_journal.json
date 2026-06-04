@@ -1562,6 +1562,13 @@
       "when": 1780420540516,
       "tag": "0223_lowly_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 224,
+      "version": "7",
+      "when": 1780472914844,
+      "tag": "0224_table_import_columns",
+      "breakpoints": true
     }
   ]
 }

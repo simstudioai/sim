@@ -1,12 +1,15 @@
 /**
  * @vitest-environment node
  */
+import { Readable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import {
   buildAutoMapping,
   CsvImportValidationError,
   coerceRowsForTable,
   coerceValue,
+  createCsvParser,
+  csvParseOptions,
   inferColumnType,
   inferSchemaFromCsv,
   parseCsvBuffer,
@@ -272,6 +275,45 @@ describe('import', () => {
         new Map([['name', 'name']])
       )
       expect(rows).toEqual([{ name: 'Alice' }])
+    })
+  })
+
+  describe('createCsvParser', () => {
+    async function parseViaStream(csv: string, delimiter = ',') {
+      const parser = createCsvParser(delimiter)
+      Readable.from([csv]).pipe(parser)
+      const rows: Record<string, unknown>[] = []
+      for await (const record of parser as AsyncIterable<Record<string, unknown>>) {
+        rows.push(record)
+      }
+      return rows
+    }
+
+    it('streams records keyed by header, matching parseCsvBuffer', async () => {
+      const csv = 'name,age\nAlice,30\nBob,40\n'
+      const streamed = await parseViaStream(csv)
+      const { rows: buffered } = await parseCsvBuffer(csv)
+      expect(streamed).toEqual(buffered)
+      expect(streamed).toEqual([
+        { name: 'Alice', age: '30' },
+        { name: 'Bob', age: '40' },
+      ])
+    })
+
+    it('honors a TSV delimiter', async () => {
+      const rows = await parseViaStream('name\tage\nAlice\t30\n', '\t')
+      expect(rows).toEqual([{ name: 'Alice', age: '30' }])
+    })
+
+    it('strips a leading UTF-8 BOM', async () => {
+      const rows = await parseViaStream('﻿name,age\nAlice,30\n')
+      expect(Object.keys(rows[0])).toEqual(['name', 'age'])
+    })
+  })
+
+  describe('csvParseOptions', () => {
+    it('sets columns, bom, and the delimiter', () => {
+      expect(csvParseOptions('\t')).toMatchObject({ columns: true, bom: true, delimiter: '\t' })
     })
   })
 })

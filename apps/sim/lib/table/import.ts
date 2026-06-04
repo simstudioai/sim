@@ -2,14 +2,46 @@
  * Shared CSV import helpers for user-defined tables.
  *
  * Used by:
- * - `POST /api/table/import-csv` (create new table from CSV)
+ * - `POST /api/table/import-csv` (create new table from CSV — streams via {@link createCsvParser})
  * - `POST /api/table/[tableId]/import` (append/replace into existing table)
- * - Copilot `user-table` tool (`create_from_file`, `import_file`)
+ * - Copilot `user-table` tool (`create_from_file`, `import_file` — buffers via {@link parseCsvBuffer})
  *
  * Keeping a single implementation avoids drift between HTTP and agent code paths.
+ * Both the buffered ({@link parseCsvBuffer}) and streaming ({@link createCsvParser})
+ * parsers share {@link csvParseOptions} so their behavior can't drift.
  */
 
+import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
+
+/**
+ * Single source of truth for the `csv-parse` options used by both the buffered
+ * sync parser and the streaming parser. `columns: true` emits each record as an
+ * object keyed by the (first-row) headers.
+ */
+export function csvParseOptions(delimiter = ','): CsvParseOptions {
+  return {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+    relax_column_count: true,
+    relax_quotes: true,
+    skip_records_with_error: true,
+    cast: false,
+    bom: true,
+    delimiter,
+  }
+}
+
+/**
+ * Returns a streaming `csv-parse` parser (a `Transform`/async-iterable). Pipe a
+ * file stream into it and iterate records with `for await`; backpressure flows
+ * back to the source while each record is processed. Use this for HTTP uploads
+ * so the file is never fully buffered in memory.
+ */
+export function createCsvParser(delimiter = ','): Parser {
+  return parseCsvStream(csvParseOptions(delimiter))
+}
 
 /** Narrower type than `COLUMN_TYPES` used internally for coercion. */
 export type CsvColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
@@ -53,8 +85,10 @@ export class CsvImportValidationError extends Error {
 
 /**
  * Parses a CSV/TSV payload using `csv-parse/sync`. Accepts a Node `Buffer`,
- * browser-friendly `Uint8Array`, or already-decoded string. Strips a leading
- * UTF-8 BOM so headers are not silently prefixed with `\uFEFF`.
+ * browser-friendly `Uint8Array`, or already-decoded string. A leading UTF-8 BOM
+ * is stripped by csv-parse (`bom: true` in {@link csvParseOptions}).
+ *
+ * For HTTP uploads prefer {@link createCsvParser} so the file isn't buffered.
  */
 export async function parseCsvBuffer(
   input: Buffer | Uint8Array | string,
@@ -70,18 +104,10 @@ export async function parseCsvBuffer(
   } else {
     text = new TextDecoder('utf-8').decode(input as Uint8Array)
   }
-  text = text.replace(/^\uFEFF/, '')
 
-  const parsed = parse(text, {
-    columns: true,
-    skip_empty_lines: true,
-    trim: true,
-    relax_column_count: true,
-    relax_quotes: true,
-    skip_records_with_error: true,
-    cast: false,
-    delimiter,
-  }) as Record<string, unknown>[]
+  // double-cast-allowed: shared csvParseOptions() loses the `columns: true` literal that drives
+  // csv-parse's record-vs-string[][] overload, but `columns: true` is always set so records are objects
+  const parsed = parse(text, csvParseOptions(delimiter)) as unknown as Record<string, unknown>[]
 
   if (parsed.length === 0) {
     throw new Error('CSV file has no data rows')
@@ -388,4 +414,87 @@ export function coerceRowsForTable(
     }
     return coerced
   })
+}
+
+/**
+ * Sanitizes raw JSON keys so they conform to the same column-name rules as CSV
+ * headers, letting `inferSchemaFromCsv` and `coerceRowsForTable` be reused for
+ * JSON imports. Collisions after sanitization are disambiguated with a trailing
+ * underscore. Returns the headers and rows untouched when no key needs renaming.
+ */
+export function sanitizeJsonHeaders(
+  headers: string[],
+  rows: Record<string, unknown>[]
+): { headers: string[]; rows: Record<string, unknown>[] } {
+  const renamed = new Map<string, string>()
+  const seen = new Set<string>()
+
+  for (const raw of headers) {
+    let safe = sanitizeName(raw)
+    while (seen.has(safe)) safe = `${safe}_`
+    seen.add(safe)
+    renamed.set(raw, safe)
+  }
+
+  const noChange = headers.every((h) => renamed.get(h) === h)
+  if (noChange) return { headers, rows }
+
+  return {
+    headers: headers.map((h) => renamed.get(h)!),
+    rows: rows.map((row) => {
+      const out: Record<string, unknown> = {}
+      for (const [raw, safe] of renamed) {
+        if (raw in row) out[safe] = row[raw]
+      }
+      return out
+    }),
+  }
+}
+
+/**
+ * Parses a JSON payload that must be an array of plain objects into the same
+ * `{ headers, rows }` shape produced by `parseCsvBuffer`. The header set is the
+ * union of all object keys, sanitized via {@link sanitizeJsonHeaders}.
+ */
+export function parseJsonRows(buffer: Buffer | string): {
+  headers: string[]
+  rows: Record<string, unknown>[]
+} {
+  const text = typeof buffer === 'string' ? buffer : buffer.toString('utf-8')
+  const parsed = JSON.parse(text)
+  if (!Array.isArray(parsed)) {
+    throw new Error('JSON file must contain an array of objects')
+  }
+  if (parsed.length === 0) {
+    throw new Error('JSON file contains an empty array')
+  }
+  const headerSet = new Set<string>()
+  for (const row of parsed) {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+      throw new Error('Each element in the JSON array must be a plain object')
+    }
+    for (const key of Object.keys(row)) headerSet.add(key)
+  }
+  return sanitizeJsonHeaders([...headerSet], parsed)
+}
+
+/**
+ * Parses a tabular upload (CSV, TSV, or JSON array-of-objects) into a uniform
+ * `{ headers, rows }` shape, dispatching on file extension and falling back to
+ * the MIME content type. Throws on unsupported formats so callers fail fast.
+ */
+export async function parseFileRows(
+  buffer: Buffer,
+  fileName: string,
+  contentType?: string
+): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
+  const ext = fileName.split('.').pop()?.toLowerCase()
+  if (ext === 'json' || contentType === 'application/json') {
+    return parseJsonRows(buffer)
+  }
+  if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
+    const delimiter = ext === 'tsv' ? '\t' : ','
+    return parseCsvBuffer(buffer, delimiter)
+  }
+  throw new Error(`Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`)
 }
