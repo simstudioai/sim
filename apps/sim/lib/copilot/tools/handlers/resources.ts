@@ -1,5 +1,6 @@
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
@@ -7,7 +8,6 @@ import {
   getWorkspaceFile,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import type { OpenResourceItem, OpenResourceParams, ValidOpenResourceParams } from './param-types'
 

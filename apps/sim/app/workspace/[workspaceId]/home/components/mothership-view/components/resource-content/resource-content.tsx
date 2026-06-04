@@ -15,12 +15,12 @@ import {
 } from '@/components/emcn/icons'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import {
   cancelRunToolExecution,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
@@ -221,7 +221,11 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
     case 'file':
       return (
-        <EmbeddedFileActions workspaceId={workspaceId} fileId={resource.id} filePath={resource.path} />
+        <EmbeddedFileActions
+          workspaceId={workspaceId}
+          fileId={resource.id}
+          filePath={resource.path}
+        />
       )
     case 'knowledgebase':
       return (

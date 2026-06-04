@@ -9,10 +9,10 @@ import {
   ExpandableContent,
   SecretReveal,
 } from '@/components/emcn'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import type {
   ChatMessageContext,
   MothershipResource,
@@ -527,7 +527,8 @@ export function WorkspaceResourceDisplay({
       data.type === 'file' && data.path
         ? files.find(
             (file) =>
-              canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === data.path
+              canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) ===
+              data.path
           )
         : undefined
     const title =

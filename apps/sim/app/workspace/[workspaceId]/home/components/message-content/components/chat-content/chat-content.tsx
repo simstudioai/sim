@@ -169,10 +169,15 @@ const MARKDOWN_COMPONENTS = {
             e.preventDefault()
             const match = href.match(/^#wsres-(\w+)-(.+)$/)
             if (match) {
-              const linkText = e.currentTarget.textContent || match[2]
+              const type = match[1]
+              const ref = match[2]
+              const linkText = e.currentTarget.textContent || ref
               window.dispatchEvent(
                 new CustomEvent('wsres-click', {
-                  detail: { type: match[1], id: match[2], title: linkText },
+                  detail:
+                    type === 'file'
+                      ? { type, path: ref, title: linkText }
+                      : { type, id: ref, title: linkText },
                 })
               )
             }
@@ -275,8 +280,13 @@ function ChatContentInner({
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const { type, id, title } = (e as CustomEvent).detail
-      onWorkspaceResourceSelectRef.current?.({ type, id, title: title || id })
+      const { type, id, path, title } = (e as CustomEvent).detail
+      onWorkspaceResourceSelectRef.current?.({
+        type,
+        id: id ?? '',
+        path,
+        title: title || id || path || '',
+      })
     }
     window.addEventListener('wsres-click', handler)
     return () => window.removeEventListener('wsres-click', handler)
@@ -311,10 +321,14 @@ function ChatContentInner({
       const s = parsed.segments[i]
       const nextSegment = parsed.segments[i + 1]
       if (s.type === 'workspace_resource') {
-        const label = s.data.title || s.data.id
+        // Files are addressed by their encoded VFS path (copied verbatim from the tag);
+        // workflows/tables/KBs by id. The angle-bracket link destination keeps the path
+        // intact through markdown parsing (tolerates parens) without re-encoding it.
+        const ref = s.data.type === 'file' ? (s.data.path ?? s.data.id ?? '') : (s.data.id ?? '')
+        const label = s.data.title || ref
         pendingMarkdown = appendInlineReferenceMarkdown(
           pendingMarkdown,
-          `[${label}](#wsres-${s.data.type}-${s.data.id})`,
+          `[${label}](<#wsres-${s.data.type}-${ref}>)`,
           nextSegment
         )
       } else if (s.type === 'text' || s.type === 'thinking') {
