@@ -403,6 +403,7 @@ function classifyHostedKeyFailure(error: unknown): 'rate_limited' | 'auth' | 'ot
 interface RetryContext {
   requestId: string
   toolId: string
+  provider: string
   envVarName: string
   executionContext?: ExecutionContext
   /**
@@ -429,7 +430,7 @@ async function executeWithRetry<T>(
   maxRetries = 3,
   baseDelayMs = 1000
 ): Promise<T> {
-  const { requestId, toolId, envVarName, executionContext, reacquireAfterRetriesExhausted } =
+  const { requestId, toolId, provider, envVarName, executionContext, reacquireAfterRetriesExhausted } =
     context
   let lastError: unknown
 
@@ -461,6 +462,7 @@ async function executeWithRetry<T>(
           PlatformEvents.hostedKeyUserThrottled({
             toolId,
             reason: 'upstream_retries_exhausted',
+            provider,
             userId: executionContext?.userId,
             workspaceId: executionContext?.workspaceId,
             workflowId: executionContext?.workflowId,
@@ -1209,6 +1211,7 @@ export async function executeTool(
       ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams, signal), {
           requestId,
           toolId,
+          provider: tool.hosting?.byokProviderId || tool.id,
           envVarName: hostedKeyInfo.envVarName!,
           executionContext,
           reacquireAfterRetriesExhausted: async () => {
