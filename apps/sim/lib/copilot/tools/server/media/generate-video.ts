@@ -22,6 +22,7 @@ interface GenerateVideoArgs {
   resolution?: string
   duration?: number
   generateAudio?: boolean
+  negativePrompt?: string
   promptOptimizer?: boolean
   inputs?: { files?: Array<{ path: string }> }
   outputs?: {
@@ -83,6 +84,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         resolution: params.resolution,
         duration: params.duration,
         generateAudio: params.generateAudio,
+        negativePrompt: params.negativePrompt,
         promptOptimizer: params.promptOptimizer,
         imageDataUri,
       })

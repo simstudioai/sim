@@ -18,6 +18,7 @@ interface FalVideoModelConfig {
   supportsAspectRatio?: boolean
   supportsResolution?: boolean
   supportsGenerateAudio?: boolean
+  supportsNegativePrompt?: boolean
   supportsPromptOptimizer?: boolean
 }
 
@@ -31,6 +32,7 @@ const VIDEO_MODELS: Record<string, FalVideoModelConfig> = {
     supportsAspectRatio: true,
     supportsResolution: true,
     supportsGenerateAudio: true,
+    supportsNegativePrompt: true,
   },
   'veo-3.1-fast': {
     endpoint: 'fal-ai/veo3.1/fast',
@@ -39,18 +41,16 @@ const VIDEO_MODELS: Record<string, FalVideoModelConfig> = {
     supportsAspectRatio: true,
     supportsResolution: true,
     supportsGenerateAudio: true,
+    supportsNegativePrompt: true,
   },
-  'sora-2': {
-    endpoint: 'fal-ai/sora-2/text-to-video',
-    durationFormat: 'number',
+  'veo-3.1-lite': {
+    endpoint: 'fal-ai/veo3.1/lite',
+    i2vEndpoint: 'fal-ai/veo3.1/lite/image-to-video',
+    durationFormat: 'seconds',
     supportsAspectRatio: true,
     supportsResolution: true,
-  },
-  'sora-2-pro': {
-    endpoint: 'fal-ai/sora-2/text-to-video/pro',
-    durationFormat: 'number',
-    supportsAspectRatio: true,
-    supportsResolution: true,
+    supportsGenerateAudio: true,
+    supportsNegativePrompt: true,
   },
   'seedance-2.0': {
     endpoint: 'bytedance/seedance-2.0/text-to-video',
@@ -93,9 +93,10 @@ const VIDEO_MODELS: Record<string, FalVideoModelConfig> = {
   },
 }
 
-// Default to the Fast tier: same Veo 3.1 family with native audio, but the
-// cheapest tier on fal (~$0.10-0.15/s vs ~$0.40/s Standard, and cheaper than
-// Seedance ~$0.24-0.30/s). Agent can override to veo-3.1 (4K/cinematic) etc.
+// Default to Veo 3.1 Fast: the same Veo model family — good 1080p video with native
+// 48kHz audio + lip-sync — at ~1/3 the cost of Standard (~$0.15/s vs ~$0.40/s). The
+// gap is surface detail / 4K, not "good vs bad". The agent overrides to veo-3.1
+// (Standard) only when the user explicitly asks for very high / premium quality.
 export const DEFAULT_VIDEO_MODEL = 'veo-3.1-fast'
 
 export interface GenerateFalVideoParams {
@@ -105,6 +106,8 @@ export interface GenerateFalVideoParams {
   resolution?: string
   duration?: number
   generateAudio?: boolean
+  /** Things to exclude from the generation, e.g. "no background music" (Veo models). */
+  negativePrompt?: string
   promptOptimizer?: boolean
   /** Optional start-frame image as a data URI; when set, routes to the model's image-to-video endpoint. */
   imageDataUri?: string
@@ -161,6 +164,9 @@ export async function generateFalVideo(params: GenerateFalVideoParams): Promise<
   if (config.supportsResolution && params.resolution) input.resolution = params.resolution
   if (config.supportsGenerateAudio && params.generateAudio !== undefined) {
     input.generate_audio = params.generateAudio
+  }
+  if (config.supportsNegativePrompt && params.negativePrompt) {
+    input.negative_prompt = params.negativePrompt
   }
   if (config.supportsPromptOptimizer && params.promptOptimizer !== undefined) {
     input.prompt_optimizer = params.promptOptimizer

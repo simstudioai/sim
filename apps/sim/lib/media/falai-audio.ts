@@ -20,6 +20,10 @@ export interface GenerateFalAudioParams {
   model?: string
   voice?: string
   duration?: number
+  /** For music: explicit lyrics (with optional [Verse]/[Chorus] tags). Implies a vocal track. */
+  lyrics?: string
+  /** For music: true = instrumental (no vocals, default); false = vocal track. */
+  instrumental?: boolean
   /** When set, clones the voice from this reference sample (data URI) via a zero-shot clone model. */
   voiceSampleDataUri?: string
 }
@@ -33,7 +37,11 @@ export interface GeneratedAudio {
   cost: FalAICostMetadata
 }
 
-function buildInput(type: AudioType, params: GenerateFalAudioParams): Record<string, unknown> {
+function buildInput(
+  type: AudioType,
+  params: GenerateFalAudioParams,
+  model: string
+): Record<string, unknown> {
   const input: Record<string, unknown> = {}
   if (type === 'speech') {
     // Gemini 3.1 Flash TTS takes the text (with optional inline tags) in `prompt`.
@@ -44,9 +52,31 @@ function buildInput(type: AudioType, params: GenerateFalAudioParams): Record<str
     input.text = params.prompt
     if (params.duration !== undefined) input.duration_seconds = params.duration
   } else {
-    // Music models take a `prompt` describing the track.
+    // Music. Two modes, both supported:
+    //  - instrumental bed (default): no vocals, no lyrics required
+    //  - song with vocals: explicit `lyrics`, or auto-written from the prompt
     input.prompt = params.prompt
-    if (params.duration !== undefined) input.duration = params.duration
+    const wantsVocals = params.instrumental === false || Boolean(params.lyrics)
+    if (model.includes('minimax')) {
+      // MiniMax Music 2.6 requires `lyrics` unless is_instrumental=true, and rejects a
+      // top-level `duration` (that combination is the 422 we were hitting on every call).
+      if (wantsVocals) {
+        input.is_instrumental = false
+        if (params.lyrics) input.lyrics = params.lyrics
+        else input.lyrics_optimizer = true
+      } else {
+        input.is_instrumental = true
+      }
+    } else if (model.includes('elevenlabs/music')) {
+      if (!wantsVocals) input.force_instrumental = true
+      if (params.lyrics) input.prompt = `${params.prompt}\n\nLyrics:\n${params.lyrics}`
+      if (params.duration !== undefined) input.music_length_ms = Math.round(params.duration * 1000)
+    } else {
+      // Other music models: best-effort passthrough.
+      if (params.instrumental !== undefined) input.instrumental = params.instrumental
+      if (params.lyrics) input.lyrics = params.lyrics
+      if (params.duration !== undefined) input.duration = params.duration
+    }
   }
   return input
 }
@@ -80,7 +110,7 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
   }
 
   const model = params.model || DEFAULT_AUDIO_MODELS[type]
-  const input = buildInput(type, params)
+  const input = buildInput(type, params, model)
 
   // For fal audio models the model ID is the queue endpoint.
   const { requestId, data } = await runFalQueue(model, input, apiKey)

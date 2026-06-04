@@ -350,27 +350,81 @@ async function mixAudio(
 
 async function concat(dir: string, inputPaths: string[]): Promise<FfmpegResult> {
   if (inputPaths.length < 2) throw new Error('concat requires at least 2 clips')
-  const first = await probeFile(inputPaths[0])
-  const width = first.width || 1280
-  const height = first.height || 720
-  const outputPath = path.join(dir, 'out.mp4')
-
-  const command = ffmpeg()
-  for (const p of inputPaths) command.input(p)
-
-  const filters: string[] = []
-  const labels: string[] = []
-  inputPaths.forEach((_, i) => {
-    filters.push(
-      `[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v${i}]`
-    )
-    filters.push(`[${i}:a]aresample=async=1:first_pts=0[a${i}]`)
-    labels.push(`[v${i}][a${i}]`)
+  const probes = await Promise.all(inputPaths.map(probeFile))
+  probes.forEach((p, i) => {
+    if (!p.hasVideo) {
+      throw new Error(
+        `concat input ${i} has no video stream; concat joins video clips (use mix_audio/overlay_audio for audio-only files).`
+      )
+    }
   })
-  filters.push(`${labels.join('')}concat=n=${inputPaths.length}:v=1:a=1[v][a]`)
+  const width = probes[0].width || 1280
+  const height = probes[0].height || 720
+  const fps = 30
 
-  command.complexFilter(filters).outputOptions(['-map', '[v]', '-map', '[a]'])
-  await runCommand(command, outputPath)
+  // Normalize every clip to identical codec/size/fps/pixfmt, and SYNTHESIZE silent
+  // audio for clips that have no audio stream. Clips generated without native audio
+  // (generateAudio:false) otherwise break the concat filtergraph (it referenced a
+  // non-existent [i:a]), which is the "Error binding filtergraph inputs/outputs" failure.
+  const normalized: string[] = []
+  for (let i = 0; i < inputPaths.length; i++) {
+    const out = path.join(dir, `norm-${i}.mp4`)
+    const cmd = ffmpeg().input(inputPaths[i])
+    const maps: string[] = ['-map', '0:v:0']
+    const extra: string[] = []
+    if (probes[i].hasAudio) {
+      maps.push('-map', '0:a:0')
+    } else {
+      cmd
+        .input('anullsrc=channel_layout=stereo:sample_rate=48000')
+        .inputOptions(['-f', 'lavfi', '-t', String(probes[i].durationSeconds || 1)])
+      maps.push('-map', '1:a:0')
+      extra.push('-shortest')
+    }
+    cmd
+      .videoFilters(
+        `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p`
+      )
+      .outputOptions([
+        ...maps,
+        '-c:v',
+        'libx264',
+        '-preset',
+        'medium',
+        '-crf',
+        '18',
+        '-pix_fmt',
+        'yuv420p',
+        '-r',
+        String(fps),
+        '-video_track_timescale',
+        '90000',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '192k',
+        '-ar',
+        '48000',
+        '-ac',
+        '2',
+        ...extra,
+      ])
+    await runCommand(cmd, out)
+    normalized.push(out)
+  }
+
+  // Concatenate the now-uniform clips with the concat demuxer (stream copy: fast + reliable).
+  const listPath = path.join(dir, 'concat-list.txt')
+  await fs.writeFile(
+    listPath,
+    normalized.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n')
+  )
+  const outputPath = path.join(dir, 'out.mp4')
+  const concatCmd = ffmpeg()
+    .input(listPath)
+    .inputOptions(['-f', 'concat', '-safe', '0'])
+    .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
+  await runCommand(concatCmd, outputPath)
   return readOut(outputPath, 'mp4')
 }
 

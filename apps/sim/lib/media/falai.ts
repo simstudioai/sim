@@ -121,11 +121,13 @@ export async function runFalQueue(
 
     const statusResponse = await fetch(statusUrl, { headers: { Authorization: `Key ${apiKey}` } })
     if (!statusResponse.ok) {
-      await readResponseTextWithLimit(statusResponse, {
+      const body = await readResponseTextWithLimit(statusResponse, {
         maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
         label: 'Fal.ai status error response',
       }).catch(() => '')
-      throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
+      throw new Error(
+        `Fal.ai status check failed: ${statusResponse.status}${body ? ` - ${body}` : ''}`
+      )
     }
 
     const statusData = await readResponseJsonWithLimit(statusResponse, {
@@ -143,11 +145,13 @@ export async function runFalQueue(
         headers: { Authorization: `Key ${apiKey}` },
       })
       if (!resultResponse.ok) {
-        await readResponseTextWithLimit(resultResponse, {
+        const body = await readResponseTextWithLimit(resultResponse, {
           maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
           label: 'Fal.ai result error response',
         }).catch(() => '')
-        throw new Error(`Failed to fetch Fal.ai result: ${resultResponse.status}`)
+        throw new Error(
+          `Failed to fetch Fal.ai result: ${resultResponse.status}${body ? ` - ${body}` : ''}`
+        )
       }
       const resultData = await readResponseJsonWithLimit(resultResponse, {
         maxBytes: MAX_MEDIA_JSON_BYTES,

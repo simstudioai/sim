@@ -1217,7 +1217,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         duration: {
           type: 'number',
-          description: 'Approximate duration in seconds for music/sfx where supported.',
+          description:
+            'Approximate duration in seconds for sfx (and music models that support it). MiniMax music ignores this — fit music to a video with the ffmpeg tool instead.',
         },
         inputs: {
           type: 'object',
@@ -1287,6 +1288,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
             },
           },
+        },
+        instrumental: {
+          type: 'boolean',
+          description:
+            'For music: true = instrumental, no vocals (default); false = a song with vocals.',
+        },
+        lyrics: {
+          type: 'string',
+          description:
+            'For music with vocals: the lyrics to sing (optional; supports [Verse]/[Chorus] tags). Setting this implies instrumental=false.',
         },
         model: {
           type: 'string',
@@ -1497,7 +1508,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         generateAudio: {
           type: 'boolean',
-          description: 'Generate native audio when the model supports it (default true for Veo).',
+          description:
+            "Toggle Veo's native audio (dialogue/SFX/ambience/music generated from the prompt). Default true. Set false when you will add your own voiceover/music via the ffmpeg tool.",
         },
         inputs: {
           type: 'object',
@@ -1571,12 +1583,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         model: {
           type: 'string',
           description:
-            'Optional model override. Defaults to veo-3.1-fast (native audio, cheapest Veo tier). Use veo-3.1 for 4K/cinematic; seedance-2.0 for longer narrative.',
+            "Optional model override, keyed to the video's goal: veo-3.1-lite (prototype/quick test, cheapest), veo-3.1-fast (reasonable draft — default, good video), veo-3.1 Standard (final cut / premium quality). Stay on Veo unless the user explicitly asks for another model; seedance-2.0 for >8s narrative, kling-v3-pro for specific looks.",
           enum: [
             'veo-3.1',
             'veo-3.1-fast',
-            'sora-2',
-            'sora-2-pro',
+            'veo-3.1-lite',
             'seedance-2.0',
             'seedance-2.0-fast',
             'kling-v3-pro',
@@ -1584,6 +1595,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'wan-2.2-a14b-turbo',
             'ltx-2.3',
           ],
+        },
+        negativePrompt: {
+          type: 'string',
+          description:
+            'Things to exclude from the video/audio (Veo models), e.g. "no background music" to keep dialogue but drop Veo\'s invented music before overlaying your own track.',
         },
         outputs: {
           type: 'object',

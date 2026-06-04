@@ -23,6 +23,10 @@ interface GenerateAudioArgs {
   model?: string
   voice?: string
   duration?: number
+  /** For music: explicit lyrics for a vocal track. */
+  lyrics?: string
+  /** For music: true = instrumental (default), false = vocal track. */
+  instrumental?: boolean
   /** Optional reference voice sample (workspace audio file) for zero-shot voice cloning. */
   inputs?: { files?: Array<{ path: string }> }
   outputs?: {
@@ -103,6 +107,8 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         model: params.model,
         voice: params.voice,
         duration: params.duration,
+        lyrics: params.lyrics,
+        instrumental: params.instrumental,
         voiceSampleDataUri,
       })
 
