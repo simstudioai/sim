@@ -136,18 +136,29 @@ const READ_ONLY_STATEMENT = /^(select|with|show|describe|desc|explain|exists)\b/
 
 /**
  * Normalizes the output format of a read statement to JSON so the HTTP response
- * can always be parsed into rows: strips any trailing `FORMAT <x>` (e.g. CSV or
- * TabSeparated, which `parseRowsResult` cannot read) and appends `FORMAT JSON`.
+ * can always be parsed into rows. Strips every `FORMAT <name>` clause — wherever
+ * it sits relative to a trailing `SETTINGS` clause — and appends a single canonical
+ * `FORMAT JSON`. The `format()` function and `FORMAT`/format names appearing inside
+ * strings or comments are ignored (the scan runs on comment/string-masked SQL).
  * Non-read statements are returned untouched (their own FORMAT, e.g. JSONEachRow
  * for inserts, is preserved).
  */
 function ensureJsonFormat(query: string): string {
   const trimmed = query.trim().replace(/;+\s*$/, '')
-  if (READ_ONLY_STATEMENT.test(trimmed)) {
-    const withoutFormat = trimmed.replace(/\s+format\s+[a-z0-9_]+\s*$/i, '')
-    return `${withoutFormat}\nFORMAT JSON`
+  if (!READ_ONLY_STATEMENT.test(trimmed)) {
+    return trimmed
   }
-  return trimmed
+  const masked = maskSqlNoise(trimmed)
+  const formatClause = /\bformat\s+[a-z0-9_]+\b/gi
+  const spans: Array<[number, number]> = []
+  for (let match = formatClause.exec(masked); match !== null; match = formatClause.exec(masked)) {
+    spans.push([match.index, match.index + match[0].length])
+  }
+  let result = trimmed
+  for (let i = spans.length - 1; i >= 0; i--) {
+    result = result.slice(0, spans[i][0]) + result.slice(spans[i][1])
+  }
+  return `${result.replace(/\s+$/, '')}\nFORMAT JSON`
 }
 
 /**
@@ -637,6 +648,46 @@ export async function executeClickHouseDropDatabase(
   await clickhouseRequest(config, `DROP DATABASE IF EXISTS ${sanitizeIdentifier(name)}`)
 }
 
+/**
+ * Validates a single ClickHouse column type. Types may legitimately contain
+ * commas, single-quoted strings, `=`, and `-` inside their parameter parentheses
+ * (e.g. `Decimal(10, 2)`, `Enum8('a' = 1, 'b' = -2)`, `Map(String, UInt64)`,
+ * `Array(Tuple(a UInt8, b String))`). We allow those but reject anything that
+ * could break out of the single type literal and inject another column or SQL:
+ * comment/terminator sequences, a top-level (unparenthesised) comma, or an
+ * unbalanced closing paren.
+ */
+function validateColumnType(type: string): void {
+  const trimmed = type.trim()
+  if (!trimmed || !/^[A-Za-z_]/.test(trimmed)) {
+    throw new Error(`Invalid column type: ${type}`)
+  }
+  if (!/^[A-Za-z0-9_(),.\s'"=-]+$/.test(trimmed) || /--|;/.test(trimmed)) {
+    throw new Error(`Invalid column type: ${type}`)
+  }
+  let depth = 0
+  let inString = false
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i]
+    if (inString) {
+      if (ch === '\\') i++
+      else if (ch === "'") inString = false
+      continue
+    }
+    if (ch === "'") inString = true
+    else if (ch === '(') depth++
+    else if (ch === ')') {
+      depth--
+      if (depth < 0) throw new Error(`Invalid column type: ${type}`)
+    } else if (ch === ',' && depth === 0) {
+      throw new Error(`Invalid column type: ${type}`)
+    }
+  }
+  if (inString || depth !== 0) {
+    throw new Error(`Invalid column type: ${type}`)
+  }
+}
+
 export async function executeClickHouseCreateTable(
   config: ClickHouseConnectionConfig,
   table: string,
@@ -653,9 +704,7 @@ export async function executeClickHouseCreateTable(
     if (!column?.name || !column?.type) {
       throw new Error('Each column requires a name and type')
     }
-    if (!/^[A-Za-z0-9_(),.'"\s]+$/.test(column.type)) {
-      throw new Error(`Invalid column type: ${column.type}`)
-    }
+    validateColumnType(column.type)
     return `${sanitizeIdentifier(column.name)} ${column.type.trim()}`
   })
 
