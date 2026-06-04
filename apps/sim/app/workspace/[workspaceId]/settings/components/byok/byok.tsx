@@ -7,6 +7,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
+  ChevronDown,
   Chip,
   ChipModal,
   ChipModalBody,
@@ -14,6 +15,11 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  chipVariants,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Input as EmcnInput,
   SearchInput,
 } from '@/components/emcn'
@@ -52,12 +58,24 @@ import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKSettings')
 
+const ALL_CATEGORY = 'All'
+
+const PROVIDER_CATEGORIES = [
+  { id: 'models', label: 'Models' },
+  { id: 'search', label: 'Search & Web' },
+  { id: 'enrichment', label: 'Data & Enrichment' },
+  { id: 'media', label: 'Media' },
+] as const
+
+type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number]['id']
+
 const PROVIDERS: {
   id: BYOKProviderId
   name: string
   icon: React.ComponentType<{ className?: string }>
   description: string
   placeholder: string
+  category: ProviderCategory
 }[] = [
   {
     id: 'openai',
@@ -65,6 +83,7 @@ const PROVIDERS: {
     icon: OpenAIIcon,
     description: 'LLM calls and Knowledge Base embeddings',
     placeholder: 'sk-...',
+    category: 'models',
   },
   {
     id: 'anthropic',
@@ -72,6 +91,7 @@ const PROVIDERS: {
     icon: AnthropicIcon,
     description: 'LLM calls',
     placeholder: 'sk-ant-...',
+    category: 'models',
   },
   {
     id: 'google',
@@ -79,6 +99,7 @@ const PROVIDERS: {
     icon: GeminiIcon,
     description: 'LLM calls',
     placeholder: 'Enter your API key',
+    category: 'models',
   },
   {
     id: 'mistral',
@@ -86,6 +107,7 @@ const PROVIDERS: {
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+    category: 'models',
   },
   {
     id: 'fireworks',
@@ -93,6 +115,7 @@ const PROVIDERS: {
     icon: FireworksIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Fireworks API key',
+    category: 'models',
   },
   {
     id: 'together',
@@ -100,6 +123,7 @@ const PROVIDERS: {
     icon: TogetherIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Together AI API key',
+    category: 'models',
   },
   {
     id: 'baseten',
@@ -107,6 +131,7 @@ const PROVIDERS: {
     icon: BasetenIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Baseten API key',
+    category: 'models',
   },
   {
     id: 'ollama-cloud',
@@ -114,6 +139,7 @@ const PROVIDERS: {
     icon: OllamaIcon,
     description: 'LLM calls',
     placeholder: 'Enter your Ollama API key',
+    category: 'models',
   },
   {
     id: 'falai',
@@ -121,6 +147,7 @@ const PROVIDERS: {
     icon: ImageIcon,
     description: 'Image and video generation',
     placeholder: 'Enter your Fal.ai API key',
+    category: 'media',
   },
   {
     id: 'firecrawl',
@@ -128,6 +155,7 @@ const PROVIDERS: {
     icon: FirecrawlIcon,
     description: 'Web scraping, crawling, search, and extraction',
     placeholder: 'Enter your Firecrawl API key',
+    category: 'search',
   },
   {
     id: 'exa',
@@ -135,6 +163,7 @@ const PROVIDERS: {
     icon: ExaAIIcon,
     description: 'AI-powered search and research',
     placeholder: 'Enter your Exa API key',
+    category: 'search',
   },
   {
     id: 'serper',
@@ -142,6 +171,7 @@ const PROVIDERS: {
     icon: SerperIcon,
     description: 'Google search API',
     placeholder: 'Enter your Serper API key',
+    category: 'search',
   },
   {
     id: 'linkup',
@@ -149,6 +179,7 @@ const PROVIDERS: {
     icon: LinkupIcon,
     description: 'Web search and content retrieval',
     placeholder: 'Enter your Linkup API key',
+    category: 'search',
   },
   {
     id: 'parallel_ai',
@@ -156,6 +187,7 @@ const PROVIDERS: {
     icon: ParallelIcon,
     description: 'Web search, extraction, and deep research',
     placeholder: 'Enter your Parallel AI API key',
+    category: 'search',
   },
   {
     id: 'perplexity',
@@ -163,6 +195,7 @@ const PROVIDERS: {
     icon: PerplexityIcon,
     description: 'AI-powered chat and web search',
     placeholder: 'pplx-...',
+    category: 'search',
   },
   {
     id: 'jina',
@@ -170,6 +203,7 @@ const PROVIDERS: {
     icon: JinaAIIcon,
     description: 'Web reading and search',
     placeholder: 'jina_...',
+    category: 'search',
   },
   {
     id: 'google_cloud',
@@ -177,6 +211,7 @@ const PROVIDERS: {
     icon: GoogleIcon,
     description: 'Translate, Maps, PageSpeed, and Books APIs',
     placeholder: 'Enter your Google Cloud API key',
+    category: 'enrichment',
   },
   {
     id: 'brandfetch',
@@ -184,6 +219,7 @@ const PROVIDERS: {
     icon: BrandfetchIcon,
     description: 'Brand assets, logos, colors, and company info',
     placeholder: 'Enter your Brandfetch API key',
+    category: 'enrichment',
   },
   {
     id: 'hunter',
@@ -191,6 +227,7 @@ const PROVIDERS: {
     icon: HunterIOIcon,
     description: 'Email finder, verification, and domain search',
     placeholder: 'Enter your Hunter.io API key',
+    category: 'enrichment',
   },
   {
     id: 'peopledatalabs',
@@ -198,6 +235,7 @@ const PROVIDERS: {
     icon: PeopleDataLabsIcon,
     description: 'Person and company enrichment, search, and identity',
     placeholder: 'Enter your People Data Labs API key',
+    category: 'enrichment',
   },
   {
     id: 'findymail',
@@ -205,6 +243,7 @@ const PROVIDERS: {
     icon: FindymailIcon,
     description: 'Email finder, verification, and phone lookup',
     placeholder: 'Enter your Findymail API key',
+    category: 'enrichment',
   },
   {
     id: 'prospeo',
@@ -212,6 +251,7 @@ const PROVIDERS: {
     icon: ProspeoIcon,
     description: 'Person and company enrichment and search',
     placeholder: 'Enter your Prospeo API key',
+    category: 'enrichment',
   },
   {
     id: 'wiza',
@@ -219,6 +259,7 @@ const PROVIDERS: {
     icon: WizaIcon,
     description: 'Prospect search, individual reveal, and company enrichment',
     placeholder: 'Enter your Wiza API key',
+    category: 'enrichment',
   },
 ]
 
@@ -232,6 +273,9 @@ export function BYOK() {
   const deleteKey = useDeleteBYOKKey()
 
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<ProviderCategory | typeof ALL_CATEGORY>(
+    ALL_CATEGORY
+  )
   const [editingProvider, setEditingProvider] = useState<BYOKProviderId | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
@@ -239,17 +283,29 @@ export function BYOK() {
 
   const [deleteConfirmProvider, setDeleteConfirmProvider] = useState<BYOKProviderId | null>(null)
 
-  const filteredProviders = useMemo(() => {
-    if (!searchTerm.trim()) return PROVIDERS
-    const searchLower = searchTerm.toLowerCase()
-    return PROVIDERS.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchLower) ||
-        p.description.toLowerCase().includes(searchLower)
-    )
-  }, [searchTerm])
+  const filteredSections = useMemo(() => {
+    const searchLower = searchTerm.trim().toLowerCase()
+    const matchesSearch = (p: (typeof PROVIDERS)[number]) =>
+      !searchLower ||
+      p.name.toLowerCase().includes(searchLower) ||
+      p.description.toLowerCase().includes(searchLower)
 
-  const showNoResults = searchTerm.trim() && filteredProviders.length === 0
+    return PROVIDER_CATEGORIES.filter(
+      (category) => selectedCategory === ALL_CATEGORY || category.id === selectedCategory
+    )
+      .map((category) => ({
+        label: category.label,
+        providers: PROVIDERS.filter((p) => p.category === category.id).filter(matchesSearch),
+      }))
+      .filter((section) => section.providers.length > 0)
+  }, [searchTerm, selectedCategory])
+
+  const selectedCategoryLabel =
+    selectedCategory === ALL_CATEGORY
+      ? ALL_CATEGORY
+      : (PROVIDER_CATEGORIES.find((c) => c.id === selectedCategory)?.label ?? ALL_CATEGORY)
+
+  const showNoResults = filteredSections.length === 0
 
   const getKeyForProvider = (providerId: BYOKProviderId): BYOKKey | undefined => {
     return keys.find((k) => k.providerId === providerId)
@@ -300,49 +356,87 @@ export function BYOK() {
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
-          <SearchInput
-            placeholder='Search providers...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            disabled={isLoading}
-          />
+          <div className='flex items-center gap-2'>
+            <SearchInput
+              className='flex-1'
+              placeholder='Search providers...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isLoading}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type='button' className={chipVariants({ variant: 'filled', flush: true })}>
+                  <span className='text-[var(--text-body)]'>{selectedCategoryLabel}</span>
+                  <ChevronDown className='h-[7px] w-[9px] text-[var(--text-icon)]' />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' className='min-w-[160px]'>
+                <DropdownMenuItem onSelect={() => setSelectedCategory(ALL_CATEGORY)}>
+                  {ALL_CATEGORY}
+                </DropdownMenuItem>
+                {PROVIDER_CATEGORIES.map((category) => (
+                  <DropdownMenuItem
+                    key={category.id}
+                    onSelect={() => setSelectedCategory(category.id)}
+                  >
+                    {category.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
           {isLoading ? null : (
-            <div className='flex flex-col gap-2'>
-              {filteredProviders.map((provider) => {
-                const existingKey = getKeyForProvider(provider.id)
-                const Icon = provider.icon
+            <div className='flex flex-col gap-7'>
+              {filteredSections.map((section) => (
+                <section key={section.label} className='flex flex-col'>
+                  <span className='pl-0.5 text-[var(--text-muted)] text-small'>
+                    {section.label}
+                  </span>
+                  <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
+                  <div className='flex flex-col gap-2'>
+                    {section.providers.map((provider) => {
+                      const existingKey = getKeyForProvider(provider.id)
+                      const Icon = provider.icon
 
-                return (
-                  <div key={provider.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex items-center gap-3'>
-                      <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-[var(--surface-6)]'>
-                        <Icon className='size-4' />
-                      </div>
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='font-medium text-base'>{provider.name}</span>
-                        <p className='truncate text-[var(--text-muted)] text-sm'>
-                          {provider.description}
-                        </p>
-                      </div>
-                    </div>
+                      return (
+                        <div key={provider.id} className='flex items-center justify-between gap-3'>
+                          <div className='flex items-center gap-3'>
+                            <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-[var(--surface-6)]'>
+                              <Icon className='size-4' />
+                            </div>
+                            <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                              <span className='font-medium text-base'>{provider.name}</span>
+                              <p className='truncate text-[var(--text-muted)] text-sm'>
+                                {provider.description}
+                              </p>
+                            </div>
+                          </div>
 
-                    {existingKey ? (
-                      <div className='flex flex-shrink-0 items-center gap-2'>
-                        <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
-                        <Chip onClick={() => setDeleteConfirmProvider(provider.id)}>Delete</Chip>
-                      </div>
-                    ) : (
-                      <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
-                        Add Key
-                      </Chip>
-                    )}
+                          {existingKey ? (
+                            <div className='flex flex-shrink-0 items-center gap-2'>
+                              <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
+                              <Chip onClick={() => setDeleteConfirmProvider(provider.id)}>
+                                Delete
+                              </Chip>
+                            </div>
+                          ) : (
+                            <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
+                              Add Key
+                            </Chip>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
+                </section>
+              ))}
               {showNoResults && (
                 <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                  No providers found matching "{searchTerm}"
+                  {searchTerm.trim()
+                    ? `No providers found matching "${searchTerm}"`
+                    : 'No providers in this category'}
                 </div>
               )}
             </div>

@@ -6,7 +6,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { deleteByokKeyContract, upsertByokKeyContract } from '@/lib/api/contracts/byok-keys'
+import {
+  byokProviderIdSchema,
+  deleteByokKeyContract,
+  upsertByokKeyContract,
+} from '@/lib/api/contracts/byok-keys'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -16,6 +20,8 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceBYOKKeysAPI')
+
+const KNOWN_BYOK_PROVIDER_IDS = new Set<string>(byokProviderIdSchema.options)
 
 function maskApiKey(key: string): string {
   if (key.length <= 8) {
@@ -64,8 +70,16 @@ export const GET = withRouteHandler(
         .where(eq(workspaceBYOKKeys.workspaceId, workspaceId))
         .orderBy(workspaceBYOKKeys.providerId)
 
+      const knownKeys = byokKeys.filter((key) => {
+        if (KNOWN_BYOK_PROVIDER_IDS.has(key.providerId)) return true
+        logger.warn(`[${requestId}] Skipping BYOK key for unrecognized provider`, {
+          providerId: key.providerId,
+        })
+        return false
+      })
+
       const formattedKeys = await Promise.all(
-        byokKeys.map(async (key) => {
+        knownKeys.map(async (key) => {
           try {
             const { decrypted } = await decryptSecret(key.encryptedApiKey)
             return {
