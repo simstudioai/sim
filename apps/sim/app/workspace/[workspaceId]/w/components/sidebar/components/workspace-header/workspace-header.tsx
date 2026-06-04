@@ -766,9 +766,9 @@ function WorkspaceHeaderImpl({
       <ChipModal
         open={isLeaveModalOpen}
         onOpenChange={() => setIsLeaveModalOpen(false)}
-        srTitle='Leave Workspace'
+        srTitle='Leave workspace'
       >
-        <ChipModalHeader showDivider={false}>Leave Workspace</ChipModalHeader>
+        <ChipModalHeader showDivider={false}>Leave workspace</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to leave{' '}
@@ -792,7 +792,7 @@ function WorkspaceHeaderImpl({
             onClick={handleLeaveWorkspace}
             disabled={isLeavingWorkspace}
           >
-            {isLeavingWorkspace ? 'Leaving...' : 'Leave Workspace'}
+            {isLeavingWorkspace ? 'Leaving...' : 'Leave workspace'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>

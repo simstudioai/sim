@@ -34,9 +34,9 @@ const SUCCESS_RESET_DELAY_MS = 2000
 const DEFAULT_REQUEST_TYPE = 'bug'
 
 const REQUEST_TYPE_OPTIONS = [
-  { label: 'Bug Report', value: 'bug' },
+  { label: 'Bug report', value: 'bug' },
   { label: 'Feedback', value: 'feedback' },
-  { label: 'Feature Request', value: 'feature_request' },
+  { label: 'Feature request', value: 'feature_request' },
   { label: 'Other', value: 'other' },
 ]
 
@@ -302,8 +302,8 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   }
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Help & Support' size='md'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; Support</ChipModalHeader>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Help & support' size='md'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; support</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
         <ChipModalBody className='min-h-0'>
@@ -351,7 +351,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
               <div className='flex flex-col gap-2'>
                 <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Attach Images (Optional)
+                  Attach images (optional)
                 </p>
                 <Button
                   type='button'
@@ -390,7 +390,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
               {images.length > 0 && (
                 <div className='space-y-2'>
                   <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    Uploaded Images
+                    Uploaded images
                   </p>
                   <div className='grid grid-cols-2 gap-3'>
                     {images.map((image, index) => (
