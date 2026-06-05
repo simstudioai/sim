@@ -23,6 +23,7 @@ import {
   getTableById,
   markImportFailed,
   markImportReady,
+  nextImportStartOrderKey,
   nextImportStartPosition,
   setTableSchemaForImport,
   updateImportProgress,
@@ -89,8 +90,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     source = await downloadFileStream({ key: fileKey, context: 'workspace' })
 
     // Append must continue after the existing rows; create/replace start empty. Read once up
-    // front (the import is the table's sole writer) and assign contiguous positions from it.
+    // front (the import is the table's sole writer) and assign contiguous positions / threaded
+    // order keys from it.
     const basePosition = mode === 'append' ? await nextImportStartPosition(tableId) : 0
+    let lastOrderKey = mode === 'append' ? await nextImportStartOrderKey(tableId) : null
 
     // Count bytes as they flow so the row total can be extrapolated from byte progress.
     let bytesRead = 0
@@ -182,11 +185,20 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const owns = await updateImportProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
       const coerced = coerceRowsForTable(rows, schema, headerToColumn)
-      inserted += await bulkInsertImportBatch(
-        { tableId, workspaceId, userId, rows: coerced, startPosition: basePosition + inserted },
+      const result = await bulkInsertImportBatch(
+        {
+          tableId,
+          workspaceId,
+          userId,
+          rows: coerced,
+          startPosition: basePosition + inserted,
+          afterOrderKey: lastOrderKey,
+        },
         { ...table, schema },
         requestId
       )
+      inserted += result.inserted
+      lastOrderKey = result.lastOrderKey
       // Emit after the first batch, then every interval, so the bar appears early without flooding.
       if (
         inserted - lastReported >= PROGRESS_INTERVAL_ROWS ||
