@@ -63,6 +63,13 @@ export interface WorkflowGroupDependencies {
  */
 export type WorkflowGroupType = 'manual' | 'enrichment'
 
+/**
+ * Which workflow state a group's per-cell runs execute against: `'live'` runs
+ * the editable draft (current behavior); `'deployed'` runs the workflow's
+ * latest active deployment. Defaults to `'live'` when absent.
+ */
+export type WorkflowGroupDeploymentMode = 'live' | 'deployed'
+
 /** One workflow Start-block input field ← one table column. */
 export interface WorkflowGroupInputMapping {
   /** `inputFormat` field name on the workflow's Start block. */
@@ -88,6 +95,12 @@ export interface WorkflowGroup {
    * supply each per-row value. Absent / empty means no mapping configured yet.
    */
   inputMappings?: WorkflowGroupInputMapping[]
+  /**
+   * Which workflow state per-cell runs execute against. Defaults to `'live'`
+   * (editable draft) when absent. `'deployed'` runs the workflow's latest
+   * active deployment. Only meaningful for `manual` groups.
+   */
+  deploymentMode?: WorkflowGroupDeploymentMode
   /**
    * When `false`, the group never auto-fires from the scheduler — it can only
    * be triggered manually via the "Run" actions. Defaults to `true` so
@@ -473,6 +486,8 @@ export interface UpdateWorkflowGroupData {
   mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
   /** Replace the group's input mappings. Omit to leave them unchanged. */
   inputMappings?: WorkflowGroupInputMapping[]
+  /** Change which workflow state the group runs against. Omit to leave unchanged. */
+  deploymentMode?: WorkflowGroupDeploymentMode
   /** Update the group's provenance. Omit to leave it unchanged. */
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */

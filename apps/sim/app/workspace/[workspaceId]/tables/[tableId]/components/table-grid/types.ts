@@ -9,6 +9,9 @@ export interface BlockIconInfo {
 export interface ColumnSourceInfo {
   blockIconInfo?: BlockIconInfo
   blockName?: string
+  /** Workflow loaded but the column's source block no longer exists — the
+   *  header renders a "Not found" badge. Only set for loaded states. */
+  blockMissing?: boolean
 }
 
 /**
