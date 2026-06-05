@@ -27,6 +27,14 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { nKeysBetween } from '@/lib/table/order-key'
 
+/**
+ * Rows written per `UPDATE … FROM (VALUES …)`. One statement for a whole large table builds an
+ * enormous VALUES list that overflows the JS call stack while drizzle assembles it (and would
+ * exceed Postgres's 65535-bound-param limit at ~32k rows). Chunks share the one per-table
+ * transaction, so the table is still keyed atomically.
+ */
+const WRITE_CHUNK_SIZE = 1000
+
 export async function runBackfill(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run')
   const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL
@@ -75,17 +83,20 @@ export async function runBackfill(): Promise<void> {
           const keys = nKeysBetween(null, null, rows.length)
           if (dryRun) return rows.length
 
-          // One UPDATE … FROM (VALUES …) mapping id → key.
-          const values = sql.join(
-            rows.map((r, i) => sql`(${r.id}, ${keys[i]})`),
-            sql`, `
-          )
-          await trx.execute(sql`
-            UPDATE user_table_rows AS t
-            SET order_key = v.order_key
-            FROM (VALUES ${values}) AS v(id, order_key)
-            WHERE t.id = v.id AND t.table_id = ${tableId}
-          `)
+          // Chunked UPDATE … FROM (VALUES …) mapping id → key (see WRITE_CHUNK_SIZE).
+          for (let start = 0; start < rows.length; start += WRITE_CHUNK_SIZE) {
+            const chunk = rows.slice(start, start + WRITE_CHUNK_SIZE)
+            const values = sql.join(
+              chunk.map((r, i) => sql`(${r.id}, ${keys[start + i]})`),
+              sql`, `
+            )
+            await trx.execute(sql`
+              UPDATE user_table_rows AS t
+              SET order_key = v.order_key
+              FROM (VALUES ${values}) AS v(id, order_key)
+              WHERE t.id = v.id AND t.table_id = ${tableId}
+            `)
+          }
           return rows.length
         })
         stats.tablesKeyed += 1
