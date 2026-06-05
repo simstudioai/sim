@@ -17,17 +17,13 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipModalTabs,
   ChipSelect,
   Code,
   type ComboboxOption,
   Input as EmcnInput,
   Label,
   SearchInput,
-  SModalTabs,
-  SModalTabsBody,
-  SModalTabsContent,
-  SModalTabsList,
-  SModalTabsTrigger,
   Tooltip,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
@@ -365,18 +361,18 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         {detailHeaderJsx}
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col pt-4 pb-6'>
-            <SModalTabs
-              value={activeServerTab}
-              onValueChange={(value) => setActiveServerTab(value as 'workflows' | 'details')}
-              className='flex min-h-0 flex-1 flex-col'
-            >
-              <SModalTabsList activeValue={activeServerTab}>
-                <SModalTabsTrigger value='details'>Details</SModalTabsTrigger>
-                <SModalTabsTrigger value='workflows'>Workflows</SModalTabsTrigger>
-              </SModalTabsList>
+            <div className='flex min-h-0 flex-1 flex-col'>
+              <ChipModalTabs
+                tabs={[
+                  { value: 'details', label: 'Details' },
+                  { value: 'workflows', label: 'Workflows' },
+                ]}
+                value={activeServerTab}
+                onChange={(value) => setActiveServerTab(value as 'workflows' | 'details')}
+              />
 
-              <SModalTabsBody className='min-h-[300px]'>
-                <SModalTabsContent value='workflows'>
+              <div className='min-h-[300px] pt-4'>
+                {activeServerTab === 'workflows' && (
                   <div className='flex flex-col gap-4.5'>
                     <div className='flex items-center justify-between'>
                       <span className='font-medium text-[var(--text-primary)] text-sm'>
@@ -444,9 +440,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       </p>
                     )}
                   </div>
-                </SModalTabsContent>
+                )}
 
-                <SModalTabsContent value='details'>
+                {activeServerTab === 'details' && (
                   <div className='flex flex-col gap-4.5'>
                     <div className='grid grid-cols-[1fr_1fr_1fr] gap-x-6 gap-y-3.5'>
                       <div className='flex flex-col gap-1'>
@@ -618,9 +614,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       </div>
                     )}
                   </div>
-                </SModalTabsContent>
-              </SModalTabsBody>
-            </SModalTabs>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -26,7 +26,6 @@
 
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
@@ -255,136 +254,6 @@ const SModalMainBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTM
 
 SModalMainBody.displayName = 'SModalMainBody'
 
-/**
- * Sidebar modal tabs root component.
- */
-const SModalTabs = TabsPrimitive.Root
-
-interface SModalTabsListProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> {
-  /** Currently active tab value for indicator positioning */
-  activeValue?: string
-  /**
-   * Whether the tabs are disabled (non-interactive with reduced opacity)
-   * @default false
-   */
-  disabled?: boolean
-}
-
-/**
- * Sidebar modal tabs list component with animated indicator.
- */
-const SModalTabsList = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.List>,
-  SModalTabsListProps
->(({ className, children, activeValue, disabled = false, ...props }, ref) => {
-  const listRef = React.useRef<HTMLDivElement>(null)
-  const [indicator, setIndicator] = React.useState({ left: 0, width: 0 })
-  const [ready, setReady] = React.useState(false)
-
-  React.useEffect(() => {
-    const list = listRef.current
-    if (!list) return
-
-    const updateIndicator = () => {
-      const activeTab = list.querySelector('[data-state="active"]') as HTMLElement | null
-      if (!activeTab) return
-
-      setIndicator({
-        left: activeTab.offsetLeft,
-        width: activeTab.offsetWidth,
-      })
-      setReady(true)
-    }
-
-    updateIndicator()
-
-    const observer = new MutationObserver(updateIndicator)
-    observer.observe(list, { attributes: true, subtree: true, attributeFilter: ['data-state'] })
-    window.addEventListener('resize', updateIndicator)
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', updateIndicator)
-    }
-  }, [activeValue])
-
-  return (
-    <TabsPrimitive.List
-      ref={ref}
-      className={cn(
-        'relative flex gap-4 px-4',
-        disabled && 'pointer-events-none opacity-50',
-        className
-      )}
-      {...props}
-    >
-      <div ref={listRef} className='flex gap-4'>
-        {children}
-      </div>
-      <span
-        className={cn(
-          'pointer-events-none absolute bottom-0 h-[1px] rounded-full bg-[var(--text-primary)]',
-          ready ? 'opacity-100 transition-[left,width,opacity] duration-200 ease-out' : 'opacity-0'
-        )}
-        style={{ left: indicator.left, width: indicator.width }}
-      />
-    </TabsPrimitive.List>
-  )
-})
-
-SModalTabsList.displayName = 'SModalTabsList'
-
-/**
- * Sidebar modal tab trigger component.
- */
-const SModalTabsTrigger = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      'px-1 pb-2 font-medium text-[var(--text-secondary)] text-small transition-colors',
-      'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
-      className
-    )}
-    {...props}
-  />
-))
-
-SModalTabsTrigger.displayName = 'SModalTabsTrigger'
-
-/**
- * Sidebar modal tab content component.
- */
-const SModalTabsContent = React.forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content ref={ref} className={cn('pb-2.5', className)} {...props} />
-))
-
-SModalTabsContent.displayName = 'SModalTabsContent'
-
-/**
- * Sidebar modal tabs body container with border-top divider.
- * Wraps tab content panels to provide consistent styling with ModalBody.
- */
-const SModalTabsBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'min-h-0 flex-1 overflow-y-auto border-[var(--border)] border-t pt-2.5',
-        className
-      )}
-      {...props}
-    />
-  )
-)
-
-SModalTabsBody.displayName = 'SModalTabsBody'
-
 export {
   SModal,
   SModalTrigger,
@@ -398,9 +267,4 @@ export {
   SModalMain,
   SModalMainHeader,
   SModalMainBody,
-  SModalTabs,
-  SModalTabsList,
-  SModalTabsTrigger,
-  SModalTabsContent,
-  SModalTabsBody,
 }

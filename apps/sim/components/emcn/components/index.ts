@@ -156,11 +156,6 @@ export {
   SModalSidebarItem,
   SModalSidebarSection,
   SModalSidebarSectionTitle,
-  SModalTabs,
-  SModalTabsBody,
-  SModalTabsContent,
-  SModalTabsList,
-  SModalTabsTrigger,
   SModalTrigger,
 } from './s-modal/s-modal'
 export { SearchInput, type SearchInputProps } from './search-input/search-input'
