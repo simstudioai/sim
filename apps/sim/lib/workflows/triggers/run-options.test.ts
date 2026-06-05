@@ -4,8 +4,8 @@ import {
   type TriggerRunOption,
   validateTriggerInput,
 } from '@/lib/workflows/triggers/run-options'
-import type { InputFormatField } from '@/lib/workflows/types'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
+import type { InputFormatField } from '@/lib/workflows/types'
 
 function makeOption(overrides: Partial<TriggerRunOption>): TriggerRunOption {
   const inputKind: TriggerInputKind = overrides.inputKind ?? 'fields'
