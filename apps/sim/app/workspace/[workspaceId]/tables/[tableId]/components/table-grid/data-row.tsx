@@ -40,7 +40,12 @@ export interface DataRowProps {
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
   isRowChecked: boolean
+  /** Keyboard (space/enter) toggle of the row checkbox. */
   onRowToggle: (rowIndex: number, shiftKey: boolean) => void
+  /** Pointer-down on the gutter — toggles the row and arms gutter drag-select. */
+  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
+  /** Pointer entering the gutter cell — extends an in-progress gutter drag. */
+  onRowMouseEnter: (rowIndex: number) => void
   /** Number of workflow cells in this row currently in a running/queued state. */
   runningCount: number
   /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
@@ -115,6 +120,8 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onCellMouseEnter !== next.onCellMouseEnter ||
     prev.isRowChecked !== next.isRowChecked ||
     prev.onRowToggle !== next.onRowToggle ||
+    prev.onRowMouseDown !== next.onRowMouseDown ||
+    prev.onRowMouseEnter !== next.onRowMouseEnter ||
     prev.runningCount !== next.runningCount ||
     prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
     prev.numDivWidth !== next.numDivWidth ||
@@ -161,6 +168,8 @@ export const DataRow = React.memo(function DataRow({
   onCellMouseDown,
   onCellMouseEnter,
   onRowToggle,
+  onRowMouseDown,
+  onRowMouseEnter,
   runningCount,
   hasWorkflowColumns,
   numDivWidth,
@@ -207,7 +216,10 @@ export const DataRow = React.memo(function DataRow({
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
+      <td
+        className={cn(CELL_CHECKBOX, 'cursor-pointer')}
+        onMouseEnter={() => onRowMouseEnter(rowIndex)}
+      >
         {isLeftEdgeSelected && (
           <div
             className={cn(
@@ -236,7 +248,7 @@ export const DataRow = React.memo(function DataRow({
             style={{ width: numDivWidth }}
             onMouseDown={(e) => {
               if (e.button !== 0) return
-              onRowToggle(rowIndex, e.shiftKey)
+              onRowMouseDown(rowIndex, e.shiftKey)
             }}
             onKeyDown={(event) =>
               handleKeyboardActivation(event, () => onRowToggle(rowIndex, event.shiftKey))

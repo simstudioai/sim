@@ -309,6 +309,16 @@ export function TableGrid({
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
   const isDraggingRef = useRef(false)
   const suppressFocusScrollRef = useRef(false)
+  /**
+   * Row-gutter drag-to-select. `isRowDraggingRef` is the active flag (kept
+   * separate from the cell-drag `isDraggingRef` so the two don't cross-fire),
+   * `rowDragAnchorRef` is the row index the drag started on, and
+   * `rowDragBaseRef` is the materialized selection captured before the drag so
+   * the swept range is unioned onto whatever was already selected.
+   */
+  const isRowDraggingRef = useRef(false)
+  const rowDragAnchorRef = useRef<number | null>(null)
+  const rowDragBaseRef = useRef<Set<string> | null>(null)
 
   const {
     tableData,
@@ -1058,6 +1068,44 @@ export function TableGrid({
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
+  /** Selects every row between the drag anchor and `rowIndex`, unioned onto the base. */
+  const extendRowDragTo = useCallback((rowIndex: number) => {
+    const anchor = rowDragAnchorRef.current
+    if (anchor === null) return
+    const currentRows = rowsRef.current
+    const next = new Set(rowDragBaseRef.current ?? [])
+    const from = Math.min(anchor, rowIndex)
+    const to = Math.max(anchor, rowIndex)
+    for (let i = from; i <= to; i++) {
+      const r = currentRows[i]
+      if (r) next.add(r.id)
+    }
+    setRowSelection(next.size === 0 ? ROW_SELECTION_NONE : { kind: 'some', ids: next })
+  }, [])
+
+  const handleRowMouseDown = useCallback(
+    (rowIndex: number, shiftKey: boolean) => {
+      // Capture the selection before the click mutates it so a drag unions the
+      // swept range onto the prior selection rather than the toggled result.
+      rowDragBaseRef.current = rowSelectionMaterialize(rowSelectionRef.current, rowsRef.current)
+      handleRowToggle(rowIndex, shiftKey)
+      // Shift-click extends from the last checkbox row — leave ranging to that
+      // path and don't begin a drag.
+      if (shiftKey) return
+      isRowDraggingRef.current = true
+      rowDragAnchorRef.current = rowIndex
+    },
+    [handleRowToggle]
+  )
+
+  const handleRowMouseEnter = useCallback(
+    (rowIndex: number) => {
+      if (!isRowDraggingRef.current || rowDragAnchorRef.current === null) return
+      extendRowDragTo(rowIndex)
+    },
+    [extendRowDragTo]
+  )
+
   const handleClearSelection = useCallback(() => {
     setSelectionAnchor(null)
     setSelectionFocus(null)
@@ -1530,6 +1578,9 @@ export function TableGrid({
   useEffect(() => {
     const handleMouseUp = () => {
       isDraggingRef.current = false
+      isRowDraggingRef.current = false
+      rowDragAnchorRef.current = null
+      rowDragBaseRef.current = null
     }
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
@@ -1561,6 +1612,15 @@ export function TableGrid({
       if (pointerX === null || pointerY === null) return
       const target = document.elementFromPoint(pointerX, pointerY)
       if (!target) return
+      if (isRowDraggingRef.current) {
+        // The gutter cell carries no coords; read the row index off any data
+        // cell in the same `<tr>` and extend the swept row range.
+        const cell = (target as HTMLElement).closest('tr')?.querySelector('td[data-row]')
+        const rowIndex = Number.parseInt(cell?.getAttribute('data-row') ?? '', 10)
+        if (Number.isNaN(rowIndex)) return
+        extendRowDragTo(rowIndex)
+        return
+      }
       const td = (target as HTMLElement).closest('td[data-row][data-col]') as HTMLElement | null
       if (!td) return
       const rowIndex = Number.parseInt(td.getAttribute('data-row') ?? '', 10)
@@ -1572,7 +1632,7 @@ export function TableGrid({
     const tick = () => {
       rafId = null
       const el = scrollRef.current
-      if (!isDraggingRef.current || !el || pointerY === null) return
+      if ((!isDraggingRef.current && !isRowDraggingRef.current) || !el || pointerY === null) return
       const rect = el.getBoundingClientRect()
       const distFromTop = pointerY - rect.top
       const distFromBottom = rect.bottom - pointerY
@@ -1592,7 +1652,7 @@ export function TableGrid({
     }
 
     const handleMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return
+      if (!isDraggingRef.current && !isRowDraggingRef.current) return
       pointerX = e.clientX
       pointerY = e.clientY
       if (rafId === null) rafId = requestAnimationFrame(tick)
@@ -1614,7 +1674,7 @@ export function TableGrid({
       document.removeEventListener('mouseup', handleStop)
       handleStop()
     }
-  }, [])
+  }, [extendRowDragTo])
 
   useEffect(() => {
     // Skip during transient empty-rows state (initial load of a new sort/filter
@@ -3525,6 +3585,8 @@ export function TableGrid({
                               onCellMouseEnter={handleCellMouseEnter}
                               isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
                               onRowToggle={handleRowToggle}
+                              onRowMouseDown={handleRowMouseDown}
+                              onRowMouseEnter={handleRowMouseEnter}
                               runningCount={runningByRowId[row.id] ?? 0}
                               hasWorkflowColumns={hasWorkflowColumns}
                               numDivWidth={numDivWidth}
