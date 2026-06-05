@@ -721,7 +721,7 @@
     "slug": "apify",
     "name": "Apify",
     "description": "Run Apify actors and retrieve results",
-    "longDescription": "Integrate Apify into your workflow. Run any Apify actor with custom input and retrieve results. Supports both synchronous and asynchronous execution with automatic dataset fetching.",
+    "longDescription": "Integrate Apify into your workflow. Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.",
     "bgColor": "#FFFFFF",
     "iconName": "ApifyIcon",
     "docsUrl": "https://docs.sim.ai/tools/apify",
@@ -2527,7 +2527,7 @@
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
-    "integrationTypes": ["databases", "analytics"],
+    "integrationType": "databases",
     "tags": ["data-warehouse", "data-analytics"]
   },
   {
