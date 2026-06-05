@@ -278,8 +278,13 @@ export interface DrainByColumnOptions {
 
 export interface DrainResult {
   deleted: number
-  /** True if the budget ran out before the match set was fully drained. */
-  budgetExhausted: boolean
+  /**
+   * True only when the match set was confirmed empty (a short final batch).
+   * Budget exhaustion and batch errors both yield `false` — callers must treat
+   * `false` as "rows may remain" and defer any dependent parent-delete (whose
+   * ON DELETE CASCADE would otherwise fire on the leftovers) to a later run.
+   */
+  fullyDrained: boolean
 }
 
 /**
@@ -316,15 +321,16 @@ export async function drainRowsByColumn({
         .returning({ id: idCol })
     } catch (error) {
       logger.error(`[${tableName}] Drain batch failed for ${matchValue}:`, { error })
-      return { deleted, budgetExhausted: false }
+      return { deleted, fullyDrained: false }
     }
 
     deleted += batchDeleted.length
     remaining -= batchDeleted.length
 
     // Short batch means the match set is exhausted.
-    if (batchDeleted.length < limit) return { deleted, budgetExhausted: false }
+    if (batchDeleted.length < limit) return { deleted, fullyDrained: true }
   }
 
-  return { deleted, budgetExhausted: true }
+  // Hit the per-call budget on a full batch — rows may remain.
+  return { deleted, fullyDrained: false }
 }

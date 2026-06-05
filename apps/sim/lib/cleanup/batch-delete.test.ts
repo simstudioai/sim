@@ -26,44 +26,44 @@ describe('drainRowsByColumn', () => {
     vi.clearAllMocks()
   })
 
-  it('drains in batches until a short batch and reports the set exhausted', async () => {
+  it('drains in batches until a short batch and reports the set fully drained', async () => {
     dbChainMockFns.returning
       .mockResolvedValueOnce(returnRows(2))
       .mockResolvedValueOnce(returnRows(1))
 
     const result = await drainRowsByColumn({ ...baseOpts, batchSize: 2, rowBudget: 10 })
 
-    expect(result).toEqual({ deleted: 3, budgetExhausted: false })
+    expect(result).toEqual({ deleted: 3, fullyDrained: true })
     expect(dbChainMockFns.returning).toHaveBeenCalledTimes(2)
   })
 
-  it('stops at the row budget and reports it exhausted', async () => {
+  it('stops at the row budget and reports the set not fully drained', async () => {
     dbChainMockFns.returning
       .mockResolvedValueOnce(returnRows(2))
       .mockResolvedValueOnce(returnRows(2))
 
     const result = await drainRowsByColumn({ ...baseOpts, batchSize: 2, rowBudget: 4 })
 
-    expect(result).toEqual({ deleted: 4, budgetExhausted: true })
+    expect(result).toEqual({ deleted: 4, fullyDrained: false })
     expect(dbChainMockFns.returning).toHaveBeenCalledTimes(2)
   })
 
-  it('returns immediately when the match set is already empty', async () => {
+  it('reports fully drained immediately when the match set is already empty', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
     const result = await drainRowsByColumn({ ...baseOpts, batchSize: 2, rowBudget: 10 })
 
-    expect(result).toEqual({ deleted: 0, budgetExhausted: false })
+    expect(result).toEqual({ deleted: 0, fullyDrained: true })
     expect(dbChainMockFns.returning).toHaveBeenCalledTimes(1)
   })
 
-  it('bails without throwing when a batch delete fails', async () => {
+  it('reports not fully drained on a batch error so the caller defers the cascade', async () => {
     dbChainMockFns.returning
       .mockResolvedValueOnce(returnRows(2))
       .mockRejectedValueOnce(new Error('db down'))
 
     const result = await drainRowsByColumn({ ...baseOpts, batchSize: 2, rowBudget: 10 })
 
-    expect(result).toEqual({ deleted: 2, budgetExhausted: false })
+    expect(result).toEqual({ deleted: 2, fullyDrained: false })
   })
 })

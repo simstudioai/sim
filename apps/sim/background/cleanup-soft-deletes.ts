@@ -307,8 +307,9 @@ async function cleanupArchivedUserTables(
     })
     rowBudget -= drain.deleted
 
-    // Rows still remain — defer the definition delete so its cascade stays small.
-    if (drain.budgetExhausted) break
+    // Only delete the definition once its rows are provably gone. A budget stop
+    // or a drain error leaves rows behind, so defer to keep the cascade small.
+    if (!drain.fullyDrained) break
 
     await db.delete(userTableDefinitions).where(eq(userTableDefinitions.id, tableId))
     definitionsDeleted++

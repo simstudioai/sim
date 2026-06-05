@@ -36,7 +36,7 @@ const {
     mockDeleteFileMetadata: vi.fn(async () => true),
     mockDeleteFiles: vi.fn(async () => ({ deleted: 0, failed: [] as Array<{ key: string }> })),
     mockDeleteRowsById: vi.fn(async () => ({ deleted: 0, failed: 0 })),
-    mockDrainRowsByColumn: vi.fn(async () => ({ deleted: 0, budgetExhausted: false })),
+    mockDrainRowsByColumn: vi.fn(async () => ({ deleted: 0, fullyDrained: false })),
     mockIsUsingCloudStorage: vi.fn(() => true),
     mockLimit,
     mockOrderBy,
@@ -186,7 +186,7 @@ describe('cleanup soft deletes — archived user tables', () => {
   })
 
   it('drains rows before deleting the table definition', async () => {
-    mockDrainRowsByColumn.mockResolvedValue({ deleted: 5, budgetExhausted: false })
+    mockDrainRowsByColumn.mockResolvedValue({ deleted: 5, fullyDrained: true })
 
     await runCleanupSoftDeletes(basePayload)
 
@@ -200,8 +200,9 @@ describe('cleanup soft deletes — archived user tables', () => {
     )
   })
 
-  it('defers the definition delete when the row budget is exhausted', async () => {
-    mockDrainRowsByColumn.mockResolvedValue({ deleted: 200_000, budgetExhausted: true })
+  it('defers the definition delete when the drain does not fully complete', async () => {
+    // Budget stop or a drain error both surface as fullyDrained: false.
+    mockDrainRowsByColumn.mockResolvedValue({ deleted: 200_000, fullyDrained: false })
 
     await runCleanupSoftDeletes(basePayload)
 
