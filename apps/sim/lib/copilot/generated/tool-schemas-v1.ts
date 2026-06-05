@@ -1809,6 +1809,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  get_workflow_run_options: {
+    parameters: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description:
+            'Optional workflow ID. If not provided, uses the current workflow in context.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
   glob: {
     parameters: {
       type: 'object',
@@ -1859,11 +1872,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         path: {
           type: 'string',
           description:
-            "Optional path prefix to scope the search (e.g. 'workflows/', 'environment/', 'internal/', 'components/blocks/').",
+            "Optional scope. A prefix (e.g. 'workflows/', 'environment/', 'internal/') searches the VFS map under it. An exact single-file path under files/ or uploads/ (optionally with /content) searches that file's content only; folders and multi-file trees are rejected for content search.",
         },
         pattern: {
           type: 'string',
-          description: 'Regex pattern to search for in file contents.',
+          description:
+            "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, plans, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
         },
         toolTitle: {
           type: 'string',
@@ -2045,7 +2059,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             workspaceId: {
               type: 'string',
               description:
-                "Workspace ID. Required for 'create' when there is no workspace in context (otherwise the current workspace context is used); optional filter for 'list'.",
+                "Workspace ID. Required for 'create' when there is no workspace in context; otherwise the current workspace context is used.",
             },
           },
         },
@@ -2455,22 +2469,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             type: 'string',
           },
         },
-        knowledgeBaseId: {
-          type: 'string',
-          description:
-            'ID of an existing knowledge base to add the file to (only used with operation "knowledge_base"). If omitted, a new KB is created.',
-        },
         operation: {
           type: 'string',
           description:
-            'What to do with the file. "save" promotes it to files/. "import" imports a workflow JSON. "table" converts CSV/TSV/JSON to a table. "knowledge_base" saves and adds to a KB. Defaults to "save".',
-          enum: ['save', 'import', 'table', 'knowledge_base'],
+            'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. Defaults to "save".',
+          enum: ['save', 'import'],
           default: 'save',
-        },
-        tableName: {
-          type: 'string',
-          description:
-            'Custom name for the table (only used with operation "table"). Defaults to the file name without extension.',
         },
       },
       required: ['fileNames'],
@@ -2605,7 +2609,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
               path: {
                 type: 'string',
-                description: 'Canonical VFS path for type "file", e.g. "files/Reports/report.pdf".',
+                description:
+                  'Encoded VFS path for type "file" (percent-encoded per segment, e.g. "files/Reports/Q4%20Report.pdf"). Copy it verbatim from glob/read/workspace context output — do not decode it to a display name or re-encode it.',
               },
               type: {
                 type: 'string',
@@ -2771,7 +2776,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         path: {
           type: 'string',
           description:
-            "Path to the file to read (e.g. 'workflows/My%20Workflow/state.json' or 'workflows/Projects/Q1/My%20Workflow/state.json').",
+            "Path to the VFS resource to read (e.g. 'workflows/My%20Workflow/state.json', 'files/Q4%20Report.pdf/content' for file bytes/parsed text, or 'uploads/data.csv' for a chat upload). Copy paths verbatim from glob/grep/read output.",
         },
       },
       required: ['path'],
@@ -3055,15 +3060,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        inputFromExecutionId: {
+          type: 'string',
+          description:
+            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input — handy for replaying a run without retyping inputs. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+        },
         triggerBlockId: {
           type: 'string',
           description:
-            'Optional trigger block ID when the workflow has multiple entrypoints and you need to target a specific one.',
+            'Trigger block ID to run from (from get_workflow_run_options). Required when the workflow has multiple entrypoints.',
         },
         useDeployedState: {
           type: 'boolean',
           description:
             'When true, runs the deployed version instead of the live draft. Default: false (draft).',
+        },
+        useMockPayload: {
+          type: 'boolean',
+          description:
+            "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         workflowId: {
           type: 'string',
@@ -3072,7 +3087,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         workflow_input: {
           type: 'object',
-          description: 'JSON object with key-value mappings where each key is an input field name',
+          description:
+            "JSON object matching the target trigger's inputSchema (from get_workflow_run_options). For external/webhook triggers this is the event payload; for API/Input triggers it is the form fields.",
         },
       },
     },
@@ -3082,6 +3098,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
+        inputFromExecutionId: {
+          type: 'string',
+          description:
+            'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+        },
         stopAfterBlockId: {
           type: 'string',
           description: 'The block ID to stop after. Execution halts once this block completes.',
@@ -3089,12 +3110,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         triggerBlockId: {
           type: 'string',
           description:
-            'Optional trigger block ID when the workflow has multiple entrypoints and you need to target a specific one.',
+            'Trigger block ID to run from (from get_workflow_run_options). Required when the workflow has multiple entrypoints.',
         },
         useDeployedState: {
           type: 'boolean',
           description:
             'When true, runs the deployed version instead of the live draft. Default: false (draft).',
+        },
+        useMockPayload: {
+          type: 'boolean',
+          description:
+            "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
         },
         workflowId: {
           type: 'string',
@@ -3103,7 +3129,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         workflow_input: {
           type: 'object',
-          description: 'JSON object with key-value mappings where each key is an input field name',
+          description:
+            "JSON object matching the target trigger's inputSchema (from get_workflow_run_options). For external/webhook triggers this is the event payload; for API/Input triggers it is the form fields.",
         },
       },
       required: ['stopAfterBlockId'],

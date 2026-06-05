@@ -20,6 +20,7 @@ import {
   GetDeploymentLog,
   GetPlatformActions,
   GetWorkflowData,
+  GetWorkflowRunOptions,
   Glob as GlobTool,
   Grep as GrepTool,
   ListFolders,
@@ -107,6 +108,7 @@ import {
   executeGetBlockUpstreamReferences,
   executeGetDeployedWorkflowState,
   executeGetWorkflowData,
+  executeGetWorkflowRunOptions,
   executeListFolders,
   executeListUserWorkspaces,
 } from '../tools/handlers/workflow/queries'
@@ -136,6 +138,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [ListUserWorkspaces.id]: h((_p, c) => executeListUserWorkspaces(c)),
     [ListFolders.id]: h(executeListFolders),
     [GetWorkflowData.id]: h(executeGetWorkflowData),
+    [GetWorkflowRunOptions.id]: h(executeGetWorkflowRunOptions),
     [GetBlockOutputs.id]: h(executeGetBlockOutputs),
     [GetBlockUpstreamReferences.id]: h(executeGetBlockUpstreamReferences),
     [GetDeployedWorkflowState.id]: h(executeGetDeployedWorkflowState),

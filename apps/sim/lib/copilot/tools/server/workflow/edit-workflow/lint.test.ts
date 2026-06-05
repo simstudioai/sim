@@ -179,7 +179,13 @@ describe('lintEditedWorkflowState', () => {
         filter: baseBlock('filter', 'condition', 'MessageFilter'),
       },
       edges: [
-        { id: 'e1', source: 'start', sourceHandle: 'source', target: 'fetch', targetHandle: 'target' },
+        {
+          id: 'e1',
+          source: 'start',
+          sourceHandle: 'source',
+          target: 'fetch',
+          targetHandle: 'target',
+        },
         {
           id: 'e2',
           source: 'fetch',
@@ -254,7 +260,13 @@ describe('lintEditedWorkflowState', () => {
         parallel: baseBlock('parallel', 'parallel', 'Parallel'),
       },
       edges: [
-        { id: 'e1', source: 'start', sourceHandle: 'source', target: 'loop', targetHandle: 'target' },
+        {
+          id: 'e1',
+          source: 'start',
+          sourceHandle: 'source',
+          target: 'loop',
+          targetHandle: 'target',
+        },
         {
           id: 'e2',
           source: 'loop',
@@ -282,7 +294,13 @@ describe('lintEditedWorkflowState', () => {
         child: baseBlock('child', 'function', 'Loop Child'),
       },
       edges: [
-        { id: 'e1', source: 'start', sourceHandle: 'source', target: 'loop', targetHandle: 'target' },
+        {
+          id: 'e1',
+          source: 'start',
+          sourceHandle: 'source',
+          target: 'loop',
+          targetHandle: 'target',
+        },
         {
           id: 'e2',
           source: 'loop',

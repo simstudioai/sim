@@ -13,6 +13,10 @@ export interface GetWorkflowDataParams {
   dataType?: string
 }
 
+export interface GetWorkflowRunOptionsParams {
+  workflowId?: string
+}
+
 export interface GetBlockOutputsParams {
   workflowId?: string
   blockIds?: string[]
@@ -48,6 +52,10 @@ export interface RunWorkflowParams {
   input?: unknown
   /** Optional trigger block ID when the workflow has multiple entrypoints and the caller wants a specific one. */
   triggerBlockId?: string
+  /** When true, run with the resolved trigger's generated mock payload instead of workflow_input. */
+  useMockPayload?: boolean
+  /** Reuse the recorded input from a past execution of this workflow instead of supplying workflow_input. */
+  inputFromExecutionId?: string
   /** When true, runs the deployed version instead of the draft. Default: false (draft). */
   useDeployedState?: boolean
 }
@@ -58,6 +66,10 @@ export interface RunWorkflowUntilBlockParams {
   input?: unknown
   /** Optional trigger block ID when the workflow has multiple entrypoints and the caller wants a specific one. */
   triggerBlockId?: string
+  /** When true, run with the resolved trigger's generated mock payload instead of workflow_input. */
+  useMockPayload?: boolean
+  /** Reuse the recorded input from a past execution of this workflow instead of supplying workflow_input. */
+  inputFromExecutionId?: string
   /** The block ID to stop after. Execution halts once this block completes. */
   stopAfterBlockId: string
   /** When true, runs the deployed version instead of the draft. Default: false (draft). */
