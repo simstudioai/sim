@@ -1,0 +1,11 @@
+{
+  "title": "Mothership",
+  "pages": [
+    "index",
+    "intro",
+    "building",
+    "non-determinism",
+    "debugging",
+    "prototype-refine-promote"
+  ]
+}

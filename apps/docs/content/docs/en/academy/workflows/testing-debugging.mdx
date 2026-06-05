@@ -1,0 +1,47 @@
+---
+title: Testing and Debugging Workflows
+description: Practical workflow verification — test a run, read logs, and fix common failures.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Testing & Debugging Workflows" />
+
+**Purpose.** Teach practical workflow verification. Mothership-native builders especially need to confirm that what was created actually works.
+
+**Learning outcome.** The learner can test workflows and debug common failures.
+
+**Core message.**
+
+> Debugging a workflow means tracing data backward from the failure.
+
+## 1. Manual test run
+
+Run the workflow with a sample input and check the output.
+
+## 2. Inspect logs
+
+Open the run, find the failed block, read its input, output, and error.
+
+## 3. Common failure types
+
+- missing input
+- wrong field reference
+- wrong data type
+- a tool failed
+- an API returned an unexpected shape
+- model output not structured correctly
+- payload too large
+
+## 4. Fixing
+
+Edit the block manually, or ask Copilot / Mothership to fix it, then rerun.
+
+## 5. Comparing runs
+
+Compare before and after — did the fix actually work?
+
+<Callout type="info">
+Pair this with the docs guide [Logging](/logs-debugging/logging) for a reference walkthrough.
+</Callout>

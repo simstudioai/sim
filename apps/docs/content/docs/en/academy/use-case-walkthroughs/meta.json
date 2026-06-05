@@ -1,0 +1,11 @@
+{
+  "title": "Use-Case Walkthroughs",
+  "pages": [
+    "index",
+    "slack-it-bot",
+    "lead-enrichment-table",
+    "document-extraction",
+    "codebase-docs-qa",
+    "polymarket-research"
+  ]
+}

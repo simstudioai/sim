@@ -1,0 +1,56 @@
+---
+title: Choosing the Right Capability Primitive
+description: Block vs. agent tool vs. custom tool vs. MCP vs. workflow-as-tool vs. skill.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Agents, Tools, MCP, Skills" title="Choosing the Right Capability" />
+
+**Learning outcome.** The learner understands the difference between blocks, agent tools, custom tools, MCP tools, workflow-as-tool, and skills.
+
+## Key beats
+
+### 1. Start with the confusion
+
+There are multiple ways to give a system an ability. The right choice depends on whether the action should be deterministic, model-decided, reusable, external, or instruction-like.
+
+### 2. Deterministic block
+
+Use when the step should always happen — always call an API, always transform data.
+
+### 3. Agent tool
+
+Use when the model should decide whether and how to use a capability — the agent may search the web if needed.
+
+### 4. Custom tool
+
+A reusable workspace-level code or API wrapper. Use when the same custom logic is needed across multiple workflows or agents.
+
+### 5. MCP tool
+
+An external toolset connected through MCP. Use when bringing external AI-tool capabilities into Sim.
+
+### 6. Workflow as tool
+
+Use when a whole workflow should become a callable capability. Good for modular systems.
+
+### 7. Skill
+
+A reusable instruction or playbook. Use when you want agents to follow a reusable behavior pattern.
+
+## Decision rule
+
+```
+Should this always happen?        → deterministic block
+Should the agent decide?          → agent tool
+Need a reusable code/API wrapper? → custom tool
+Need an external MCP toolset?     → MCP
+Already encoded as a workflow?    → workflow as tool
+Need reusable instructions?       → skill
+```
+
+<Callout type="warn">
+Open product questions: the official "skill vs. prompt" explanation, where custom tools and skills live as resource organization evolves, and how workflow-as-tool should be taught relative to MCP deployment.
+</Callout>

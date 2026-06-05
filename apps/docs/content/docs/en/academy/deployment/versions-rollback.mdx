@@ -1,0 +1,39 @@
+---
+title: Versions, Rollback & Live Behavior
+description: Deployment snapshots, promotion, and rollback (advanced).
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Deployment" title="Versions, Rollback & Live Behavior" label="Advanced" />
+
+<Callout type="info">Likely partner / advanced, but important.</Callout>
+
+**Learning outcome.** The learner understands deployment snapshots and rollback.
+
+## Key beats
+
+### 1. Deploy creates a snapshot
+
+The live deployment uses the deployed version. Editing the workflow creates a new draft / current state — not necessarily the live one.
+
+### 2. Promote to live
+
+Update the deployed behavior intentionally.
+
+### 3. Rollback
+
+A previous version can be promoted back to live — important when a production workflow breaks.
+
+### 4. No branch model
+
+If you need separate staging and prod, duplicate or organize workflows accordingly. Confirm the official best practice.
+
+### 5. Partner relevance
+
+Customer-facing systems need safe update and rollback behavior.
+
+<Callout type="warn">
+Open product questions: the official staging / prod recommendation, how duplicated workflows / folders should be taught, and whether all deployment surfaces share the same live version.
+</Callout>

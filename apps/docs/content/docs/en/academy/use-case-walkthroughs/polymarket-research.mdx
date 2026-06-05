@@ -1,0 +1,45 @@
+---
+title: Polymarket Research Pipeline
+description: A multi-stage, table-backed research and ranking pipeline (advanced).
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="Polymarket Research Pipeline" label="Advanced" />
+
+<Callout type="info">
+A strong internal / power-user demo of full system composition — best used as an advanced walkthrough, not a first beginner demo.
+</Callout>
+
+**Learning outcome.** The learner sees how Sim can build a table-backed research / ranking pipeline.
+
+## Problem
+
+Identify possible mispricings across many markets.
+
+## System sketch
+
+```
+ingest markets
+→ enrich market data
+→ research external facts
+→ synthesize fair value
+→ rank edge/confidence
+```
+
+## Modules used
+
+Table · workflow groups · API calls · function blocks · agent blocks · Exa · structured outputs · logs.
+
+## Key teaching point
+
+Real systems are multi-stage:
+
+- the **table** is the control surface
+- **workflows** are the pipeline stages
+- **logs** verify the cascade
+
+## Takeaways
+
+Multi-stage research and scoring problems become a table where each column is a pipeline stage feeding the next.

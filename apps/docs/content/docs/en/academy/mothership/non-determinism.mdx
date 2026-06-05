@@ -1,0 +1,34 @@
+---
+title: Non-determinism & Convergence
+description: Why the exact workflow shape can vary, and how to evaluate a build by behavior rather than topology.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Non-determinism & Convergence" />
+
+**Purpose.** Teach non-determinism explicitly, so learners don't assume the same prompt should always build the same graph, or that a different graph means a wrong one.
+
+**Learning outcome.** The learner understands why exact graph shape may vary and how to evaluate a build.
+
+## What to teach
+
+- Mothership is nondeterministic — the exact workflow shape may vary.
+- Multiple architectures may be valid for the same intent.
+- Evaluate a build by asking: Does it run? Does it produce the expected outputs? Is the structure understandable? Can it be refined?
+
+> You are not verifying whether Mothership matched your exact internal graph. You are verifying whether the generated system behaves correctly and is editable.
+
+## Key beats
+
+- multiple valid workflow shapes
+- same intent ≠ one exact graph
+- the success criterion is behavior and inspectability, not identical topology
+- generated systems converge through iteration
+
+## What not to do
+
+- Don't teach that "different graph = wrong."
+- Don't imply there's one canonical structure for an intent.
+- Don't reduce evaluation to "did it match what I pictured."

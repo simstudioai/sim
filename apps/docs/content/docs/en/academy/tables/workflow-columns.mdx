@@ -1,0 +1,52 @@
+---
+title: Workflow Columns & Active Tables
+description: Row-wise workflow execution — run a workflow for each row and write results back.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Tables" title="Workflow Columns & Active Tables" />
+
+**Learning outcome.** The learner understands row-wise workflow execution and why it matters.
+
+## Key beats
+
+### 1. The problem
+
+A traditional pipeline is table / CRM → webhook → enrichment → script → write-back — a lot of coordination overhead.
+
+### 2. Define a workflow column
+
+A workflow column runs a workflow for each row. Selected row fields become workflow inputs; selected workflow outputs write back into columns.
+
+### 3. Input vs. output columns
+
+Make this explicit — it's the part people find confusing:
+
+- **Input columns** = row data passed into the workflow.
+- **Output columns** = workflow results written back into the row.
+
+### 4. A simple example
+
+Lead qualification — input: company, industry, description; output: qualified?, reason, confidence.
+
+### 5. Dependency / cascade preview
+
+One column can fill data that triggers another workflow column:
+
+```
+enrich company → qualify lead → generate outreach
+```
+
+### 6. Strategic framing
+
+The table becomes a control surface.
+
+> The table should be the agent, not just the storage.
+
+> The data doesn't move to the pipeline. The pipeline comes to the data.
+
+<Callout type="warn">
+Open product questions: official term (workflow columns vs. workflow groups), rerun behavior, failed-row behavior, empty-cell behavior, and canonical non-GTM examples.
+</Callout>

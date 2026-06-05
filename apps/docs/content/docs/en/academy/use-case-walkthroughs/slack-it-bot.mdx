@@ -1,0 +1,42 @@
+---
+title: Slack IT Bot
+description: Build a Slack-based internal assistant that triages and routes IT requests.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="Slack IT Bot" />
+
+**Learning outcome.** The learner understands how to build a Slack-based internal assistant / workflow. Common enterprise use case that also surfaces partner patterns: Slack triggers, filtering bot messages, ticket creation, and handoff.
+
+## Problem
+
+Employees ask IT questions, request access, and report issues in Slack. IT needs triage, routing, and automation.
+
+## System sketch
+
+```
+Slack message
+→ filter bot/self messages
+→ classify request
+→ search KB / decide action
+→ create ticket or respond
+→ log run
+```
+
+## Modules used
+
+Slack integration / trigger · workflow · agent · knowledge base · table or ticket system · logs.
+
+<Callout type="warn">
+Partner gotcha: a Slack trigger often needs a filter block to avoid self-triggering and bot loops.
+</Callout>
+
+## Deployment
+
+A Slack event trigger / internal bot.
+
+## Takeaways
+
+The trigger → filter → classify → act → log pattern generalizes to most inbound-message automations.

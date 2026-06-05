@@ -1,0 +1,40 @@
+---
+title: GTM / Lead Enrichment Table
+description: A table-backed enrichment and qualification pipeline using workflow columns.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="GTM / Lead Enrichment Table" />
+
+**Learning outcome.** The learner understands table-backed enrichment and qualification. Shows active tables / workflow columns and maps to Clay-like use cases.
+
+## Problem
+
+Sales and recruiting teams have rows of leads or candidates and need enrichment, scoring, prioritization, and outreach.
+
+## System sketch
+
+```
+lead row
+→ enrich company/contact
+→ qualify with an agent
+→ write reason/confidence
+→ optionally generate outreach
+```
+
+## Modules used
+
+Table · workflow columns · agent · tools / integrations · structured output · logs.
+
+## Key concept
+
+> The pipeline comes to the data.
+
+## Deployment
+
+The table is the control surface — not necessarily an external API.
+
+## Takeaways
+
+Any "many records that each need enrichment and a decision" problem fits this table-backed shape.

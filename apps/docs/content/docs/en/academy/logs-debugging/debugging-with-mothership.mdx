@@ -1,0 +1,37 @@
+---
+title: Debugging with Mothership & Copilot
+description: How AI-assisted debugging fits into the workflow.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Logs & Debugging" title="Debugging with Mothership & Copilot" />
+
+**Learning outcome.** The learner understands how AI-assisted debugging fits into the workflow.
+
+## Key beats
+
+### 1. When to use Mothership / Copilot
+
+The error is unclear, the workflow shape is confusing, there's a variable / reference issue, a tool / block config issue, or you want a failed run explained.
+
+### 2. Good prompts
+
+- "Explain why this run failed."
+- "Inspect the logs and identify the bad input."
+- "Fix the workflow so this block receives non-empty content."
+- "Why is this field undefined?"
+- "Compare this failed run with the successful run."
+
+### 3. What Mothership / Copilot can do
+
+Read logs and inspect run context (where available), explain the error, suggest a fix, edit the workflow, and help rerun and iterate.
+
+### 4. What you still verify
+
+Did it change the right block? Did the rerun succeed? Did the output match the intended behavior? Do downstream blocks still work?
+
+### 5. Closing frame
+
+Logs are ground truth. Mothership and Copilot help interpret and fix. You verify by rerunning and inspecting the result.

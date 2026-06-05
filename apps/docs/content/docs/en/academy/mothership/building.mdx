@@ -1,0 +1,52 @@
+---
+title: Building with Mothership
+description: The macro → micro build loop — scaffold the shape first, refine after execution reveals what matters.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Building with Mothership" />
+
+**Purpose.** Teach the Mothership build loop — the most important part of the module.
+
+**Learning outcome.** The learner understands the macro → micro build loop and resists premature micro-editing.
+
+## The build loop
+
+```
+1. Describe the system
+2. Let Mothership scaffold the macro shape
+3. Inspect what it created
+4. Run the system
+5. Read logs / inspect outputs
+6. Refine the weak parts
+7. Repeat until stable
+```
+
+## Macro → micro (the annealing idea)
+
+> Don't start by micromanaging every block. Start with the macro shape of the system. Let Mothership scaffold the broad architecture first, then progressively refine the individual parts as real execution reveals what matters.
+
+This is far better than trying to write the perfect prompt on the first try.
+
+## Key beats
+
+- start with a system spec
+- scaffold the macro shape first
+- inspect the generated workflow and resources
+- avoid premature micro-editing
+- refine after execution reveals the issues
+
+## Suggested order
+
+1. Show Mothership and describe a system at a high level.
+2. Let it scaffold the macro shape.
+3. Inspect the generated workflow and resources.
+4. Run it.
+5. Read logs and outputs.
+6. Refine one weak part, then repeat.
+
+<Callout type="info">
+Treat the first build as a scaffold, not the final answer. Sim systems converge through run → inspect → refine loops.
+</Callout>

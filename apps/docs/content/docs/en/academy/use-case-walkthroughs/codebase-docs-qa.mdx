@@ -1,0 +1,39 @@
+---
+title: Codebase / Docs Q&A
+description: A retrieval-grounded assistant that answers from docs and code context.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="Codebase / Docs Q&A" />
+
+**Learning outcome.** The learner understands how to build a system that answers from docs / code context. Shows knowledge bases and retrieval-grounded agents.
+
+## Problem
+
+Teams need answers from docs, a codebase, or internal knowledge.
+
+## System sketch
+
+```
+user question
+→ retrieve relevant docs/KB chunks
+→ agent answers with context
+→ optionally cite sources / log
+```
+
+## Modules used
+
+Knowledge base · connectors / docs · agent · workflow · chat / API deployment · logs.
+
+## Key concept
+
+> Knowledge bases provide searchable memory for agents.
+
+## Deployment
+
+A chat assistant or an internal API.
+
+## Takeaways
+
+Any "answer grounded in our own content" problem is a retrieval-grounded agent over a knowledge base.

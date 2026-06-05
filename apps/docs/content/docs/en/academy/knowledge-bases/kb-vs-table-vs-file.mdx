@@ -1,0 +1,38 @@
+---
+title: KB vs. Table vs. File
+description: Choosing the right storage and memory primitive for a job.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Knowledge Bases" title="KB vs. Table vs. File" />
+
+**Learning outcome.** The learner can choose the right storage / memory primitive. (This could stand alone or pair with the Files module.)
+
+## Key beats
+
+### Use a Table when
+
+- the data is structured
+- rows need statuses, scores, or categories
+- workflows process many records
+
+### Use a File when
+
+- the artifact itself matters
+- you need to upload, generate, or pass a document or media file
+
+### Use a Knowledge Base when
+
+- contents need semantic search
+- agents need to answer from many documents
+- the exact location of the answer is unknown
+
+### Example combining all three
+
+Upload a contract as a **File**, extract its clauses into a **Table**, and add many contracts and policies to a **Knowledge Base** for searchable legal memory.
+
+<Callout type="warn">
+Open product questions: whether files can/should be auto-promoted to a KB, whether KB/table hybrid patterns exist, and how a document-extraction pipeline should combine all three.
+</Callout>

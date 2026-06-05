@@ -1,0 +1,53 @@
+---
+title: 'How Workflows Run: Triggers, Branches, Loops, and Parallel Steps'
+description: A high-level model of how a workflow executes, for builders who need to reason about why a run behaved the way it did.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="How Workflows Run" />
+
+**Purpose.** Explain how workflows execute at a high level. Partners and serious builders need to reason about *why* a workflow ran the way it did — it may be too advanced for the first intro, but it's an important workflow follow-up.
+
+**Learning outcome.** The learner understands that workflows start from a trigger or input, blocks run based on dependencies, branches and conditions affect the path, loops repeat work, parallel blocks may run independently, and the response/output determines the result.
+
+**Core message.**
+
+> A block can run when the data it depends on is available.
+
+## 1. Trigger / start
+
+A workflow begins from a manual run, a webhook, a schedule, a table workflow group, or a deployed API / chat / MCP surface. Keep this high level.
+
+## 2. Dependency-based execution
+
+A block runs when the data it depends on is ready. Don't overcomplicate this with full topological execution unless the audience needs it.
+
+## 3. Branching
+
+Condition blocks (and routers, where applicable) select which path runs.
+
+## 4. Loops
+
+Loops repeat work over a list, pages, or rows.
+
+> An API returns 20 items per page; a loop fetches pages until done.
+
+## 5. Parallel
+
+Parallel steps run independent work at the same time — useful for multiple calls at once. Be explicit about how this differs from a loop: a loop repeats the same step over items; parallel runs different steps concurrently.
+
+## 6. Response / output behavior
+
+The final response block, selected outputs, and deployed workflows determine what the run returns.
+
+## 7. Logs show the execution path
+
+Tie back to logs — the run record shows which branches, loops, and parallel steps actually executed.
+
+## What to avoid
+
+- Don't go too theoretical.
+- Don't teach every trigger.
+- Don't make this required for beginner orientation.

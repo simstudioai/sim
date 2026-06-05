@@ -1,0 +1,28 @@
+{
+  "title": "Academy",
+  "root": true,
+  "pages": [
+    "index",
+    "---Start Here---",
+    "introduction",
+    "---Modules---",
+    "mothership",
+    "workflows",
+    "tables",
+    "knowledge-bases",
+    "files",
+    "agents-tools-mcp-skills",
+    "deployment",
+    "logs-debugging",
+    "workspaces-credentials-permissions",
+    "---Use-Case Walkthroughs---",
+    "use-case-walkthroughs/index",
+    "use-case-walkthroughs/slack-it-bot",
+    "use-case-walkthroughs/lead-enrichment-table",
+    "use-case-walkthroughs/document-extraction",
+    "use-case-walkthroughs/codebase-docs-qa",
+    "use-case-walkthroughs/polymarket-research",
+    "---Certification---",
+    "partner-certification"
+  ]
+}

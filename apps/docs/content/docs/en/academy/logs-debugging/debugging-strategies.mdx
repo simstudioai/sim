@@ -1,0 +1,44 @@
+---
+title: Debugging Strategies
+description: Use logs to diagnose common workflow failures.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Logs & Debugging" title="Debugging Strategies" />
+
+**Learning outcome.** The learner can use logs to diagnose common workflow failures.
+
+## Key beats
+
+### 1. Debugging mindset
+
+Don't guess — trace the data. The failed block is the symptom, not always the root cause.
+
+### 2. Checklist
+
+```
+Which block failed?
+What input did it receive?
+Was that input expected?
+What output/error did it produce?
+Did the bad data come from an earlier block?
+What changed after the fix?
+```
+
+### 3. Common failure types
+
+Missing input, wrong field reference, string vs. object, a missing nested JSON field, an empty agent message, a tool / API failure, structured-output mismatch.
+
+### 4. A simple example
+
+Show one failing workflow, inspect the failed block, trace backward, fix it, and rerun.
+
+### 5. Verification
+
+Compare the failed run with the fixed run. Confirm the output is correct — not just error-free.
+
+<Callout type="info">
+Debugging a workflow usually means finding where the data stopped matching what the next block expected.
+</Callout>

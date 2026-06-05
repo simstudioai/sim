@@ -1,0 +1,45 @@
+---
+title: 'Logs Tour: Understanding a Workflow Run'
+description: The logs interface — inspect a workflow run block by block.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Logs & Debugging" title="Logs Tour" />
+
+**Learning outcome.** The learner understands the logs interface and can inspect a workflow run.
+
+## Key beats
+
+### 1. Why logs matter
+
+Workflows can fail or produce unexpected outputs. Logs show what actually happened.
+
+### 2. Open a workflow run
+
+Show the run list / logs page, and select a run.
+
+### 3. Timeline / run structure
+
+Show the sequence of blocks, explain successful vs. failed blocks, and point out that a failed block is highlighted.
+
+### 4. Block details
+
+Click a block and show its input, output, error (if any), timing, and model / tool details where relevant.
+
+### 5. Basic interpretation
+
+Logs answer:
+
+```
+What ran?
+In what order?
+What did each block receive?
+What did each block return?
+Where did it fail?
+```
+
+<Callout type="info">
+Keep it light — the goal here is interface literacy, not deep debugging or cost analysis.
+</Callout>

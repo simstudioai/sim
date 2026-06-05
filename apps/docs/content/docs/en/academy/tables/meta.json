@@ -1,0 +1,10 @@
+{
+  "title": "Tables",
+  "pages": [
+    "index",
+    "intro",
+    "using-tables-in-workflows",
+    "workflow-columns",
+    "table-backed-systems"
+  ]
+}

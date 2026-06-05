@@ -1,0 +1,41 @@
+---
+title: Using Files in Workflows
+description: Passing a file into a workflow and producing an output.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Files" title="Using Files in Workflows" />
+
+**Learning outcome.** The learner understands the basic pattern of passing a file into a workflow and producing an output.
+
+## Key beats
+
+### 1. A simple example
+
+Upload a PDF or markdown file; the workflow summarizes or extracts fields; the output is a response, a table row, or a generated file.
+
+### 2. Show the file reference
+
+How the workflow knows which file to use. Keep it to the canonical pattern, not every possible hack.
+
+### 3. The agent consumes the file or its context
+
+The agent reads, summarizes, or extracts. If direct file handling needs a File block, show that explicitly.
+
+### 4. Generated output
+
+Save the generated report or file and show where it appears in Files.
+
+### 5. Inspect the run
+
+Check the logs to confirm what file or input was used. Keep debugging light.
+
+<Callout type="info">
+Copilot may find several working shapes — a direct file block, inlining contents, generated text, or another pattern. Focus on whether the workflow successfully consumes the artifact and produces the expected output, not whether the graph matches one exact shape.
+</Callout>
+
+<Callout type="warn">
+Open product questions: which blocks can read/write files, whether Function blocks can access workspace files, the official canonical file workflow, and how dynamic file references are best handled.
+</Callout>

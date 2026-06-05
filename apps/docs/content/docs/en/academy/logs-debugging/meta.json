@@ -1,0 +1,4 @@
+{
+  "title": "Logs & Debugging",
+  "pages": ["index", "logs-tour", "debugging-strategies", "debugging-with-mothership"]
+}

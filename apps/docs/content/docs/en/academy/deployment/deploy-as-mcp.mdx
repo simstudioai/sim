@@ -1,0 +1,39 @@
+---
+title: Deploy as MCP
+description: Expose a Sim workflow as a tool for other AI systems.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Deployment" title="Deploy as MCP" />
+
+**Learning outcome.** The learner understands MCP deployment as exposing a Sim workflow as a tool for other AI systems.
+
+## Key beats
+
+### 1. What MCP means here
+
+A way for external AI tools and agents to call Sim workflows.
+
+### 2. Why it matters
+
+Use Sim workflows inside your other AI tools.
+
+> Bring Sim into your other AI tools.
+
+### 3. Setup
+
+Deploy the workflow as MCP — tool name, description, and parameters inferred from the Start block inputs.
+
+### 4. Agent-facing metadata
+
+The tool description isn't just for humans — it helps the external agent know when to call the tool.
+
+### 5. Example clients
+
+Claude Desktop, Claude Code, Cursor, Codex, and other agent tools — show only what's currently supported and clean.
+
+<Callout type="warn">
+Open product questions: the tool-name validation issue, whether descriptions should be auto-generated, and which external client examples should be canonical.
+</Callout>

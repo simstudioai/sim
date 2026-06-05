@@ -1,0 +1,48 @@
+---
+title: 'Knowledge Bases Intro: Searchable Memory for AI Systems'
+description: What knowledge bases are, when to use them, and how they differ from tables and files.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Knowledge Bases" title="Knowledge Bases Intro" />
+
+**Learning outcome.** The learner understands what knowledge bases are, when to use them, and how they differ from tables and files.
+
+## Key beats
+
+### 1. Start with the problem
+
+AI systems often need context from documents. Prompting everything by hand doesn't scale. Knowledge bases let systems retrieve relevant information when they need it.
+
+### 2. Define a knowledge base
+
+A knowledge base stores documents as searchable memory. Documents are processed into searchable chunks, and agents or workflows retrieve the relevant pieces during a run.
+
+### 3. When to use one
+
+Support docs, company policies, product docs, code docs, research notes, manuals, customer knowledge.
+
+### 4. Distinguish from tables and files
+
+- **Tables** = structured rows and fields.
+- **Files** = artifacts, documents, media.
+- **Knowledge Bases** = searchable context over document contents.
+
+> Use a knowledge base when the question is "find relevant information from a body of documents."
+
+### 5. Connect to workflows
+
+Workflows and agents can query a knowledge base, which grounds answers in actual source material:
+
+```
+user question → agent searches the KB → answer with relevant context
+```
+
+## Avoid
+
+- Don't overexplain vector databases.
+- Don't turn it into retrieval theory.
+- Don't teach every connector.
+- Don't go deep on chunk tuning in the intro.

@@ -1,0 +1,47 @@
+---
+title: Mothership Intro
+description: What Mothership is and the role it plays in Sim.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Mothership Intro" />
+
+**Purpose.** Teach what Mothership is and what role it plays.
+
+**Learning outcome.** The learner understands Mothership as a natural-language builder and control plane — not just a chatbot.
+
+## What to say
+
+Teach Mothership as:
+
+- a natural-language interface over the workspace
+- something that can create workflows and resources
+- something that can edit and refactor systems
+- something that can help inspect and debug
+- a layer that sits above the primitives, but does not replace understanding them
+
+> Mothership is how you describe the system you want before you manually reason about every block.
+
+## Key beats
+
+- natural-language builder and control plane
+- creates workflows and resources
+- works over workspace primitives
+- not just a chatbot
+- not every output will be perfect on the first try
+
+## What Mothership can see and do
+
+Frame this carefully — without over-indexing on internal implementation:
+
+> Mothership can reason over different parts of your workspace and use internal product capabilities to create, inspect, and revise systems.
+
+What the learner needs to know: Mothership operates over workspace resources, knows about the workflows and objects in the workspace, has more local context in scoped workflow-editing (Copilot), and can often inspect logs and help fix issues. It is not omniscient — it still works through the product's available primitives and resource visibility.
+
+## What not to do
+
+- Don't imply Mothership always produces a perfect first build.
+- Don't position it as replacing knowledge of the primitives.
+- Don't lean on internal-implementation terms (e.g. "subagents") unless that becomes official product language.

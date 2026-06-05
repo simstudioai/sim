@@ -1,0 +1,28 @@
+---
+title: Knowledge Bases
+description: Sim's searchable memory layer — documents agents can retrieve from during a run.
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Why knowledge bases
+
+After workflows and tables, systems need the **unstructured-memory** layer. Tables handle structured records. Knowledge Bases handle documents, notes, policies, manuals, and websites — information that should be semantically searchable by agents and workflows.
+
+## Core thesis
+
+> Knowledge Bases are Sim's searchable memory layer.
+
+<Callout type="info">
+Use a knowledge base when the question is "find relevant information from a body of documents." Tables hold structured rows; files hold artifacts; knowledge bases make document *contents* searchable.
+</Callout>
+
+## Videos in this module
+
+<Cards>
+  <Card title="Knowledge Bases Intro" href="/academy/knowledge-bases/intro" description="Searchable memory for AI systems." />
+  <Card title="Using a KB in a Workflow" href="/academy/knowledge-bases/using-in-a-workflow" description="Make a knowledge base useful inside an agent." />
+  <Card title="KB vs. Table vs. File" href="/academy/knowledge-bases/kb-vs-table-vs-file" description="Choose the right storage and memory primitive." />
+  <Card title="Debugging Retrieval Quality" href="/academy/knowledge-bases/debugging-retrieval" description="Diagnose weak answers (optional)." />
+</Cards>

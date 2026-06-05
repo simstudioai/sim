@@ -1,0 +1,11 @@
+{
+  "title": "Workflows",
+  "pages": [
+    "index",
+    "intro",
+    "data-flow",
+    "testing-debugging",
+    "execution-semantics",
+    "common-blocks"
+  ]
+}

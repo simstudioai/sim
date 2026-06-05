@@ -1,0 +1,29 @@
+---
+title: Deployment
+description: How workflows become operational systems — callable by users, apps, services, and other AI.
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Why deployments
+
+A workflow is useful inside Sim, but a deployed workflow can be called by users, apps, services, or other AI systems. Deployments are how workflows become usable outside the editor.
+
+## Core thesis
+
+> Deployments turn workflows into operational systems.
+
+<Callout type="info">
+Deploying creates a versioned snapshot. Editing the workflow afterward doesn't necessarily change what's live — promotion and rollback are intentional. That reliability property matters for customer-facing systems.
+</Callout>
+
+## Videos in this module
+
+<Cards>
+  <Card title="Deployments Intro" href="/academy/deployment/intro" description="What deployment means and the main surfaces." />
+  <Card title="Deploy as API" href="/academy/deployment/deploy-as-api" description="Turn a workflow into an HTTP endpoint." />
+  <Card title="Deploy as Chat" href="/academy/deployment/deploy-as-chat" description="A conversational surface for a workflow." />
+  <Card title="Deploy as MCP" href="/academy/deployment/deploy-as-mcp" description="Expose a workflow as a tool for other AI systems." />
+  <Card title="Versions, Rollback & Live Behavior" href="/academy/deployment/versions-rollback" description="Snapshots and safe updates (advanced)." />
+</Cards>

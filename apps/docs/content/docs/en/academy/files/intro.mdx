@@ -1,0 +1,48 @@
+---
+title: 'Files Intro: Artifacts in Your Workspace'
+description: What files are for and how they differ from tables and knowledge bases.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Files" title="Files Intro" />
+
+**Learning outcome.** The learner understands what files are for and how they differ from tables and knowledge bases.
+
+## Key beats
+
+### 1. Start with the problem
+
+AI systems often work with artifacts — PDFs, markdown docs, images, reports, generated files. Files give those artifacts a home inside the workspace.
+
+### 2. Define files
+
+Files are workspace artifacts. They can be uploaded, created, previewed, referenced, and generated — an uploaded PDF, a markdown note, a generated report, an image or file output.
+
+### 3. What files are good for
+
+Storing source documents, passing documents into workflows, saving generated reports, keeping artifacts in the workspace, and reusing outputs later.
+
+### 4. Distinguish from tables and knowledge bases
+
+- **Table** = structured rows and fields.
+- **Knowledge Base** = searchable memory over document contents.
+- **File** = the artifact itself.
+
+> Use files when the document or media object matters. Use KBs when the contents need semantic search. Use tables when outputs should become structured records.
+
+### 5. Connect to workflows
+
+Workflows can consume files and generate files. Files become more useful when they're part of a workflow.
+
+<Callout type="info">
+Keep v0 practical — upload, reference, generate, save. Avoid overpromising exact file-access behavior.
+</Callout>
+
+## Avoid
+
+- Don't get theoretical about virtual filesystems.
+- Don't teach Function-block file access unless it's clarified.
+- Don't use image/file upload in a deployed chat as the first example.
+- Don't deep-dive folders or resource hierarchy yet.

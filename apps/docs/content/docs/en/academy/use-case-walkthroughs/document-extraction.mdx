@@ -1,0 +1,41 @@
+---
+title: Document Extraction / Report Generator
+description: Process documents into structured outputs and generated reports.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="Document Extraction / Report Generator" />
+
+**Learning outcome.** The learner understands how to process documents into structured outputs. Bridges files, tables, agents, and structured outputs.
+
+## Problem
+
+Documents contain useful information but are hard to process manually.
+
+## System sketch
+
+```
+upload file
+→ extract fields
+→ write structured data to a table
+→ generate a summary/report
+```
+
+## Modules used
+
+Files · workflow · agent · structured output · table · logs.
+
+## Key distinction
+
+- **File** = the artifact.
+- **Table** = the extracted structured result.
+- **Knowledge Base** = searchable memory, if many docs need retrieval.
+
+## Deployment
+
+Manual upload, API, or chat depending on the use case.
+
+## Takeaways
+
+The upload → extract → structure → generate shape underlies most document-processing systems.

@@ -1,0 +1,11 @@
+{
+  "title": "Introduction",
+  "pages": [
+    "index",
+    "what-is-sim",
+    "mothership-and-workflows",
+    "workspace-objects",
+    "running-and-inspecting",
+    "how-to-explore"
+  ]
+}

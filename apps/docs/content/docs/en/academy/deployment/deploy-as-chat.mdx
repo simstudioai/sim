@@ -1,0 +1,37 @@
+---
+title: Deploy as Chat
+description: A conversational surface for a workflow.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Deployment" title="Deploy as Chat" />
+
+**Learning outcome.** The learner understands chat deployment as a conversational surface for a workflow.
+
+## Key beats
+
+### 1. What chat deployment is
+
+Turns a workflow into a chat interface — useful when users should interact conversationally with a workflow.
+
+### 2. Setup
+
+Deploy the workflow as chat, then open and test it.
+
+### 3. Inputs
+
+Explain how chat messages map into workflow input. If the workflow has file uploads or custom inputs, keep the example simple.
+
+### 4. Output
+
+Show the response, and mention that workflow logs still exist behind the chat.
+
+### 5. When to use
+
+An internal assistant, a customer-facing helper, support / chat workflows, or a simple conversational tool.
+
+<Callout type="warn">
+Cautions: if a workflow has many blocks before the agent, chat may feel slow before streaming; tool calls may not stream visibly; uploaded files / images may need explicit workflow handling; selected-outputs behavior needs clarification. Avoid using file / image chat as the first demo until the behavior is confirmed.
+</Callout>

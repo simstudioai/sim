@@ -1,0 +1,33 @@
+---
+title: Files vs. KBs vs. Tables
+description: When a document should stay a file, become a knowledge base, or be extracted into a table.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Files" title="Files vs. KBs vs. Tables" />
+
+**Learning outcome.** The learner knows when a document should stay a file, become a knowledge base, or be extracted into a table. (Could combine with the knowledge-base comparison video.)
+
+## Key beats
+
+### File
+
+When the artifact matters — a PDF report, an image, a generated markdown doc.
+
+### Knowledge Base
+
+When the contents need semantic search — many policy docs or support docs.
+
+### Table
+
+When structured fields, statuses, or scores need tracking — extracted contract clauses, invoice fields, document-review status.
+
+### Example pipeline
+
+```
+Upload PDF as File
+→ extract fields with a workflow
+→ write structured fields to a Table
+→ add the document set to a Knowledge Base for search
+```

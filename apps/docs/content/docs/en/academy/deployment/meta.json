@@ -1,0 +1,11 @@
+{
+  "title": "Deployment",
+  "pages": [
+    "index",
+    "intro",
+    "deploy-as-api",
+    "deploy-as-chat",
+    "deploy-as-mcp",
+    "versions-rollback"
+  ]
+}

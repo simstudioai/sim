@@ -1,0 +1,49 @@
+---
+title: Deploy as API
+description: How a workflow becomes an API endpoint.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Deployment" title="Deploy as API" />
+
+**Learning outcome.** The learner understands how a workflow becomes an API endpoint.
+
+## Key beats
+
+### 1. A simple workflow
+
+Use an existing simple workflow and deploy it as an API.
+
+### 2. The endpoint
+
+Show the endpoint URL and explain that external systems can POST to it.
+
+### 3. Auth
+
+Keep it simple — an `X-API-Key` header.
+
+### 4. Request body
+
+Inputs map to the Start block schema. Show a simple cURL / request.
+
+### 5. Execution modes
+
+- **sync** — wait for the result
+- **stream** — streamed result
+- **async** — job-style execution
+
+Keep it high level.
+
+### 6. Selected outputs
+
+Lets the caller receive specific outputs. Show only if it's clean.
+
+### 7. Inspect logs
+
+API calls still create workflow runs — logs verify what happened.
+
+<Callout type="warn">
+Open product questions: the best beginner API example, how much cURL / code to show, and selected-outputs UX clarity.
+</Callout>

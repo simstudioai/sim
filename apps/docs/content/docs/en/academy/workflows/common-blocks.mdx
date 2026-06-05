@@ -1,0 +1,51 @@
+---
+title: Common Workflow Blocks and When to Use Them
+description: A practical, role-based map of the blocks you'll reach for most.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Common Workflow Blocks" />
+
+**Purpose.** Give a practical map of common workflow building blocks — grouped by role, not listed alphabetically.
+
+**Learning outcome.** The learner recognizes common block types and knows when they'd use each.
+
+## Grouping by role
+
+### Input / trigger
+
+Start, webhook, schedule, table trigger.
+
+### Reasoning
+
+Agent, and possibly Evaluator.
+
+### Data / transformation
+
+Function, API, Table.
+
+### Control flow
+
+Condition, Router, Loop, Parallel.
+
+### Human / output
+
+Response, human-in-the-loop, and Slack / email / message blocks.
+
+### Capability / tool
+
+Integrations, MCP, and the Workflow block.
+
+## Teaching strategy
+
+For each group, answer three questions: what problem does it solve, when would you use it, and what common mistake happens? For example:
+
+> Use Function blocks when the data is almost right but needs reshaping.
+
+## What to avoid
+
+- Don't make this exhaustive — the block list changes.
+- Don't over-index on exact UI names.
+- Keep it a mental map, not a catalog. See [Blocks](/blocks) for the complete reference.

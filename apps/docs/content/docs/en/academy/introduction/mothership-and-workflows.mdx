@@ -1,0 +1,35 @@
+---
+title: Mothership & Workflows
+description: The two most important starting concepts — where you ask, and where logic runs.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Mothership & Workflows" />
+
+**Purpose.** Explain the two most important starting concepts: Mothership and workflows.
+
+**Learning outcome.** The learner understands that Mothership is where they ask Sim to create or change things, that workflows are where executable logic lives, and that when Mothership builds something, workflows are usually where they inspect what was built.
+
+## What to say
+
+- Mothership is the natural-language interface for working inside Sim. You can ask it to create workflows, modify resources, explain things, and help debug.
+- Workflows are visual programs made of blocks. A workflow is where steps happen: receive input, call an AI model, use a tool, query data, branch, return output.
+- Even if Mothership creates a workflow for you, you can still open it and inspect the structure.
+
+## Suggested order
+
+1. Show Mothership.
+2. Ask for a very simple workflow — e.g. *Create a workflow that takes a customer message and classifies it by category and urgency.*
+3. Show the created workflow.
+4. Explain only the visible basics: Start / input, one or two processing blocks, output / response.
+5. Show that blocks are inspectable: click a block, show the settings / output area lightly.
+6. Close: *Mothership helps you create. Workflows show you what will actually run.*
+
+## What not to do
+
+- Don't teach all block types.
+- Don't teach advanced prompting.
+- Don't teach full debugging or go deep on logs yet.
+- Don't overstate Mothership as "architect not QA" — it can also help inspect and debug.

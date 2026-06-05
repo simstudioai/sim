@@ -1,0 +1,37 @@
+---
+title: Using Tables in Workflows
+description: How workflows read from and write to tables.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Tables" title="Using Tables in Workflows" />
+
+**Learning outcome.** The learner understands how workflows read from and write to tables.
+
+## Key beats
+
+### 1. A simple example
+
+A lead table or a support-ticket table. Columns: company / message, notes, category, score / status.
+
+### 2. Read / query table data
+
+Show the Table block (or the relevant operation) and explain that table rows can become workflow input.
+
+### 3. Process row data
+
+An Agent classifies, scores, or summarizes. If using structured output, keep it simple: category, urgency, confidence.
+
+### 4. Write the result back
+
+Update the row or insert a row. Show the table changing after the run.
+
+### 5. Inspectability
+
+The table becomes the dashboard for the workflow's work. If an output is wrong, inspect the workflow's logs.
+
+<Callout type="warn">
+Open product questions to resolve before recording: what exactly "input mode" in query-rows does; which table operations should be canonical for beginners; the best simple table-workflow example.
+</Callout>

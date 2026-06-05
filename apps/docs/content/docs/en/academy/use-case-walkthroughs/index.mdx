@@ -1,0 +1,41 @@
+---
+title: Overview
+description: Guided builds that compose Sim modules into real systems — problem to deployment.
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Core thesis
+
+> Module videos teach primitives. Use-case videos teach composition.
+
+A walkthrough shows how Sim modules combine into a real system: **problem → system sketch → build → run → inspect → debug → deploy.**
+
+## The standard walkthrough format
+
+Every walkthrough follows the same beats, so the *composition* is what stands out:
+
+1. **Problem** — the real user / customer problem; what's currently manual, fragmented, or hard to scale.
+2. **System sketch** — inputs, what needs to happen, where outputs go, what triggers it, who uses the result.
+3. **Modules used** — workflows, tables, KBs, files, agents / tools, deployments, logs.
+4. **Build approach** — Mothership prompt or manual; show the high-level architecture first.
+5. **Run** — execute with real or sample input; show outputs.
+6. **Inspect** — open the workflow, the table / file / KB, and the logs.
+7. **Debug / refine** — one realistic fix or improvement.
+8. **Deployment** — how it's used for real: API, chat, MCP, schedule, table workflow group.
+9. **Takeaways** — the pattern used, and what else it generalizes to.
+
+<Callout type="info">
+The Polymarket research pipeline is an advanced / power-user walkthrough — not a first beginner demo.
+</Callout>
+
+## Walkthroughs
+
+<Cards>
+  <Card title="Slack IT Bot" href="/academy/use-case-walkthroughs/slack-it-bot" description="A Slack-based internal assistant with triage and routing." />
+  <Card title="GTM / Lead Enrichment Table" href="/academy/use-case-walkthroughs/lead-enrichment-table" description="Table-backed enrichment and qualification." />
+  <Card title="Document Extraction / Report Generator" href="/academy/use-case-walkthroughs/document-extraction" description="Turn documents into structured outputs and reports." />
+  <Card title="Codebase / Docs Q&A" href="/academy/use-case-walkthroughs/codebase-docs-qa" description="Retrieval-grounded answers from docs and code." />
+  <Card title="Polymarket Research Pipeline" href="/academy/use-case-walkthroughs/polymarket-research" description="A multi-stage table-backed research and ranking pipeline (advanced)." />
+</Cards>

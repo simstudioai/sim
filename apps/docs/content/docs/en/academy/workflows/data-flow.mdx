@@ -1,0 +1,50 @@
+---
+title: 'Workflow Data Flow: How Blocks Pass Information'
+description: How data moves through blocks, and how to reason about block inputs and outputs.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Workflow Data Flow" />
+
+**Purpose.** Teach how data moves through blocks and how to reason about block inputs and outputs. This deserves its own video because most real workflow issues are data-flow issues — object vs. string coercion, nested JSON fields, stringifying before a prompt, wrong references, structured-output shape.
+
+**Learning outcome.** The learner understands that each block has inputs and outputs, that outputs can be referenced by later blocks, that data shape matters, and that many bugs are reference, type, or shape bugs.
+
+**Core message.**
+
+> It is not enough that data exists. It has to be in the shape the next block expects.
+
+## 1. Block outputs
+
+Every block produces data — text, JSON, an object, a file, or an error. Show a block's output so the learner sees what "an output" actually is.
+
+## 2. Referencing previous outputs
+
+Show how a later block uses an earlier output. Keep the example simple: a Start input feeding an Agent prompt, an Agent's structured output feeding a Function block.
+
+## 3. Data shape
+
+Make the shape concept concrete:
+
+- string vs. object
+- nested field vs. top-level field
+- array vs. single value
+- a JSON object passed into a prompt
+
+## 4. Transformations
+
+Introduce the Function block as the common bridge: stringify an object before a prompt, compute derived fields, reshape an API response, extract nested fields.
+
+## 5. Structured outputs
+
+Show an Agent returning structured JSON and a later block reading specific fields from it.
+
+## 6. Debugging data flow
+
+Use logs to inspect what each block received and returned. When something fails, trace backward.
+
+<Callout type="info">
+Keep examples visual and practical. Don't overteach programming or require deep JavaScript.
+</Callout>

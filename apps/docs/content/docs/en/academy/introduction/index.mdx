@@ -1,0 +1,50 @@
+---
+title: Introduction
+description: A short whirlwind tour of Sim — what you're looking at, what the main things are called, and how to start.
+full: true
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
+
+<VideoPlaceholder eyebrow="Introduction" title="What is Sim?" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
+
+## What is Sim?
+
+Sim is a workbench for building AI systems. In this opening lesson you'll get the macro picture — the workspace, Mothership, and the persistent resources your systems are made of — so the rest of the Academy makes sense.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'Recognize the main surfaces',
+      body: 'Open Sim and identify the workspace, Mothership, and the resources your systems are built from — without feeling lost.',
+    },
+    {
+      title: 'Understand the object model',
+      body: 'See how workflows, tables, knowledge bases, files, tools, logs, and deployments fit together into one system.',
+    },
+  ]}
+/>
+
+</div>
+<div>
+
+<CourseProgress
+  course="Introduction"
+  durationLabel="Approx. 18 min"
+  progress={0}
+  lessons={[
+    { title: 'What is Sim?', duration: '3:20', active: true },
+    { title: 'Mothership & Workflows', duration: '4:10' },
+    { title: 'Main Workspace Objects', duration: '5:05' },
+    { title: 'Running & Inspecting Something', duration: '3:40' },
+    { title: 'How to Explore Next', duration: '1:45' },
+  ]}
+/>
+
+</div>
+</div>

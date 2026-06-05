@@ -1,0 +1,51 @@
+---
+title: Debugging with Mothership & Copilot
+description: Failures are expected — how Mothership and Copilot help you inspect and fix a generated system.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Debugging with Mothership & Copilot" />
+
+**Purpose.** Teach how Mothership (and Copilot, in scoped workflow-editing) helps inspect and fix failures.
+
+**Learning outcome.** The learner understands that failures are expected and that generated systems self-correct through run → inspect → refine loops.
+
+## Failure is expected
+
+First-pass workflows often fail because of:
+
+- wrong data shape
+- wrong field reference
+- string vs. object mismatch
+- nested JSON assumptions
+- tool / API configuration issues
+- payload limits
+- missing or incorrect prompts
+- structured-output mismatch
+
+> Generated failure is normal. The system is supposed to converge through inspection and correction.
+
+And:
+
+> Mothership is most powerful when you treat the first build as a scaffold, not the final answer.
+
+## Key beats
+
+- failures are expected
+- read the logs
+- ask Mothership (or Copilot, inside a workflow) to explain or fix
+- rerun and verify
+- generated workflows improve through self-correcting loops
+
+## Suggested order
+
+1. Run a workflow that fails.
+2. Open the logs and find the failing block.
+3. Ask Mothership / Copilot to explain and fix it.
+4. Rerun and verify the output.
+
+<Callout type="info">
+Pair this with the docs guide [Logging](/logs-debugging/logging) and the Workflows module's [Testing & debugging](/academy/workflows/testing-debugging).
+</Callout>

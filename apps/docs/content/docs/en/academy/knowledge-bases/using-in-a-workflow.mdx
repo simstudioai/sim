@@ -1,0 +1,37 @@
+---
+title: Using a Knowledge Base in a Workflow
+description: How a knowledge base becomes useful inside a workflow or agent.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Knowledge Bases" title="Using a KB in a Workflow" />
+
+**Learning outcome.** The learner understands how a knowledge base becomes useful inside a workflow or agent.
+
+## Key beats
+
+### 1. Create / upload
+
+Create a knowledge base, upload a simple document, and let it process.
+
+### 2. Ask a question
+
+Query it manually or through Mothership, and show that the system retrieves relevant information.
+
+### 3. Use in an Agent workflow
+
+Workflow input is a user question; the Agent has access to the knowledge base; the Agent answers using the retrieved context.
+
+### 4. Inspect the output
+
+Show the answer and, if available, the retrieved context, citations, or source chunks.
+
+### 5. Basic failure modes
+
+A bad answer may mean: the document wasn't uploaded, it wasn't processed, the query was too vague, the relevant info isn't in the knowledge base, or there's a retrieval issue.
+
+<Callout type="warn">
+Open product questions: how visible retrieved chunks are, whether citations / source references are clearly exposed, which controls matter most for retrieval quality, and the recommended KB-in-workflow pattern.
+</Callout>

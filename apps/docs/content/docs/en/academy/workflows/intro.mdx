@@ -1,0 +1,83 @@
+---
+title: 'Workflows Intro: Where AI Systems Become Executable'
+description: A clear mental model for what a workflow is, what it contains, and why it's central to Sim.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder title="Workflows Intro" />
+
+**Purpose.** Give the learner a clear mental model for what a workflow is, what it contains, and why it matters. This is the first module intro — not a full block catalog.
+
+**Learning outcome.** By the end, the learner understands what a workflow is, what blocks are, how data moves through a workflow, what triggers and inputs are, what outputs are, why workflows are central to Sim, and how workflows connect to other Sim resources.
+
+**Core message.**
+
+> A workflow is a visual program made of blocks. Each block performs a step, and the workflow defines how data moves from input to output.
+
+Or, put another way: workflows are Sim's executable process layer.
+
+## 1. Start with the role of workflows
+
+Open with the framing: *In Sim, workflows are where your AI system actually runs.* Mothership can help create them; tables, files, knowledge bases, integrations, and tools all participate in them; deployments expose them; logs inspect them. This positions workflows as the gravity center.
+
+**Show:** the Workflows section, a simple workflow canvas, maybe a glimpse of a more complex workflow before returning to a simple one.
+
+**Avoid:** starting with the full list of block types; jumping into loops, parallel, or deployments; making the workflow feel like a no-code toy. It's an executable system graph.
+
+## 2. Define the basic parts
+
+Show a simple workflow: `Start → Agent → Response`. Explain the three parts:
+
+- **Start / input** — where the workflow begins and what it receives. Later this could be a webhook, table row, schedule, or chat message. For now: simple text input.
+- **Blocks / steps** — each block performs one operation: call a model, run code, call an API, query a table, use a tool, branch, loop, or return a response.
+- **Output / response** — where the workflow produces a result or side effect. For the intro: a final response.
+
+> Every workflow has an entry point, a set of steps, and some output or side effect.
+
+## 3. Blocks as capability units
+
+> Blocks are capability units. Each one does one thing your system needs.
+
+Agent = model reasoning · Function = custom code / data transformation · API = external HTTP request · Table = structured data access · Condition = branching · Loop = repeated work · Response = final output.
+
+One nuance worth planting early: some blocks are deterministic, some involve model reasoning. A Function block is a deterministic transformation; an Agent block is model reasoning; a Condition block is an explicit branch. This matters later for debugging and system design.
+
+## 4. Edges and data flow
+
+This is the most important concept.
+
+> A workflow is not just blocks on a canvas. The important thing is how data moves between them.
+
+Show output from Start feeding the Agent, the Agent's output feeding the Response. Blocks produce outputs; later blocks reference those outputs; errors often come from a wrong data shape or a wrong reference.
+
+<Callout type="info">
+Most real workflow debugging is data-flow debugging.
+</Callout>
+
+**Avoid** going deep into nested JSON, complex interpolation, or full variable mechanics in the intro.
+
+## 5. Show a simple run
+
+Use a simple workflow — e.g. classify a customer message's category and urgency, then return the classification. Show test input, run, output.
+
+> Running a workflow sends data through each step and produces outputs you can inspect.
+
+## 6. Show where logs fit
+
+Keep it light: *After a workflow runs, logs let you see what happened at each step.* Show a run log and a block's input/output. Logs get their own module — just reinforce inspectability here.
+
+## 7. How workflows connect to the rest of Sim
+
+Close the loop: workflows can read and write tables, use knowledge bases, consume and generate files, call integrations and tools, be deployed as API/chat/MCP, be triggered by schedules/webhooks/events, and be debugged through logs.
+
+> If the workspace contains the resources of your system, workflows are where those resources become behavior.
+
+## 8. What to learn next
+
+> Once you understand workflows, the rest of Sim becomes easier: every module either provides data, memory, tools, artifacts, deployment surfaces, or observability for workflows.
+
+---
+
+**Do not cover deeply yet:** the full block catalog, workflow columns, deployments, advanced triggers, loop/parallel semantics, complex JSON/data mapping, partner best practices.

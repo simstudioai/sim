@@ -1,0 +1,29 @@
+---
+title: Agents, Tools, MCP, Skills
+description: How agents gain capabilities — reasoning with instructions, acting through tools.
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Why this module
+
+After users understand workflows and the resource layers, they need to understand how agents gain capabilities. An Agent block can reason — but tools, integrations, MCP, workflows, and skills determine what it can actually *do*.
+
+## Core thesis
+
+> Agents become useful when they can reason with instructions and act through capabilities.
+
+<Callout type="info">
+The right way to give a system an ability depends on whether the action should be deterministic, model-decided, reusable, external, or instruction-like. This module builds a decision rule for that.
+</Callout>
+
+## Videos in this module
+
+<Cards>
+  <Card title="Agents Intro" href="/academy/agents-tools-mcp-skills/agents" description="What an Agent block is and how it fits in a workflow." />
+  <Card title="Tools: Giving Agents Capabilities" href="/academy/agents-tools-mcp-skills/tools" description="How tools let agents act beyond text." />
+  <Card title="Choosing the Right Capability" href="/academy/agents-tools-mcp-skills/choosing-a-capability" description="Block vs. tool vs. custom tool vs. MCP vs. workflow vs. skill." />
+  <Card title="Skills" href="/academy/agents-tools-mcp-skills/skills" description="Reusable instructions and playbooks (optional)." />
+  <Card title="MCP & Workflow-as-Tool" href="/academy/agents-tools-mcp-skills/mcp-and-workflow-as-tool" description="Connect external tools and expose workflows (optional)." />
+</Cards>

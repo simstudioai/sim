@@ -1,0 +1,36 @@
+---
+title: Tables
+description: Sim's structured state layer — where workflows store, inspect, and process work across rows.
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Why tables
+
+Workflows show how systems *run*. Tables show *where structured system state lives*. A lot of real Sim systems aren't one-off `input → agent → output`. They look like:
+
+```
+many records → process each row → write results back → inspect / rerun / continue
+```
+
+## Core thesis
+
+> Tables are Sim's structured state layer. They let workflows store, inspect, and process work across rows.
+
+And the advanced idea this module builds toward:
+
+> Workflow columns turn tables into active pipelines.
+
+<Callout type="info">
+A table looks spreadsheet-like, but it's closer to structured state — a place workflows write to, read from, and process row by row.
+</Callout>
+
+## Videos in this module
+
+<Cards>
+  <Card title="Tables Intro" href="/academy/tables/intro" description="Structured state for AI systems." />
+  <Card title="Using Tables in Workflows" href="/academy/tables/using-tables-in-workflows" description="Read from and write to tables in a workflow." />
+  <Card title="Workflow Columns & Active Tables" href="/academy/tables/workflow-columns" description="Run a workflow per row — the pipeline comes to the data." />
+  <Card title="Table-Backed Systems" href="/academy/tables/table-backed-systems" description="When a use case should be table-backed (optional)." />
+</Cards>

@@ -1,0 +1,43 @@
+---
+title: 'Tools: Giving Agents Capabilities'
+description: How tools let agents act beyond text generation.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Agents, Tools, MCP, Skills" title="Tools: Giving Agents Capabilities" />
+
+**Learning outcome.** The learner understands how tools let agents act beyond text generation.
+
+## Key beats
+
+### 1. The problem
+
+An agent without tools can reason. An agent with tools can search, call APIs, access services, trigger actions, or use workspace capabilities.
+
+### 2. What a tool is
+
+A capability the agent can call during its reasoning — a search, an API call, an integration action, a workflow, or an MCP tool.
+
+### 3. Auto vs. force
+
+- **Auto** — the model decides whether to call the tool.
+- **Force** — the model must call the tool.
+
+Use force when the workflow requires that capability.
+
+### 4. Tool parameters
+
+- **Prefilled parameters** = fixed by the builder.
+- **Empty / model-filled parameters** = the agent decides based on context.
+
+This matters for predictable behavior.
+
+### 5. Tool outputs
+
+Tool calls appear in the agent's output and logs. The final content is separate from the tool-call trace.
+
+<Callout type="warn">
+Open product questions: what happens on failed tool calls, whether the agent retries, how loops / tool retries should be explained, and how much of the tool-call trace is visible in the UI.
+</Callout>

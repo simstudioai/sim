@@ -1,0 +1,12 @@
+{
+  "title": "Partner Certification",
+  "pages": [
+    "index",
+    "workspace-as-customer-app",
+    "credentials-ownership-security",
+    "deployment-versioning-rollback",
+    "common-implementation-patterns",
+    "debugging-customer-workflows",
+    "final-challenge"
+  ]
+}

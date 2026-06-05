@@ -1,0 +1,40 @@
+---
+title: Agents Intro
+description: What an Agent block is and how it fits inside workflows.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Agents, Tools, MCP, Skills" title="Agents Intro" />
+
+**Learning outcome.** The learner understands what an Agent block is and how it fits inside workflows.
+
+## Key beats
+
+### 1. Start with the role
+
+Agent blocks are where model reasoning happens inside a workflow — summarize, classify, decide, extract, write, evaluate.
+
+### 2. Basic Agent settings
+
+Model, messages / instructions, response format, tools, outputs.
+
+### 3. Input → reasoning → output
+
+The agent receives workflow data, produces text or structured output, and later blocks can use that output.
+
+### 4. Structured outputs
+
+Use them when a downstream workflow needs reliable fields — e.g. `category, urgency, confidence`. Free text is harder to compute with.
+
+### 5. Inspectability
+
+Agent output includes content, model, tokens, tool calls, and timing / cost metadata. Don't overfocus on every field — just show that the agent is inspectable.
+
+## Avoid
+
+- Don't explain every model or provider.
+- Don't go deep on tools yet.
+- Don't teach skills or MCP in the first agent intro.
+- Don't turn it into prompt-engineering theory.

@@ -1,0 +1,36 @@
+---
+title: Common Implementation Patterns
+description: Patterns and gotchas that show up in real customer builds.
+---
+
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+
+<VideoPlaceholder eyebrow="Partner Certification" title="Common Implementation Patterns" />
+
+**Learning outcome.** The partner recognizes common patterns and gotchas that appear in real customer builds.
+
+## Key beats
+
+### 1. Slack bot pattern
+
+Trigger → filter bot / self messages → classify → respond or create a ticket.
+
+### 2. Pagination pattern
+
+An API returns limited rows → loop with a cursor / offset → collect results safely.
+
+### 3. Table-backed pipeline
+
+Rows as work items → workflow columns → dependencies and cascades.
+
+### 4. KB-grounded assistant
+
+Docs → KB → agent answer, with retrieval-quality checks.
+
+### 5. File extraction
+
+File upload → extract fields → table output.
+
+### 6. API / MCP deployment
+
+Expose a workflow to customer systems or external agents.
