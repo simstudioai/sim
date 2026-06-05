@@ -22,6 +22,7 @@ export type CellRenderKind =
   | { kind: 'error' }
   | { kind: 'waiting'; labels: string[] }
   | { kind: 'not-found' }
+  | { kind: 'no-output' }
   // Plain typed cells
   | { kind: 'boolean'; checked: boolean }
   | { kind: 'json'; text: string }
@@ -106,6 +107,9 @@ export function resolveCellRender({
     if (exec?.status === 'error') return { kind: 'error' }
     // Enrichment ran to completion but matched nothing → "Not found".
     if (isEnrichmentOutput && exec?.status === 'completed') return { kind: 'not-found' }
+    // Workflow output: the group's run completed but this block produced no
+    // value for the cell → grey "No output" (distinct from a never-run blank).
+    if (exec?.status === 'completed') return { kind: 'no-output' }
     return { kind: 'empty' }
   }
 
@@ -390,6 +394,15 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
         <Wrap isEditing={isEditing}>
           <Badge variant='gray' dot size='sm'>
             Not found
+          </Badge>
+        </Wrap>
+      )
+
+    case 'no-output':
+      return (
+        <Wrap isEditing={isEditing}>
+          <Badge variant='gray' dot size='sm'>
+            No output
           </Badge>
         </Wrap>
       )

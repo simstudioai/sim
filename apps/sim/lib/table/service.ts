@@ -3869,6 +3869,7 @@ export async function updateWorkflowGroup(
         dependencies: data.dependencies ?? group.dependencies,
         outputs: newOutputs,
         ...(data.inputMappings !== undefined ? { inputMappings: data.inputMappings } : {}),
+        ...(data.deploymentMode !== undefined ? { deploymentMode: data.deploymentMode } : {}),
         ...(data.type !== undefined ? { type: data.type } : {}),
         ...(data.autoRun !== undefined ? { autoRun: data.autoRun } : {}),
       }
