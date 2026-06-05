@@ -28,7 +28,6 @@ import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/do
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
 import { isRenderableDocExt, renderDocToGrid } from '@/lib/copilot/tools/server/files/doc-render'
-import { computeWorkflowDag } from '@/lib/copilot/tools/server/workflow/edit-workflow/dag'
 import {
   collectWorkflowFieldIssues,
   lintEditedWorkflowState,
@@ -348,7 +347,6 @@ function getStaticComponentFiles(): Map<string, string> {
  *   WORKSPACE.md                         — workspace inventory summary (auto-generated)
  *   workflows/{name}/meta.json            (root-level workflows)
  *   workflows/{name}/state.json          (sanitized blocks with embedded connections)
- *   workflows/{name}/dag.json            (block name -> downstream block names adjacency)
  *   workflows/{name}/lint.json           (sources/sinks, required-field, credential/resource issues)
  *   workflows/{name}/executions.json
  *   workflows/{name}/deployment.json
@@ -1094,16 +1092,10 @@ export class WorkspaceVFS {
             } as any)
             this.files.set(`${prefix}state.json`, JSON.stringify(sanitized, null, 2))
 
-            // Dynamically-computed workflow shape (dag.json) and validation
-            // state (lint.json), derived from the raw normalized state so
-            // subBlock values, advancedMode, canonicalModes, and subflow edges
-            // are all available.
+            // Dynamically-computed validation state (lint.json), derived from
+            // the raw normalized state so subBlock values, advancedMode,
+            // canonicalModes, and subflow edges are all available.
             try {
-              this.files.set(
-                `${prefix}dag.json`,
-                JSON.stringify(computeWorkflowDag(normalized as any), null, 2)
-              )
-
               const graphLint = lintEditedWorkflowState(normalized as any)
               const fieldIssues = collectWorkflowFieldIssues(normalized.blocks as any)
               let unresolvedReferences: Awaited<ReturnType<typeof collectUnresolvedReferences>> = []
@@ -1134,7 +1126,7 @@ export class WorkspaceVFS {
                 )
               )
             } catch (lintErr) {
-              logger.warn('Failed to compute lint.json/dag.json', {
+              logger.warn('Failed to compute lint.json', {
                 workflowId: wf.id,
                 error: toError(lintErr).message,
               })
