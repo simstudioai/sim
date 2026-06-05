@@ -177,6 +177,15 @@ export async function nextImportStartPosition(tableId: string): Promise<number> 
   return maxPos + 1
 }
 
+/**
+ * Append anchor `order_key` for an import — `max(order_key)`, or null when empty. Read once,
+ * unlocked, before streaming (the import worker is the table's sole writer); each batch threads
+ * the previous batch's last key forward so no per-batch max scan is needed.
+ */
+export async function nextImportStartOrderKey(tableId: string): Promise<string | null> {
+  return maxOrderKey(db, tableId)
+}
+
 const TIMEOUT_CAP_MS = 10 * 60_000
 
 /**
@@ -1030,6 +1039,15 @@ async function nextRowPosition(trx: DbTransaction, tableId: string): Promise<num
   return maxPos + 1
 }
 
+/** Largest `order_key` for a table, or `null` when empty — the append anchor for new keys. */
+async function maxOrderKey(executor: DbOrTx, tableId: string): Promise<string | null> {
+  const [{ maxKey }] = await executor
+    .select({ maxKey: sql<string | null>`max(${userTableRows.orderKey})` })
+    .from(userTableRows)
+    .where(eq(userTableRows.tableId, tableId))
+  return maxKey ?? null
+}
+
 /** Shifts every row at or after `position` up by one (`position + 1`). */
 async function shiftRowsUpFrom(trx: DbTransaction, tableId: string, position: number) {
   await trx
@@ -1208,11 +1226,7 @@ async function resolveInsertOrderKey(
     return r?.orderKey ?? null
   }
   if (requestedPosition === undefined) {
-    const [{ maxKey }] = await trx
-      .select({ maxKey: sql<string | null>`max(${userTableRows.orderKey})` })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, tableId))
-    return keyBetween(maxKey ?? null, null)
+    return keyBetween(await maxOrderKey(trx, tableId), null)
   }
   const lo = await orderKeyAtSlot(requestedPosition - 1)
   const hi = await orderKeyAtSlot(requestedPosition)
@@ -1301,11 +1315,7 @@ async function resolveBatchInsertOrderKeys(
   positions?: number[]
 ): Promise<string[]> {
   if (!positions || positions.length === 0) {
-    const [{ maxKey }] = await trx
-      .select({ maxKey: sql<string | null>`max(${userTableRows.orderKey})` })
-      .from(userTableRows)
-      .where(eq(userTableRows.tableId, tableId))
-    return nKeysBetween(maxKey ?? null, null, count)
+    return nKeysBetween(await maxOrderKey(trx, tableId), null, count)
   }
   const keys: string[] = []
   for (const pos of positions) {
@@ -1707,6 +1717,8 @@ export interface BulkImportBatch {
   rows: RowData[]
   /** Position of the first row in this batch; rows get contiguous positions from here. */
   startPosition: number
+  /** Previous batch's last `order_key` (the append anchor); null for the first batch / empty table. */
+  afterOrderKey?: string | null
 }
 
 /**
@@ -1727,7 +1739,7 @@ export async function bulkInsertImportBatch(
   data: BulkImportBatch,
   table: TableDefinition,
   requestId: string
-): Promise<number> {
+): Promise<{ inserted: number; lastOrderKey: string | null }> {
   for (let i = 0; i < data.rows.length; i++) {
     const sizeValidation = validateRowSize(data.rows[i])
     if (!sizeValidation.valid) {
@@ -1755,12 +1767,9 @@ export async function bulkInsertImportBatch(
   }
 
   const now = new Date()
-  // Import worker is the table's sole writer; append keys after the current max.
-  const [{ maxKey }] = await db
-    .select({ maxKey: sql<string | null>`max(${userTableRows.orderKey})` })
-    .from(userTableRows)
-    .where(eq(userTableRows.tableId, data.tableId))
-  const orderKeys = nKeysBetween(maxKey ?? null, null, data.rows.length)
+  // Import worker is the table's sole writer; append keys after the anchor the caller threads
+  // from the previous batch's last key — no per-batch max(order_key) scan over a growing table.
+  const orderKeys = nKeysBetween(data.afterOrderKey ?? null, null, data.rows.length)
   const rowsToInsert = data.rows.map((rowData, i) => ({
     id: `row_${generateId().replace(/-/g, '')}`,
     tableId: data.tableId,
@@ -1775,7 +1784,10 @@ export async function bulkInsertImportBatch(
 
   await db.insert(userTableRows).values(rowsToInsert)
   logger.info(`[${requestId}] Bulk-imported ${rowsToInsert.length} rows into table ${data.tableId}`)
-  return rowsToInsert.length
+  return {
+    inserted: rowsToInsert.length,
+    lastOrderKey: orderKeys[orderKeys.length - 1] ?? data.afterOrderKey ?? null,
+  }
 }
 
 /** Deletes every row of a table (set-based; the statement-level trigger zeroes `row_count`). */
