@@ -121,6 +121,7 @@ function WorkspaceHeaderImpl({
   const hasInputFocusedRef = useRef(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const workspaceListRef = useRef<HTMLDivElement>(null)
+  const highlightSourceRef = useRef<'keyboard' | 'mouse'>('keyboard')
 
   const [workspaceSearch, setWorkspaceSearch] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
@@ -133,6 +134,7 @@ function WorkspaceHeaderImpl({
 
   useEffect(() => {
     if (!showSearch || !isWorkspaceMenuOpen) return
+    if (highlightSourceRef.current !== 'keyboard') return
     const el = workspaceListRef.current?.querySelector<HTMLElement>(
       `[data-workspace-row-idx="${highlightedIndex}"]`
     )
@@ -429,9 +431,11 @@ function WorkspaceHeaderImpl({
                         if (filteredWorkspaces.length === 0) return
                         if (e.key === 'ArrowDown') {
                           e.preventDefault()
+                          highlightSourceRef.current = 'keyboard'
                           setHighlightedIndex((i) => (i + 1) % filteredWorkspaces.length)
                         } else if (e.key === 'ArrowUp') {
                           e.preventDefault()
+                          highlightSourceRef.current = 'keyboard'
                           setHighlightedIndex(
                             (i) => (i - 1 + filteredWorkspaces.length) % filteredWorkspaces.length
                           )
@@ -466,7 +470,14 @@ function WorkspaceHeaderImpl({
                       <div
                         key={workspace.id}
                         data-workspace-row-idx={showSearch ? idx : undefined}
-                        onMouseEnter={showSearch ? () => setHighlightedIndex(idx) : undefined}
+                        onMouseEnter={
+                          showSearch
+                            ? () => {
+                                highlightSourceRef.current = 'mouse'
+                                setHighlightedIndex(idx)
+                              }
+                            : undefined
+                        }
                       >
                         {editingWorkspaceId === workspace.id ? (
                           <div
