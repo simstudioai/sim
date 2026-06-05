@@ -13,6 +13,7 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import type { RowData } from '@/lib/table'
+import { nKeysBetween } from '@/lib/table/order-key'
 import { buildOrderedRowValues, getTableById } from '@/lib/table/service'
 
 const logger = createLogger('CopilotToolResultTables')
@@ -103,6 +104,8 @@ export async function maybeWriteOutputToTable(
           await tx.delete(userTableRows).where(eq(userTableRows.tableId, outputTable))
 
           const now = new Date()
+          // Replace-all: table was just cleared — mint a fresh contiguous key run.
+          const orderKeys = nKeysBetween(null, null, rows.length)
           for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) {
             if (context.abortSignal?.aborted) {
               throw new Error('Request aborted before tool mutation could be applied')
@@ -113,6 +116,7 @@ export async function maybeWriteOutputToTable(
               workspaceId: context.workspaceId!,
               rows: chunk as RowData[],
               startPosition: i,
+              orderKeys: orderKeys.slice(i, i + BATCH_CHUNK_SIZE),
               now,
               createdBy: context.userId,
               makeId: () => `row_${generateId().replace(/-/g, '')}`,
@@ -246,6 +250,8 @@ export async function maybeWriteReadCsvToTable(
           await tx.delete(userTableRows).where(eq(userTableRows.tableId, outputTable))
 
           const now = new Date()
+          // Replace-all: table was just cleared — mint a fresh contiguous key run.
+          const orderKeys = nKeysBetween(null, null, rows.length)
           for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) {
             if (context.abortSignal?.aborted) {
               throw new Error('Request aborted before tool mutation could be applied')
@@ -256,6 +262,7 @@ export async function maybeWriteReadCsvToTable(
               workspaceId: context.workspaceId!,
               rows: chunk as RowData[],
               startPosition: i,
+              orderKeys: orderKeys.slice(i, i + BATCH_CHUNK_SIZE),
               now,
               createdBy: context.userId,
               makeId: () => `row_${generateId().replace(/-/g, '')}`,

@@ -589,7 +589,6 @@ async function runWorkflowAndWriteTerminal(
         changedColumns: [],
         rowId,
         headers,
-        rowNumber: row.position,
         tableId,
         tableName,
         timestamp: new Date().toISOString(),
