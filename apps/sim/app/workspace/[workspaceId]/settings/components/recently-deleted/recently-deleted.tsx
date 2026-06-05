@@ -4,13 +4,7 @@ import { useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Button,
-  SearchInput,
-  SModalTabs,
-  SModalTabsList,
-  SModalTabsTrigger,
-} from '@/components/emcn'
+import { Button, ChipModalTabs, SearchInput } from '@/components/emcn'
 import { Folder } from '@/components/emcn/icons'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
@@ -408,15 +402,11 @@ export function RecentlyDeleted() {
             />
           </div>
 
-          <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
-            <SModalTabsList activeValue={activeTab} className='border-[var(--border)] border-b'>
-              {TABS.map((tab) => (
-                <SModalTabsTrigger key={tab.id} value={tab.id}>
-                  {tab.label}
-                </SModalTabsTrigger>
-              ))}
-            </SModalTabsList>
-          </SModalTabs>
+          <ChipModalTabs
+            tabs={TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
+            value={activeTab}
+            onChange={(v) => setActiveTab(v as ResourceType)}
+          />
 
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
