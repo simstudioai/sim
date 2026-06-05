@@ -703,7 +703,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'chat:write',
           'chat:write.public',
           'im:write',
-          'im:history',
           'im:read',
           'users:read',
           // TODO: Add 'users:read.email' once Slack app review is approved
@@ -712,6 +711,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'canvases:read',
           'canvases:write',
           'reactions:write',
+          'reactions:read',
         ],
       },
     },
@@ -906,18 +906,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'crm.objects.deals.write',
           'crm.objects.owners.read',
           'crm.objects.users.read',
-          'crm.objects.users.write',
           'crm.objects.marketing_events.read',
-          'crm.objects.marketing_events.write',
           'crm.objects.line_items.read',
           'crm.objects.line_items.write',
           'crm.objects.quotes.read',
-          'crm.objects.quotes.write',
           'crm.objects.appointments.read',
           'crm.objects.appointments.write',
           'crm.objects.carts.read',
-          'crm.objects.carts.write',
-          'crm.import',
           'crm.lists.read',
           'crm.lists.write',
           'tickets',
@@ -1212,7 +1207,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
-        supportsRefreshTokenRotation: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'dropbox': {

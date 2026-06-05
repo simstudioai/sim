@@ -1944,7 +1944,6 @@ export const copilotChats = pgTable(
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
-    messages: jsonb('messages').notNull().default('[]'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'),
@@ -3270,6 +3269,16 @@ export const userTableDefinitions = pgTable(
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
     archivedAt: timestamp('archived_at'),
+    /**
+     * Async-import state. NULL = a normal table (never imported in the background).
+     * `'importing'` hides rows until the load completes; `'ready'` reveals them;
+     * `'failed'` surfaces a partial import. See `apps/sim/lib/table/import-runner.ts`.
+     */
+    importStatus: text('import_status'),
+    importId: text('import_id'),
+    importError: text('import_error'),
+    importRowsProcessed: integer('import_rows_processed').notNull().default(0),
+    importStartedAt: timestamp('import_started_at'),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -3412,77 +3421,6 @@ export const tableRunDispatches = pgTable(
     watchdogIdx: index('table_run_dispatches_watchdog_idx').on(table.status, table.requestedAt),
   })
 )
-
-export const oauthApplication = pgTable(
-  'oauth_application',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    icon: text('icon'),
-    metadata: text('metadata'),
-    clientId: text('client_id').notNull().unique(),
-    clientSecret: text('client_secret'),
-    redirectURLs: text('redirect_urls').notNull(),
-    type: text('type').notNull(),
-    disabled: boolean('disabled').default(false),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
-  },
-  (table) => ({
-    clientIdIdx: index('oauth_application_client_id_idx').on(table.clientId),
-  })
-)
-
-export const oauthAccessToken = pgTable(
-  'oauth_access_token',
-  {
-    id: text('id').primaryKey(),
-    accessToken: text('access_token').notNull().unique(),
-    refreshToken: text('refresh_token').notNull().unique(),
-    accessTokenExpiresAt: timestamp('access_token_expires_at').notNull(),
-    refreshTokenExpiresAt: timestamp('refresh_token_expires_at').notNull(),
-    clientId: text('client_id')
-      .notNull()
-      .references(() => oauthApplication.clientId, { onDelete: 'cascade' }),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
-    scopes: text('scopes').notNull(),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
-  },
-  (table) => ({
-    accessTokenIdx: index('oauth_access_token_access_token_idx').on(table.accessToken),
-    refreshTokenIdx: index('oauth_access_token_refresh_token_idx').on(table.refreshToken),
-  })
-)
-
-export const oauthConsent = pgTable(
-  'oauth_consent',
-  {
-    id: text('id').primaryKey(),
-    clientId: text('client_id')
-      .notNull()
-      .references(() => oauthApplication.clientId, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    scopes: text('scopes').notNull(),
-    createdAt: timestamp('created_at').notNull(),
-    updatedAt: timestamp('updated_at').notNull(),
-    consentGiven: boolean('consent_given').notNull(),
-  },
-  (table) => ({
-    userClientIdx: index('oauth_consent_user_client_idx').on(table.userId, table.clientId),
-  })
-)
-
-export const jwks = pgTable('jwks', {
-  id: text('id').primaryKey(),
-  publicKey: text('public_key').notNull(),
-  privateKey: text('private_key').notNull(),
-  createdAt: timestamp('created_at').notNull(),
-  expiresAt: timestamp('expires_at'),
-})
 
 export const mothershipInboxAllowedSender = pgTable(
   'mothership_inbox_allowed_sender',

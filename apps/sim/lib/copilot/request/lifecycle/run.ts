@@ -472,6 +472,8 @@ async function buildExecutionContext(
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
   const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
+  const userPermission =
+    typeof requestPayload?.userPermission === 'string' ? requestPayload.userPermission : undefined
 
   let execContext: ExecutionContext
   if (workflowId) {
@@ -490,6 +492,7 @@ async function buildExecutionContext(
   if (userTimezone) execContext.userTimezone = userTimezone
   execContext.copilotToolExecution = true
   if (requestMode) execContext.requestMode = requestMode
+  if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =
     typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : undefined
   execContext.executionId = executionId

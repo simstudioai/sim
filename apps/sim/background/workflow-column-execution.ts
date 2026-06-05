@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -624,8 +625,8 @@ async function runWorkflowAndWriteTerminal(
           })
           .catch((err) => {
             logger.warn(
-              `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId}):`,
-              err
+              `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId})`,
+              { cause: describeError(err), retryable: isRetryableInfrastructureError(err) }
             )
           })
       }
@@ -750,7 +751,12 @@ async function runWorkflowAndWriteTerminal(
       const message = toError(err).message
       logger.error(
         `Workflow group cell execution failed (table=${tableId} row=${rowId} group=${groupId})`,
-        { error: message, executionId }
+        {
+          error: message,
+          executionId,
+          cause: describeError(err),
+          retryable: isRetryableInfrastructureError(err),
+        }
       )
       terminalWritten = true
       await writeChain.catch(() => {})
@@ -765,7 +771,11 @@ async function runWorkflowAndWriteTerminal(
           blockErrors,
         })
       } catch (writeErr) {
-        logger.error('Also failed to write error state', { error: toError(writeErr).message })
+        logger.error('Also failed to write error state', {
+          error: toError(writeErr).message,
+          cause: describeError(writeErr),
+          retryable: isRetryableInfrastructureError(writeErr),
+        })
       }
       return 'error'
     }

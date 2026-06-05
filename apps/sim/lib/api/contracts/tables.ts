@@ -348,6 +348,34 @@ export const createTableContract = defineRouteContract({
   },
 })
 
+/**
+ * Kickoff body for an asynchronous large-CSV import into a NEW table. The file is
+ * already uploaded to storage (the client sends its `fileKey`); the route creates an
+ * `importing` table and runs the load in the background.
+ */
+export const importTableAsyncBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  fileKey: z.string().min(1, 'fileKey is required'),
+  fileName: z.string().min(1, 'fileName is required'),
+})
+
+export type ImportTableAsyncBody = z.input<typeof importTableAsyncBodySchema>
+
+export const importTableAsyncContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/import-async',
+  body: importTableAsyncBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        tableId: z.string(),
+        importId: z.string(),
+      })
+    ),
+  },
+})
+
 export const getTableContract = defineRouteContract({
   method: 'GET',
   path: '/api/table/[tableId]',
@@ -563,6 +591,38 @@ export const csvImportModeSchema = z.enum(['append', 'replace'])
 
 export const csvExtensionSchema = z.enum(['csv', 'tsv'], {
   error: 'Only CSV and TSV files are supported',
+})
+
+/**
+ * Kickoff body for an asynchronous CSV import into an EXISTING table (append/replace).
+ * The file is already uploaded to storage; `mapping`/`createColumns` are the client's
+ * resolved column mapping (the dialog computes them from its preview).
+ */
+export const importIntoTableAsyncBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  fileKey: z.string().min(1, 'fileKey is required'),
+  fileName: z.string().min(1, 'fileName is required'),
+  mode: csvImportModeSchema,
+  mapping: z.record(z.string(), z.string().nullable()).optional(),
+  createColumns: z.array(z.string()).optional(),
+})
+
+export type ImportIntoTableAsyncBody = z.input<typeof importIntoTableAsyncBodySchema>
+
+export const importIntoTableAsyncContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/import-async',
+  params: tableIdParamsSchema,
+  body: importIntoTableAsyncBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        tableId: z.string(),
+        importId: z.string(),
+      })
+    ),
+  },
 })
 
 /**
@@ -899,6 +959,24 @@ export const cancelTableRunsContract = defineRouteContract({
     schema: successResponseSchema(z.object({ cancelled: z.number() })),
   },
 })
+
+export const cancelTableImportBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  importId: z.string().min(1, 'Import ID is required'),
+})
+
+/** Cancel an in-flight async CSV import. The worker stops; committed rows are left in place. */
+export const cancelTableImportContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/import/cancel',
+  params: tableIdParamsSchema,
+  body: cancelTableImportBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ canceled: z.boolean() })),
+  },
+})
+export type CancelTableImportBody = z.input<typeof cancelTableImportBodySchema>
 
 /**
  * Run modes for `POST /api/table/[tableId]/columns/run`:

@@ -222,4 +222,37 @@ describe('runCopilotLifecycle', () => {
       })
     )
   })
+
+  it('propagates payload userPermission into the generated execution context', async () => {
+    let capturedExecContext: ExecutionContext | undefined
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        _context: StreamingContext,
+        execContext: ExecutionContext
+      ): Promise<void> => {
+        capturedExecContext = execContext
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1', userPermission: 'write' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+    )
+
+    expect(capturedExecContext).toEqual(
+      expect.objectContaining({
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        userPermission: 'write',
+      })
+    )
+  })
 })

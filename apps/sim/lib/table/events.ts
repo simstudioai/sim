@@ -114,6 +114,21 @@ export type TableEvent =
       limit?: { type: 'rows'; max: number }
     }
   | {
+      /** Async large-import progress. The background import worker emits
+       *  `importing` ticks as batches commit, then a terminal `ready`/`failed`.
+       *  The client reveals the (hidden) rows on `ready` and shows a failure
+       *  badge on `failed`. See `apps/sim/lib/table/import-runner.ts`. */
+      kind: 'import'
+      tableId: string
+      importId: string
+      status: 'importing' | 'ready' | 'failed' | 'canceled'
+      /** Rows committed so far (importing) or in total (ready). */
+      progress?: number
+      /** Byte-based completion percent (0–100) — exact and monotonic, for the determinate bar. */
+      percent?: number
+      error?: string
+    }
+  | {
       /** A dispatch was stopped because the billed account is over its usage
        *  limit. The client surfaces an upgrade prompt and redirects to billing.
        *  The dispatch is halted via `markDispatchComplete` and the blocked

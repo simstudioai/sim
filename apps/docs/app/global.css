@@ -510,6 +510,13 @@ figure[data-rehype-pretty-code-figure],
   max-width: 480px !important;
 }
 
+/* Search dialog overlay + panel must cover the sticky navbar — both default to z-50,
+   and the navbar wins the tie by DOM order, leaving it unblurred above the overlay */
+.bg-fd-overlay,
+[role="dialog"][data-state] {
+  z-index: 60 !important;
+}
+
 pre {
   font-size: 0.875rem;
   line-height: 1.7;

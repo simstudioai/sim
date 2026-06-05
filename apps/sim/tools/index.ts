@@ -5,7 +5,7 @@ import { randomFloat } from '@sim/utils/random'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
   secureFetchWithPinnedIP,
@@ -19,8 +19,10 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
+import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
@@ -333,11 +335,11 @@ async function reacquireHostedKey(
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
   requestId: string
-): Promise<boolean> {
-  if (!tool.hosting) return false
+): Promise<string | null> {
+  if (!tool.hosting) return null
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
   const { workspaceId } = resolveToolScope(params, executionContext)
-  if (!workspaceId) return false
+  if (!workspaceId) return null
 
   const provider = byokProviderId || tool.id
   const acquireResult = await getHostedKeyRateLimiter().acquireKey(
@@ -352,14 +354,14 @@ async function reacquireHostedKey(
     logger.warn(
       `[${requestId}] Re-acquire of hosted key for ${tool.id} failed: ${acquireResult.error ?? 'unknown'}`
     )
-    return false
+    return null
   }
 
   params[apiKeyParam] = acquireResult.key
   logger.info(
     `[${requestId}] Re-acquired hosted key for ${tool.id} (${acquireResult.envVarName}) after upstream throttling`
   )
-  return true
+  return acquireResult.envVarName ?? 'unknown'
 }
 
 /**
@@ -382,10 +384,27 @@ function isRateLimitError(error: unknown): boolean {
   return false
 }
 
+/**
+ * Map a thrown tool error to a hosted-key failure reason for metrics. Mirrors
+ * `isRateLimitError`: some providers signal quota/rate-limit via 401/403 with a
+ * descriptive message, so those count as `rate_limited`, not `auth`.
+ */
+function classifyHostedKeyFailure(error: unknown): 'rate_limited' | 'auth' | 'other' {
+  const status = (error as { status?: number } | null)?.status
+  if (status === 429 || status === 503) return 'rate_limited'
+  if (status === 401 || status === 403) {
+    const message = ((error as { message?: string } | null)?.message ?? '').toLowerCase()
+    if (message.includes('quota') || message.includes('rate limit')) return 'rate_limited'
+    return 'auth'
+  }
+  return 'other'
+}
+
 /** Context for retry with rate limit tracking */
 interface RetryContext {
   requestId: string
   toolId: string
+  provider: string
   envVarName: string
   executionContext?: ExecutionContext
   /**
@@ -412,8 +431,14 @@ async function executeWithRetry<T>(
   maxRetries = 3,
   baseDelayMs = 1000
 ): Promise<T> {
-  const { requestId, toolId, envVarName, executionContext, reacquireAfterRetriesExhausted } =
-    context
+  const {
+    requestId,
+    toolId,
+    provider,
+    envVarName,
+    executionContext,
+    reacquireAfterRetriesExhausted,
+  } = context
   let lastError: unknown
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -444,6 +469,7 @@ async function executeWithRetry<T>(
           PlatformEvents.hostedKeyUserThrottled({
             toolId,
             reason: 'upstream_retries_exhausted',
+            provider,
             userId: executionContext?.userId,
             workspaceId: executionContext?.workspaceId,
             workflowId: executionContext?.workflowId,
@@ -618,7 +644,8 @@ async function applyHostedKeyCostToResult(
   tool: ToolConfig,
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
-  requestId: string
+  requestId: string,
+  envVarName: string | undefined
 ): Promise<void> {
   await reportCustomDimensionUsage(tool, params, finalResult.output, executionContext, requestId)
 
@@ -629,6 +656,12 @@ async function applyHostedKeyCostToResult(
     executionContext,
     requestId
   )
+
+  const provider = tool.hosting?.byokProviderId || tool.id
+  const key = envVarName ?? 'unknown'
+  hostedKeyMetrics.recordUsed({ provider, tool: tool.id, key })
+  hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
+
   if (hostedKeyCost > 0) {
     finalResult.output = {
       ...finalResult.output,
@@ -878,10 +911,16 @@ export async function executeTool(
   options: ExecuteToolOptions = {}
 ): Promise<ToolResponse> {
   const { skipPostProcess = false, executionContext, signal } = options
+  // Fall back to the workflow execution's abort signal so plan-based execution timeouts
+  // and cancellation propagate to tool fetches when the caller passes no explicit signal.
+  const effectiveSignal = signal ?? executionContext?.abortSignal
   // Capture start time for precise timing
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
   const requestId = generateRequestId()
+
+  // Hoisted so the outer catch can attribute a thrown failure to the chosen key.
+  let hostedKeyForMetrics: { provider: string; tool: string; key: string } | undefined
 
   try {
     let tool: ToolConfig | undefined
@@ -971,7 +1010,7 @@ export async function executeTool(
         executionContext,
         requestId,
         startTimeISO,
-        signal
+        effectiveSignal
       )
     } else {
       // For built-in tools, use the synchronous version
@@ -1003,6 +1042,14 @@ export async function executeTool(
       executionContext,
       requestId
     )
+
+    if (hostedKeyInfo.isUsingHostedKey) {
+      hostedKeyForMetrics = {
+        provider: tool.hosting?.byokProviderId || tool.id,
+        tool: tool.id,
+        key: hostedKeyInfo.envVarName ?? 'unknown',
+      }
+    }
 
     // If we have a credential parameter, fetch the access token
     if (contextParams.oauthCredential) {
@@ -1148,8 +1195,11 @@ export async function executeTool(
           tool,
           contextParams,
           executionContext,
-          requestId
+          requestId,
+          hostedKeyInfo.envVarName
         )
+      } else if (hostedKeyForMetrics) {
+        hostedKeyMetrics.recordFailed({ ...hostedKeyForMetrics, reason: 'other' })
       }
 
       const strippedOutput = postProcessToolOutput(normalizedToolId, finalResult.output ?? {})
@@ -1168,23 +1218,30 @@ export async function executeTool(
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
     // Wrap with retry logic for hosted keys to handle rate limiting due to higher usage
     const result = hostedKeyInfo.isUsingHostedKey
-      ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams, signal), {
-          requestId,
-          toolId,
-          envVarName: hostedKeyInfo.envVarName!,
-          executionContext,
-          reacquireAfterRetriesExhausted: async () => {
-            const reacquired = await reacquireHostedKey(
-              tool,
-              contextParams,
-              executionContext,
-              requestId
-            )
-            if (!reacquired) return null
-            return () => executeToolRequest(toolId, tool, contextParams)
-          },
-        })
-      : await executeToolRequest(toolId, tool, contextParams, signal)
+      ? await executeWithRetry(
+          () => executeToolRequest(toolId, tool, contextParams, effectiveSignal),
+          {
+            requestId,
+            toolId,
+            provider: tool.hosting?.byokProviderId || tool.id,
+            envVarName: hostedKeyInfo.envVarName!,
+            executionContext,
+            reacquireAfterRetriesExhausted: async () => {
+              const reacquiredEnvVar = await reacquireHostedKey(
+                tool,
+                contextParams,
+                executionContext,
+                requestId
+              )
+              if (!reacquiredEnvVar) return null
+              // Re-point metric labels at the freshly acquired key.
+              hostedKeyInfo.envVarName = reacquiredEnvVar
+              if (hostedKeyForMetrics) hostedKeyForMetrics.key = reacquiredEnvVar
+              return () => executeToolRequest(toolId, tool, contextParams, effectiveSignal)
+            },
+          }
+        )
+      : await executeToolRequest(toolId, tool, contextParams, effectiveSignal)
 
     // Apply post-processing if available and not skipped
     let finalResult = result
@@ -1213,8 +1270,11 @@ export async function executeTool(
         tool,
         contextParams,
         executionContext,
-        requestId
+        requestId,
+        hostedKeyInfo.envVarName
       )
+    } else if (hostedKeyForMetrics) {
+      hostedKeyMetrics.recordFailed({ ...hostedKeyForMetrics, reason: 'other' })
     }
 
     const strippedOutput = postProcessToolOutput(normalizedToolId, finalResult.output ?? {})
@@ -1233,6 +1293,13 @@ export async function executeTool(
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
+
+    if (hostedKeyForMetrics) {
+      hostedKeyMetrics.recordFailed({
+        ...hostedKeyForMetrics,
+        reason: classifyHostedKeyFailure(error),
+      })
+    }
 
     // Default error handling
     let errorMessage = 'Unknown error occurred'
@@ -1364,17 +1431,7 @@ function isErrorResponse(
  * the platform's own workflow execution endpoints via absolute URL.
  */
 function isSelfOriginUrl(url: string): boolean {
-  try {
-    const targetOrigin = new URL(url).origin
-    const publicOrigin = new URL(getBaseUrl()).origin
-    if (targetOrigin === publicOrigin) return true
-
-    const internalOrigin = new URL(getInternalApiBaseUrl()).origin
-    if (targetOrigin === internalOrigin) return true
-  } catch {
-    return false
-  }
-  return false
+  return isSameOrigin(url, getBaseUrl()) || isSameOrigin(url, getInternalApiBaseUrl())
 }
 
 /**
@@ -1585,7 +1642,11 @@ async function executeToolRequest(
       try {
         if (isInternalRoute) {
           const controller = new AbortController()
-          const timeout = requestParams.timeout || DEFAULT_EXECUTION_TIMEOUT_MS
+          // With a caller/execution abort signal present, the plan-based timeout bounds the call and
+          // this only acts as a ceiling; without one, keep the tighter default as the hang safety net.
+          const timeout =
+            requestParams.timeout ||
+            (signal ? getMaxExecutionTimeout() : DEFAULT_EXECUTION_TIMEOUT_MS)
           const timeoutId = setTimeout(
             () => controller.abort(`timeout:internal_tool_fetch:${timeout}ms`),
             timeout

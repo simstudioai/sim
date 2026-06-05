@@ -32,6 +32,12 @@ export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesR
       visibility: 'user-or-llm',
       description: 'Return notes updated after this date (ISO 8601)',
     },
+    folderId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return notes in this folder and its child folders (e.g., fol_4y6LduVdwSKC27)',
+    },
     cursor: {
       type: 'string',
       required: false,
@@ -52,6 +58,7 @@ export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesR
       if (params.createdBefore) url.searchParams.append('created_before', params.createdBefore)
       if (params.createdAfter) url.searchParams.append('created_after', params.createdAfter)
       if (params.updatedAfter) url.searchParams.append('updated_after', params.updatedAfter)
+      if (params.folderId) url.searchParams.append('folder_id', params.folderId.trim())
       if (params.cursor) url.searchParams.append('cursor', params.cursor)
       if (params.pageSize) url.searchParams.append('page_size', String(params.pageSize))
       return url.toString()

@@ -477,7 +477,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     return null
   },
 
-  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
+  verifyAuth({ webhook, request, rawBody, requestId, providerConfig }: AuthContext) {
     if (providerConfig.hmacSecret) {
       const authHeader = request.headers.get('authorization')
 
@@ -493,6 +493,43 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       ) {
         logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
         return new NextResponse('Unauthorized - Invalid HMAC signature', { status: 401 })
+      }
+    }
+
+    if (providerConfig.triggerId === 'microsoftteams_chat_subscription') {
+      const expectedClientState = String(webhook.id ?? '')
+      if (!expectedClientState) {
+        logger.warn(
+          `[${requestId}] Microsoft Teams chat subscription webhook missing id for clientState verification`
+        )
+        return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
+      }
+
+      let notifications: unknown[] = []
+      try {
+        const parsed = JSON.parse(rawBody) as Record<string, unknown>
+        if (Array.isArray(parsed?.value)) {
+          notifications = parsed.value
+        }
+      } catch {
+        notifications = []
+      }
+
+      if (notifications.length === 0) {
+        logger.warn(
+          `[${requestId}] Microsoft Teams chat subscription notification missing value array`
+        )
+        return new NextResponse('Unauthorized - Invalid notification payload', { status: 401 })
+      }
+
+      for (const notification of notifications) {
+        const clientState = (notification as Record<string, unknown>)?.clientState
+        if (typeof clientState !== 'string' || !safeCompare(clientState, expectedClientState)) {
+          logger.warn(
+            `[${requestId}] Microsoft Teams chat subscription clientState verification failed`
+          )
+          return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
+        }
       }
     }
 

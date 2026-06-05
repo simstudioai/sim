@@ -1,5 +1,10 @@
 import type { DagsterListSensorsParams, DagsterListSensorsResponse } from '@/tools/dagster/types'
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
+import {
+  dagsterGraphqlUrl,
+  dagsterRequestHeaders,
+  dagsterUnionErrorMessage,
+  parseDagsterGraphqlResponse,
+} from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface DagsterSensorGraphql {
@@ -81,13 +86,9 @@ export const listSensorsTool: ToolConfig<DagsterListSensorsParams, DagsterListSe
   },
 
   request: {
-    url: (params) => `${params.host.replace(/\/$/, '')}/graphql`,
+    url: (params) => dagsterGraphqlUrl(params.host),
     method: 'POST',
-    headers: (params) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (params.apiKey) headers['Dagster-Cloud-Api-Token'] = params.apiKey
-      return headers
-    },
+    headers: (params) => dagsterRequestHeaders(params),
     body: (params) => {
       const hasStatus = Boolean(params.sensorStatus)
       const variables: Record<string, unknown> = {
@@ -136,7 +137,7 @@ export const listSensorsTool: ToolConfig<DagsterListSensorsParams, DagsterListSe
         sensorType: {
           type: 'string',
           description:
-            'Sensor type (ASSET, AUTO_MATERIALIZE, FRESHNESS_POLICY, MULTI_ASSET, RUN_STATUS, STANDARD)',
+            'Sensor type (ASSET, AUTO_MATERIALIZE, FRESHNESS_POLICY, MULTI_ASSET, RUN_STATUS, STANDARD, UNKNOWN)',
         },
         status: { type: 'string', description: 'Sensor status: RUNNING or STOPPED' },
         id: {

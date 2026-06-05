@@ -9,16 +9,24 @@ import {
 import { getAsyncToolCalls } from '@/lib/copilot/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { createPubSubChannel } from '@/lib/events/pubsub'
+import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 
 const logger = createLogger('CopilotOrchestratorPersistence')
 const TOOL_CONFIRMATION_TTL_SECONDS = 60 * 10
 const toolConfirmationKey = (toolCallId: string) => `copilot:tool-confirmation:${toolCallId}`
 
-const toolConfirmationChannel = createPubSubChannel<AsyncCompletionEnvelope>({
-  channel: 'copilot:tool-confirmation',
-  label: 'CopilotToolConfirmation',
-})
+type ToolConfirmGlobal = typeof globalThis & {
+  _toolConfirmationChannel?: PubSubChannel<AsyncCompletionEnvelope>
+}
+
+const _g = globalThis as ToolConfirmGlobal
+if (!_g._toolConfirmationChannel) {
+  _g._toolConfirmationChannel = createPubSubChannel<AsyncCompletionEnvelope>({
+    channel: 'copilot:tool-confirmation',
+    label: 'CopilotToolConfirmation',
+  })
+}
+const toolConfirmationChannel = _g._toolConfirmationChannel
 
 /**
  * Get a tool call confirmation state from the durable async tool row.
