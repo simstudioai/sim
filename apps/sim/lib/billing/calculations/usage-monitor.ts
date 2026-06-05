@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, userStats } from '@sim/db/schema'
+import { member, userStats, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
@@ -10,14 +10,19 @@ import {
 } from '@/lib/billing/core/plan'
 import { getPooledOrgCurrentPeriodCost, getUserUsageLimit } from '@/lib/billing/core/usage'
 import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
 } from '@/lib/billing/credits/daily-refresh'
+import {
+  getOrgMemberUsageLimit,
+  getOrgMemberWorkspaceUsage,
+} from '@/lib/billing/organizations/member-limits'
 import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('UsageMonitor')
 
@@ -407,5 +412,70 @@ export async function checkServerSideUsageLimits(
           ? 'User account not properly initialized. Please contact support.'
           : 'Unable to determine usage limits. Execution blocked for security. Please contact support.',
     }
+  }
+}
+
+/**
+ * Per-member usage cap for the organization that owns the given workspace.
+ *
+ * Hosted-only and independent of the pooled org limit
+ * ({@link checkServerSideUsageLimits}). No-ops (isExceeded:false) when the
+ * feature is off (`!isHosted` / `!isBillingEnabled`), the workspace is not
+ * org-owned, or the actor has no per-member cap. Otherwise compares the actor's
+ * current-period usage inside the org's workspaces against their cap
+ * (`usage >= limit` blocks).
+ *
+ * Fails open on unexpected error: this is a secondary, additive gate, so a
+ * transient fault must not block execution that the primary pooled/personal
+ * check already allowed.
+ */
+export async function checkOrgMemberUsageLimit(
+  userId: string,
+  workspaceId: string
+): Promise<{
+  isExceeded: boolean
+  currentUsage: number
+  limit: number | null
+  message?: string
+}> {
+  try {
+    if (!isHosted || !isBillingEnabled || !workspaceId) {
+      return { isExceeded: false, currentUsage: 0, limit: null }
+    }
+
+    const [workspaceRow] = await db
+      .select({ organizationId: workspace.organizationId })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+
+    const organizationId = workspaceRow?.organizationId
+    if (!organizationId) {
+      return { isExceeded: false, currentUsage: 0, limit: null }
+    }
+
+    const limit = await getOrgMemberUsageLimit(organizationId, userId)
+    if (limit === null) {
+      return { isExceeded: false, currentUsage: 0, limit: null }
+    }
+
+    const usage = await getOrgMemberWorkspaceUsage(organizationId, userId)
+    const isExceeded = usage >= limit
+
+    return {
+      isExceeded,
+      currentUsage: usage,
+      limit,
+      message: isExceeded
+        ? `Member credit limit exceeded: ${dollarsToCredits(usage).toLocaleString()} of ${dollarsToCredits(limit).toLocaleString()} credits used for this organization's workspaces. Ask an organization admin to raise your credit limit to continue.`
+        : undefined,
+    }
+  } catch (error) {
+    logger.error('Error checking per-member org usage limit', {
+      error: toError(error).message,
+      userId,
+      workspaceId,
+    })
+    return { isExceeded: false, currentUsage: 0, limit: null }
   }
 }

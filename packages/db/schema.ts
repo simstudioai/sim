@@ -1180,6 +1180,41 @@ export const member = pgTable(
   })
 )
 
+/**
+ * Per-member usage limit (in dollars) scoped to a single organization.
+ *
+ * Keyed by `(organizationId, userId)` so it covers both organization members
+ * (rows in `member`) and external members (users with workspace permissions in
+ * org-owned workspaces but no `member` row). Independent of
+ * `user_stats.current_usage_limit`, which is the user's personal subscription
+ * cap and is nulled for org-scoped members. An absent row means "no per-member
+ * cap" (only the pooled org limit applies). Enforced for usage in org-owned
+ * workspaces; hosted-only.
+ */
+export const organizationMemberUsageLimit = pgTable(
+  'organization_member_usage_limit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    usageLimit: decimal('usage_limit').notNull(),
+    setBy: text('set_by'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    orgUserUnique: uniqueIndex('org_member_usage_limit_org_user_unique').on(
+      table.organizationId,
+      table.userId
+    ),
+    organizationIdIdx: index('org_member_usage_limit_organization_id_idx').on(table.organizationId),
+  })
+)
+
 export const invitationKindEnum = pgEnum('invitation_kind', ['organization', 'workspace'])
 
 export type InvitationKind = (typeof invitationKindEnum.enumValues)[number]

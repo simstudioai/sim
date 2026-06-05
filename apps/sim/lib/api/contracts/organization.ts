@@ -363,6 +363,51 @@ export const removeOrganizationMemberContract = defineRouteContract({
   },
 })
 
+/** Per-member credit usage + cap for the Manage Credits modal (values in credits). */
+export const organizationMemberUsageLimitDataSchema = z.object({
+  creditsUsed: z.number(),
+  creditLimit: z.number().nullable(),
+})
+
+export const getOrganizationMemberUsageLimitContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/members/[memberId]/usage-limit',
+  params: organizationMemberParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.boolean(),
+      data: organizationMemberUsageLimitDataSchema,
+    }),
+  },
+})
+
+export const updateOrganizationMemberUsageLimitBodySchema = z.object({
+  /** New cap in credits; `null` clears the per-member cap. */
+  creditLimit: z
+    .number()
+    .int('Credit limit must be a whole number of credits')
+    .min(0, 'Credit limit cannot be negative')
+    .nullable(),
+})
+
+export const updateOrganizationMemberUsageLimitContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/members/[memberId]/usage-limit',
+  params: organizationMemberParamsSchema,
+  body: updateOrganizationMemberUsageLimitBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema.extend({
+      data: z
+        .object({
+          creditLimit: z.number().nullable(),
+        })
+        .optional(),
+    }),
+  },
+})
+
 export const transferOwnershipContract = defineRouteContract({
   method: 'POST',
   path: '/api/organizations/[id]/transfer-ownership',
@@ -511,3 +556,6 @@ export type RosterWorkspaceAccess = z.infer<typeof rosterWorkspaceAccessSchema>
 export type RosterMember = z.infer<typeof rosterMemberSchema>
 export type RosterPendingInvitation = z.infer<typeof rosterPendingInvitationSchema>
 export type OrganizationMembersResponse = z.infer<typeof listOrganizationMembersResponseSchema>
+export type OrganizationMemberUsageLimitData = z.infer<
+  typeof organizationMemberUsageLimitDataSchema
+>

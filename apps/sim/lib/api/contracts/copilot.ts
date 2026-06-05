@@ -263,6 +263,12 @@ export type UpdateCopilotMessagesBody = z.input<typeof updateCopilotMessagesBody
 
 export const validateCopilotApiKeyBodySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
+  /**
+   * Originating workspace, when known. Used to enforce per-member org-workspace
+   * credit limits at mothership/copilot request time. Optional for backward
+   * compatibility with older Go callers.
+   */
+  workspaceId: z.string().min(1).optional(),
 })
 export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
 

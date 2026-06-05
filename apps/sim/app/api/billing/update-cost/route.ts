@@ -110,7 +110,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     if (!parsed.success) return parsed.response
 
-    const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey } =
+    const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey, workspaceId } =
       parsed.data.body
     const isMcp = source === 'mcp_copilot'
 
@@ -156,6 +156,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     await recordUsage({
       userId,
+      workspaceId,
       entries: [
         {
           category: 'model',

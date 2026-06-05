@@ -20,6 +20,12 @@ export const billingUpdateCostBodySchema = z.object({
     .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
     .default('copilot'),
   idempotencyKey: z.string().min(1).optional(),
+  /**
+   * Originating workspace, when known. Stamped onto `usage_log.workspaceId` so
+   * mothership/copilot cost is attributable to org-owned workspaces (per-member
+   * usage). Optional for backward compatibility with older callers.
+   */
+  workspaceId: z.string().min(1).optional(),
 })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 

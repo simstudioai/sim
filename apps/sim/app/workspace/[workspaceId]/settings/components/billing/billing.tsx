@@ -490,7 +490,7 @@ export function Billing() {
             <SettingsSection label='Enable on-demand usage'>
               <div className='flex items-center justify-between'>
                 <span className='text-[var(--text-body)] text-small'>
-                  Allow usage to go past usage limit
+                  Allow usage to go past included usage
                 </span>
                 <Switch
                   checked={isOnDemandActive}
