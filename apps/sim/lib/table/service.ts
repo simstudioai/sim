@@ -1170,26 +1170,40 @@ export function buildOrderedRowValues(opts: {
 }
 
 /**
- * Computes the fractional `order_key` for a row being inserted at
- * `requestedPosition` (or appended when omitted). Neighbors are resolved by the
- * current `position` order — valid because keys are kept consistent with
- * position order while the flag is off. Caller holds the row-order lock.
+ * Computes the fractional `order_key` for a row inserted at the integer
+ * `requestedPosition` (or appended when omitted). Used by position-based callers
+ * (mothership tool, v1 API, undo position-fallback, transient old clients).
  *
- * NOTE: flag-on insert-*at a position* will resolve neighbors by `order_key`
- * (via beforeRowId/afterRowId) once the wire contract carries them; until then
- * append (the common path) is exact and at-position is position-derived.
+ * The neighbor at slot `s` is resolved differently per flag state:
+ * - **off**: `WHERE position = s` (positions are contiguous, so the row at
+ *   position `s` is the `s`-th row — an indexed O(1) lookup).
+ * - **on**: the `s`-th row in `order_key, id` order (`OFFSET s`) — positions are
+ *   gappy and non-authoritative, so `position = s` would miss; the visual
+ *   ordinal is the key's ordinal. O(s), acceptable for these low-volume callers.
+ *
+ * Caller holds the row-order lock.
  */
 async function resolveInsertOrderKey(
   trx: DbTransaction,
   tableId: string,
   requestedPosition?: number
 ): Promise<string> {
-  const orderKeyAtPosition = async (pos: number): Promise<string | null> => {
-    if (pos < 0) return null
+  const orderKeyAtSlot = async (slot: number): Promise<string | null> => {
+    if (slot < 0) return null
+    if (isTablesFractionalOrderingEnabled) {
+      const [r] = await trx
+        .select({ orderKey: userTableRows.orderKey })
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, tableId))
+        .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
+        .limit(1)
+        .offset(slot)
+      return r?.orderKey ?? null
+    }
     const [r] = await trx
       .select({ orderKey: userTableRows.orderKey })
       .from(userTableRows)
-      .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, pos)))
+      .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, slot)))
       .limit(1)
     return r?.orderKey ?? null
   }
@@ -1200,8 +1214,8 @@ async function resolveInsertOrderKey(
       .where(eq(userTableRows.tableId, tableId))
     return keyBetween(maxKey ?? null, null)
   }
-  const lo = await orderKeyAtPosition(requestedPosition - 1)
-  const hi = await orderKeyAtPosition(requestedPosition)
+  const lo = await orderKeyAtSlot(requestedPosition - 1)
+  const hi = await orderKeyAtSlot(requestedPosition)
   return keyBetween(lo, hi)
 }
 
