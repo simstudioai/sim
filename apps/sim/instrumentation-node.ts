@@ -2,6 +2,7 @@
 // prefix (`sim-mothership:` / `go-mothership:`) to separate the two
 // halves of a mothership trace in the OTLP backend.
 
+import { hostname } from 'node:os'
 import type { Attributes, Context, Link, SpanKind } from '@opentelemetry/api'
 import { DiagConsoleLogger, DiagLogLevel, diag, TraceFlags, trace } from '@opentelemetry/api'
 import type {
@@ -259,10 +260,12 @@ async function initializeOpenTelemetry() {
       exportIntervalMillis: 60000,
     })
 
-    // Unique instance id per origin keeps Jaeger's clock-skew adjuster
-    // from grouping Sim+Go spans together (they'd see multi-second
-    // drift as intra-service and emit spurious warnings).
-    const serviceInstanceId = `${telemetryConfig.serviceName}-${SERVICE_INSTANCE_SLUG}`
+    // Must be unique per process: replicas sharing one instance id collapse
+    // into a single Prometheus series, so their independent cumulative
+    // counters interleave and corrupt rate()/increase(). The slug keeps Sim
+    // distinct from Go for Jaeger's clock-skew grouping; the hostname (the
+    // container id under ECS) makes each replica its own series.
+    const serviceInstanceId = `${telemetryConfig.serviceName}-${SERVICE_INSTANCE_SLUG}-${hostname()}`
     const resource = defaultResource().merge(
       resourceFromAttributes({
         [ATTR_SERVICE_NAME]: telemetryConfig.serviceName,
