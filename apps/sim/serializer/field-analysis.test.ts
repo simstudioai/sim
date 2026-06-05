@@ -45,11 +45,7 @@ function config(subBlocks: any[], overrides: Record<string, any> = {}) {
 describe('collectBlockFieldIssues', () => {
   it('reports a missing required field (active mode empty)', () => {
     const cfg = config([{ id: 'apiKey', title: 'API Key', type: 'short-input', required: true }])
-    const issues = collectBlockFieldIssues(
-      block({ subBlocks: { apiKey: { value: '' } } }),
-      cfg,
-      {}
-    )
+    const issues = collectBlockFieldIssues(block({ subBlocks: { apiKey: { value: '' } } }), cfg, {})
     expect(issues.missingRequiredFields).toEqual(['API Key'])
     expect(issues.inactiveModeValues).toEqual([])
   })

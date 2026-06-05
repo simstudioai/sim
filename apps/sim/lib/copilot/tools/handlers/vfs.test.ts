@@ -355,13 +355,12 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
 
   it('surfaces an upload-not-found grep error verbatim', async () => {
     grepChatUpload.mockRejectedValue(
-      new WorkspaceFileGrepError('Upload not found: "ghost.json". Use glob("uploads/*") to list available uploads.')
+      new WorkspaceFileGrepError(
+        'Upload not found: "ghost.json". Use glob("uploads/*") to list available uploads.'
+      )
     )
 
-    const result = await executeVfsGrep(
-      { pattern: 'x', path: 'uploads/ghost.json' },
-      GREP_CTX_CHAT
-    )
+    const result = await executeVfsGrep({ pattern: 'x', path: 'uploads/ghost.json' }, GREP_CTX_CHAT)
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Upload not found')
@@ -403,11 +402,6 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
 
     await executeVfsGrep({ pattern: 'x', path: 'uploads/report.json/content' }, GREP_CTX_CHAT)
 
-    expect(grepChatUpload).toHaveBeenCalledWith(
-      'report.json',
-      'chat-1',
-      'x',
-      expect.any(Object)
-    )
+    expect(grepChatUpload).toHaveBeenCalledWith('report.json', 'chat-1', 'x', expect.any(Object))
   })
 })

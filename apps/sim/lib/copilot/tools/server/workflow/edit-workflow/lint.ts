@@ -369,7 +369,10 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
         .map(
           (issue) =>
             `"${issue.blockName || issue.blockId}" (${issue.inactiveModeValues
-              .map((v) => `${v.inactiveMemberId}: move the value to "${v.activeMemberId ?? v.canonicalId}"`)
+              .map(
+                (v) =>
+                  `${v.inactiveMemberId}: move the value to "${v.activeMemberId ?? v.canonicalId}"`
+              )
               .join('; ')})`
         )
         .join(', ')}`

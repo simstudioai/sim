@@ -182,8 +182,20 @@ describe('lintEditedWorkflowState', () => {
         note: baseBlock('note', 'note', 'Note'),
       },
       edges: [
-        { id: 'e1', source: 'start', sourceHandle: 'source', target: 'agent', targetHandle: 'target' },
-        { id: 'e2', source: 'agent', sourceHandle: 'source', target: 'end', targetHandle: 'target' },
+        {
+          id: 'e1',
+          source: 'start',
+          sourceHandle: 'source',
+          target: 'agent',
+          targetHandle: 'target',
+        },
+        {
+          id: 'e2',
+          source: 'agent',
+          sourceHandle: 'source',
+          target: 'end',
+          targetHandle: 'target',
+        },
       ],
     }
 

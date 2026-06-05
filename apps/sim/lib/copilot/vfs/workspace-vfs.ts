@@ -1106,9 +1106,7 @@ export class WorkspaceVFS {
 
               const graphLint = lintEditedWorkflowState(normalized as any)
               const fieldIssues = collectWorkflowFieldIssues(normalized.blocks as any)
-              let unresolvedReferences: Awaited<
-                ReturnType<typeof collectUnresolvedReferences>
-              > = []
+              let unresolvedReferences: Awaited<ReturnType<typeof collectUnresolvedReferences>> = []
               try {
                 unresolvedReferences = await collectUnresolvedReferences(normalized as any, {
                   userId,
@@ -1141,6 +1139,21 @@ export class WorkspaceVFS {
                 error: toError(lintErr).message,
               })
             }
+          } else {
+            // loadWorkflowFromNormalizedTables returns null when the workflow has
+            // zero block rows. A block-less workflow still exists and must be
+            // readable, so emit an empty-but-valid state.json — otherwise
+            // read("workflows/{path}/state.json") 404s and suggestSimilar points the
+            // agent at a different, same-named workflow. dag/lint are derived from
+            // blocks and are omitted for the empty case.
+            this.files.set(
+              `${prefix}state.json`,
+              JSON.stringify(
+                sanitizeForCopilot({ blocks: {}, edges: [], loops: {}, parallels: {} } as any),
+                null,
+                2
+              )
+            )
           }
         } catch (err) {
           logger.warn('Failed to load workflow state', {

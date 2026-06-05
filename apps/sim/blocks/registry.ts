@@ -58,7 +58,7 @@ import { EvernoteBlock, EvernoteBlockMeta } from '@/blocks/blocks/evernote'
 import { ExaBlock, ExaBlockMeta } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendBlockMeta, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock, FathomBlockMeta } from '@/blocks/blocks/fathom'
-import { FileBlock, FileV2Block, FileV3Block, FileV4Block } from '@/blocks/blocks/file'
+import { FileBlock, FileV2Block, FileV3Block, FileV4Block, FileV5Block } from '@/blocks/blocks/file'
 import { FindymailBlock, FindymailBlockMeta } from '@/blocks/blocks/findymail'
 import { FirecrawlBlock, FirecrawlBlockMeta } from '@/blocks/blocks/firecrawl'
 import {
@@ -370,6 +370,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   file_v2: FileV2Block,
   file_v3: FileV3Block,
   file_v4: FileV4Block,
+  file_v5: FileV5Block,
   findymail: FindymailBlock,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,

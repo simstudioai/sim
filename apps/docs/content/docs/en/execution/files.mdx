@@ -25,37 +25,39 @@ You can access any of these properties when referencing files from previous bloc
 
 ## The File Block
 
-The **File block** is the universal entry point for files in your workflows. It accepts files from any source and outputs standardized file objects that work with all integrations.
+The **File block** is the universal entry point for files in your workflows. It has several operations:
 
-**Inputs:**
-- **Uploaded files** - Drag and drop or select files directly
-- **External URLs** - Any publicly accessible file URL
-- **Files from other blocks** - Pass files from Gmail attachments, Slack downloads, etc.
+| Operation | What it does | Key output |
+| --- | --- | --- |
+| **Read** | Returns workspace file objects you select or reference. Does **not** load file text. | `files` (`UserFile[]`) |
+| **Get Content** | Extracts the text of one or more files (PDF, DOCX, CSV, etc. are parsed automatically). | `contents` (`string[]`, one entry per file) |
+| **Fetch** | Downloads and parses a file from an external URL, with optional request headers. | `files`, `combinedContent` |
+| **Write** | Creates a new workspace file. | `id`, `name`, `size`, `url` |
+| **Append** | Appends content to an existing workspace file. | `id`, `name`, `size`, `url` |
 
-**Outputs:**
-- A list of `UserFile` objects with consistent structure (`name`, `url`, `base64`, `type`, `size`)
-- `combinedContent` - Extracted text content from all files (for documents)
+`UserFile` objects share a consistent structure (`name`, `url`, `base64`, `type`, `size`), so they work with every integration.
 
-**Example usage:**
+### Reading file text: chain Read → Get Content
+
+**Read intentionally returns only file objects, not their text.** To read the text of files, pass the file objects into a **Get Content** operation:
 
 ```
-// Get all files from the File block
-<file.files>
+// Block 1 — File (Read): returns the selected workspace files
+<file1.files>
 
-// Get the first file
-<file.files[0]>
-
-// Get combined text content from parsed documents
-<file.combinedContent>
+// Block 2 — File (Get Content): set its file input to <file1.files>
+//   → returns an array of extracted text, one entry per file
+<file2.contents>        // all file contents
+<file2.contents[0]>     // text of the first file
 ```
 
-The File block automatically:
-- Detects file types from URLs and extensions
-- Extracts text from PDFs, CSVs, and documents
-- Generates base64 encoding for binary files
-- Creates presigned URLs for secure access
+The same pattern works for files produced anywhere — feed `<gmail.attachments>`, `<agent.files>`, or `<start.files>` straight into **Get Content**. You never need to extract `base64` or `url` yourself to get text.
 
-Use the File block when you need to normalize files from different sources before passing them to other blocks like Vision, STT, or email integrations.
+<Callout type="info">
+  Extracted `contents` can be large. The File block stores it through the execution large-value system automatically, so big documents don't bloat your run payloads.
+</Callout>
+
+Use the File block when you need to normalize files from different sources, read their text, or hand standardized file objects to other blocks like Vision, STT, or email integrations.
 
 ## Passing Files Between Blocks
 
@@ -138,7 +140,7 @@ Use `url` for direct downloads or `base64` for inline processing.
 ## Blocks That Work with Files
 
 **File inputs:**
-- **File** - Parse documents, images, and text files
+- **File** - Read file objects, extract text with Get Content, fetch URLs, write, and append
 - **Vision** - Analyze images with AI models
 - **Mistral Parser** - Extract text from PDFs
 

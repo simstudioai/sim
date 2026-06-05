@@ -106,7 +106,10 @@ export async function executeVfsGrep(
       }
       // The upload is the first segment after uploads/; any trailing segment
       // (e.g. a /content suffix) is ignored, mirroring the uploads read path.
-      const filename = rawPath.replace(/^\/+/, '').replace(/^uploads\/?/, '').split('/')[0]
+      const filename = rawPath
+        .replace(/^\/+/, '')
+        .replace(/^uploads\/?/, '')
+        .split('/')[0]
       if (!filename) {
         return {
           success: false,
