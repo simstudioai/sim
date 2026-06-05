@@ -30,10 +30,11 @@ import { nKeysBetween } from '@/lib/table/order-key'
 /**
  * Rows written per `UPDATE … FROM (VALUES …)`. One statement for a whole large table builds an
  * enormous VALUES list that overflows the JS call stack while drizzle assembles it (and would
- * exceed Postgres's 65535-bound-param limit at ~32k rows). Chunks share the one per-table
+ * exceed Postgres's 65535-bound-param limit at ~32k rows, 2 params/row). 5000 keeps ~10k params
+ * — well under both ceilings — while minimizing round-trips. Chunks share the one per-table
  * transaction, so the table is still keyed atomically.
  */
-const WRITE_CHUNK_SIZE = 1000
+const WRITE_CHUNK_SIZE = 5000
 
 export async function runBackfill(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run')
