@@ -1,7 +1,6 @@
 'use client'
 
 import { type ComponentType, useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {
@@ -12,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  SearchInput,
 } from '@/components/emcn'
 import {
   blockTypeToIconMap,
@@ -253,16 +253,13 @@ export function Integrations() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <ShowcaseWithExplore prompt='Explain the integrations in Sim and what I should connect.' />
           <div className='flex items-center gap-2'>
-            <div className='flex h-[30px] flex-1 items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-              <input
-                placeholder='Search integrations...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={credentialsLoading}
-                className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
-              />
-            </div>
+            <SearchInput
+              className='min-w-0 flex-1'
+              placeholder='Search integrations...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={credentialsLoading}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button type='button' className={chipVariants({ variant: 'filled', flush: true })}>

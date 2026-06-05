@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth'
 import { Home } from './home'
 
 export const metadata: Metadata = {
-  title: 'Home',
+  title: 'New chat',
 }
 
 interface HomePageProps {

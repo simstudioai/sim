@@ -4,8 +4,10 @@ import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createBillingPortalContract,
+  getInvoicesContract,
   getUserBillingContract,
   getUserUsageLimitContract,
+  type InvoicesApiResponse,
   purchaseCreditsContract,
   type SubscriptionApiResponse,
   updateUsageLimitContract,
@@ -23,6 +25,9 @@ export const subscriptionKeys = {
   users: () => [...subscriptionKeys.all, 'user'] as const,
   user: (includeOrg?: boolean) => [...subscriptionKeys.users(), { includeOrg }] as const,
   usage: () => [...subscriptionKeys.all, 'usage'] as const,
+  invoicesAll: () => [...subscriptionKeys.all, 'invoices'] as const,
+  invoices: (context: 'user' | 'organization' = 'user', organizationId?: string) =>
+    [...subscriptionKeys.invoicesAll(), context, organizationId ?? ''] as const,
 }
 
 /**
@@ -130,6 +135,45 @@ export function useUsageLimitData(options: UseUsageLimitDataOptions = {}) {
     queryFn: ({ signal }) => fetchUsageLimitData(signal),
     staleTime: 30 * 1000,
     enabled,
+  })
+}
+
+/**
+ * Fetch finalized invoices for the active billing customer (personal or
+ * organization-scoped).
+ */
+async function fetchInvoices(
+  context: 'user' | 'organization',
+  organizationId: string | undefined,
+  signal?: AbortSignal
+): Promise<InvoicesApiResponse> {
+  return requestJson(getInvoicesContract, {
+    query: { context, organizationId },
+    signal,
+  })
+}
+
+interface UseInvoicesOptions {
+  /** Billing context to read invoices for (defaults to the personal customer). */
+  context?: 'user' | 'organization'
+  /** Required when `context` is `organization`. */
+  organizationId?: string
+  /** Whether to enable the query (defaults to true). */
+  enabled?: boolean
+}
+
+/**
+ * Hook to fetch finalized Stripe invoices for the current billing customer.
+ * Returns an empty list when there is no customer or Stripe is not configured.
+ */
+export function useInvoices(options: UseInvoicesOptions = {}) {
+  const { context = 'user', organizationId, enabled = true } = options
+
+  return useQuery({
+    queryKey: subscriptionKeys.invoices(context, organizationId),
+    queryFn: ({ signal }) => fetchInvoices(context, organizationId, signal),
+    staleTime: 5 * 60 * 1000,
+    enabled: enabled && (context !== 'organization' || Boolean(organizationId)),
   })
 }
 

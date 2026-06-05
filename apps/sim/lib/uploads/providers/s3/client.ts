@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
@@ -54,6 +55,8 @@ export function getS3Client(): S3Client {
 
   _s3Client = new S3Client({
     region,
+    endpoint: S3_CONFIG.endpoint,
+    forcePathStyle: S3_CONFIG.forcePathStyle,
     credentials:
       env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
         ? {
@@ -222,6 +225,24 @@ export async function downloadFromS3(
 }
 
 /**
+ * Stream an object out of S3 without buffering it. The caller MUST fully consume or
+ * `destroy()` the returned stream. Used by the large-CSV import worker so a 1M-row file is
+ * never resident in memory.
+ */
+export async function downloadFromS3Stream(
+  key: string,
+  customConfig?: S3Config
+): Promise<Readable> {
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+  const command = new GetObjectCommand({ Bucket: config.bucket, Key: key })
+  const response = await getS3Client().send(command)
+  if (!response.Body) {
+    throw new Error(`S3 object has no body: ${key}`)
+  }
+  return response.Body as Readable
+}
+
+/**
  * Check whether an object exists in S3 (and return its size when it does).
  * Returns null when the object is missing.
  */
@@ -387,6 +408,33 @@ export async function getS3MultipartPartUrls(
 }
 
 /**
+ * Build a fallback object URL for when the SDK omits `Location` on multipart
+ * completion. For a custom `S3_CONFIG.endpoint` it matches the configured
+ * addressing mode — path-style for MinIO/Ceph (`forcePathStyle`), virtual-hosted
+ * (bucket as a subdomain) for R2 and friends. Falls back to the AWS
+ * virtual-hosted host when no custom endpoint is set.
+ *
+ * The key is percent-encoded per path segment (preserving `/` separators) so
+ * keys containing spaces or reserved characters still yield a valid URL.
+ */
+function buildObjectFallbackUrl(bucket: string, region: string, key: string): string {
+  const encodedKey = key
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+  if (S3_CONFIG.endpoint) {
+    const base = S3_CONFIG.endpoint.replace(/\/+$/, '')
+    if (S3_CONFIG.forcePathStyle) {
+      return `${base}/${bucket}/${encodedKey}`
+    }
+    const url = new URL(base)
+    url.hostname = `${bucket}.${url.hostname}`
+    return `${url.origin}/${encodedKey}`
+  }
+  return `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey}`
+}
+
+/**
  * Complete multipart upload for S3
  */
 export async function completeS3MultipartUpload(
@@ -408,8 +456,7 @@ export async function completeS3MultipartUpload(
   })
 
   const response = await s3Client.send(command)
-  const location =
-    response.Location || `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`
+  const location = response.Location || buildObjectFallbackUrl(config.bucket, config.region, key)
   const path = `/api/files/serve/${encodeURIComponent(key)}`
 
   return {

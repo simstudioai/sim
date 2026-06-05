@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Badge, CollapsibleCard, Combobox, Label } from '@/components/emcn'
+import { Badge, ChipCombobox, CollapsibleCard, Label } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import type { InputFormatField } from '@/lib/workflows/types'
 
@@ -39,7 +39,6 @@ export function InputMappingSection({
     <div className='flex flex-col gap-[9.5px]'>
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
         Workflow inputs
-        <span className='ml-0.5'>*</span>
       </Label>
       {namedFields.length === 0 ? (
         <p className='pl-0.5 text-[var(--text-tertiary)] text-caption'>
@@ -62,11 +61,10 @@ export function InputMappingSection({
               onToggleCollapse={() => toggle(field.name)}
             >
               <Label className='text-small'>Column</Label>
-              <Combobox
+              <ChipCombobox
                 searchable
                 searchPlaceholder='Search columns…'
-                size='sm'
-                className='h-[32px] w-full rounded-md'
+                className='w-full'
                 dropdownWidth='trigger'
                 maxHeight={240}
                 disabled={columns.length === 0}

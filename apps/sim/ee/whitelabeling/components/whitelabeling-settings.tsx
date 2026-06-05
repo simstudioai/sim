@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { X } from 'lucide-react'
+import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { Button, Input, Label, Loader, toast } from '@/components/emcn'
@@ -13,6 +13,10 @@ import { HEX_COLOR_REGEX } from '@/lib/branding'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import {
+  CHIP_FIELD_INPUT,
+  CHIP_FIELD_SHELL,
+} from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
 import { SettingRow } from '@/ee/components/setting-row'
@@ -71,19 +75,20 @@ interface ColorInputProps {
 
 function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorInputProps) {
   const isValidHex = !value || HEX_COLOR_REGEX.test(value)
+  const showColor = Boolean(value) && isValidHex
 
   return (
     <div className='flex flex-col gap-1.5'>
       <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
-      <div className='flex items-center gap-2'>
-        <div className='relative flex size-[36px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)]'>
-          {value && isValidHex ? (
-            <div className='h-full w-full rounded-md' style={{ backgroundColor: value }} />
-          ) : (
-            <div className='h-full w-full rounded-md bg-[var(--surface-3)]' />
+      <div className={cn(CHIP_FIELD_SHELL, !isValidHex && 'border-[var(--text-error)]')}>
+        <div
+          className={cn(
+            'size-[16px] flex-shrink-0 rounded-sm border border-[var(--border-1)]',
+            !showColor && 'bg-[var(--surface-3)]'
           )}
-        </div>
-        <Input
+          style={showColor ? { backgroundColor: value } : undefined}
+        />
+        <input
           value={value}
           onChange={(e) => {
             let v = e.target.value.trim()
@@ -95,11 +100,8 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
           }}
           onFocus={(e) => e.target.select()}
           placeholder={placeholder}
-          className={cn(
-            'h-[36px] font-mono text-[13px]',
-            !isValidHex && 'border-[var(--text-error)] focus-visible:ring-[var(--text-error)]'
-          )}
           maxLength={7}
+          className={cn(CHIP_FIELD_INPUT, 'font-mono')}
         />
       </div>
       {!isValidHex && (
@@ -322,10 +324,23 @@ export function WhitelabelingSettings() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-6 pb-6'>
           <SettingsSection label='Brand Identity'>
             <div className='flex flex-col gap-5'>
+              <SettingRow
+                label='Brand name'
+                description='Replaces "Sim" in the sidebar and select UI elements.'
+              >
+                <Input
+                  variant='chip'
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  placeholder='Your Company'
+                  className='max-w-[320px]'
+                  maxLength={64}
+                />
+              </SettingRow>
               <div className='grid grid-cols-2 gap-4'>
                 <SettingRow
                   label='Logo'
-                  description='Shown in the collapsed sidebar. Square image recommended (PNG, JPEG, or SVG, max 5MB).'
+                  labelTooltip='Shown in the collapsed sidebar. Square image — PNG, JPEG, or SVG, max 5MB.'
                 >
                   <div className='flex items-center gap-4'>
                     <DropZone onDrop={logoUpload.handleFileDrop}>
@@ -346,7 +361,7 @@ export function WhitelabelingSettings() {
                             unoptimized
                           />
                         ) : (
-                          <span className='text-[11px] text-[var(--text-muted)]'>Logo</span>
+                          <ImageIcon className='size-5 text-[var(--text-muted)]' />
                         )}
                       </button>
                     </DropZone>
@@ -367,7 +382,7 @@ export function WhitelabelingSettings() {
                           onClick={logoUpload.handleRemove}
                           className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                         >
-                          <X className='size-3.5' />
+                          <X className='size-[14px]' />
                         </Button>
                       )}
                     </div>
@@ -383,15 +398,15 @@ export function WhitelabelingSettings() {
 
                 <SettingRow
                   label='Wordmark'
-                  description='Shown in the expanded sidebar. Wide image recommended (PNG, JPEG, or SVG, max 5MB).'
+                  labelTooltip='Shown in the expanded sidebar. Wide image — PNG, JPEG, or SVG, max 5MB.'
                 >
                   <div className='flex items-center gap-4'>
-                    <DropZone onDrop={wordmarkUpload.handleFileDrop}>
+                    <DropZone onDrop={wordmarkUpload.handleFileDrop} className='min-w-0 flex-1'>
                       <button
                         type='button'
                         onClick={wordmarkUpload.handleThumbnailClick}
                         disabled={wordmarkUpload.isUploading}
-                        className='group relative flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                        className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                       >
                         {wordmarkUpload.isUploading ? (
                           <Loader className='size-5 text-[var(--text-muted)]' animate />
@@ -404,7 +419,7 @@ export function WhitelabelingSettings() {
                             unoptimized
                           />
                         ) : (
-                          <span className='text-[11px] text-[var(--text-muted)]'>Wordmark</span>
+                          <ImageIcon className='size-5 text-[var(--text-muted)]' />
                         )}
                       </button>
                     </DropZone>
@@ -425,7 +440,7 @@ export function WhitelabelingSettings() {
                           onClick={wordmarkUpload.handleRemove}
                           className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                         >
-                          <X className='size-3.5' />
+                          <X className='size-[14px]' />
                         </Button>
                       )}
                     </div>
@@ -439,19 +454,6 @@ export function WhitelabelingSettings() {
                   </div>
                 </SettingRow>
               </div>
-
-              <SettingRow
-                label='Brand name'
-                description='Replaces "Sim" in the sidebar and select UI elements.'
-              >
-                <Input
-                  value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
-                  placeholder='Your Company'
-                  className='h-[36px] max-w-[320px] text-[13px]'
-                  maxLength={64}
-                />
-              </SettingRow>
             </div>
           </SettingsSection>
 
@@ -492,7 +494,7 @@ export function WhitelabelingSettings() {
                   value={supportEmail}
                   onChange={(e) => setSupportEmail(e.target.value)}
                   placeholder='support@yourcompany.com'
-                  className='h-[36px] text-[13px]'
+                  variant='chip'
                 />
               </SettingRow>
               <SettingRow label='Documentation URL'>
@@ -501,7 +503,7 @@ export function WhitelabelingSettings() {
                   value={documentationUrl}
                   onChange={(e) => setDocumentationUrl(e.target.value)}
                   placeholder='https://docs.yourcompany.com'
-                  className='h-[36px] text-[13px]'
+                  variant='chip'
                 />
               </SettingRow>
               <SettingRow label='Terms of service URL'>
@@ -510,7 +512,7 @@ export function WhitelabelingSettings() {
                   value={termsUrl}
                   onChange={(e) => setTermsUrl(e.target.value)}
                   placeholder='https://yourcompany.com/terms'
-                  className='h-[36px] text-[13px]'
+                  variant='chip'
                 />
               </SettingRow>
               <SettingRow label='Privacy policy URL'>
@@ -519,7 +521,7 @@ export function WhitelabelingSettings() {
                   value={privacyUrl}
                   onChange={(e) => setPrivacyUrl(e.target.value)}
                   placeholder='https://yourcompany.com/privacy'
-                  className='h-[36px] text-[13px]'
+                  variant='chip'
                 />
               </SettingRow>
             </div>

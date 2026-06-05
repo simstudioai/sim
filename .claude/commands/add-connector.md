@@ -463,6 +463,24 @@ const response = await fetchWithRetry(url, { ... }, VALIDATE_RETRY_OPTIONS)
 
 If `ExternalDocument.sourceUrl` is set, the sync engine stores it on the document record. Always construct the full URL (not a relative path).
 
+## Capped or Incomplete Listings — `syncContext.listingCapped` (REQUIRED)
+
+If `listDocuments` can ever return **less than the full source set** on a non-incremental sync — a `maxItems`/`maxDocuments`-style cap, or a transient per-item error that drops a still-existing document from the listing — it MUST set `syncContext.listingCapped = true` when that happens.
+
+The sync engine reconciles deletions by comparing the full listing against stored documents: anything not seen is **hard-deleted** (sync-engine.ts, gated on `!syncContext?.listingCapped`). A truncated listing without this flag deletes every real document beyond the cap. This was the single most common bug found when auditing connectors — do not omit it.
+
+```typescript
+if (hitLimit && syncContext) {
+  syncContext.listingCapped = true
+}
+```
+
+Rules:
+- Set it when a user-configured cap truncates the listing while more documents exist
+- Set it when a thrown error caused a still-present document to be skipped during listing
+- Do NOT set it when the source is genuinely exhausted (deleted documents must still reconcile)
+- Do NOT set it for intentional scope filters (e.g. a date cutoff) — out-of-scope documents should be reconciled normally
+
 ## Sync Engine Behavior (Do Not Modify)
 
 The sync engine (`lib/knowledge/connectors/sync-engine.ts`) is connector-agnostic. It:
@@ -515,6 +533,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   - `dependsOn` references selector field IDs (not `canonicalParamId`)
   - Dependency `canonicalParamId` values exist in `SELECTOR_CONTEXT_FIELDS`
 - [ ] `listDocuments` handles pagination with metadata-based content hashes
+- [ ] `syncContext.listingCapped = true` set whenever the listing is truncated (max-items cap or transient per-item error) — required to prevent the engine's deletion reconciliation from removing unseen documents
 - [ ] `contentDeferred: true` used if content requires per-doc API calls (file download, export, blocks fetch)
 - [ ] `contentHash` is metadata-based (not content-based) and identical between stub and `getDocument`
 - [ ] `sourceUrl` set on each ExternalDocument (full URL, not relative)

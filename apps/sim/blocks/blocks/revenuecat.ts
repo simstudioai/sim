@@ -14,6 +14,7 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Commerce,
   bgColor: '#F25A5A',
+  iconColor: '#F25A5A',
   icon: RevenueCatIcon,
   subBlocks: [
     {

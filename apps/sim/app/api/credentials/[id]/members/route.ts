@@ -18,7 +18,7 @@ interface RouteContext {
 
 async function requireWorkspaceAdminMembership(credentialId: string, userId: string) {
   const [cred] = await db
-    .select({ id: credential.id, workspaceId: credential.workspaceId })
+    .select({ id: credential.id, workspaceId: credential.workspaceId, type: credential.type })
     .from(credential)
     .where(eq(credential.id, credentialId))
     .limit(1)
@@ -39,7 +39,7 @@ async function requireWorkspaceAdminMembership(credentialId: string, userId: str
   if (!membership || membership.status !== 'active' || membership.role !== 'admin') {
     return null
   }
-  return membership
+  return { ...membership, credentialType: cred.type }
 }
 
 export const GET = withRouteHandler(async (_request: NextRequest, context: RouteContext) => {
@@ -103,6 +103,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
     const admin = await requireWorkspaceAdminMembership(credentialId, session.user.id)
     if (!admin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+    if (admin.credentialType === 'env_personal') {
+      return NextResponse.json({ error: 'Personal secrets cannot be shared' }, { status: 400 })
     }
 
     const parsed = await parseRequest(upsertWorkspaceCredentialMemberContract, request, context)

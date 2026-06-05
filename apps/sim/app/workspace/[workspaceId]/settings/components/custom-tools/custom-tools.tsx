@@ -3,10 +3,16 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Plus, Search } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
-import { Input } from '@/components/ui'
+import {
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  SearchInput,
+} from '@/components/emcn'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -103,23 +109,16 @@ export function CustomTools() {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search tools...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={isLoading}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+            <SearchInput
+              placeholder='Search tools...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isLoading}
+            />
 
             {error ? (
               <div className='flex h-full flex-col items-center justify-center gap-2'>
-                <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
+                <p className='text-[var(--text-error)] text-sm leading-tight'>
                   {getErrorMessage(error, 'Failed to load tools')}
                 </p>
               </div>
@@ -132,11 +131,11 @@ export function CustomTools() {
                 {filteredTools.map((tool) => (
                   <div key={tool.id} className='flex items-center justify-between gap-3'>
                     <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                      <span className='truncate font-medium text-base'>
+                      <span className='truncate text-[14px] text-[var(--text-body)]'>
                         {tool.title || 'Unnamed Tool'}
                       </span>
                       {tool.schema?.function?.description && (
-                        <p className='truncate text-[var(--text-muted)] text-sm'>
+                        <p className='truncate text-[12px] text-[var(--text-muted)]'>
                           {tool.schema.function.description}
                         </p>
                       )}

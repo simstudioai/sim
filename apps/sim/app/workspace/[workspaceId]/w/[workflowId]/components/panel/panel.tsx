@@ -205,7 +205,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
    * Opens subscription settings modal
    */
   const openSubscriptionSettings = () => {
-    navigateToSettings({ section: 'subscription' })
+    navigateToSettings({ section: 'billing' })
   }
 
   /**

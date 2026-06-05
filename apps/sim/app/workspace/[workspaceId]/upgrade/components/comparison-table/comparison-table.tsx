@@ -15,6 +15,17 @@ import {
 const CELL_ICONS = { slack: SlackIcon } as const
 
 /**
+ * Resolved CTA for a plan column, mirroring the upgrade-page plan cards so the
+ * table and cards stay in lockstep (same label, variant, and disabled state).
+ */
+export interface ComparisonPlanCta {
+  label: string
+  variant: 'primary' | 'border-shadow'
+  onClick: () => void
+  disabled?: boolean
+}
+
+/**
  * Props for {@link ComparisonTable}.
  */
 export interface ComparisonTableProps {
@@ -38,8 +49,11 @@ export interface ComparisonTableProps {
    * Should point to the same setter as the page-level toggle.
    */
   onIsAnnualChange: (isAnnual: boolean) => void
-  /** Invoked with the plan name when a column's CTA chip is clicked. */
-  onSelectPlan: (planName: PlanName) => void
+  /**
+   * Resolved CTA per plan column, mirroring the upgrade-page plan cards. Plans
+   * without an entry (e.g. Free) render no button.
+   */
+  ctas: Partial<Record<PlanName, ComparisonPlanCta>>
 }
 
 /**
@@ -114,6 +128,7 @@ function Cell({ value }: { value: CellValue }) {
  *   maxPrice={`$${maxPrice}`}
  *   isAnnual={state.isAnnual}
  *   onIsAnnualChange={state.setIsAnnual}
+ *   ctas={{ Pro: proCta, Max: maxCta, Enterprise: enterpriseCta }}
  * />
  * ```
  */
@@ -122,7 +137,7 @@ export function ComparisonTable({
   maxPrice,
   isAnnual,
   onIsAnnualChange,
-  onSelectPlan,
+  ctas,
 }: ComparisonTableProps) {
   const runtimePrices: Partial<Record<PlanName, string>> = {
     Pro: proPrice,
@@ -135,16 +150,17 @@ export function ComparisonTable({
       <div className='grid min-w-[640px] grid-cols-[1fr_repeat(4,minmax(0,1fr))]'>
         {/* ── Column headers ── */}
         {/* Top-left cell: title, subtitle, and billing toggle */}
-        <div className='flex h-full flex-col justify-between gap-3 border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-3'>
+        <div className='flex h-full flex-col justify-between gap-3 border-[var(--border)] border-r bg-[var(--surface-1)] px-4 py-4'>
           <div className='flex flex-col gap-0.5'>
-            <span className='font-medium text-[var(--text-primary)] text-small'>Compare plans</span>
-            <span className='text-[var(--text-muted)] text-base'>Find the right plan for you</span>
+            <span className='font-medium text-[var(--text-primary)] text-base'>Compare plans</span>
+            <span className='text-[var(--text-muted)] text-small'>Find the right plan for you</span>
           </div>
           <BillingPeriodToggle isAnnual={isAnnual} onChange={onIsAnnualChange} />
         </div>
 
         {PLAN_COLUMNS.map((col) => {
           const price = runtimePrices[col.name] ?? col.staticPrice ?? ''
+          const cta = ctas[col.name]
 
           return (
             <div
@@ -155,21 +171,20 @@ export function ComparisonTable({
               <span className='font-medium text-[var(--text-primary)] text-md tabular-nums'>
                 {price}
               </span>
-              <button
-                type='button'
-                onClick={() => onSelectPlan(col.name)}
-                aria-label={`${col.ctaLabel} — ${col.name}`}
-                className={cn(
-                  chipVariants({
-                    variant: col.highlighted ? 'primary' : 'border-shadow',
-                    fullWidth: true,
-                    flush: true,
-                  }),
-                  'mt-2 w-full justify-center'
-                )}
-              >
-                {col.ctaLabel}
-              </button>
+              {cta && (
+                <button
+                  type='button'
+                  onClick={cta.onClick}
+                  disabled={cta.disabled}
+                  aria-label={`${cta.label} — ${col.name}`}
+                  className={cn(
+                    chipVariants({ variant: cta.variant, fullWidth: true, flush: true }),
+                    'mt-2 w-full justify-center'
+                  )}
+                >
+                  {cta.label}
+                </button>
+              )}
             </div>
           )
         })}

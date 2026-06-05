@@ -3,7 +3,15 @@
 import { useCallback, useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
-import { Badge, Button, Combobox, Input as EmcnInput, Label, Switch } from '@/components/emcn'
+import {
+  Badge,
+  Button,
+  ChipSelect,
+  Input as EmcnInput,
+  Label,
+  SearchInput,
+  Switch,
+} from '@/components/emcn'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -164,20 +172,17 @@ export function Admin() {
                       Default uses the configured Sim agent URL.
                     </p>
                   </div>
-                  <div className='w-[160px]'>
-                    <Combobox
-                      size='sm'
-                      align='end'
-                      dropdownWidth={160}
-                      value={settings?.mothershipEnvironment ?? 'default'}
-                      onChange={(value) =>
-                        handleMothershipEnvironmentChange(value as MothershipEnvironment)
-                      }
-                      placeholder='Select environment'
-                      disabled={updateSetting.isPending}
-                      options={MOTHERSHIP_ENV_OPTIONS}
-                    />
-                  </div>
+                  <ChipSelect
+                    align='start'
+                    dropdownWidth={160}
+                    value={settings?.mothershipEnvironment ?? 'default'}
+                    onChange={(value) =>
+                      handleMothershipEnvironmentChange(value as MothershipEnvironment)
+                    }
+                    placeholder='Select environment'
+                    disabled={updateSetting.isPending}
+                    options={MOTHERSHIP_ENV_OPTIONS}
+                  />
                 </div>
               </>
             )}
@@ -191,6 +196,7 @@ export function Admin() {
             </p>
             <div className='flex gap-2'>
               <EmcnInput
+                variant='chip'
                 value={workflowId}
                 onChange={(e) => {
                   setWorkflowId(e.target.value)
@@ -223,11 +229,12 @@ export function Admin() {
           <div className='flex flex-col gap-3'>
             <p className='font-medium text-[var(--text-primary)] text-sm'>User Management</p>
             <div className='flex gap-2'>
-              <EmcnInput
+              <SearchInput
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder='Search by email or paste a user ID...'
+                className='min-w-0 flex-1'
               />
               <Button variant='primary' onClick={handleSearch} disabled={usersLoading}>
                 {usersLoading ? 'Searching...' : 'Search'}
@@ -369,10 +376,11 @@ export function Admin() {
                       {banUserId === u.id && !u.banned && (
                         <div className='flex items-center gap-2 pl-[200px]'>
                           <EmcnInput
+                            variant='chip'
                             value={banReason}
                             onChange={(e) => setBanReason(e.target.value)}
                             placeholder='Reason (optional)'
-                            className='h-[28px] flex-1 text-caption'
+                            className='flex-1'
                           />
                           <Button
                             variant='primary'

@@ -14,6 +14,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#1F40ED',
+  iconColor: '#1F40ED',
   icon: ExaAIIcon,
   subBlocks: [
     {

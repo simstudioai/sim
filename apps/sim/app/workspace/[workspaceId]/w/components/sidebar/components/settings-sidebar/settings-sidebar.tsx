@@ -14,6 +14,7 @@ import {
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization'
@@ -88,6 +89,7 @@ export function SettingsSidebar({
   const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
+  const isEnterprisePlan = isEnterprise(subscriptionData?.data?.plan)
 
   const isSuperUser = session?.user?.role === 'admin'
 
@@ -103,9 +105,10 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.id === 'template-profile') {
+      if (item.hideForEnterprise && isEnterprisePlan) {
         return false
       }
+
       if (item.id === 'secrets' && permissionConfig.hideSecretsTab) {
         return false
       }
@@ -165,6 +168,7 @@ export function SettingsSidebar({
   }, [
     hasTeamPlan,
     hasEnterprisePlan,
+    isEnterprisePlan,
     subscriptionAccess.hasUsableMaxAccess,
     isOrgAdminOrOwner,
     isSSOProviderOwner,
@@ -194,9 +198,9 @@ export function SettingsSidebar({
           prefetchWorkspaceCredentials(queryClient, workspaceId)
           void import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets')
           break
-        case 'subscription':
+        case 'billing':
           prefetchSubscriptionData(queryClient)
-          void import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription')
+          void import('@/app/workspace/[workspaceId]/settings/components/billing/billing')
           break
       }
     },
@@ -365,9 +369,9 @@ export function SettingsSidebar({
       <ChipModal
         open={showDiscardDialog}
         onOpenChange={(open) => !open && handleCancelDiscard()}
-        srTitle='Unsaved Changes'
+        srTitle='Unsaved changes'
       >
-        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+        <ChipModalHeader showDivider={false}>Unsaved changes</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             You have unsaved changes. Are you sure you want to discard them?
@@ -375,10 +379,10 @@ export function SettingsSidebar({
         </ChipModalBody>
         <ChipModalFooter>
           <Chip variant='filled' flush onClick={handleCancelDiscard}>
-            Keep Editing
+            Keep editing
           </Chip>
           <Chip variant='destructive' flush onClick={handleConfirmDiscard}>
-            Discard Changes
+            Discard changes
           </Chip>
         </ChipModalFooter>
       </ChipModal>

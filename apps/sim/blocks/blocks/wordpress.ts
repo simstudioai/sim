@@ -16,6 +16,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Marketing,
   bgColor: '#21759B',
+  iconColor: '#21759B',
   icon: WordpressIcon,
   subBlocks: [
     // Operation Selection

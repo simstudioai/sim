@@ -15,6 +15,7 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Commerce,
   bgColor: '#635BFF',
+  iconColor: '#635BFF',
   icon: StripeIcon,
   subBlocks: [
     {

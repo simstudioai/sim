@@ -15,6 +15,7 @@ export const KalshiBlock: BlockConfig = {
   integrationType: IntegrationType.Analytics,
   hideFromToolbar: true,
   bgColor: '#09C285',
+  iconColor: '#09C285',
   icon: KalshiIcon,
   subBlocks: [
     {

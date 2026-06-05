@@ -12,7 +12,7 @@ import {
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  Input,
+  SearchInput,
   Skeleton,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -99,12 +99,12 @@ export function TransferOwnershipDialog({
             </div>
           </div>
         ) : !hasCandidates ? (
-          <p className='text-[var(--text-secondary)]'>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
             You're the only member of this organization. Invite another admin before leaving.
           </p>
         ) : (
           <div className='space-y-3'>
-            <p className='text-[var(--text-secondary)]'>
+            <p className='px-2 text-[var(--text-secondary)] text-sm'>
               As the owner, you need to hand off the organization before you can leave. Pick a
               member to become the new owner. They'll inherit billing access, seat management, and
               all owner-only permissions. You'll lose access to every shared workspace in this
@@ -133,11 +133,9 @@ export function TransferOwnershipDialog({
               />
             )}
 
-            {portalError && (
-              <p className='text-[var(--text-error)] text-small leading-tight'>{portalError}</p>
-            )}
+            {portalError && <p className='px-2 text-[var(--text-error)] text-sm'>{portalError}</p>}
 
-            <Input
+            <SearchInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder='Search members...'
@@ -199,7 +197,7 @@ export function TransferOwnershipDialog({
         )}
 
         {error && (
-          <p className='mt-3 text-[var(--text-error)] text-small leading-tight'>
+          <p className='px-2 text-[var(--text-error)] text-sm'>
             {error instanceof Error && error.message ? error.message : String(error)}
           </p>
         )}

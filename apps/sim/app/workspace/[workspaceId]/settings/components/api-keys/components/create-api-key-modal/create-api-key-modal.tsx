@@ -65,8 +65,8 @@ export function CreateApiKeyModal({
     if (isDuplicate) {
       setCreateError(
         keyType === 'workspace'
-          ? `A workspace Sim key named "${trimmedName}" already exists. Please choose a different name.`
-          : `A personal Sim key named "${trimmedName}" already exists. Please choose a different name.`
+          ? `A workspace API key named "${trimmedName}" already exists. Please choose a different name.`
+          : `A personal API key named "${trimmedName}" already exists. Please choose a different name.`
       )
       return
     }
@@ -89,11 +89,11 @@ export function CreateApiKeyModal({
       onKeyCreated?.(data.key)
     } catch (error: unknown) {
       logger.error('API key creation failed:', { error })
-      const errorMessage = getErrorMessage(error, 'Failed to create Sim key. Please try again.')
+      const errorMessage = getErrorMessage(error, 'Failed to create API key. Please try again.')
       if (errorMessage.toLowerCase().includes('already exists')) {
         setCreateError(errorMessage)
       } else {
-        setCreateError('Failed to create Sim key. Please check your connection and try again.')
+        setCreateError('Failed to create API key. Please check your connection and try again.')
       }
     }
   }
@@ -108,11 +108,11 @@ export function CreateApiKeyModal({
   return (
     <>
       {/* Create API Key Dialog */}
-      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create new Sim key'>
-        <ChipModalHeader onClose={handleClose}>Create new Sim key</ChipModalHeader>
+      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create new API key'>
+        <ChipModalHeader onClose={handleClose}>Create new API key</ChipModalHeader>
         <ChipModalBody>
           {canManageWorkspaceKeys && (
-            <ChipModalField type='custom' title='Sim Key Type'>
+            <ChipModalField type='custom' title='API Key Type'>
               <ButtonGroup
                 value={keyType}
                 onValueChange={(value) => {
@@ -129,7 +129,7 @@ export function CreateApiKeyModal({
           )}
           <ChipModalField
             type='input'
-            title='Enter a name for your Sim key to help you identify it later.'
+            title='Enter a name for your API key to help you identify it later.'
             value={keyName}
             onChange={(value) => {
               setKeyName(value)
@@ -183,10 +183,10 @@ export function CreateApiKeyModal({
             setNewKey(null)
           }
         }}
-        srTitle='Your Sim key has been created'
+        srTitle='Your API key has been created'
       >
         <ChipModalHeader onClose={() => setShowNewKeyDialog(false)}>
-          Your Sim key has been created
+          Your API key has been created
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField type='custom' title="Copy it now — it won't be shown again">

@@ -13,7 +13,7 @@ import {
   ChipModalError,
   ChipModalFooter,
   ChipModalHeader,
-  Combobox,
+  ChipSelect,
   Input,
   Label,
   Switch,
@@ -256,16 +256,17 @@ export function General() {
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       {/* Fixed header bar */}
       <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <div />
+        <div className='flex items-center'>
+          {isHosted && (
+            <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
+              Home Page
+            </Chip>
+          )}
+        </div>
         {!isAuthDisabled && (
           <div className='flex items-center gap-1'>
             <Chip onClick={handleSignOut}>Sign out</Chip>
             <Chip onClick={() => setShowResetPasswordModal(true)}>Reset password</Chip>
-            {isHosted && (
-              <Chip onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}>
-                Home Page
-              </Chip>
-            )}
           </div>
         )}
       </div>
@@ -391,21 +392,18 @@ export function General() {
             <div className='flex flex-col gap-4'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='theme-select'>Theme</Label>
-                <div className='w-[100px]'>
-                  <Combobox
-                    size='sm'
-                    align='end'
-                    dropdownWidth={140}
-                    value={settings?.theme}
-                    onChange={handleThemeChange}
-                    placeholder='Select theme'
-                    options={[
-                      { label: 'System', value: 'system' },
-                      { label: 'Light', value: 'light' },
-                      { label: 'Dark', value: 'dark' },
-                    ]}
-                  />
-                </div>
+                <ChipSelect
+                  align='start'
+                  dropdownWidth={140}
+                  value={settings?.theme}
+                  onChange={handleThemeChange}
+                  placeholder='Select theme'
+                  options={[
+                    { label: 'System', value: 'system' },
+                    { label: 'Light', value: 'light' },
+                    { label: 'Dark', value: 'dark' },
+                  ]}
+                />
               </div>
 
               <div className='flex items-center justify-between'>
@@ -457,24 +455,21 @@ export function General() {
 
               <div className='flex items-center justify-between'>
                 <Label htmlFor='snap-to-grid'>Snap to grid</Label>
-                <div className='w-[100px]'>
-                  <Combobox
-                    size='sm'
-                    align='end'
-                    dropdownWidth={140}
-                    value={String(snapToGridValue)}
-                    onChange={handleSnapToGridChange}
-                    placeholder='Select size'
-                    options={[
-                      { label: 'Off', value: '0' },
-                      { label: '10px', value: '10' },
-                      { label: '20px', value: '20' },
-                      { label: '30px', value: '30' },
-                      { label: '40px', value: '40' },
-                      { label: '50px', value: '50' },
-                    ]}
-                  />
-                </div>
+                <ChipSelect
+                  align='start'
+                  dropdownWidth={140}
+                  value={String(snapToGridValue)}
+                  onChange={handleSnapToGridChange}
+                  placeholder='Select size'
+                  options={[
+                    { label: 'Off', value: '0' },
+                    { label: '10px', value: '10' },
+                    { label: '20px', value: '20' },
+                    { label: '30px', value: '30' },
+                    { label: '40px', value: '40' },
+                    { label: '50px', value: '50' },
+                  ]}
+                />
               </div>
 
               <div className='flex items-center justify-between'>

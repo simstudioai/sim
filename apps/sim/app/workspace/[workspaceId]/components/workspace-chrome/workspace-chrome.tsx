@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
+import { useSidebarStore } from '@/stores/sidebar/store'
 
 const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
 
@@ -46,11 +47,43 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
 
   const setOrigin = useFullscreenOriginStore((s) => s.setOrigin)
 
+  const hasHydrated = useSidebarStore((s) => s._hasHydrated)
+  const syncSidebarWidth = useSidebarStore((s) => s.syncWidth)
+
   // Remember the last non-fullscreen page so a fullscreen route's Back control
   // can return there, deterministically and for any trigger.
   useEffect(() => {
     if (pathname && !isFullscreen) setOrigin(pathname)
   }, [pathname, isFullscreen, setOrigin])
+
+  // Re-apply the sidebar width whenever this persistent shell sees a navigation.
+  // The blocking script in the document head only runs on full page loads and
+  // store rehydration only fires once, so a soft navigation can leave
+  // `--sidebar-width` stuck at its `0px` default — collapsing the sidebar to
+  // nothing with no reachable control to bring it back. Re-syncing here recovers
+  // that state. Gated on hydration so it never clobbers the persisted value with
+  // store defaults during the pre-hydration window.
+  useEffect(() => {
+    if (hasHydrated) syncSidebarWidth()
+  }, [pathname, hasHydrated, syncSidebarWidth])
+
+  // Re-clamp the width when the window shrinks below what the persisted width
+  // allows, so the sidebar can never grow wider than the viewport permits.
+  useEffect(() => {
+    let rafId: number | null = null
+    const onResize = () => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        syncSidebarWidth()
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [syncSidebarWidth])
 
   return (
     <div className='flex min-h-0 flex-1'>

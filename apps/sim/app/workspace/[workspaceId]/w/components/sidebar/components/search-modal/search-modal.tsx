@@ -109,7 +109,7 @@ export function SearchModal({
       [
         {
           id: 'home',
-          name: 'Home',
+          name: 'New chat',
           icon: Home,
           href: `/workspace/${workspaceId}/home`,
         },
@@ -136,14 +136,14 @@ export function SearchModal({
         },
         {
           id: 'knowledge-base',
-          name: 'Knowledge Base',
+          name: 'Knowledge base',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
           id: 'scheduled-tasks',
-          name: 'Scheduled Tasks',
+          name: 'Scheduled tasks',
           icon: Calendar,
           href: `/workspace/${workspaceId}/scheduled-tasks`,
         },

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
+import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import { useWorkflows } from '@/hooks/queries/workflows'
 
 const USER_MESSAGE_CLASSES =
@@ -33,11 +34,26 @@ interface MentionRange {
   context: ChatMessageContext
 }
 
+/**
+ * Backfills a renderable `blockType` onto integration contexts that are
+ * missing one (or carry one the registry no longer knows) by resolving the
+ * label through the integration matcher. Messages persisted before
+ * `blockType` was included in the save mapping would otherwise render a
+ * mention pill with no icon.
+ */
+function withResolvedBlockType(ctx: ChatMessageContext): ChatMessageContext {
+  if (ctx.kind !== 'integration' || !ctx.label) return ctx
+  const info = getIntegrationMatcher().byName.get(ctx.label.toLowerCase())
+  if (!info) return ctx
+  return { ...ctx, blockType: info.blockType }
+}
+
 function computeMentionRanges(text: string, contexts: ChatMessageContext[]): MentionRange[] {
   const ranges: MentionRange[] = []
 
-  for (const ctx of contexts) {
-    if (!ctx.label) continue
+  for (const rawCtx of contexts) {
+    if (!rawCtx.label) continue
+    const ctx = withResolvedBlockType(rawCtx)
     const prefix = ctx.kind === 'skill' ? '/' : '@'
     const token = `${prefix}${ctx.label}`
     const pattern = new RegExp(`(^|\\s)(${escapeRegex(token)})(\\s|$)`, 'g')
@@ -50,7 +66,45 @@ function computeMentionRanges(text: string, contexts: ChatMessageContext[]): Men
     }
   }
 
+  for (const range of computeIntegrationRanges(text, ranges)) {
+    ranges.push(range)
+  }
+
   ranges.sort((a, b) => a.start - b.start)
+  return ranges
+}
+
+/**
+ * Scans the raw text for explicit, token-starting `@IntegrationName` mentions
+ * (any casing) and decorates them even when no matching context was stored —
+ * e.g. a message submitted before the input's auto-mention pass ran, or one
+ * authored outside the chat input. Ranges already claimed by stored contexts
+ * are skipped so the two sources never double-decorate.
+ */
+function computeIntegrationRanges(text: string, taken: MentionRange[]): MentionRange[] {
+  const { regex, byName } = getIntegrationMatcher()
+  if (!regex || !text) return []
+
+  regex.lastIndex = 0
+  const ranges: MentionRange[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(text)) !== null) {
+    const atIndex = match.index - 1
+    if (atIndex < 0 || text[atIndex] !== '@') continue
+    if (atIndex > 0 && !/\s/.test(text[atIndex - 1])) continue
+    const info = byName.get(match[0].toLowerCase())
+    if (!info) continue
+    const start = atIndex
+    const end = match.index + match[0].length
+    if (taken.some((r) => start < r.end && end > r.start)) continue
+    ranges.push({
+      start,
+      end,
+      context: { kind: 'integration', blockType: info.blockType, label: info.name },
+    })
+  }
+
   return ranges
 }
 
@@ -84,10 +138,7 @@ export function UserMessageContent({
   const trimmed = content.trim()
   const classes = cn(compact ? COMPACT_CLASSES : USER_MESSAGE_CLASSES, className)
 
-  const ranges = useMemo(
-    () => (contexts && contexts.length > 0 ? computeMentionRanges(content, contexts) : []),
-    [content, contexts]
-  )
+  const ranges = useMemo(() => computeMentionRanges(content, contexts ?? []), [content, contexts])
 
   if (ranges.length === 0) {
     return <p className={classes}>{trimmed}</p>

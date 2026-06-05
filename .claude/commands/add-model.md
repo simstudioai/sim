@@ -20,7 +20,8 @@ You add a new model entry to `apps/sim/providers/models.ts`. **Every numeric and
 2. Live-fetch official docs + pricing page + capability/parameter pages + at least one secondary source
 3. Apply the Consumption Matrix to know which capability flags are real
 4. Read 2-3 sibling entries in `models.ts` and match their pattern exactly
-5. Insert the entry, run `bun run lint`, print the verification report
+5. Check the repo-side touchpoints that are NOT data-driven (hosted-key billing, tests, provider code)
+6. Insert the entry, run `bun run lint`, print the verification report
 
 ## Step 1: Live source-of-truth lookup
 
@@ -103,7 +104,53 @@ Within a family, newest first (matches existing convention: GPT-5.5 above GPT-5.
 - If you're adding a new flagship, ask the user before removing `recommended` from the previous flagship. Never silently flip it.
 - `speedOptimized: true` only on the smallest/fastest tier (nano, flash-lite, haiku class).
 
-## Step 4: Write, lint
+## Step 4: Repo-side touchpoints beyond the entry
+
+Adding the `models.ts` entry is most of the job because nearly every consumer is **data-driven** and picks the model up automatically: the ~40 query helpers in `models.ts` / `providers/utils.ts`, the public `/models` catalog (`app/(landing)/models/utils.ts` iterates `PROVIDER_DEFINITIONS`), the agent-block model dropdown, and copilot's `isKnownModelId` / `suggestModelIdsForUnknownModel` validation. The touchpoints below are the exceptions — they are **not** data-driven, so check each one.
+
+### Hosted = auto-billed, by provider
+
+`getHostedModels()` in `apps/sim/providers/models.ts` returns **every** model under `openai`, `anthropic`, and `google`:
+
+```ts
+export function getHostedModels(): string[] {
+  return [
+    ...getProviderModels('openai'),
+    ...getProviderModels('anthropic'),
+    ...getProviderModels('google'),
+  ]
+}
+```
+
+So a model added to any of those three providers is **automatically served with Sim's rotating hosted key and billed** to the workspace via `shouldBillModelUsage()` (`providers/utils.ts`). Before you insert:
+
+- **If the model should be BYOK-only / never-billed**, do NOT drop it under `openai`/`anthropic`/`google` as-is — that silently enrolls it in hosted billing. Confirm hosting/billing intent with the user. (Precedent: Ollama Cloud is a deliberately separate `isReseller` provider specifically to stay BYOK-only/never-billed.)
+- **If the model should be hosted**, the deployment must actually have a key for it — the provider's `{PREFIX}_COUNT` / `{PREFIX}_1..N` env vars must be set, or hosted runs fail at execution time.
+- State the hosted/billing status explicitly in the verification report.
+
+### Tests with hardcoded model IDs
+
+`bun run lint` does **not** run tests. A few tests assert specific model IDs and can break or need updating when you touch a hosted or flagship model:
+
+- `apps/sim/providers/utils.test.ts` — asserts membership of `getHostedModels()` / `shouldBillModelUsage()`
+- `apps/sim/providers/index.test.ts` and serializer tests — reference concrete model IDs
+
+```bash
+rg "<new-model-id>|getHostedModels|shouldBillModelUsage" apps/sim/providers/*.test.ts
+```
+
+If anything matches, run the affected provider tests and update assertions as needed.
+
+### New API behavior is NOT data-driven
+
+The Consumption Matrix (Step 2) tells you which capability *flags* are honored by existing provider code. But if the new model needs **net-new** request handling that the provider doesn't implement yet — a new beta header (e.g. Anthropic's `anthropic-beta` structured-outputs header in `anthropic/index.ts`), a new thinking/reasoning encoding, a Responses-API quirk — you must edit `apps/sim/providers/<provider>/core.ts` / `index.ts`. Setting a flag whose behavior isn't implemented is a silent no-op.
+
+### Wrong family entirely?
+
+- **Embedding or rerank model** → it does NOT go in the `models[]` array. Use `EMBEDDING_MODEL_PRICING` / `RERANK_MODEL_PRICING` in `models.ts` instead.
+- **Brand-new provider** (not just a new model under an existing one) → much larger surface: add the id to `ProviderId` in `providers/types.ts`, a registry entry in `providers/registry.ts`, a provider implementation under `providers/<id>/`, an icon in `components/icons.tsx`, and the `PROVIDER_DEFINITIONS` block. That is beyond this skill — tell the user.
+
+## Step 5: Write, lint
 
 ```bash
 bun run lint
@@ -111,7 +158,7 @@ bun run lint
 
 Lint must pass before reporting done. **If lint fails:** read the error, fix the syntax/typing issue in the entry you just wrote (do not delete the entry — it's the work product), re-run lint, and note the fix in a "Lint adjustments" line in the verification report. Never report done with lint failing.
 
-## Step 5: Verification report (mandatory format)
+## Step 6: Verification report (mandatory format)
 
 End with this exact structure:
 
@@ -128,6 +175,7 @@ End with this exact structure:
 | `capabilities.temperature` | `{ min: 0, max: 1 }` | matches sibling entries | — pattern-match only |
 | `capabilities.reasoningEffort` | NOT SET | provider docs say API rejects it for this model | ✓ correctly omitted |
 | `releaseDate` | 2026-04-30 | https://docs.x.ai/... announcement | ✓ verified |
+| hosted/billing | BYOK-only (xai not in `getHostedModels`) | `providers/models.ts` | — confirmed intent |
 
 **Disagreements**
 - _none_ OR _OpenRouter says X, provider docs say Y — used Y per provider rule_
@@ -156,4 +204,6 @@ Omitting a field is **not the same as verifying it**. Any field you cannot confi
 - ❌ Copying `pricing.updatedAt` from a sibling instead of using today's date
 - ❌ Inventing a `cachedInput` price by dividing input by 4 (varies by provider — find an explicit number)
 - ❌ Stamping `recommended: true` on the new model without removing it from the previous flagship
+- ❌ Adding a BYOK-only model under `openai`/`anthropic`/`google` (silently enrolls it in hosted billing via `getHostedModels()`)
+- ❌ Reporting "done" after only `bun run lint` when you touched a hosted (openai/anthropic/google) or flagship model with assertions in `providers/utils.test.ts`
 - ❌ Reporting "done" with any UNVERIFIED row in the table

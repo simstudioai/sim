@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Plus, Search, Server } from 'lucide-react'
+import { Check, Clipboard, Plus, Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -17,11 +17,12 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
   Code,
-  Combobox,
   type ComboboxOption,
   Input as EmcnInput,
   Label,
+  SearchInput,
   SModalTabs,
   SModalTabsBody,
   SModalTabsContent,
@@ -30,7 +31,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
-import { Input } from '@/components/ui'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
@@ -322,7 +322,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           </Chip>
         </div>
         <div className='flex min-h-0 flex-1 items-center justify-center'>
-          <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
+          <p className='text-[var(--text-error)] text-xs leading-tight'>
             Failed to load server details
           </p>
         </div>
@@ -409,15 +409,18 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 
                     {tools.length === 0 ? (
                       <p className='text-[var(--text-muted)] text-sm'>
-                        No workflows added yet. Click "Add" to add a deployed workflow.
+                        No workflows added yet. Click &quot;Add Workflow&quot; to add a deployed
+                        workflow.
                       </p>
                     ) : (
                       <div className='flex flex-col gap-2'>
                         {tools.map((tool) => (
                           <div key={tool.id} className='flex items-center justify-between gap-3'>
                             <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                              <span className='font-medium text-base'>{tool.toolName}</span>
-                              <p className='truncate text-[var(--text-muted)] text-sm'>
+                              <span className='text-[14px] text-[var(--text-body)]'>
+                                {tool.toolName}
+                              </span>
+                              <p className='truncate text-[12px] text-[var(--text-muted)]'>
                                 {tool.toolDescription || 'No description'}
                               </p>
                             </div>
@@ -545,12 +548,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                               'Adding...'
                             ) : addedToWorkspace ? (
                               <>
-                                <Check className='mr-1.5 size-[13px]' />
+                                <Check className='mr-1.5 size-[14px]' />
                                 Added to Workspace
                               </>
                             ) : (
                               <>
-                                <Server className='mr-1.5 size-[13px]' />
+                                <Server className='mr-1.5 size-[14px]' />
                                 Add to Workspace
                               </>
                             )}
@@ -574,9 +577,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                             className='!p-1.5 -my-1.5'
                           >
                             {copiedConfig ? (
-                              <Check className='size-3' />
+                              <Check className='size-[14px]' />
                             ) : (
-                              <Clipboard className='size-3' />
+                              <Clipboard className='size-[14px]' />
                             )}
                           </Button>
                         </div>
@@ -702,6 +705,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         <div className='flex flex-col gap-1.5'>
                           <Label className='text-sm'>Description</Label>
                           <EmcnInput
+                            variant='chip'
                             value={editingParameterDescriptions[name] || ''}
                             onChange={(e) =>
                               setEditingParameterDescriptions((prev) => ({
@@ -817,7 +821,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             a tool.
           </p>
           <ChipModalField type='custom' title='Select Workflow'>
-            <Combobox
+            <ChipSelect
               options={workflowOptions}
               value={selectedWorkflowId || undefined}
               onChange={(value: string) => setSelectedWorkflowId(value)}
@@ -825,13 +829,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               searchable
               searchPlaceholder='Search workflows...'
               disabled={addToolMutation.isPending}
-              overlayContent={
-                selectedWorkflow ? (
-                  <span className='truncate text-[var(--text-primary)]'>
-                    {selectedWorkflow.name}
-                  </span>
-                ) : undefined
-              }
+              fullWidth
+              align='start'
+              displayLabel={selectedWorkflow?.name}
             />
           </ChipModalField>
           <ChipModalError>
@@ -1026,31 +1026,22 @@ export function WorkflowMcpServers() {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search servers...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+            <SearchInput
+              placeholder='Search servers...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
 
             <div className='min-h-0 flex-1'>
               {error ? (
                 <div className='flex h-full flex-col items-center justify-center gap-2'>
-                  <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
+                  <p className='text-[var(--text-error)] text-sm leading-tight'>
                     {getErrorMessage(error, 'Failed to load MCP servers')}
                   </p>
                 </div>
               ) : isLoading ? null : !hasServers ? (
-                <div className='flex h-full items-center justify-center'>
-                  <p className='text-[var(--text-muted)] text-sm'>
-                    Click "Add" above to get started
-                  </p>
+                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                  Click &quot;Add Server&quot; above to get started
                 </div>
               ) : (
                 <div className='flex flex-col gap-2'>
@@ -1062,7 +1053,7 @@ export function WorkflowMcpServers() {
                       <div key={server.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <div className='flex items-center gap-1.5'>
-                            <span className='max-w-[200px] truncate font-medium text-base'>
+                            <span className='max-w-[200px] truncate text-[14px] text-[var(--text-body)]'>
                               {server.name}
                             </span>
                             {server.isPublic && (
@@ -1071,7 +1062,9 @@ export function WorkflowMcpServers() {
                               </Badge>
                             )}
                           </div>
-                          <p className='truncate text-[var(--text-muted)] text-sm'>{toolsLabel}</p>
+                          <p className='truncate text-[12px] text-[var(--text-muted)]'>
+                            {toolsLabel}
+                          </p>
                         </div>
                         <div className='flex flex-shrink-0 items-center gap-1'>
                           <Chip onClick={() => setSelectedServerId(server.id)}>Details</Chip>

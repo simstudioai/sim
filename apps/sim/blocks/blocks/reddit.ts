@@ -15,6 +15,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#FF5700',
+  iconColor: '#FF5700',
   icon: RedditIcon,
   subBlocks: [
     {

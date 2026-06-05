@@ -1,6 +1,6 @@
-export { MemberInvitationCard } from './member-invitation-card'
 export { NoOrganizationView } from './no-organization-view'
-export { OrganizationRoster } from './organization-roster'
+export { OrganizationInviteModal } from './organization-invite-modal'
+export { OrganizationMemberLists } from './organization-member-lists'
 export { RemoveMemberDialog } from './remove-member-dialog'
 export { TeamSeatsOverview } from './team-seats-overview'
 export { TransferOwnershipDialog } from './transfer-ownership-dialog'

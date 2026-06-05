@@ -9,23 +9,14 @@ import {
   Badge,
   Button,
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  Combobox,
+  ChipModalTabs,
   Input as EmcnInput,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
   Skeleton,
   TagInput,
   type TagItem,
@@ -743,7 +734,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                     </Button>
                   </div>
                 ) : (
-                  <Combobox
+                  <ChipCombobox
                     options={slackAccounts.map((acc) => ({
                       value: acc.id,
                       label: acc.displayName || 'Slack Workspace',
@@ -790,7 +781,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-col gap-2'>
             <Label>Log Level Filters</Label>
-            <Combobox
+            <ChipCombobox
               options={LOG_LEVELS.map((level) => ({
                 label: level.charAt(0).toUpperCase() + level.slice(1),
                 value: level,
@@ -836,7 +827,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-col gap-2'>
             <Label>Trigger Type Filters</Label>
-            <Combobox
+            <ChipCombobox
               options={TRIGGER_OPTIONS.map((t) => ({
                 label: t.label,
                 value: t.value,
@@ -887,7 +878,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-col gap-2'>
             <Label>Include in Payload</Label>
-            <Combobox
+            <ChipCombobox
               options={[
                 { label: 'Final Output', value: 'includeFinalOutput' },
                 // Trace spans only available for webhooks (too large for email/Slack)
@@ -964,7 +955,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-col gap-2'>
             <Label>Rule</Label>
-            <Combobox
+            <ChipCombobox
               options={ALERT_RULES.map((rule) => ({
                 value: rule.value,
                 label: rule.label,
@@ -1206,105 +1197,84 @@ export const NotificationSettings = memo(function NotificationSettings({
 
   return (
     <>
-      <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent size='lg'>
-          <ModalHeader>Notifications</ModalHeader>
+      <ChipModal open={open} onOpenChange={handleClose} srTitle='Notifications' size='lg'>
+        <ChipModalHeader onClose={() => handleClose()}>Notifications</ChipModalHeader>
 
-          <ModalDescription className='sr-only'>
-            Manage webhook, email, and Slack notification subscriptions for this workflow
-          </ModalDescription>
-          <ModalTabs
+        <ChipModalBody className='max-h-[60vh] min-h-0 overflow-y-auto'>
+          <ChipModalTabs
+            tabs={[
+              { value: 'webhook', label: 'Webhook' },
+              { value: 'email', label: 'Email' },
+              { value: 'slack', label: 'Slack' },
+            ]}
             value={activeTab}
-            onValueChange={(value: string) => {
-              const newTab = value as NotificationType
-              const tabHasSubscriptions = getSubscriptionsForTab(newTab).length > 0
+            onChange={(value) => {
+              const tab = value as NotificationType
+              const tabHasSubscriptions = getSubscriptionsForTab(tab).length > 0
               resetForm()
-              setActiveTab(newTab)
+              setActiveTab(tab)
               setShowForm(!tabHasSubscriptions)
             }}
-            className='flex min-h-0 flex-1 flex-col'
-          >
-            <ModalTabsList activeValue={activeTab}>
-              <ModalTabsTrigger value='webhook'>Webhook</ModalTabsTrigger>
-              <ModalTabsTrigger value='email'>Email</ModalTabsTrigger>
-              <ModalTabsTrigger value='slack'>Slack</ModalTabsTrigger>
-            </ModalTabsList>
+          />
 
-            <ModalBody className='min-h-0 pt-4'>
-              <ModalTabsContent value='webhook'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-              <ModalTabsContent value='email'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-              <ModalTabsContent value='slack'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-            </ModalBody>
-          </ModalTabs>
+          <div className='min-h-0 px-2'>
+            <TabContent
+              displayForm={displayForm}
+              renderForm={renderForm}
+              isLoading={isLoading}
+              filteredSubscriptions={filteredSubscriptions}
+              renderSubscriptionItem={renderSubscriptionItem}
+            />
+          </div>
+        </ChipModalBody>
 
-          <ModalFooter>
-            {displayForm ? (
-              <>
-                {hasSubscriptions && (
-                  <Button
-                    variant='default'
-                    onClick={() => {
-                      resetForm()
-                      setShowForm(false)
-                    }}
-                  >
-                    Back
-                  </Button>
-                )}
-                <Button
-                  variant='primary'
-                  onClick={handleSave}
-                  disabled={createNotification.isPending || updateNotification.isPending}
-                >
-                  {createNotification.isPending || updateNotification.isPending
-                    ? editingId
-                      ? 'Updating...'
-                      : 'Creating...'
-                    : editingId
-                      ? 'Update'
-                      : 'Create'}
-                </Button>
-              </>
-            ) : (
-              <Button
+        <ChipModalFooter
+          leading={
+            displayForm && hasSubscriptions ? (
+              <Chip
+                variant='filled'
+                flush
                 onClick={() => {
                   resetForm()
-                  setShowForm(true)
+                  setShowForm(false)
                 }}
-                variant='primary'
-                disabled={isLoading}
               >
-                <Plus className='mr-1.5 size-[13px]' />
-                Add
-              </Button>
-            )}
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+                Back
+              </Chip>
+            ) : undefined
+          }
+        >
+          {displayForm ? (
+            <Chip
+              variant='primary'
+              flush
+              onClick={handleSave}
+              disabled={createNotification.isPending || updateNotification.isPending}
+            >
+              {createNotification.isPending || updateNotification.isPending
+                ? editingId
+                  ? 'Updating...'
+                  : 'Creating...'
+                : editingId
+                  ? 'Update'
+                  : 'Create'}
+            </Chip>
+          ) : (
+            <Chip
+              variant='primary'
+              flush
+              leftIcon={Plus}
+              onClick={() => {
+                resetForm()
+                setShowForm(true)
+              }}
+              disabled={isLoading}
+            >
+              Add
+            </Chip>
+          )}
+        </ChipModalFooter>
+      </ChipModal>
 
       <ChipModal
         open={showDeleteDialog}
@@ -1335,7 +1305,7 @@ export const NotificationSettings = memo(function NotificationSettings({
             onClick={handleDelete}
             disabled={deleteNotification.isPending}
           >
-            Delete
+            {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
           </Chip>
         </ChipModalFooter>
       </ChipModal>

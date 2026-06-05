@@ -83,6 +83,7 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#FF4438',
+  iconColor: '#FF4438',
   authMode: AuthMode.ApiKey,
   icon: RedisIcon,
   subBlocks: [

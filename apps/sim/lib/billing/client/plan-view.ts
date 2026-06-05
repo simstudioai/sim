@@ -65,8 +65,11 @@ export function resolvePlanTier(plan: string | null | undefined): PlanTier {
  * Derive the CTA for a single upgrade card given the current plan tier.
  *
  * The highlighted (primary) card is always the immediate next step up from the
- * current tier; same-tier cards offer "Manage plan" and lower-tier cards offer
- * "Downgrade", both rendered as secondary `border-shadow` chips.
+ * current tier. The same-tier card reads "Current Plan" (a non-actionable
+ * marker — plan management lives on the Billing settings page) and lower-tier
+ * cards offer "Downgrade plan" (a secondary `border-shadow` chip). A higher card
+ * reads "Get started" only while the user has no paid plan yet; once they are on
+ * a paid tier it becomes an explicit "Upgrade plan".
  */
 export function getUpgradeCardCta(current: PlanTier, card: UpgradeCardId): PlanCardCta {
   const isNextStepUp = PLAN_RANK[card] === PLAN_RANK[current] + 1
@@ -81,15 +84,20 @@ export function getUpgradeCardCta(current: PlanTier, card: UpgradeCardId): PlanC
   }
 
   if (PLAN_RANK[current] === PLAN_RANK[card]) {
-    return { label: 'Manage plan', variant: 'border-shadow', intent: 'manage', highlighted: false }
+    return { label: 'Current Plan', variant: 'border-shadow', intent: 'manage', highlighted: false }
   }
 
   if (PLAN_RANK[current] > PLAN_RANK[card]) {
-    return { label: 'Downgrade', variant: 'border-shadow', intent: 'downgrade', highlighted: false }
+    return {
+      label: 'Downgrade plan',
+      variant: 'border-shadow',
+      intent: 'downgrade',
+      highlighted: false,
+    }
   }
 
   return {
-    label: 'Get started',
+    label: current === 'free' ? 'Get started' : 'Upgrade plan',
     variant: isNextStepUp ? 'primary' : 'border-shadow',
     intent: 'upgrade',
     highlighted: isNextStepUp,

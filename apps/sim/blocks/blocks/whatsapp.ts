@@ -14,6 +14,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#25D366',
+  iconColor: '#25D366',
   icon: WhatsAppIcon,
   triggerAllowed: true,
   subBlocks: [

@@ -43,6 +43,7 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Email,
   bgColor: '#FB7A22',
+  iconColor: '#FB7A22',
   icon: EmailBisonIcon,
   authMode: AuthMode.ApiKey,
   triggers: {

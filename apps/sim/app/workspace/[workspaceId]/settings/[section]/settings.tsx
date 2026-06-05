@@ -56,9 +56,12 @@ const RecentlyDeleted = dynamic(() =>
     '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
   ).then((m) => m.RecentlyDeleted)
 )
-const Subscription = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription').then(
-    (m) => m.Subscription
+const Billing = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then((m) => m.Billing)
+)
+const Teammates = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/teammates/teammates').then(
+    (m) => m.Teammates
   )
 )
 const TeamManagement = dynamic(() =>
@@ -105,16 +108,19 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
+  // The Subscription tab was replaced by Billing; redirect legacy links there.
+  const normalizedSection: SettingsSection =
+    (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
-    !isBillingEnabled && (section === 'subscription' || section === 'organization')
+    !isBillingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
       ? 'general'
-      : section === 'credential-sets' && !isCredentialSetsEnabled
+      : normalizedSection === 'credential-sets' && !isCredentialSetsEnabled
         ? 'general'
-        : section === 'admin' && !sessionLoading && !isAdminRole
+        : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
           ? 'general'
-          : section === 'mothership' && !sessionLoading && !isAdminRole
+          : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
             ? 'general'
-            : section
+            : normalizedSection
 
   useEffect(() => {
     if (sessionLoading) return
@@ -129,7 +135,8 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'access-control' && <AccessControl />}
       {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
-      {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
+      {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
+      {effectiveSection === 'teammates' && <Teammates />}
       {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
       {effectiveSection === 'data-retention' && <DataRetentionSettings />}

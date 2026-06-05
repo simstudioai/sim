@@ -13,9 +13,12 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Input as EmcnInput,
 } from '@/components/emcn'
-import { Input } from '@/components/ui'
+import { cn } from '@/lib/core/utils/cn'
+import {
+  CHIP_FIELD_INPUT,
+  CHIP_FIELD_SHELL,
+} from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 
 const logger = createLogger('BYOKKeyManager')
@@ -125,20 +128,18 @@ export function BYOKKeyManager({
     <>
       <div className='flex h-full flex-col gap-4.5'>
         {showSearch && (
-          <div className='flex items-center gap-2'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <Input
-                placeholder='Search providers...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={isLoading}
-                className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
+          <div className={CHIP_FIELD_SHELL}>
+            <Search
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              strokeWidth={2}
+            />
+            <input
+              placeholder='Search providers...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isLoading}
+              className={cn(CHIP_FIELD_INPUT, 'disabled:cursor-not-allowed disabled:opacity-60')}
+            />
           </div>
         )}
 
@@ -229,8 +230,8 @@ export function BYOKKeyManager({
               tabIndex={-1}
               readOnly
             />
-            <div className='relative'>
-              <EmcnInput
+            <div className={CHIP_FIELD_SHELL}>
+              <input
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={(e) => {
@@ -238,7 +239,7 @@ export function BYOKKeyManager({
                   if (error) setError(null)
                 }}
                 placeholder={editingMeta?.placeholder}
-                className='h-9 pr-9'
+                className={CHIP_FIELD_INPUT}
                 name='byok_api_key'
                 autoComplete='off'
                 autoCorrect='off'
@@ -247,11 +248,12 @@ export function BYOKKeyManager({
                 data-form-type='other'
               />
               <Button
-                variant='ghost'
-                className='-translate-y-1/2 absolute top-1/2 right-[4px] size-[28px] p-0'
+                variant='quiet'
+                className='size-[18px] shrink-0 rounded-sm p-0'
                 onClick={() => setShowApiKey(!showApiKey)}
+                aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
               >
-                {showApiKey ? <EyeOff className='size-[14px]' /> : <Eye className='size-[14px]' />}
+                {showApiKey ? <EyeOff className='size-[13px]' /> : <Eye className='size-[13px]' />}
               </Button>
             </div>
           </ChipModalField>

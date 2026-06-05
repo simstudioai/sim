@@ -12,7 +12,8 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { getTableById } from '@/lib/table/service'
+import type { RowData } from '@/lib/table'
+import { buildOrderedRowValues, getTableById } from '@/lib/table/service'
 
 const logger = createLogger('CopilotToolResultTables')
 
@@ -107,16 +108,15 @@ export async function maybeWriteOutputToTable(
               throw new Error('Request aborted before tool mutation could be applied')
             }
             const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
-            const values = chunk.map((rowData, j) => ({
-              id: `row_${generateId().replace(/-/g, '')}`,
+            const values = buildOrderedRowValues({
               tableId: outputTable,
               workspaceId: context.workspaceId!,
-              data: rowData,
-              position: i + j,
-              createdAt: now,
-              updatedAt: now,
+              rows: chunk as RowData[],
+              startPosition: i,
+              now,
               createdBy: context.userId,
-            }))
+              makeId: () => `row_${generateId().replace(/-/g, '')}`,
+            })
             await tx.insert(userTableRows).values(values)
           }
         })
@@ -251,16 +251,15 @@ export async function maybeWriteReadCsvToTable(
               throw new Error('Request aborted before tool mutation could be applied')
             }
             const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
-            const values = chunk.map((rowData, j) => ({
-              id: `row_${generateId().replace(/-/g, '')}`,
+            const values = buildOrderedRowValues({
               tableId: outputTable,
               workspaceId: context.workspaceId!,
-              data: rowData,
-              position: i + j,
-              createdAt: now,
-              updatedAt: now,
+              rows: chunk as RowData[],
+              startPosition: i,
+              now,
               createdBy: context.userId,
-            }))
+              makeId: () => `row_${generateId().replace(/-/g, '')}`,
+            })
             await tx.insert(userTableRows).values(values)
           }
         })

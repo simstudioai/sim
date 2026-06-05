@@ -223,15 +223,23 @@ export async function executeMaterializeFile(
   }
   const succeeded: string[] = []
   const failed: Array<{ fileName: string; error: string }> = []
+  const resources: NonNullable<ToolCallResult['resources']> = []
 
   for (const fileName of fileNames) {
     try {
+      let result: ToolCallResult
       if (operation === 'import') {
-        await executeImport(fileName, context.chatId, context.workspaceId, context.userId)
+        result = await executeImport(fileName, context.chatId, context.workspaceId, context.userId)
       } else {
-        await executeSave(fileName, context.chatId)
+        result = await executeSave(fileName, context.chatId)
       }
-      succeeded.push(fileName)
+
+      if (result.success) {
+        succeeded.push(fileName)
+        if (result.resources) resources.push(...result.resources)
+      } else {
+        failed.push({ fileName, error: result.error ?? 'Failed to materialize file' })
+      }
     } catch (err) {
       logger.error('materialize_file failed', {
         fileName,
@@ -253,5 +261,6 @@ export async function executeMaterializeFile(
       failed.length > 0
         ? `Failed to materialize: ${failed.map((f) => f.fileName).join(', ')}`
         : undefined,
+    resources: resources.length > 0 ? resources : undefined,
   }
 }

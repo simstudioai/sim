@@ -269,6 +269,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     image: string | null
     permissionType: PermissionType
     isExternal: boolean
+    joinedAt: string
   }>
 > {
   const usersWithPermissions = await db
@@ -278,6 +279,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
       name: user.name,
       image: user.image,
       permissionType: permissions.permissionType,
+      joinedAt: permissions.createdAt,
       workspaceOrganizationId: workspace.organizationId,
       workspaceOwnerId: workspace.ownerId,
       userOrganizationId: member.organizationId,
@@ -303,6 +305,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     permissionType: row.permissionType,
     isExternal:
       row.userId !== row.workspaceOwnerId && row.userOrganizationId !== row.workspaceOrganizationId,
+    joinedAt: row.joinedAt.toISOString(),
   }))
 }
 

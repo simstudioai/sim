@@ -63,6 +63,13 @@ export interface WorkflowGroupDependencies {
  */
 export type WorkflowGroupType = 'manual' | 'enrichment'
 
+/**
+ * Which workflow state a group's per-cell runs execute against: `'live'` runs
+ * the editable draft (current behavior); `'deployed'` runs the workflow's
+ * latest active deployment. Defaults to `'live'` when absent.
+ */
+export type WorkflowGroupDeploymentMode = 'live' | 'deployed'
+
 /** One workflow Start-block input field ← one table column. */
 export interface WorkflowGroupInputMapping {
   /** `inputFormat` field name on the workflow's Start block. */
@@ -88,6 +95,12 @@ export interface WorkflowGroup {
    * supply each per-row value. Absent / empty means no mapping configured yet.
    */
   inputMappings?: WorkflowGroupInputMapping[]
+  /**
+   * Which workflow state per-cell runs execute against. Defaults to `'live'`
+   * (editable draft) when absent. `'deployed'` runs the workflow's latest
+   * active deployment. Only meaningful for `manual` groups.
+   */
+  deploymentMode?: WorkflowGroupDeploymentMode
   /**
    * When `false`, the group never auto-fires from the scheduler — it can only
    * be triggered manually via the "Run" actions. Defaults to `true` so
@@ -152,6 +165,9 @@ export interface TableMetadata {
   pinnedColumns?: string[]
 }
 
+/** Async-import lifecycle state for a table. NULL/undefined = normal (no async import). */
+export type TableImportStatus = 'importing' | 'ready' | 'failed' | 'canceled'
+
 export interface TableDefinition {
   id: string
   name: string
@@ -165,6 +181,12 @@ export interface TableDefinition {
   archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
+  /** Async-import state (see `apps/sim/lib/table/import-runner.ts`). */
+  importStatus?: TableImportStatus | null
+  importId?: string | null
+  importError?: string | null
+  importRowsProcessed?: number
+  importStartedAt?: Date | string | null
 }
 
 /** Minimal table info for UI components. */
@@ -269,6 +291,12 @@ export interface QueryOptions {
    * is returned as `null` to signal it was not computed.
    */
   includeTotal?: boolean
+  /**
+   * When true (default), each returned row's `executions` is populated from the
+   * `tableRowExecutions` sidecar. Pass `false` to skip the join and return `{}`
+   * (the public v1 route does not expose executions).
+   */
+  withExecutions?: boolean
 }
 
 export interface QueryResult {
@@ -296,6 +324,10 @@ export interface CreateTableData {
   maxTables?: number
   /** Number of empty rows to create with the table. Defaults to 0. */
   initialRowCount?: number
+  /** When set, the table is created in this async-import state (rows hidden until ready). */
+  importStatus?: TableImportStatus
+  /** Async-import id stamped on the table when `importStatus` is set. */
+  importId?: string
 }
 
 export interface InsertRowData {
@@ -454,6 +486,8 @@ export interface UpdateWorkflowGroupData {
   mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
   /** Replace the group's input mappings. Omit to leave them unchanged. */
   inputMappings?: WorkflowGroupInputMapping[]
+  /** Change which workflow state the group runs against. Omit to leave unchanged. */
+  deploymentMode?: WorkflowGroupDeploymentMode
   /** Update the group's provenance. Omit to leave it unchanged. */
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */

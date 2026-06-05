@@ -14,6 +14,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#4831C3',
+  iconColor: '#4831C3',
   icon: PeopleDataLabsIcon,
   subBlocks: [
     {

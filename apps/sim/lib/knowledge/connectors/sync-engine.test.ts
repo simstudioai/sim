@@ -37,6 +37,46 @@ vi.mock('@/connectors/registry', () => ({
   },
 }))
 
+describe('shouldReconcileDeletions', () => {
+  it('runs on a clean full listing', async () => {
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldReconcileDeletions(false, {}, undefined)).toBe(true)
+    expect(shouldReconcileDeletions(false, undefined, undefined)).toBe(true)
+  })
+
+  it('never runs on incremental syncs', async () => {
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldReconcileDeletions(true, {}, undefined)).toBe(false)
+    expect(shouldReconcileDeletions(true, {}, true)).toBe(false)
+    expect(shouldReconcileDeletions(true, { listingCapped: true }, true)).toBe(false)
+  })
+
+  it('skips when a connector capped the listing', async () => {
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldReconcileDeletions(false, { listingCapped: true }, undefined)).toBe(false)
+    expect(shouldReconcileDeletions(false, { listingCapped: true }, false)).toBe(false)
+  })
+
+  it('lets a forced fullSync override a connector cap', async () => {
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldReconcileDeletions(false, { listingCapped: true }, true)).toBe(true)
+  })
+
+  it('never runs when the engine truncated pagination, even on a forced fullSync', async () => {
+    const { shouldReconcileDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(shouldReconcileDeletions(false, { listingTruncated: true }, undefined)).toBe(false)
+    expect(shouldReconcileDeletions(false, { listingTruncated: true }, true)).toBe(false)
+    expect(
+      shouldReconcileDeletions(false, { listingCapped: true, listingTruncated: true }, true)
+    ).toBe(false)
+  })
+})
+
 describe('resolveTagMapping', () => {
   beforeEach(() => {
     vi.clearAllMocks()

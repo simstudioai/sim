@@ -7,19 +7,27 @@ import { RedisTokenBucket } from './redis-token-bucket'
 
 const logger = createLogger('RateLimitStorage')
 
-let cachedAdapter: RateLimitStorageAdapter | null = null
-let reconnectListenerRegistered = false
+type FactoryGlobal = typeof globalThis & {
+  _rlCachedAdapter?: RateLimitStorageAdapter | null
+  _rlReconnectListenerRegistered?: boolean
+}
+
+const g = globalThis as FactoryGlobal
+if (!('_rlCachedAdapter' in g)) {
+  g._rlCachedAdapter = null
+  g._rlReconnectListenerRegistered = false
+}
 
 export function createStorageAdapter(): RateLimitStorageAdapter {
-  if (cachedAdapter) {
-    return cachedAdapter
+  if (g._rlCachedAdapter) {
+    return g._rlCachedAdapter
   }
 
-  if (!reconnectListenerRegistered) {
+  if (!g._rlReconnectListenerRegistered) {
     onRedisReconnect(() => {
-      cachedAdapter = null
+      g._rlCachedAdapter = null
     })
-    reconnectListenerRegistered = true
+    g._rlReconnectListenerRegistered = true
   }
 
   const storageMethod = getStorageMethod()
@@ -30,17 +38,17 @@ export function createStorageAdapter(): RateLimitStorageAdapter {
       logger.warn(
         'Redis configured but client unavailable - falling back to PostgreSQL for rate limiting'
       )
-      cachedAdapter = new DbTokenBucket()
+      g._rlCachedAdapter = new DbTokenBucket()
     } else {
       logger.info('Rate limiting: Using Redis')
-      cachedAdapter = new RedisTokenBucket(redis)
+      g._rlCachedAdapter = new RedisTokenBucket(redis)
     }
   } else {
     logger.info('Rate limiting: Using PostgreSQL')
-    cachedAdapter = new DbTokenBucket()
+    g._rlCachedAdapter = new DbTokenBucket()
   }
 
-  return cachedAdapter
+  return g._rlCachedAdapter!
 }
 
 export function getAdapterType(): StorageMethod {
@@ -48,9 +56,9 @@ export function getAdapterType(): StorageMethod {
 }
 
 export function resetStorageAdapter(): void {
-  cachedAdapter = null
+  g._rlCachedAdapter = null
 }
 
 export function setStorageAdapter(adapter: RateLimitStorageAdapter): void {
-  cachedAdapter = adapter
+  g._rlCachedAdapter = adapter
 }

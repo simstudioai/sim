@@ -16,8 +16,7 @@ import {
   coerceRowsForTable,
   getWorkspaceTableLimits,
   inferSchemaFromCsv,
-  parseCsvBuffer,
-  sanitizeName,
+  parseFileRows,
   validateMapping,
 } from '@/lib/table'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
@@ -55,6 +54,7 @@ import type {
   TableDefinition,
   WorkflowGroup,
   WorkflowGroupDependencies,
+  WorkflowGroupDeploymentMode,
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
@@ -99,39 +99,6 @@ async function resolveWorkspaceFile(
 }
 
 /**
- * Sanitizes raw JSON headers/rows so they conform to the same rules as CSV
- * imports (so `inferSchemaFromCsv` and friends can be reused).
- */
-function sanitizeJsonHeaders(
-  headers: string[],
-  rows: Record<string, unknown>[]
-): { headers: string[]; rows: Record<string, unknown>[] } {
-  const renamed = new Map<string, string>()
-  const seen = new Set<string>()
-
-  for (const raw of headers) {
-    let safe = sanitizeName(raw)
-    while (seen.has(safe)) safe = `${safe}_`
-    seen.add(safe)
-    renamed.set(raw, safe)
-  }
-
-  const noChange = headers.every((h) => renamed.get(h) === h)
-  if (noChange) return { headers, rows }
-
-  return {
-    headers: headers.map((h) => renamed.get(h)!),
-    rows: rows.map((row) => {
-      const out: Record<string, unknown> = {}
-      for (const [raw, safe] of renamed) {
-        if (raw in row) out[safe] = row[raw]
-      }
-      return out
-    }),
-  }
-}
-
-/**
  * Loads the live workflow state and flattens it into pickable outputs. Used
  * to validate `(blockId, path)` pairs the AI passes to add/update_workflow_group
  * before they get stored as stale references — and to power `list_workflow_outputs`
@@ -173,40 +140,14 @@ function validateOutputsAgainstWorkflow(
   return `Invalid output(s) for workflow ${workflowId}:\n${invalidList}\n\nValid options${flattened.length > 12 ? ' (first 12)' : ''}:\n${sample}\n\nCall list_workflow_outputs with workflowId="${workflowId}" to see all valid (blockId, path) picks.`
 }
 
-async function parseJsonRows(
-  buffer: Buffer
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
-  const parsed = JSON.parse(buffer.toString('utf-8'))
-  if (!Array.isArray(parsed)) {
-    throw new Error('JSON file must contain an array of objects')
-  }
-  if (parsed.length === 0) {
-    throw new Error('JSON file contains an empty array')
-  }
-  const headerSet = new Set<string>()
-  for (const row of parsed) {
-    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
-      throw new Error('Each element in the JSON array must be a plain object')
-    }
-    for (const key of Object.keys(row)) headerSet.add(key)
-  }
-  return sanitizeJsonHeaders([...headerSet], parsed)
-}
-
-async function parseFileRows(
-  buffer: Buffer,
-  fileName: string,
-  contentType: string
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  if (ext === 'json' || contentType === 'application/json') {
-    return parseJsonRows(buffer)
-  }
-  if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
-    const delimiter = ext === 'tsv' ? '\t' : ','
-    return parseCsvBuffer(buffer, delimiter)
-  }
-  throw new Error(`Unsupported file format: "${ext}". Supported: csv, tsv, json`)
+/**
+ * Narrows a raw `deploymentMode` arg to the `'live' | 'deployed'` union, or
+ * `undefined` when absent/invalid (leaving the group's existing value — which
+ * itself defaults to `'live'`). Lets Mothership choose whether a group's
+ * per-cell runs execute the live draft or the latest active deployment.
+ */
+function parseDeploymentMode(value: unknown): WorkflowGroupDeploymentMode | undefined {
+  return value === 'live' || value === 'deployed' ? value : undefined
 }
 
 async function batchInsertAll(
@@ -1256,11 +1197,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const dependencies = args.dependencies as WorkflowGroupDependencies | undefined
           const name = args.name as string | undefined
+          const deploymentMode = parseDeploymentMode(args.deploymentMode)
           const group: WorkflowGroup = {
             id: groupId,
             workflowId,
             ...(name ? { name } : {}),
             ...(dependencies ? { dependencies } : {}),
+            ...(deploymentMode ? { deploymentMode } : {}),
             outputs,
           }
           const requestId = generateId().slice(0, 8)
@@ -1339,6 +1282,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               mappingUpdates: args.mappingUpdates as
                 | Array<{ columnName: string; blockId: string; path: string }>
                 | undefined,
+              deploymentMode: parseDeploymentMode(args.deploymentMode),
               autoRun: typeof args.autoRun === 'boolean' ? args.autoRun : undefined,
             },
             requestId

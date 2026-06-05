@@ -12,6 +12,7 @@ export const OpenAIBlock: BlockConfig = {
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/tools/openai',
   bgColor: '#10a37f',
+  iconColor: '#10A37F',
   icon: OpenAIIcon,
   subBlocks: [
     {

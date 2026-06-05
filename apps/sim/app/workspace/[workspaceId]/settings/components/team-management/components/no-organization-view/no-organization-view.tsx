@@ -74,6 +74,7 @@ export function NoOrganizationView({
                 Team Name
               </Label>
               <Input
+                variant='chip'
                 id='team-name-field'
                 value={orgName}
                 onChange={onOrgNameChange}
@@ -97,6 +98,7 @@ export function NoOrganizationView({
                   sim.ai/team/
                 </div>
                 <Input
+                  variant='chip'
                   id='orgSlug'
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value)}
@@ -198,7 +200,7 @@ export function NoOrganizationView({
       </div>
 
       <div>
-        <Button variant='primary' onClick={() => navigateToSettings({ section: 'subscription' })}>
+        <Button variant='primary' onClick={() => navigateToSettings({ section: 'billing' })}>
           Upgrade to Team Plan
         </Button>
       </div>

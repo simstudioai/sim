@@ -3,7 +3,6 @@ import {
   Asterisk,
   Blimp,
   Bug,
-  Calendar,
   Database,
   Eye,
   File,
@@ -20,7 +19,7 @@ import {
   TerminalWindow,
   Wrench,
 } from '@/components/emcn'
-import { Table as TableIcon } from '@/components/emcn/icons'
+import { Calendar, Table as TableIcon } from '@/components/emcn/icons'
 import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>

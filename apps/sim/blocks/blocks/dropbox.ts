@@ -17,6 +17,7 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
   integrationType: IntegrationType.Documents,
   icon: DropboxIcon,
   bgColor: '#0061FF',
+  iconColor: '#0061FF',
   subBlocks: [
     {
       id: 'operation',

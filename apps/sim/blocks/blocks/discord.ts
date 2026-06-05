@@ -14,6 +14,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#5865F2',
+  iconColor: '#5865F2',
   icon: DiscordIcon,
   docsLink: 'https://docs.sim.ai/tools/discord',
   subBlocks: [

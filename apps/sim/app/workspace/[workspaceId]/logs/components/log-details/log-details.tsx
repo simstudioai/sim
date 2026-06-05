@@ -176,11 +176,12 @@ export const WorkflowOutputSection = memo(
           >
             <Input
               ref={searchInputRef}
+              variant='chip'
               type='text'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder='Search...'
-              className='mr-0.5 h-[23px] w-[94px] text-caption'
+              className='mr-0.5 w-[94px]'
             />
             <span
               className={cn(

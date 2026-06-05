@@ -10,12 +10,7 @@
  */
 
 import { randomBytes } from 'crypto'
-import {
-  createEncryptedApiKey,
-  createLegacyApiKey,
-  expectApiKeyInvalid,
-  expectApiKeyValid,
-} from '@sim/testing'
+import { createEncryptedApiKey, createLegacyApiKey } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
 const cryptoMock = vi.hoisted(() => ({
@@ -40,7 +35,6 @@ const cryptoMock = vi.hoisted(() => ({
 vi.mock('@/lib/api-key/crypto', () => cryptoMock)
 
 import {
-  authenticateApiKey,
   formatApiKeyForDisplay,
   getApiKeyLast4,
   isEncryptedKey,
@@ -110,110 +104,6 @@ describe('isLegacyApiKeyFormat', () => {
 
   it('should not detect random string as legacy format', () => {
     expect(isLegacyApiKeyFormat('random-string')).toBe(false)
-  })
-})
-
-describe('authenticateApiKey', () => {
-  describe('encrypted format key (sk-sim-) against encrypted storage', () => {
-    it('should authenticate matching encrypted key', async () => {
-      const plainKey = 'sk-sim-test-key-123'
-      const encryptedStorage = `mock-iv:${Buffer.from(plainKey).toString('hex')}:mock-tag`
-
-      const result = await authenticateApiKey(plainKey, encryptedStorage)
-      expectApiKeyValid(result)
-    })
-
-    it('should reject non-matching encrypted key', async () => {
-      const inputKey = 'sk-sim-test-key-123'
-      const differentKey = 'sk-sim-different-key'
-      const encryptedStorage = `mock-iv:${Buffer.from(differentKey).toString('hex')}:mock-tag`
-
-      const result = await authenticateApiKey(inputKey, encryptedStorage)
-      expectApiKeyInvalid(result)
-    })
-
-    it('should reject encrypted format key against plain text storage', async () => {
-      const inputKey = 'sk-sim-test-key-123'
-      const plainStorage = inputKey // Same key but stored as plain text
-
-      const result = await authenticateApiKey(inputKey, plainStorage)
-      expectApiKeyInvalid(result)
-    })
-  })
-
-  describe('legacy format key (sim_) against storage', () => {
-    it('should authenticate legacy key against encrypted storage', async () => {
-      const plainKey = 'sim_legacy-test-key'
-      const encryptedStorage = `mock-iv:${Buffer.from(plainKey).toString('hex')}:mock-tag`
-
-      const result = await authenticateApiKey(plainKey, encryptedStorage)
-      expectApiKeyValid(result)
-    })
-
-    it('should authenticate legacy key against plain text storage', async () => {
-      const plainKey = 'sim_legacy-test-key'
-      const plainStorage = plainKey
-
-      const result = await authenticateApiKey(plainKey, plainStorage)
-      expectApiKeyValid(result)
-    })
-
-    it('should reject non-matching legacy key', async () => {
-      const inputKey = 'sim_test-key'
-      const storedKey = 'sim_different-key'
-
-      const result = await authenticateApiKey(inputKey, storedKey)
-      expectApiKeyInvalid(result)
-    })
-  })
-
-  describe('unrecognized format keys', () => {
-    it('should authenticate unrecognized key against plain text match', async () => {
-      const plainKey = 'custom-api-key-format'
-      const plainStorage = plainKey
-
-      const result = await authenticateApiKey(plainKey, plainStorage)
-      expectApiKeyValid(result)
-    })
-
-    it('should authenticate unrecognized key against encrypted storage', async () => {
-      const plainKey = 'custom-api-key-format'
-      const encryptedStorage = `mock-iv:${Buffer.from(plainKey).toString('hex')}:mock-tag`
-
-      const result = await authenticateApiKey(plainKey, encryptedStorage)
-      expectApiKeyValid(result)
-    })
-
-    it('should reject non-matching unrecognized key', async () => {
-      const inputKey = 'custom-key-1'
-      const storedKey = 'custom-key-2'
-
-      const result = await authenticateApiKey(inputKey, storedKey)
-      expectApiKeyInvalid(result)
-    })
-  })
-
-  describe('edge cases', () => {
-    it('should reject empty input key', async () => {
-      const result = await authenticateApiKey('', 'sim_stored-key')
-      expectApiKeyInvalid(result)
-    })
-
-    it('should reject empty stored key', async () => {
-      const result = await authenticateApiKey('sim_input-key', '')
-      expectApiKeyInvalid(result)
-    })
-
-    it('should handle keys with special characters', async () => {
-      const specialKey = 'sim_key-with-special+chars/and=more'
-      const result = await authenticateApiKey(specialKey, specialKey)
-      expectApiKeyValid(result)
-    })
-
-    it('should be case-sensitive', async () => {
-      const result = await authenticateApiKey('sim_TestKey', 'sim_testkey')
-      expectApiKeyInvalid(result)
-    })
   })
 })
 
@@ -328,60 +218,5 @@ describe('generateEncryptedApiKey', () => {
     const key = generateEncryptedApiKey()
     expect(key.length).toBeGreaterThan(10)
     expect(key.length).toBeLessThan(100)
-  })
-})
-
-describe('API key lifecycle', () => {
-  it('should authenticate newly generated legacy key against itself (plain storage)', async () => {
-    const key = generateApiKey()
-    const result = await authenticateApiKey(key, key)
-    expectApiKeyValid(result)
-  })
-
-  it('should authenticate newly generated encrypted key against encrypted storage', async () => {
-    const key = generateEncryptedApiKey()
-    const encryptedStorage = `mock-iv:${Buffer.from(key).toString('hex')}:mock-tag`
-    const result = await authenticateApiKey(key, encryptedStorage)
-    expectApiKeyValid(result)
-  })
-
-  it('should reject key if storage is tampered', async () => {
-    const key = generateApiKey()
-    const lastChar = key.slice(-1)
-    // Ensure tampered character is different from original (handles edge case where key ends in 'X')
-    const tamperedChar = lastChar === 'X' ? 'Y' : 'X'
-    const tamperedStorage = `${key.slice(0, -1)}${tamperedChar}`
-    const result = await authenticateApiKey(key, tamperedStorage)
-    expectApiKeyInvalid(result)
-  })
-})
-
-describe('security considerations', () => {
-  it('should not accept partial key matches', async () => {
-    const fullKey = 'sim_abcdefghijklmnop'
-    const partialKey = 'sim_abcdefgh'
-    const result = await authenticateApiKey(partialKey, fullKey)
-    expectApiKeyInvalid(result)
-  })
-
-  it('should not accept keys with extra characters', async () => {
-    const storedKey = 'sim_abcdefgh'
-    const extendedKey = 'sim_abcdefghXXX'
-    const result = await authenticateApiKey(extendedKey, storedKey)
-    expectApiKeyInvalid(result)
-  })
-
-  it('should not accept key with whitespace variations', async () => {
-    const key = 'sim_testkey'
-    const keyWithSpace = ' sim_testkey'
-    const result = await authenticateApiKey(keyWithSpace, key)
-    expectApiKeyInvalid(result)
-  })
-
-  it('should not accept key with trailing whitespace', async () => {
-    const key = 'sim_testkey'
-    const keyWithTrailing = 'sim_testkey '
-    const result = await authenticateApiKey(keyWithTrailing, key)
-    expectApiKeyInvalid(result)
   })
 })

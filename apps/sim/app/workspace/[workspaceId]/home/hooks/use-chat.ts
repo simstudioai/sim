@@ -4855,7 +4855,7 @@ export function useChat(
               selectedChatIdRef.current &&
               selectedChatIdRef.current !== requestChatId
             ) {
-              throw new Error('Queued message was restored because the selected task changed.')
+              throw new Error('Queued message was restored because the selected chat changed.')
             }
             if (requestChatId) {
               await queryClient.cancelQueries({ queryKey: taskKeys.detail(requestChatId) })

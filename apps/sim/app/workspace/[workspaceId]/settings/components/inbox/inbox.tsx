@@ -2,13 +2,14 @@
 
 import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Button } from '@/components/emcn'
+import { Chip } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import {
   InboxEnableToggle,
   InboxSettingsTab,
   InboxTaskList,
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
@@ -43,13 +44,13 @@ export function Inbox() {
                   work on your behalf.
                 </p>
               </div>
-              <Button
+              <Chip
                 variant='primary'
-                onClick={() => router.push(`/workspace/${workspaceId}/settings/subscription`)}
+                rightIcon={ArrowRight}
+                onClick={() => router.push(`/workspace/${workspaceId}/settings/billing`)}
               >
                 Upgrade to Max
-                <ArrowRight className='ml-1.5 size-[14px]' />
-              </Button>
+              </Chip>
             </div>
           </div>
         </div>
@@ -60,21 +61,19 @@ export function Inbox() {
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-6 pb-6'>
           <InboxEnableToggle />
 
           {config?.enabled && (
             <>
-              <div className='border-[var(--border)] border-t' />
               <InboxSettingsTab />
 
-              <div className='border-[var(--border)] border-t pt-4'>
-                <div className='font-medium text-[var(--text-secondary)] text-sm'>Inbox</div>
-                <p className='mt-0.5 text-[var(--text-muted)] text-small'>
+              <SettingsSection label='Inbox'>
+                <p className='mb-3 text-[12px] text-[var(--text-muted)]'>
                   Email tasks received by this workspace.
                 </p>
-              </div>
-              <InboxTaskList />
+                <InboxTaskList />
+              </SettingsSection>
             </>
           )}
         </div>

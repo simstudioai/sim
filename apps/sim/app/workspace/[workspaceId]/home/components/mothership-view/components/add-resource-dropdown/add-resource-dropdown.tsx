@@ -144,14 +144,6 @@ export function useAvailableResources(
         })),
       },
       {
-        type: 'task' as const,
-        items: tasks.map((t) => ({
-          id: t.id,
-          name: t.name,
-          isOpen: existingKeys.has(`task:${t.id}`),
-        })),
-      },
-      {
         type: 'integration' as const,
         items: listIntegrations().map((integration) => ({
           id: integration.blockType,
@@ -159,6 +151,14 @@ export function useAvailableResources(
           iconComponent: integration.icon,
           bgColor: integration.bgColor,
           isOpen: existingKeys.has(`integration:${integration.blockType}`),
+        })),
+      },
+      {
+        type: 'task' as const,
+        items: tasks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          isOpen: existingKeys.has(`task:${t.id}`),
         })),
       },
       {
@@ -390,7 +390,10 @@ export function AddResourceDropdown({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const available = useAvailableResources(workspaceId, existingKeys, excludeTypes)
+  const available = useAvailableResources(workspaceId, existingKeys, [
+    ...(excludeTypes ?? []),
+    'integration',
+  ])
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (!next) {

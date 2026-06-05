@@ -129,6 +129,27 @@ async function completeSyncLog(
 }
 
 /**
+ * Decides whether deletion reconciliation may run for a sync.
+ *
+ * Reconciliation hard-deletes every stored document absent from the listing,
+ * so it must only run against a complete source set:
+ * - never on incremental syncs (they list only changed documents)
+ * - never when the engine truncated pagination (`listingTruncated`) — a forced
+ *   fullSync cannot fix truncation, so it cannot override it
+ * - not when a connector capped its listing (`listingCapped`), unless a forced
+ *   fullSync deliberately overrides the cap to reconcile the capped scope
+ */
+export function shouldReconcileDeletions(
+  isIncremental: boolean | undefined,
+  syncContext: Record<string, unknown> | undefined,
+  fullSync: boolean | undefined
+): boolean {
+  if (isIncremental) return false
+  if (syncContext?.listingTruncated) return false
+  return !syncContext?.listingCapped || Boolean(fullSync)
+}
+
+/**
  * Resolves tag values from connector metadata using the connector's mapTags function.
  * Translates semantic keys returned by mapTags to actual DB slots using the
  * tagSlotMapping stored in sourceConfig during connector creation.
@@ -415,6 +436,22 @@ export async function executeSync(
       hasMore = page.hasMore
     }
 
+    if (hasMore) {
+      /**
+       * Pagination stopped before source exhaustion (MAX_PAGES or a missing
+       * cursor), so the listing is incomplete. `listingTruncated` blocks
+       * deletion reconciliation absolutely — unlike connector-set
+       * `listingCapped`, it cannot be overridden by a forced fullSync, since
+       * re-running one truncates identically.
+       */
+      syncContext.listingCapped = true
+      syncContext.listingTruncated = true
+      logger.warn('Pagination ended before source exhaustion; skipping deletion reconciliation', {
+        connectorId,
+        docsSoFar: externalDocs.length,
+      })
+    }
+
     logger.info(`Fetched ${externalDocs.length} documents from ${connectorConfig.name}`, {
       connectorId,
     })
@@ -635,9 +672,7 @@ export async function executeSync(
       }
     }
 
-    // Reconcile deletions for non-incremental syncs that returned ALL docs.
-    // Skip when listing was capped (maxFiles/maxThreads) — unseen docs may still exist in the source.
-    if (!isIncremental && (!syncContext?.listingCapped || options?.fullSync)) {
+    if (shouldReconcileDeletions(isIncremental, syncContext, options?.fullSync)) {
       const removedIds = existingDocs
         .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
         .map((d) => d.id)

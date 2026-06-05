@@ -14,6 +14,7 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#632CA6',
+  iconColor: '#632CA6',
   icon: DatadogIcon,
   subBlocks: [
     // Operation selector
