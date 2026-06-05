@@ -1,6 +1,7 @@
 'use client'
 
 import type React from 'react'
+import { Tooltip } from '@/components/emcn'
 import {
   Calendar as CalendarIcon,
   PlayOutline,
@@ -8,6 +9,7 @@ import {
   TypeJson,
   TypeNumber,
   TypeText,
+  WorkflowX,
 } from '@/components/emcn/icons'
 import type { BlockIconInfo } from '../types'
 
@@ -32,16 +34,39 @@ interface ColumnTypeIconProps {
    *  ignored — icons render in the plain `text-[var(--text-icon)]` tone like
    *  every other column-type icon, no per-block tint. */
   blockIconInfo?: BlockIconInfo
+  /** Workflow-output column whose source block no longer exists in the
+   *  workflow — renders the `WorkflowX` "not found" icon with a tooltip. */
+  blockMissing?: boolean
 }
 
 /**
  * Tiny icon shown next to a column header. Workflow-output columns get the
  * producing block's icon (falling back to `PlayOutline`); plain columns get
  * their scalar type icon. Both render in the same `text-[var(--text-icon)]`
- * tone — no per-workflow color, no colored swatch.
+ * tone — no per-workflow color, no colored swatch. A workflow column whose
+ * source block was deleted renders a `WorkflowX` with an explanatory tooltip.
  */
-export function ColumnTypeIcon({ type, isWorkflowColumn, blockIconInfo }: ColumnTypeIconProps) {
+export function ColumnTypeIcon({
+  type,
+  isWorkflowColumn,
+  blockIconInfo,
+  blockMissing,
+}: ColumnTypeIconProps) {
   if (isWorkflowColumn) {
+    if (blockMissing) {
+      return (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <span className='flex shrink-0 items-center'>
+              <WorkflowX className='size-3 shrink-0 text-[var(--text-icon)]' />
+            </span>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>
+            This column's source block no longer exists in the workflow.
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )
+    }
     const Icon = blockIconInfo?.icon ?? PlayOutline
     return <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
   }
