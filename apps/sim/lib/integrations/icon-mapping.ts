@@ -256,7 +256,6 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   exa: ExaAIIcon,
   extend_v2: ExtendIcon,
   fathom: FathomIcon,
-  file_v4: DocumentIcon,
   file_v5: DocumentIcon,
   findymail: FindymailIcon,
   firecrawl: FirecrawlIcon,
