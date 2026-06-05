@@ -7,6 +7,7 @@ import {
   mcpServers,
   memory,
   userTableDefinitions,
+  userTableRows,
   workflow,
   workflowFolder,
   workflowMcpServer,
@@ -21,6 +22,7 @@ import {
   batchDeleteByWorkspaceAndTimestamp,
   chunkArray,
   deleteRowsById,
+  drainRowsByColumn,
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
@@ -148,12 +150,6 @@ const CLEANUP_TARGETS = [
     wsCol: knowledgeBase.workspaceId,
     name: 'knowledgeBase',
   },
-  {
-    table: userTableDefinitions,
-    softDeleteCol: userTableDefinitions.archivedAt,
-    wsCol: userTableDefinitions.workspaceId,
-    name: 'userTableDefinitions',
-  },
   { table: memory, softDeleteCol: memory.deletedAt, wsCol: memory.workspaceId, name: 'memory' },
   {
     table: mcpServers,
@@ -256,6 +252,74 @@ async function cleanupOrphanedKnowledgeBaseBindings(
   return stats
 }
 
+const TABLE_ROW_DRAIN_BATCH_SIZE = 5_000
+/**
+ * Per-run cap on user-table rows drained before deleting their definitions.
+ * Each batch is its own transaction, so this only bounds total job duration; a
+ * table larger than this drains across several cron runs. A definition is only
+ * deleted once its rows are fully drained, so its ON DELETE CASCADE never fires
+ * on a large set.
+ */
+const TABLE_ROW_DRAIN_TOTAL_LIMIT = 1_000_000
+
+/**
+ * Hard-delete archived user tables. Rows are drained in bounded batches first
+ * (each batch cascades its `table_row_executions`), then the definition is
+ * deleted — turning what would be a single multi-million-row cascade into many
+ * small transactions. Tables whose rows can't be fully drained within this
+ * run's budget keep their archived definition for the next run.
+ */
+async function cleanupArchivedUserTables(
+  workspaceIds: string[],
+  retentionDate: Date,
+  label: string
+): Promise<number> {
+  const doomedTables = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+    db
+      .select({ id: userTableDefinitions.id })
+      .from(userTableDefinitions)
+      .where(
+        and(
+          inArray(userTableDefinitions.workspaceId, chunkIds),
+          isNotNull(userTableDefinitions.archivedAt),
+          lt(userTableDefinitions.archivedAt, retentionDate)
+        )
+      )
+      .limit(chunkLimit)
+  )
+
+  if (doomedTables.length === 0) return 0
+
+  let rowBudget = TABLE_ROW_DRAIN_TOTAL_LIMIT
+  let definitionsDeleted = 0
+
+  for (const { id: tableId } of doomedTables) {
+    if (rowBudget <= 0) break
+
+    const drain = await drainRowsByColumn({
+      tableDef: userTableRows,
+      idCol: userTableRows.id,
+      matchCol: userTableRows.tableId,
+      matchValue: tableId,
+      tableName: `${label}/userTableRows`,
+      batchSize: TABLE_ROW_DRAIN_BATCH_SIZE,
+      rowBudget,
+    })
+    rowBudget -= drain.deleted
+
+    // Rows still remain — defer the definition delete so its cascade stays small.
+    if (drain.budgetExhausted) break
+
+    await db.delete(userTableDefinitions).where(eq(userTableDefinitions.id, tableId))
+    definitionsDeleted++
+  }
+
+  logger.info(
+    `[${label}/userTableDefinitions] Deleted ${definitionsDeleted}/${doomedTables.length} archived tables (row budget left: ${rowBudget})`
+  )
+  return definitionsDeleted
+}
+
 export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise<void> {
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label } = payload
@@ -349,6 +413,8 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
     })
     totalDeleted += result.deleted
   }
+
+  totalDeleted += await cleanupArchivedUserTables(workspaceIds, retentionDate, label)
 
   const orphanBindingStats = await cleanupOrphanedKnowledgeBaseBindings(workspaceIds, label)
 

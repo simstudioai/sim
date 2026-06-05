@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, inArray, isNotNull, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 const logger = createLogger('BatchDelete')
@@ -261,4 +261,70 @@ export async function deleteRowsById(
     `[${tableName}] Deleted ${result.deleted} rows across ${chunks.length} chunk(s)${result.failed > 0 ? `, ${result.failed} failed` : ''}`
   )
   return result
+}
+
+export interface DrainByColumnOptions {
+  tableDef: PgTable
+  /** Single-column primary key used to batch the delete. */
+  idCol: PgColumn
+  /** Column matched against `matchValue` to scope the drain (e.g. a parent FK). */
+  matchCol: PgColumn
+  matchValue: string
+  tableName: string
+  batchSize?: number
+  /** Max rows to delete in this call across all batches. */
+  rowBudget: number
+}
+
+export interface DrainResult {
+  deleted: number
+  /** True if the budget ran out before the match set was fully drained. */
+  budgetExhausted: boolean
+}
+
+/**
+ * Delete every row matching `matchCol = matchValue` in self-bounded batches,
+ * each its own transaction. Use to empty a large child set before deleting its
+ * parent so the parent's ON DELETE CASCADE fires on a small (or empty) set
+ * instead of millions of rows in one statement.
+ */
+export async function drainRowsByColumn({
+  tableDef,
+  idCol,
+  matchCol,
+  matchValue,
+  tableName,
+  batchSize = DEFAULT_DELETE_CHUNK_SIZE,
+  rowBudget,
+}: DrainByColumnOptions): Promise<DrainResult> {
+  let deleted = 0
+  let remaining = rowBudget
+
+  while (remaining > 0) {
+    const limit = Math.min(batchSize, remaining)
+    const targetIds = db
+      .select({ id: idCol })
+      .from(tableDef)
+      .where(eq(matchCol, matchValue))
+      .limit(limit)
+
+    let batchDeleted: { id: unknown }[]
+    try {
+      batchDeleted = await db
+        .delete(tableDef)
+        .where(inArray(idCol, targetIds))
+        .returning({ id: idCol })
+    } catch (error) {
+      logger.error(`[${tableName}] Drain batch failed for ${matchValue}:`, { error })
+      return { deleted, budgetExhausted: false }
+    }
+
+    deleted += batchDeleted.length
+    remaining -= batchDeleted.length
+
+    // Short batch means the match set is exhausted.
+    if (batchDeleted.length < limit) return { deleted, budgetExhausted: false }
+  }
+
+  return { deleted, budgetExhausted: true }
 }

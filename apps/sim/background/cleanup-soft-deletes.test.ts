@@ -6,9 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockBatchDeleteByWorkspaceAndTimestamp,
+  mockDeleteDefinition,
   mockDeleteFileMetadata,
   mockDeleteFiles,
   mockDeleteRowsById,
+  mockDrainRowsByColumn,
   mockIsUsingCloudStorage,
   mockLimit,
   mockOrderBy,
@@ -26,12 +28,15 @@ const {
     leftJoin: vi.fn(() => ({ where: mockWhere })),
   }))
   const mockSelect = vi.fn(() => ({ from: mockFrom }))
+  const mockDeleteDefinition = vi.fn(async () => undefined)
 
   return {
     mockBatchDeleteByWorkspaceAndTimestamp: vi.fn(async () => ({ deleted: 0, failed: 0 })),
+    mockDeleteDefinition,
     mockDeleteFileMetadata: vi.fn(async () => true),
     mockDeleteFiles: vi.fn(async () => ({ deleted: 0, failed: [] as Array<{ key: string }> })),
     mockDeleteRowsById: vi.fn(async () => ({ deleted: 0, failed: 0 })),
+    mockDrainRowsByColumn: vi.fn(async () => ({ deleted: 0, budgetExhausted: false })),
     mockIsUsingCloudStorage: vi.fn(() => true),
     mockLimit,
     mockOrderBy,
@@ -43,7 +48,9 @@ const {
   }
 })
 
-vi.mock('@sim/db', () => ({ db: { select: mockSelect } }))
+vi.mock('@sim/db', () => ({
+  db: { select: mockSelect, delete: vi.fn(() => ({ where: mockDeleteDefinition })) },
+}))
 
 vi.mock('@sim/db/schema', () => {
   const table = (cols: string[]) =>
@@ -58,6 +65,7 @@ vi.mock('@sim/db/schema', () => {
     mcpServers: table(softCols),
     memory: table(softCols),
     userTableDefinitions: table(softCols),
+    userTableRows: table(['id', 'tableId', 'workspaceId']),
     workflow: table(softCols),
     workflowFolder: table(softCols),
     workflowMcpServer: table(softCols),
@@ -93,6 +101,7 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({
     return chunks
   },
   deleteRowsById: mockDeleteRowsById,
+  drainRowsByColumn: mockDrainRowsByColumn,
   selectRowsByIdChunks: mockSelectRowsByIdChunks,
 }))
 
@@ -160,5 +169,43 @@ describe('cleanup soft deletes — orphan KB binding sweep', () => {
     expect(mockSelect).not.toHaveBeenCalled()
     expect(mockDeleteFiles).not.toHaveBeenCalled()
     expect(mockDeleteFileMetadata).not.toHaveBeenCalled()
+  })
+})
+
+describe('cleanup soft deletes — archived user tables', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockIsUsingCloudStorage.mockReturnValue(true)
+    mockLimit.mockResolvedValue([])
+    // selectRowsByIdChunks call order: workflows, file legacy, file multi, doomed tables.
+    mockSelectRowsByIdChunks
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'tbl-1' }])
+  })
+
+  it('drains rows before deleting the table definition', async () => {
+    mockDrainRowsByColumn.mockResolvedValue({ deleted: 5, budgetExhausted: false })
+
+    await runCleanupSoftDeletes(basePayload)
+
+    expect(mockDrainRowsByColumn).toHaveBeenCalledWith(
+      expect.objectContaining({ matchValue: 'tbl-1' })
+    )
+    expect(mockDeleteDefinition).toHaveBeenCalledTimes(1)
+    // Rows are drained first, then the definition is deleted.
+    expect(mockDrainRowsByColumn.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteDefinition.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('defers the definition delete when the row budget is exhausted', async () => {
+    mockDrainRowsByColumn.mockResolvedValue({ deleted: 200_000, budgetExhausted: true })
+
+    await runCleanupSoftDeletes(basePayload)
+
+    expect(mockDrainRowsByColumn).toHaveBeenCalledTimes(1)
+    expect(mockDeleteDefinition).not.toHaveBeenCalled()
   })
 })
