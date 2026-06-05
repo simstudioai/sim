@@ -237,6 +237,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     setMenuOpen(true)
   }
 
+  // Column whose workflow source block was deleted — the header icon swaps to
+  // `WorkflowX` with an explanatory tooltip.
+  const blockMissing = Boolean(sourceInfo?.blockMissing)
+
   return (
     <th
       className={cn(
@@ -268,6 +272,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
             blockIconInfo={sourceInfo?.blockIconInfo}
+            blockMissing={blockMissing}
           />
           <input
             ref={renameInputRef}
@@ -288,6 +293,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             type={column.type}
             isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
             blockIconInfo={sourceInfo?.blockIconInfo}
+            blockMissing={blockMissing}
           />
           <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
             {column.workflowGroupId ? column.headerLabel : column.name}
@@ -305,6 +311,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               type={column.type}
               isWorkflowColumn={!!column.workflowGroupId && ownGroup?.type !== 'enrichment'}
               blockIconInfo={sourceInfo?.blockIconInfo}
+              blockMissing={blockMissing}
             />
             <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
               {column.workflowGroupId ? column.headerLabel : column.name}

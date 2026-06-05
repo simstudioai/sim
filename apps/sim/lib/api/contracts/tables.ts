@@ -791,6 +791,11 @@ const workflowGroupDependenciesSchema = z.object({
 
 const workflowGroupTypeSchema = z.enum(['manual', 'enrichment'])
 
+/** Which workflow state a group's per-cell runs execute against: `'live'` (the
+ *  editable draft) or `'deployed'` (the latest active deployment). Defaults to
+ *  `'live'` when omitted. */
+const workflowGroupDeploymentModeSchema = z.enum(['live', 'deployed'])
+
 /** One workflow Start-block input field ← one table column. */
 const workflowGroupInputMappingSchema = z.object({
   inputName: z.string().min(1, 'inputName cannot be empty'),
@@ -824,6 +829,8 @@ export const addWorkflowGroupBodySchema = z.object({
     outputs: z.array(workflowGroupOutputSchema).min(1),
     /** Maps the workflow's Start-block inputs to table columns. */
     inputMappings: z.array(workflowGroupInputMappingSchema).optional(),
+    /** Which workflow state per-cell runs execute against. Defaults to `'live'`. */
+    deploymentMode: workflowGroupDeploymentModeSchema.optional(),
     /** When `false`, the group never auto-fires from the scheduler — it can
      *  only be triggered manually. Defaults to `true`. Persisted on the
      *  group; distinct from the top-level `autoRun` below which is a
@@ -868,6 +875,8 @@ export const updateWorkflowGroupBodySchema = z.object({
   mappingUpdates: z.array(workflowGroupMappingUpdateSchema).optional(),
   /** Replace the group's input mappings. Omit to leave unchanged. */
   inputMappings: z.array(workflowGroupInputMappingSchema).optional(),
+  /** Change which workflow state the group runs against. Omit to leave unchanged. */
+  deploymentMode: workflowGroupDeploymentModeSchema.optional(),
   /** Update the group's provenance. Omit to leave unchanged. */
   type: workflowGroupTypeSchema.optional(),
   /** Toggle the group's persisted auto-run flag. Omit to leave unchanged. */

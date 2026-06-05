@@ -21,6 +21,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { TraceSpan } from '@/lib/logs/types'
+import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 
 /**
  * GenAI Semantic Convention Attributes
@@ -935,14 +936,10 @@ export const PlatformEvents = {
     workspaceId?: string
     workflowId?: string
   }) => {
-    trackPlatformEvent('platform.hosted_key.user_throttled', {
-      'tool.id': attrs.toolId,
-      'throttle.reason': attrs.reason,
-      ...(attrs.provider && { 'provider.id': attrs.provider }),
-      ...(attrs.retryAfterMs != null && { 'rate_limit.retry_after_ms': attrs.retryAfterMs }),
-      ...(attrs.userId && { 'user.id': attrs.userId }),
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
-      ...(attrs.workflowId && { 'workflow.id': attrs.workflowId }),
+    hostedKeyMetrics.recordThrottled({
+      provider: attrs.provider ?? attrs.toolId,
+      tool: attrs.toolId,
+      reason: attrs.reason,
     })
   },
 
@@ -959,16 +956,7 @@ export const PlatformEvents = {
     workspaceId?: string
     workflowId?: string
   }) => {
-    trackPlatformEvent('platform.hosted_key.rate_limited', {
-      'tool.id': attrs.toolId,
-      'hosted_key.env_var': attrs.envVarName,
-      'rate_limit.attempt': attrs.attempt,
-      'rate_limit.max_retries': attrs.maxRetries,
-      'rate_limit.delay_ms': attrs.delayMs,
-      ...(attrs.userId && { 'user.id': attrs.userId }),
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
-      ...(attrs.workflowId && { 'workflow.id': attrs.workflowId }),
-    })
+    hostedKeyMetrics.recordUpstreamRateLimited({ tool: attrs.toolId, key: attrs.envVarName })
   },
 
   hostedKeyUnknownModelCost: (attrs: {
@@ -976,11 +964,7 @@ export const PlatformEvents = {
     modelName: string
     defaultCost: number
   }) => {
-    trackPlatformEvent('platform.hosted_key.unknown_model_cost', {
-      'tool.id': attrs.toolId,
-      'model.name': attrs.modelName,
-      'cost.default_cost': attrs.defaultCost,
-    })
+    hostedKeyMetrics.recordUnknownModelCost({ tool: attrs.toolId })
   },
 
   /**
@@ -997,14 +981,9 @@ export const PlatformEvents = {
     dimension?: string
     queuePosition?: number
   }) => {
-    trackPlatformEvent('platform.hosted_key.queue_waited', {
-      'provider.id': attrs.provider,
-      'workspace.id': attrs.workspaceId,
-      'queue.waited_ms': attrs.waitedMs,
-      'queue.attempts': attrs.attempts,
-      'queue.reason': attrs.reason,
-      ...(attrs.dimension && { 'queue.dimension': attrs.dimension }),
-      ...(attrs.queuePosition != null && { 'queue.position': attrs.queuePosition }),
+    hostedKeyMetrics.recordQueueWait(attrs.waitedMs, {
+      provider: attrs.provider,
+      reason: attrs.reason,
     })
   },
 
@@ -1018,12 +997,9 @@ export const PlatformEvents = {
     reason: 'actor_requests' | 'dimension' | 'queue_position'
     dimension?: string
   }) => {
-    trackPlatformEvent('platform.hosted_key.queue_wait_exceeded', {
-      'provider.id': attrs.provider,
-      'workspace.id': attrs.workspaceId,
-      'queue.waited_ms': attrs.waitedMs,
-      'queue.reason': attrs.reason,
-      ...(attrs.dimension && { 'queue.dimension': attrs.dimension }),
+    hostedKeyMetrics.recordQueueWaitExceeded({
+      provider: attrs.provider,
+      reason: attrs.reason,
     })
   },
 
