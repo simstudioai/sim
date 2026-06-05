@@ -7,13 +7,13 @@ import {
   BasetenIcon,
   BrandfetchIcon,
   ExaAIIcon,
+  FalIcon,
   FindymailIcon,
   FirecrawlIcon,
   FireworksIcon,
   GeminiIcon,
   GoogleIcon,
   HunterIOIcon,
-  ImageIcon,
   JinaAIIcon,
   LinkupIcon,
   MistralIcon,
@@ -30,6 +30,7 @@ import {
 import {
   BYOKKeyManager,
   type BYOKManagerProvider,
+  type BYOKProviderSection,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
 import { useBYOKKeys, useDeleteBYOKKey, useUpsertBYOKKey } from '@/hooks/queries/byok-keys'
 import type { BYOKProviderId } from '@/tools/types'
@@ -94,7 +95,7 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
   {
     id: 'falai',
     name: 'Fal.ai',
-    icon: ImageIcon,
+    icon: FalIcon,
     description: 'Image and video generation',
     placeholder: 'Enter your Fal.ai API key',
   },
@@ -198,6 +199,45 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
   },
 ]
 
+/**
+ * Provider groupings rendered as labeled sections. Every provider id in
+ * {@link PROVIDERS} belongs to exactly one section; rows keep their
+ * {@link PROVIDERS} order within each group.
+ */
+const PROVIDER_SECTIONS: BYOKProviderSection[] = [
+  {
+    label: 'Models',
+    ids: [
+      'openai',
+      'anthropic',
+      'google',
+      'mistral',
+      'fireworks',
+      'together',
+      'baseten',
+      'ollama-cloud',
+      'falai',
+    ],
+  },
+  {
+    label: 'Search & web',
+    ids: [
+      'firecrawl',
+      'exa',
+      'serper',
+      'linkup',
+      'parallel_ai',
+      'perplexity',
+      'jina',
+      'google_cloud',
+    ],
+  },
+  {
+    label: 'Enrichment',
+    ids: ['brandfetch', 'hunter', 'peopledatalabs', 'findymail', 'prospeo', 'wiza'],
+  },
+]
+
 export function BYOK() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -210,25 +250,32 @@ export function BYOK() {
   const configuredProviderIds = useMemo(() => new Set(keys.map((k) => k.providerId)), [keys])
 
   return (
-    <BYOKKeyManager
-      providers={PROVIDERS}
-      configuredProviderIds={configuredProviderIds}
-      isLoading={isLoading}
-      isSaving={upsertKey.isPending}
-      isDeleting={deleteKey.isPending}
-      onSave={async (providerId, apiKey) => {
-        await upsertKey.mutateAsync({
-          workspaceId,
-          providerId: providerId as BYOKProviderId,
-          apiKey,
-        })
-      }}
-      onDelete={async (providerId) => {
-        await deleteKey.mutateAsync({
-          workspaceId,
-          providerId: providerId as BYOKProviderId,
-        })
-      }}
-    />
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col pt-6 pb-6'>
+          <BYOKKeyManager
+            providers={PROVIDERS}
+            sections={PROVIDER_SECTIONS}
+            configuredProviderIds={configuredProviderIds}
+            isLoading={isLoading}
+            isSaving={upsertKey.isPending}
+            isDeleting={deleteKey.isPending}
+            onSave={async (providerId, apiKey) => {
+              await upsertKey.mutateAsync({
+                workspaceId,
+                providerId: providerId as BYOKProviderId,
+                apiKey,
+              })
+            }}
+            onDelete={async (providerId) => {
+              await deleteKey.mutateAsync({
+                workspaceId,
+                providerId: providerId as BYOKProviderId,
+              })
+            }}
+          />
+        </div>
+      </div>
+    </div>
   )
 }

@@ -20,6 +20,7 @@ import {
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const logger = createLogger('BYOKKeyManager')
 
@@ -29,6 +30,16 @@ export interface BYOKManagerProvider {
   icon: React.ComponentType<{ className?: string }>
   description: string
   placeholder: string
+}
+
+/**
+ * Optional provider grouping. Each provider id should belong to exactly one
+ * section; rows keep their {@link BYOKKeyManagerProps.providers} order within a
+ * group. When omitted, providers render as a single flat list.
+ */
+export interface BYOKProviderSection {
+  label: string
+  ids: string[]
 }
 
 interface BYOKKeyManagerProps {
@@ -43,7 +54,9 @@ interface BYOKKeyManagerProps {
   onDelete: (providerId: string) => Promise<void>
   isSaving?: boolean
   isDeleting?: boolean
-  /** Subtitle shown above the provider list. */
+  /** Labeled provider groups. When omitted, renders a single flat list. */
+  sections?: BYOKProviderSection[]
+  /** Optional subtitle shown above the provider list. */
   description?: string
   /** Show the provider search box (hidden when there are only a couple). */
   showSearch?: boolean
@@ -53,6 +66,9 @@ interface BYOKKeyManagerProps {
  * Shared BYOK key list + add/update/delete modals. Used by both the workspace
  * BYOK settings page and the enterprise mothership BYOK tab so the two stay
  * visually identical; only the provider set and the backing store differ.
+ *
+ * Renders content only (search, provider sections, modals) — the caller owns
+ * the page chrome (background, scroll container, and `max-w` centering).
  */
 export function BYOKKeyManager({
   providers,
@@ -62,7 +78,8 @@ export function BYOKKeyManager({
   onDelete,
   isSaving = false,
   isDeleting = false,
-  description = 'Use your own API keys for hosted model providers.',
+  sections,
+  description,
   showSearch = true,
 }: BYOKKeyManagerProps) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -82,7 +99,12 @@ export function BYOKKeyManager({
     )
   }, [searchTerm, providers])
 
-  const showNoResults = searchTerm.trim() && filteredProviders.length === 0
+  const filteredIds = useMemo(
+    () => new Set(filteredProviders.map((p) => p.id)),
+    [filteredProviders]
+  )
+
+  const showNoResults = searchTerm.trim() !== '' && filteredProviders.length === 0
   const editingMeta = providers.find((p) => p.id === editingProvider)
   const deleteMeta = providers.find((p) => p.id === deleteConfirmProvider)
 
@@ -124,9 +146,41 @@ export function BYOKKeyManager({
     }
   }
 
+  const renderRow = (provider: BYOKManagerProvider) => {
+    const hasKey = configuredProviderIds.has(provider.id)
+    const Icon = provider.icon
+
+    return (
+      <div key={provider.id} className='flex items-center justify-between gap-2.5'>
+        <div className='flex min-w-0 items-center gap-2.5'>
+          <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+            <Icon className='size-5' />
+          </div>
+          <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+            <span className='truncate text-[14px] text-[var(--text-body)]'>{provider.name}</span>
+            <span className='truncate text-[12px] text-[var(--text-muted)]'>
+              {provider.description}
+            </span>
+          </div>
+        </div>
+
+        {hasKey ? (
+          <div className='flex flex-shrink-0 items-center gap-2'>
+            <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
+            <Chip onClick={() => setDeleteConfirmProvider(provider.id)}>Delete</Chip>
+          </div>
+        ) : (
+          <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
+            Add Key
+          </Chip>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
-      <div className='flex h-full flex-col gap-4.5'>
+      <div className='flex flex-col gap-4.5'>
         {showSearch && (
           <div className={CHIP_FIELD_SHELL}>
             <Search
@@ -143,56 +197,36 @@ export function BYOKKeyManager({
           </div>
         )}
 
-        <p className='text-[var(--text-secondary)] text-sm'>{description}</p>
+        {description && <p className='text-[var(--text-secondary)] text-sm'>{description}</p>}
 
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          {isLoading ? (
-            <div className='flex flex-col gap-2'>
-              {providers.map((p) => (
-                <BYOKKeySkeleton key={p.id} />
-              ))}
-            </div>
-          ) : (
-            <div className='flex flex-col gap-2'>
-              {filteredProviders.map((provider) => {
-                const hasKey = configuredProviderIds.has(provider.id)
-                const Icon = provider.icon
+        {isLoading ? (
+          <div className='flex flex-col gap-2'>
+            {providers.map((p) => (
+              <BYOKKeySkeleton key={p.id} />
+            ))}
+          </div>
+        ) : showNoResults ? (
+          <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+            No providers found matching "{searchTerm}"
+          </div>
+        ) : sections ? (
+          <div className='flex flex-col gap-7'>
+            {sections.map((section) => {
+              const rows = providers.filter(
+                (p) => section.ids.includes(p.id) && filteredIds.has(p.id)
+              )
+              if (rows.length === 0) return null
 
-                return (
-                  <div key={provider.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex items-center gap-3'>
-                      <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-[var(--surface-6)]'>
-                        <Icon className='size-4' />
-                      </div>
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='font-medium text-base'>{provider.name}</span>
-                        <p className='truncate text-[var(--text-muted)] text-sm'>
-                          {provider.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    {hasKey ? (
-                      <div className='flex flex-shrink-0 items-center gap-2'>
-                        <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
-                        <Chip onClick={() => setDeleteConfirmProvider(provider.id)}>Delete</Chip>
-                      </div>
-                    ) : (
-                      <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
-                        Add Key
-                      </Chip>
-                    )}
-                  </div>
-                )
-              })}
-              {showNoResults && (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                  No providers found matching "{searchTerm}"
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+              return (
+                <SettingsSection key={section.label} label={section.label}>
+                  <div className='flex flex-col gap-2'>{rows.map(renderRow)}</div>
+                </SettingsSection>
+              )
+            })}
+          </div>
+        ) : (
+          <div className='flex flex-col gap-2'>{filteredProviders.map(renderRow)}</div>
+        )}
       </div>
 
       <ChipModal
