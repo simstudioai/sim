@@ -953,9 +953,9 @@ export function SecretsManager() {
         {/* Fixed header bar */}
         <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
           <div />
-          <div className='flex items-center gap-2'>
+          <div className='flex items-center'>
             {hasChanges && (
-              <Chip variant='filled' onClick={handleCancel} disabled={isListSaving}>
+              <Chip onClick={handleCancel} disabled={isListSaving}>
                 Discard
               </Chip>
             )}
@@ -963,9 +963,7 @@ export function SecretsManager() {
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <div className='inline-flex'>
-                    <Chip variant='primary' disabled>
-                      Save
-                    </Chip>
+                    <Chip disabled>Save</Chip>
                   </div>
                 </Tooltip.Trigger>
                 {hasConflicts ? (
@@ -975,11 +973,7 @@ export function SecretsManager() {
                 )}
               </Tooltip.Root>
             ) : (
-              <Chip
-                variant='primary'
-                onClick={handleSave}
-                disabled={isLoading || !hasChanges || isListSaving}
-              >
+              <Chip onClick={handleSave} disabled={isLoading || !hasChanges || isListSaving}>
                 {isListSaving ? 'Saving...' : 'Save'}
               </Chip>
             )}
