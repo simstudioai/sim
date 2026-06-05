@@ -71,6 +71,7 @@ async function handleBatchInsert(
         workspaceId: validated.workspaceId,
         userId,
         positions: validated.positions,
+        orderKeys: validated.orderKeys,
       },
       table,
       requestId
@@ -162,6 +163,8 @@ export const POST = withRouteHandler(
           workspaceId: validated.workspaceId,
           userId: authResult.userId,
           position: validated.position,
+          afterRowId: validated.afterRowId,
+          beforeRowId: validated.beforeRowId,
         },
         table,
         requestId

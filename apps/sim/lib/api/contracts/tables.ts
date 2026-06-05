@@ -151,6 +151,10 @@ export const insertTableRowBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   data: rowDataSchema,
   position: z.number().int().min(0).optional(),
+  /** Fractional ordering: insert directly after this row id. Takes precedence over `position`. */
+  afterRowId: z.string().min(1).optional(),
+  /** Fractional ordering: insert directly before this row id. Takes precedence over `position`. */
+  beforeRowId: z.string().min(1).optional(),
 })
 
 /**
@@ -175,12 +179,17 @@ export const batchInsertTableRowsBodySchema = z
         `Cannot insert more than ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows per batch`
       ),
     positions: z.array(z.number().int().min(0)).max(TABLE_LIMITS.MAX_BATCH_INSERT_SIZE).optional(),
+    /** Fractional ordering: exact per-row order keys (undo restore). Takes precedence over `positions`. */
+    orderKeys: z.array(z.string().min(1)).max(TABLE_LIMITS.MAX_BATCH_INSERT_SIZE).optional(),
   })
   .refine((data) => !data.positions || data.positions.length === data.rows.length, {
     message: 'positions array length must match rows array length',
   })
   .refine((data) => !data.positions || new Set(data.positions).size === data.positions.length, {
     message: 'positions must not contain duplicates',
+  })
+  .refine((data) => !data.orderKeys || data.orderKeys.length === data.rows.length, {
+    message: 'orderKeys array length must match rows array length',
   })
 
 /**

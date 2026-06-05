@@ -165,6 +165,9 @@ export function useTableUndo({
                 {
                   rows: action.rows.map((r) => r.data),
                   positions: action.rows.map((r) => r.position),
+                  orderKeys: action.rows.every((r) => r.orderKey)
+                    ? action.rows.map((r) => r.orderKey as string)
+                    : undefined,
                 },
                 {
                   onSuccess: (response) => {
@@ -187,6 +190,9 @@ export function useTableUndo({
                 {
                   rows: action.rows.map((row) => row.data),
                   positions: action.rows.map((row) => row.position),
+                  orderKeys: action.rows.every((row) => row.orderKey)
+                    ? action.rows.map((row) => row.orderKey as string)
+                    : undefined,
                 },
                 {
                   onSuccess: (response) => {

@@ -17,7 +17,21 @@ import {
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, gt, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/feature-flags'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
@@ -1192,6 +1206,65 @@ async function resolveInsertOrderKey(
 }
 
 /**
+ * Resolves the `order_key` for an insert expressed by an anchor row id —
+ * `afterRowId` (place directly after) or `beforeRowId` (directly before). Finds
+ * the anchor and its adjacent key via the `(table_id, order_key, id)` index
+ * (O(1)) and mints a key between them. Also returns a legacy integer `position`
+ * (anchor's position ±) so the flag-off shift path still works. Caller holds the
+ * row-order lock.
+ */
+async function resolveInsertByNeighbor(
+  trx: DbTransaction,
+  tableId: string,
+  afterRowId?: string,
+  beforeRowId?: string
+): Promise<{ orderKey: string; position: number }> {
+  const anchorId = afterRowId ?? beforeRowId!
+  const [anchor] = await trx
+    .select({ orderKey: userTableRows.orderKey, position: userTableRows.position })
+    .from(userTableRows)
+    .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.id, anchorId)))
+    .limit(1)
+  const anchorKey = anchor?.orderKey ?? null
+
+  if (afterRowId) {
+    // hi = the smallest key strictly after the anchor.
+    const [next] = await trx
+      .select({ orderKey: userTableRows.orderKey })
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, tableId),
+          sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${anchorKey}, ${afterRowId})`
+        )
+      )
+      .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
+      .limit(1)
+    return {
+      orderKey: keyBetween(anchorKey, next?.orderKey ?? null),
+      position: (anchor?.position ?? -1) + 1,
+    }
+  }
+
+  // beforeRowId: lo = the largest key strictly before the anchor.
+  const [prev] = await trx
+    .select({ orderKey: userTableRows.orderKey })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        sql`(${userTableRows.orderKey}, ${userTableRows.id}) < (${anchorKey}, ${beforeRowId})`
+      )
+    )
+    .orderBy(desc(userTableRows.orderKey), desc(userTableRows.id))
+    .limit(1)
+  return {
+    orderKey: keyBetween(prev?.orderKey ?? null, anchorKey),
+    position: anchor?.position ?? 0,
+  }
+}
+
+/**
  * Computes fractional `order_key`s for a batch insert. With no `positions`,
  * appends a contiguous run after the current max key. With explicit `positions`
  * (undo restore), keys each row between its pre-shift position neighbors —
@@ -1231,27 +1304,48 @@ async function insertOrderedRow(params: {
   data: RowData
   rowId: string
   position?: number
+  afterRowId?: string
+  beforeRowId?: string
   createdBy?: string
   now: Date
-}): Promise<{ id: string; data: RowData; position: number; createdAt: Date; updatedAt: Date }> {
-  const { tableId, workspaceId, data, rowId, position, createdBy, now } = params
+}): Promise<{
+  id: string
+  data: RowData
+  position: number
+  orderKey: string | null
+  createdAt: Date
+  updatedAt: Date
+}> {
+  const { tableId, workspaceId, data, rowId, position, afterRowId, beforeRowId, createdBy, now } =
+    params
   const [row] = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
     await acquireRowOrderLock(trx, tableId)
-    const orderKey = await resolveInsertOrderKey(trx, tableId, position)
+
+    // Resolve the order key (and a legacy slot position for the flag-off shift
+    // path) from neighbor ids when given, else from the requested position.
+    let orderKey: string
+    let slotPosition = position
+    if (afterRowId || beforeRowId) {
+      const resolved = await resolveInsertByNeighbor(trx, tableId, afterRowId, beforeRowId)
+      orderKey = resolved.orderKey
+      slotPosition = resolved.position
+    } else {
+      orderKey = await resolveInsertOrderKey(trx, tableId, position)
+    }
 
     let targetPosition: number
     if (isTablesFractionalOrderingEnabled) {
       // order_key is authoritative — keep a best-effort, no-shift position.
       targetPosition = await nextRowPosition(trx, tableId)
-    } else if (position !== undefined) {
+    } else if (slotPosition !== undefined) {
       const [existing] = await trx
         .select({ id: userTableRows.id })
         .from(userTableRows)
-        .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, position)))
+        .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.position, slotPosition)))
         .limit(1)
-      if (existing) await shiftRowsUpFrom(trx, tableId, position)
-      targetPosition = position
+      if (existing) await shiftRowsUpFrom(trx, tableId, slotPosition)
+      targetPosition = slotPosition
     } else {
       targetPosition = await nextRowPosition(trx, tableId)
     }
@@ -1275,6 +1369,7 @@ async function insertOrderedRow(params: {
     id: row.id,
     data: row.data as RowData,
     position: row.position,
+    orderKey: row.orderKey,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -1402,6 +1497,8 @@ export async function insertRow(
     data: data.data,
     rowId,
     position: data.position,
+    afterRowId: data.afterRowId,
+    beforeRowId: data.beforeRowId,
     createdBy: data.userId,
     now,
   })
@@ -1413,6 +1510,7 @@ export async function insertRow(
     data: row.data as RowData,
     executions: {},
     position: row.position,
+    orderKey: row.orderKey ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -1520,12 +1618,11 @@ export async function batchInsertRowsWithTx(
   })
 
   await acquireRowOrderLock(trx, data.tableId)
-  const orderKeys = await resolveBatchInsertOrderKeys(
-    trx,
-    data.tableId,
-    data.rows.length,
-    data.positions
-  )
+  // Undo restore passes exact saved keys; otherwise derive from positions/append.
+  const orderKeys =
+    data.orderKeys && data.orderKeys.length > 0
+      ? data.orderKeys
+      : await resolveBatchInsertOrderKeys(trx, data.tableId, data.rows.length, data.positions)
   let positions: number[]
   if (isTablesFractionalOrderingEnabled) {
     // order_key authoritative — best-effort append positions, no shift.
@@ -1544,6 +1641,7 @@ export async function batchInsertRowsWithTx(
     data: r.data as RowData,
     executions: {},
     position: r.position,
+    orderKey: r.orderKey ?? undefined,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }))
@@ -2147,6 +2245,7 @@ export async function upsertRow(
           data: updatedRow.data as RowData,
           executions,
           position: updatedRow.position,
+          orderKey: updatedRow.orderKey ?? undefined,
           createdAt: updatedRow.createdAt,
           updatedAt: updatedRow.updatedAt,
         },
@@ -2176,6 +2275,7 @@ export async function upsertRow(
         data: insertedRow.data as RowData,
         executions: {},
         position: insertedRow.position,
+        orderKey: insertedRow.orderKey ?? undefined,
         createdAt: insertedRow.createdAt,
         updatedAt: insertedRow.updatedAt,
       },
@@ -2319,6 +2419,7 @@ export async function queryRows(
       data: r.data as RowData,
       executions: executionsByRow?.get(r.id) ?? {},
       position: r.position,
+      orderKey: r.orderKey ?? undefined,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     })),
@@ -2363,6 +2464,7 @@ export async function getRowById(
     data: row.data as RowData,
     executions,
     position: row.position,
+    orderKey: row.orderKey ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

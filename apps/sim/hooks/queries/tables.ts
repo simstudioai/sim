@@ -512,7 +512,13 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
     ) => {
       return requestJson(createTableRowContract, {
         params: { tableId },
-        body: { workspaceId, data: variables.data as RowData, position: variables.position },
+        body: {
+          workspaceId,
+          data: variables.data as RowData,
+          position: variables.position,
+          afterRowId: variables.afterRowId,
+          beforeRowId: variables.beforeRowId,
+        },
       })
     },
     onSuccess: (response) => {
@@ -586,41 +592,49 @@ function reconcileCreatedRow(
   tableId: string,
   row: TableRow
 ) {
+  // Fractional ordering: the new row carries an `orderKey` and no other row's
+  // key changes, so we splice it in by key with no neighbor bump. Falls back to
+  // the legacy `position` path (bump + sort) for rows without a key.
+  const byKey = row.orderKey != null
+  const sortRows = (rows: TableRow[]) =>
+    byKey
+      ? [...rows].sort((a, b) => (a.orderKey ?? '').localeCompare(b.orderKey ?? ''))
+      : [...rows].sort((a, b) => a.position - b.position)
+  const fitsAfter = (last: TableRow | undefined) =>
+    last === undefined ||
+    (byKey ? (last.orderKey ?? '') >= row.orderKey! : last.position >= row.position)
+
   queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
     { queryKey: tableKeys.rowsRoot(tableId), exact: false },
     (old) => {
       if (!old) return old
       if (old.pages.some((p) => p.rows.some((r) => r.id === row.id))) return old
 
-      const pages = old.pages.map((page) =>
-        page.rows.some((r) => r.position >= row.position)
-          ? {
-              ...page,
-              rows: page.rows.map((r) =>
-                r.position >= row.position ? { ...r, position: r.position + 1 } : r
-              ),
-            }
-          : page
-      )
+      const pages = byKey
+        ? old.pages
+        : old.pages.map((page) =>
+            page.rows.some((r) => r.position >= row.position)
+              ? {
+                  ...page,
+                  rows: page.rows.map((r) =>
+                    r.position >= row.position ? { ...r, position: r.position + 1 } : r
+                  ),
+                }
+              : page
+          )
 
       let inserted = false
       const nextPages = pages.map((page) => {
         if (inserted) return page
-        const last = page.rows[page.rows.length - 1]
-        const fits = last === undefined || last.position >= row.position
-        if (!fits) return page
+        if (!fitsAfter(page.rows[page.rows.length - 1])) return page
         inserted = true
-        const merged = [...page.rows, row].sort((a, b) => a.position - b.position)
-        return { ...page, rows: merged }
+        return { ...page, rows: sortRows([...page.rows, row]) }
       })
 
       if (!inserted && nextPages.length > 0) {
         const lastIdx = nextPages.length - 1
         const lastPage = nextPages[lastIdx]
-        nextPages[lastIdx] = {
-          ...lastPage,
-          rows: [...lastPage.rows, row].sort((a, b) => a.position - b.position),
-        }
+        nextPages[lastIdx] = { ...lastPage, rows: sortRows([...lastPage.rows, row]) }
       }
 
       const firstPage = nextPages[0]
@@ -655,6 +669,7 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
           workspaceId,
           rows: variables.rows as RowData[],
           positions: variables.positions,
+          orderKeys: variables.orderKeys,
         },
       })
     },
