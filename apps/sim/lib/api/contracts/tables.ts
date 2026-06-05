@@ -147,15 +147,19 @@ export const rowDataSchema = domainObjectSchema<RowData>()
 export const tableDefinitionSchema = domainObjectSchema<TableDefinition>()
 export const tableRowSchema = domainObjectSchema<TableRow>()
 
-export const insertTableRowBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  data: rowDataSchema,
-  position: z.number().int().min(0).optional(),
-  /** Fractional ordering: insert directly after this row id. Takes precedence over `position`. */
-  afterRowId: z.string().min(1).optional(),
-  /** Fractional ordering: insert directly before this row id. Takes precedence over `position`. */
-  beforeRowId: z.string().min(1).optional(),
-})
+export const insertTableRowBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    data: rowDataSchema,
+    position: z.number().int().min(0).optional(),
+    /** Fractional ordering: insert directly after this row id. Takes precedence over `position`. */
+    afterRowId: z.string().min(1).optional(),
+    /** Fractional ordering: insert directly before this row id. Takes precedence over `position`. */
+    beforeRowId: z.string().min(1).optional(),
+  })
+  .refine((data) => !data.afterRowId || !data.beforeRowId, {
+    message: 'afterRowId and beforeRowId are mutually exclusive',
+  })
 
 /**
  * POST `/api/table/[tableId]/rows/upsert` body — insert-or-update keyed by a

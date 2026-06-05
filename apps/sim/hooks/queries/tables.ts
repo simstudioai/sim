@@ -592,23 +592,27 @@ function reconcileCreatedRow(
   tableId: string,
   row: TableRow
 ) {
-  // Fractional ordering: the new row carries an `orderKey` and no other row's
-  // key changes, so we splice it in by key with no neighbor bump. Falls back to
-  // the legacy `position` path (bump + sort) for rows without a key.
-  const byKey = row.orderKey != null
-  const sortRows = (rows: TableRow[]) =>
-    byKey
-      ? [...rows].sort((a, b) => (a.orderKey ?? '').localeCompare(b.orderKey ?? ''))
-      : [...rows].sort((a, b) => a.position - b.position)
-  const fitsAfter = (last: TableRow | undefined) =>
-    last === undefined ||
-    (byKey ? (last.orderKey ?? '') >= row.orderKey! : last.position >= row.position)
-
   queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
     { queryKey: tableKeys.rowsRoot(tableId), exact: false },
     (old) => {
       if (!old) return old
       if (old.pages.some((p) => p.rows.some((r) => r.id === row.id))) return old
+
+      // Use key-ordering only when the new row AND every cached row have an
+      // `orderKey` — then no neighbor bump is needed and order is exact. If any
+      // cached row is un-keyed (mid-backfill), fall back to the legacy `position`
+      // path so un-keyed rows aren't yanked to the front by an empty-string sort.
+      const byKey =
+        row.orderKey != null && old.pages.every((p) => p.rows.every((r) => r.orderKey != null))
+      const sortRows = (rows: TableRow[]) =>
+        byKey
+          ? [...rows].sort((a, b) => (a.orderKey as string).localeCompare(b.orderKey as string))
+          : [...rows].sort((a, b) => a.position - b.position)
+      const fitsAfter = (last: TableRow | undefined) =>
+        last === undefined ||
+        (byKey
+          ? (last.orderKey as string) >= (row.orderKey as string)
+          : last.position >= row.position)
 
       const pages = byKey
         ? old.pages

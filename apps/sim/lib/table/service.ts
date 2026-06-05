@@ -1239,7 +1239,17 @@ async function resolveInsertByNeighbor(
     .from(userTableRows)
     .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.id, anchorId)))
     .limit(1)
-  const anchorKey = anchor?.orderKey ?? null
+  // The client targets a specific neighbor; a missing one (concurrent delete /
+  // stale view) is an error, not a silent insert at the front.
+  if (!anchor) throw new Error(`Row not found: ${anchorId}`)
+  const anchorKey = anchor.orderKey ?? null
+  // A null key on the anchor means the table isn't backfilled. With the flag on
+  // (key is authoritative) the adjacent-key lookup below can't work — fail
+  // loudly rather than mint a wrong key. Flag off keeps `position` authoritative,
+  // so a best-effort key here is fine (the backfill re-keys before the flip).
+  if (anchorKey === null && isTablesFractionalOrderingEnabled) {
+    throw new Error(`Row ${anchorId} has no order_key yet (table not backfilled)`)
+  }
 
   if (afterRowId) {
     // hi = the smallest key strictly after the anchor.
@@ -1256,7 +1266,7 @@ async function resolveInsertByNeighbor(
       .limit(1)
     return {
       orderKey: keyBetween(anchorKey, next?.orderKey ?? null),
-      position: (anchor?.position ?? -1) + 1,
+      position: anchor.position + 1,
     }
   }
 
@@ -1274,7 +1284,7 @@ async function resolveInsertByNeighbor(
     .limit(1)
   return {
     orderKey: keyBetween(prev?.orderKey ?? null, anchorKey),
-    position: anchor?.position ?? 0,
+    position: anchor.position,
   }
 }
 
