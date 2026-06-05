@@ -177,15 +177,16 @@ describe('cleanup soft deletes — archived user tables', () => {
     vi.clearAllMocks()
     mockIsUsingCloudStorage.mockReturnValue(true)
     mockLimit.mockResolvedValue([])
-    // selectRowsByIdChunks call order: workflows, file legacy, file multi, doomed tables.
+    // selectRowsByIdChunks call order: workflows, file legacy, file multi, doomed
+    // tables. Each test queues the doomed-tables result (4th call) itself.
     mockSelectRowsByIdChunks
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'tbl-1' }])
   })
 
   it('drains rows before deleting the table definition', async () => {
+    mockSelectRowsByIdChunks.mockResolvedValueOnce([{ id: 'tbl-1' }])
     mockDrainRowsByColumn.mockResolvedValue({ deleted: 5, fullyDrained: true })
 
     await runCleanupSoftDeletes(basePayload)
@@ -200,13 +201,28 @@ describe('cleanup soft deletes — archived user tables', () => {
     )
   })
 
-  it('defers the definition delete when the drain does not fully complete', async () => {
-    // Budget stop or a drain error both surface as fullyDrained: false.
-    mockDrainRowsByColumn.mockResolvedValue({ deleted: 200_000, fullyDrained: false })
+  it('defers the definition delete when the budget is exhausted', async () => {
+    mockSelectRowsByIdChunks.mockResolvedValueOnce([{ id: 'tbl-1' }])
+    // Budget stop consumes the whole budget — deleted equals the per-run cap.
+    mockDrainRowsByColumn.mockResolvedValue({ deleted: 1_000_000, fullyDrained: false })
 
     await runCleanupSoftDeletes(basePayload)
 
     expect(mockDrainRowsByColumn).toHaveBeenCalledTimes(1)
     expect(mockDeleteDefinition).not.toHaveBeenCalled()
+  })
+
+  it('skips a table that errors mid-drain but keeps cleaning the rest', async () => {
+    mockSelectRowsByIdChunks.mockResolvedValueOnce([{ id: 'tbl-err' }, { id: 'tbl-ok' }])
+    // First table errors mid-drain (budget remains); second drains fully.
+    mockDrainRowsByColumn
+      .mockResolvedValueOnce({ deleted: 2, fullyDrained: false })
+      .mockResolvedValueOnce({ deleted: 5, fullyDrained: true })
+
+    await runCleanupSoftDeletes(basePayload)
+
+    expect(mockDrainRowsByColumn).toHaveBeenCalledTimes(2)
+    // Only the fully-drained table's definition is deleted.
+    expect(mockDeleteDefinition).toHaveBeenCalledTimes(1)
   })
 })
