@@ -350,8 +350,8 @@ export function validateTriggerInput(
       return { ok: true }
     }
     default: {
-      const shape = generateToolZodSchema(option.inputFormat)
-      if (!shape) {
+      const baseShape = generateToolZodSchema(option.inputFormat)
+      if (!baseShape) {
         // Trigger declares no input fields — accept an object (including {}).
         if (input === undefined || input === null) return { ok: true }
         if (!isPlainObject(input)) {
@@ -363,7 +363,22 @@ export function validateTriggerInput(
         return { ok: true }
       }
 
-      const schema = z.object(shape).strict()
+      // A field with an author-configured default is optional: the executor fills
+      // the default when it's omitted (deriveInputFromFormat), so requiring it
+      // would reject a run the workflow itself accepts.
+      const shape: z.ZodRawShape = {}
+      for (const [name, zodType] of Object.entries(baseShape)) {
+        const field = option.inputFormat.find((f) => f.name === name)
+        const hasDefault = field?.value !== undefined && field?.value !== null
+        shape[name] = hasDefault ? zodType.optional() : zodType
+      }
+
+      // UNIFIED start blocks pass arbitrary keys through to their output, so
+      // unknown keys are valid there; other trigger kinds only consume declared
+      // fields, so unknown keys signal a mistake and are rejected.
+      const objectSchema = z.object(shape)
+      const schema =
+        option.path === StartBlockPath.UNIFIED ? objectSchema.passthrough() : objectSchema.strict()
       const result = schema.safeParse(input ?? {})
       if (!result.success) {
         const issues = result.error.issues
