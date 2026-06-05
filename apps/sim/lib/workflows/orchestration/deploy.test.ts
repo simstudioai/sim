@@ -136,6 +136,8 @@ const VALID_WORKFLOW_STATE = {
 }
 
 describe('performFullDeploy', () => {
+  const deployedAt = new Date('2026-01-01T00:00:00.000Z')
+
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
@@ -149,6 +151,51 @@ describe('performFullDeploy', () => {
     mockValidateWorkflowState.mockReturnValue({ valid: true, errors: [], warnings: [] })
     mockValidateWorkflowSchedules.mockReturnValue({ isValid: true })
     mockValidateTriggerWebhookConfigForDeploy.mockResolvedValue({ success: true })
+  })
+
+  it('validates structure before allowing a valid workflow deployment to continue', async () => {
+    mockDeployWorkflow.mockImplementation(
+      async ({ validateWorkflowState, onDeployTransaction }) => {
+        const validation = await validateWorkflowState(VALID_WORKFLOW_STATE)
+        if (!validation.success) return validation
+
+        await onDeployTransaction(mockTx, { deploymentVersionId: 'deployment-version-1' })
+        return {
+          success: true,
+          deployedAt,
+          deploymentVersionId: 'deployment-version-1',
+          version: 3,
+          currentState: VALID_WORKFLOW_STATE,
+        }
+      }
+    )
+
+    const result = await performFullDeploy({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      workflowName: 'Workflow',
+      requestId: 'request-1',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      deployedAt,
+      deploymentVersionId: 'deployment-version-1',
+      version: 3,
+      warnings: [],
+    })
+    expect(mockValidateWorkflowState).toHaveBeenCalledWith(VALID_WORKFLOW_STATE)
+    expect(mockValidateWorkflowSchedules).toHaveBeenCalledWith(VALID_WORKFLOW_STATE.blocks)
+    expect(mockValidateTriggerWebhookConfigForDeploy).toHaveBeenCalledWith(
+      VALID_WORKFLOW_STATE.blocks
+    )
+    expect(mockDeployWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        deployedBy: 'user-1',
+        workflowName: 'Workflow',
+      })
+    )
   })
 
   it('rejects structurally invalid workflows before schedule or webhook deployment checks', async () => {
@@ -182,12 +229,61 @@ describe('performFullDeploy', () => {
 })
 
 describe('performActivateVersion', () => {
+  const deployedAt = new Date('2026-01-02T00:00:00.000Z')
+
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     mockValidateWorkflowState.mockReturnValue({ valid: true, errors: [], warnings: [] })
     mockValidateWorkflowSchedules.mockReturnValue({ isValid: true })
     mockValidateTriggerWebhookConfigForDeploy.mockResolvedValue({ success: true })
+  })
+
+  it('validates structure before allowing a valid deployment snapshot to activate', async () => {
+    mockLimit.mockResolvedValue([
+      {
+        id: 'deployment-version-1',
+        state: VALID_WORKFLOW_STATE,
+        isActive: false,
+      },
+    ])
+    mockActivateWorkflowVersion.mockImplementation(async ({ onActivateTransaction }) => {
+      await onActivateTransaction(mockTx, {
+        deploymentVersionId: 'deployment-version-1',
+        previousVersionId: 'deployment-version-0',
+      })
+      return {
+        success: true,
+        deployedAt,
+        deploymentVersionId: 'deployment-version-1',
+        previousVersionId: 'deployment-version-0',
+      }
+    })
+
+    const result = await performActivateVersion({
+      workflowId: 'workflow-1',
+      version: 2,
+      userId: 'user-1',
+      workflow: { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+      requestId: 'request-1',
+    })
+
+    expect(result).toEqual({
+      success: true,
+      deployedAt,
+      warnings: [],
+    })
+    expect(mockValidateWorkflowState).toHaveBeenCalledWith(VALID_WORKFLOW_STATE)
+    expect(mockValidateWorkflowSchedules).toHaveBeenCalledWith(VALID_WORKFLOW_STATE.blocks)
+    expect(mockValidateTriggerWebhookConfigForDeploy).toHaveBeenCalledWith(
+      VALID_WORKFLOW_STATE.blocks
+    )
+    expect(mockActivateWorkflowVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        version: 2,
+      })
+    )
   })
 
   it('rejects invalid deployment snapshots before activation', async () => {

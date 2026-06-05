@@ -368,12 +368,6 @@ export async function performActivateVersion(
     return { success: true, deployedAt: workflowDeployment?.deployedAt ?? new Date(), warnings: [] }
   }
 
-  const deployedState = versionRow.state as { blocks?: Record<string, unknown> }
-  const blocks = deployedState.blocks
-  if (!blocks || typeof blocks !== 'object') {
-    return { success: false, error: 'Invalid deployed state structure', errorCode: 'validation' }
-  }
-
   const validation = await validateWorkflowForDeployment(versionRow.state as WorkflowState)
   if (!validation.success) return validation
 
