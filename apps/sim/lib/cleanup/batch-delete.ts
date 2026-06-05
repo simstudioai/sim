@@ -279,10 +279,11 @@ export interface DrainByColumnOptions {
 export interface DrainResult {
   deleted: number
   /**
-   * True only when the match set was confirmed empty (a short final batch).
-   * Budget exhaustion and batch errors both yield `false` — callers must treat
-   * `false` as "rows may remain" and defer any dependent parent-delete (whose
-   * ON DELETE CASCADE would otherwise fire on the leftovers) to a later run.
+   * True only when the match set was confirmed empty — via a short final batch
+   * or an existence probe after the budget was spent. Batch errors yield
+   * `false`; callers must treat `false` as "rows may remain" and defer any
+   * dependent parent-delete (whose ON DELETE CASCADE would otherwise fire on the
+   * leftovers) to a later run.
    */
   fullyDrained: boolean
 }
@@ -331,6 +332,18 @@ export async function drainRowsByColumn({
     if (batchDeleted.length < limit) return { deleted, fullyDrained: true }
   }
 
-  // Hit the per-call budget on a full batch — rows may remain.
-  return { deleted, fullyDrained: false }
+  // Budget hit on a full final batch — rows may or may not remain. A cheap
+  // indexed existence probe disambiguates so a set whose size divides the budget
+  // exactly isn't needlessly deferred to a later run.
+  try {
+    const [leftover] = await db
+      .select({ id: idCol })
+      .from(tableDef)
+      .where(eq(matchCol, matchValue))
+      .limit(1)
+    return { deleted, fullyDrained: !leftover }
+  } catch (error) {
+    logger.error(`[${tableName}] Drain remainder probe failed for ${matchValue}:`, { error })
+    return { deleted, fullyDrained: false }
+  }
 }

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => dbChainMock)
@@ -24,6 +24,7 @@ function returnRows(count: number) {
 describe('drainRowsByColumn', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('drains in batches until a short batch and reports the set fully drained', async () => {
@@ -37,15 +38,29 @@ describe('drainRowsByColumn', () => {
     expect(dbChainMockFns.returning).toHaveBeenCalledTimes(2)
   })
 
-  it('stops at the row budget and reports the set not fully drained', async () => {
+  it('stops at the budget and reports not fully drained when rows remain', async () => {
     dbChainMockFns.returning
       .mockResolvedValueOnce(returnRows(2))
       .mockResolvedValueOnce(returnRows(2))
+    // Existence probe after the budget is spent finds a leftover row.
+    dbChainMockFns.limit.mockResolvedValue([{ id: 'leftover' }])
 
     const result = await drainRowsByColumn({ ...baseOpts, batchSize: 2, rowBudget: 4 })
 
     expect(result).toEqual({ deleted: 4, fullyDrained: false })
     expect(dbChainMockFns.returning).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports fully drained when the budget is hit but the set emptied exactly', async () => {
+    dbChainMockFns.returning
+      .mockResolvedValueOnce(returnRows(2))
+      .mockResolvedValueOnce(returnRows(2))
+    // Existence probe finds nothing remaining.
+    dbChainMockFns.limit.mockResolvedValue([])
+
+    const result = await drainRowsByColumn({ ...baseOpts, batchSize: 2, rowBudget: 4 })
+
+    expect(result).toEqual({ deleted: 4, fullyDrained: true })
   })
 
   it('reports fully drained immediately when the match set is already empty', async () => {
