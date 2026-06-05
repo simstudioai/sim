@@ -59,7 +59,12 @@ export interface WorkspaceMdData {
   }>
   tables: Array<{ id: string; name: string; description?: string | null; rowCount: number }>
   files: Array<{ id: string; name: string; type: string; size: number; folderPath?: string | null }>
-  oauthIntegrations: Array<{ providerId: string }>
+  oauthIntegrations: Array<{
+    id: string
+    providerId: string
+    displayName?: string | null
+    role?: string | null
+  }>
   envVariables: string[]
   tasks?: Array<{ id: string; title: string; updatedAt: Date }>
   customTools?: Array<{ id: string; name: string }>
@@ -203,12 +208,16 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.oauthIntegrations.length > 0) {
-    const providers = [...new Set(data.oauthIntegrations.map((c) => c.providerId))]
-    const lines = providers.map((p) => {
-      const services = PROVIDER_SERVICES[p]
-      return services ? `- ${p} (${services.join(', ')})` : `- ${p}`
+    const lines = data.oauthIntegrations.map((c) => {
+      const services = PROVIDER_SERVICES[c.providerId]
+      const svc = services ? ` (${services.join(', ')})` : ''
+      const who = c.displayName ? ` — ${c.displayName}` : ''
+      const role = c.role ? `, ${c.role}` : ''
+      return `- ${c.providerId}${svc}${who}${role} — credentialId: \`${c.id}\``
     })
-    sections.push(`## Connected Integrations\n${lines.join('\n')}`)
+    sections.push(
+      `## Connected Integrations\nPass these credentialId values directly on OAuth tool calls — no need to read environment/credentials.json for them.\n${lines.join('\n')}`
+    )
   } else {
     sections.push('## Connected Integrations\n(none)')
   }
@@ -447,7 +456,12 @@ export async function generateWorkspaceContext(
         size: f.size,
         folderPath: f.folderPath ?? null,
       })),
-      oauthIntegrations: credentials.map((c) => ({ providerId: c.providerId })),
+      oauthIntegrations: credentials.map((c) => ({
+        id: c.id,
+        providerId: c.providerId,
+        displayName: c.displayName,
+        role: c.role,
+      })),
       envVariables: [],
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       mcpServers: mcpServerRows,
