@@ -1307,6 +1307,13 @@ async function resolveInsertByNeighbor(
  * appends a contiguous run after the current max key. With explicit `positions`
  * (undo restore), keys each row between its pre-shift position neighbors —
  * correct because requested positions are distinct. Caller holds the lock.
+ *
+ * The explicit-`positions` path is meaningful only when `position` is
+ * authoritative (flag off): with the flag on, a saved `position` is a gappy
+ * column value, not a visual rank, so feeding it to {@link resolveInsertOrderKey}
+ * (which reads `position` as an `OFFSET` rank under the flag) would mint keys at
+ * the wrong ranks. Callers needing exact placement under the flag pass
+ * `orderKeys` (handled before this function); here we just append a run.
  */
 async function resolveBatchInsertOrderKeys(
   trx: DbTransaction,
@@ -1314,7 +1321,7 @@ async function resolveBatchInsertOrderKeys(
   count: number,
   positions?: number[]
 ): Promise<string[]> {
-  if (!positions || positions.length === 0) {
+  if (!positions || positions.length === 0 || isTablesFractionalOrderingEnabled) {
     return nKeysBetween(await maxOrderKey(trx, tableId), null, count)
   }
   const keys: string[] = []

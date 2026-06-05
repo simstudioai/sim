@@ -5,7 +5,6 @@ import {
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
-  useCreateTableRow,
   useDeleteColumn,
   useDeleteTableRow,
   useDeleteTableRows,
@@ -56,7 +55,6 @@ export function useTableUndo({
   const canRedo = useTableUndoStore((s) => (s.stacks[tableId]?.redo.length ?? 0) > 0)
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
-  const createRowMutation = useCreateTableRow({ workspaceId, tableId })
   const batchCreateRowsMutation = useBatchCreateTableRows({ workspaceId, tableId })
   const batchUpdateRowsMutation = useBatchUpdateTableRows({ workspaceId, tableId })
   const deleteRowMutation = useDeleteTableRow({ workspaceId, tableId })
@@ -137,11 +135,18 @@ export function useTableUndo({
             if (direction === 'undo') {
               deleteRowMutation.mutate(action.rowId)
             } else {
-              createRowMutation.mutate(
-                { data: action.data ?? {}, position: action.position },
+              // Redo via the batch path so the saved orderKey restores exact placement.
+              // The single-insert API has no orderKey field, and under the fractional-ordering
+              // flag its `position` is read as a rank — a gappy saved position misplaces.
+              batchCreateRowsMutation.mutate(
+                {
+                  rows: [action.data ?? {}],
+                  positions: [action.position],
+                  orderKeys: action.orderKey ? [action.orderKey] : undefined,
+                },
                 {
                   onSuccess: (response) => {
-                    const newRowId = extractCreatedRowId(response as Record<string, unknown>)
+                    const newRowId = response?.data?.rows?.[0]?.id
                     if (newRowId && newRowId !== action.rowId) {
                       patchUndoRowId(tableId, action.rowId, newRowId)
                     }
