@@ -75,3 +75,39 @@ describe('buildWorkspaceMd - workflow VFS state paths', () => {
     expect(md).toContain('VFS state path: `workflows/Root%20Flow/state.json`')
   })
 })
+
+describe('buildWorkspaceMd - connected integrations / credentials', () => {
+  it('lists each connected account with its credentialId and never leaks tokens', () => {
+    const md = buildWorkspaceMd(
+      baseData({
+        oauthIntegrations: [
+          { id: 'cred-abc', providerId: 'google-email', displayName: 'alice@example.com', role: 'admin' },
+          { id: 'cred-def', providerId: 'slack', displayName: 'Workspace Bot', role: 'member' },
+        ],
+      })
+    )
+
+    // credentialId must be present so the superagent can pass it without reading credentials.json.
+    expect(md).toContain('credentialId: `cred-abc`')
+    expect(md).toContain('credentialId: `cred-def`')
+    expect(md).toContain('google-email')
+    expect(md).toContain('slack')
+
+    // No OAuth secrets/tokens may ever appear in the workspace context.
+    for (const secret of [
+      'accessToken',
+      'refreshToken',
+      'idToken',
+      'clientSecret',
+      'access_token',
+      'refresh_token',
+    ]) {
+      expect(md).not.toContain(secret)
+    }
+  })
+
+  it('renders (none) when no integrations are connected', () => {
+    const md = buildWorkspaceMd(baseData({ oauthIntegrations: [] }))
+    expect(md).toContain('## Connected Integrations\n(none)')
+  })
+})

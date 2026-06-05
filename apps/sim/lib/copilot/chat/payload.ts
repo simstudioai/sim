@@ -49,6 +49,8 @@ export interface ToolSchema {
   defer_loading?: boolean
   executeLocally?: boolean
   params?: Record<string, unknown>
+  /** Canonical integration service/folder (e.g. "slack"), for server-side grouping. */
+  service?: string
   oauth?: { required: boolean; provider: string }
 }
 
@@ -181,7 +183,7 @@ async function buildIntegrationToolSchemasUncached(
       }
     }
 
-    for (const { toolId, config: toolConfig } of getExposedIntegrationTools()) {
+    for (const { toolId, config: toolConfig, service } of getExposedIntegrationTools()) {
       try {
         if (allowedIntegrations && toolIdToBlockType) {
           const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
@@ -195,6 +197,7 @@ async function buildIntegrationToolSchemasUncached(
         const catalogEntry = getToolEntry(toolId)
         integrationTools.push({
           name: toolId,
+          service,
           description: getCopilotToolDescription(toolConfig, {
             isHosted,
             fallbackName: toolId,
