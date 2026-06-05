@@ -60,7 +60,6 @@ const createFileReadTool = (config: {
   },
 
   outputs: {
-    file: { type: 'file', description: 'Workspace file object' },
     files: { type: 'file[]', description: 'Workspace file objects' },
   },
 })
