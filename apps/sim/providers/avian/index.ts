@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { createReadableStreamFromAvianStream } from '@/providers/avian/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   ProviderConfig,
   ProviderRequest,
@@ -244,6 +246,14 @@ export const avianProvider: ProviderConfig = {
           }
 
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            toolCallsInResponse,
+            { model: request.model, provider: 'avian' }
+          )
+
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             break
           }
@@ -261,7 +271,9 @@ export const avianProvider: ProviderConfig = {
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams)
+              const result = await executeTool(toolName, executionParams, {
+                signal: request.abortSignal,
+              })
               const toolCallEndTime = Date.now()
 
               return {
@@ -284,7 +296,7 @@ export const avianProvider: ProviderConfig = {
                 result: {
                   success: false,
                   output: undefined,
-                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                  error: getErrorMessage(error, 'Tool execution failed'),
                 },
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -428,6 +440,15 @@ export const avianProvider: ProviderConfig = {
 
           iterationCount++
         }
+
+        if (iterationCount === MAX_TOOL_ITERATIONS) {
+          enrichLastModelSegmentFromChatCompletions(
+            timeSegments,
+            currentResponse,
+            currentResponse.choices[0]?.message?.tool_calls,
+            { model: request.model, provider: 'avian' }
+          )
+        }
       } catch (error) {
         logger.error('Error in Avian request:', { error })
       }
@@ -549,7 +570,7 @@ export const avianProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
