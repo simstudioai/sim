@@ -12,6 +12,7 @@ type BlockState = {
   id?: string
   type?: string
   name?: string
+  triggerMode?: boolean
   subBlocks?: Record<string, { value?: unknown } | undefined>
 }
 
@@ -90,61 +91,28 @@ function blockRef(blockId: string, block: BlockState): WorkflowLintBlockRef {
   }
 }
 
-function parseArrayValue(value: unknown): any[] {
-  if (Array.isArray(value)) return value
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
+function isWorkflowEntryBlock(block: BlockState) {
+  return Boolean(block.triggerMode) || isTriggerBlockType(block.type)
+}
+
+function requiredSubflowStartPort(block: BlockState) {
+  if (block.type === 'loop') {
+    return { handle: 'loop-start-source', label: 'loop-start-source' }
   }
-  return []
+  if (block.type === 'parallel') {
+    return { handle: 'parallel-start-source', label: 'parallel-start-source' }
+  }
+  return null
 }
 
-function conditionPortLabel(title: string, elseIfIndex: number): string {
-  if (title === 'if') return 'if'
-  if (title === 'else') return 'else'
-  if (title === 'else if') return `else-if-${elseIfIndex}`
-  return title || `branch-${elseIfIndex}`
-}
-
-function conditionPorts(block: BlockState) {
-  const conditions = parseArrayValue(block.subBlocks?.conditions?.value)
-  let elseIfIndex = 0
-
-  return conditions
-    .map((condition, index) => {
-      const title = String(condition?.title ?? '').toLowerCase()
-      const label = conditionPortLabel(title, elseIfIndex)
-      if (title === 'else if') elseIfIndex++
-
-      if (!condition?.id) return null
-      return {
-        handle: `condition-${condition.id}`,
-        label: label || `branch-${index}`,
-        value: block.subBlocks?.conditions?.value,
-      }
-    })
-    .filter((port): port is { handle: string; label: string; value: unknown } => Boolean(port))
-}
-
-function routerPorts(block: BlockState) {
-  return parseArrayValue(block.subBlocks?.routes?.value)
-    .map((route, index) => {
-      if (!route?.id) return null
-      return {
-        handle: `router-${route.id}`,
-        label: `route-${index}`,
-        value: block.subBlocks?.routes?.value,
-      }
-    })
-    .filter((port): port is { handle: string; label: string; value: unknown } => Boolean(port))
-}
-
-function shouldLintDynamicPorts(block: BlockState) {
-  return block.type === 'condition' || block.type === 'router_v2'
+function countsAsExternalOutgoing(block: BlockState, sourceHandle?: string | null) {
+  if (block.type === 'loop') {
+    return sourceHandle !== 'loop-start-source'
+  }
+  if (block.type === 'parallel') {
+    return sourceHandle !== 'parallel-start-source'
+  }
+  return true
 }
 
 export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'blocks' | 'edges'>) {
@@ -179,43 +147,50 @@ export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'bloc
     }
 
     incomingEdgesByTarget.set(targetBlockId, (incomingEdgesByTarget.get(targetBlockId) || 0) + 1)
-    outgoingEdgesBySource.add(sourceBlockId)
-
-    if (!shouldLintDynamicPorts(sourceBlock)) continue
+    if (countsAsExternalOutgoing(sourceBlock, edge?.sourceHandle)) {
+      outgoingEdgesBySource.add(sourceBlockId)
+    }
 
     const sourceHandle = edge?.sourceHandle
     if (!sourceHandle || sourceHandle === 'error') continue
 
-    const validation =
-      sourceBlock.type === 'condition'
-        ? validateConditionHandle(
-            sourceHandle,
-            sourceBlockId,
-            sourceBlock.subBlocks?.conditions?.value as string | any[]
-          )
-        : validateRouterHandle(
-            sourceHandle,
-            sourceBlockId,
-            sourceBlock.subBlocks?.routes?.value as string | any[]
-          )
+    if (sourceBlock.type === 'condition' || sourceBlock.type === 'router_v2') {
+      const validation =
+        sourceBlock.type === 'condition'
+          ? validateConditionHandle(
+              sourceHandle,
+              sourceBlockId,
+              sourceBlock.subBlocks?.conditions?.value as string | any[]
+            )
+          : validateRouterHandle(
+              sourceHandle,
+              sourceBlockId,
+              sourceBlock.subBlocks?.routes?.value as string | any[]
+            )
 
-    if (!validation.valid) {
-      invalidBranchPorts.push({
-        ...blockRef(sourceBlockId, sourceBlock),
-        sourceHandle,
-        reason: validation.error || `Invalid branch handle "${sourceHandle}"`,
-      })
+      if (!validation.valid) {
+        invalidBranchPorts.push({
+          ...blockRef(sourceBlockId, sourceBlock),
+          sourceHandle,
+          reason: validation.error || `Invalid branch handle "${sourceHandle}"`,
+        })
+        continue
+      }
+
+      const normalizedHandle = validation.normalizedHandle || sourceHandle
+      const handles = connectedDynamicHandles.get(sourceBlockId) || new Set<string>()
+      handles.add(normalizedHandle)
+      connectedDynamicHandles.set(sourceBlockId, handles)
       continue
     }
 
-    const normalizedHandle = validation.normalizedHandle || sourceHandle
     const handles = connectedDynamicHandles.get(sourceBlockId) || new Set<string>()
-    handles.add(normalizedHandle)
+    handles.add(sourceHandle)
     connectedDynamicHandles.set(sourceBlockId, handles)
   }
 
   const orphanBlocks = Object.entries(blocks)
-    .filter(([, block]) => block.type !== 'note' && !isTriggerBlockType(block.type))
+    .filter(([, block]) => block.type !== 'note' && !isWorkflowEntryBlock(block))
     .filter(([blockId]) => !incomingEdgesByTarget.has(blockId))
     .map(([blockId, block]) => blockRef(blockId, block))
 
@@ -233,12 +208,8 @@ export function lintEditedWorkflowState(workflowState: Pick<WorkflowState, 'bloc
 
   const emptyOutgoingPorts = Object.entries(blocks).flatMap(([blockId, block]) => {
     const handles = connectedDynamicHandles.get(blockId) || new Set<string>()
-    const ports =
-      block.type === 'condition'
-        ? conditionPorts(block)
-        : block.type === 'router_v2'
-          ? routerPorts(block)
-          : []
+    const requiredPort = requiredSubflowStartPort(block)
+    const ports = requiredPort ? [requiredPort] : []
 
     return ports
       .filter((port) => !handles.has(port.handle))
@@ -327,7 +298,7 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
 
   if (lint.emptyOutgoingPorts.length > 0) {
     parts.push(
-      `Unconnected condition/router ports: ${lint.emptyOutgoingPorts
+      `Unconnected required subflow start ports: ${lint.emptyOutgoingPorts
         .map((port) => `"${port.blockName || port.blockId}".${port.label}`)
         .join(', ')}`
     )
