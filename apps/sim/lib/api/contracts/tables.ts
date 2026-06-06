@@ -112,6 +112,9 @@ export const renameTableBodySchema = z.object({
 export const createTableColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   column: z.object({
+    // Optional stable id — first-party undo of a delete re-creates the column
+    // with its original id so saved (id-keyed) cell data restores correctly.
+    id: z.string().optional(),
     name: columnNameSchema,
     type: columnTypeSchema,
     required: z.boolean().optional(),

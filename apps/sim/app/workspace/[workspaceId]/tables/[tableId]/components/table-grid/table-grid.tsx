@@ -716,8 +716,11 @@ export function TableGrid({
     : null
 
   const columnRename = useInlineRename({
+    // `columnName` is the column id; record the prior display name + id so undo
+    // restores the label (not the id) and targets the right column.
     onSave: (columnName, newName) => {
-      pushUndoRef.current({ type: 'rename-column', oldName: columnName, newName })
+      const oldName = columnsRef.current.find((c) => c.key === columnName)?.name ?? columnName
+      pushUndoRef.current({ type: 'rename-column', oldName, newName, columnId: columnName })
       handleColumnRename(columnName, newName)
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
@@ -2651,8 +2654,13 @@ export function TableGrid({
         { name, type: 'string', position: index },
         {
           onSuccess: (result) => {
-            pushUndoRef.current({ type: 'create-column', columnName: name, position: index })
             const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
+            pushUndoRef.current({
+              type: 'create-column',
+              columnName: name,
+              columnId: newId,
+              position: index,
+            })
             insertColumnInOrder(columnId, newId, 'left')
           },
         }
@@ -2671,8 +2679,13 @@ export function TableGrid({
         { name, type: 'string', position },
         {
           onSuccess: (result) => {
-            pushUndoRef.current({ type: 'create-column', columnName: name, position })
             const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
+            pushUndoRef.current({
+              type: 'create-column',
+              columnName: name,
+              columnId: newId,
+              position,
+            })
             insertColumnInOrder(columnId, newId, 'right')
           },
         }
@@ -2838,7 +2851,9 @@ export function TableGrid({
         deletedOriginalPositions.push(entry.position)
         pushUndoRef.current({
           type: 'delete-column',
-          columnName: columnToDelete,
+          // `columnToDelete` is the stable id; record the display name for re-create.
+          columnName: entry.def?.name ?? columnToDelete,
+          columnId: columnToDelete,
           columnType: entry.def?.type ?? 'string',
           columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
           columnUnique: entry.def?.unique ?? false,

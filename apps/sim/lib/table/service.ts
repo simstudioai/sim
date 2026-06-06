@@ -543,6 +543,7 @@ export async function createTable(
 export async function addTableColumn(
   tableId: string,
   column: {
+    id?: string
     name: string
     type: string
     required?: boolean
@@ -582,7 +583,9 @@ export async function addTableColumn(
     }
 
     const newColumn: TableSchema['columns'][number] = {
-      id: generateColumnId(collectColumnIds(schema)),
+      // Honor a caller-provided id (undo of a delete reuses the original id);
+      // otherwise mint a fresh one.
+      id: column.id ?? generateColumnId(collectColumnIds(schema)),
       name: column.name,
       type: column.type as TableSchema['columns'][number]['type'],
       required: column.required ?? false,
