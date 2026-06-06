@@ -6,6 +6,7 @@ import type {
   TableRow as TableRowType,
   WorkflowGroup,
 } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { DisplayColumn } from './types'
@@ -106,10 +107,10 @@ export function expandToDisplayColumns(
       const startIdx = out.length
       for (let k = 0; k < size; k++) {
         const child = columns[i + k]
-        const output = group?.outputs.find((o) => o.columnName === child.name)
+        const output = group?.outputs.find((o) => o.columnName === getColumnId(child))
         out.push({
           ...child,
-          key: child.name,
+          key: getColumnId(child),
           outputBlockId: output?.blockId,
           outputPath: output?.path,
           groupSize: size,
@@ -122,7 +123,7 @@ export function expandToDisplayColumns(
     } else {
       out.push({
         ...column,
-        key: column.name,
+        key: getColumnId(column),
         groupSize: 1,
         groupStartColIndex: out.length,
         headerLabel: column.name,

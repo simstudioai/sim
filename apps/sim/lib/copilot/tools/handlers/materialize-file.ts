@@ -243,7 +243,8 @@ async function executeTable(
   )
 
   try {
-    const coerced = coerceRowsForTable(rows, schema, headerToColumn)
+    // Coerce against the created table's schema so rows key by assigned ids.
+    const coerced = coerceRowsForTable(rows, table.schema, headerToColumn)
     let inserted = 0
     for (let i = 0; i < coerced.length; i += CSV_MAX_BATCH_SIZE) {
       const batch = coerced.slice(i, i + CSV_MAX_BATCH_SIZE)

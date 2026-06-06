@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Badge, CollapsibleCard, Combobox, Label } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import type { InputFormatField } from '@/lib/workflows/types'
 
 interface InputMappingSectionProps {
@@ -30,7 +31,7 @@ export function InputMappingSection({
   const namedFields = inputFields.filter((f): f is InputFormatField & { name: string } =>
     Boolean(f.name?.trim())
   )
-  const columns = columnOptions.map((c) => ({ label: c.name, value: c.name }))
+  const columns = columnOptions.map((c) => ({ label: c.name, value: getColumnId(c) }))
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
   const toggle = (name: string) => setCollapsed((prev) => ({ ...prev, [name]: !prev[name] }))

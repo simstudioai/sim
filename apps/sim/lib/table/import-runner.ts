@@ -15,6 +15,7 @@ import {
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
+import { withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   addImportColumns,
@@ -127,7 +128,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
       if (mode === 'create') {
         const inferred = inferSchemaFromCsv(headers, sample)
-        schema = { columns: inferred.columns.map(normalizeColumn) }
+        // Stamp ids so the imported table is id-native (rows coerce + persist by
+        // the same ids).
+        schema = withGeneratedColumnIds({ columns: inferred.columns.map(normalizeColumn) })
         headerToColumn = inferred.headerToColumn
         await setTableSchemaForImport(tableId, schema)
         return

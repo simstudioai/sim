@@ -18,6 +18,7 @@ import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/component
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import {
   type ColumnOption,
   ResourceHeader,
@@ -380,7 +381,8 @@ export function Table({
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
       columns.map((col) => ({
-        id: col.name,
+        // `id` is the filter/sort field key (column id); `label` is what the user sees.
+        id: getColumnId(col),
         label: col.name,
         type: col.type,
         icon: COLUMN_TYPE_ICONS[col.type],
@@ -636,7 +638,7 @@ export function Table({
         onClose={onCloseSlideout}
         existingColumn={
           columnConfig?.mode === 'edit'
-            ? (columns.find((c) => c.name === columnConfig.columnName) ?? null)
+            ? (columns.find((c) => getColumnId(c) === columnConfig.columnName) ?? null)
             : null
         }
         workspaceId={workspaceId}

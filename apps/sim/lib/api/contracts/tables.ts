@@ -78,10 +78,14 @@ export const getTableQuerySchema = z.object({
 })
 
 export const tableColumnSchema = z.object({
+  /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
+  id: z.string().optional(),
   name: columnNameSchema,
   type: columnTypeSchema,
   required: z.boolean().optional().default(false),
   unique: z.boolean().optional().default(false),
+  /** Set when the column is a workflow group's output. */
+  workflowGroupId: z.string().optional(),
 })
 
 export const createTableBodySchema = z.object({
