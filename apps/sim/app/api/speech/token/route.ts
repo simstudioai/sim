@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
 import { getSession } from '@/lib/auth'
-import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -122,6 +122,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const permission = await verifyWorkspaceMembership(session.user.id, requestedWorkspaceId)
         if (permission) workspaceId = requestedWorkspaceId
       }
+      // Editor voice is always workspace-scoped; require an attributable workspace
+      // so per-member usage can't be skipped and the cost stamped workspace-less.
+      if (!workspaceId) {
+        return NextResponse.json({ error: 'Workspace context is required.' }, { status: 400 })
+      }
     }
 
     if (isBillingEnabled) {
@@ -144,7 +149,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (billingUserId) {
-      const usageCheck = await checkServerSideUsageLimits(billingUserId)
+      const usageCheck = await checkActorUsageLimits(billingUserId, workspaceId)
       if (usageCheck.isExceeded) {
         return NextResponse.json(
           {

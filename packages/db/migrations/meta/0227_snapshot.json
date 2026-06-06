@@ -1,5 +1,5 @@
 {
-  "id": "fdc40f07-a854-4d46-8dfc-9ccfc8d41b8c",
+  "id": "4e48307e-5756-4521-9166-da8f0cec725c",
   "prevId": "c107fd88-cdfb-487e-83e1-ad6ac2bb5dea",
   "version": "7",
   "dialect": "postgresql",
@@ -4919,6 +4919,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "uploaded_by": {
+          "name": "uploaded_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "uploaded_at": {
           "name": "uploaded_at",
           "type": "timestamp",
@@ -5335,6 +5341,15 @@
           "tableFrom": "document",
           "tableTo": "knowledge_connector",
           "columnsFrom": ["connector_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "document_uploaded_by_user_id_fk": {
+          "name": "document_uploaded_by_user_id_fk",
+          "tableFrom": "document",
+          "tableTo": "user",
+          "columnsFrom": ["uploaded_by"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
@@ -8902,6 +8917,15 @@
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "organization_member_usage_limit_set_by_user_id_fk": {
+          "name": "organization_member_usage_limit_set_by_user_id_fk",
+          "tableFrom": "organization_member_usage_limit",
+          "tableTo": "user",
+          "columnsFrom": ["set_by"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -10903,6 +10927,12 @@
           "notNull": true,
           "default": true
         },
+        "triggered_by_user_id": {
+          "name": "triggered_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "requested_at": {
           "name": "requested_at",
           "type": "timestamp",
@@ -10984,6 +11014,15 @@
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "table_run_dispatches_triggered_by_user_id_user_id_fk": {
+          "name": "table_run_dispatches_triggered_by_user_id_user_id_fk",
+          "tableFrom": "table_run_dispatches",
+          "tableTo": "user",
+          "columnsFrom": ["triggered_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

@@ -7,6 +7,10 @@ import { wandGenerateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
+import {
+  checkActorUsageLimits,
+  checkBillingBlocked,
+} from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
@@ -231,6 +235,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       }
     }
 
+    // Per-member usage must be attributable to an org workspace. The editor always
+    // supplies a workflow or a workspace the caller belongs to; refuse to run rather
+    // than stamp usage workspace-less (which would silently skip the per-member cap).
+    if (!workspaceId) {
+      return NextResponse.json(
+        { success: false, error: 'Workspace context is required.' },
+        { status: 400 }
+      )
+    }
+
     // Wand is always an interactive, session-authenticated editor action, so the
     // person using it is the billing actor — matching client-side executions and
     // editor voice rather than the workspace billed account. deriveBillingContext
@@ -256,6 +270,34 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         { success: false, error: 'Wand generation service is not configured.' },
         { status: 503 }
       )
+    }
+
+    // BYOK incurs no Sim-metered cost, so it skips usage gating — but a frozen /
+    // billing-blocked account is locked out of everything, so still check that.
+    // Non-BYOK runs the full actor gate, which already includes the billing-blocked
+    // check, so it isn't repeated here.
+    if (isBYOK) {
+      const blocked = await checkBillingBlocked(billingUserId)
+      if (blocked.blocked) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: blocked.message || 'Account is not in good standing. Please contact support.',
+          },
+          { status: 402 }
+        )
+      }
+    } else {
+      const usage = await checkActorUsageLimits(billingUserId, workspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          },
+          { status: 402 }
+        )
+      }
     }
 
     let finalSystemPrompt =

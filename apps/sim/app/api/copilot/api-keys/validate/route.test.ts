@@ -99,9 +99,9 @@ describe('POST /api/copilot/api-keys/validate — per-member enforcement', () =>
     expect(res.status).toBe(200)
   })
 
-  it('skips the per-member check when no workspaceId is provided', async () => {
+  it('rejects with 400 when workspaceId is omitted (contract-required, fail closed)', async () => {
     const res = await POST(request({ userId: 'user-1' }))
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(400)
     expect(mockCheckOrgMemberUsageLimit).not.toHaveBeenCalled()
   })
 

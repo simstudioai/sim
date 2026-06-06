@@ -111,7 +111,8 @@ export const POST = withRouteHandler((req: NextRequest) =>
         // Per-member org-workspace cap (hosted-only). Blocks the mothership/copilot
         // chat request itself when the user is over their personal credit limit for
         // the org that owns this workspace, independent of the pooled org limit.
-        if (isHosted && workspaceId) {
+        // workspaceId is contract-required, so the gate can't be silently skipped.
+        if (isHosted) {
           const memberCheck = await checkOrgMemberUsageLimit(userId, workspaceId)
           if (memberCheck.isExceeded) {
             logger.info('[API VALIDATION] Per-member org usage limit exceeded', {

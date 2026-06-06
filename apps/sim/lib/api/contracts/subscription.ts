@@ -21,11 +21,13 @@ export const billingUpdateCostBodySchema = z.object({
     .default('copilot'),
   idempotencyKey: z.string().min(1).optional(),
   /**
-   * Originating workspace, when known. Stamped onto `usage_log.workspaceId` so
-   * mothership/copilot cost is attributable to org-owned workspaces (per-member
-   * usage). Optional for backward compatibility with older callers.
+   * Originating workspace. Stamped onto `usage_log.workspaceId` so mothership/
+   * copilot cost is attributable to org-owned workspaces (per-member usage).
+   * Required: the Go mothership always resolves a workspace for a billed request,
+   * so a missing value is a bug to surface (fail loud) rather than silently drop
+   * the cost from the per-member meter.
    */
-  workspaceId: z.string().min(1).optional(),
+  workspaceId: z.string().min(1),
 })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 

@@ -70,7 +70,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     })
   })
 
-  it('records with undefined workspaceId when omitted', async () => {
+  it('rejects with 400 when workspaceId is omitted (contract-required, fail loud)', async () => {
     const res = await POST(
       createMockRequest(
         'POST',
@@ -78,7 +78,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
         { 'x-api-key': 'internal' }
       )
     )
-    expect(res.status).toBe(200)
-    expect(mockRecordUsage.mock.calls[0][0].workspaceId).toBeUndefined()
+    expect(res.status).toBe(400)
+    expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 })

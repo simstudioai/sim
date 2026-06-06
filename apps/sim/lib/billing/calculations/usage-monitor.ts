@@ -289,6 +289,68 @@ async function checkAndNotifyUsage(userId: string): Promise<void> {
 }
 
 /**
+ * Whether an account (or its organization owner) is billing-blocked — frozen for
+ * a dispute or flagged for a payment issue. Independent of usage limits, so it can
+ * gate paths that are otherwise exempt from metered caps (e.g. BYOK wand): a
+ * frozen account is locked out everywhere.
+ */
+export async function checkBillingBlocked(
+  userId: string
+): Promise<{ blocked: boolean; message?: string }> {
+  const stats = await db
+    .select({ blocked: userStats.billingBlocked, blockedReason: userStats.billingBlockedReason })
+    .from(userStats)
+    .where(eq(userStats.userId, userId))
+    .limit(1)
+
+  if (stats.length > 0 && stats[0].blocked) {
+    return {
+      blocked: true,
+      message:
+        stats[0].blockedReason === 'dispute'
+          ? 'Account frozen. Please contact support to resolve this issue.'
+          : 'Billing issue detected. Please update your payment method to continue.',
+    }
+  }
+
+  const memberships = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+
+  for (const m of memberships) {
+    const owners = await db
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, m.organizationId), eq(member.role, 'owner')))
+      .limit(1)
+
+    if (owners.length > 0) {
+      const ownerStats = await db
+        .select({
+          blocked: userStats.billingBlocked,
+          blockedReason: userStats.billingBlockedReason,
+        })
+        .from(userStats)
+        .where(eq(userStats.userId, owners[0].userId))
+        .limit(1)
+
+      if (ownerStats.length > 0 && ownerStats[0].blocked) {
+        return {
+          blocked: true,
+          message:
+            ownerStats[0].blockedReason === 'dispute'
+              ? 'Organization account frozen. Please contact support to resolve this issue.'
+              : 'Organization billing issue. Please contact your organization owner.',
+        }
+      }
+    }
+  }
+
+  return { blocked: false }
+}
+
+/**
  * Server-side function to check if a user has exceeded their usage limits
  * For use in API routes, webhooks, and scheduled executions
  *
@@ -316,65 +378,16 @@ export async function checkServerSideUsageLimits(
     logger.info('Server-side checking usage limits for user', { userId })
 
     const stats = await db
-      .select({
-        blocked: userStats.billingBlocked,
-        blockedReason: userStats.billingBlockedReason,
-        current: userStats.currentPeriodCost,
-      })
+      .select({ current: userStats.currentPeriodCost })
       .from(userStats)
       .where(eq(userStats.userId, userId))
       .limit(1)
 
     const currentUsage = stats.length > 0 ? toNumber(toDecimal(stats[0].current)) : 0
 
-    if (stats.length > 0 && stats[0].blocked) {
-      const message =
-        stats[0].blockedReason === 'dispute'
-          ? 'Account frozen. Please contact support to resolve this issue.'
-          : 'Billing issue detected. Please update your payment method to continue.'
-      return {
-        isExceeded: true,
-        currentUsage,
-        limit: 0,
-        message,
-      }
-    }
-
-    const memberships = await db
-      .select({ organizationId: member.organizationId })
-      .from(member)
-      .where(eq(member.userId, userId))
-
-    for (const m of memberships) {
-      const owners = await db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(and(eq(member.organizationId, m.organizationId), eq(member.role, 'owner')))
-        .limit(1)
-
-      if (owners.length > 0) {
-        const ownerStats = await db
-          .select({
-            blocked: userStats.billingBlocked,
-            blockedReason: userStats.billingBlockedReason,
-          })
-          .from(userStats)
-          .where(eq(userStats.userId, owners[0].userId))
-          .limit(1)
-
-        if (ownerStats.length > 0 && ownerStats[0].blocked) {
-          const message =
-            ownerStats[0].blockedReason === 'dispute'
-              ? 'Organization account frozen. Please contact support to resolve this issue.'
-              : 'Organization billing issue. Please contact your organization owner.'
-          return {
-            isExceeded: true,
-            currentUsage,
-            limit: 0,
-            message,
-          }
-        }
-      }
+    const blocked = await checkBillingBlocked(userId)
+    if (blocked.blocked) {
+      return { isExceeded: true, currentUsage, limit: 0, message: blocked.message }
     }
 
     const usageData = await checkUsageStatus(userId, preloadedSubscription)
@@ -478,4 +491,31 @@ export async function checkOrgMemberUsageLimit(
     })
     return { isExceeded: false, currentUsage: 0, limit: null }
   }
+}
+
+/**
+ * Unified usage gate for an actor: the pooled/personal cap first
+ * ({@link checkServerSideUsageLimits}), then the per-member org-workspace cap
+ * ({@link checkOrgMemberUsageLimit}) when a workspace is in scope. Returns the
+ * first exceeded result so every billable surface (workflow exec, copilot,
+ * voice, wand, enrichment, KB indexing) can gate on a single
+ * `{ isExceeded, message }` and surface the same message.
+ */
+export async function checkActorUsageLimits(
+  userId: string,
+  workspaceId?: string | null
+): Promise<{ isExceeded: boolean; message?: string }> {
+  const pooled = await checkServerSideUsageLimits(userId)
+  if (pooled.isExceeded) {
+    return { isExceeded: true, message: pooled.message }
+  }
+
+  if (workspaceId) {
+    const member = await checkOrgMemberUsageLimit(userId, workspaceId)
+    if (member.isExceeded) {
+      return { isExceeded: true, message: member.message }
+    }
+  }
+
+  return { isExceeded: false }
 }

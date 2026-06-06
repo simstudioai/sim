@@ -7,14 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockGetSession,
   mockRecordUsage,
-  mockCheckServerSideUsageLimits,
+  mockCheckActorUsageLimits,
   mockGetWorkspaceBilledAccountUserId,
   mockVerifyWorkspaceMembership,
   mockChatRows,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockRecordUsage: vi.fn(),
-  mockCheckServerSideUsageLimits: vi.fn(),
+  mockCheckActorUsageLimits: vi.fn(),
   mockGetWorkspaceBilledAccountUserId: vi.fn(),
   mockVerifyWorkspaceMembership: vi.fn(),
   mockChatRows: { value: [] as Array<Record<string, unknown>> },
@@ -38,7 +38,7 @@ vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mockRecordUsage }))
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkServerSideUsageLimits: mockCheckServerSideUsageLimits,
+  checkActorUsageLimits: mockCheckActorUsageLimits,
 }))
 
 vi.mock('@/lib/workspaces/utils', () => ({
@@ -80,7 +80,7 @@ beforeEach(() => {
   mockChatRows.value = []
   mockGetSession.mockResolvedValue({ user: { id: 'member-1' } })
   mockRecordUsage.mockResolvedValue(undefined)
-  mockCheckServerSideUsageLimits.mockResolvedValue({ isExceeded: false })
+  mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
   mockGetWorkspaceBilledAccountUserId.mockResolvedValue('billed-acct')
   mockVerifyWorkspaceMembership.mockResolvedValue('admin')
   global.fetch = vi.fn().mockResolvedValue({
@@ -103,14 +103,13 @@ describe('POST /api/speech/token — usage attribution', () => {
     })
   })
 
-  it('editor voice: drops an unverified workspace id so usage is not misattributed', async () => {
+  it('editor voice: rejects an unverified workspace id (requires an attributable workspace)', async () => {
     mockVerifyWorkspaceMembership.mockResolvedValue(null)
 
     const res = await POST(createMockRequest('POST', { workspaceId: 'ws-not-mine' }))
 
-    expect(res.status).toBe(200)
-    expect(mockRecordUsage.mock.calls[0][0].userId).toBe('member-1')
-    expect(mockRecordUsage.mock.calls[0][0].workspaceId).toBeUndefined()
+    expect(res.status).toBe(400)
+    expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 
   it('deployed chat: bills the workspace billed account and stamps the chat workspace', async () => {

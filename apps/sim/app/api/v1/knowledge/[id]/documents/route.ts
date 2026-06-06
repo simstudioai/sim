@@ -5,6 +5,7 @@ import {
   v1UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSingleDocument,
@@ -139,6 +140,18 @@ export const POST = withRouteHandler(
       )
       if (result instanceof NextResponse) return result
 
+      // Fast usage gate before the storage write + indexing (the async backstop
+      // in processDocumentAsync still covers non-HTTP paths).
+      const usage = await checkActorUsageLimits(userId, workspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          {
+            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          },
+          { status: 402 }
+        )
+      }
+
       const buffer = Buffer.from(await file.arrayBuffer())
       const contentType = file.type || 'application/octet-stream'
 
@@ -158,7 +171,8 @@ export const POST = withRouteHandler(
           mimeType: contentType,
         },
         knowledgeBaseId,
-        requestId
+        requestId,
+        userId
       )
 
       const documentData: DocumentData = {
