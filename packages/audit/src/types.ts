@@ -125,6 +125,7 @@ export const AuditAction = {
   ORG_MEMBER_ADDED: 'org_member.added',
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
+  ORG_MEMBER_USAGE_LIMIT_CHANGED: 'org_member.usage_limit_changed',
   ORG_INVITATION_CREATED: 'org_invitation.created',
   ORG_INVITATION_UPDATED: 'org_invitation.updated',
   ORG_INVITATION_ACCEPTED: 'org_invitation.accepted',

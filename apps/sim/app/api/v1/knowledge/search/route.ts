@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1KnowledgeSearchContract } from '@/lib/api/contracts/v1/knowledge'
 import { parseRequest } from '@/lib/api/server'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
+import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
@@ -36,6 +38,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
     if (accessError) return accessError
+
+    // A query incurs hosted embedding (+ optional rerank) cost — gate the actor's
+    // usage and frozen status before spending. Tag-only search is free, so skip it.
+    if (query && query.trim().length > 0) {
+      const usage = await checkActorUsageLimits(userId, workspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
+          { status: 402 }
+        )
+      }
+    }
 
     const knowledgeBaseIds = Array.isArray(parsed.data.body.knowledgeBaseIds)
       ? parsed.data.body.knowledgeBaseIds
@@ -148,6 +162,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const queryEmbeddingModel = embeddingModels[0]
 
     let results: SearchResult[]
+    let queryEmbeddingIsBYOK: boolean | null = null
 
     if (!hasQuery && hasFilters) {
       results = await handleTagOnlySearch({
@@ -157,9 +172,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     } else if (hasQuery && hasFilters) {
       const strategy = getQueryStrategy(accessibleKbIds.length, topK)
-      const queryVector = JSON.stringify(
-        await generateSearchEmbedding(query!, queryEmbeddingModel, workspaceId)
+      const queryEmbeddingResult = await generateSearchEmbedding(
+        query!,
+        queryEmbeddingModel,
+        workspaceId
       )
+      queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
+      const queryVector = JSON.stringify(queryEmbeddingResult.embedding)
       results = await handleTagAndVectorSearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
@@ -169,9 +188,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     } else if (hasQuery) {
       const strategy = getQueryStrategy(accessibleKbIds.length, topK)
-      const queryVector = JSON.stringify(
-        await generateSearchEmbedding(query!, queryEmbeddingModel, workspaceId)
+      const queryEmbeddingResult = await generateSearchEmbedding(
+        query!,
+        queryEmbeddingModel,
+        workspaceId
       )
+      queryEmbeddingIsBYOK = queryEmbeddingResult.isBYOK
+      const queryVector = JSON.stringify(queryEmbeddingResult.embedding)
       results = await handleVectorOnlySearch({
         knowledgeBaseIds: accessibleKbIds,
         topK,
@@ -183,6 +206,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { error: 'Either query or tagFilters must be provided' },
         { status: 400 }
       )
+    }
+
+    if (queryEmbeddingIsBYOK !== null) {
+      await recordSearchEmbeddingUsage({
+        userId,
+        workspaceId,
+        embeddingModel: queryEmbeddingModel,
+        query: query!,
+        isBYOK: queryEmbeddingIsBYOK,
+        sourceReference: `v1-kb-search:${requestId}`,
+      })
     }
 
     const tagDefsResults = await Promise.all(

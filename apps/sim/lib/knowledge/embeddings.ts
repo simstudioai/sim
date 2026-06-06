@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getBYOKKey } from '@/lib/api-key/byok'
+import { recordUsage } from '@/lib/billing/core/usage-log'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
@@ -11,6 +13,7 @@ import {
   type TokenizerProviderId,
 } from '@/lib/knowledge/embedding-models'
 import { batchByTokenLimit, estimateTokenCount } from '@/lib/tokenization'
+import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('EmbeddingUtils')
 
@@ -397,11 +400,52 @@ export async function generateSearchEmbedding(
   query: string,
   embeddingModel: string = DEFAULT_EMBEDDING_MODEL,
   workspaceId?: string | null
-): Promise<number[]> {
+): Promise<{ embedding: number[]; isBYOK: boolean }> {
   const provider = await resolveProvider(embeddingModel, workspaceId)
 
   logger.info(`Using ${provider.modelName} for search embedding generation`)
 
   const { embeddings } = await callEmbeddingAPI([query], provider, 'query')
-  return embeddings[0]
+  return { embedding: embeddings[0], isBYOK: provider.isBYOK }
+}
+
+/**
+ * Records a query embedding's hosted-key cost for callers that generate a search
+ * embedding directly, outside the metered `/api/knowledge/search` route (e.g. the
+ * v1 search API and copilot KB search). No-ops for BYOK (no Sim cost) or when
+ * there is no workspace to attribute to. Best-effort: never throws.
+ */
+export async function recordSearchEmbeddingUsage(params: {
+  userId: string
+  workspaceId?: string | null
+  embeddingModel: string
+  query: string
+  isBYOK: boolean
+  sourceReference: string
+}): Promise<void> {
+  const { userId, workspaceId, embeddingModel, query, isBYOK, sourceReference } = params
+  if (isBYOK || !workspaceId) return
+  try {
+    const { count } = estimateTokenCount(
+      query,
+      getEmbeddingModelInfo(embeddingModel).tokenizerProvider
+    )
+    const cost = calculateCost(embeddingModel, count, 0, false)
+    if (!cost || cost.total <= 0) return
+    await recordUsage({
+      userId,
+      workspaceId,
+      entries: [
+        {
+          category: 'model',
+          source: 'knowledge-base',
+          description: embeddingModel,
+          cost: cost.total,
+          sourceReference,
+        },
+      ],
+    })
+  } catch (error) {
+    logger.warn('Failed to record search embedding usage', { error: getErrorMessage(error) })
+  }
 }

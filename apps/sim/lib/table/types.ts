@@ -383,12 +383,21 @@ export interface UpdateRowData {
    * state. `updateRow` returns `null` when the guard rejects the write.
    */
   cancellationGuard?: { groupId: string; executionId: string }
+  /**
+   * The member who performed this write. Billed and usage-gated for any
+   * enrichment the write triggers (auto-fire or dependency-cascade re-run), so
+   * costs land on the editor's per-member meter rather than the workspace billed
+   * account. Omitted only for internal `executionsPatch`-only writes.
+   */
+  actorUserId?: string | null
 }
 
 export interface BulkUpdateData {
   filter: Filter
   data: RowData
   limit?: number
+  /** The member who performed this write — billed/gated for triggered enrichment. */
+  actorUserId?: string | null
 }
 
 export interface BatchUpdateByIdData {
@@ -399,6 +408,8 @@ export interface BatchUpdateByIdData {
     executionsPatch?: Record<string, RowExecutionMetadata | null>
   }>
   workspaceId: string
+  /** The member who performed this write — billed/gated for triggered enrichment. */
+  actorUserId?: string | null
 }
 
 export interface BulkDeleteData {
@@ -464,6 +475,8 @@ export interface AddWorkflowGroupData {
    *  `true` (UI behavior). Mothership passes `false` so groups can be staged
    *  without firing every dep-satisfied row. */
   autoRun?: boolean
+  /** The member adding the group — billed/gated for the auto-run enrichment pass. */
+  actorUserId?: string | null
 }
 
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
@@ -492,6 +505,8 @@ export interface UpdateWorkflowGroupData {
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
   autoRun?: boolean
+  /** The member updating the group — billed/gated for any triggered re-run. */
+  actorUserId?: string | null
 }
 
 export interface DeleteWorkflowGroupData {

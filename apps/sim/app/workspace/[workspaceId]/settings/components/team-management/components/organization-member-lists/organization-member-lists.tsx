@@ -24,6 +24,10 @@ import {
   MemberRow,
   MemberSection,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import {
+  ManageCreditsModal,
+  type ManageCreditsTarget,
+} from '@/app/workspace/[workspaceId]/settings/components/team-management/components/manage-credits-modal'
 import { useUpdateWorkspacePermissions } from '@/hooks/queries/invitations'
 import {
   useCancelInvitation,
@@ -83,6 +87,7 @@ export function OrganizationMemberLists({
   onTransferOwnership,
 }: OrganizationMemberListsProps) {
   const [query, setQuery] = useState('')
+  const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
 
   const updateMemberRole = useUpdateOrganizationMemberRole()
   const updateInvitation = useUpdateInvitation()
@@ -160,6 +165,19 @@ export function OrganizationMemberLists({
             <DropdownMenuItem onSelect={() => copyToClipboard(member.email)}>
               Copy email
             </DropdownMenuItem>
+            {!isOwner && (
+              <DropdownMenuItem
+                onSelect={() =>
+                  setCreditsTarget({
+                    userId: member.userId,
+                    name: member.name,
+                    email: member.email,
+                  })
+                }
+              >
+                Manage Credits
+              </DropdownMenuItem>
+            )}
             {canRemove && (
               <DropdownMenuItem
                 className='text-[var(--text-error)]'
@@ -430,6 +448,16 @@ export function OrganizationMemberLists({
           </MemberSection>
         )
       })}
+
+      <ManageCreditsModal
+        key={creditsTarget?.userId ?? 'none'}
+        open={creditsTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreditsTarget(null)
+        }}
+        organizationId={organizationId}
+        member={creditsTarget}
+      />
     </>
   )
 }

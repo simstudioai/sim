@@ -59,7 +59,7 @@ function endsInlineWord(value: string): boolean {
 function nextInlineSegmentLabel(segment?: ContentSegment): string {
   if (!segment) return ''
   if (segment.type === 'text' || segment.type === 'thinking') return segment.content
-  if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id
+  if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id || ''
   return ''
 }
 

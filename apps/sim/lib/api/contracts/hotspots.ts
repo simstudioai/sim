@@ -56,6 +56,8 @@ const wandGenerateBodySchema = z.object({
   stream: z.boolean().optional().default(false),
   history: z.array(chatMessageSchema).optional().default([]),
   workflowId: z.string().optional(),
+  /** Falls back here for per-member usage attribution when no workflowId is sent. */
+  workspaceId: z.string().optional(),
   generationType: z.string().optional(),
   wandContext: unknownRecordSchema.optional().default({}),
 })
