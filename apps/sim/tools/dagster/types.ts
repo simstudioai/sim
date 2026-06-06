@@ -28,8 +28,15 @@ export interface DagsterGetRunResponse extends ToolResponse {
     runId: string
     jobName: string | null
     status: string
+    mode: string | null
     startTime: number | null
     endTime: number | null
+    creationTime: number | null
+    updateTime: number | null
+    parentRunId: string | null
+    rootRunId: string | null
+    canTerminate: boolean
+    assetSelection: string[] | null
     runConfigYaml: string | null
     tags: Array<{ key: string; value: string }> | null
   }
@@ -38,6 +45,9 @@ export interface DagsterGetRunResponse extends ToolResponse {
 export interface DagsterListRunsParams extends DagsterBaseParams {
   jobName?: string
   statuses?: string
+  createdAfter?: number
+  createdBefore?: number
+  cursor?: string
   limit?: number
 }
 
@@ -51,6 +61,8 @@ export interface DagsterListRunsResponse extends ToolResponse {
       startTime: number | null
       endTime: number | null
     }>
+    cursor: string | null
+    hasMore: boolean
   }
 }
 
@@ -189,6 +201,81 @@ export interface DagsterStopSensorParams extends DagsterBaseParams {
   instigationStateId: string
 }
 
+export interface DagsterListAssetsParams extends DagsterBaseParams {
+  prefix?: string
+  cursor?: string
+  limit?: number
+}
+
+export interface DagsterListAssetsResponse extends ToolResponse {
+  output: {
+    assets: Array<{ assetKey: string; path: string[] }>
+    cursor: string | null
+    hasMore: boolean
+  }
+}
+
+export interface DagsterGetAssetParams extends DagsterBaseParams {
+  assetKey: string
+}
+
+export interface DagsterGetAssetResponse extends ToolResponse {
+  output: {
+    assetKey: string
+    path: string[]
+    groupName: string | null
+    description: string | null
+    jobNames: string[] | null
+    computeKind: string | null
+    isPartitioned: boolean | null
+    latestMaterialization: {
+      runId: string
+      timestamp: string
+      partition: string | null
+      stepKey: string | null
+    } | null
+  }
+}
+
+export interface DagsterMaterializeAssetsParams extends DagsterBaseParams {
+  repositoryLocationName: string
+  repositoryName: string
+  jobName: string
+  assetSelection: string
+  tags?: string
+}
+
+export interface DagsterMaterializeAssetsResponse extends ToolResponse {
+  output: {
+    runId: string
+  }
+}
+
+export interface DagsterReportAssetMaterializationParams extends DagsterBaseParams {
+  assetKey: string
+  eventType?: string
+  partitionKeys?: string
+  description?: string
+}
+
+export interface DagsterReportAssetMaterializationResponse extends ToolResponse {
+  output: {
+    success: boolean
+    assetKey: string
+  }
+}
+
+export interface DagsterWipeAssetParams extends DagsterBaseParams {
+  assetKey: string
+}
+
+export interface DagsterWipeAssetResponse extends ToolResponse {
+  output: {
+    success: boolean
+    assetKey: string
+  }
+}
+
 export type DagsterResponse =
   | DagsterLaunchRunResponse
   | DagsterGetRunResponse
@@ -202,3 +289,8 @@ export type DagsterResponse =
   | DagsterScheduleMutationResponse
   | DagsterListSensorsResponse
   | DagsterSensorMutationResponse
+  | DagsterListAssetsResponse
+  | DagsterGetAssetResponse
+  | DagsterMaterializeAssetsResponse
+  | DagsterReportAssetMaterializationResponse
+  | DagsterWipeAssetResponse

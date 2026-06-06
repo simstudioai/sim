@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Hosted Key"
+  short_description: "Add hosted API key to a tool"
+  brand_color: "#CA8A04"
+  default_prompt: "Use $add-hosted-key to add hosted API key support (metered and billed) to a Sim tool."

@@ -1944,7 +1944,6 @@ export const copilotChats = pgTable(
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
-    messages: jsonb('messages').notNull().default('[]'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'),
@@ -3270,6 +3269,16 @@ export const userTableDefinitions = pgTable(
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
     archivedAt: timestamp('archived_at'),
+    /**
+     * Async-import state. NULL = a normal table (never imported in the background).
+     * `'importing'` hides rows until the load completes; `'ready'` reveals them;
+     * `'failed'` surfaces a partial import. See `apps/sim/lib/table/import-runner.ts`.
+     */
+    importStatus: text('import_status'),
+    importId: text('import_id'),
+    importError: text('import_error'),
+    importRowsProcessed: integer('import_rows_processed').notNull().default(0),
+    importStartedAt: timestamp('import_started_at'),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -3304,6 +3313,12 @@ export const userTableRows = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     data: jsonb('data').notNull(),
     position: integer('position').notNull().default(0),
+    /**
+     * Fractional order key (base-62 string). Authoritative row order when the
+     * `TABLES_FRACTIONAL_ORDERING` flag is on; nullable during the backfill
+     * window. Ordered with `id` as a deterministic tiebreaker.
+     */
+    orderKey: text('order_key'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -3316,6 +3331,11 @@ export const userTableRows = pgTable(
       table.tableId
     ),
     tablePositionIdx: index('user_table_rows_table_position_idx').on(table.tableId, table.position),
+    tableOrderKeyIdx: index('user_table_rows_table_order_key_idx').on(
+      table.tableId,
+      table.orderKey,
+      table.id
+    ),
   })
 )
 

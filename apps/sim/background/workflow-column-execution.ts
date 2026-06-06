@@ -165,12 +165,18 @@ async function runWorkflowAndWriteTerminal(
 ): Promise<'completed' | 'error' | 'paused' | 'blocked'> {
   const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId, dispatchId } =
     payload
+  // Read from the live `group`, not the payload: in a cascade the payload is the
+  // first group's snapshot, so a downstream group with a different version must
+  // use its own setting (same reason `workflowId` is re-derived per iteration).
+  const deploymentMode = group.deploymentMode
   const requestId = `wfgrp-${executionId}`
 
   return runWithRequestContext({ requestId }, async () => {
     const { getRowById } = await import('@/lib/table/service')
     const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
-    const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
+    const { loadWorkflowFromNormalizedTables, loadDeployedWorkflowState } = await import(
+      '@/lib/workflows/persistence/utils'
+    )
     const { writeWorkflowGroupState, markWorkflowGroupPickedUp, buildOutputsByBlockId } =
       await import('@/lib/table/cell-write')
     const { stashCellContextForResume } = await import('@/lib/table/workflow-columns')
@@ -382,7 +388,28 @@ async function runWorkflowAndWriteTerminal(
         return 'error'
       }
 
-      const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+      // `deployed` groups run the workflow's latest active deployment; `live`
+      // (default) runs the editable draft. A `deployed` group whose workflow
+      // has never been deployed fails the cell — no silent fallback to draft.
+      let normalizedData: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
+      if (deploymentMode === 'deployed') {
+        try {
+          normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
+        } catch (err) {
+          // Surface the real reason (missing deployment vs. transient DB/migration
+          // failure) rather than always claiming the workflow isn't deployed.
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId,
+            error: toError(err).message,
+          })
+          return 'error'
+        }
+      } else {
+        normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+      }
       const startBlock = normalizedData
         ? Object.values(normalizedData.blocks).find((b) => b?.type === 'start_trigger')
         : undefined
@@ -562,7 +589,6 @@ async function runWorkflowAndWriteTerminal(
         changedColumns: [],
         rowId,
         headers,
-        rowNumber: row.position,
         tableId,
         tableName,
         timestamp: new Date().toISOString(),
@@ -665,7 +691,10 @@ async function runWorkflowAndWriteTerminal(
             executionMode: 'sync',
             workflowTriggerType: 'table',
             triggerBlockId: startBlock.id,
-            useDraftState: true,
+            // `deployed` groups execute the latest active deployment; everything
+            // else runs the editable draft (the table default). Matches the
+            // state loaded above for start-block / output-block resolution.
+            useDraftState: deploymentMode !== 'deployed',
             abortSignal,
             onBlockStart,
             onBlockComplete,

@@ -1,5 +1,9 @@
 import type { DagsterGetRunLogsParams, DagsterGetRunLogsResponse } from '@/tools/dagster/types'
-import { parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
+import {
+  dagsterGraphqlUrl,
+  dagsterRequestHeaders,
+  parseDagsterGraphqlResponse,
+} from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface DagsterRunEvent {
@@ -87,13 +91,9 @@ export const getRunLogsTool: ToolConfig<DagsterGetRunLogsParams, DagsterGetRunLo
   },
 
   request: {
-    url: (params) => `${params.host.replace(/\/$/, '')}/graphql`,
+    url: (params) => dagsterGraphqlUrl(params.host),
     method: 'POST',
-    headers: (params) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (params.apiKey) headers['Dagster-Cloud-Api-Token'] = params.apiKey
-      return headers
-    },
+    headers: (params) => dagsterRequestHeaders(params),
     body: (params) => {
       const variables: Record<string, unknown> = { runId: params.runId }
       if (params.afterCursor) variables.afterCursor = params.afterCursor

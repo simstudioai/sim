@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
-import type { RowData, RowExecutionMetadata, RowExecutions } from '@/lib/table'
+import type { RowData, RowExecutionMetadata, RowExecutions, TableDefinition } from '@/lib/table'
 import { isExecInFlight } from '@/lib/table/deps'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
 import { snapshotAndMutateRows, type TableRunState, tableKeys } from '@/hooks/queries/tables'
@@ -89,6 +89,17 @@ export function useTableEventStream({
       dispatchInvalidateTimer = setTimeout(() => {
         dispatchInvalidateTimer = null
         void queryClient.invalidateQueries({ queryKey: tableKeys.activeDispatches(tableId) })
+      }, DISPATCH_INVALIDATE_DEBOUNCE_MS)
+    }
+
+    // Live-fill: import progress ticks arrive every N rows; coalesce the row
+    // refetches into one per debounce window instead of refetching per tick.
+    let importInvalidateTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleRowsInvalidate = (): void => {
+      if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
+      importInvalidateTimer = setTimeout(() => {
+        importInvalidateTimer = null
+        void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
       }, DISPATCH_INVALIDATE_DEBOUNCE_MS)
     }
 
@@ -213,6 +224,41 @@ export function useTableEventStream({
       scheduleDispatchInvalidate()
     }
 
+    const applyImport = (event: Extract<TableEvent, { kind: 'import' }>): void => {
+      const { status, progress, error, importId } = event
+      const isTerminal = status === 'ready' || status === 'failed' || status === 'canceled'
+
+      // The SSE buffer replays on (re)connect and can hold a *prior* import's events for this
+      // table. Ignore anything from a superseded run, and don't trust a replayed terminal before
+      // we know the active run's id.
+      const prev = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      const lockedId = prev?.importId
+      if (lockedId && importId && importId !== lockedId) return
+      if (!lockedId && isTerminal) return
+
+      queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), (p) =>
+        p
+          ? {
+              ...p,
+              importStatus: status,
+              importId: importId ?? p.importId,
+              importRowsProcessed: progress ?? p.importRowsProcessed,
+              importError: error ?? null,
+            }
+          : p
+      )
+      // The header tray + completion toast are owned by `useImportTrayPoll`. Here we only keep the
+      // detail cache + grid in sync: live-fill rows per batch (debounced), and on the terminal
+      // event refetch rows + the definition (the worker may have rewritten the schema).
+      if (isTerminal) {
+        if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
+        void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+        void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+      } else {
+        scheduleRowsInvalidate()
+      }
+    }
+
     const applyUsageLimit = (event: Extract<TableEvent, { kind: 'usageLimitReached' }>): void => {
       // Drop the halted dispatch from the overlay so the "running" UI clears
       // immediately (the dispatcher was marked complete server-side). Cascade /
@@ -283,6 +329,7 @@ export function useTableEventStream({
           savePointer(tableId, lastEventId)
           if (entry.event?.kind === 'cell') applyCell(entry.event)
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
+          else if (entry.event?.kind === 'import') applyImport(entry.event)
           else if (entry.event?.kind === 'usageLimitReached') applyUsageLimit(entry.event)
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
@@ -317,6 +364,7 @@ export function useTableEventStream({
       cancelled = true
       if (reconnectTimer !== null) clearTimeout(reconnectTimer)
       if (dispatchInvalidateTimer !== null) clearTimeout(dispatchInvalidateTimer)
+      if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
       eventSource?.close()
       eventSource = null
     }

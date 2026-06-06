@@ -1,0 +1,559 @@
+---
+title: ClickHouse
+description: Connect to a ClickHouse database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="clickhouse"
+  color="#f9ff69"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ClickHouse](https://clickhouse.com) is an open-source, column-oriented database management system for online analytical processing (OLAP). It is built for speed at scale — running aggregations and analytical queries over billions of rows in real time.
+
+The ClickHouse block connects to any ClickHouse deployment (ClickHouse Cloud or self-hosted) over the [HTTP interface](https://clickhouse.com/docs/interfaces/http). Use it to run analytical queries, stream rows into tables, manage schemas, inspect system state, and execute arbitrary SQL — all from within a workflow.
+
+**Connection details**
+
+- **Host** — your ClickHouse hostname (e.g. `your-instance.clickhouse.cloud` or your server address).
+- **Port** — the HTTP interface port. Use `8443` for HTTPS (ClickHouse Cloud) or `8123` for plain HTTP (self-hosted).
+- **Database** / **Username** — default to `default` if not specified.
+- **Password** — optional for unauthenticated local instances.
+- **Use HTTPS** — keep enabled for any remote or Cloud instance.
+
+**Things to know**
+
+- `UPDATE` and `DELETE` are implemented as ClickHouse [mutations](https://clickhouse.com/docs/sql-reference/statements/alter/update) (`ALTER TABLE ... UPDATE/DELETE`). Mutations run **asynchronously** in the background, so the affected row count is not returned immediately.
+- ClickHouse is optimized for bulk inserts. Prefer batching many rows per insert over many single-row inserts.
+- The connection host is validated to block private/internal addresses, so the block cannot reach `localhost` or internal-only hosts.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.
+
+
+
+## Tools
+
+### `clickhouse_query`
+
+Execute a SELECT query on a ClickHouse database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `query` | string | Yes | SQL SELECT query to execute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `clickhouse_execute`
+
+Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `query` | string | Yes | Raw SQL statement to execute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the statement |
+| `rowCount` | number | Number of rows returned or affected |
+
+### `clickhouse_insert`
+
+Insert a row into a ClickHouse table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to insert data into |
+| `data` | object | Yes | Data object to insert \(key-value pairs mapping column names to values\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Inserted rows \(empty for ClickHouse inserts\) |
+| `rowCount` | number | Number of rows inserted |
+
+### `clickhouse_insert_rows`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_update`
+
+Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to update data in |
+| `data` | object | Yes | Data object with fields to update \(key-value pairs\) |
+| `where` | string | Yes | WHERE clause condition \(without the WHERE keyword\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Updated rows \(empty for ClickHouse mutations\) |
+| `rowCount` | number | Number of rows written by the mutation |
+
+### `clickhouse_delete`
+
+Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+| `table` | string | Yes | Table name to delete data from |
+| `where` | string | Yes | WHERE clause condition \(without the WHERE keyword\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Deleted rows \(empty for ClickHouse mutations\) |
+| `rowCount` | number | Number of rows affected by the mutation |
+
+### `clickhouse_list_databases`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_list_tables`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_describe_table`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_show_create_table`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_count_rows`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_introspect`
+
+Introspect a ClickHouse database to retrieve table structures, columns, and engines
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | ClickHouse server hostname \(e.g., your-instance.clickhouse.cloud\) |
+| `port` | number | Yes | ClickHouse HTTP interface port \(8443 for HTTPS, 8123 for HTTP\) |
+| `database` | string | Yes | Database name to introspect |
+| `username` | string | Yes | ClickHouse username |
+| `password` | string | No | ClickHouse password |
+| `secure` | boolean | No | Use a secure HTTPS connection \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | Array of table schemas with columns and engines |
+|   ↳ `name` | string | Table name |
+|   ↳ `database` | string | Database the table belongs to |
+|   ↳ `engine` | string | Table engine \(e.g., MergeTree, Log\) |
+|   ↳ `totalRows` | number | Approximate total number of rows in the table |
+|   ↳ `columns` | array | Table columns |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | ClickHouse data type \(e.g., UInt32, String, DateTime\) |
+|     ↳ `defaultKind` | string | Kind of default expression \(DEFAULT, MATERIALIZED, ALIAS\) |
+|     ↳ `defaultExpression` | string | Default value expression for the column |
+|     ↳ `isInPrimaryKey` | boolean | Whether the column is part of the primary key |
+|     ↳ `isInSortingKey` | boolean | Whether the column is part of the sorting key |
+
+### `clickhouse_create_database`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_drop_database`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_create_table`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_drop_table`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_truncate_table`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_rename_table`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_optimize_table`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_list_partitions`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_drop_partition`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_list_mutations`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_list_running_queries`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_kill_query`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_table_stats`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+### `clickhouse_list_clusters`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success or error message describing the operation outcome |
+| `rows` | array | Array of rows returned from the operation |
+| `rowCount` | number | Number of rows returned or affected by the operation |
+| `count` | number | Row count \(count rows operation\) |
+| `ddl` | string | CREATE TABLE statement \(show create table operation\) |
+| `tables` | array | Array of table schemas with columns and engines \(introspect operation\) |
+
+

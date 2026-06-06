@@ -68,6 +68,10 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
             table.updatedAt instanceof Date
               ? table.updatedAt.toISOString()
               : String(table.updatedAt),
+          importStatus: table.importStatus ?? null,
+          importId: table.importId ?? null,
+          importError: table.importError ?? null,
+          importRowsProcessed: table.importRowsProcessed ?? 0,
         },
       },
     })

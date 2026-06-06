@@ -268,6 +268,14 @@ export const googleDriveConnector: ConnectorConfig = {
     const data = await response.json()
     const files = (data.files || []) as DriveFile[]
 
+    /**
+     * Drive sets `incompleteSearch` when it could not search every corpus (it
+     * arises with the `allDrives` scope enabled by `includeItemsFromAllDrives`).
+     * A partial listing drops still-existing files, so reconciliation must be
+     * suppressed to avoid hard-deleting valid documents.
+     */
+    const incompleteSearch = data.incompleteSearch === true
+
     const documents = files
       .filter((f) => isGoogleWorkspaceFile(f.mimeType) || isSupportedTextFile(f.mimeType))
       .map(fileToStub)
@@ -275,7 +283,7 @@ export const googleDriveConnector: ConnectorConfig = {
     const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+    if (syncContext && (hitLimit || incompleteSearch)) syncContext.listingCapped = true
 
     const nextPageToken = data.nextPageToken as string | undefined
 

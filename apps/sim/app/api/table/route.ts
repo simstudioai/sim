@@ -203,6 +203,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             : t.archivedAt
               ? String(t.archivedAt)
               : null,
+        importStatus: t.importStatus ?? null,
+        importId: t.importId ?? null,
+        importError: t.importError ?? null,
+        importRowsProcessed: t.importRowsProcessed ?? 0,
       }
     })
 

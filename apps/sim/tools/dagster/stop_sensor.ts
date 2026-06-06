@@ -1,5 +1,10 @@
 import type { DagsterSensorMutationResponse, DagsterStopSensorParams } from '@/tools/dagster/types'
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
+import {
+  dagsterGraphqlUrl,
+  dagsterRequestHeaders,
+  dagsterUnionErrorMessage,
+  parseDagsterGraphqlResponse,
+} from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface StopSensorResult {
@@ -63,13 +68,9 @@ export const stopSensorTool: ToolConfig<DagsterStopSensorParams, DagsterSensorMu
   },
 
   request: {
-    url: (params) => `${params.host.replace(/\/$/, '')}/graphql`,
+    url: (params) => dagsterGraphqlUrl(params.host),
     method: 'POST',
-    headers: (params) => {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (params.apiKey) headers['Dagster-Cloud-Api-Token'] = params.apiKey
-      return headers
-    },
+    headers: (params) => dagsterRequestHeaders(params),
     body: (params) => ({
       query: STOP_SENSOR_MUTATION,
       variables: { id: params.instigationStateId },
