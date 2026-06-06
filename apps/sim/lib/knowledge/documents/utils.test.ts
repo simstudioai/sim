@@ -1,8 +1,38 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
+  mockSecureFetchWithValidation: vi.fn(),
+}))
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  secureFetchWithValidation: mockSecureFetchWithValidation,
+}))
+
+import { secureFetchWithRetry } from './secure-fetch.server'
 import { isRetryableError } from './utils'
+
+/** Builds a minimal SecureFetchResponse-shaped object for tests. */
+function fakeResponse(
+  status: number,
+  options: { headers?: Record<string, string>; body?: string } = {}
+) {
+  const headers = options.headers ?? {}
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: `status-${status}`,
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+    body: null,
+    text: async () => options.body ?? '',
+    json: async () => JSON.parse(options.body ?? '{}'),
+    arrayBuffer: async () => new ArrayBuffer(0),
+  }
+}
+
+const FAST_RETRY = { initialDelayMs: 1, maxDelayMs: 2, maxRetries: 3 }
 
 describe('isRetryableError', () => {
   describe('retryable status codes', () => {
@@ -148,5 +178,95 @@ describe('isRetryableError', () => {
     it.concurrent('returns false for plain object with non-retryable status and no message', () => {
       expect(isRetryableError({ status: 500 })).toBe(false)
     })
+  })
+})
+
+describe('secureFetchWithRetry', () => {
+  beforeEach(() => {
+    mockSecureFetchWithValidation.mockReset()
+  })
+
+  it('routes the request through secureFetchWithValidation and returns the response', async () => {
+    mockSecureFetchWithValidation.mockResolvedValue(fakeResponse(200, { body: 'ok' }))
+
+    const response = await secureFetchWithRetry('https://example.com/api', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
+    const [url, options, paramName] = mockSecureFetchWithValidation.mock.calls[0]
+    expect(url).toBe('https://example.com/api')
+    expect(options).toMatchObject({ method: 'GET', headers: { Accept: 'application/json' } })
+    expect(paramName).toBe('url')
+  })
+
+  it('propagates SSRF validation failures without retrying', async () => {
+    mockSecureFetchWithValidation.mockRejectedValue(
+      new Error('url resolves to a blocked IP address')
+    )
+
+    await expect(
+      secureFetchWithRetry('https://attacker.test', { method: 'GET' }, FAST_RETRY)
+    ).rejects.toThrow('blocked IP address')
+
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries on a retryable status (503) and succeeds', async () => {
+    mockSecureFetchWithValidation
+      .mockResolvedValueOnce(fakeResponse(503, { body: 'try later' }))
+      .mockResolvedValueOnce(fakeResponse(200, { body: 'ok' }))
+
+    const response = await secureFetchWithRetry(
+      'https://example.com/api',
+      { method: 'GET' },
+      FAST_RETRY
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry a non-retryable status (404) and returns it to the caller', async () => {
+    mockSecureFetchWithValidation.mockResolvedValue(fakeResponse(404, { body: 'missing' }))
+
+    const response = await secureFetchWithRetry(
+      'https://example.com/api',
+      { method: 'GET' },
+      FAST_RETRY
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards allowHttp / timeout / maxResponseBytes to the pinned fetch', async () => {
+    mockSecureFetchWithValidation.mockResolvedValue(fakeResponse(200))
+
+    await secureFetchWithRetry(
+      'http://localhost:9000',
+      { method: 'GET' },
+      { allowHttp: true, timeout: 5000, maxResponseBytes: 1024, ...FAST_RETRY }
+    )
+
+    const [, options] = mockSecureFetchWithValidation.mock.calls[0]
+    expect(options).toMatchObject({ allowHttp: true, timeout: 5000, maxResponseBytes: 1024 })
+  })
+
+  it('honors Retry-After (seconds) on a 429 before retrying', async () => {
+    mockSecureFetchWithValidation
+      .mockResolvedValueOnce(fakeResponse(429, { headers: { 'retry-after': '0' } }))
+      .mockResolvedValueOnce(fakeResponse(200))
+
+    const response = await secureFetchWithRetry(
+      'https://example.com/api',
+      { method: 'GET' },
+      FAST_RETRY
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(2)
   })
 })

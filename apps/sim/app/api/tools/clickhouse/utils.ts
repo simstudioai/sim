@@ -1,4 +1,5 @@
 import {
+  secureFetchWithPinnedIP,
   validateDatabaseHost,
   validateSqlWhereClause,
 } from '@/lib/core/security/input-validation.server'
@@ -81,24 +82,21 @@ async function clickhouseRequest(
     url.searchParams.set('readonly', '1')
   }
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-
-  let response: Response
-  try {
-    response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'X-ClickHouse-User': config.username,
-        'X-ClickHouse-Key': config.password,
-        'Content-Type': 'text/plain; charset=utf-8',
-      },
-      body: statement,
-      signal: controller.signal,
-    })
-  } finally {
-    clearTimeout(timeout)
-  }
+  // Pin the connection to the IP that passed validation. Without this, fetch()
+  // would re-resolve `config.host` and a DNS-rebinding hostname could point the
+  // actual request at an internal/private address after validation succeeded.
+  const response = await secureFetchWithPinnedIP(url.toString(), hostValidation.resolvedIP!, {
+    method: 'POST',
+    headers: {
+      'X-ClickHouse-User': config.username,
+      'X-ClickHouse-Key': config.password,
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Length': String(Buffer.byteLength(statement, 'utf-8')),
+    },
+    body: statement,
+    timeout: REQUEST_TIMEOUT_MS,
+    allowHttp: !config.secure,
+  })
 
   const text = await response.text()
 
