@@ -181,6 +181,8 @@ export const DataRow = React.memo(function DataRow({
    */
   const waitingByGroupId = React.useMemo(() => {
     if (workflowGroups.length === 0) return null
+    // Deps are stored as column ids; the "Waiting on …" pill shows display names.
+    const nameByColumnId = new Map(columns.map((c) => [c.key, c.name]))
     const map = new Map<string, string[]>()
     for (const group of workflowGroups) {
       // autoRun=false groups never fire from the scheduler — there's nothing
@@ -188,10 +190,13 @@ export const DataRow = React.memo(function DataRow({
       if (group.autoRun === false) continue
       const unmet = getUnmetGroupDeps(group, row)
       if (unmet.columns.length === 0) continue
-      map.set(group.id, unmet.columns)
+      map.set(
+        group.id,
+        unmet.columns.map((id) => nameByColumnId.get(id) ?? id)
+      )
     }
     return map
-  }, [workflowGroups, row])
+  }, [workflowGroups, row, columns])
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
   const isRowSelected = isRowChecked
   /**

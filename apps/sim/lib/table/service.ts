@@ -2232,7 +2232,10 @@ export async function upsertRow(
   // the persisted type (e.g. a coerced `"123"` → `123` matches existing rows).
   const targetValue = data.data[targetColumnKey]
   if (targetValue === undefined || targetValue === null) {
-    throw new Error(`Upsert requires a value for the conflict target column "${targetColumnKey}"`)
+    // Surface the display name, not the internal id — v1 callers pass a name.
+    const targetColumnName =
+      uniqueColumns.find((c) => getColumnId(c) === targetColumnKey)?.name ?? targetColumnKey
+    throw new Error(`Upsert requires a value for the conflict target column "${targetColumnName}"`)
   }
 
   // `data->` and `data->>` accept the JSON key as a parameterized text value;
@@ -2577,10 +2580,10 @@ function deriveExecClearsForDataPatch(
   // that group's exec entry so the auto-fire reactor re-arms the cell.
   // Also flags the cleared output column as dirty so transitive downstream
   // groups see it.
-  for (const [columnName, value] of Object.entries(dataPatch)) {
+  for (const [columnId, value] of Object.entries(dataPatch)) {
     const cleared = value === null || value === undefined || value === ''
     if (!cleared) continue
-    const col = schema.columns.find((c) => c.name === columnName)
+    const col = schema.columns.find((c) => getColumnId(c) === columnId)
     if (col?.workflowGroupId) groupsToClear.add(col.workflowGroupId)
   }
 
@@ -3923,12 +3926,12 @@ export async function addWorkflowGroup(
       )
     }
 
-    // Assign stable ids to the new output columns (flag on), then rewrite the
-    // group's column refs from name → id so outputs/deps/inputMappings key on
-    // ids — matching the row-data storage key and surviving future renames.
+    // Assign stable ids to the new output columns, then rewrite the group's
+    // column refs from name → id so outputs/deps/inputMappings key on ids —
+    // matching the row-data storage key and surviving future renames.
     const takenIds = new Set(collectColumnIds(schema))
     const outputColumns = data.outputColumns.map((col) => {
-      if (col.id || !isTablesFractionalOrderingEnabled) return col
+      if (col.id) return col
       const id = generateColumnId(takenIds)
       takenIds.add(id)
       return { ...col, id }
