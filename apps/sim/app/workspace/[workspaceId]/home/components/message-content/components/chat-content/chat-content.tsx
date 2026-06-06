@@ -18,6 +18,7 @@ import {
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
 
 const LANG_ALIASES: Record<string, string> = {
@@ -47,6 +48,19 @@ const PROSE_CLASSES = cn(
   'prose-hr:border-[var(--divider)] prose-hr:my-6',
   'prose-table:my-0'
 )
+
+/**
+ * Soft fade for newly revealed text. Paired with {@link useSmoothText}, which
+ * paces the reveal: `sep: 'char'` fades each character as the pacer exposes it
+ * (so a growing trailing word never re-animates), and `stagger: 0` keeps the
+ * cadence driven by the pacer rather than an overlapping per-token delay ramp.
+ */
+const STREAM_ANIMATION = {
+  animation: 'fadeIn',
+  duration: 220,
+  stagger: 0,
+  sep: 'char',
+} as const
 
 function startsInlineWord(value: string): boolean {
   return /^[A-Za-z0-9_(]/.test(value)
@@ -277,6 +291,7 @@ function ChatContentInner({
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
 
   const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
+  const streamedContent = useSmoothText(displayContent, isStreaming)
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -293,8 +308,8 @@ function ChatContentInner({
   }, [])
 
   const parsed = useMemo(
-    () => parseSpecialTags(displayContent, isStreaming),
-    [displayContent, isStreaming]
+    () => parseSpecialTags(streamedContent, isStreaming),
+    [streamedContent, isStreaming]
   )
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
@@ -351,6 +366,8 @@ function ChatContentInner({
               >
                 <Streamdown
                   mode={isStreaming ? undefined : 'static'}
+                  animated={isStreaming ? STREAM_ANIMATION : false}
+                  isAnimating={isStreaming}
                   components={MARKDOWN_COMPONENTS}
                 >
                   {group.markdown}
@@ -373,8 +390,13 @@ function ChatContentInner({
 
   return (
     <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-      <Streamdown mode={isStreaming ? undefined : 'static'} components={MARKDOWN_COMPONENTS}>
-        {displayContent}
+      <Streamdown
+        mode={isStreaming ? undefined : 'static'}
+        animated={isStreaming ? STREAM_ANIMATION : false}
+        isAnimating={isStreaming}
+        components={MARKDOWN_COMPONENTS}
+      >
+        {streamedContent}
       </Streamdown>
     </div>
   )

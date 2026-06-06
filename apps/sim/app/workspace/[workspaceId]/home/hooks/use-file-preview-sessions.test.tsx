@@ -7,6 +7,7 @@ import {
   buildCompletedPreviewSessions,
   hasRenderableFilePreviewContent,
   INITIAL_FILE_PREVIEW_SESSIONS_STATE,
+  pickActiveSessionId,
   reduceFilePreviewSessions,
   shouldReplaceSession,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
@@ -275,6 +276,7 @@ describe('reduceFilePreviewSessions', () => {
     })
 
     expect(afterEmptyUpsert.activeSessionId).toBe('preview-1')
+    expect(pickActiveSessionId(afterEmptyUpsert.sessions, null)).toBe('preview-2')
 
     const afterContent = reduceFilePreviewSessions(afterEmptyUpsert, {
       type: 'upsert',

@@ -38,6 +38,10 @@ export function resolveStreamToolOutcome({
     case MothershipStreamV1ToolOutcome.skipped:
     case MothershipStreamV1ToolOutcome.rejected:
       return status
+    case 'aborted':
+      return MothershipStreamV1ToolOutcome.cancelled
+    case 'failed':
+      return MothershipStreamV1ToolOutcome.error
     default:
       return success === true
         ? MothershipStreamV1ToolOutcome.success

@@ -97,7 +97,8 @@ function isToolDone(status: ToolCallData['status']): boolean {
     status === 'error' ||
     status === 'cancelled' ||
     status === 'skipped' ||
-    status === 'rejected'
+    status === 'rejected' ||
+    status === 'interrupted'
   )
 }
 
@@ -748,11 +749,6 @@ function MessageContentInner({
             )
           }
           case 'agent_group': {
-            const toolItems = segment.items.filter((item) => item.type === 'tool')
-            const allToolsDone =
-              toolItems.length === 0 ||
-              toolItems.every((t) => t.type === 'tool' && isToolDone(t.data.status))
-            const hasFollowingText = segments.slice(i + 1).some((s) => s.type === 'text')
             return (
               <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>
                 <AgentGroup
@@ -762,7 +758,6 @@ function MessageContentInner({
                   items={segment.items}
                   isDelegating={segment.isDelegating}
                   isStreaming={isStreaming}
-                  autoCollapse={!segment.isOpen && allToolsDone && hasFollowingText}
                   defaultExpanded={segment.isOpen}
                 />
               </div>

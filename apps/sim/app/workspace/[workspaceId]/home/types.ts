@@ -68,6 +68,7 @@ export const ToolCallStatus = {
   cancelled: 'cancelled',
   skipped: 'skipped',
   rejected: 'rejected',
+  interrupted: 'interrupted',
 } as const
 export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus]
 

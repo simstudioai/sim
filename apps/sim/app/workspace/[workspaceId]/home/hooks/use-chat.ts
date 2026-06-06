@@ -1375,6 +1375,50 @@ function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {
   }
 }
 
+type ToolResultPhasePayload = {
+  output?: unknown
+  status?: string
+  error?: unknown
+  success?: boolean
+}
+
+function finalizeResidualToolCalls(
+  blocks: ContentBlock[],
+  turnTerminal: 'complete' | 'cancelled' | 'error'
+): void {
+  const endedAt = Date.now()
+  for (const block of blocks) {
+    const tc = block.toolCall
+    if (!tc || tc.status !== ToolCallStatus.executing) continue
+    if (turnTerminal === 'cancelled') {
+      tc.status = ToolCallStatus.cancelled
+      tc.displayTitle = 'Stopped by user'
+    } else if (turnTerminal === 'error') {
+      tc.status = ToolCallStatus.error
+    } else {
+      tc.status = ToolCallStatus.interrupted
+      logger.warn('Tool call unresolved at turn completion', {
+        toolCallId: tc.id,
+        toolName: tc.name,
+      })
+    }
+    if (block.endedAt === undefined) {
+      block.endedAt = endedAt
+    }
+  }
+}
+
+function isTerminalToolCallStatus(status: ToolCallStatus): boolean {
+  return (
+    status === ToolCallStatus.success ||
+    status === ToolCallStatus.error ||
+    status === ToolCallStatus.cancelled ||
+    status === ToolCallStatus.skipped ||
+    status === ToolCallStatus.rejected ||
+    status === ToolCallStatus.interrupted
+  )
+}
+
 function resolveLiveToolStatus(
   payload: Partial<{
     status: string
@@ -1664,6 +1708,7 @@ export function useChat(
   previewSessionsRef.current = previewSessionsById
   const activePreviewSessionIdRef = useRef(activePreviewSessionId)
   activePreviewSessionIdRef.current = activePreviewSessionId
+  const latestPreviewTargetToolCallIdRef = useRef<string | null>(null)
   const previewSessionsStateRef = useRef<FilePreviewSessionsState>({
     activeSessionId: activePreviewSessionId,
     sessions: previewSessionsById,
@@ -1802,6 +1847,7 @@ export function useChat(
     (options?: { removeStreamingResource?: boolean }) => {
       previewActivationOwnerRef.current.clear()
       completedPreviewResourceHandoffRef.current.clear()
+      latestPreviewTargetToolCallIdRef.current = null
       syncPreviewSessionRefs(INITIAL_FILE_PREVIEW_SESSIONS_STATE)
       resetPreviewSessions()
       if (options?.removeStreamingResource) {
@@ -2857,6 +2903,120 @@ export function useChat(
         })
       }
 
+      const pendingToolResults = new Map<string, ToolResultPhasePayload>()
+
+      const applyToolResult = (idx: number, id: string, payload: ToolResultPhasePayload) => {
+        const tc = blocks[idx].toolCall!
+        const outputObj = asPayloadRecord(payload.output)
+        const isCancelled =
+          outputObj?.reason === 'user_cancelled' ||
+          outputObj?.cancelledByUser === true ||
+          payload.status === MothershipStreamV1ToolOutcome.cancelled
+        const status = isCancelled ? ToolCallStatus.cancelled : resolveLiveToolStatus(payload)
+        const isSuccess = status === ToolCallStatus.success
+
+        if (status === ToolCallStatus.cancelled) {
+          tc.status = ToolCallStatus.cancelled
+          tc.displayTitle = 'Stopped by user'
+        } else {
+          tc.status = status
+        }
+        tc.streamingArgs = undefined
+        tc.result = {
+          success: isSuccess,
+          output: payload.output,
+          error: typeof payload.error === 'string' ? payload.error : undefined,
+        }
+        stampBlockEnd(blocks[idx])
+        flush()
+
+        if (tc.name === ReadTool.id && tc.status === 'success') {
+          const readArgs = toolArgsMap.get(id)
+          const resource = extractResourceFromReadResult(
+            typeof readArgs?.path === 'string' ? readArgs.path : undefined,
+            tc.result.output
+          )
+          if (resource && addResource(resource)) {
+            onResourceEventRef.current?.()
+          }
+        }
+
+        if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+          const output = tc.result?.output as Record<string, unknown> | undefined
+          const deployedWorkflowId = (output?.workflowId as string) ?? undefined
+          if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
+            queryClient.invalidateQueries({
+              queryKey: deploymentKeys.info(deployedWorkflowId),
+            })
+            queryClient.invalidateQueries({
+              queryKey: deploymentKeys.versions(deployedWorkflowId),
+            })
+            queryClient.invalidateQueries({
+              queryKey: workflowKeys.list(workspaceId),
+            })
+          }
+        }
+
+        if (FOLDER_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+          queryClient.invalidateQueries({
+            queryKey: folderKeys.list(workspaceId),
+          })
+        }
+        if (WORKFLOW_MUTATION_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+          queryClient.invalidateQueries({
+            queryKey: workflowKeys.list(workspaceId),
+          })
+        }
+
+        const extractedResources =
+          tc.status === 'success' && isResourceToolName(tc.name)
+            ? extractResourcesFromToolResult(
+                tc.name,
+                toolArgsMap.get(id) as Record<string, unknown> | undefined,
+                tc.result?.output
+              )
+            : []
+
+        for (const resource of extractedResources) {
+          invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+        }
+
+        onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
+
+        const workspaceFileOperation =
+          tc.name === WorkspaceFile.id && typeof tc.params?.operation === 'string'
+            ? tc.params.operation
+            : undefined
+        const shouldKeepWorkspacePreviewOpen =
+          tc.name === WorkspaceFile.id &&
+          (workspaceFileOperation === 'append' ||
+            workspaceFileOperation === 'update' ||
+            workspaceFileOperation === 'patch')
+
+        if (
+          (tc.name === WorkspaceFile.id || tc.name === 'edit_content') &&
+          !shouldKeepWorkspacePreviewOpen
+        ) {
+          if (tc.name === WorkspaceFile.id) {
+            removePreviewSessionImmediate(id)
+          }
+          const fileResource = extractedResources.find((r) => r.type === 'file')
+          if (fileResource) {
+            setResources((rs) => {
+              const without = rs.filter((r) => r.id !== 'streaming-file')
+              if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
+                return without
+              }
+              return [...without, fileResource]
+            })
+            setActiveResourceId(fileResource.id)
+            invalidateResourceQueries(queryClient, workspaceId, 'file', fileResource.id)
+          } else if (tc.calledBy !== FILE_SUBAGENT_ID) {
+            setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+          }
+        }
+      }
+
       try {
         const pendingLines: string[] = []
 
@@ -3107,6 +3267,7 @@ export function useChat(
                 }
 
                 if (payload.previewPhase === 'file_preview_start') {
+                  latestPreviewTargetToolCallIdRef.current = id
                   const nextSession: FilePreviewSession = {
                     ...baseSession,
                     status: 'pending',
@@ -3117,6 +3278,7 @@ export function useChat(
                 }
 
                 if (payload.previewPhase === 'file_preview_target') {
+                  latestPreviewTargetToolCallIdRef.current = id
                   const nextSession: FilePreviewSession = {
                     ...baseSession,
                     updatedAt: new Date().toISOString(),
@@ -3166,10 +3328,6 @@ export function useChat(
                         nextSession.targetKind === 'new_file' ||
                         shouldAutoActivatePreviewSession(nextSession),
                     })
-                  }
-                  const previewToolIdx = toolMap.get(id)
-                  if (previewToolIdx !== undefined && blocks[previewToolIdx].toolCall) {
-                    blocks[previewToolIdx].toolCall!.status = 'executing'
                   }
                   break
                 }
@@ -3250,119 +3408,10 @@ export function useChat(
               if (payload.phase === MothershipStreamV1ToolPhase.result) {
                 const idx = toolMap.get(id)
                 if (idx === undefined || !blocks[idx].toolCall) {
+                  pendingToolResults.set(id, payload)
                   break
                 }
-                const tc = blocks[idx].toolCall!
-                const outputObj = asPayloadRecord(payload.output)
-                const isCancelled =
-                  outputObj?.reason === 'user_cancelled' ||
-                  outputObj?.cancelledByUser === true ||
-                  payload.status === MothershipStreamV1ToolOutcome.cancelled
-                const status = isCancelled
-                  ? ToolCallStatus.cancelled
-                  : resolveLiveToolStatus(payload)
-                const isSuccess = status === ToolCallStatus.success
-
-                if (status === ToolCallStatus.cancelled) {
-                  tc.status = ToolCallStatus.cancelled
-                  tc.displayTitle = 'Stopped by user'
-                } else {
-                  tc.status = status
-                }
-                tc.streamingArgs = undefined
-                tc.result = {
-                  success: isSuccess,
-                  output: payload.output,
-                  error: typeof payload.error === 'string' ? payload.error : undefined,
-                }
-                stampBlockEnd(blocks[idx])
-                flush()
-
-                if (tc.name === ReadTool.id && tc.status === 'success') {
-                  const readArgs = toolArgsMap.get(id)
-                  const resource = extractResourceFromReadResult(
-                    typeof readArgs?.path === 'string' ? readArgs.path : undefined,
-                    tc.result.output
-                  )
-                  if (resource && addResource(resource)) {
-                    onResourceEventRef.current?.()
-                  }
-                }
-
-                if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
-                  const output = tc.result?.output as Record<string, unknown> | undefined
-                  const deployedWorkflowId = (output?.workflowId as string) ?? undefined
-                  if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
-                    queryClient.invalidateQueries({
-                      queryKey: deploymentKeys.info(deployedWorkflowId),
-                    })
-                    queryClient.invalidateQueries({
-                      queryKey: deploymentKeys.versions(deployedWorkflowId),
-                    })
-                    queryClient.invalidateQueries({
-                      queryKey: workflowKeys.list(workspaceId),
-                    })
-                  }
-                }
-
-                if (FOLDER_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
-                  queryClient.invalidateQueries({
-                    queryKey: folderKeys.list(workspaceId),
-                  })
-                }
-                if (WORKFLOW_MUTATION_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
-                  queryClient.invalidateQueries({
-                    queryKey: workflowKeys.list(workspaceId),
-                  })
-                }
-
-                const extractedResources =
-                  tc.status === 'success' && isResourceToolName(tc.name)
-                    ? extractResourcesFromToolResult(
-                        tc.name,
-                        toolArgsMap.get(id) as Record<string, unknown> | undefined,
-                        tc.result?.output
-                      )
-                    : []
-
-                for (const resource of extractedResources) {
-                  invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
-                }
-
-                onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
-
-                const workspaceFileOperation =
-                  tc.name === WorkspaceFile.id && typeof tc.params?.operation === 'string'
-                    ? tc.params.operation
-                    : undefined
-                const shouldKeepWorkspacePreviewOpen =
-                  tc.name === WorkspaceFile.id &&
-                  (workspaceFileOperation === 'append' ||
-                    workspaceFileOperation === 'update' ||
-                    workspaceFileOperation === 'patch')
-
-                if (
-                  (tc.name === WorkspaceFile.id || tc.name === 'edit_content') &&
-                  !shouldKeepWorkspacePreviewOpen
-                ) {
-                  if (tc.name === WorkspaceFile.id) {
-                    removePreviewSessionImmediate(id)
-                  }
-                  const fileResource = extractedResources.find((r) => r.type === 'file')
-                  if (fileResource) {
-                    setResources((rs) => {
-                      const without = rs.filter((r) => r.id !== 'streaming-file')
-                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
-                        return without
-                      }
-                      return [...without, fileResource]
-                    })
-                    setActiveResourceId(fileResource.id)
-                    invalidateResourceQueries(queryClient, workspaceId, 'file', fileResource.id)
-                  } else if (tc.calledBy !== FILE_SUBAGENT_ID) {
-                    setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
-                  }
-                }
+                applyToolResult(idx, id, payload)
                 break
               }
 
@@ -3381,17 +3430,33 @@ export function useChat(
               displayTitle = resolveToolDisplayTitle(name, args) ?? displayTitle
 
               if (name === 'edit_content') {
-                const parentToolCallId =
-                  activePreviewSessionIdRef.current ?? previewSessionRef.current?.toolCallId
+                // Fold edit_content into the workspace_file row whose preview it is
+                // applying, so the edit reads as one entry (declare intent + apply).
+                // The preview target is the tool-identity source of truth; the viewer's
+                // active session lingers on the prior file by design, so it must not be
+                // used here.
+                const parentToolCallId = latestPreviewTargetToolCallIdRef.current
                 const parentIdx =
-                  parentToolCallId !== null && parentToolCallId !== undefined
-                    ? toolMap.get(parentToolCallId)
+                  parentToolCallId !== null ? toolMap.get(parentToolCallId) : undefined
+                const parentToolCall =
+                  parentIdx !== undefined ? blocks[parentIdx].toolCall : undefined
+                const parentPreviewSession =
+                  parentToolCallId !== null
+                    ? previewSessionsRef.current[parentToolCallId]
                     : undefined
-                if (parentIdx !== undefined && blocks[parentIdx].toolCall) {
+                // Reuse the row only while the operation is still live: unresolved, or
+                // resolved-success with its preview still streaming. Never reopen a row
+                // whose preview already completed.
+                const canReuseParentRow =
+                  parentToolCall !== undefined &&
+                  (!isTerminalToolCallStatus(parentToolCall.status) ||
+                    (parentToolCall.status === ToolCallStatus.success &&
+                      parentPreviewSession !== undefined &&
+                      parentPreviewSession.status !== 'complete'))
+                if (parentIdx !== undefined && parentToolCall && canReuseParentRow) {
                   toolMap.set(id, parentIdx)
-                  const tc = blocks[parentIdx].toolCall!
-                  tc.status = 'executing'
-                  tc.result = undefined
+                  parentToolCall.status = 'executing'
+                  parentToolCall.result = undefined
                   flush()
                   break
                 }
@@ -3426,6 +3491,11 @@ export function useChat(
                 })
                 if (name === ReadTool.id || isResourceToolName(name)) {
                   if (args) toolArgsMap.set(id, args)
+                }
+                const pendingResult = pendingToolResults.get(id)
+                if (pendingResult !== undefined) {
+                  pendingToolResults.delete(id)
+                  applyToolResult(toolMap.get(id)!, id, pendingResult)
                 }
               } else {
                 const idx = toolMap.get(id)!
@@ -3747,6 +3817,16 @@ export function useChat(
             case MothershipStreamV1EventType.complete: {
               sawCompleteEvent = true
               stampBlockEnd(blocks[blocks.length - 1])
+              const completeResponse = asPayloadRecord(parsed.payload.response)
+              if (completeResponse === undefined || !('async_pause' in completeResponse)) {
+                finalizeResidualToolCalls(
+                  blocks,
+                  parsed.payload.status === MothershipStreamV1CompletionStatus.cancelled
+                    ? 'cancelled'
+                    : 'complete'
+                )
+                flush()
+              }
               // `complete` is the end-of-turn marker; drain whatever
               // else arrived in the same TCP chunk (trailing text,
               // followups, run metadata) before stopping. Do NOT
@@ -3757,6 +3837,10 @@ export function useChat(
           }
         }
       } finally {
+        if (sawStreamError && !sawCompleteEvent) {
+          finalizeResidualToolCalls(blocks, 'error')
+          flush()
+        }
         if (scheduledTextFlushFrame !== null) {
           cancelAnimationFrame(scheduledTextFlushFrame)
           scheduledTextFlushFrame = null
@@ -5433,20 +5517,12 @@ export function useChat(
               if (!hasExecutingTool && !hasOpenBlock) {
                 return msg
               }
-              const updatedBlocks = (msg.contentBlocks ?? []).map((block) => {
-                const stamped = block.endedAt === undefined ? { ...block, endedAt: stopNow } : block
-                if (stamped.toolCall?.status !== 'executing') {
-                  return stamped
-                }
-                return {
-                  ...stamped,
-                  toolCall: {
-                    ...stamped.toolCall,
-                    status: 'cancelled' as const,
-                    displayTitle: 'Stopped by user',
-                  },
-                }
-              })
+              const updatedBlocks: ContentBlock[] = (msg.contentBlocks ?? []).map((block) => ({
+                ...block,
+                ...(block.endedAt === undefined ? { endedAt: stopNow } : {}),
+                ...(block.toolCall ? { toolCall: { ...block.toolCall } } : {}),
+              }))
+              finalizeResidualToolCalls(updatedBlocks, 'cancelled')
               updatedBlocks.push({ type: 'stopped' as const })
               return { ...msg, contentBlocks: updatedBlocks }
             })

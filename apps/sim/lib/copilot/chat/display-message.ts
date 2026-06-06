@@ -25,6 +25,9 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   [MothershipStreamV1ToolOutcome.cancelled]: ToolCallStatus.cancelled,
   [MothershipStreamV1ToolOutcome.rejected]: ToolCallStatus.rejected,
   [MothershipStreamV1ToolOutcome.skipped]: ToolCallStatus.skipped,
+  aborted: ToolCallStatus.cancelled,
+  failed: ToolCallStatus.error,
+  interrupted: ToolCallStatus.interrupted,
   pending: ToolCallStatus.executing,
   executing: ToolCallStatus.executing,
 }

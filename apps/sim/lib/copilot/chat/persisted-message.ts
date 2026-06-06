@@ -20,7 +20,7 @@ import type {
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
 
-export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome
+export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
 
 interface PersistedToolCall {
   id: string
@@ -393,6 +393,9 @@ const OUTCOME_NORMALIZATION: Record<string, PersistedToolState> = {
   [MothershipStreamV1ToolOutcome.cancelled]: MothershipStreamV1ToolOutcome.cancelled,
   [MothershipStreamV1ToolOutcome.skipped]: MothershipStreamV1ToolOutcome.skipped,
   [MothershipStreamV1ToolOutcome.rejected]: MothershipStreamV1ToolOutcome.rejected,
+  aborted: MothershipStreamV1ToolOutcome.cancelled,
+  failed: MothershipStreamV1ToolOutcome.error,
+  interrupted: 'interrupted',
   pending: 'pending',
   executing: 'executing',
 }

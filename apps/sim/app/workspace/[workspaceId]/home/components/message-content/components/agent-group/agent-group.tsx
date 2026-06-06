@@ -32,12 +32,7 @@ interface AgentGroupProps {
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
-  autoCollapse?: boolean
   defaultExpanded?: boolean
-}
-
-function isToolItemDone(item: AgentGroupItem): boolean {
-  return item.type === 'tool' && isToolDone(item.data.status)
 }
 
 function isToolDone(status: ToolCallData['status']): boolean {
@@ -46,7 +41,8 @@ function isToolDone(status: ToolCallData['status']): boolean {
     status === 'error' ||
     status === 'cancelled' ||
     status === 'skipped' ||
-    status === 'rejected'
+    status === 'rejected' ||
+    status === 'interrupted'
   )
 }
 
@@ -56,7 +52,6 @@ export function AgentGroup({
   items,
   isDelegating = false,
   isStreaming = false,
-  autoCollapse = false,
   defaultExpanded = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
@@ -65,43 +60,26 @@ export function AgentGroup({
     (item): item is Extract<AgentGroupItem, { type: 'tool' }> => item.type === 'tool'
   )
   const allDone = toolItems.length > 0 && toolItems.every((t) => isToolDone(t.data.status))
+  const showDelegatingSpinner = isDelegating && !allDone
 
-  const [expanded, setExpanded] = useState(defaultExpanded || !allDone)
-  const didAutoCollapseRef = useRef(allDone)
-  const wasAutoExpandedRef = useRef(defaultExpanded)
-
-  useEffect(() => {
-    if (defaultExpanded) {
-      wasAutoExpandedRef.current = true
-      setExpanded(true)
-      return
-    }
-
-    if (wasAutoExpandedRef.current && allDone) {
-      wasAutoExpandedRef.current = false
-      setExpanded(false)
-    }
-  }, [defaultExpanded, allDone])
-
-  useEffect(() => {
-    if (!autoCollapse || didAutoCollapseRef.current) return
-    didAutoCollapseRef.current = true
-    setExpanded(false)
-  }, [autoCollapse])
+  // Expand only while the turn is live and the group is still open or working.
+  // Once the turn ends (isStreaming false) — or a subagent closes mid-turn — the
+  // group auto-collapses, so finished subagent blocks never stay expanded. A
+  // manual toggle pins the choice for the rest of the message.
+  const autoExpanded = isStreaming && (defaultExpanded || !allDone)
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
+  const expanded = manualExpanded ?? autoExpanded
 
   return (
     <div className='flex flex-col gap-1.5'>
       {hasItems ? (
         <button
           type='button'
-          onClick={() => {
-            wasAutoExpandedRef.current = false
-            setExpanded((prev) => !prev)
-          }}
+          onClick={() => setManualExpanded(!expanded)}
           className='flex cursor-pointer items-center gap-2'
         >
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-            {isDelegating ? (
+            {showDelegatingSpinner ? (
               <PillsRing className='size-[15px] text-[var(--text-icon)]' animate />
             ) : (
               <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
@@ -118,7 +96,7 @@ export function AgentGroup({
       ) : (
         <div className='flex items-center gap-2'>
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-            {isDelegating ? (
+            {showDelegatingSpinner ? (
               <PillsRing className='size-[15px] text-[var(--text-icon)]' animate />
             ) : (
               <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
