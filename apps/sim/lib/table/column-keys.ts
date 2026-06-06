@@ -8,15 +8,8 @@
  * map builders here.
  */
 
-import { generateShortId } from '@sim/utils/id'
+import { generateId } from '@sim/utils/id'
 import type { ColumnDefinition, Filter, RowData, Sort, TableSchema, WorkflowGroup } from './types'
-
-/**
- * Alphanumeric alphabet (no `-`) so a generated `col_…` id satisfies
- * `NAME_PATTERN` — filter/sort field validation runs on the id, and the id is
- * embedded as a JSONB key, so it must contain only safe characters.
- */
-const COLUMN_ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
 /**
  * Resolves a column's stable storage key. Falls back to `name` for legacy
@@ -28,32 +21,16 @@ export function getColumnId(col: Pick<ColumnDefinition, 'id' | 'name'>): string 
 }
 
 /**
- * Mints a fresh, collision-free column id. Generated ids are opaque (`col_…`)
- * and deliberately distinct from display names so renames never disturb them.
- * Checked against `existingIds` (which includes legacy name-as-id values) so a
- * generated id can never alias an existing column.
+ * Mints a fresh column id. Generated ids are opaque (`col_<uuid>`) and
+ * deliberately distinct from display names so renames never disturb them. The
+ * `col_` prefix is required: the id is validated against `NAME_PATTERN` (it's a
+ * JSONB key and a filter/sort field) which must start with a letter/underscore,
+ * and a bare UUID can start with a digit. Dashes are stripped for the same
+ * reason. A v4 UUID's 122 random bits make a collision within a table's columns
+ * effectively impossible, so no uniqueness check is needed.
  */
-export function generateColumnId(existingIds: Iterable<string>): string {
-  const taken = new Set(existingIds)
-  const mint = () => `col_${generateShortId(16, COLUMN_ID_ALPHABET)}`
-  for (let i = 0; i < 100; i++) {
-    const id = mint()
-    if (!taken.has(id)) return id
-  }
-  // Deterministic-RNG fallback (e.g. a fixed-value `generateShortId` mock in
-  // tests): append a counter so a batch of column adds can't collide/loop.
-  let n = 1
-  let id = `${mint()}_${n}`
-  while (taken.has(id)) {
-    n++
-    id = `${mint()}_${n}`
-  }
-  return id
-}
-
-/** All current column ids in a schema (resolved via `getColumnId`). */
-export function collectColumnIds(schema: TableSchema): string[] {
-  return schema.columns.map(getColumnId)
+export function generateColumnId(): string {
+  return `col_${generateId().replace(/-/g, '')}`
 }
 
 /**
@@ -75,15 +52,13 @@ export function columnMatchesRef(col: ColumnDefinition, ref: string): boolean {
  * already carry an id.
  */
 export function withGeneratedColumnIds(schema: TableSchema): TableSchema {
-  const taken = new Set(schema.columns.map(getColumnId))
   const idByName = new Map<string, string>()
   const columns = schema.columns.map((col) => {
     if (col.id) {
       idByName.set(col.name, col.id)
       return col
     }
-    const id = generateColumnId(taken)
-    taken.add(id)
+    const id = generateColumnId()
     idByName.set(col.name, id)
     return { ...col, id }
   })

@@ -3,18 +3,17 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateShortId } = vi.hoisted(() => ({
-  mockGenerateShortId: vi.fn(),
+const { mockGenerateId } = vi.hoisted(() => ({
+  mockGenerateId: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
-  generateShortId: mockGenerateShortId,
+  generateId: mockGenerateId,
 }))
 
 import {
   buildIdByName,
   buildNameById,
-  collectColumnIds,
   filterNamesToIds,
   generateColumnId,
   getColumnId,
@@ -36,22 +35,15 @@ describe('getColumnId', () => {
 })
 
 describe('generateColumnId', () => {
-  it('mints a col_-prefixed id not already taken', () => {
-    let n = 0
-    mockGenerateShortId.mockImplementation(() => `gen${n++}`)
-    expect(generateColumnId([])).toBe('col_gen0')
+  it('mints a col_-prefixed id with the uuid dashes stripped', () => {
+    mockGenerateId.mockReturnValue('11111111-2222-4333-8444-555566667777')
+    expect(generateColumnId()).toBe('col_11111111222243338444555566667777')
   })
 
-  it('skips collisions against existing ids', () => {
-    let n = 0
-    mockGenerateShortId.mockImplementation(() => ['dup', 'dup', 'fresh'][n++] ?? 'x')
-    expect(generateColumnId(['col_dup'])).toBe('col_fresh')
-  })
-
-  it('falls back to a counter suffix when the RNG is fully deterministic', () => {
-    mockGenerateShortId.mockReturnValue('fixed')
-    // 'col_fixed' is taken and the RNG never changes → counter fallback.
-    expect(generateColumnId(['col_fixed'])).toBe('col_fixed_1')
+  it('produces an id that satisfies NAME_PATTERN (valid JSONB key / filter field)', () => {
+    mockGenerateId.mockReturnValue('0a1b2c3d-4e5f-4607-8809-0a1b2c3d4e5f')
+    // Must start with a letter/underscore and contain only [a-z0-9_].
+    expect(generateColumnId()).toMatch(/^[a-z_][a-z0-9_]*$/i)
   })
 })
 
@@ -68,9 +60,6 @@ describe('name ↔ id maps', () => {
   })
   it('buildNameById maps storage id → display name', () => {
     expect(Object.fromEntries(buildNameById(schema))).toEqual({ col_1: 'email', age: 'age' })
-  })
-  it('collectColumnIds resolves every column', () => {
-    expect(collectColumnIds(schema)).toEqual(['col_1', 'age'])
   })
 })
 
@@ -124,7 +113,7 @@ describe('filter / sort translation', () => {
 
 describe('withGeneratedColumnIds', () => {
   it('stamps ids on id-less columns and remaps group refs name → id', () => {
-    mockGenerateShortId.mockReturnValueOnce('a').mockReturnValueOnce('b')
+    mockGenerateId.mockReturnValueOnce('a').mockReturnValueOnce('b')
     const schema: TableSchema = {
       columns: [
         { name: 'email', type: 'string', workflowGroupId: 'g1' },

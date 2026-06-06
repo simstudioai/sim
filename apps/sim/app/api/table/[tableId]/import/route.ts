@@ -22,7 +22,6 @@ import {
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
-  collectColumnIds,
   createCsvParser,
   dispatchAfterBatchInsert,
   generateColumnId,
@@ -193,7 +192,6 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       }
 
       const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
-      const takenIds = new Set(collectColumnIds(table.schema))
       const updatedMapping: CsvHeaderMapping = { ...effectiveMapping }
       const newColumns: TableSchema['columns'] = []
 
@@ -209,8 +207,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         const inferredType = inferColumnType(rows.map((r) => r[header]))
         // Pre-assign the id so the prospective schema (used to coerce rows) and
         // the persisted column (created in importAppendRows) share the same key.
-        const id = generateColumnId(takenIds)
-        takenIds.add(id)
+        const id = generateColumnId()
         additions.push({ id, name: columnName, type: inferredType })
         newColumns.push({
           id,

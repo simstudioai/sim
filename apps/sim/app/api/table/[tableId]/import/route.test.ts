@@ -397,10 +397,10 @@ describe('POST /api/table/[tableId]/import', () => {
         expect.objectContaining({ name: 'email', type: 'string' }),
       ])
       // Existing columns have no id (legacy) → keyed by name; the new `email`
-      // column was assigned id `col_short-id` (mocked generateShortId).
+      // column was assigned id `col_deadbeefcafef00d` (mocked generateId).
       expect(appendRows()).toEqual([
-        { name: 'Alice', age: 30, 'col_short-id': 'a@x.io' },
-        { name: 'Bob', age: 40, 'col_short-id': 'b@x.io' },
+        { name: 'Alice', age: 30, col_deadbeefcafef00d: 'a@x.io' },
+        { name: 'Bob', age: 40, col_deadbeefcafef00d: 'b@x.io' },
       ])
     })
 

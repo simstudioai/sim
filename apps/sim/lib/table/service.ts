@@ -38,7 +38,6 @@ import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import {
-  collectColumnIds,
   columnMatchesRef,
   generateColumnId,
   getColumnId,
@@ -585,7 +584,7 @@ export async function addTableColumn(
     const newColumn: TableSchema['columns'][number] = {
       // Honor a caller-provided id (undo of a delete reuses the original id);
       // otherwise mint a fresh one.
-      id: column.id ?? generateColumnId(collectColumnIds(schema)),
+      id: column.id ?? generateColumnId(),
       name: column.name,
       type: column.type as TableSchema['columns'][number]['type'],
       required: column.required ?? false,
@@ -662,7 +661,6 @@ export async function addTableColumnsWithTx(
   if (columns.length === 0) return table
 
   const usedNames = new Set(table.schema.columns.map((c) => c.name.toLowerCase()))
-  const takenIds = new Set(collectColumnIds(table.schema))
   const additions: TableSchema['columns'] = []
 
   for (const column of columns) {
@@ -688,8 +686,7 @@ export async function addTableColumnsWithTx(
     usedNames.add(lower)
     // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
     // and persistence agree); otherwise mint one.
-    const id = column.id ?? generateColumnId(takenIds)
-    takenIds.add(id)
+    const id = column.id ?? generateColumnId()
     additions.push({
       id,
       name: column.name,
@@ -3932,13 +3929,9 @@ export async function addWorkflowGroup(
     // Assign stable ids to the new output columns, then rewrite the group's
     // column refs from name → id so outputs/deps/inputMappings key on ids —
     // matching the row-data storage key and surviving future renames.
-    const takenIds = new Set(collectColumnIds(schema))
-    const outputColumns = data.outputColumns.map((col) => {
-      if (col.id) return col
-      const id = generateColumnId(takenIds)
-      takenIds.add(id)
-      return { ...col, id }
-    })
+    const outputColumns = data.outputColumns.map((col) =>
+      col.id ? col : { ...col, id: generateColumnId() }
+    )
     const updatedColumns = [...schema.columns, ...outputColumns]
     const idByName = new Map(updatedColumns.map((c) => [c.name, getColumnId(c)]))
     const group = remapGroupColumnRefs(data.group, idByName)
@@ -4083,13 +4076,9 @@ export async function updateWorkflowGroup(
       // row-data storage key). New output columns get ids first; then output
       // `columnName`, deps, input mappings, and mapping-update targets are
       // remapped name → id. Callers that already pass ids are unaffected.
-      const takenIds = new Set(collectColumnIds(schema))
-      const newColDefs = (data.newOutputColumns ?? []).map((col) => {
-        if (col.id) return col
-        const id = generateColumnId(takenIds)
-        takenIds.add(id)
-        return { ...col, id }
-      })
+      const newColDefs = (data.newOutputColumns ?? []).map((col) =>
+        col.id ? col : { ...col, id: generateColumnId() }
+      )
       const idByName = new Map(
         [...schema.columns, ...newColDefs].map((c) => [c.name, getColumnId(c)])
       )
@@ -4474,7 +4463,7 @@ export async function addWorkflowGroupOutput(
     }
 
     const newColDef: ColumnDefinition = {
-      id: generateColumnId(collectColumnIds(schema)),
+      id: generateColumnId(),
       name: columnName,
       type: newColumnType,
       required: false,
