@@ -16,7 +16,7 @@ paths:
 ## Conditional Classes
 
 ```typescript
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 <div className={cn(
   'base-classes',

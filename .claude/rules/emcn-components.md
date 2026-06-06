@@ -38,4 +38,5 @@ The menu surface intentionally diverges from the pill: `dropdown-menu.tsx` items
 - **Delete legacy variants after migration** — don't leave dead paths (this paradigm removed `Input variant='chip'` and `ChipMultiSelect`).
 - **Verify CSS vars exist.** An undefined var resolves to `currentColor` (caused a real black-border bug). Align to the canonical tokens: normal weight, `--text-body`, `--text-icon`.
 - Use Radix UI primitives for accessibility. Export the component and its `variants` (when using CVA). Document with TSDoc + a usage example.
-- Equal height/width → `size-*` (`size-[14px]`, `size-4`), never `h-[Npx] w-[Npx]` or `h-N w-N`. Default icon size is `size-[14px]`.
+
+Color tokens and icon-size conventions are canonical in `.claude/rules/sim-styling.md` — follow it rather than restating.
