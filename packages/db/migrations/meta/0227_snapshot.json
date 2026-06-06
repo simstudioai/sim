@@ -1,5 +1,5 @@
 {
-  "id": "82560b15-d449-4239-bdc4-a50570ecd44c",
+  "id": "04ccd47c-6619-403a-8938-4fd3edbdbdf7",
   "prevId": "22b8a971-eb8a-4fb5-9eaa-35b23799fcc8",
   "version": "7",
   "dialect": "postgresql",
@@ -12380,13 +12380,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "color": {
-          "name": "color",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'#3972F6'"
         },
         "last_synced": {
           "name": "last_synced",

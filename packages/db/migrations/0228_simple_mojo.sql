@@ -1,1 +1,0 @@
-ALTER TABLE "workflow" DROP COLUMN "color";
