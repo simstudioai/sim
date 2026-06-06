@@ -1,6 +1,5 @@
 'use client'
 
-import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
@@ -131,11 +130,11 @@ export function Billing() {
    * Warm the Upgrade route bundle and the exact queries that page gates on, so
    * the click navigates into already-cached data instead of a loading state.
    */
-  const prefetchUpgrade = useCallback(() => {
+  const prefetchUpgrade = () => {
     router.prefetch(upgradeHref)
     prefetchUpgradeBillingData(queryClient)
     prefetchWorkspaceSettings(queryClient, workspaceId)
-  }, [router, queryClient, upgradeHref, workspaceId])
+  }
 
   const hasOrgScopedSubscription = Boolean(subscriptionData?.data?.isOrgScoped)
   const isLoading =
@@ -228,7 +227,7 @@ export function Billing() {
 
   const isTogglingOnDemand = updateUserLimit.isPending || updateOrgLimit.isPending
 
-  const handleToggleOnDemand = useCallback(async () => {
+  const handleToggleOnDemand = async () => {
     if (!permissions.canEditUsageLimit) {
       toast.error("Can't change on-demand usage", {
         description: 'Only organization admins can change on-demand usage.',
@@ -275,17 +274,9 @@ export function Billing() {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutateAsync is stable in TanStack Query v5
-  }, [
-    permissions.canEditUsageLimit,
-    isOnDemandActive,
-    canDisableOnDemand,
-    shouldUseOrganizationBillingContext,
-    billingOrganizationId,
-    planIncludedAmount,
-  ])
+  }
 
-  const handleOpenBillingPortal = useCallback(() => {
+  const handleOpenBillingPortal = () => {
     if (!permissions.canEditUsageLimit) {
       toast.error("Can't manage payment method", {
         description: 'Only organization admins can manage billing.',
@@ -321,10 +312,9 @@ export function Billing() {
         },
       }
     )
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate is stable in TanStack Query v5
-  }, [permissions.canEditUsageLimit, subscription.isOrgScoped, billingOrganizationId])
+  }
 
-  const handleCancelSubscription = useCallback(async () => {
+  const handleCancelSubscription = async () => {
     if (!permissions.canEditUsageLimit) {
       toast.error("Can't cancel subscription", {
         description: 'Only organization admins can cancel the subscription.',
@@ -347,15 +337,9 @@ export function Billing() {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
     }
-  }, [
-    permissions.canEditUsageLimit,
-    betterAuthSubscription,
-    subscription.isOrgScoped,
-    billingOrganizationId,
-    session?.user?.id,
-  ])
+  }
 
-  const handleRestoreSubscription = useCallback(async () => {
+  const handleRestoreSubscription = async () => {
     if (!permissions.canEditUsageLimit) {
       toast.error("Can't restore subscription", {
         description: 'Only organization admins can restore the subscription.',
@@ -378,14 +362,7 @@ export function Billing() {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
     }
-  }, [
-    permissions.canEditUsageLimit,
-    betterAuthSubscription,
-    subscription.isOrgScoped,
-    billingOrganizationId,
-    session?.user?.id,
-    refetchSubscription,
-  ])
+  }
 
   if (isLoading) return null
   if (!subscriptionData?.data) return null
@@ -495,7 +472,7 @@ export function Billing() {
                 <Switch
                   checked={isOnDemandActive}
                   disabled={isTogglingOnDemand || !canManageBilling}
-                  onCheckedChange={() => handleToggleOnDemand()}
+                  onCheckedChange={handleToggleOnDemand}
                 />
               </div>
             </SettingsSection>
@@ -606,12 +583,12 @@ export function Billing() {
                       href={invoice.url}
                       target='_blank'
                       rel='noopener noreferrer'
-                      className={`${rowClassName} hover-hover:bg-[var(--surface-active)]`}
+                      className={cn(rowClassName, 'hover-hover:bg-[var(--surface-active)]')}
                     >
                       {rowContent}
                     </a>
                   ) : (
-                    <div key={invoice.id} className={`${rowClassName} cursor-default`}>
+                    <div key={invoice.id} className={cn(rowClassName, 'cursor-default')}>
                       {rowContent}
                     </div>
                   )
@@ -622,12 +599,13 @@ export function Billing() {
                     type='button'
                     onClick={handleOpenBillingPortal}
                     disabled={openBillingPortal.isPending || !canManageBilling}
+                    aria-label='View all invoices'
                     className={cn(
                       chipVariants({ fullWidth: true }),
                       'text-[var(--text-muted)] text-small'
                     )}
                   >
-                    View all in Stripe
+                    View all
                   </button>
                 )}
               </div>
