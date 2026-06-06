@@ -2543,7 +2543,8 @@ export const auth = betterAuth({
                * marker disambiguates it from a legacy bot id (same `U.../B...` shape);
                * absent it, we keep the legacy format and today's behavior.
                */
-              const authedUser = tokens.raw?.authed_user as { id?: string } | undefined
+              const rawTokens = (tokens as typeof tokens & { raw?: Record<string, unknown> }).raw
+              const authedUser = rawTokens?.authed_user as { id?: string } | undefined
               const installerUserId = authedUser?.id
               const userSegment = installerUserId
                 ? `usr_${installerUserId}`
