@@ -78,6 +78,9 @@ export async function verifyTwilioAuth(
   const authToken = providerConfig.authToken as string | undefined
 
   if (!authToken) {
+    logger.warn(
+      `[${requestId}] ${providerLabel} webhook has no auth token configured — accepting request without signature verification. Configure an auth token to require signed requests.`
+    )
     return null
   }
 
