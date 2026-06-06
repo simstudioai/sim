@@ -95,15 +95,15 @@ const SModalContent = React.forwardRef<
         onPointerUp={(e) => {
           e.stopPropagation()
         }}
-        onPointerDownOutside={(e) => {
+        onInteractOutside={(e) => {
           if (!isInteractionReady) {
             e.preventDefault()
             return
           }
           /**
-           * Mirrors ModalContent: an outside click that dismisses an open
-           * popper layer (dropdown/select/combobox) must not also close the
-           * modal. See modal.tsx for details.
+           * Mirrors ModalContent: an outside interaction (pointer or the
+           * transient focus shift from a closing popper) that dismisses an
+           * open popper layer must not also close the modal. See modal.tsx.
            */
           if (document.querySelector('[data-radix-popper-content-wrapper] [data-state="open"]')) {
             e.preventDefault()

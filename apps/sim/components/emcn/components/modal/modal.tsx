@@ -217,20 +217,24 @@ const ModalContent = React.forwardRef<
             onPointerUp={(e) => {
               e.stopPropagation()
             }}
-            onPointerDownOutside={(e) => {
+            onInteractOutside={(e) => {
               if (!isInteractionReady) {
                 e.preventDefault()
                 return
               }
               /**
-               * Radix dispatches pointer-down-outside to every open layer at
-               * once, so a click that should only dismiss an open dropdown /
-               * select / combobox (portaled into a popper wrapper above this
-               * modal) would also close the modal. Keep the modal open and let
-               * the click dismiss just the popper layer. The `data-state="open"`
-               * filter ignores poppers that are merely animating closed, so a
-               * follow-up click during the exit animation still dismisses the
-               * modal.
+               * Radix dispatches outside-interaction events to every open
+               * layer at once, so a click that should only dismiss an open
+               * dropdown / select / combobox (portaled into a popper wrapper
+               * above this modal) would also close the modal — both via the
+               * pointer event and via the transient focus shift when the
+               * popper's focus scope unwinds (`focusOutside`). Worse, the
+               * modal and the popper tearing down their body pointer-events
+               * locks in the same tick can leave the page frozen. Keep the
+               * modal open and let the interaction dismiss just the popper
+               * layer. The `data-state="open"` filter ignores poppers that
+               * are merely animating closed, so a follow-up click during the
+               * exit animation still dismisses the modal.
                */
               if (
                 document.querySelector('[data-radix-popper-content-wrapper] [data-state="open"]')
