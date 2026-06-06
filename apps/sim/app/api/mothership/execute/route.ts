@@ -128,6 +128,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messages,
       responseFormat,
       userId,
+      // Go's auth middleware reads workspaceId off the request body to forward
+      // to /api/copilot/api-keys/validate (per-member org usage gate). Omitting
+      // it makes that validation 400 ("API key validation failed"), which kills
+      // the block. The chat path sends it via buildCopilotRequestPayload; the
+      // block path must too.
+      workspaceId,
       chatId: effectiveChatId,
       mode: 'agent',
       messageId,

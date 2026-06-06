@@ -81,7 +81,12 @@ describe('buildWorkspaceMd - connected integrations / credentials', () => {
     const md = buildWorkspaceMd(
       baseData({
         oauthIntegrations: [
-          { id: 'cred-abc', providerId: 'google-email', displayName: 'alice@example.com', role: 'admin' },
+          {
+            id: 'cred-abc',
+            providerId: 'google-email',
+            displayName: 'alice@example.com',
+            role: 'admin',
+          },
           { id: 'cred-def', providerId: 'slack', displayName: 'Workspace Bot', role: 'member' },
         ],
       })
