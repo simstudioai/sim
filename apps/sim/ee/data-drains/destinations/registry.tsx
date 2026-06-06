@@ -3,9 +3,9 @@
 import type { ComponentType } from 'react'
 import {
   ChipInput,
+  ChipModalField,
   ChipSelect,
   ChipTextarea,
-  FormField,
   SecretInput,
   Switch,
 } from '@/components/emcn'
@@ -51,50 +51,54 @@ const s3FormSpec: DestinationFormSpec<S3State> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <FormField label='Bucket'>
+      <ChipModalField type='custom' flush title='Bucket'>
         <ChipInput
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
+          placeholder='my-logs-bucket'
         />
-      </FormField>
-      <FormField label='Region'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Region'>
         <ChipInput
           value={state.region}
           onChange={(e) => setState({ ...state, region: e.target.value })}
+          placeholder='us-east-1'
         />
-      </FormField>
-      <FormField label='Prefix (optional)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Prefix (optional)'>
         <ChipInput
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
-      </FormField>
-      <FormField label='Endpoint (optional, S3-compatible stores)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Endpoint (optional, S3-compatible stores)'>
         <ChipInput
           value={state.endpoint}
           onChange={(e) => setState({ ...state, endpoint: e.target.value })}
           placeholder='https://s3.example.com'
         />
-      </FormField>
-      <FormField label='Force path style (MinIO, Ceph)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Force path style (MinIO, Ceph)'>
         <Switch
           checked={state.forcePathStyle}
           onCheckedChange={(v) => setState({ ...state, forcePathStyle: v })}
         />
-      </FormField>
-      <FormField label='Access key ID'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Access key ID'>
         <SecretInput
           value={state.accessKeyId}
           onChange={(v) => setState({ ...state, accessKeyId: v })}
+          placeholder='AKIA...'
         />
-      </FormField>
-      <FormField label='Secret access key'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Secret access key'>
         <SecretInput
           value={state.secretAccessKey}
           onChange={(v) => setState({ ...state, secretAccessKey: v })}
+          placeholder='Paste your secret access key'
         />
-      </FormField>
+      </ChipModalField>
     </>
   ),
   isComplete: (s) =>
@@ -129,27 +133,28 @@ const gcsFormSpec: DestinationFormSpec<GCSState> = {
   initialState: { bucket: '', prefix: '', serviceAccountJson: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <FormField label='Bucket'>
+      <ChipModalField type='custom' flush title='Bucket'>
         <ChipInput
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
+          placeholder='my-logs-bucket'
         />
-      </FormField>
-      <FormField label='Prefix (optional)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Prefix (optional)'>
         <ChipInput
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
-      </FormField>
-      <FormField label='Service account JSON key'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Service account JSON key'>
         <ChipTextarea
           value={state.serviceAccountJson}
           onChange={(e) => setState({ ...state, serviceAccountJson: e.target.value })}
           placeholder='{ "type": "service_account", ... }'
           rows={6}
         />
-      </FormField>
+      </ChipModalField>
     </>
   ),
   isComplete: (s) => s.bucket.length >= 3 && s.serviceAccountJson.length > 0,
@@ -179,38 +184,41 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <FormField label='Account name'>
+      <ChipModalField type='custom' flush title='Account name'>
         <ChipInput
           value={state.accountName}
           onChange={(e) => setState({ ...state, accountName: e.target.value })}
+          placeholder='mystorageaccount'
         />
-      </FormField>
-      <FormField label='Container'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Container'>
         <ChipInput
           value={state.containerName}
           onChange={(e) => setState({ ...state, containerName: e.target.value })}
+          placeholder='sim-exports'
         />
-      </FormField>
-      <FormField label='Prefix (optional)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Prefix (optional)'>
         <ChipInput
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
-      </FormField>
-      <FormField label='Endpoint suffix (optional)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Endpoint suffix (optional)'>
         <ChipInput
           value={state.endpointSuffix}
           onChange={(e) => setState({ ...state, endpointSuffix: e.target.value })}
           placeholder='blob.core.windows.net'
         />
-      </FormField>
-      <FormField label='Account key'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Account key'>
         <SecretInput
           value={state.accountKey}
           onChange={(v) => setState({ ...state, accountKey: v })}
+          placeholder='Paste your storage account key'
         />
-      </FormField>
+      </ChipModalField>
     </>
   ),
   isComplete: (s) =>
@@ -249,31 +257,35 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
   initialState: { site: 'us1', service: '', tags: '', apiKey: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <FormField label='Site'>
+      <ChipModalField type='custom' flush title='Site'>
         <ChipSelect
           value={state.site}
           onChange={(v) => setState({ ...state, site: v as DatadogState['site'] })}
           options={DATADOG_SITE_OPTIONS}
           align='start'
         />
-      </FormField>
-      <FormField label='Service (optional)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Service (optional)'>
         <ChipInput
           value={state.service}
           onChange={(e) => setState({ ...state, service: e.target.value })}
           placeholder='sim'
         />
-      </FormField>
-      <FormField label='Tags (optional, comma-separated)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Tags (optional, comma-separated)'>
         <ChipInput
           value={state.tags}
           onChange={(e) => setState({ ...state, tags: e.target.value })}
           placeholder='env:prod,team:platform'
         />
-      </FormField>
-      <FormField label='API key'>
-        <SecretInput value={state.apiKey} onChange={(v) => setState({ ...state, apiKey: v })} />
-      </FormField>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='API key'>
+        <SecretInput
+          value={state.apiKey}
+          onChange={(v) => setState({ ...state, apiKey: v })}
+          placeholder='Paste your Datadog API key'
+        />
+      </ChipModalField>
     </>
   ),
   isComplete: (s) => s.apiKey.length > 0,
@@ -300,35 +312,35 @@ const bigqueryFormSpec: DestinationFormSpec<BigQueryState> = {
   initialState: { projectId: '', datasetId: '', tableId: '', serviceAccountJson: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <FormField label='Project ID'>
+      <ChipModalField type='custom' flush title='Project ID'>
         <ChipInput
           value={state.projectId}
           onChange={(e) => setState({ ...state, projectId: e.target.value })}
           placeholder='my-gcp-project'
         />
-      </FormField>
-      <FormField label='Dataset'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Dataset'>
         <ChipInput
           value={state.datasetId}
           onChange={(e) => setState({ ...state, datasetId: e.target.value })}
           placeholder='sim_drains'
         />
-      </FormField>
-      <FormField label='Table'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Table'>
         <ChipInput
           value={state.tableId}
           onChange={(e) => setState({ ...state, tableId: e.target.value })}
           placeholder='workflow_logs'
         />
-      </FormField>
-      <FormField label='Service account JSON key'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Service account JSON key'>
         <ChipTextarea
           value={state.serviceAccountJson}
           onChange={(e) => setState({ ...state, serviceAccountJson: e.target.value })}
           placeholder='{ "type": "service_account", ... }'
           rows={6}
         />
-      </FormField>
+      </ChipModalField>
     </>
   ),
   isComplete: (s) =>
@@ -370,65 +382,70 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
   },
   FormFields: ({ state, setState }) => (
     <>
-      <FormField label='Account identifier'>
+      <ChipModalField type='custom' flush title='Account identifier'>
         <ChipInput
           value={state.account}
           onChange={(e) => setState({ ...state, account: e.target.value })}
           placeholder='orgname-accountname'
         />
-      </FormField>
-      <FormField label='User'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='User'>
         <ChipInput
           value={state.user}
           onChange={(e) => setState({ ...state, user: e.target.value })}
           placeholder='SIM_DRAIN_USER'
         />
-      </FormField>
-      <FormField label='Warehouse'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Warehouse'>
         <ChipInput
           value={state.warehouse}
           onChange={(e) => setState({ ...state, warehouse: e.target.value })}
+          placeholder='COMPUTE_WH'
         />
-      </FormField>
-      <FormField label='Database'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Database'>
         <ChipInput
           value={state.database}
           onChange={(e) => setState({ ...state, database: e.target.value })}
+          placeholder='SIM'
         />
-      </FormField>
-      <FormField label='Schema'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Schema'>
         <ChipInput
           value={state.schema}
           onChange={(e) => setState({ ...state, schema: e.target.value })}
+          placeholder='PUBLIC'
         />
-      </FormField>
-      <FormField label='Table'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Table'>
         <ChipInput
           value={state.table}
           onChange={(e) => setState({ ...state, table: e.target.value })}
+          placeholder='WORKFLOW_LOGS'
         />
-      </FormField>
-      <FormField label='Column (optional, defaults to "DATA")'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Column (optional, defaults to "DATA")'>
         <ChipInput
           value={state.column}
           onChange={(e) => setState({ ...state, column: e.target.value })}
           placeholder='DATA'
         />
-      </FormField>
-      <FormField label='Role (optional)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Role (optional)'>
         <ChipInput
           value={state.role}
           onChange={(e) => setState({ ...state, role: e.target.value })}
+          placeholder='SIM_DRAIN_ROLE'
         />
-      </FormField>
-      <FormField label='Private key (PEM, PKCS8)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Private key (PEM, PKCS8)'>
         <ChipTextarea
           value={state.privateKey}
           onChange={(e) => setState({ ...state, privateKey: e.target.value })}
           placeholder='-----BEGIN PRIVATE KEY-----'
           rows={6}
         />
-      </FormField>
+      </ChipModalField>
     </>
   ),
   isComplete: (s) =>
@@ -467,32 +484,34 @@ const webhookFormSpec: DestinationFormSpec<WebhookState> = {
   initialState: { url: '', signatureHeader: '', signingSecret: '', bearerToken: '' },
   FormFields: ({ state, setState }) => (
     <>
-      <FormField label='URL'>
+      <ChipModalField type='custom' flush title='URL'>
         <ChipInput
           value={state.url}
           onChange={(e) => setState({ ...state, url: e.target.value })}
           placeholder='https://example.com/sim-drain'
         />
-      </FormField>
-      <FormField label='Signature header (optional)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Signature header (optional)'>
         <ChipInput
           value={state.signatureHeader}
           onChange={(e) => setState({ ...state, signatureHeader: e.target.value })}
           placeholder='X-Sim-Signature'
         />
-      </FormField>
-      <FormField label='Signing secret'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Signing secret'>
         <SecretInput
           value={state.signingSecret}
           onChange={(v) => setState({ ...state, signingSecret: v })}
+          placeholder='At least 32 characters'
         />
-      </FormField>
-      <FormField label='Bearer token (optional)'>
+      </ChipModalField>
+      <ChipModalField type='custom' flush title='Bearer token (optional)'>
         <SecretInput
           value={state.bearerToken}
           onChange={(v) => setState({ ...state, bearerToken: v })}
+          placeholder='Paste your bearer token'
         />
-      </FormField>
+      </ChipModalField>
     </>
   ),
   isComplete: (s) => s.url.length > 0 && s.signingSecret.length >= 32,
