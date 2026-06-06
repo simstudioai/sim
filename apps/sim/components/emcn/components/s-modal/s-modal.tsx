@@ -95,6 +95,20 @@ const SModalContent = React.forwardRef<
         onPointerUp={(e) => {
           e.stopPropagation()
         }}
+        onPointerDownOutside={(e) => {
+          if (!isInteractionReady) {
+            e.preventDefault()
+            return
+          }
+          /**
+           * Mirrors ModalContent: an outside click that dismisses an open
+           * popper layer (dropdown/select/combobox) must not also close the
+           * modal. See modal.tsx for details.
+           */
+          if (document.querySelector('[data-radix-popper-content-wrapper] [data-state="open"]')) {
+            e.preventDefault()
+          }
+        }}
         onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
         {...props}
       >

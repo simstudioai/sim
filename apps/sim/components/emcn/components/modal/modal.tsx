@@ -227,9 +227,14 @@ const ModalContent = React.forwardRef<
                * once, so a click that should only dismiss an open dropdown /
                * select / combobox (portaled into a popper wrapper above this
                * modal) would also close the modal. Keep the modal open and let
-               * the click dismiss just the popper layer.
+               * the click dismiss just the popper layer. The `data-state="open"`
+               * filter ignores poppers that are merely animating closed, so a
+               * follow-up click during the exit animation still dismisses the
+               * modal.
                */
-              if (document.querySelector('[data-radix-popper-content-wrapper]')) {
+              if (
+                document.querySelector('[data-radix-popper-content-wrapper] [data-state="open"]')
+              ) {
                 e.preventDefault()
               }
             }}
