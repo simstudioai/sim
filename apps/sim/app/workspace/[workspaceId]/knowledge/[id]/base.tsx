@@ -15,12 +15,12 @@ import {
   ChipDatePicker,
   ChipDropdown,
   type ChipDropdownOption,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
   chipVariants,
-  Input,
   Loader,
   Tooltip,
   Trash,
@@ -1047,13 +1047,10 @@ export function KnowledgeBase({
                         {tagsDisplayText}
                       </span>
                     </Tooltip.Trigger>
-                    <Tooltip.Content
-                      side='top'
-                      className='max-h-[104px] max-w-[240px] overflow-y-auto'
-                    >
+                    <Tooltip.Content side='top' className='max-w-[240px]'>
                       <div className='flex flex-col gap-0.5'>
                         {tags.map((tag) => (
-                          <div key={tag.slot} className='text-xs'>
+                          <div key={tag.slot} className='truncate text-xs'>
                             <span className='text-[var(--text-muted)]'>{tag.displayName}:</span>{' '}
                             {tag.value}
                           </div>
@@ -1527,17 +1524,13 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
   if (isBetween) {
     return (
       <div className='grid grid-cols-[1fr_auto_1fr] items-center gap-2'>
-        <Input
-          variant='chip'
-          size={1}
+        <ChipInput
           value={entry.value}
           onChange={(event) => onChange({ value: event.target.value })}
           placeholder='From'
         />
         <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>to</span>
-        <Input
-          variant='chip'
-          size={1}
+        <ChipInput
           value={entry.valueTo}
           onChange={(event) => onChange({ valueTo: event.target.value })}
           placeholder='To'
@@ -1547,9 +1540,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
   }
 
   return (
-    <Input
-      variant='chip'
-      size={1}
+    <ChipInput
       value={entry.value}
       onChange={(event) => onChange({ value: event.target.value })}
       placeholder={

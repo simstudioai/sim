@@ -276,13 +276,13 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
 }
 
 export const WealthboxBlockMeta = {
-  tags: ['sales-engagement', 'customer-support'],
+  tags: ['sales-engagement'],
   templates: [
     {
       icon: WealthboxIcon,
       title: 'Wealthbox CRM mirror',
       prompt:
-        'Build a scheduled workflow that mirrors Wealthbox contacts and tasks into a Sim table for unified reporting alongside other sales-pipeline data.',
+        'Build a scheduled workflow that reads the Wealthbox contacts and tasks listed by ID in a Sim table, refreshes each row with the latest details, and keeps the table in sync for unified reporting.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'crm', 'sync'],
@@ -311,7 +311,7 @@ export const WealthboxBlockMeta = {
       icon: WealthboxIcon,
       title: 'Wealthbox compliance audit',
       prompt:
-        'Create a scheduled workflow that audits Wealthbox client records monthly for missing KYC fields or stale notes and writes a compliance backlog to a table.',
+        'Create a scheduled workflow that reads each Wealthbox contact listed in a tracking table monthly, checks for missing KYC fields or stale notes, and writes a compliance backlog to a table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'legal'],
@@ -320,8 +320,8 @@ export const WealthboxBlockMeta = {
       icon: WealthboxIcon,
       title: 'Wealthbox birthday reminder',
       prompt:
-        'Build a scheduled workflow that runs daily, surfaces Wealthbox client birthdays for the next 7 days, and emails advisors a reminder with a personalized message draft.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a scheduled workflow that runs daily, reads the Wealthbox contacts tracked in a table to find birthdays in the next 7 days, and emails advisors a reminder with a personalized message draft.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'communication'],
       alsoIntegrations: ['gmail'],
@@ -330,8 +330,8 @@ export const WealthboxBlockMeta = {
       icon: WealthboxIcon,
       title: 'Wealthbox book-of-business digest',
       prompt:
-        'Create a scheduled weekly workflow that summarizes Wealthbox book-of-business metrics by advisor, writes a digest table, and posts the summary to leadership.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Create a scheduled weekly workflow that reads the contacts and open tasks for each advisor from a tracking table, summarizes the book-of-business activity, and posts the digest to leadership in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'reporting'],
       alsoIntegrations: ['slack'],
@@ -340,8 +340,8 @@ export const WealthboxBlockMeta = {
       icon: WealthboxIcon,
       title: 'Wealthbox referral tracker',
       prompt:
-        'Build a workflow that watches Wealthbox for new referral notes, captures the source and prospect, writes the referral chain into a CRM table, and pings the advisor.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls Wealthbox notes for new referrals, captures the source and prospect, writes the referral chain into a CRM table, and pings the advisor in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'crm'],
       alsoIntegrations: ['slack'],

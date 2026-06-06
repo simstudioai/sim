@@ -447,13 +447,13 @@ Example:
 }
 
 export const HexBlockMeta = {
-  tags: ['data-warehouse', 'data-analytics'],
+  tags: ['data-analytics'],
   templates: [
     {
       icon: HexIcon,
       title: 'Hex project notebook runner',
       prompt:
-        'Create a scheduled workflow that runs a Hex notebook with parameters every morning, pulls the rendered outputs, and posts the latest charts and summary to a Slack data channel.',
+        'Create a scheduled workflow that runs a Hex notebook with parameters every morning, waits for the run to finish, and posts a summary with the published notebook link to a Slack data channel.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['analysis', 'reporting'],
@@ -473,8 +473,8 @@ export const HexBlockMeta = {
       icon: HexIcon,
       title: 'Hex executive metrics email',
       prompt:
-        'Create a scheduled weekly workflow that runs a Hex executive dashboard notebook, exports the rendered HTML, and emails it as a snapshot to the leadership distribution list every Monday morning.',
-      modules: ['scheduled', 'agent', 'files', 'workflows'],
+        'Create a scheduled weekly workflow that runs a Hex executive dashboard notebook, summarizes the run results, and emails a snapshot with the dashboard link to the leadership distribution list every Monday morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['reporting', 'enterprise'],
       alsoIntegrations: ['gmail'],
@@ -493,7 +493,7 @@ export const HexBlockMeta = {
       icon: HexIcon,
       title: 'Hex + Stripe revenue notebook',
       prompt:
-        'Build a scheduled workflow that runs a Hex notebook over Stripe payment data daily, captures MRR, churn, and expansion metrics, and pushes the rendered chart to a Slack data channel.',
+        'Build a scheduled workflow that runs a Hex notebook over Stripe payment data daily, captures MRR, churn, and expansion metrics, and posts a summary with the notebook link to a Slack data channel.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'reporting'],
@@ -503,7 +503,7 @@ export const HexBlockMeta = {
       icon: HexIcon,
       title: 'Hex + Amplitude product notebook',
       prompt:
-        'Create a workflow that runs a Hex notebook joining Amplitude data with internal sources weekly, captures retention and feature adoption, and emails the rendered HTML to the product team.',
+        'Create a scheduled workflow that runs a Hex notebook joining Amplitude data with internal sources weekly, captures retention and feature adoption, and emails a summary with the notebook link to the product team.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['product', 'analysis'],

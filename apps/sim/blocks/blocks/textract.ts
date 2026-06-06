@@ -297,8 +297,8 @@ export const TextractBlockMeta = {
       icon: TextractIcon,
       title: 'Textract invoice extractor',
       prompt:
-        'Create a workflow that watches an S3 folder for new PDFs, runs AWS Textract to extract line items and totals, writes the structured fields to a table, and flags invoices that fail validation.',
-      modules: ['tables', 'files', 'agent', 'workflows'],
+        'Create a scheduled workflow that polls an S3 folder for new PDFs, runs AWS Textract to extract line items and totals, writes the structured fields to a table, and flags invoices that fail validation.',
+      modules: ['scheduled', 'tables', 'files', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'automation'],
       alsoIntegrations: ['s3'],
@@ -340,7 +340,7 @@ export const TextractBlockMeta = {
       modules: ['files', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['automation', 'analysis'],
-      alsoIntegrations: ['reducto', 'extend'],
+      alsoIntegrations: ['reducto'],
     },
     {
       icon: TextractIcon,

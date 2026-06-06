@@ -300,19 +300,19 @@ export const WebflowBlockMeta = {
     },
     {
       icon: WebflowIcon,
-      title: 'Webflow site backup',
+      title: 'Webflow CMS backup',
       prompt:
-        'Build a scheduled workflow that exports a Webflow site’s CMS items and assets to S3 nightly with versioning, and writes the backup manifest to a tracking table.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a scheduled workflow that exports every item from a Webflow CMS collection to S3 nightly with versioning, and writes the backup manifest to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'sync'],
       alsoIntegrations: ['s3'],
     },
     {
       icon: WebflowIcon,
-      title: 'Webflow ecommerce inventory sync',
+      title: 'Webflow product catalog sync',
       prompt:
-        'Create a workflow that mirrors Shopify product inventory and pricing into a Webflow store, ensures both stay in sync, and posts conflict alerts to Slack.',
+        'Create a scheduled workflow that mirrors Shopify products and pricing into a Webflow CMS product collection, keeps both in sync, and posts conflict alerts to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['ecommerce', 'sync'],

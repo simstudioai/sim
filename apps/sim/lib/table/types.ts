@@ -204,6 +204,11 @@ export interface TableRow {
   /** Per-group execution state for this row. Empty `{}` if nothing has run. */
   executions: RowExecutions
   position: number
+  /**
+   * Fractional order key. Authoritative row order when `TABLES_FRACTIONAL_ORDERING`
+   * is on; absent only for rows not yet backfilled (clients fall back to `position`).
+   */
+  orderKey?: string
   createdAt: Date | string
   updatedAt: Date | string
 }
@@ -337,6 +342,10 @@ export interface InsertRowData {
   userId?: string
   /** Optional explicit position. When omitted, the row is appended after the last position. */
   position?: number
+  /** Insert directly after this row (fractional ordering). Takes precedence over `position`. */
+  afterRowId?: string
+  /** Insert directly before this row (fractional ordering). Takes precedence over `position`. */
+  beforeRowId?: string
 }
 
 export interface BatchInsertData {
@@ -346,6 +355,11 @@ export interface BatchInsertData {
   userId?: string
   /** Optional per-row target positions. Length must equal `rows.length`. */
   positions?: number[]
+  /**
+   * Optional per-row exact order keys (undo restore re-inserts at the saved key).
+   * Length must equal `rows.length`. Takes precedence over `positions`.
+   */
+  orderKeys?: string[]
 }
 
 export interface UpsertRowData {

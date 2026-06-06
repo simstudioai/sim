@@ -94,30 +94,31 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     try {
-      const resultSkills = await upsertSkills({
+      const { skills: resultSkills, touched } = await upsertSkills({
         skills,
         workspaceId,
         userId,
         requestId,
       })
 
-      for (const skill of resultSkills) {
+      for (const { id, name, operation } of touched) {
+        const isUpdate = operation === 'updated'
         recordAudit({
           workspaceId,
           actorId: userId,
           actorName: authResult.userName ?? undefined,
           actorEmail: authResult.userEmail ?? undefined,
-          action: AuditAction.SKILL_CREATED,
+          action: isUpdate ? AuditAction.SKILL_UPDATED : AuditAction.SKILL_CREATED,
           resourceType: AuditResourceType.SKILL,
-          resourceId: skill.id,
-          resourceName: skill.name,
-          description: `Created/updated skill "${skill.name}"`,
+          resourceId: id,
+          resourceName: name,
+          description: `${isUpdate ? 'Updated' : 'Created'} skill "${name}"`,
           metadata: { source },
         })
         captureServerEvent(
           userId,
-          'skill_created',
-          { skill_id: skill.id, skill_name: skill.name, workspace_id: workspaceId, source },
+          isUpdate ? 'skill_updated' : 'skill_created',
+          { skill_id: id, skill_name: name, workspace_id: workspaceId, source },
           { groups: { workspace: workspaceId } }
         )
       }

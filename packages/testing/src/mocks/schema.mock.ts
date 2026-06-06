@@ -76,7 +76,6 @@ export const schemaMock = {
     sortOrder: 'sortOrder',
     name: 'name',
     description: 'description',
-    color: 'color',
     lastSynced: 'lastSynced',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',

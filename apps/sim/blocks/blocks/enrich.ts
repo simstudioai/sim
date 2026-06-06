@@ -626,7 +626,7 @@ export const EnrichBlock: BlockConfig = {
 }
 
 export const EnrichBlockMeta = {
-  tags: ['enrichment', 'data-analytics'],
+  tags: ['enrichment'],
   templates: [
     {
       icon: EnrichSoIcon,
@@ -688,13 +688,13 @@ export const EnrichBlockMeta = {
     },
     {
       icon: EnrichSoIcon,
-      title: 'Enrich + LinkedIn validator',
+      title: 'Enrich LinkedIn role validator',
       prompt:
-        'Build a workflow that validates LinkedIn profile URLs in the CRM using Enrich, flags outdated roles, and updates the contact record with the current title.',
+        'Build a scheduled workflow that reads HubSpot contacts with a LinkedIn profile URL, re-enriches each with Enrich, flags outdated roles, and updates the contact record with the current title.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'research'],
-      alsoIntegrations: ['linkedin'],
+      alsoIntegrations: ['hubspot'],
     },
   ],
 } as const satisfies BlockMeta

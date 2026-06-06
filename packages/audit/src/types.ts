@@ -114,6 +114,9 @@ export const AuditAction = {
   CREDENTIAL_RENAMED: 'credential.renamed',
   CREDENTIAL_RECONNECTED: 'credential.reconnected',
   CREDENTIAL_DELETED: 'credential.deleted',
+  CREDENTIAL_MEMBER_ADDED: 'credential_member.added',
+  CREDENTIAL_MEMBER_REMOVED: 'credential_member.removed',
+  CREDENTIAL_MEMBER_ROLE_CHANGED: 'credential_member.role_changed',
 
   // Password
   PASSWORD_RESET_REQUESTED: 'password.reset_requested',
@@ -133,6 +136,8 @@ export const AuditAction = {
   ORG_INVITATION_CANCELLED: 'org_invitation.cancelled',
   ORG_INVITATION_REVOKED: 'org_invitation.revoked',
   ORG_INVITATION_RESENT: 'org_invitation.resent',
+  ORG_SEAT_PROVISIONED: 'org_seat.provisioned',
+  ORG_PLAN_CONVERTED: 'org_plan.converted',
 
   // Permission Groups
   PERMISSION_GROUP_CREATED: 'permission_group.created',

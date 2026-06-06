@@ -187,9 +187,9 @@ export const GoogleMeetBlockMeta = {
   templates: [
     {
       icon: GoogleMeetIcon,
-      title: 'Google Meet recap to Drive',
+      title: 'Google Meet conference recap to Drive',
       prompt:
-        'Build a workflow that processes Google Meet meeting recordings, generates a structured recap, and saves the document to a per-team folder in Google Drive.',
+        'Build a workflow that pulls the conference record and participant list for a finished Google Meet, generates a structured attendance and follow-up recap with an agent, and saves the document to a per-team folder in Google Drive.',
       modules: ['agent', 'files', 'workflows'],
       category: 'productivity',
       tags: ['team', 'content'],
@@ -197,23 +197,22 @@ export const GoogleMeetBlockMeta = {
     },
     {
       icon: GoogleMeetIcon,
-      title: 'Google Meet attendee notifier',
+      title: 'Google Meet daily meeting links',
       prompt:
-        'Create a workflow that watches scheduled Google Meet meetings, sends a 10-minute warning to all attendees via Gmail with the agenda and join link, and updates the calendar event with prep links.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        "Create a scheduled workflow that reads the day's meetings from a table each morning, creates a Google Meet space for each one, and emails attendees the agenda and join link via Gmail.",
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'communication'],
       alsoIntegrations: ['gmail'],
     },
     {
       icon: GoogleMeetIcon,
-      title: 'Google Meet recording archiver',
+      title: 'Google Meet conference record archiver',
       prompt:
-        'Build a scheduled workflow that lists Google Meet recordings older than 30 days, moves them to long-term archive storage in Google Drive, and updates the source-of-truth meetings table.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a scheduled workflow that lists Google Meet conference records, captures attendance and duration per meeting, and writes the history to a source-of-truth meetings table for reporting.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'automation'],
-      alsoIntegrations: ['google_drive'],
     },
     {
       icon: GoogleMeetIcon,
@@ -239,7 +238,7 @@ export const GoogleMeetBlockMeta = {
       icon: GoogleMeetIcon,
       title: 'Google Meet customer interview logger',
       prompt:
-        'Create a workflow that captures Google Meet customer-interview transcripts, extracts themes, quotes, and feature requests, and writes structured rows to a research table.',
+        'Create a workflow that takes a customer-interview note or transcript, pulls the matching Google Meet conference record and participants for context, extracts themes, quotes, and feature requests with an agent, and writes structured rows to a research table.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['research', 'product'],

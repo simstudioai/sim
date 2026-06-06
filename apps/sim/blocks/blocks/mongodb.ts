@@ -990,8 +990,8 @@ export const MongoDBBlockMeta = {
       icon: MongoDBIcon,
       title: 'MongoDB to vector enrichment',
       prompt:
-        'Build a workflow that watches a MongoDB collection for new documents, generates OpenAI embeddings, and upserts them into Pinecone with the source document ID for retrieval.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls a MongoDB collection for new documents, generates OpenAI embeddings, and upserts them into Pinecone with the source document ID for retrieval.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'sync'],
       alsoIntegrations: ['pinecone', 'openai'],
@@ -1000,8 +1000,8 @@ export const MongoDBBlockMeta = {
       icon: MongoDBIcon,
       title: 'MongoDB user-event triage',
       prompt:
-        'Create a workflow that subscribes to MongoDB change streams on a user-events collection, classifies events as engagement or risk signals, and writes high-priority items to a triage table.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Create a scheduled workflow that polls a MongoDB user-events collection for new records, classifies events as engagement or risk signals, and writes high-priority items to a triage table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['product', 'analysis'],
     },
@@ -1027,10 +1027,10 @@ export const MongoDBBlockMeta = {
     },
     {
       icon: MongoDBIcon,
-      title: 'MongoDB + Tinybird realtime feeder',
+      title: 'MongoDB + Tinybird feeder',
       prompt:
-        'Build a workflow that streams MongoDB change events into a Tinybird pipe, exposes realtime endpoints for downstream apps, and writes the lag metrics to a table.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that batches new MongoDB records into a Tinybird pipe on a short interval, exposes the data to downstream apps, and writes the load metrics to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'sync'],
       alsoIntegrations: ['tinybird'],

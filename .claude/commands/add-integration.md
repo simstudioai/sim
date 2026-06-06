@@ -21,7 +21,7 @@ Adding an integration involves these steps in order:
 ## Step 1: Research the API
 
 Before writing any code:
-1. Use Context7 to find official documentation: `mcp__plugin_context7_context7__resolve-library-id`
+1. Use Context7 to find official documentation: `mcp__context7__resolve-library-id`, then fetch with `mcp__context7__query-docs`
 2. Or use WebFetch to read API docs directly
 3. Identify:
    - Authentication method (OAuth, API Key, both)
@@ -398,9 +398,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
 
 ## Step 7: Generate Docs
 
-Run the documentation generator:
+Run the documentation generator (from `apps/sim`):
 ```bash
-bun run scripts/generate-docs.ts
+bun run generate-docs
 ```
 
 This creates `apps/docs/content/docs/en/tools/{service}.mdx`
@@ -593,33 +593,29 @@ Create `apps/sim/app/api/tools/{service}/{action}/route.ts`:
 ```typescript
 import { createLogger } from '@sim/logger'
 import { NextResponse, type NextRequest } from 'next/server'
-import { z } from 'zod'
+import { {service}UploadContract } from '@/lib/api/contracts/tools/{service}'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { FileInputSchema, type RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { type RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 const logger = createLogger('{Service}UploadAPI')
 
-const RequestSchema = z.object({
-  accessToken: z.string(),
-  file: FileInputSchema.optional().nullable(),
-  // Legacy field for backwards compatibility
-  fileContent: z.string().optional().nullable(),
-  // ... other params
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
+  // Auth always runs BEFORE parseRequest — never validate untrusted input before authenticating.
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const data = RequestSchema.parse(body)
+  const parsed = await parseRequest({service}UploadContract, request, {})
+  if (!parsed.success) return parsed.response
+  const data = parsed.data.body
 
   let fileBuffer: Buffer
   let fileName: string
@@ -649,7 +645,7 @@ export async function POST(request: NextRequest) {
   })
 
   // ... handle response
-}
+})
 ```
 
 #### 4. Update Tool to Use Internal Route

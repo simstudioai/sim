@@ -1402,7 +1402,7 @@ export const JiraBlockMeta = {
       icon: JiraIcon,
       title: 'Auto-generate Confluence pages from Jira sprints',
       prompt:
-        'Create Confluence documentation from Jira sprint data automatically, eliminating manual reporting at the end of every sprint.',
+        'Build a workflow that runs at the end of each Jira sprint, pulls all completed and in-progress tickets, and automatically creates a structured Confluence documentation page so sprint reporting requires no manual effort.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

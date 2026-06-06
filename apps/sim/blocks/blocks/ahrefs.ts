@@ -600,7 +600,7 @@ export const AhrefsBlockMeta = {
       icon: AhrefsIcon,
       title: 'Ahrefs content gap finder',
       prompt:
-        'Create a workflow that uses Ahrefs content gap analysis between my domain and a competitor, extracts the top opportunity keywords, and writes a prioritized content brief table.',
+        'Create a workflow that pulls Ahrefs organic keywords for both my domain and a competitor, has an agent diff the lists to find keywords the competitor ranks for that I do not, and writes a prioritized content brief table.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'research'],

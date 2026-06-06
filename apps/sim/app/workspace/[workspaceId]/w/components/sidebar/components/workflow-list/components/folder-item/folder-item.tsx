@@ -10,7 +10,6 @@ import { chipVariants } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -155,14 +154,12 @@ export function FolderItem({
   const handleCreateWorkflowInFolder = useCallback(() => {
     if (effectiveLocked) return
     const name = generateCreativeWorkflowName()
-    const color = getNextWorkflowColor()
     const id = generateId()
 
     createWorkflowMutation.mutate({
       workspaceId,
       folderId: folder.id,
       name,
-      color,
       id,
     })
 

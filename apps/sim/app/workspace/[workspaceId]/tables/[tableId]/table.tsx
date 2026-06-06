@@ -251,6 +251,15 @@ export function Table({
       if (mutateArgs.groupIds.length === 0) return
       if (mutateArgs.rowIds && mutateArgs.rowIds.length === 0) return
       runColumnMutate(mutateArgs)
+      // Derive the run's deployment mode from the targeted groups (default 'live' when unset).
+      // 'mixed' when the targeted groups don't all agree.
+      const targetGroupIds = new Set(mutateArgs.groupIds)
+      const modes = new Set(
+        tableWorkflowGroups
+          .filter((g) => targetGroupIds.has(g.id))
+          .map((g) => g.deploymentMode ?? 'live')
+      )
+      const deploymentMode = modes.size === 1 ? [...modes][0] : 'mixed'
       captureEvent(posthogRef.current, 'table_workflow_run', {
         table_id: tableId,
         workspace_id: workspaceId,
@@ -259,9 +268,10 @@ export function Table({
         group_count: mutateArgs.groupIds.length,
         row_count: mutateArgs.rowIds?.length ?? null,
         has_limit: mutateArgs.limit != null,
+        deployment_mode: deploymentMode,
       })
     },
-    [runColumnMutate, tableId, workspaceId]
+    [runColumnMutate, tableId, workspaceId, tableWorkflowGroups]
   )
 
   const onRunColumn = useCallback(
@@ -369,11 +379,15 @@ export function Table({
     if (!tableData) return
     try {
       await downloadTableExport(tableData.id, tableData.name)
+      captureEvent(posthogRef.current, 'table_exported', {
+        table_id: tableData.id,
+        workspace_id: workspaceId,
+      })
     } catch (err) {
       logger.error('Failed to export table:', err)
       toast.error('Failed to export table')
     }
-  }, [tableData])
+  }, [tableData, workspaceId])
 
   const columnOptions = useMemo<ColumnOption[]>(
     () =>

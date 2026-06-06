@@ -18,7 +18,6 @@ export interface WorkflowItem {
   id: string
   name: string
   href: string
-  color: string
   folderPath?: string[]
   isCurrent?: boolean
 }

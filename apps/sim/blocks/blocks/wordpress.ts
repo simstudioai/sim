@@ -1041,8 +1041,8 @@ export const WordPressBlockMeta = {
       icon: WordpressIcon,
       title: 'WordPress comment moderator',
       prompt:
-        'Build a workflow that watches WordPress comments, classifies as spam, question, or constructive, auto-moderates spam, and replies to questions using a knowledge base.',
-      modules: ['knowledge-base', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls new WordPress comments, classifies each as spam, question, or constructive, auto-moderates spam, and replies to questions using a knowledge base.',
+      modules: ['scheduled', 'knowledge-base', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation'],
     },

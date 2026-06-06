@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   type InvitationKind,
@@ -27,6 +28,7 @@ import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InvitationCore')
@@ -385,10 +387,35 @@ export async function acceptInvitation(
         // removal path's seat accounting.
         if (billingManagesSeats && !membershipResult.alreadyMember) {
           try {
-            await reconcileOrganizationSeats({
+            const seatResult = await reconcileOrganizationSeats({
               organizationId: targetOrganizationId,
               reason: 'member-accepted-invite',
             })
+
+            if (seatResult.changed) {
+              const previousSeats = seatResult.previousSeats ?? 0
+              const seats = seatResult.seats ?? 0
+              recordAudit({
+                workspaceId: null,
+                actorId: input.userId,
+                action: AuditAction.ORG_SEAT_PROVISIONED,
+                resourceType: AuditResourceType.ORGANIZATION,
+                resourceId: targetOrganizationId,
+                description: `Provisioned ${seats} seat(s) after invite acceptance`,
+                metadata: {
+                  invitationId: inv.id,
+                  previousSeats,
+                  seats,
+                  reason: 'member-accepted-invite',
+                },
+              })
+              captureServerEvent(input.userId, 'seats_provisioned', {
+                organization_id: targetOrganizationId,
+                previous_seats: previousSeats,
+                seats,
+                reason: 'member-accepted-invite',
+              })
+            }
           } catch (seatError) {
             logger.error('Failed to reconcile organization seats after invite acceptance', {
               userId: input.userId,

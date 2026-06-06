@@ -184,11 +184,11 @@ export const GranolaBlockMeta = {
       icon: GranolaIcon,
       title: 'Granola meeting brief',
       prompt:
-        'Build a workflow that runs before a Granola meeting, researches attendees and topic, and updates the Granola pre-meeting note with the prep brief.',
+        'Build a scheduled workflow that reads upcoming meetings from Granola notes, researches attendees and topic with Apollo, and posts a prep brief to Slack before each meeting.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['sales', 'research'],
-      alsoIntegrations: ['apollo'],
+      alsoIntegrations: ['apollo', 'slack'],
     },
     {
       icon: GranolaIcon,
@@ -224,8 +224,8 @@ export const GranolaBlockMeta = {
       icon: GranolaIcon,
       title: 'Granola + Notion publisher',
       prompt:
-        'Build a workflow that watches Granola meetings, generates a polished meeting-notes page in Notion under the right team space, and links the original Granola note.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Granola for new meeting notes, generates a polished meeting-notes page in Notion under the right team space, and links the original Granola note.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'content'],
       alsoIntegrations: ['notion'],

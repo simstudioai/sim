@@ -2067,7 +2067,6 @@
     "metadata": {
       "name": "gh-release-agent",
       "description": "New workflow",
-      "color": "#0a6fb8",
       "exportedAt": "2026-03-09T21:40:19.013Z"
     },
     "variables": {}

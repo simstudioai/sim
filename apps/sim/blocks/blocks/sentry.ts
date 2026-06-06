@@ -14,7 +14,7 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
   docsLink: 'https://docs.sim.ai/tools/sentry',
   category: 'tools',
   integrationType: IntegrationType.Observability,
-  bgColor: '#FFFFFF',
+  bgColor: '#362D59',
   icon: SentryIcon,
   subBlocks: [
     {
@@ -713,8 +713,8 @@ export const SentryBlockMeta = {
       icon: SentryIcon,
       title: 'Sentry error triage',
       prompt:
-        'Build a workflow triggered by Sentry issue events that classifies severity, groups similar issues, creates a Linear ticket on first occurrence above the threshold, and pings the owning team in Slack.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Sentry for new unresolved issues, classifies severity, groups similar issues, creates a Linear ticket on first occurrence above the threshold, and pings the owning team in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'devops'],
       alsoIntegrations: ['linear', 'slack'],

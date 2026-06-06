@@ -676,7 +676,7 @@ export const PeopleDataLabsBlockMeta = {
       icon: PeopleDataLabsIcon,
       title: 'PDL lookalike expander',
       prompt:
-        'Build a workflow that uses People Data Labs lookalike search on a seed account list, expands the TAM, and writes the expanded prospects into Salesforce.',
+        'Build a workflow that derives firmographic attributes from a seed account list and uses People Data Labs company-search to find similar companies, expanding the TAM and writing the new prospects into Salesforce.',
       modules: ['agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'research'],
@@ -686,7 +686,7 @@ export const PeopleDataLabsBlockMeta = {
       icon: PeopleDataLabsIcon,
       title: 'PDL hiring-signal alerter',
       prompt:
-        'Create a workflow that watches People Data Labs hiring signals for tracked accounts and posts a Slack alert when a target hires for relevant roles.',
+        'Create a scheduled workflow that runs People Data Labs person-search for new hires in relevant roles at tracked accounts and posts a Slack alert when a match appears.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'monitoring'],

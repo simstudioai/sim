@@ -270,7 +270,7 @@ export const RB2BBlockMeta = {
       icon: RB2BIcon,
       title: 'High-intent visitor Slack alerts',
       prompt:
-        'Create a workflow that on a new website visitor IP uses RB2B to resolve the person and their company, then posts an alert with the identified LinkedIn profile and company to the sales Slack channel.',
+        'Create a workflow that reads a list of website visitor IPs, uses RB2B to resolve each person and their company, and posts an alert with the identified LinkedIn profile and company to the sales Slack channel.',
       modules: ['agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'identity', 'automation'],

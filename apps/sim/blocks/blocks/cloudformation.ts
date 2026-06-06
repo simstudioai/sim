@@ -365,8 +365,8 @@ export const CloudFormationBlockMeta = {
       icon: CloudFormationIcon,
       title: 'Stack failure investigator',
       prompt:
-        'Build a workflow that watches CloudFormation stack events, detects rollbacks and create-failed events, pulls the failure reason and recent events from the stack, summarizes the root cause, opens a Linear ticket with the diagnosis, and Slacks the on-call channel.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls CloudFormation stack events every few minutes, detects rollbacks and create-failed events, pulls the failure reason and recent events from the stack, summarizes the root cause, opens a Linear ticket with the diagnosis, and posts to the on-call Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring', 'automation'],
       alsoIntegrations: ['linear', 'slack'],

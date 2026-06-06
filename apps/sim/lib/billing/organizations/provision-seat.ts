@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -17,8 +18,48 @@ import { getPlanByName } from '@/lib/billing/plans'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('ProvisionSeat')
+
+interface RecordPlanConversionParams {
+  organizationId: string
+  actorId: string
+  fromPlan: string
+  toPlan: string
+}
+
+/**
+ * Record telemetry for a Pro→Team plan conversion triggered by invite
+ * acceptance. Fire-and-forget — `recordAudit` and `captureServerEvent` never
+ * throw, so this can never break the conversion flow. The billing interval is
+ * preserved across the conversion, so it is reported as `unchanged`.
+ */
+function recordPlanConversion({
+  organizationId,
+  actorId,
+  fromPlan,
+  toPlan,
+}: RecordPlanConversionParams): void {
+  recordAudit({
+    workspaceId: null,
+    actorId,
+    action: AuditAction.ORG_PLAN_CONVERTED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: organizationId,
+    description: `Converted ${fromPlan} to ${toPlan}`,
+    metadata: {
+      fromPlan,
+      toPlan,
+      trigger: 'invite-acceptance',
+    },
+  })
+  captureServerEvent(actorId, 'subscription_changed', {
+    from_plan: fromPlan,
+    to_plan: toPlan,
+    interval: 'unchanged',
+  })
+}
 
 export type EnsureTeamOrganizationFailureCode = 'upgrade-required' | 'server-error'
 
@@ -58,7 +99,7 @@ export async function ensureTeamOrganizationForAcceptance(
 
   try {
     if (workspaceOrganizationId) {
-      return await ensureOrganizationOnTeamPlan(workspaceOrganizationId)
+      return await ensureOrganizationOnTeamPlan(workspaceOrganizationId, billingOwnerUserId)
     }
     return await convertPersonalSubscriptionToTeam(billingOwnerUserId)
   } catch (error) {
@@ -72,7 +113,8 @@ export async function ensureTeamOrganizationForAcceptance(
 }
 
 async function ensureOrganizationOnTeamPlan(
-  organizationId: string
+  organizationId: string,
+  actorId: string
 ): Promise<EnsureTeamOrganizationResult> {
   const orgSub = await getOrganizationSubscription(organizationId)
   if (!orgSub || !hasUsableSubscriptionStatus(orgSub.status)) {
@@ -89,6 +131,12 @@ async function ensureOrganizationOnTeamPlan(
       return { success: false, failureCode: 'upgrade-required' }
     }
     await activateTeamSubscription(orgSub, targetPlan, { planChanged: true })
+    recordPlanConversion({
+      organizationId,
+      actorId,
+      fromPlan: orgSub.plan,
+      toPlan: targetPlan,
+    })
   }
 
   return { success: true, organizationId, fixedSeats: false }
@@ -128,6 +176,15 @@ async function convertPersonalSubscriptionToTeam(
     plan: targetPlan,
     upgradedFromPro: !alreadyTeam,
   })
+
+  if (!alreadyTeam) {
+    recordPlanConversion({
+      organizationId: updated.referenceId,
+      actorId: userId,
+      fromPlan: personalSub.plan,
+      toPlan: targetPlan,
+    })
+  }
 
   return { success: true, organizationId: updated.referenceId, fixedSeats: false }
 }

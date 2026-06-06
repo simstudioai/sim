@@ -929,10 +929,10 @@ export const PolymarketBlockMeta = {
     },
     {
       icon: PolymarketIcon,
-      title: 'Polymarket news-driven alerter',
+      title: 'Polymarket price-move alerter',
       prompt:
-        'Build a workflow triggered by news events that checks Polymarket prices for related markets, captures the price reaction over the next hour, and writes the event-to-price mapping to a research table.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls Polymarket prices for tracked markets, detects sharp moves since the last run, and writes the price reactions to a research table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['research', 'analysis'],
     },

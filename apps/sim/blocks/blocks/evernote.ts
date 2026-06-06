@@ -334,7 +334,7 @@ export const EvernoteBlockMeta = {
       icon: EvernoteIcon,
       title: 'Evernote action-item extractor',
       prompt:
-        'Build a workflow that reads new Evernote notes, extracts action items and due dates with an agent, and creates matching tasks in Google Tasks or Asana.',
+        'Build a workflow that searches Evernote for recently created notes, extracts action items and due dates with an agent, and creates a matching task in Asana for each.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['individual', 'automation'],

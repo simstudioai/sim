@@ -64,7 +64,6 @@ import {
   stripMentionTrigger,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
-import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -139,6 +138,10 @@ interface UserInputProps {
 
 export interface UserInputHandle {
   loadQueuedMessage: (msg: QueuedMessage) => void
+  /** Populates the textarea with `text` (running it through auto-mention
+   * chipification), focuses the input, and places the caret at the end.
+   * Does NOT submit. Safe to call with the same text twice in a row. */
+  populatePrompt: (text: string) => void
 }
 
 export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
@@ -159,7 +162,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 ) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
-  const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
   const { data: skills = [] } = useSkills(workspaceId)
   const [value, setValue] = useState(() => {
     if (defaultValue) return defaultValue
@@ -446,12 +448,21 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const slashRangeRef = useRef<{ start: number; end: number } | null>(null)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
 
+  const focusTextareaAtEnd = useCallback(() => {
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.focus()
+      const end = textarea.value.length
+      textarea.setSelectionRange(end, end)
+    })
+  }, [textareaRef])
+
   useImperativeHandle(
     ref,
     () => ({
       loadQueuedMessage: (msg: QueuedMessage) => {
-        const converted = applyAutoMentions(msg.content)
-        setValue(converted)
+        setValue(applyAutoMentions(msg.content))
         const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
           id: a.id,
           name: a.filename,
@@ -464,19 +475,17 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         }))
         files.restoreAttachedFiles(restored)
         contextManagement.setSelectedContexts(msg.contexts ?? [])
-        requestAnimationFrame(() => {
-          const textarea = textareaRef.current
-          if (!textarea) return
-          textarea.focus()
-          const end = textarea.value.length
-          textarea.setSelectionRange(end, end)
-        })
+        focusTextareaAtEnd()
+      },
+      populatePrompt: (text: string) => {
+        setValue(applyAutoMentions(text))
+        focusTextareaAtEnd()
       },
     }),
     [
       files.restoreAttachedFiles,
       contextManagement.setSelectedContexts,
-      textareaRef,
+      focusTextareaAtEnd,
       applyAutoMentions,
     ]
   )
@@ -1224,14 +1233,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       const mentionLabel = stripMentionTrigger(range.token)
       const matchingCtx = contexts.find((c) => c.label === mentionLabel)
 
-      const wfId =
-        matchingCtx?.kind === 'workflow' || matchingCtx?.kind === 'current_workflow'
-          ? matchingCtx.workflowId
-          : undefined
       const mentionIconNode = matchingCtx ? (
         <ContextMentionIcon
           context={matchingCtx}
-          workflowColor={wfId ? (workflowsById[wfId]?.color ?? null) : null}
           className='absolute inset-0 m-auto size-[12px] translate-y-[1.25px] text-[var(--text-icon)]'
         />
       ) : null
@@ -1261,7 +1265,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     }
 
     return elements.length > 0 ? elements : <span>{'\u00A0'}</span>
-  }, [value, contextManagement.selectedContexts, workflowsById])
+  }, [value, contextManagement.selectedContexts])
 
   return (
     <div
@@ -1283,7 +1287,11 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         onRemoveFile={handleRemoveFile}
       />
 
-      <div className='relative'>
+      {/* Clip the absolutely-positioned mirror overlay to the textarea's box.
+          The overlay is `h-auto`, so its content (e.g. the trailing-newline
+          sentinel on Shift+Enter) can exceed the textarea height and would
+          otherwise paint over the toolbar below. */}
+      <div className='relative overflow-hidden'>
         <div
           ref={overlayRef}
           className={cn(OVERLAY_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Info, Plus, Search } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   ArrowRight,
@@ -11,13 +11,14 @@ import {
   Checkbox,
   Chip,
   ChipCombobox,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
-  Input,
   Label,
+  Search,
   Tooltip,
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
@@ -255,15 +256,12 @@ export function AddConnectorModal({
         >
           {step === 'select-type' ? (
             <div className='flex min-h-0 flex-col gap-2.5'>
-              <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-                <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-                <Input
-                  placeholder='Search sources...'
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className='h-full w-full border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                />
-              </div>
+              <ChipInput
+                icon={Search}
+                placeholder='Search sources...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
               <div className='max-h-[390px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
                 <div className='flex flex-col gap-0.5 pr-1'>
                   {filteredEntries.map(([type, config]) => (
@@ -293,8 +291,7 @@ export function AddConnectorModal({
                       ? connectorConfig.auth.label
                       : 'API Key'}
                   </Label>
-                  <Input
-                    variant='chip'
+                  <ChipInput
                     type={apiKeyFocused ? 'text' : 'password'}
                     autoComplete='new-password'
                     value={apiKeyValue}
@@ -418,8 +415,7 @@ export function AddConnectorModal({
                         placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
                       />
                     ) : (
-                      <Input
-                        variant='chip'
+                      <ChipInput
                         value={
                           Array.isArray(sourceConfig[field.id])
                             ? (sourceConfig[field.id] as string[]).join(', ')

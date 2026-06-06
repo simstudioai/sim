@@ -2,11 +2,11 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Chip,
   ChipDropdown,
+  ChipInput,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
   MoreHorizontal,
   Plus,
+  Search,
 } from '@/components/emcn'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
 import {
@@ -189,15 +190,13 @@ export function Teammates() {
           </div>
 
           <div className='flex items-center gap-2'>
-            <div className='flex h-[30px] flex-1 items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-              <input
-                placeholder='Search teammates...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
-              />
-            </div>
+            <ChipInput
+              icon={Search}
+              placeholder='Search teammates...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='flex-1'
+            />
           </div>
 
           <MemberSection

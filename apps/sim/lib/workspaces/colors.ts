@@ -1,6 +1,6 @@
 import { randomItem } from '@sim/utils/random'
 
-/** Color palette for workspace accents, aligned with the workflow color family. */
+/** Color palette for workspace accents. */
 export const WORKSPACE_COLORS = [
   '#2ABBF8', // Blue
   '#22c55e', // Green
@@ -77,14 +77,6 @@ function withAlpha(hexColor: string, alpha: number): string {
   const b = Number.parseInt(expanded.slice(4, 6), 16)
 
   return `rgba(${r}, ${g}, ${b}, ${Math.min(Math.max(alpha, 0), 1)})`
-}
-
-/**
- * Returns the hex color with 60/ff (~38%) alpha — used for workflow color border accents.
- * Returns `undefined` when `color` is undefined so callers can pass it directly to `borderColor`.
- */
-export function workflowBorderColor(color: string | undefined): string | undefined {
-  return color ? `${color}60` : undefined
 }
 
 function buildGradient(fromColor: string, toColor: string, rotationSeed: number): string {

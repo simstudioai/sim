@@ -487,72 +487,71 @@ Return ONLY the JSON object.`,
 }
 
 export const RDSBlockMeta = {
-  tags: ['cloud', 'data-warehouse'],
+  tags: ['cloud'],
   templates: [
     {
       icon: RDSIcon,
-      title: 'RDS slow-query digest',
+      title: 'RDS daily metrics digest',
       prompt:
-        'Build a scheduled workflow that pulls Performance Insights from AWS RDS, identifies the top slow queries each day, and posts a digest to engineering Slack with EXPLAIN suggestions.',
+        'Build a scheduled workflow that runs an aggregate SQL query against my Amazon RDS database each morning, summarizes the key numbers with an agent, and posts the digest to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RDSIcon,
+      title: 'RDS natural-language query agent',
+      prompt:
+        'Create an agent that introspects my Amazon RDS schema, turns plain-English questions into SQL, runs the query through the Data API, and returns the results in a readable answer.',
+      modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'analysis'],
-      alsoIntegrations: ['slack'],
     },
     {
       icon: RDSIcon,
-      title: 'RDS snapshot policy auditor',
+      title: 'RDS lead capture',
       prompt:
-        'Create a scheduled weekly workflow that audits RDS automated snapshot retention against compliance policy, flags non-compliant instances, and writes findings to a security table.',
+        'Build a workflow triggered by a form submission that validates the payload and inserts a new lead row into my Amazon RDS database, then confirms the write back to the submitter.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'forms'],
+    },
+    {
+      icon: RDSIcon,
+      title: 'RDS to spreadsheet export',
+      prompt:
+        'Create a scheduled workflow that queries Amazon RDS for the latest records, writes the rows into a Sim table, and keeps a running export the operations team can review.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['enterprise', 'devops'],
+      tags: ['reporting', 'sync'],
     },
     {
       icon: RDSIcon,
-      title: 'RDS failover drill orchestrator',
+      title: 'RDS record updater from Slack',
       prompt:
-        'Build a scheduled workflow that triggers an RDS Multi-AZ failover drill quarterly, monitors recovery time, and writes the drill report to an SRE file.',
-      modules: ['scheduled', 'agent', 'files', 'workflows'],
+        'Build a workflow that reads update requests posted in a Slack channel, parses the target record and fields with an agent, and runs the matching UPDATE against Amazon RDS with the conditions applied.',
+      modules: ['agent', 'workflows'],
       category: 'engineering',
-      tags: ['devops', 'enterprise'],
-    },
-    {
-      icon: RDSIcon,
-      title: 'RDS storage runaway alert',
-      prompt:
-        'Create a workflow that watches RDS storage growth, projects when an instance will run out, opens a PagerDuty incident when the projection is under 14 days, and writes the timeline to a tracking table.',
-      modules: ['scheduled', 'agent', 'workflows'],
-      category: 'engineering',
-      tags: ['devops', 'monitoring'],
-      alsoIntegrations: ['pagerduty'],
-    },
-    {
-      icon: RDSIcon,
-      title: 'RDS parameter drift detector',
-      prompt:
-        'Build a scheduled workflow that diffs current RDS parameter groups against the source-of-truth in Terraform, alerts on drift, and writes the drift report to Slack.',
-      modules: ['scheduled', 'agent', 'workflows'],
-      category: 'engineering',
-      tags: ['devops', 'monitoring'],
+      tags: ['devops', 'automation'],
       alsoIntegrations: ['slack'],
     },
     {
       icon: RDSIcon,
-      title: 'RDS cost optimizer',
+      title: 'RDS row-change alerter',
       prompt:
-        'Create a scheduled monthly workflow that pulls RDS utilization data, identifies right-sizing opportunities, and writes a cost-savings report to the finance Slack channel.',
-      modules: ['scheduled', 'agent', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'devops'],
+        'Create a scheduled workflow that queries Amazon RDS for rows matching a watch condition, compares them to the previous run stored in a table, and posts a Slack alert when a tracked record changes.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
       alsoIntegrations: ['slack'],
     },
     {
       icon: RDSIcon,
       title: 'RDS + BigQuery analytics mirror',
       prompt:
-        'Build a scheduled workflow that mirrors RDS analytical tables into BigQuery for downstream BI, captures the schema drift, and writes a sync log.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a scheduled workflow that queries analytical tables from Amazon RDS, loads the rows into BigQuery for downstream BI, and writes a sync log to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['analysis', 'sync'],
       alsoIntegrations: ['google_bigquery'],

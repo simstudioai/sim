@@ -37,6 +37,14 @@ export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.a
 export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
+ * Order table rows by fractional `order_key` (O(1) insert/delete) instead of the
+ * legacy integer `position`. When off, behavior is unchanged. Keys are written
+ * regardless of this flag; it only controls which column is authoritative for
+ * reads/ordering and whether inserts/deletes reshift positions.
+ */
+export const isTablesFractionalOrderingEnabled = isTruthy(env.TABLES_FRACTIONAL_ORDERING)
+
+/**
  * Is email verification enabled
  */
 export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLED)

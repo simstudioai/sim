@@ -837,9 +837,12 @@ export function TableGrid({
 
   function handleInsertRow(offset: 0 | 1) {
     if (!contextMenu.row) return
+    const anchorId = contextMenu.row.id
+    // Fractional ordering: express intent by neighbor id, not integer position.
+    const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
     const position = contextMenu.row.position + offset
     createRef.current(
-      { data: {}, position },
+      { data: {}, ...intent },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
@@ -904,7 +907,7 @@ export function TableGrid({
     const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
-      { data: rowData, position },
+      { data: rowData, afterRowId: contextRow.id },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)

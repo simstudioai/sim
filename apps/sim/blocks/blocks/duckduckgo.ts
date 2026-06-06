@@ -61,7 +61,7 @@ export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
 }
 
 export const DuckDuckGoBlockMeta = {
-  tags: ['web-scraping', 'seo'],
+  tags: ['web-scraping'],
   templates: [
     {
       icon: DuckDuckGoIcon,

@@ -511,22 +511,23 @@ export const GoogleGroupsBlockMeta = {
     },
     {
       icon: GoogleGroupsIcon,
-      title: 'Google Groups deprecation cleanup',
+      title: 'Google Groups empty-group cleanup',
       prompt:
-        'Build a scheduled workflow that finds Google Groups with no traffic in 180 days, opens a confirmation thread with the owner, and archives the group once approved.',
+        'Build a scheduled workflow that lists Google Groups with no members, opens a confirmation thread with the owner in Slack, and deletes the group once approved.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['slack'],
     },
     {
       icon: GoogleGroupsIcon,
-      title: 'Google Groups inbound mail forwarder',
+      title: 'Google Groups settings hardening',
       prompt:
-        'Create a workflow that watches a Google Group for inbound messages, classifies each by topic, opens a matching ticket in Jira Service Management, and posts a thread digest to Slack.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that reads the settings for every Google Group, flags groups that allow external posting or open membership against policy, and posts the findings to the security team in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation'],
-      alsoIntegrations: ['jira_service_management', 'slack'],
+      alsoIntegrations: ['slack'],
     },
   ],
 } as const satisfies BlockMeta

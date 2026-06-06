@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Info, toast } from '@/components/emcn'
+import { ChipInput, Info, toast } from '@/components/emcn'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { cn } from '@/lib/core/utils/cn'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -122,29 +121,22 @@ export function UsageLimitField({
         </Info>
       }
     >
-      <div
-        className={cn(
-          'flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]',
-          !canEdit && 'opacity-60'
-        )}
-      >
-        <input
-          type='number'
-          inputMode='numeric'
-          min={dollarsToCredits(minimumLimit)}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={
-            currentLimit == null
-              ? 'Enter monthly usage limit'
-              : currentLimit >= ON_DEMAND_UNLIMITED
-                ? 'No Usage Limit'
-                : String(dollarsToCredits(currentLimit))
-          }
-          disabled={!canEdit}
-          className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none [appearance:textfield] placeholder:text-[var(--text-muted)] focus:outline-none disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-        />
-      </div>
+      <ChipInput
+        type='number'
+        inputMode='numeric'
+        min={dollarsToCredits(minimumLimit)}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder={
+          currentLimit == null
+            ? 'Enter monthly usage limit'
+            : currentLimit >= ON_DEMAND_UNLIMITED
+              ? 'No Usage Limit'
+              : String(dollarsToCredits(currentLimit))
+        }
+        disabled={!canEdit}
+        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+      />
     </SettingsSection>
   )
 }

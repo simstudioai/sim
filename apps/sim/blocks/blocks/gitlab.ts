@@ -755,8 +755,8 @@ export const GitLabBlockMeta = {
       icon: GitLabIcon,
       title: 'GitLab merge request reviewer',
       prompt:
-        'Create a knowledge base from my coding standards and architecture docs. Build a workflow that watches for new GitLab merge requests, fetches the diff, runs an agent that checks the code against the knowledge base and flags security issues, performance concerns, and style violations, then posts a structured review as an MR comment.',
-      modules: ['knowledge-base', 'agent', 'workflows'],
+        'Create a knowledge base from my coding standards and architecture docs. Build a scheduled workflow that lists open GitLab merge requests, fetches each diff, runs an agent that checks the code against the knowledge base and flags security issues, performance concerns, and style violations, then posts a structured review as an MR comment.',
+      modules: ['scheduled', 'knowledge-base', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'devops', 'automation'],
     },
@@ -764,8 +764,8 @@ export const GitLabBlockMeta = {
       icon: GitLabIcon,
       title: 'GitLab pipeline failure responder',
       prompt:
-        'Build a workflow that fires when a GitLab pipeline fails on the main branch. Pull the failing job logs, summarize the root cause, identify the most likely owner from recent commits, open a GitLab issue with the diagnosis, and post an alert to Slack with a link to the failing pipeline.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that lists recent GitLab pipelines on the main branch, finds newly failed runs, summarizes the root cause from the job logs, identifies the most likely owner from recent commits, opens a GitLab issue with the diagnosis, and posts an alert to Slack with a link to the failing pipeline.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'devops', 'monitoring'],
       alsoIntegrations: ['slack'],
@@ -784,8 +784,8 @@ export const GitLabBlockMeta = {
       icon: GitLabIcon,
       title: 'GitLab release publisher',
       prompt:
-        'Build a workflow that runs when a release tag lands in GitLab, gathers merged merge requests since the previous tag, groups changes by component, drafts release notes as a file, and posts the formatted summary back as a comment on the release.',
-      modules: ['agent', 'files', 'workflows'],
+        'Build a scheduled workflow that detects new GitLab release tags, gathers merged merge requests since the previous tag, groups changes by component, drafts release notes as a file, and posts the formatted summary back as a comment on the release.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'devops', 'content'],
     },

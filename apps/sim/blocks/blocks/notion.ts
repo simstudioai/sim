@@ -583,7 +583,7 @@ export const NotionBlockMeta = {
       icon: NotionIcon,
       title: 'Notify your team from Notion',
       prompt:
-        'Post Slack messages automatically when Notion pages are created or updated so the whole team stays aligned without manual check-ins.',
+        'Build a workflow that watches Notion for new or updated pages and automatically posts a Slack message so your team stays aligned without manual check-ins.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

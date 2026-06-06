@@ -302,7 +302,12 @@ export function computeNormalizedSelection(
 export function collectRowSnapshots(rows: Iterable<TableRowType>): DeletedRowSnapshot[] {
   const snapshots: DeletedRowSnapshot[] = []
   for (const row of rows) {
-    snapshots.push({ rowId: row.id, data: { ...row.data }, position: row.position })
+    snapshots.push({
+      rowId: row.id,
+      data: { ...row.data },
+      position: row.position,
+      orderKey: row.orderKey,
+    })
   }
   return snapshots
 }

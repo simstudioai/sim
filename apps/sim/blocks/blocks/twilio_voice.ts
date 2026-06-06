@@ -468,7 +468,7 @@ export const TwilioVoiceBlockMeta = {
       icon: TwilioIcon,
       title: 'Twilio Voice spam-call filter',
       prompt:
-        'Build a workflow that screens inbound Twilio Voice calls, classifies likely spam using number reputation and CAPTCHA, and routes only verified callers to the support queue.',
+        'Build a workflow that screens inbound Twilio Voice calls, classifies likely spam using number reputation plus a spoken challenge captured via Gather DTMF — press a digit to continue — and routes only verified callers to the support queue.',
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation'],

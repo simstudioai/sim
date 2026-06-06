@@ -198,7 +198,7 @@ export const RipplingBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/rippling',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  bgColor: '#FFCC1C',
+  bgColor: '#502D3C',
   icon: RipplingIcon,
   authMode: AuthMode.ApiKey,
 
@@ -1480,8 +1480,8 @@ export const RipplingBlockMeta = {
       icon: RipplingIcon,
       title: 'Rippling new-hire provisioning',
       prompt:
-        'Build a workflow that runs when a new worker appears in Rippling, creates accounts in the matching downstream tools, drops the new hire into the right Slack channels, books day-one onboarding via Google Calendar, and writes provisioning status to a tracking table.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls Rippling for new workers, creates accounts in the matching downstream tools, drops each new hire into the right Slack channels, books day-one onboarding via Google Calendar, and writes provisioning status to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'automation', 'team'],
       alsoIntegrations: ['slack', 'google_calendar'],
@@ -1490,8 +1490,8 @@ export const RipplingBlockMeta = {
       icon: RipplingIcon,
       title: 'Rippling departure offboarder',
       prompt:
-        'Create a workflow that watches Rippling for workers transitioning out, gathers their owned resources, deactivates downstream accounts, schedules data handoff meetings, posts a structured offboarding checklist to a table, and notifies the people team in Slack.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Create a scheduled workflow that polls Rippling for workers transitioning out, gathers their owned resources, deactivates downstream accounts, schedules data handoff meetings, posts a structured offboarding checklist to a table, and notifies the people team in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'enterprise', 'compliance'],
       alsoIntegrations: ['slack'],
@@ -1529,8 +1529,8 @@ export const RipplingBlockMeta = {
       icon: RipplingIcon,
       title: 'Manager change notifier',
       prompt:
-        'Create a workflow that watches Rippling workers for manager reassignments, notifies the worker and the new manager via email, schedules a thirty-minute intro on Google Calendar, and logs the transition in a tracking table for HR visibility.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Create a scheduled workflow that polls Rippling workers for manager reassignments, notifies the worker and the new manager via email, schedules a thirty-minute intro on Google Calendar, and logs the transition in a tracking table for HR visibility.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'team', 'communication'],
       alsoIntegrations: ['gmail', 'google_calendar'],

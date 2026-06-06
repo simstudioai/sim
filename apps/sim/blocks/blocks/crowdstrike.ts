@@ -216,28 +216,28 @@ export const CrowdStrikeBlockMeta = {
   templates: [
     {
       icon: CrowdStrikeIcon,
-      title: 'CrowdStrike detection-to-incident',
+      title: 'CrowdStrike sensor coverage gaps',
       prompt:
-        'Build a workflow that on a CrowdStrike Falcon detection event opens a PagerDuty incident, posts the detection summary to Slack, and creates a Linear ticket for the engineer.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that queries CrowdStrike Identity Protection sensors, identifies devices reporting an unprotected or degraded status, opens a PagerDuty incident for critical gaps, and posts the list to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['pagerduty', 'slack'],
     },
     {
       icon: CrowdStrikeIcon,
-      title: 'CrowdStrike weekly threat digest',
+      title: 'CrowdStrike weekly sensor digest',
       prompt:
-        'Create a scheduled weekly workflow that aggregates CrowdStrike detections, classifies by severity, and writes a digest file for security leadership.',
+        'Create a scheduled weekly workflow that runs CrowdStrike sensor aggregate queries by status and OS version, summarizes coverage and unprotected counts, and writes a digest file for security leadership.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'reporting'],
     },
     {
       icon: CrowdStrikeIcon,
-      title: 'CrowdStrike + Okta correlation',
+      title: 'CrowdStrike + Okta coverage check',
       prompt:
-        'Build a workflow that correlates CrowdStrike endpoint detections with Okta login events to identify compromised users and writes the findings to a security table.',
+        'Build a workflow that lists CrowdStrike Identity Protection sensors and cross-references them with Okta users and devices to find accounts active on endpoints that have no protected sensor, then writes the findings to a security table.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'analysis'],
@@ -247,35 +247,35 @@ export const CrowdStrikeBlockMeta = {
       icon: CrowdStrikeIcon,
       title: 'CrowdStrike asset inventory',
       prompt:
-        'Create a scheduled workflow that pulls CrowdStrike sensor coverage per device, identifies endpoints missing the sensor, and writes the gap list to a compliance table.',
+        'Create a scheduled workflow that queries CrowdStrike Identity Protection sensors per device, identifies endpoints reporting an unprotected status, and writes the gap list to a compliance table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'monitoring'],
     },
     {
       icon: CrowdStrikeIcon,
-      title: 'CrowdStrike IOC enricher',
+      title: 'CrowdStrike stale sensor finder',
       prompt:
-        'Build a workflow that for each CrowdStrike detection enriches IOCs with threat intel from external feeds and writes the enriched detection to a SOC investigation table.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that queries CrowdStrike sensors, flags devices whose last heartbeat is older than a threshold, and writes the stale-sensor list to a SOC investigation table for follow-up.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'analysis'],
     },
     {
       icon: CrowdStrikeIcon,
-      title: 'CrowdStrike incident retro',
+      title: 'CrowdStrike coverage report doc',
       prompt:
-        'Create a workflow that after a major CrowdStrike incident closes generates a retrospective doc with the timeline, MITRE techniques, and remediation actions.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that aggregates CrowdStrike sensor status, OS version, and policy assignment, and generates a coverage report doc in Google Docs for the security team.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'reporting'],
       alsoIntegrations: ['google_docs'],
     },
     {
       icon: CrowdStrikeIcon,
-      title: 'CrowdStrike noisy-alert tuner',
+      title: 'CrowdStrike policy drift watcher',
       prompt:
-        'Build a scheduled workflow that analyzes CrowdStrike noisy detections, suggests tuning rules with rationale, and writes the recommendations to a SOC review queue.',
+        'Build a scheduled workflow that queries CrowdStrike Identity Protection sensors, compares each device’s assigned IdP policy against the expected baseline, and writes mismatches to a SOC review queue.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'analysis'],

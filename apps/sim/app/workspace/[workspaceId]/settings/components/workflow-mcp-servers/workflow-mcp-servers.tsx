@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -21,12 +22,10 @@ import {
   ChipSelect,
   Code,
   type ComboboxOption,
-  Input as EmcnInput,
   Label,
-  SearchInput,
   Tooltip,
 } from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+import { ArrowLeft, Search } from '@/components/emcn/icons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
@@ -700,8 +699,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                         <div className='flex flex-col gap-1.5'>
                           <Label className='text-sm'>Description</Label>
-                          <EmcnInput
-                            variant='chip'
+                          <ChipInput
                             value={editingParameterDescriptions[name] || ''}
                             onChange={(e) =>
                               setEditingParameterDescriptions((prev) => ({
@@ -1022,7 +1020,8 @@ export function WorkflowMcpServers() {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <SearchInput
+            <ChipInput
+              icon={Search}
               placeholder='Search servers...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

@@ -851,8 +851,8 @@ export const DatadogBlockMeta = {
       icon: DatadogIcon,
       title: 'Datadog alert-to-Linear bridge',
       prompt:
-        'Build a workflow triggered by Datadog monitor alerts that classifies severity, creates a Linear ticket for non-paging issues with full context, and posts a Slack notification linking both.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Datadog monitors for any in an alerting state, classifies severity, creates a Linear ticket for non-paging issues with full context, and posts a Slack notification linking both.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['linear', 'slack'],
@@ -861,7 +861,7 @@ export const DatadogBlockMeta = {
       icon: DatadogIcon,
       title: 'Datadog SLO weekly review',
       prompt:
-        'Create a scheduled weekly workflow that pulls Datadog SLOs, computes error budget burn for each, and writes a narrative review file for the SRE team to discuss in the weekly meeting.',
+        'Create a scheduled weekly workflow that queries Datadog timeseries for the key reliability metrics behind each service SLO, computes error budget burn, and writes a narrative review file for the SRE team to discuss in the weekly meeting.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'reporting'],
@@ -870,7 +870,7 @@ export const DatadogBlockMeta = {
       icon: DatadogIcon,
       title: 'Datadog cost optimizer',
       prompt:
-        'Build a scheduled workflow that queries Datadog usage for top-cost custom metrics and high-cardinality tags, writes optimization recommendations to a finance review file, and pings the platform team.',
+        'Build a scheduled workflow that queries Datadog estimated-usage timeseries for the top custom metrics by volume, writes optimization recommendations to a finance review file, and pings the platform team.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'devops'],
@@ -878,10 +878,10 @@ export const DatadogBlockMeta = {
     },
     {
       icon: DatadogIcon,
-      title: 'Datadog dashboard backup',
+      title: 'Datadog monitor config backup',
       prompt:
-        'Create a scheduled workflow that exports Datadog dashboards as JSON nightly to S3 with version history, writing the manifest to a tracking table for restore drills.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Create a scheduled workflow that lists every Datadog monitor nightly, fetches each monitor’s full configuration, exports the definitions as JSON to S3 with version history, and writes a manifest to a tracking table for restore drills.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'enterprise'],
       alsoIntegrations: ['s3'],

@@ -26,7 +26,7 @@ import { BrowserUseBlock, BrowserUseBlockMeta } from '@/blocks/blocks/browser_us
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
-import { CirclebackBlock } from '@/blocks/blocks/circleback'
+import { CirclebackBlock, CirclebackBlockMeta } from '@/blocks/blocks/circleback'
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
 import { ClerkBlock, ClerkBlockMeta } from '@/blocks/blocks/clerk'
 import { ClickHouseBlock, ClickHouseBlockMeta } from '@/blocks/blocks/clickhouse'
@@ -127,7 +127,7 @@ import { HunterBlock, HunterBlockMeta } from '@/blocks/blocks/hunter'
 import { IAMBlock, IAMBlockMeta } from '@/blocks/blocks/iam'
 import { IdentityCenterBlock, IdentityCenterBlockMeta } from '@/blocks/blocks/identity_center'
 import { ImageGeneratorBlock, ImageGeneratorV2Block } from '@/blocks/blocks/image_generator'
-import { ImapBlock } from '@/blocks/blocks/imap'
+import { ImapBlock, ImapBlockMeta } from '@/blocks/blocks/imap'
 import { IncidentioBlock, IncidentioBlockMeta } from '@/blocks/blocks/incidentio'
 import { InfisicalBlock, InfisicalBlockMeta } from '@/blocks/blocks/infisical'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
@@ -232,7 +232,7 @@ import { RevenueCatBlock, RevenueCatBlockMeta } from '@/blocks/blocks/revenuecat
 import { RipplingBlock, RipplingBlockMeta } from '@/blocks/blocks/rippling'
 import { RootlyBlock, RootlyBlockMeta } from '@/blocks/blocks/rootly'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
-import { RssBlock } from '@/blocks/blocks/rss'
+import { RssBlock, RssBlockMeta } from '@/blocks/blocks/rss'
 import { S3Block, S3BlockMeta } from '@/blocks/blocks/s3'
 import { SalesforceBlock, SalesforceBlockMeta } from '@/blocks/blocks/salesforce'
 import { SapConcurBlock, SapConcurBlockMeta } from '@/blocks/blocks/sap_concur'
@@ -615,6 +615,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   browser_use: BrowserUseBlockMeta,
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
+  circleback: CirclebackBlockMeta,
   clay: ClayBlockMeta,
   clerk: ClerkBlockMeta,
   clickhouse: ClickHouseBlockMeta,
@@ -687,6 +688,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   hunter: HunterBlockMeta,
   iam: IAMBlockMeta,
   identity_center: IdentityCenterBlockMeta,
+  imap: ImapBlockMeta,
   incidentio: IncidentioBlockMeta,
   infisical: InfisicalBlockMeta,
   instantly: InstantlyBlockMeta,
@@ -752,6 +754,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   revenuecat: RevenueCatBlockMeta,
   rippling: RipplingBlockMeta,
   rootly: RootlyBlockMeta,
+  rss: RssBlockMeta,
   s3: S3BlockMeta,
   salesforce: SalesforceBlockMeta,
   sap_concur: SapConcurBlockMeta,

@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { Folder, Plus } from '@/components/emcn/icons'
+import { Folder, Plus, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
@@ -79,11 +79,6 @@ export function useAvailableResources(
   const { data: tasks = [] } = useTasks(workspaceId)
   const { data: logsData } = useLogsList(workspaceId, LOG_DROPDOWN_FILTERS)
   const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
-  const workflowColorById = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const w of workflows) map.set(w.id, w.color)
-    return map
-  }, [workflows])
 
   return useMemo(() => {
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
@@ -93,7 +88,6 @@ export function useAvailableResources(
         items: workflows.map((w) => ({
           id: w.id,
           name: w.name,
-          color: w.color,
           folderId: w.folderId ?? null,
           sortOrder: w.sortOrder,
           isOpen: existingKeys.has(`workflow:${w.id}`),
@@ -165,16 +159,11 @@ export function useAvailableResources(
         type: 'log' as const,
         items: logs.map((log) => {
           const workflowName = log.workflow?.name ?? log.workflowId ?? 'Unknown'
-          const color =
-            log.workflow?.color ??
-            (log.workflowId ? workflowColorById.get(log.workflowId) : undefined) ??
-            '#888'
           const time = formatDate(log.createdAt).compact
           return {
             id: log.id,
             name: `${workflowName} · ${time}`,
             workflowName,
-            color,
             time,
             isOpen: existingKeys.has(`log:${log.id}`),
           }
@@ -191,14 +180,13 @@ export function useAvailableResources(
     knowledgeBases,
     tasks,
     logs,
-    workflowColorById,
     existingKeys,
     excludeTypes,
   ])
 }
 
 export type WorkflowTreeNode =
-  | { kind: 'workflow'; id: string; name: string; color: string; isOpen?: boolean }
+  | { kind: 'workflow'; id: string; name: string; isOpen?: boolean }
   | { kind: 'folder'; id: string; name: string; children: WorkflowTreeNode[] }
 
 export function buildWorkflowFolderTree(
@@ -220,7 +208,6 @@ export function buildWorkflowFolderTree(
     kind: 'workflow',
     id: w.id,
     name: w.name,
-    color: (w.color as string) ?? '#808080',
     isOpen: w.isOpen,
   })
 
@@ -276,7 +263,7 @@ export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeI
             }
           >
             {getResourceConfig('workflow').renderDropdownItem({
-              item: { id: node.id, name: node.name, color: node.color },
+              item: { id: node.id, name: node.name },
             })}
           </DropdownMenuItem>
         ) : (
@@ -509,14 +496,7 @@ export function AddResourceDropdown({
               {workflowTree.length > 0 && (
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
-                    <div
-                      className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
-                      style={{
-                        backgroundColor: '#808080',
-                        borderColor: '#80808060',
-                        backgroundClip: 'padding-box',
-                      }}
-                    />
+                    <Workflow className='size-[14px]' />
                     <span>Workflows</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>

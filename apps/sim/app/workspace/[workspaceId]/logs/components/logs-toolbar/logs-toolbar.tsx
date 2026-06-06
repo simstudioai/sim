@@ -16,11 +16,11 @@ import {
   DropdownMenuTrigger,
   Loader,
 } from '@/components/emcn'
+import { Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { captureEvent } from '@/lib/posthog/client'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   formatDateShort,
   type LogStatus,
@@ -88,34 +88,34 @@ const colorIconCache = new Map<string, React.ComponentType<{ className?: string 
  * Uses a cache to ensure the same color always returns the same component reference,
  * which prevents unnecessary React reconciliation.
  * @param color - CSS color value for the icon background
- * @param withRing - Whether to render the semi-transparent outer ring
  * @returns A React component that renders a colored square icon
  */
-function getColorIcon(
-  color: string,
-  withRing = false
-): React.ComponentType<{ className?: string }> {
-  const cacheKey = withRing ? `${color}-ring` : color
-  const cached = colorIconCache.get(cacheKey)
+function getColorIcon(color: string): React.ComponentType<{ className?: string }> {
+  const cached = colorIconCache.get(color)
   if (cached) return cached
 
   const ColorIcon = ({ className }: { className?: string }) => (
     <div
-      className={cn(className, 'flex-shrink-0 rounded-[3px]', withRing && 'border-[1.5px]')}
+      className={cn(className, 'flex-shrink-0 rounded-[3px]')}
       style={{
         backgroundColor: color,
         width: 10,
         height: 10,
-        ...(withRing && {
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box' as const,
-        }),
       }}
     />
   )
-  ColorIcon.displayName = `ColorIcon(${color}${withRing ? '-ring' : ''})`
-  colorIconCache.set(cacheKey, ColorIcon)
+  ColorIcon.displayName = `ColorIcon(${color})`
+  colorIconCache.set(color, ColorIcon)
   return ColorIcon
+}
+
+/**
+ * Renders the workflow skeleton icon used as the workflow filter indicator.
+ * @param props - Optional className passthrough
+ * @returns The workflow skeleton icon
+ */
+function WorkflowOptionIcon({ className }: { className?: string }) {
+  return <Workflow className={cn(className, 'flex-shrink-0 text-[var(--text-icon)]')} />
 }
 
 /**
@@ -215,7 +215,6 @@ export const LogsToolbar = memo(function LogsToolbar({
     return allWorkflowList.map((w) => ({
       id: w.id,
       name: w.name,
-      color: w.color,
     }))
   }, [allWorkflowList])
 
@@ -303,7 +302,7 @@ export const LogsToolbar = memo(function LogsToolbar({
       : null
 
   const workflowOptions: ComboboxOption[] = useMemo(
-    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color, true) })),
+    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: WorkflowOptionIcon })),
     [workflows]
   )
 
@@ -573,14 +572,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     overlayContent={
                       <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                         {selectedWorkflow && (
-                          <div
-                            className='size-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
-                            style={{
-                              backgroundColor: selectedWorkflow.color,
-                              borderColor: workflowBorderColor(selectedWorkflow.color),
-                              backgroundClip: 'padding-box',
-                            }}
-                          />
+                          <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                         )}
                         <span className='truncate'>{workflowDisplayLabel}</span>
                       </span>
@@ -699,14 +691,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               overlayContent={
                 <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                   {selectedWorkflow && (
-                    <div
-                      className='size-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
-                      style={{
-                        backgroundColor: selectedWorkflow.color,
-                        borderColor: workflowBorderColor(selectedWorkflow.color),
-                        backgroundClip: 'padding-box',
-                      }}
-                    />
+                    <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                   )}
                   <span className='truncate'>{workflowDisplayLabel}</span>
                 </span>

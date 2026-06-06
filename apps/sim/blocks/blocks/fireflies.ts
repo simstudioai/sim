@@ -660,7 +660,7 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
 }
 
 export const FirefliesBlockMeta = {
-  tags: ['meeting', 'speech-to-text', 'note-taking'],
+  tags: ['meeting', 'note-taking'],
   templates: [
     {
       icon: FirefliesIcon,
@@ -735,5 +735,5 @@ export const FirefliesBlockMeta = {
 } as const satisfies BlockMeta
 
 export const FirefliesV2BlockMeta = {
-  tags: ['meeting', 'speech-to-text', 'note-taking'],
+  tags: ['meeting', 'note-taking'],
 } as const satisfies BlockMeta

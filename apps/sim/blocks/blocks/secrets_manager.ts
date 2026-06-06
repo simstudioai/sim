@@ -285,28 +285,28 @@ export const SecretsManagerBlockMeta = {
   templates: [
     {
       icon: SecretsManagerIcon,
-      title: 'Secrets Manager rotation alerter',
+      title: 'Secrets Manager scheduled rotation',
       prompt:
-        'Build a scheduled workflow that lists AWS Secrets Manager secrets due for rotation, triggers rotation Lambdas, and writes the rotation status to a compliance table.',
+        'Build a scheduled workflow that lists AWS Secrets Manager secrets, generates a new value for each secret past its rotation window, updates it with the new value, and writes the rotation status to a compliance table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'enterprise'],
     },
     {
       icon: SecretsManagerIcon,
-      title: 'Secrets Manager access auditor',
+      title: 'Secrets Manager inventory auditor',
       prompt:
-        'Create a scheduled workflow that audits AWS Secrets Manager IAM access against least privilege, flags overly broad principals, and writes a security review.',
+        'Create a scheduled workflow that lists all AWS Secrets Manager secrets, flags ones missing descriptions or older than a chosen age, writes a security review, and posts the findings to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['legal', 'enterprise'],
+      tags: ['enterprise', 'monitoring'],
       alsoIntegrations: ['slack'],
     },
     {
       icon: SecretsManagerIcon,
-      title: 'Secrets Manager unused-secret cleaner',
+      title: 'Secrets Manager stale-secret cleaner',
       prompt:
-        'Build a scheduled workflow that identifies AWS Secrets Manager secrets not accessed in 90 days, requires owner approval to delete, and writes the cleanup audit.',
+        'Build a scheduled workflow that lists AWS Secrets Manager secrets, identifies ones created before a chosen cutoff, requests owner approval in Slack, deletes the approved secrets, and writes the cleanup audit.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'enterprise'],
@@ -324,9 +324,9 @@ export const SecretsManagerBlockMeta = {
     },
     {
       icon: SecretsManagerIcon,
-      title: 'Secrets Manager break-glass tracker',
+      title: 'Secrets Manager break-glass retrieval',
       prompt:
-        'Build a workflow that on each AWS Secrets Manager break-glass access opens a Slack thread for approval, captures the justification, and writes the audit record.',
+        'Build a workflow that gates retrieval of a sensitive AWS Secrets Manager secret behind a Slack approval, captures the requester and justification, fetches the secret only after sign-off, and writes the audit record.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'monitoring'],
@@ -344,10 +344,10 @@ export const SecretsManagerBlockMeta = {
     },
     {
       icon: SecretsManagerIcon,
-      title: 'Secrets Manager change-event watcher',
+      title: 'Secrets Manager change watcher',
       prompt:
-        'Build a workflow that subscribes to AWS Secrets Manager rotation events, captures success and failure, and pings the security Slack channel on failed rotations.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls AWS Secrets Manager secret version IDs, compares them against a baseline stored in a table, and pings the security Slack channel when a secret changes unexpectedly.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['slack'],

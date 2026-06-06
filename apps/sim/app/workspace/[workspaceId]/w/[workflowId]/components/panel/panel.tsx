@@ -578,7 +578,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         sourceId: activeWorkflowId,
         name: `${sourceWorkflow.name} (Copy)`,
         description: sourceWorkflow.description,
-        color: sourceWorkflow.color ?? '',
         folderId: sourceWorkflow.folderId,
       })
       if (result?.id) {

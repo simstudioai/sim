@@ -831,7 +831,13 @@ try {
           {isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}
         </ChipModalHeader>
 
-        <ChipModalBody className='gap-2 px-4'>
+        {/*
+          flex-none + overflow-visible opt this body out of the chrome's
+          scroll container: the caret-anchored EnvVar/Tag autocomplete
+          dropdowns are absolute-positioned inside it and must spill past
+          the body's bounds rather than clip against a scroll boundary.
+        */}
+        <ChipModalBody className='flex-none gap-2 overflow-visible px-4'>
           <ChipModalTabs
             tabs={[
               { value: 'schema', label: 'Schema' },

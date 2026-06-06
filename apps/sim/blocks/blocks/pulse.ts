@@ -214,61 +214,58 @@ export const PulseBlockMeta = {
   templates: [
     {
       icon: PulseIcon,
-      title: 'Pulse meeting intelligence',
+      title: 'Pulse invoice extractor',
       prompt:
-        'Create a workflow that pulls Pulse meeting recordings, extracts action items, sentiment, and decisions, and updates the related deal record in Salesforce or HubSpot with the meeting summary.',
-      modules: ['agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'analysis'],
-      alsoIntegrations: ['salesforce'],
+        'Create a workflow that runs each uploaded invoice PDF through Pulse OCR, extracts vendor, line items, and totals into structured fields, and writes the parsed records to an accounts-payable table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['document-processing', 'automation'],
     },
     {
       icon: PulseIcon,
-      title: 'Pulse weekly call insights',
+      title: 'Pulse contract clause extractor',
       prompt:
-        'Build a scheduled weekly workflow that aggregates Pulse meeting insights — objections, action items, deal-stage signals — across the rep team, and posts a coaching digest to Slack.',
-      modules: ['scheduled', 'agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'reporting'],
+        'Build a workflow that extracts the full text of uploaded contract PDFs with Pulse OCR, has an agent pull out key clauses, parties, and renewal dates, and writes a structured summary to a table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['document-processing', 'analysis'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse scanned-document indexer',
+      prompt:
+        'Create a workflow that runs each scanned image or PDF through Pulse OCR, chunks the extracted markdown, and indexes the cleaned content into a knowledge base so agents can search across every document.',
+      modules: ['files', 'knowledge-base', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ocr', 'knowledge-base'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse form data extractor',
+      prompt:
+        'Build a workflow that extracts text from uploaded form PDFs and images with Pulse OCR, maps the values into structured fields with an agent, and writes each submission to a table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ocr', 'automation'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse table-to-spreadsheet extractor',
+      prompt:
+        'Create a workflow that runs uploaded reports through Pulse OCR, pulls the embedded tables into structured rows, and writes the consolidated data to a tracking table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['document-processing', 'automation'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse document summarizer',
+      prompt:
+        'Build a workflow that extracts the text of an uploaded PDF or Office file with Pulse OCR, has an agent write a concise summary, and posts it to Slack.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['document-processing', 'automation'],
       alsoIntegrations: ['slack'],
-    },
-    {
-      icon: PulseIcon,
-      title: 'Pulse + DSPy call-pattern miner',
-      prompt:
-        'Create a workflow that uses Pulse meeting transcripts as a DSPy training dataset to optimize objection-handling prompts, captures wins, and writes the evolution to a coaching table.',
-      modules: ['tables', 'agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'analysis'],
-      alsoIntegrations: ['dspy'],
-    },
-    {
-      icon: PulseIcon,
-      title: 'Pulse + Zep call-context memory',
-      prompt:
-        'Build a workflow that writes Pulse meeting insights into Zep memory per account so the next sales call begins with continuity instead of forgetting prior commitments.',
-      modules: ['agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'crm'],
-      alsoIntegrations: ['zep'],
-    },
-    {
-      icon: PulseIcon,
-      title: 'Pulse rep coaching dashboard',
-      prompt:
-        'Build a scheduled weekly workflow that aggregates Pulse meeting insights per sales rep, identifies coaching opportunities, and writes a personalized coaching plan to a table.',
-      modules: ['scheduled', 'tables', 'agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'analysis'],
-    },
-    {
-      icon: PulseIcon,
-      title: 'Pulse churn-signal extractor',
-      prompt:
-        'Create a workflow that watches Pulse customer calls for churn signals — frustration, escalation language, competitor mentions — and writes high-risk accounts to a CS table.',
-      modules: ['tables', 'agent', 'workflows'],
-      category: 'support',
-      tags: ['support', 'analysis'],
     },
     {
       icon: PulseIcon,

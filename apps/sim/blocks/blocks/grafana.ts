@@ -923,8 +923,8 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana alert auto-context',
       prompt:
-        'Build a workflow triggered by Grafana alert firing that pulls related logs, traces, and recent deploys, summarizes them with an agent, and posts the enriched alert to PagerDuty and Slack.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Grafana for firing alert rules, pulls related logs and recent deploys, summarizes them with an agent, and posts the enriched alert to PagerDuty and Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['pagerduty', 'slack'],
@@ -960,8 +960,8 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana incident annotator',
       prompt:
-        'Build a workflow triggered by a PagerDuty incident that adds Grafana annotations to relevant dashboards with the incident link, so engineers can see the context immediately on the timeline.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls PagerDuty for new incidents and adds Grafana annotations to relevant dashboards with the incident link, so engineers can see the context immediately on the timeline.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['pagerduty'],
@@ -970,7 +970,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana on-call digest',
       prompt:
-        'Create a scheduled daily workflow that summarizes the past 24 hours of Grafana alerts by service and severity, and posts a on-call digest to Slack each morning.',
+        'Create a scheduled daily workflow that summarizes the past 24 hours of Grafana alerts by service and severity, and posts an on-call digest to Slack each morning.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'reporting'],
@@ -980,8 +980,8 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana + Linear feature-impact',
       prompt:
-        'Build a workflow that watches Grafana for metric regressions correlated with recent Linear releases and posts a regression review to the team Slack with the suspected change.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Grafana for metric regressions correlated with recent Linear releases and posts a regression review to the team Slack with the suspected change.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
       alsoIntegrations: ['linear', 'slack'],

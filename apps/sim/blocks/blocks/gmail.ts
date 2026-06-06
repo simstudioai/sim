@@ -720,7 +720,7 @@ export const GmailBlockMeta = {
       icon: GmailIcon,
       title: 'Save incoming emails to Notion databases',
       prompt:
-        'Extract structured data from Gmail and store it in Notion — ideal for lead capture, support tickets, and meeting scheduling.',
+        'Build a workflow that monitors Gmail for incoming emails, extracts structured data from each one, and stores it as a Notion database entry — useful for lead capture, support tickets, and meeting scheduling.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

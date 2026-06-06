@@ -9,7 +9,6 @@ import { chipVariants } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -180,14 +179,6 @@ export function WorkflowItem({
     window.open(`/workspace/${workspaceId}/w/${workflow.id}`, '_blank')
   }, [workspaceId, workflow.id])
 
-  const handleColorChange = useCallback(
-    (color: string) => {
-      if (effectiveLocked) return
-      updateWorkflowMutation.mutate({ workspaceId, workflowId: workflow.id, metadata: { color } })
-    },
-    [updateWorkflowMutation, workflow.id, effectiveLocked, workspaceId]
-  )
-
   const handleToggleLock = useCallback(() => {
     if (inheritedFolderLocked) return
     updateWorkflowMutation.mutate({
@@ -347,7 +338,7 @@ export function WorkflowItem({
 
       const total = selection.workflowIds.length + selection.folderIds.length
       const ghostLabel = total > 1 ? `${workflow.name} +${total - 1} more` : workflow.name
-      const icon = total === 1 ? { kind: 'workflow' as const, color: workflow.color } : undefined
+      const icon = total === 1 ? { kind: 'workflow' as const } : undefined
       const ghost = createSidebarDragGhost(ghostLabel, icon)
       // Force reflow so the browser can capture the rendered element
       void ghost.offsetHeight
@@ -356,7 +347,7 @@ export function WorkflowItem({
 
       onDragStartProp?.()
     },
-    [workflow.id, workflow.name, workflow.color, workspaceId, onDragStartProp]
+    [workflow.id, workflow.name, workspaceId, onDragStartProp]
   )
 
   const {
@@ -427,14 +418,6 @@ export function WorkflowItem({
         onClick={handleWorkflowSelect}
         onContextMenu={handleContextMenu}
       >
-        <div
-          className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
-          style={{
-            backgroundColor: workflow.color,
-            borderColor: workflowBorderColor(workflow.color),
-            backgroundClip: 'padding-box',
-          }}
-        />
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 items-center gap-2'>
             {isEditing ? (
@@ -509,17 +492,13 @@ export function WorkflowItem({
         onDuplicate={handleDuplicate}
         onExport={handleExport}
         onDelete={handleOpenDeleteModal}
-        onColorChange={handleColorChange}
-        currentColor={workflow.color}
         showOpenInNewTab={!isMixedSelection && selectedWorkflows.size <= 1}
         showRename={!isMixedSelection && selectedWorkflows.size <= 1}
         showDuplicate={true}
         showExport={true}
-        showColorChange={!isMixedSelection && selectedWorkflows.size <= 1}
         disableRename={!userPermissions.canEdit || effectiveLocked}
         disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection}
         disableExport={!userPermissions.canEdit}
-        disableColorChange={!userPermissions.canEdit || effectiveLocked}
         showDelete={userPermissions.canEdit}
         disableDelete={!canDeleteSelection || effectiveLocked}
         onToggleLock={handleToggleLock}

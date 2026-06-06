@@ -15,7 +15,7 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/calcom',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  bgColor: '#FFFFFE',
+  bgColor: '#292929',
   icon: CalComIcon,
   subBlocks: [
     {

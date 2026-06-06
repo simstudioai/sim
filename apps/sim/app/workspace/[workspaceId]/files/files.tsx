@@ -4,6 +4,7 @@ import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Chip,
@@ -26,6 +27,7 @@ import {
 } from '@/components/emcn'
 import { Download } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { captureEvent } from '@/lib/posthog/client'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -175,6 +177,10 @@ export function Files() {
   const isNewFile = searchParams.get('new') === '1'
   const currentFolderId = searchParams.get('folderId')
   const workspaceId = params?.workspaceId as string
+
+  const posthog = usePostHog()
+  const posthogRef = useRef(posthog)
+  posthogRef.current = posthog
 
   const fileIdFromRoute =
     typeof params?.fileId === 'string' && params.fileId.length > 0 ? params.fileId : null
@@ -904,13 +910,21 @@ export function Files() {
     if (dropped.length > 0) await uploadFiles(dropped)
   }
 
-  const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {
-    try {
-      await triggerFileDownload(file)
-    } catch (err) {
-      logger.error('Failed to download file:', err)
-    }
-  }, [])
+  const handleDownload = useCallback(
+    async (file: WorkspaceFileRecord) => {
+      try {
+        await triggerFileDownload(file)
+        captureEvent(posthogRef.current, 'file_downloaded', {
+          workspace_id: workspaceId,
+          is_bulk: false,
+          file_count: 1,
+        })
+      } catch (err) {
+        logger.error('Failed to download file:', err)
+      }
+    },
+    [workspaceId]
+  )
 
   const deleteTargetRef = useRef(deleteTarget)
   deleteTargetRef.current = deleteTarget
@@ -1025,6 +1039,11 @@ export function Files() {
     for (const folderId of selectedFolderIds) query.append('folderIds', folderId)
 
     if (query.size === 0) return
+    captureEvent(posthogRef.current, 'file_downloaded', {
+      workspace_id: workspaceId,
+      is_bulk: true,
+      file_count: selectedFileIds.length + selectedFolderIds.length,
+    })
     window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
   }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
 

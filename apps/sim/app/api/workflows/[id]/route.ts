@@ -244,7 +244,7 @@ export const DELETE = withRouteHandler(
 
 /**
  * PUT /api/workflows/[id]
- * Update workflow metadata (name, description, color, folderId)
+ * Update workflow metadata (name, description, folderId)
  */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {

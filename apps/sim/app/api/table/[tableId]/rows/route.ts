@@ -71,6 +71,7 @@ async function handleBatchInsert(
         workspaceId: validated.workspaceId,
         userId,
         positions: validated.positions,
+        orderKeys: validated.orderKeys,
       },
       table,
       requestId
@@ -83,6 +84,7 @@ async function handleBatchInsert(
           id: r.id,
           data: r.data,
           position: r.position,
+          orderKey: r.orderKey ?? undefined,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
         })),
@@ -162,6 +164,8 @@ export const POST = withRouteHandler(
           workspaceId: validated.workspaceId,
           userId: authResult.userId,
           position: validated.position,
+          afterRowId: validated.afterRowId,
+          beforeRowId: validated.beforeRowId,
         },
         table,
         requestId
@@ -174,9 +178,11 @@ export const POST = withRouteHandler(
             id: row.id,
             data: row.data,
             position: row.position,
+            orderKey: row.orderKey ?? undefined,
             createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
             updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
           },
+
           message: 'Row inserted successfully',
         },
       })

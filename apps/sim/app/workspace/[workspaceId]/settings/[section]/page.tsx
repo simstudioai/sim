@@ -1,11 +1,22 @@
 import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { prefetchGeneralSettings, prefetchSubscriptionData, prefetchUserProfile } from './prefetch'
 import { SettingsPage } from './settings'
+
+/**
+ * Legacy settings sections that moved to top-level workspace routes.
+ * Old bookmarks and emails deep-link here; without the redirect the
+ * section renderer has no matching branch and shows an empty panel.
+ */
+const SETTINGS_REDIRECTS: Record<string, (workspaceId: string) => string> = {
+  integrations: (id) => `/workspace/${id}/integrations`,
+  skills: (id) => `/workspace/${id}/skills`,
+}
 
 const SECTION_TITLES: Record<string, string> = {
   general: 'General',
@@ -44,7 +55,11 @@ export default async function SettingsSectionPage({
 }: {
   params: Promise<{ workspaceId: string; section: string }>
 }) {
-  const { section } = await params
+  const { workspaceId, section } = await params
+
+  const redirectTo = SETTINGS_REDIRECTS[section]
+  if (redirectTo) redirect(redirectTo(workspaceId))
+
   const queryClient = getQueryClient()
 
   void prefetchGeneralSettings(queryClient)

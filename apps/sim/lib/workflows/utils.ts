@@ -9,7 +9,6 @@ import { getSession } from '@/lib/auth'
 import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
 import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import type { ExecutionResult } from '@/executor/types'
@@ -367,19 +366,11 @@ export interface CreateWorkflowInput {
   workspaceId: string
   name: string
   description?: string | null
-  color?: string
   folderId?: string | null
 }
 
 export async function createWorkflowRecord(params: CreateWorkflowInput) {
-  const {
-    userId,
-    workspaceId,
-    name,
-    description = null,
-    color = getNextWorkflowColor(),
-    folderId = null,
-  } = params
+  const { userId, workspaceId, name, description = null, folderId = null } = params
   const workflowId = generateId()
   const now = new Date()
 
@@ -442,7 +433,6 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     sortOrder,
     name,
     description,
-    color,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,
@@ -464,12 +454,11 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
 
 export async function updateWorkflowRecord(
   workflowId: string,
-  updates: { name?: string; description?: string; color?: string; folderId?: string | null }
+  updates: { name?: string; description?: string; folderId?: string | null }
 ) {
   const setData: Record<string, unknown> = { updatedAt: new Date() }
   if (updates.name !== undefined) setData.name = updates.name
   if (updates.description !== undefined) setData.description = updates.description
-  if (updates.color !== undefined) setData.color = updates.color
   if (updates.folderId !== undefined) setData.folderId = updates.folderId
   await db.update(workflowTable).set(setData).where(eq(workflowTable.id, workflowId))
 }

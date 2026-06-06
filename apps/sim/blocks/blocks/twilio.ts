@@ -103,7 +103,7 @@ export const TwilioSMSBlockMeta = {
         'Build a workflow triggered by a PagerDuty incident that sends a Twilio SMS to the on-call engineer with the service name and severity so critical alerts reach them even when they are away from Slack.',
       modules: ['agent', 'workflows'],
       category: 'engineering',
-      tags: ['messaging', 'incident', 'automation'],
+      tags: ['messaging', 'incident-management', 'automation'],
       alsoIntegrations: ['pagerduty'],
     },
     {

@@ -558,6 +558,7 @@ export const RevenueCatBlockMeta = {
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['finance', 'analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
     },
   ],
 } as const satisfies BlockMeta

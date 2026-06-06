@@ -29,6 +29,7 @@ export {
   type ChipDropdownOption,
   type ChipDropdownProps,
 } from './chip-dropdown/chip-dropdown'
+export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
 export {
   ChipModal,
   ChipModalBody,
@@ -46,11 +47,6 @@ export {
   ChipModalTabs,
   type ChipModalTabsProps,
 } from './chip-modal/chip-modal'
-export {
-  ChipMultiSelect,
-  type ChipMultiSelectOption,
-  type ChipMultiSelectProps,
-} from './chip-multi-select/chip-multi-select'
 export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
 export {
   ChipSwitch,
@@ -58,6 +54,7 @@ export {
   type ChipSwitchProps,
 } from './chip-switch/chip-switch'
 export { ChipTag, type ChipTagProps, chipTagVariants } from './chip-tag/chip-tag'
+export { ChipTextarea, type ChipTextareaProps } from './chip-textarea/chip-textarea'
 export {
   CODE_LINE_HEIGHT_PX,
   Code,
@@ -105,7 +102,7 @@ export {
   type InfoCardListProps,
   type InfoCardProps,
 } from './info-card/info-card'
-export { Input, inputVariants } from './input/input'
+export { Input, type InputProps } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
@@ -143,21 +140,6 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem, progressItemVariants } from './progress-item/progress-item'
-export {
-  SModal,
-  SModalClose,
-  SModalContent,
-  SModalMain,
-  SModalMainBody,
-  SModalMainHeader,
-  SModalSidebar,
-  SModalSidebarHeader,
-  SModalSidebarItem,
-  SModalSidebarSection,
-  SModalSidebarSectionTitle,
-  SModalTrigger,
-} from './s-modal/s-modal'
-export { SearchInput, type SearchInputProps } from './search-input/search-input'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'

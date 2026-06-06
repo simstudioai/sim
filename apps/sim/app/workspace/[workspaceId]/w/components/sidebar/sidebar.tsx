@@ -36,6 +36,7 @@ import {
   Settings,
   Table,
   Task,
+  Workflow,
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -335,12 +336,6 @@ const SidebarNavItem = memo(function SidebarNavItem({
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
 
 const HIDDEN_STYLE = { display: 'none' } as const
-
-const WORKFLOW_ICON_STYLE: React.CSSProperties = {
-  backgroundColor: 'var(--text-icon)',
-  borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
-  backgroundClip: 'padding-box',
-}
 
 /**
  * Sidebar component with resizable width that persists across page refreshes.
@@ -690,7 +685,6 @@ export const Sidebar = memo(function Sidebar() {
           id: workflow.id,
           name: workflow.name,
           href: `/workspace/${workspaceId}/w/${workflow.id}`,
-          color: workflow.color,
           folderPath: folderPath.length > 0 ? folderPath : undefined,
           isCurrent: workflow.id === workflowId,
         }
@@ -1132,10 +1126,7 @@ export const Sidebar = memo(function Sidebar() {
   const tasksCollapsedIcon = <Task className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
 
   const workflowsCollapsedIcon = (
-    <div
-      className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
-      style={WORKFLOW_ICON_STYLE}
-    />
+    <Workflow className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
   )
 
   const workflowsPrimaryAction = {
@@ -1347,29 +1338,7 @@ export const Sidebar = memo(function Sidebar() {
                   )}
                 >
                   <div ref={scrollContentRef} className='flex flex-col'>
-                    <div className='flex flex-shrink-0 flex-col'>
-                      <div className='px-4 pb-2'>
-                        <div className='text-[var(--text-muted)] text-small'>Workspace</div>
-                      </div>
-                      <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                        {workspaceNavItems.map((item) => (
-                          <SidebarNavItem
-                            key={item.id}
-                            item={item}
-                            active={isNavItemActive(item, pathname)}
-                            showCollapsedTooltips={showCollapsedTooltips}
-                            onContextMenu={handleNavItemContextMenu}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div
-                      className={cn(
-                        SIDEBAR_SECTION_GAP_CLASS,
-                        'tasks-section flex flex-shrink-0 flex-col'
-                      )}
-                    >
+                    <div className='tasks-section flex flex-shrink-0 flex-col'>
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                         <div className='text-[var(--text-muted)] text-small'>Chats</div>
                         {!isCollapsed && (
@@ -1510,6 +1479,23 @@ export const Sidebar = memo(function Sidebar() {
                           )}
                         </div>
                       )}
+                    </div>
+
+                    <div className={cn(SIDEBAR_SECTION_GAP_CLASS, 'flex flex-shrink-0 flex-col')}>
+                      <div className='px-4 pb-2'>
+                        <div className='text-[var(--text-muted)] text-small'>Workspace</div>
+                      </div>
+                      <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                        {workspaceNavItems.map((item) => (
+                          <SidebarNavItem
+                            key={item.id}
+                            item={item}
+                            active={isNavItemActive(item, pathname)}
+                            showCollapsedTooltips={showCollapsedTooltips}
+                            onContextMenu={handleNavItemContextMenu}
+                          />
+                        ))}
+                      </div>
                     </div>
 
                     <div
@@ -1749,7 +1735,6 @@ export const Sidebar = memo(function Sidebar() {
                   isPinned={!!activeTaskContextMenuItem?.isPinned}
                   showRename={!isMultiTaskContextMenu}
                   showDuplicate={false}
-                  showColorChange={false}
                   disableRename={!canEdit}
                   disableDelete={!canEdit}
                 />

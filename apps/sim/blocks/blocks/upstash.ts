@@ -349,7 +349,7 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
 }
 
 export const UpstashBlockMeta = {
-  tags: ['cloud', 'data-warehouse'],
+  tags: ['cloud'],
   templates: [
     {
       icon: UpstashIcon,
@@ -362,20 +362,20 @@ export const UpstashBlockMeta = {
     },
     {
       icon: UpstashIcon,
-      title: 'Upstash consumption monitor',
+      title: 'Upstash counter digest',
       prompt:
-        'Create a scheduled daily workflow that aggregates Upstash request and bandwidth usage, projects month-end cost, and posts a Slack alert when projections exceed budget.',
+        'Create a scheduled daily workflow that reads Upstash Redis counter keys for the day, summarizes the totals, and posts a usage digest to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['finance', 'monitoring'],
+      tags: ['monitoring', 'reporting'],
       alsoIntegrations: ['slack'],
     },
     {
       icon: UpstashIcon,
-      title: 'Upstash event-stream bridge',
+      title: 'Upstash queue drain',
       prompt:
-        'Build a workflow that subscribes to an Upstash Kafka topic, transforms each event into structured rows, and writes them into a downstream Sim table for further automation.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that pops queued jobs from an Upstash Redis list with LRANGE, transforms each into structured rows, and writes them into a downstream Sim table for further automation.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'sync'],
     },
@@ -391,21 +391,21 @@ export const UpstashBlockMeta = {
     },
     {
       icon: UpstashIcon,
-      title: 'Upstash backup verifier',
+      title: 'Upstash key integrity check',
       prompt:
-        'Build a scheduled workflow that verifies Upstash backups by spot-restoring sample keys, comparing values, and writing the verification report to an SRE audit table.',
+        'Build a scheduled workflow that reads a set of critical Upstash Redis keys, compares each value against the expected baseline in a table, and writes a mismatch report to an SRE audit table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'enterprise'],
     },
     {
       icon: UpstashIcon,
-      title: 'Upstash multi-region failover',
+      title: 'Upstash cache warmer',
       prompt:
-        'Create a workflow that monitors Upstash regional latency, automatically points production traffic to a healthy region on detected degradation, and pages PagerDuty.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that precomputes expensive query results and writes them into Upstash Redis with a TTL using SET, so hot paths stay warm and pages PagerDuty if a warm-up run fails.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
-      tags: ['devops', 'monitoring'],
+      tags: ['devops', 'automation'],
       alsoIntegrations: ['pagerduty'],
     },
     {

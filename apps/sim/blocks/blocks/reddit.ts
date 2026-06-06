@@ -919,7 +919,7 @@ export const RedditBlockMeta = {
       icon: RedditIcon,
       title: 'Reddit subreddit monitor',
       prompt:
-        'Build a scheduled workflow that watches target subreddits for posts matching brand or product keywords, scores each for relevance and sentiment, and posts notable hits to Slack with the original link.',
+        'Build a scheduled workflow that uses Reddit to watch target subreddits for posts matching brand or product keywords, scores each for relevance and sentiment, and posts notable hits to Slack with the original link.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'monitoring'],
@@ -929,7 +929,7 @@ export const RedditBlockMeta = {
       icon: RedditIcon,
       title: 'Reddit user-question knowledge mining',
       prompt:
-        'Create a workflow that pulls top questions in industry subreddits weekly, classifies by theme, and writes a content-opportunity table the marketing team can prioritize.',
+        'Create a workflow that pulls top questions from Reddit industry subreddits weekly, classifies by theme, and writes a content-opportunity table the marketing team can prioritize.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'research'],
@@ -956,8 +956,8 @@ export const RedditBlockMeta = {
       icon: RedditIcon,
       title: 'Reddit crisis-signal alerter',
       prompt:
-        'Build a workflow that watches Reddit for sudden bursts of negative posts about the brand, classifies severity, and pages the PR team via Slack and PagerDuty when a real crisis emerges.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Reddit for sudden bursts of negative posts about the brand, classifies severity, and pages the PR team via Slack and PagerDuty when a real crisis emerges.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'monitoring'],
       alsoIntegrations: ['slack', 'pagerduty'],
@@ -966,8 +966,8 @@ export const RedditBlockMeta = {
       icon: RedditIcon,
       title: 'Reddit content-idea collector',
       prompt:
-        'Create a workflow that watches r/marketing-relevant subreddits, captures upvoted long-form posts, summarizes each, and adds them to a content-ideas table with effort and impact scores.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Create a scheduled workflow that polls marketing-relevant Reddit subreddits, captures upvoted long-form posts, summarizes each, and adds them to a content-ideas table with effort and impact scores.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'content'],
     },

@@ -527,7 +527,7 @@ export const GrainBlockMeta = {
       icon: GrainIcon,
       title: 'Grain competitor mentions tracker',
       prompt:
-        'Build a workflow that scans Grain sales transcripts for competitor mentions, logs the context and outcome to a competitive-intel table, and surfaces patterns weekly.',
+        'Build a scheduled workflow that scans Grain sales transcripts for competitor mentions, logs the context and outcome to a competitive-intel table, and posts a weekly pattern summary to Slack.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'research'],

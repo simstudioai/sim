@@ -11,7 +11,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
+import { Plus, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
   buildFileFolderTree,
@@ -302,14 +302,7 @@ export const PlusMenuDropdown = React.memo(
                 {workflowTree.length > 0 && (
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
-                      <div
-                        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
-                        style={{
-                          backgroundColor: '#808080',
-                          borderColor: '#80808060',
-                          backgroundClip: 'padding-box',
-                        }}
-                      />
+                      <Workflow className='size-[14px]' />
                       <span>Workflows</span>
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>

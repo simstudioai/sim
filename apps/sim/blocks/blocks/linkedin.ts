@@ -125,7 +125,7 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
 }
 
 export const LinkedInBlockMeta = {
-  tags: ['marketing', 'sales-engagement', 'enrichment'],
+  tags: ['marketing', 'sales-engagement'],
   templates: [
     {
       icon: LinkedInIcon,
@@ -138,32 +138,30 @@ export const LinkedInBlockMeta = {
     },
     {
       icon: LinkedInIcon,
-      title: 'LinkedIn engagement tracker',
+      title: 'LinkedIn news-to-post writer',
       prompt:
-        'Build a scheduled workflow that monitors LinkedIn engagement on the company posts, identifies high-influence engagers, and writes them to a sales-prospect table.',
+        'Build a scheduled workflow that searches the web for news in my industry, drafts a short take with a hook and a call-to-action for each top story, and shares the best one to my LinkedIn feed.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: LinkedInIcon,
+      title: 'LinkedIn launch announcer',
+      prompt:
+        'Create a workflow that on a launch trigger from a table drafts a LinkedIn announcement post with the key details and a link, shares it to my LinkedIn feed, and marks the row as posted.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'automation'],
+    },
+    {
+      icon: LinkedInIcon,
+      title: 'LinkedIn weekly recap poster',
+      prompt:
+        'Build a scheduled weekly workflow that summarizes the week’s wins from a table, drafts a recap post with an agent, and shares it to my LinkedIn feed.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'marketing'],
-    },
-    {
-      icon: LinkedInIcon,
-      title: 'LinkedIn account intel',
-      prompt:
-        'Create a workflow that for a tracked account scrapes LinkedIn for recent hires, leadership changes, and posts, then writes the intel to the matching CRM account.',
-      modules: ['agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'research'],
-      alsoIntegrations: ['salesforce'],
-    },
-    {
-      icon: LinkedInIcon,
-      title: 'LinkedIn job-change alerter',
-      prompt:
-        'Build a workflow that watches LinkedIn job-change signals for CRM contacts, posts a Slack alert to the rep when a key contact moves, and updates HubSpot.',
-      modules: ['agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'monitoring'],
-      alsoIntegrations: ['slack', 'hubspot'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'automation'],
     },
     {
       icon: LinkedInIcon,
@@ -185,12 +183,12 @@ export const LinkedInBlockMeta = {
     },
     {
       icon: LinkedInIcon,
-      title: 'LinkedIn profile enrichment',
+      title: 'LinkedIn thought-leadership cadence',
       prompt:
-        'Create a workflow that on a new lead fetches the LinkedIn profile, extracts role, company, and background, and writes the enriched details back to the CRM record so reps open every conversation with full context.',
-      modules: ['agent', 'workflows'],
-      category: 'sales',
-      tags: ['sales', 'research', 'enrichment'],
+        'Create a scheduled workflow that picks the next idea from a content table, expands it into a full LinkedIn post with an agent, shares it to my LinkedIn feed, and logs the publish time back to the row.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'automation'],
     },
   ],
 } as const satisfies BlockMeta

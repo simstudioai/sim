@@ -11,8 +11,7 @@ export const OpenAIBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/tools/openai',
-  bgColor: '#10a37f',
-  iconColor: '#10A37F',
+  bgColor: '#000000',
   icon: OpenAIIcon,
   subBlocks: [
     {
@@ -72,30 +71,32 @@ export const OpenAIBlockMeta = {
     },
     {
       icon: OpenAIIcon,
-      title: 'Multimodal report builder',
+      title: 'Knowledge base re-embedder',
       prompt:
-        'Create a workflow that takes a topic, generates a written report with OpenAI, produces matching hero images with the OpenAI image model, and saves the bundle as a single file deliverable.',
-      modules: ['agent', 'files', 'workflows'],
-      category: 'marketing',
-      tags: ['content', 'automation'],
+        'Create a scheduled workflow that finds documents whose embeddings are stale, regenerates them with OpenAI, and re-upserts the vectors into Pinecone so retrieval stays current.',
+      modules: ['scheduled', 'knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['automation', 'sync', 'vector-search'],
+      alsoIntegrations: ['pinecone'],
     },
     {
       icon: OpenAIIcon,
-      title: 'OpenAI structured-output evaluator',
+      title: 'Semantic duplicate detector',
       prompt:
-        'Build a workflow that runs a tables of test inputs through an OpenAI structured-output schema, compares against expected outputs, and writes pass/fail and diff reasons to an evaluation table.',
+        'Build a workflow that reads new rows from a table, generates OpenAI embeddings for each, compares them against existing rows by cosine similarity, and flags near-duplicates in an evaluation table.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'engineering',
-      tags: ['engineering', 'analysis'],
+      tags: ['engineering', 'analysis', 'vector-search'],
     },
     {
       icon: OpenAIIcon,
-      title: 'OpenAI image asset factory',
+      title: 'Product catalog semantic search',
       prompt:
-        'Create a workflow that takes a list of product names from a table, generates on-brand product images with OpenAI, saves them as files, and writes the file URL back to the row.',
-      modules: ['tables', 'files', 'agent', 'workflows'],
+        'Create a workflow that embeds each product description from a table with OpenAI, upserts the vectors into Pinecone, and lets an incoming query return the closest matching products by similarity.',
+      modules: ['tables', 'agent', 'workflows'],
       category: 'marketing',
-      tags: ['marketing', 'content'],
+      tags: ['marketing', 'vector-search'],
+      alsoIntegrations: ['pinecone'],
     },
     {
       icon: OpenAIIcon,

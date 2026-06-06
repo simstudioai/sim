@@ -109,11 +109,7 @@ async function executeImport(
     }
   }
 
-  const {
-    name: rawName,
-    color: workflowColor,
-    description: workflowDescription,
-  } = extractWorkflowMetadata(parsed)
+  const { name: rawName, description: workflowDescription } = extractWorkflowMetadata(parsed)
 
   const workflowId = generateId()
   const now = new Date()
@@ -126,7 +122,6 @@ async function executeImport(
     folderId: null,
     name: dedupedName,
     description: workflowDescription,
-    color: workflowColor,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,

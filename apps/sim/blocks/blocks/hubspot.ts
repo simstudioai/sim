@@ -1283,7 +1283,7 @@ export const HubSpotBlockMeta = {
       icon: HubspotIcon,
       title: 'Get HubSpot deal alerts in Slack',
       prompt:
-        'Receive instant Slack notifications when HubSpot deals advance, contacts are created, or revenue milestones are hit.',
+        'Build a workflow that watches HubSpot for deal stage changes, new contacts, and revenue milestones, then posts instant Slack notifications to your sales team.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],
@@ -1294,7 +1294,7 @@ export const HubSpotBlockMeta = {
       icon: HubspotIcon,
       title: 'Send personalised emails from HubSpot events',
       prompt:
-        'Trigger Gmail messages when HubSpot contacts enter a lifecycle stage, ensuring timely and relevant outreach without manual effort.',
+        'Build a workflow that triggers whenever a HubSpot contact enters a new lifecycle stage and sends a personalised Gmail message tailored to that stage.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

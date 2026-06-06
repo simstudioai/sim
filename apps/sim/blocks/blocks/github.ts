@@ -2127,7 +2127,7 @@ export const GitHubBlockMeta = {
       icon: GithubIcon,
       title: 'Link GitHub pull requests to Jira tickets',
       prompt:
-        'Transition Jira issues when PRs are opened or merged, keeping your project board accurate without any manual updates.',
+        'Build a workflow that monitors GitHub pull requests and automatically transitions linked Jira issues when PRs are opened or merged, keeping your project board accurate without any manual updates.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],
@@ -2138,7 +2138,7 @@ export const GitHubBlockMeta = {
       icon: GithubIcon,
       title: 'Sync GitHub events with Linear issues',
       prompt:
-        'Create Linear issues from GitHub activity, update status on merge, and keep your engineering workflow tightly connected.',
+        'Build a workflow that creates Linear issues from GitHub pull requests and commits, and automatically updates their status when a PR is merged.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],
@@ -2149,7 +2149,7 @@ export const GitHubBlockMeta = {
       icon: GithubIcon,
       title: 'Get GitHub activity alerts in Slack',
       prompt:
-        'Post Slack notifications for new PRs, commits, issues, or deployments so your engineering team never misses a critical event.',
+        'Create an agent that watches GitHub for new pull requests, commits, issues, or deployments and posts formatted Slack notifications so your engineering team never misses a critical event.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

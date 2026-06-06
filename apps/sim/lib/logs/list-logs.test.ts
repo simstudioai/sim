@@ -80,7 +80,6 @@ function workflowRow(overrides: Record<string, unknown> = {}) {
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     workflowName: 'My Workflow',
     workflowDescription: null,
-    workflowColor: null,
     workflowFolderId: null,
     workflowUserId: 'user-1',
     workflowWorkspaceId: 'ws-1',

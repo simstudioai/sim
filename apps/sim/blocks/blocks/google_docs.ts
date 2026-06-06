@@ -218,9 +218,9 @@ export const GoogleDocsBlockMeta = {
   templates: [
     {
       icon: GoogleDocsIcon,
-      title: 'Google Docs review-cycle automator',
+      title: 'Google Docs review request',
       prompt:
-        'Build a workflow that watches Google Docs for a "ready-for-review" status comment, notifies named reviewers over Slack, collects approval reactions, and resolves the comment when complete.',
+        'Build a workflow that reads a Google Doc when its title is marked ready for review, summarizes the key points with an agent, and posts a review request with the doc link to the named reviewers in Slack.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'automation'],
@@ -228,10 +228,10 @@ export const GoogleDocsBlockMeta = {
     },
     {
       icon: GoogleDocsIcon,
-      title: 'Google Docs version digester',
+      title: 'Google Docs change digester',
       prompt:
-        'Create a scheduled weekly workflow that compares Google Docs revisions for tracked documents, summarizes who changed what, and posts a digest to the doc owner.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Create a scheduled weekly workflow that reads each tracked Google Doc, compares its content against the snapshot stored in a table, summarizes what changed with an agent, and posts a digest to the team in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'reporting'],
       alsoIntegrations: ['slack'],
@@ -240,7 +240,7 @@ export const GoogleDocsBlockMeta = {
       icon: GoogleDocsIcon,
       title: 'Google Docs translation copy',
       prompt:
-        'Build a workflow that takes a Google Doc and creates translated copies into target languages with Google Translate, links them in the source, and notifies the localization team.',
+        'Build a workflow that takes a Google Docs document and creates translated copies into target languages with Google Translate, links them in the source, and notifies the localization team.',
       modules: ['agent', 'workflows'],
       category: 'marketing',
       tags: ['content', 'enterprise'],
@@ -248,9 +248,9 @@ export const GoogleDocsBlockMeta = {
     },
     {
       icon: GoogleDocsIcon,
-      title: 'Meeting notes to Google Doc',
+      title: 'Meeting notes to Google Docs',
       prompt:
-        'Create a workflow that after a meeting pulls the transcript, summarizes decisions, action items, and owners with an agent, and creates a formatted Google Doc in the shared team folder with a link posted to Slack.',
+        'Create a workflow that after a meeting pulls the transcript, summarizes decisions, action items, and owners with an agent, and creates a formatted Google Docs document in the shared team folder with a link posted to Slack.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'meeting', 'reporting'],
@@ -260,7 +260,7 @@ export const GoogleDocsBlockMeta = {
       icon: GoogleDocsIcon,
       title: 'Google Docs proposal generator',
       prompt:
-        'Build a workflow that on a closed-won deal reads the account details, creates a Google Doc from the proposal template, fills in customer name, scope, and pricing, and shares the draft with the account owner for review.',
+        'Build a workflow that on a closed-won deal reads the account details, creates a Google Docs document from the proposal template, fills in customer name, scope, and pricing, and shares the draft with the account owner for review.',
       modules: ['agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'content', 'automation'],
@@ -269,7 +269,7 @@ export const GoogleDocsBlockMeta = {
       icon: GoogleDocsIcon,
       title: 'Weekly report writer',
       prompt:
-        'Create a scheduled weekly workflow that reads metrics from my tables, writes a narrative status report with an agent, and appends the new section to a running Google Doc so leadership has one living document.',
+        'Create a scheduled weekly workflow that reads metrics from my tables, writes a narrative status report with an agent, and appends the new section to a running Google Docs document so leadership has one living record.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['reporting', 'analysis'],

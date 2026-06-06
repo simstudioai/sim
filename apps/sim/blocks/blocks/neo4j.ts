@@ -706,9 +706,9 @@ export const Neo4jBlockMeta = {
   templates: [
     {
       icon: Neo4jIcon,
-      title: 'Neo4j relationship visualizer',
+      title: 'Neo4j relationship exporter',
       prompt:
-        'Build a workflow that queries Neo4j for a chosen entity graph, renders a layout export, saves the image as a file, and shares the link to a knowledge base for browsing.',
+        'Build a workflow that queries Neo4j for a chosen entity graph, writes the nodes and edges to a structured JSON adjacency file, and shares the file link for a downstream tool to visualize.',
       modules: ['agent', 'files', 'workflows'],
       category: 'engineering',
       tags: ['analysis', 'research'],

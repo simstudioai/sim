@@ -38,7 +38,6 @@ function createLegacyState() {
     variables: {},
     metadata: {
       name: 'Wrapped Workflow',
-      color: '#FFBF00',
     },
   }
 }

@@ -284,7 +284,7 @@ export const OnePasswordBlockMeta = {
       icon: OnePasswordIcon,
       title: '1Password offboarding sweep',
       prompt:
-        'Create a workflow that on a Workday termination revokes 1Password access for the departing employee, rotates shared secrets they had access to, and writes the action log.',
+        'Create a workflow that on a Workday termination rotates the shared 1Password secrets the departing employee had access to, updates the affected items, and writes the action log.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'enterprise'],
@@ -294,7 +294,7 @@ export const OnePasswordBlockMeta = {
       icon: OnePasswordIcon,
       title: '1Password access-review automator',
       prompt:
-        'Build a scheduled quarterly workflow that surfaces 1Password sharing per vault, requires owner re-attestation in Slack, and writes the audit log to a compliance table.',
+        'Build a scheduled quarterly workflow that inventories 1Password items per vault, requires owner re-attestation in Slack, and writes the audit log to a compliance table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
@@ -314,7 +314,7 @@ export const OnePasswordBlockMeta = {
       icon: OnePasswordIcon,
       title: '1Password onboarding kit',
       prompt:
-        'Build a workflow that when a new hire is provisioned shares the right 1Password vaults based on their role and team, and writes the access record to the onboarding table.',
+        'Build a workflow that when a new hire is provisioned creates their starter 1Password items based on role and team, and writes the access record to the onboarding table.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'automation'],
@@ -334,7 +334,7 @@ export const OnePasswordBlockMeta = {
       icon: OnePasswordIcon,
       title: '1Password compliance reporter',
       prompt:
-        'Build a scheduled workflow that produces a 1Password compliance report — vault sharing, item ages, MFA adoption — and writes the report file for auditors.',
+        'Build a scheduled workflow that produces a 1Password compliance report — item counts, ages, and categories per vault — and writes the report file for auditors.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],

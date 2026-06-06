@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Search } from 'lucide-react'
 import {
   ChipDropdown,
+  ChipInput,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   MoreHorizontal,
+  Search,
 } from '@/components/emcn'
 import type { OrgRole, PermissionType } from '@/components/permissions'
 import type {
@@ -376,15 +377,13 @@ export function OrganizationMemberLists({
   return (
     <>
       <div className='flex items-center gap-2'>
-        <div className='flex h-[30px] flex-1 items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-          <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-          <input
-            placeholder='Search members...'
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
-          />
-        </div>
+        <ChipInput
+          icon={Search}
+          placeholder='Search members...'
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className='flex-1'
+        />
       </div>
 
       {showMembersSection && (

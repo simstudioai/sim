@@ -243,7 +243,7 @@ export const LemlistBlockMeta = {
       icon: LemlistIcon,
       title: 'Lemlist reply router',
       prompt:
-        'Create a workflow triggered by Lemlist reply webhooks that classifies each reply, applies the right Lemlist lead status, and posts a Slack notification to the lead owner with a one-line summary and the reply text.',
+        'Create a workflow triggered by Lemlist reply webhooks that classifies each reply by intent and posts a Slack notification to the lead owner with a one-line summary, the intent, and the reply text.',
       modules: ['agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'communication', 'automation'],
@@ -291,7 +291,8 @@ export const LemlistBlockMeta = {
       icon: LemlistIcon,
       title: 'Lemlist bounced lead sweeper',
       prompt:
-        'Build a workflow triggered by Lemlist email-bounced events that marks the lead as bounced, suppresses them from future campaigns, and writes a bounce log so list quality stays high.',
+        'Build a workflow triggered by Lemlist email-bounced events that looks up the lead, writes the bounce to a suppression table, and posts a Slack alert so the team can clean the list and keep quality high.',
+      alsoIntegrations: ['slack'],
       modules: ['agent', 'tables', 'workflows'],
       category: 'sales',
       tags: ['sales', 'automation', 'analysis'],

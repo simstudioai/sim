@@ -408,19 +408,19 @@ export const OktaBlockMeta = {
     },
     {
       icon: OktaIcon,
-      title: 'Okta MFA enrollment drive',
+      title: 'Okta new-hire provisioning',
       prompt:
-        'Build a workflow that finds Okta users without MFA enrolled, sends targeted reminders, and writes enrollment progress to a compliance dashboard.',
+        'Build a workflow that polls Workday for new hires, creates the matching Okta user, adds them to the right groups for their role, and emails IT a provisioning summary.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['legal', 'enterprise'],
-      alsoIntegrations: ['gmail'],
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday', 'gmail'],
     },
     {
       icon: OktaIcon,
-      title: 'Okta login-anomaly alerter',
+      title: 'Okta compromised-account responder',
       prompt:
-        'Create a workflow that watches Okta system logs for impossible-travel and brute-force patterns, opens a CrowdStrike incident on real threats, and pings the security Slack channel.',
+        'Create a workflow triggered by a CrowdStrike detection on a user that suspends the matching Okta account, resets their password, and pings the security Slack channel with the action taken.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'monitoring'],
@@ -428,10 +428,10 @@ export const OktaBlockMeta = {
     },
     {
       icon: OktaIcon,
-      title: 'Okta app-onboarding kit',
+      title: 'Okta access-group provisioner',
       prompt:
-        'Build a workflow that when a new SaaS app is onboarded creates an Okta application, configures SAML, assigns the right groups, and writes the integration record to a CMDB table.',
-      modules: ['agent', 'workflows'],
+        'Build a workflow that reads an access-request table, creates the Okta group if it is missing, adds the approved users to it, and writes the grant record back to the table.',
+      modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'automation'],
     },
@@ -447,12 +447,12 @@ export const OktaBlockMeta = {
     },
     {
       icon: OktaIcon,
-      title: 'Okta application-usage audit',
+      title: 'Okta group membership audit',
       prompt:
-        'Build a scheduled workflow that pulls Okta application sign-in stats monthly, identifies apps with high spend and low utilization, and writes a cost-rationalization report.',
+        'Build a scheduled monthly workflow that lists every Okta group and its members, flags privileged groups with unexpected membership, and writes a review report for the security team.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
-      tags: ['finance', 'enterprise'],
+      tags: ['legal', 'enterprise'],
     },
   ],
 } as const satisfies BlockMeta

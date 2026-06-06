@@ -3,9 +3,17 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight, Plus, Search } from 'lucide-react'
+import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
+import {
+  Chip,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  Search,
+} from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
@@ -142,16 +150,14 @@ export function Skills() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <ShowcaseWithExplore prompt='Explain the skills in Sim and which ones I should add to my agents.' />
           <div className='flex items-center gap-2'>
-            <div className='flex h-[30px] flex-1 items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-              <input
-                placeholder='Search skills...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={isLoading}
-                className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
-              />
-            </div>
+            <ChipInput
+              icon={Search}
+              placeholder='Search skills...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isLoading}
+              className='flex-1'
+            />
           </div>
 
           <div className='flex flex-col gap-7'>

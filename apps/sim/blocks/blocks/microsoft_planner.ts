@@ -663,7 +663,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 }
 
 export const MicrosoftPlannerBlockMeta = {
-  tags: ['project-management', 'microsoft-365', 'ticketing'],
+  tags: ['project-management', 'microsoft-365'],
   templates: [
     {
       icon: MicrosoftPlannerIcon,
@@ -699,8 +699,8 @@ export const MicrosoftPlannerBlockMeta = {
       icon: MicrosoftPlannerIcon,
       title: 'Microsoft Planner blocker watcher',
       prompt:
-        'Build a workflow that monitors Microsoft Planner tasks tagged blocked, identifies the blocking party, and posts a Teams ping with the context to unblock the work.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that scans Microsoft Planner tasks tagged blocked, identifies the blocking party, and posts a Teams ping with the context to unblock the work.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'automation'],
       alsoIntegrations: ['microsoft_teams'],
@@ -709,8 +709,8 @@ export const MicrosoftPlannerBlockMeta = {
       icon: MicrosoftPlannerIcon,
       title: 'Microsoft Planner template launcher',
       prompt:
-        'Create a workflow that on a new project in Microsoft Dataverse creates a Planner plan from the project template, populates the standard buckets, and assigns the right owners.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that polls Microsoft Dataverse for new projects and creates a Planner plan from the project template, populates the standard buckets, and assigns the right owners.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'automation'],
       alsoIntegrations: ['microsoft_dataverse'],
@@ -719,8 +719,8 @@ export const MicrosoftPlannerBlockMeta = {
       icon: MicrosoftPlannerIcon,
       title: 'Microsoft Planner retrospective',
       prompt:
-        'Build a workflow that runs at the end of a sprint, pulls completed Microsoft Planner tasks, summarizes wins and patterns, and writes the retro doc to a SharePoint page.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that runs at the end of a sprint, pulls completed Microsoft Planner tasks, summarizes wins and patterns, and writes the retro doc to a SharePoint page.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'reporting'],
       alsoIntegrations: ['sharepoint'],

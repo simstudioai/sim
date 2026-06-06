@@ -112,7 +112,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       metadata: {
         name: sourceWorkflow.name,
         description: sourceWorkflow.description ?? undefined,
-        color: sourceWorkflow.color,
       },
     }
 
@@ -144,7 +143,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       folderId: null,
       name: dedupedName,
       description: sourceWorkflow.description,
-      color: sourceWorkflow.color,
       lastSynced: now,
       createdAt: now,
       updatedAt: now,

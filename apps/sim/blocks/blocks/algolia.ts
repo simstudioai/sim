@@ -671,21 +671,21 @@ export const AlgoliaBlockMeta = {
     },
     {
       icon: AlgoliaIcon,
-      title: 'Algolia synonym manager',
+      title: 'Algolia settings tuner',
       prompt:
-        'Build a workflow that watches user search queries with zero results, suggests synonyms via an agent, and updates the Algolia synonyms list after approval.',
+        'Build a workflow that reads an Algolia index settings, has an agent propose improvements to searchable attributes and ranking, and applies the approved settings update.',
       modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'automation'],
     },
     {
       icon: AlgoliaIcon,
-      title: 'Algolia personalization tuner',
+      title: 'Algolia index reconciler',
       prompt:
-        'Create a workflow that analyzes Algolia analytics for click and conversion patterns, suggests personalization rules, and writes the proposed rules to a review queue.',
+        'Create a workflow that browses all records in an Algolia index, compares them against a source-of-truth table, and batches adds, updates, and deletes to keep the index accurate.',
       modules: ['tables', 'agent', 'workflows'],
-      category: 'marketing',
-      tags: ['marketing', 'analysis'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
     },
     {
       icon: AlgoliaIcon,
@@ -698,9 +698,9 @@ export const AlgoliaBlockMeta = {
     },
     {
       icon: AlgoliaIcon,
-      title: 'Algolia index size monitor',
+      title: 'Algolia index inventory',
       prompt:
-        'Create a scheduled workflow that pulls Algolia index size and operation counts, writes a metrics history to a table, and pings on-call when usage approaches quota.',
+        'Create a scheduled workflow that lists all Algolia indices and their record counts, writes a daily inventory snapshot to a table, and pings on-call in Slack when an index record count drops unexpectedly.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
@@ -708,12 +708,12 @@ export const AlgoliaBlockMeta = {
     },
     {
       icon: AlgoliaIcon,
-      title: 'Algolia zero-result tracker',
+      title: 'Algolia stale-record sweeper',
       prompt:
-        'Build a scheduled workflow that aggregates Algolia zero-result queries, identifies content gaps, and writes a content-opportunity backlog to a table.',
+        'Build a scheduled workflow that browses an Algolia index, flags records older than a freshness threshold, writes them to a cleanup table, and deletes the confirmed stale records.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
-      category: 'marketing',
-      tags: ['marketing', 'analysis'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
     },
   ],
 } as const satisfies BlockMeta

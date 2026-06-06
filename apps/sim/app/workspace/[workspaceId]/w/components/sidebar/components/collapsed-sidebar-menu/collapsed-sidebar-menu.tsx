@@ -16,7 +16,6 @@ import {
 import { Pencil, SquareArrowUpRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
@@ -168,19 +167,6 @@ const EDIT_ROW_CLASS = cn(
   'mx-0 min-w-0 cursor-default select-none text-small'
 )
 
-function WorkflowColorSwatch({ color }: { color: string }) {
-  return (
-    <div
-      className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
-      style={{
-        backgroundColor: color,
-        borderColor: workflowBorderColor(color),
-        backgroundClip: 'padding-box',
-      }}
-    />
-  )
-}
-
 export function CollapsedSidebarMenu({
   icon,
   hover,
@@ -324,7 +310,6 @@ export function CollapsedWorkflowFlyoutItem({
   if (isEditing) {
     return (
       <div className={EDIT_ROW_CLASS}>
-        <WorkflowColorSwatch color={workflow.color} />
         <input
           aria-label={`Rename workflow ${workflow.name}`}
           ref={inputRef}
@@ -405,7 +390,6 @@ export function CollapsedWorkflowFlyoutItem({
             : undefined
         }
       >
-        <WorkflowColorSwatch color={workflow.color} />
         <span className='min-w-0 flex-1 truncate'>{workflow.name}</span>
       </Link>
     </DropdownMenuItem>

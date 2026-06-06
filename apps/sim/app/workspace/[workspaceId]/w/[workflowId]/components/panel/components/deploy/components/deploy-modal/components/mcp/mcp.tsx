@@ -7,8 +7,8 @@ import {
   Badge,
   Button,
   ChipCombobox,
+  ChipInput,
   type ComboboxOption,
-  Input,
   Label,
   Skeleton,
   Textarea,
@@ -509,13 +509,12 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Tool name
         </Label>
-        <Input
-          variant='chip'
+        <ChipInput
           value={toolName}
           onChange={(e) => setToolName(e.target.value)}
           placeholder='e.g., book_flight'
           aria-invalid={!!toolNameError}
-          className={cn(toolNameError && 'border-[var(--text-error)]')}
+          error={Boolean(toolNameError)}
         />
         <p
           className={cn(
@@ -563,8 +562,7 @@ export function McpDeploy({
                 <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                   <div className='flex flex-col gap-1.5'>
                     <Label className='text-small'>Description</Label>
-                    <Input
-                      variant='chip'
+                    <ChipInput
                       value={parameterDescriptions[field.name] || ''}
                       onChange={(e) =>
                         setParameterDescriptions((prev) => ({

@@ -2,6 +2,8 @@ import { type Readable, Transform } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
   CSV_MAX_BATCH_SIZE,
@@ -23,6 +25,7 @@ import {
   getTableById,
   markImportFailed,
   markImportReady,
+  nextImportStartOrderKey,
   nextImportStartPosition,
   setTableSchemaForImport,
   updateImportProgress,
@@ -89,8 +92,10 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     source = await downloadFileStream({ key: fileKey, context: 'workspace' })
 
     // Append must continue after the existing rows; create/replace start empty. Read once up
-    // front (the import is the table's sole writer) and assign contiguous positions from it.
+    // front (the import is the table's sole writer) and assign contiguous positions / threaded
+    // order keys from it.
     const basePosition = mode === 'append' ? await nextImportStartPosition(tableId) : 0
+    let lastOrderKey = mode === 'append' ? await nextImportStartOrderKey(tableId) : null
 
     // Count bytes as they flow so the row total can be extrapolated from byte progress.
     let bytesRead = 0
@@ -182,11 +187,20 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const owns = await updateImportProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
       const coerced = coerceRowsForTable(rows, schema, headerToColumn)
-      inserted += await bulkInsertImportBatch(
-        { tableId, workspaceId, userId, rows: coerced, startPosition: basePosition + inserted },
+      const result = await bulkInsertImportBatch(
+        {
+          tableId,
+          workspaceId,
+          userId,
+          rows: coerced,
+          startPosition: basePosition + inserted,
+          afterOrderKey: lastOrderKey,
+        },
         { ...table, schema },
         requestId
       )
+      inserted += result.inserted
+      lastOrderKey = result.lastOrderKey
       // Emit after the first batch, then every interval, so the bar appears early without flooding.
       if (
         inserted - lastReported >= PROGRESS_INTERVAL_ROWS ||
@@ -238,6 +252,19 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
           status: 'failed',
           error: message,
         })
+        captureServerEvent(
+          userId,
+          'table_import_completed',
+          {
+            table_id: tableId,
+            workspace_id: workspaceId,
+            import_id: importId,
+            status: 'failed',
+            row_count: null,
+            error_message: truncate(message, 200),
+          },
+          { groups: { workspace: workspaceId } }
+        )
         logger.warn(`[${requestId}] Import has no data rows`, { tableId, fileName })
         return
       }
@@ -260,6 +287,18 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         progress: inserted,
         percent: 100,
       })
+      captureServerEvent(
+        userId,
+        'table_import_completed',
+        {
+          table_id: tableId,
+          workspace_id: workspaceId,
+          import_id: importId,
+          status: 'completed',
+          row_count: inserted,
+        },
+        { groups: { workspace: workspaceId } }
+      )
       logger.info(`[${requestId}] Import complete`, { tableId, fileName, mode, rows: inserted })
     } else {
       logger.info(
@@ -283,6 +322,19 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       // Scoped to importId — a no-op if a newer import has taken over.
       await markImportFailed(tableId, importId, message).catch(() => {})
       void appendTableEvent({ kind: 'import', tableId, importId, status: 'failed', error: message })
+      captureServerEvent(
+        userId,
+        'table_import_completed',
+        {
+          table_id: tableId,
+          workspace_id: workspaceId,
+          import_id: importId,
+          status: 'failed',
+          row_count: null,
+          error_message: truncate(message, 200),
+        },
+        { groups: { workspace: workspaceId } }
+      )
     }
   } finally {
     // Release the storage stream so its HTTP connection doesn't leak on failure.

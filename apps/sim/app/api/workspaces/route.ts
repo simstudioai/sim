@@ -362,7 +362,6 @@ async function createWorkspace({
           folderId: null,
           name: 'default-agent',
           description: 'Your first workflow - start building here!',
-          color: '#3972F6',
           lastSynced: now,
           createdAt: now,
           updatedAt: now,

@@ -438,8 +438,8 @@ export const OneDriveBlockMeta = {
       icon: MicrosoftOneDriveIcon,
       title: 'OneDrive contract intake',
       prompt:
-        'Create a workflow that watches a OneDrive intake folder for new contract PDFs, extracts clauses with Reducto, writes the structured terms to a table, and pings legal in Teams.',
-      modules: ['files', 'tables', 'agent', 'workflows'],
+        'Create a scheduled workflow that polls a OneDrive intake folder for new contract PDFs, extracts clauses with Reducto, writes the structured terms to a table, and pings legal in Teams.',
+      modules: ['scheduled', 'files', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'automation'],
       alsoIntegrations: ['reducto', 'microsoft_teams'],
@@ -486,8 +486,8 @@ export const OneDriveBlockMeta = {
       icon: MicrosoftOneDriveIcon,
       title: 'OneDrive Excel-pipeline opener',
       prompt:
-        'Build a workflow that watches OneDrive for new Excel data drops, normalizes each, writes to a downstream table, and emails the analyst that the latest file is ready.',
-      modules: ['files', 'tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls OneDrive for new Excel data drops, normalizes each, writes to a downstream table, and emails the analyst that the latest file is ready.',
+      modules: ['scheduled', 'files', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['analysis', 'sync'],
       alsoIntegrations: ['microsoft_excel', 'gmail'],
@@ -496,7 +496,7 @@ export const OneDriveBlockMeta = {
       icon: MicrosoftOneDriveIcon,
       title: 'OneDrive new-hire kit deployer',
       prompt:
-        'Create a workflow triggered by a Workday new hire that copies the standard OneDrive new-hire folder, shares it with the hire, and writes the link into the onboarding tracker.',
+        'Create a workflow triggered by a Workday new hire that creates a OneDrive new-hire folder, uploads the standard onboarding documents into it, and writes the folder link into the onboarding tracker.',
       modules: ['files', 'agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'automation'],

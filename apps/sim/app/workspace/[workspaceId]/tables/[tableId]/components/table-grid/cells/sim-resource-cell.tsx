@@ -31,8 +31,8 @@ interface SimResourceCellProps {
 
 /**
  * Renders a cell whose value is a URL pointing to a sim resource in the current
- * workspace as a tagged-resource chip — the same icon (and per-workflow colored
- * square) used for @-style resource mentions, plus the resource's name as a link.
+ * workspace as a tagged-resource chip — the same icon used for @-style resource
+ * mentions, plus the resource's name as a link.
  * Only the list matching `resourceType` is fetched; the other queries stay
  * disabled so a sim-resource cell subscribes to a single shared list.
  */
@@ -85,7 +85,6 @@ export function SimResourceCell({
     <span className={cn('flex min-w-0 items-center gap-1.5', isEditing && 'invisible')}>
       <ContextMentionIcon
         context={context}
-        workflowColor={workflow?.color ?? null}
         className='size-[14px] shrink-0 text-[var(--text-icon)]'
       />
       <a

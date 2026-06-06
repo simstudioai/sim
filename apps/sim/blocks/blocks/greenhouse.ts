@@ -448,8 +448,8 @@ export const GreenhouseBlockMeta = {
       icon: GreenhouseIcon,
       title: 'Greenhouse candidate enricher',
       prompt:
-        'Create a workflow that watches for new Greenhouse candidates, enriches each profile with LinkedIn background, GitHub activity, and public writing, and writes a structured research summary back to the candidate record as a note for recruiters.',
-      modules: ['agent', 'workflows'],
+        'Create a workflow that watches for new Greenhouse candidates, enriches each profile with LinkedIn background, GitHub activity, and public writing, and writes a structured research summary to a recruiting table for recruiters to review.',
+      modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'recruiting', 'research'],
       alsoIntegrations: ['linkedin', 'github'],

@@ -40,8 +40,13 @@
 import * as React from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
-import { ChipDropdown } from '@/components/emcn/components/chip-dropdown/chip-dropdown'
+import {
+  ChipDropdown,
+  type ChipDropdownOption,
+} from '@/components/emcn/components/chip-dropdown/chip-dropdown'
+import { ChipInput } from '@/components/emcn/components/chip-input/chip-input'
 import { ChipSwitch } from '@/components/emcn/components/chip-switch/chip-switch'
+import { ChipTextarea } from '@/components/emcn/components/chip-textarea/chip-textarea'
 import { Label } from '@/components/emcn/components/label/label'
 import { Modal, ModalContent } from '@/components/emcn/components/modal/modal'
 import { TagInput, type TagItem } from '@/components/emcn/components/tag-input/tag-input'
@@ -52,16 +57,6 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 function ChipModalSeparator({ className }: { className?: string }) {
   return <div className={cn('h-px bg-[var(--border)]', className)} />
 }
-
-/**
- * Shared chrome for chip-modal text controls (`'input'`, `'email'`,
- * `'textarea'`). Matches the rounded-lg pill aesthetic of the chip-modal
- * panel and the `ChipDropdown` trigger. Height is set per-control:
- * `h-[30px]` for single-line controls so they align with the dropdown's
- * 30px pill; textarea uses `py-2` since its height is content-driven.
- */
-const CHIP_MODAL_TEXT_CHROME =
-  'w-full rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium font-sans text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
 
 /**
  * Canonical class string for field-level inline errors rendered inside a
@@ -111,11 +106,11 @@ function ChipModal({
       <ModalContent bare showClose={false} srTitle={srTitle} size={size}>
         <div
           className={cn(
-            'w-full rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+            'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
             className
           )}
         >
-          <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
+          <div className='flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
             {children}
           </div>
         </div>
@@ -251,21 +246,31 @@ ChipModalTabs.displayName = 'ChipModalTabs'
 
 /**
  * Body container. Applies the panel's standard vertical spacing between
- * fields and matching horizontal gutter.
+ * fields and matching horizontal gutter. Scrolls internally when the modal
+ * content exceeds the viewport cap (`max-h-[84vh]` on `ModalContent`), so
+ * header and footer stay pinned.
  */
 const ChipModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex flex-col gap-4 px-2 pt-4.5 pb-4.5', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn(
+        'flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pt-4 pb-4.5',
+        className
+      )}
+      {...props}
+    />
   )
 )
 
 ChipModalBody.displayName = 'ChipModalBody'
 
-/** Option entry for the `dropdown` branch of {@link ChipModalField}. */
-export interface ChipModalDropdownOption {
-  value: string
-  label: React.ReactNode
-}
+/**
+ * Option entry for the `dropdown` branch of {@link ChipModalField}. Aliases the
+ * canonical {@link ChipDropdownOption} so the modal dropdown stays in lockstep
+ * with `ChipDropdown` (gains the optional leading `icon`).
+ */
+export type ChipModalDropdownOption = ChipDropdownOption
 
 /**
  * Props shared by every {@link ChipModalField} branch.
@@ -308,6 +313,11 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps {
   autoComplete?: string
   /** Native input type override. Defaults to `'text'`. */
   inputType?: 'text' | 'password' | 'url' | 'tel' | 'search' | 'number'
+  /**
+   * Called when the user presses Enter in the field. Wire this to the
+   * modal's primary action so the field behaves like a form submit.
+   */
+  onSubmit?: () => void
 }
 
 interface ChipModalEmailFieldProps extends ChipModalFieldBaseProps {
@@ -316,6 +326,11 @@ interface ChipModalEmailFieldProps extends ChipModalFieldBaseProps {
   onChange: (value: string) => void
   placeholder?: string
   autoComplete?: string
+  /**
+   * Called when the user presses Enter in the field. Wire this to the
+   * modal's primary action so the field behaves like a form submit.
+   */
+  onSubmit?: () => void
 }
 
 interface ChipModalTextareaFieldProps extends ChipModalFieldBaseProps {
@@ -342,6 +357,27 @@ interface ChipModalDropdownFieldProps extends ChipModalFieldBaseProps {
   options: ReadonlyArray<ChipModalDropdownOption>
   placeholder?: string
   align?: 'start' | 'center' | 'end'
+}
+
+interface ChipModalFileFieldProps extends ChipModalFieldBaseProps {
+  type: 'file'
+  /** Called with the selected or dropped files. */
+  onChange: (files: File[]) => void
+  /** `accept` attribute forwarded to the native file input (e.g. `'image/*'`, `'.csv'`). */
+  accept?: string
+  /** Allow selecting multiple files. Defaults to `false`. */
+  multiple?: boolean
+  /**
+   * Primary call-to-action rendered inside the drop zone. Defaults to
+   * `'Drop files here or click to browse'`. Pass a dynamic value to reflect a
+   * current selection (e.g. `'Uploaded data.json — click or drop to replace'`).
+   */
+  label?: string
+  /**
+   * Secondary line inside the drop zone — accepted formats / size limits. Omit
+   * for a single-line zone.
+   */
+  description?: React.ReactNode
 }
 
 export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
@@ -377,6 +413,7 @@ export type ChipModalFieldProps =
   | ChipModalEmailFieldProps
   | ChipModalTextareaFieldProps
   | ChipModalDropdownFieldProps
+  | ChipModalFileFieldProps
   | ChipModalEmailsFieldProps
   | ChipModalCustomFieldProps
 
@@ -451,22 +488,31 @@ function renderChipModalControl(
     case 'input':
     case 'email':
       return (
-        <input
+        <ChipInput
           id={id}
           type={props.type === 'email' ? 'email' : (props.inputType ?? 'text')}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
+          onKeyDown={
+            props.onSubmit
+              ? (event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    props.onSubmit?.()
+                  }
+                }
+              : undefined
+          }
           placeholder={props.placeholder}
           maxLength={props.type === 'input' ? props.maxLength : undefined}
           autoComplete={props.autoComplete}
           disabled={props.disabled}
-          className={cn(CHIP_MODAL_TEXT_CHROME, 'h-[30px]')}
           {...aria}
         />
       )
     case 'textarea':
       return (
-        <textarea
+        <ChipTextarea
           id={id}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
@@ -474,12 +520,8 @@ function renderChipModalControl(
           maxLength={props.maxLength}
           rows={props.rows}
           disabled={props.disabled}
+          resizable={props.resizable}
           style={props.minHeight ? { minHeight: props.minHeight } : undefined}
-          className={cn(
-            CHIP_MODAL_TEXT_CHROME,
-            'py-2',
-            props.resizable ? 'resize-y' : 'resize-none'
-          )}
           {...aria}
         />
       )
@@ -496,6 +538,8 @@ function renderChipModalControl(
           {...aria}
         />
       )
+    case 'file':
+      return <ChipModalFileControl {...props} id={id} {...aria} />
     case 'emails':
       return <ChipModalEmailsControl {...props} id={id} errorId={errorId} />
     case 'custom':
@@ -616,6 +660,94 @@ function ChipModalEmailsControl({
         </p>
       )}
     </>
+  )
+}
+
+/**
+ * Internal renderer for {@link ChipModalField} `type='file'`. A dashed-border
+ * drop zone that mirrors the chip text-field chrome (same `--surface-5`/`4`
+ * fill, `--border-1` border, `rounded-lg`) so it stacks as a visual peer with
+ * `input` / `textarea` fields — the dashed border is the only thing marking it
+ * as an upload target. Owns the click-to-browse proxy, drag-and-drop, and the
+ * drag-active highlight; lifts the chosen files up via `onChange`. The native
+ * input is reset after each pick so selecting the same file again still fires.
+ */
+function ChipModalFileControl({
+  onChange,
+  accept,
+  multiple = false,
+  label = 'Drop files here or click to browse',
+  description,
+  disabled,
+  id,
+  'aria-required': ariaRequired,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedby,
+}: ChipModalFileFieldProps & { id: string } & React.AriaAttributes) {
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const [isDragging, setIsDragging] = React.useState(false)
+
+  const emitFiles = React.useCallback(
+    (files: FileList | null) => {
+      if (!files || files.length === 0) return
+      onChange(Array.from(files))
+    },
+    [onChange]
+  )
+
+  return (
+    <button
+      type='button'
+      id={id}
+      disabled={disabled}
+      aria-required={ariaRequired}
+      aria-invalid={ariaInvalid}
+      aria-describedby={ariaDescribedby}
+      onClick={() => inputRef.current?.click()}
+      onDragEnter={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        if (!disabled) setIsDragging(true)
+      }}
+      onDragOver={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        setIsDragging(false)
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        setIsDragging(false)
+        if (!disabled) emitFiles(event.dataTransfer.files)
+      }}
+      className={cn(
+        'flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--border-1)] border-dashed bg-[var(--surface-5)] px-2 py-2.5 text-center outline-none transition-colors hover-hover:border-[var(--surface-7)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]',
+        isDragging && 'border-[var(--surface-7)]'
+      )}
+    >
+      <input
+        ref={inputRef}
+        type='file'
+        accept={accept}
+        multiple={multiple}
+        disabled={disabled}
+        className='hidden'
+        onChange={(event) => {
+          emitFiles(event.target.files)
+          event.target.value = ''
+        }}
+      />
+      <span className='text-[var(--text-primary)] text-caption'>
+        {isDragging ? 'Drop files here' : label}
+      </span>
+      {description ? (
+        <span className='text-[var(--text-tertiary)] text-xs'>{description}</span>
+      ) : null}
+    </button>
   )
 }
 

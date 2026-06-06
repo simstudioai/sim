@@ -2,11 +2,7 @@
 
 import type { ComponentProps, CSSProperties } from 'react'
 import { useState } from 'react'
-import { cn } from '@/lib/core/utils/cn'
-import {
-  CHIP_FIELD_INPUT,
-  CHIP_FIELD_SHELL,
-} from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
+import { ChipInput } from '@/components/emcn'
 
 const BULLET = '\u2022'
 
@@ -34,11 +30,10 @@ type SecretValueFieldProps = Omit<
  * and keeps the field read-only (masked) for viewers who can't edit. Shared by
  * the secrets list and the secret detail page so masking never diverges.
  *
- * Rendered as a native input inside the shared chip-field shell (matching
- * {@link CopyableValueField}); the shell carries the canonical 30px chip-field
- * height, and the caller's `className` only positions it (e.g. `col-span-2`).
- * Values arrive already decrypted for authorized callers; this component only
- * governs on-screen visibility.
+ * Rendered as a {@link ChipInput}; the chip chrome carries the canonical 30px
+ * chip-field height, and the caller's `className` only positions it (e.g.
+ * `col-span-2`). Values arrive already decrypted for authorized callers; this
+ * component only governs on-screen visibility.
  */
 export function SecretValueField({
   value,
@@ -62,35 +57,30 @@ export function SecretValueField({
     : style
 
   return (
-    <div className={cn(CHIP_FIELD_SHELL, className)}>
-      <input
-        {...props}
-        type='text'
-        value={displayValue}
-        // Start read-only so password managers don't autofill; lifted on focus for
-        // editors. React leaves the unchanged prop alone after the imperative
-        // removeAttribute, so editing stays enabled until blur.
-        readOnly
-        style={mergedStyle}
-        onChange={(event) => {
-          if (editable) onChange?.(event.target.value)
-        }}
-        onFocus={(event) => {
-          if (editable) event.currentTarget.removeAttribute('readOnly')
-          event.currentTarget.scrollLeft = 0
-          setFocused(true)
-          onFocus?.(event)
-        }}
-        onBlur={(event) => {
-          setFocused(false)
-          onBlur?.(event)
-        }}
-        autoComplete='off'
-        autoCorrect='off'
-        autoCapitalize='off'
-        spellCheck='false'
-        className={CHIP_FIELD_INPUT}
-      />
-    </div>
+    <ChipInput
+      {...props}
+      className={className}
+      type='text'
+      value={displayValue}
+      readOnly
+      style={mergedStyle}
+      onChange={(event) => {
+        if (editable) onChange?.(event.target.value)
+      }}
+      onFocus={(event) => {
+        if (editable) event.currentTarget.removeAttribute('readOnly')
+        event.currentTarget.scrollLeft = 0
+        setFocused(true)
+        onFocus?.(event)
+      }}
+      onBlur={(event) => {
+        setFocused(false)
+        onBlur?.(event)
+      }}
+      autoComplete='off'
+      autoCorrect='off'
+      autoCapitalize='off'
+      spellCheck='false'
+    />
   )
 }

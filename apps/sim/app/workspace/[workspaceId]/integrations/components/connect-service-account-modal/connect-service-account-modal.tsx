@@ -1,13 +1,6 @@
 'use client'
 
-import {
-  type ChangeEvent,
-  type ComponentType,
-  type DragEvent,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type ComponentType, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -21,7 +14,6 @@ import {
 } from '@/components/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
-import { cn } from '@/lib/core/utils/cn'
 import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { useCreateWorkspaceCredential } from '@/hooks/queries/credentials'
 
@@ -146,8 +138,6 @@ function GoogleServiceAccountModal({
   const [displayName, setDisplayName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [dragActive, setDragActive] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const createCredential = useCreateWorkspaceCredential()
 
@@ -158,7 +148,6 @@ function GoogleServiceAccountModal({
     setDisplayName('')
     setDescription('')
     setError(null)
-    setDragActive(false)
   }, [open])
 
   /**
@@ -193,38 +182,9 @@ function GoogleServiceAccountModal({
     reader.readAsText(file)
   }
 
-  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    readJsonFile(file)
-    event.target.value = ''
-  }
-
-  const handleDragOver = (event: DragEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setDragActive(true)
-  }
-
-  const handleDragLeave = (event: DragEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setDragActive(false)
-  }
-
-  const handleDrop = (event: DragEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setDragActive(false)
-    const file = event.dataTransfer.files[0]
+  const handleFileUpload = (files: File[]) => {
+    const file = files[0]
     if (file) readJsonFile(file)
-  }
-
-  const handleDropZoneKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      fileInputRef.current?.click()
-    }
   }
 
   const handleSubmit = async () => {
@@ -283,39 +243,17 @@ function GoogleServiceAccountModal({
           required
         />
 
-        <ChipModalField type='custom' title='Or upload a file'>
-          {/*
-           * Drop zone mirrors the textarea's chrome (same border color, surface
-           * tint, rounded-lg, min-height) so the two stack as visual peers. The
-           * dashed border + cursor-pointer differentiate it as an actionable
-           * upload target. The native `<input type='file'>` is hidden and
-           * proxied through this region for click + drag/drop.
-           */}
-          <div
-            role='button'
-            tabIndex={0}
-            onClick={() => fileInputRef.current?.click()}
-            onKeyDown={handleDropZoneKeyDown}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={cn(
-              'flex min-h-[120px] w-full cursor-pointer items-center justify-center rounded-lg border border-[var(--border-1)] border-dashed bg-[var(--surface-5)] px-3 py-2 text-center text-[var(--text-muted)] text-sm outline-none transition-colors hover-hover:border-[var(--border-active)] hover-hover:text-[var(--text-secondary)] focus-visible:border-[var(--border-active)] dark:bg-[var(--surface-4)]',
-              dragActive && 'border-[var(--accent)] bg-[var(--accent)]/5 text-[var(--accent)]'
-            )}
-          >
-            {uploadedFileName
+        <ChipModalField
+          type='file'
+          title='Or upload a file'
+          accept='.json'
+          label={
+            uploadedFileName
               ? `Uploaded ${uploadedFileName} — click or drop to replace`
-              : 'Drag & drop a .json file, or click to browse'}
-          </div>
-          <input
-            ref={fileInputRef}
-            type='file'
-            accept='.json'
-            onChange={handleFileUpload}
-            className='hidden'
-          />
-        </ChipModalField>
+              : 'Drag & drop a .json file, or click to browse'
+          }
+          onChange={handleFileUpload}
+        />
 
         <ChipModalField
           type='input'

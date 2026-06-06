@@ -17,7 +17,7 @@ This codebase uses **emcn**, a custom component library built on Radix UI primit
 
 ## Steps
 
-1. Read the emcn barrel export at `apps/sim/components/emcn/components/index.ts` to know what's available
+1. Read the emcn public barrel at `apps/sim/components/emcn/index.ts` (re-exports components, Calendar, Table*, and icons) to know what's available; for the full icon set read `apps/sim/components/emcn/icons/index.ts`
 2. Read `apps/sim/app/_styles/globals.css` for CSS variable tokens
 3. Analyze the specified scope against every rule below
 4. If fix=true, apply the fixes. If fix=false, propose the fixes without applying.
@@ -34,18 +34,22 @@ This codebase uses **emcn**, a custom component library built on Radix UI primit
 
 Use CSS variable pattern (`text-[var(--text-primary)]`), never Tailwind semantics (`text-muted-foreground`) or hardcoded colors (`text-gray-500`, `#333`).
 
-**Text**: `--text-primary`, `--text-secondary`, `--text-tertiary`, `--text-muted`, `--text-icon`, `--text-inverse`, `--text-error`
-**Surfaces**: `--bg`, `--surface-2` through `--surface-7`, `--surface-hover`, `--surface-active`
+**Text**: `--text-primary`, `--text-secondary`, `--text-tertiary`, `--text-muted`, `--text-body` (canonical value text), `--text-icon`, `--text-placeholder`, `--text-subtle`, `--text-inverse`, `--text-error`
+**Surfaces**: `--bg`, `--surface-1` through `--surface-7`, `--surface-hover`, `--surface-active`
 **Borders**: `--border`, `--border-1`, `--border-muted`
+**Brand/accent**: `--brand-secondary`, `--brand-accent`
 **Z-Index**: `--z-dropdown` (100), `--z-modal` (200), `--z-popover` (300), `--z-tooltip` (400), `--z-toast` (500)
 **Shadows**: `shadow-subtle`, `shadow-medium`, `shadow-overlay`, `shadow-card`
+**Badges**: `--badge-*` semantic families (success/error/gray/blue/purple/orange/amber/teal/cyan/pink, each with `-bg`/`-text`)
 
 ## Buttons
 
+Intent-to-variant mapping (read the actual `buttonVariants` in `apps/sim/components/emcn/components/button/button.tsx` for the full variant set — it exposes more than listed here):
+
 | Action | Variant |
 |--------|---------|
-| Toolbar, icon-only | `ghost` (most common, 28%) |
-| Create, save, submit | `primary` (24%) |
+| Toolbar, icon-only | `ghost` |
+| Create, save, submit | `primary` |
 | Cancel, close | `default` |
 | Delete, remove | `destructive` |
 | Selected state | `active` |

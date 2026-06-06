@@ -417,8 +417,8 @@ export const ClerkBlockMeta = {
       icon: ClerkIcon,
       title: 'Clerk new-signup pipeline',
       prompt:
-        'Build a workflow that listens for Clerk new-signup webhooks, creates the user in HubSpot with the right lifecycle stage, and enrolls them in a Loops onboarding sequence.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that lists recent Clerk users, creates each new signup in HubSpot with the right lifecycle stage, and enrolls them in a Loops onboarding sequence.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'crm'],
       alsoIntegrations: ['hubspot', 'loops'],
@@ -437,8 +437,8 @@ export const ClerkBlockMeta = {
       icon: ClerkIcon,
       title: 'Clerk session anomaly watcher',
       prompt:
-        'Build a workflow that watches Clerk session events for unusual patterns — impossible travel, repeated login failures — and pings the security Slack channel on real threats.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that lists recent Clerk sessions, flags unusual patterns — impossible travel, repeated login failures — and pings the security Slack channel on real threats.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'monitoring'],
       alsoIntegrations: ['slack'],
@@ -467,17 +467,17 @@ export const ClerkBlockMeta = {
       icon: ClerkIcon,
       title: 'Clerk access-review automator',
       prompt:
-        'Create a scheduled quarterly workflow that pulls Clerk org memberships, requires owner re-attestation, and writes the audit trail to a compliance table.',
+        'Create a scheduled quarterly workflow that lists Clerk organizations and their users, requires owner re-attestation, and writes the review trail to a compliance table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
     },
     {
       icon: ClerkIcon,
-      title: 'Clerk audit-log archiver',
+      title: 'Clerk user roster archiver',
       prompt:
-        'Build a scheduled workflow that exports Clerk audit logs to S3 with retention policy, indexes them in Athena for query, and writes the manifest to a compliance table.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a scheduled workflow that exports the full Clerk user and organization roster to S3 on a retention schedule, and writes the snapshot manifest to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
       alsoIntegrations: ['s3'],
