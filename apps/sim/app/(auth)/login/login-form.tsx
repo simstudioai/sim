@@ -547,6 +547,9 @@ export default function LoginPage({
             title='Email'
             value={forgotPasswordEmail}
             onChange={(value) => setForgotPasswordEmail(value)}
+            onSubmit={() => {
+              if (!isSubmittingReset) void handleForgotPassword()
+            }}
             required
             placeholder='you@example.com'
           />

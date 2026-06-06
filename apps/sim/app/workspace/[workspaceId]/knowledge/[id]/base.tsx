@@ -1047,13 +1047,10 @@ export function KnowledgeBase({
                         {tagsDisplayText}
                       </span>
                     </Tooltip.Trigger>
-                    <Tooltip.Content
-                      side='top'
-                      className='max-h-[104px] max-w-[240px] overflow-y-auto'
-                    >
+                    <Tooltip.Content side='top' className='max-w-[240px]'>
                       <div className='flex flex-col gap-0.5'>
                         {tags.map((tag) => (
-                          <div key={tag.slot} className='text-xs'>
+                          <div key={tag.slot} className='truncate text-xs'>
                             <span className='text-[var(--text-muted)]'>{tag.displayName}:</span>{' '}
                             {tag.value}
                           </div>

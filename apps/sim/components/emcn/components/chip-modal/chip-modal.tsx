@@ -308,6 +308,11 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps {
   autoComplete?: string
   /** Native input type override. Defaults to `'text'`. */
   inputType?: 'text' | 'password' | 'url' | 'tel' | 'search' | 'number'
+  /**
+   * Called when the user presses Enter in the field. Wire this to the
+   * modal's primary action so the field behaves like a form submit.
+   */
+  onSubmit?: () => void
 }
 
 interface ChipModalEmailFieldProps extends ChipModalFieldBaseProps {
@@ -316,6 +321,11 @@ interface ChipModalEmailFieldProps extends ChipModalFieldBaseProps {
   onChange: (value: string) => void
   placeholder?: string
   autoComplete?: string
+  /**
+   * Called when the user presses Enter in the field. Wire this to the
+   * modal's primary action so the field behaves like a form submit.
+   */
+  onSubmit?: () => void
 }
 
 interface ChipModalTextareaFieldProps extends ChipModalFieldBaseProps {
@@ -456,6 +466,16 @@ function renderChipModalControl(
           type={props.type === 'email' ? 'email' : (props.inputType ?? 'text')}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
+          onKeyDown={
+            props.onSubmit
+              ? (event) => {
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    props.onSubmit?.()
+                  }
+                }
+              : undefined
+          }
           placeholder={props.placeholder}
           maxLength={props.type === 'input' ? props.maxLength : undefined}
           autoComplete={props.autoComplete}
