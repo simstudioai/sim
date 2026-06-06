@@ -3,15 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
-import {
-  Badge,
-  Button,
-  ChipInput,
-  ChipSelect,
-  Label,
-  Search,
-  Switch,
-} from '@/components/emcn'
+import { Badge, Button, ChipInput, ChipSelect, Label, Search, Switch } from '@/components/emcn'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
