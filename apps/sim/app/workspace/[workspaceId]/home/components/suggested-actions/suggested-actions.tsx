@@ -24,11 +24,26 @@ import {
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { getBareIconStyle } from '@/blocks/icon-color'
+import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import type { ModuleTag } from '@/blocks/types'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useOAuthConnections } from '@/hooks/queries/oauth/oauth-connections'
 import { useTablesList } from '@/hooks/queries/tables'
+
+/**
+ * Rewrites bare integration names in `text` to `@`-mention form (`Kalshi` →
+ * `@Kalshi`) so they chip when the prompt is populated into the input — the
+ * auto-mention pipeline deliberately ignores un-prefixed names, so curated
+ * prompts opt in here. Idempotent: names already prefixed are left untouched.
+ */
+function mentionifyIntegrations(text: string): string {
+  const { regex } = getIntegrationMatcher()
+  if (!regex || !text) return text
+  return text.replace(regex, (match: string, _name: string, offset: number) =>
+    offset > 0 && text[offset - 1] === '@' ? match : `@${match}`
+  )
+}
 
 type Icon = ComponentType<{ className?: string; style?: CSSProperties }>
 
@@ -106,7 +121,7 @@ const CANDIDATES: readonly Candidate[] = (() => {
         id: `${blockType}-${i}`,
         blockType,
         label: template.title,
-        prompt: template.prompt,
+        prompt: mentionifyIntegrations(template.prompt),
         icon: template.icon as Icon,
         modules: template.modules,
         featured: template.featured ?? false,

@@ -66,13 +66,11 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           workspaceId,
           nameOverride: seed.workflowName,
           descriptionOverride: seed.workflowDescription || 'Imported from landing template',
-          colorOverride: seed.color,
-          createWorkflow: async ({ name, description, color, workspaceId }) => {
+          createWorkflow: async ({ name, description, workspaceId }) => {
             return requestJson(createWorkflowContract, {
               body: {
                 name,
                 description,
-                color,
                 workspaceId,
                 deduplicate: true,
               },
@@ -308,7 +306,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
         <div className='absolute top-[8.5px] right-[16px] z-10'>
           <CreditsChip />
         </div>
-        <div className='flex min-h-full flex-col items-center justify-center px-6 pb-[2vh]'>
+        <div className='flex min-h-full flex-col items-center px-6 pt-[24vh] pb-[2vh]'>
           <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
             What should we get done{firstName ? `, ${firstName}` : ''}?
           </h1>

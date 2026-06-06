@@ -7,13 +7,14 @@ import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
 import {
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  SearchInput,
+  Search,
   SecretReveal,
   // Switch,
 } from '@/components/emcn'
@@ -196,7 +197,8 @@ export function Copilot() {
             */}
 
             {/* Search Input */}
-            <SearchInput
+            <ChipInput
+              icon={Search}
               placeholder='Search API keys...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

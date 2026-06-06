@@ -7,14 +7,14 @@ import { useParams } from 'next/navigation'
 import {
   Checkbox,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
   DatePicker,
-  Input,
   Label,
-  Textarea,
 } from '@/components/emcn'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import {
@@ -279,7 +279,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           </Label>
         </div>
       ) : column.type === 'json' ? (
-        <Textarea
+        <ChipTextarea
           id={column.name}
           value={formatValueForInput(value, column.type)}
           onChange={(e) => onChange(e.target.value)}
@@ -296,9 +296,8 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           placeholder='Select date'
         />
       ) : (
-        <Input
+        <ChipInput
           id={column.name}
-          variant='chip'
           type={column.type === 'number' ? 'number' : 'text'}
           value={formatValueForInput(value, column.type)}
           onChange={(e) => onChange(e.target.value)}

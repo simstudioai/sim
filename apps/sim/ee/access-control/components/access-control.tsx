@@ -10,6 +10,7 @@ import {
   AvatarImage,
   Checkbox,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -18,7 +19,7 @@ import {
   ChipModalHeader,
   ChipModalTabs,
   Label,
-  SearchInput,
+  Search,
   Skeleton,
   Switch,
 } from '@/components/emcn'
@@ -149,7 +150,8 @@ function AddMembersModal({
           <ChipModalField type='custom' title='Members'>
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
-                <SearchInput
+                <ChipInput
+                  icon={Search}
                   placeholder='Search members...'
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -276,7 +278,8 @@ function ModelCheckboxGrid({
   return (
     <div className='flex flex-col gap-2'>
       <div className='flex items-center gap-2'>
-        <SearchInput
+        <ChipInput
+          icon={Search}
           placeholder='Search models...'
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -1152,7 +1155,8 @@ export function AccessControl() {
             {configTab === 'providers' && (
               <div>
                 <div className='flex items-center gap-2 pb-3'>
-                  <SearchInput
+                  <ChipInput
+                    icon={Search}
                     placeholder='Search providers...'
                     value={providerSearchTerm}
                     onChange={(e) => setProviderSearchTerm(e.target.value)}
@@ -1197,7 +1201,8 @@ export function AccessControl() {
             {configTab === 'blocks' && (
               <div>
                 <div className='flex items-center gap-2 pb-3'>
-                  <SearchInput
+                  <ChipInput
+                    icon={Search}
                     placeholder='Search blocks...'
                     value={integrationSearchTerm}
                     onChange={(e) => setIntegrationSearchTerm(e.target.value)}
@@ -1302,7 +1307,8 @@ export function AccessControl() {
             {configTab === 'platform' && (
               <div>
                 <div className='flex items-center gap-2 pb-3'>
-                  <SearchInput
+                  <ChipInput
+                    icon={Search}
                     placeholder='Search features...'
                     value={platformSearchTerm}
                     onChange={(e) => setPlatformSearchTerm(e.target.value)}
@@ -1469,7 +1475,8 @@ export function AccessControl() {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <SearchInput
+            <ChipInput
+              icon={Search}
               placeholder='Search permission groups...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

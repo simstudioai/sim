@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Input } from '@/components/emcn'
+import { ChipInput, Search } from '@/components/emcn'
 import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
 
@@ -45,25 +45,13 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
   return (
     <div>
       <div className='mb-6 flex flex-col gap-4 px-6 sm:flex-row sm:items-center'>
-        <div className='relative max-w-[480px] flex-1'>
-          <svg
-            aria-hidden='true'
-            className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-[#555]'
-            fill='none'
-            stroke='currentColor'
-            strokeWidth={2}
-            viewBox='0 0 24 24'
-          >
-            <circle cx={11} cy={11} r={8} />
-            <path d='m21 21-4.35-4.35' />
-          </svg>
-          <Input
-            variant='chip'
+        <div className='max-w-[480px] flex-1'>
+          <ChipInput
+            icon={Search}
             type='search'
             placeholder='Search integrations, tools, or triggers…'
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className='pl-9'
             aria-label='Search integrations'
           />
         </div>

@@ -13,7 +13,7 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
   docsLink: 'https://docs.sim.ai/tools/greptile',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
-  bgColor: '#5DE195',
+  bgColor: '#181C1E',
   icon: GreptileIcon,
   subBlocks: [
     {

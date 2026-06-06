@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import type { ChipDropdownOption, ChipMultiSelectOption } from '@/components/emcn'
-import { Button, ChipDropdown, ChipMultiSelect, Tooltip } from '@/components/emcn'
+import type { ChipDropdownOption } from '@/components/emcn'
+import { Button, ChipDropdown, Tooltip } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type {
@@ -423,7 +423,7 @@ export function Knowledge() {
     [activeSort]
   )
 
-  const memberOptions: ChipMultiSelectOption[] = useMemo(
+  const memberOptions: ChipDropdownOption[] = useMemo(
     () =>
       (members ?? []).map((m) => ({
         value: m.userId,
@@ -505,9 +505,10 @@ export function Knowledge() {
                 </Button>
               )}
             </div>
-            <ChipMultiSelect
+            <ChipDropdown
+              multiple
               options={memberOptions}
-              values={ownerFilter}
+              value={ownerFilter}
               onChange={setOwnerFilter}
               allLabel='All'
               searchable

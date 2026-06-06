@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'luci
 import { createPortal } from 'react-dom'
 import {
   Button,
+  ChipInput,
   ChipModalTabs,
   Code,
   DropdownMenu,
@@ -15,11 +16,11 @@ import {
   DropdownMenuTrigger,
   Duplicate,
   Eye,
-  Input,
   Redo,
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
+import { Workflow } from '@/components/emcn/icons'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -27,7 +28,6 @@ import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   ExecutionSnapshot,
   FileCards,
@@ -35,7 +35,6 @@ import {
 } from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import {
-  DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
   formatDate,
   getDisplayStatus,
@@ -171,9 +170,8 @@ export const WorkflowOutputSection = memo(
             className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
             onClick={(e) => e.stopPropagation()}
           >
-            <Input
+            <ChipInput
               ref={searchInputRef}
-              variant='chip'
               type='text'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -424,23 +422,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                   </span>
                   <div className='flex min-w-0 items-center gap-1.5'>
-                    {(() => {
-                      const c =
-                        log.trigger === 'mothership'
-                          ? '#ec4899'
-                          : log.workflow?.color ||
-                            (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
-                      return (
-                        <div
-                          className='size-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
-                          style={{
-                            backgroundColor: c,
-                            borderColor: c ? workflowBorderColor(c) : undefined,
-                            backgroundClip: 'padding-box',
-                          }}
-                        />
-                      )
-                    })()}
+                    <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                     <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-sm'>
                       {log.trigger === 'mothership'
                         ? log.jobTitle || 'Untitled Job'

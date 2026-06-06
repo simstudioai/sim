@@ -5,11 +5,10 @@ import {
   Library,
   Table as TableIcon,
   Task,
+  Workflow,
 } from '@/components/emcn/icons'
 import { AgentSkillsIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { getBareIconStyle } from '@/blocks/icon-color'
 import { registry as blockRegistry } from '@/blocks/registry'
@@ -17,7 +16,6 @@ import { registry as blockRegistry } from '@/blocks/registry'
 interface RenderIconArgs {
   context: ChatMessageContext
   className: string
-  workflowColor?: string | null
 }
 
 interface ChatContextKindConfig {
@@ -27,18 +25,8 @@ interface ChatContextKindConfig {
   renderIcon: (args: RenderIconArgs) => ReactNode | null
 }
 
-function renderWorkflowSquare({ className, workflowColor }: RenderIconArgs): ReactNode | null {
-  if (!workflowColor) return null
-  return (
-    <span
-      className={cn('rounded-[3px] border-[2px]', className)}
-      style={{
-        backgroundColor: workflowColor,
-        borderColor: workflowBorderColor(workflowColor),
-        backgroundClip: 'padding-box',
-      }}
-    />
-  )
+function renderWorkflowIcon({ className }: RenderIconArgs): ReactNode | null {
+  return <Workflow className={className} />
 }
 
 /**
@@ -64,9 +52,9 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
  * without an icon.
  */
 export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKindConfig> = {
-  workflow: { label: 'Workflow', renderIcon: renderWorkflowSquare },
-  current_workflow: { label: 'Current workflow', renderIcon: renderWorkflowSquare },
-  workflow_block: { label: 'Block', renderIcon: renderWorkflowSquare },
+  workflow: { label: 'Workflow', renderIcon: renderWorkflowIcon },
+  current_workflow: { label: 'Current workflow', renderIcon: renderWorkflowIcon },
+  workflow_block: { label: 'Block', renderIcon: renderWorkflowIcon },
   blocks: { label: 'Blocks', renderIcon: () => null },
   knowledge: {
     label: 'Knowledge base',

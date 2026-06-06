@@ -14,7 +14,7 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
   docsLink: 'https://docs.sim.ai/tools/sentry',
   category: 'tools',
   integrationType: IntegrationType.Observability,
-  bgColor: '#FFFFFF',
+  bgColor: '#362D59',
   icon: SentryIcon,
   subBlocks: [
     {

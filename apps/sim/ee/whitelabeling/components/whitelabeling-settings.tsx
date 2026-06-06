@@ -6,7 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Button, Input, Label, Loader, toast } from '@/components/emcn'
+import { Button, ChipInput, Label, Loader, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
@@ -328,8 +328,7 @@ export function WhitelabelingSettings() {
                 label='Brand name'
                 description='Replaces "Sim" in the sidebar and select UI elements.'
               >
-                <Input
-                  variant='chip'
+                <ChipInput
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
                   placeholder='Your Company'
@@ -489,39 +488,35 @@ export function WhitelabelingSettings() {
           <SettingsSection label='Links'>
             <div className='flex flex-col gap-4'>
               <SettingRow label='Support email'>
-                <Input
+                <ChipInput
                   type='email'
                   value={supportEmail}
                   onChange={(e) => setSupportEmail(e.target.value)}
                   placeholder='support@yourcompany.com'
-                  variant='chip'
                 />
               </SettingRow>
               <SettingRow label='Documentation URL'>
-                <Input
+                <ChipInput
                   type='url'
                   value={documentationUrl}
                   onChange={(e) => setDocumentationUrl(e.target.value)}
                   placeholder='https://docs.yourcompany.com'
-                  variant='chip'
                 />
               </SettingRow>
               <SettingRow label='Terms of service URL'>
-                <Input
+                <ChipInput
                   type='url'
                   value={termsUrl}
                   onChange={(e) => setTermsUrl(e.target.value)}
                   placeholder='https://yourcompany.com/terms'
-                  variant='chip'
                 />
               </SettingRow>
               <SettingRow label='Privacy policy URL'>
-                <Input
+                <ChipInput
                   type='url'
                   value={privacyUrl}
                   onChange={(e) => setPrivacyUrl(e.target.value)}
                   placeholder='https://yourcompany.com/privacy'
-                  variant='chip'
                 />
               </SettingRow>
             </div>

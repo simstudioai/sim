@@ -13,16 +13,17 @@ import {
   Checkbox,
   Chip,
   ChipCombobox,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
   type ComboboxOption,
-  Input,
   Label,
   Loader,
-  Textarea,
 } from '@/components/emcn'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import { cn } from '@/lib/core/utils/cn'
@@ -131,12 +132,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   const createKnowledgeBaseMutation = useCreateKnowledgeBase(workspaceId)
   const deleteKnowledgeBaseMutation = useDeleteKnowledgeBase(workspaceId)
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus | null>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragCounter, setDragCounter] = useState(0)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -194,8 +192,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       setSubmitStatus(null)
       setFileError(null)
       setFiles([])
-      setIsDragging(false)
-      setDragCounter(0)
       setRetryingIndexes(new Set())
       reset({
         name: '',
@@ -211,16 +207,16 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     }
   }, [open, reset])
 
-  const processFiles = async (fileList: FileList | File[]) => {
+  const processFiles = (selectedFiles: File[]) => {
     setFileError(null)
 
-    if (!fileList || fileList.length === 0) return
+    if (!selectedFiles || selectedFiles.length === 0) return
 
     try {
       const newFiles: FileWithPreview[] = []
       let hasError = false
 
-      for (const file of Array.from(fileList)) {
+      for (const file of selectedFiles) {
         const validationError = validateKnowledgeBaseFile(file)
         if (validationError) {
           setFileError(validationError)
@@ -241,57 +237,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     } catch (error) {
       logger.error('Error processing files:', error)
       setFileError('An error occurred while processing files. Please try again.')
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
-  }
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      await processFiles(e.target.files)
-    }
-  }
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev + 1
-      if (newCount === 1) {
-        setIsDragging(true)
-      }
-      return newCount
-    })
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev - 1
-      if (newCount === 0) {
-        setIsDragging(false)
-      }
-      return newCount
-    })
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-  }
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-    setDragCounter(0)
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await processFiles(e.dataTransfer.files)
     }
   }
 
@@ -394,12 +339,11 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                   tabIndex={-1}
                   readOnly
                 />
-                <Input
+                <ChipInput
                   id='kb-name'
-                  variant='chip'
                   placeholder='Enter knowledge base name'
                   {...register('name')}
-                  className={cn(errors.name && 'border-[var(--text-error)]')}
+                  error={Boolean(errors.name)}
                   autoComplete='off'
                   autoCorrect='off'
                   autoCapitalize='off'
@@ -410,28 +354,27 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
               <div className='flex flex-col gap-2'>
                 <Label htmlFor='description'>Description</Label>
-                <Textarea
+                <ChipTextarea
                   id='description'
                   placeholder='Describe this knowledge base (optional)'
                   rows={4}
                   {...register('description')}
-                  className={cn(errors.description && 'border-[var(--text-error)]')}
+                  error={Boolean(errors.description)}
                 />
               </div>
 
               <div className='grid grid-cols-2 gap-3'>
                 <div className='flex flex-col gap-2'>
                   <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
-                  <Input
+                  <ChipInput
                     id='minChunkSize'
-                    variant='chip'
                     type='number'
                     min={1}
                     max={2000}
                     step={1}
                     placeholder='100'
                     {...register('minChunkSize', { valueAsNumber: true })}
-                    className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
+                    error={Boolean(errors.minChunkSize)}
                     autoComplete='off'
                     data-form-type='other'
                   />
@@ -439,16 +382,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
                 <div className='flex flex-col gap-2'>
                   <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
-                  <Input
+                  <ChipInput
                     id='maxChunkSize'
-                    variant='chip'
                     type='number'
                     min={100}
                     max={4000}
                     step={1}
                     placeholder='1024'
                     {...register('maxChunkSize', { valueAsNumber: true })}
-                    className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
+                    error={Boolean(errors.maxChunkSize)}
                     autoComplete='off'
                     data-form-type='other'
                   />
@@ -457,16 +399,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
               <div className='flex flex-col gap-2'>
                 <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
-                <Input
+                <ChipInput
                   id='overlapSize'
-                  variant='chip'
                   type='number'
                   min={0}
                   max={500}
                   step={1}
                   placeholder='200'
                   {...register('overlapSize', { valueAsNumber: true })}
-                  className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
+                  error={Boolean(errors.overlapSize)}
                   autoComplete='off'
                   data-form-type='other'
                 />
@@ -492,12 +433,11 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               {strategyValue === 'regex' && (
                 <div className='flex flex-col gap-2'>
                   <Label htmlFor='regexPattern'>Regex Pattern</Label>
-                  <Input
+                  <ChipInput
                     id='regexPattern'
-                    variant='chip'
                     placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
                     {...register('regexPattern')}
-                    className={cn(errors.regexPattern && 'border-[var(--text-error)]')}
+                    error={Boolean(errors.regexPattern)}
                     autoComplete='off'
                     data-form-type='other'
                   />
@@ -537,9 +477,8 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               {strategyValue === 'recursive' && (
                 <div className='flex flex-col gap-2'>
                   <Label htmlFor='customSeparators'>Custom Separators (optional)</Label>
-                  <Input
+                  <ChipInput
                     id='customSeparators'
-                    variant='chip'
                     placeholder='e.g. \n\n, \n, . ,  '
                     {...register('customSeparators')}
                     autoComplete='off'
@@ -552,40 +491,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 </div>
               )}
 
-              <div className='flex flex-col gap-2'>
-                <Label>Upload Documents</Label>
-                <Button
-                  type='button'
-                  variant='default'
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragEnter={handleDragEnter}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={cn(
-                    '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
-                    isDragging && 'border-[var(--surface-7)]'
-                  )}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type='file'
-                    accept={ACCEPT_ATTRIBUTE}
-                    onChange={handleFileChange}
-                    className='hidden'
-                    multiple
-                  />
-                  <div className='flex flex-col gap-0.5 text-center'>
-                    <span className='text-[var(--text-primary)]'>
-                      {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
-                    </span>
-                    <span className='text-[var(--text-tertiary)] text-xs'>
-                      PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB
-                      each)
-                    </span>
-                  </div>
-                </Button>
-              </div>
+              <ChipModalField
+                type='file'
+                title='Upload Documents'
+                accept={ACCEPT_ATTRIBUTE}
+                multiple
+                onChange={processFiles}
+                description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)'
+                flush
+              />
 
               {files.length > 0 && (
                 <div className='space-y-2'>

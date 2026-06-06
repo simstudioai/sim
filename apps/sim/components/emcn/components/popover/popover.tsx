@@ -35,7 +35,7 @@
  *         >
  *           {workflows.map(wf => (
  *             <PopoverItem key={wf.id} onClick={() => selectWorkflow(wf)}>
- *               <div className="h-3.5 w-3.5 rounded" style={{ backgroundColor: wf.color }} />
+ *               <Workflow className="size-[14px] text-[var(--text-icon)]" />
  *               <span>{wf.name}</span>
  *             </PopoverItem>
  *           ))}

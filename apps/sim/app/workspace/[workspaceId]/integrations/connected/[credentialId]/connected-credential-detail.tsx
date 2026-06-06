@@ -6,23 +6,22 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import {
   Chip,
+  ChipInput,
   ChipLink,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
   Send,
   toast,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { INTEGRATIONS } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
   AddPeopleModal,
-  CHIP_FIELD_INPUT,
-  CHIP_FIELD_SHELL,
   CopyableValueField,
   CredentialDetailHeading,
   CredentialDetailLayout,
@@ -266,37 +265,28 @@ export function ConnectedCredentialDetail({
         </DetailSection>
 
         <DetailSection title='Display Name'>
-          <div className={CHIP_FIELD_SHELL}>
-            <input
-              id='credential-display-name'
-              value={form.displayNameDraft}
-              onChange={(event) => form.setDisplayNameDraft(event.target.value)}
-              autoComplete='off'
-              data-lpignore='true'
-              disabled={!isAdmin}
-              className={cn(CHIP_FIELD_INPUT, 'disabled:cursor-not-allowed disabled:opacity-60')}
-            />
-          </div>
+          <ChipInput
+            id='credential-display-name'
+            value={form.displayNameDraft}
+            onChange={(event) => form.setDisplayNameDraft(event.target.value)}
+            autoComplete='off'
+            data-lpignore='true'
+            disabled={!isAdmin}
+          />
         </DetailSection>
 
         <DetailSection title='Description'>
-          <div className={cn(CHIP_FIELD_SHELL, 'h-auto items-start py-2')}>
-            <textarea
-              id='credential-description'
-              rows={4}
-              value={form.descriptionDraft}
-              onChange={(event) => form.setDescriptionDraft(event.target.value)}
-              placeholder='Add a description...'
-              maxLength={500}
-              autoComplete='off'
-              data-lpignore='true'
-              disabled={!isAdmin}
-              className={cn(
-                CHIP_FIELD_INPUT,
-                'h-auto resize-none disabled:cursor-not-allowed disabled:opacity-60'
-              )}
-            />
-          </div>
+          <ChipTextarea
+            id='credential-description'
+            rows={4}
+            value={form.descriptionDraft}
+            onChange={(event) => form.setDescriptionDraft(event.target.value)}
+            placeholder='Add a description...'
+            maxLength={500}
+            autoComplete='off'
+            data-lpignore='true'
+            disabled={!isAdmin}
+          />
         </DetailSection>
 
         <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />

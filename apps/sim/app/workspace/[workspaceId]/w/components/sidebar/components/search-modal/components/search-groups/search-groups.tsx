@@ -173,7 +173,6 @@ export const WorkflowsGroup = memo(function WorkflowsGroup({
           key={workflow.id}
           value={`${workflow.name} ${workflow.folderPath?.join(' / ') ?? ''} workflow-${workflow.id}`}
           onSelect={() => onSelect(workflow)}
-          color={workflow.color}
           name={workflow.name}
           folderPath={workflow.folderPath}
           isCurrent={workflow.isCurrent}

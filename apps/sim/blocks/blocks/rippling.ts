@@ -198,7 +198,7 @@ export const RipplingBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/rippling',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  bgColor: '#FFCC1C',
+  bgColor: '#502D3C',
   icon: RipplingIcon,
   authMode: AuthMode.ApiKey,
 

@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { Chip, SearchInput, Tooltip, Trash, toast } from '@/components/emcn'
+import { Chip, ChipInput, Search, Tooltip, Trash, toast } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
@@ -14,11 +14,7 @@ import {
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
-import {
-  CHIP_FIELD_SHELL as CHIP_FIELD,
-  CHIP_FIELD_INPUT,
-  UnsavedChangesModal,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
@@ -184,25 +180,23 @@ function WorkspaceVariableRow({
 }: WorkspaceVariableRowProps) {
   return (
     <div className='contents'>
-      <div className={cn(CHIP_FIELD, !canRename && 'cursor-not-allowed opacity-50')}>
-        <input
-          value={renamingKey === envKey ? pendingKeyValue : envKey}
-          onChange={(e) => {
-            if (renamingKey !== envKey) onRenameStart(envKey)
-            onPendingKeyChange(e.target.value)
-          }}
-          onBlur={() => onRenameEnd(envKey, value)}
-          name={`workspace_env_key_${envKey}_${generateShortId()}`}
-          autoComplete='off'
-          autoCapitalize='off'
-          spellCheck='false'
-          readOnly
-          onFocus={(e) => {
-            if (canRename) e.target.removeAttribute('readOnly')
-          }}
-          className={CHIP_FIELD_INPUT}
-        />
-      </div>
+      <ChipInput
+        className={cn(!canRename && 'cursor-not-allowed opacity-50')}
+        value={renamingKey === envKey ? pendingKeyValue : envKey}
+        onChange={(e) => {
+          if (renamingKey !== envKey) onRenameStart(envKey)
+          onPendingKeyChange(e.target.value)
+        }}
+        onBlur={() => onRenameEnd(envKey, value)}
+        name={`workspace_env_key_${envKey}_${generateShortId()}`}
+        autoComplete='off'
+        autoCapitalize='off'
+        spellCheck='false'
+        readOnly
+        onFocus={(e) => {
+          if (canRename) e.target.removeAttribute('readOnly')
+        }}
+      />
       <div />
       <SecretValueField
         value={value}
@@ -250,22 +244,20 @@ function NewWorkspaceVariableRow({
 
   return (
     <div className='contents'>
-      <div className={cn(CHIP_FIELD, keyError && 'border-[var(--text-error)]')}>
-        <input
-          data-input-type='key'
-          value={envVar.key}
-          onChange={(e) => onUpdate(index, 'key', e.target.value)}
-          onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
-          placeholder='API_KEY'
-          name={`new_workspace_key_${envVar.id || index}_${generateShortId()}`}
-          autoComplete='off'
-          autoCapitalize='off'
-          spellCheck='false'
-          readOnly
-          onFocus={(e) => e.target.removeAttribute('readOnly')}
-          className={CHIP_FIELD_INPUT}
-        />
-      </div>
+      <ChipInput
+        data-input-type='key'
+        error={Boolean(keyError)}
+        value={envVar.key}
+        onChange={(e) => onUpdate(index, 'key', e.target.value)}
+        onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
+        placeholder='API_KEY'
+        name={`new_workspace_key_${envVar.id || index}_${generateShortId()}`}
+        autoComplete='off'
+        autoCapitalize='off'
+        spellCheck='false'
+        readOnly
+        onFocus={(e) => e.target.removeAttribute('readOnly')}
+      />
       <div />
       <SecretValueField
         data-input-type='value'
@@ -850,28 +842,20 @@ export function SecretsManager() {
 
     return (
       <div className='contents'>
-        <div
-          className={cn(
-            CHIP_FIELD,
-            isConflicted && 'border-[var(--text-error)]',
-            keyError && 'border-[var(--text-error)]'
-          )}
-        >
-          <input
-            data-input-type='key'
-            value={envVar.key}
-            onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
-            onPaste={(e) => handlePaste(e, originalIndex)}
-            placeholder='API_KEY'
-            name={`env_variable_name_${envVar.id || originalIndex}_${generateShortId()}`}
-            autoComplete='off'
-            autoCapitalize='off'
-            spellCheck='false'
-            readOnly
-            onFocus={(e) => e.target.removeAttribute('readOnly')}
-            className={CHIP_FIELD_INPUT}
-          />
-        </div>
+        <ChipInput
+          data-input-type='key'
+          error={Boolean(isConflicted || keyError)}
+          value={envVar.key}
+          onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
+          onPaste={(e) => handlePaste(e, originalIndex)}
+          placeholder='API_KEY'
+          name={`env_variable_name_${envVar.id || originalIndex}_${generateShortId()}`}
+          autoComplete='off'
+          autoCapitalize='off'
+          spellCheck='false'
+          readOnly
+          onFocus={(e) => e.target.removeAttribute('readOnly')}
+        />
         <div />
         <SecretValueField
           data-input-type='value'
@@ -987,7 +971,8 @@ export function SecretsManager() {
         >
           <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
             {/* Search */}
-            <SearchInput
+            <ChipInput
+              icon={Search}
               placeholder='Search secrets...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

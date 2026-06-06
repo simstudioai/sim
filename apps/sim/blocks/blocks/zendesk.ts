@@ -12,7 +12,7 @@ export const ZendeskBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.Support,
-  bgColor: '#FFFFFF',
+  bgColor: '#03363D',
   icon: ZendeskIcon,
   subBlocks: [
     {

@@ -1,12 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
-import { useWorkflows } from '@/hooks/queries/workflows'
 
 const USER_MESSAGE_CLASSES =
   'whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-[430] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
@@ -109,18 +107,10 @@ function computeIntegrationRanges(text: string, taken: MentionRange[]): MentionR
 }
 
 function MentionHighlight({ context }: { context: ChatMessageContext }) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { data: workflowList } = useWorkflows(workspaceId)
-  const workflowColor = useMemo(() => {
-    if (context.kind !== 'workflow' && context.kind !== 'current_workflow') return null
-    return (workflowList ?? []).find((w) => w.id === context.workflowId)?.color ?? null
-  }, [workflowList, context.kind, context.workflowId])
-
   return (
     <span className='inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
       <ContextMentionIcon
         context={context}
-        workflowColor={workflowColor}
         className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
       />
       {context.label}

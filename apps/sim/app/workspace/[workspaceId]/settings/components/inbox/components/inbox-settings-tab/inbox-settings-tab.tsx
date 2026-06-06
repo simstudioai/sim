@@ -7,13 +7,13 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Input as EmcnInput,
   Tooltip,
 } from '@/components/emcn'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -147,11 +147,10 @@ export function InboxSettingsTab() {
                   </Tooltip.Root>
                 </div>
               </div>
-              <EmcnInput
-                variant='chip'
+              <ChipInput
                 value={config.address}
                 readOnly
-                className='cursor-default font-mono text-small'
+                inputClassName='cursor-default font-mono text-small'
               />
             </div>
           </SettingsSection>
@@ -296,8 +295,7 @@ export function InboxSettingsTab() {
           </p>
           <div className='mt-4 flex flex-col gap-1 px-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>New email prefix</p>
-            <EmcnInput
-              variant='chip'
+            <ChipInput
               value={newUsername}
               onChange={(e) => {
                 setNewUsername(e.target.value)

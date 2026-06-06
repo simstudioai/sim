@@ -1,13 +1,13 @@
 import {
   Button,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Input,
   Label,
 } from '@/components/emcn'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -73,8 +73,7 @@ export function NoOrganizationView({
               <Label htmlFor='team-name-field' className='font-medium text-small'>
                 Team Name
               </Label>
-              <Input
-                variant='chip'
+              <ChipInput
                 id='team-name-field'
                 value={orgName}
                 onChange={onOrgNameChange}
@@ -97,8 +96,7 @@ export function NoOrganizationView({
                 <div className='rounded-l-[6px] border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-3 py-1.5 text-[var(--text-muted)] text-small'>
                   sim.ai/team/
                 </div>
-                <Input
-                  variant='chip'
+                <ChipInput
                   id='orgSlug'
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value)}

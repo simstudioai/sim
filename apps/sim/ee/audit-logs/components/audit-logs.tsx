@@ -7,11 +7,12 @@ import { ChevronDown } from 'lucide-react'
 import {
   Badge,
   Button,
+  ChipInput,
   ChipSelect,
   type ComboboxOption,
   DatePicker,
   RefreshCw,
-  SearchInput,
+  Search,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
@@ -364,7 +365,8 @@ export function AuditLogs() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
           {/* Search + filter bar */}
           <div className='flex items-center gap-2'>
-            <SearchInput
+            <ChipInput
+              icon={Search}
               className='min-w-0 flex-1'
               placeholder='Search audit logs...'
               value={searchTerm}

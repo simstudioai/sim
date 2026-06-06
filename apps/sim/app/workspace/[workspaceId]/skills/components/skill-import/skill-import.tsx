@@ -3,7 +3,7 @@
 import type { ChangeEvent } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Chip, Loader } from '@/components/emcn'
+import { Chip, ChipInput, ChipTextarea, Loader } from '@/components/emcn'
 import { Upload } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { importSkillContract } from '@/lib/api/contracts'
@@ -26,10 +26,6 @@ interface SkillImportProps {
 type ImportState = 'idle' | 'loading' | 'error'
 
 const ACCEPTED_EXTENSIONS = ['.md', '.zip']
-
-/** Matches ChipModalField's internal input/textarea chrome. */
-const TEXT_CHROME =
-  'w-full rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-medium font-sans text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
 
 function isAcceptedFile(file: File): boolean {
   const name = file.name.toLowerCase()
@@ -213,7 +209,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
           Import from GitHub
         </span>
         <div className='flex gap-2'>
-          <input
+          <ChipInput
             placeholder='https://github.com/owner/repo/blob/main/SKILL.md'
             value={githubUrl}
             onChange={(e) => {
@@ -221,7 +217,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
               if (githubError) setGithubError('')
             }}
             disabled={githubState === 'loading'}
-            className={cn(TEXT_CHROME, 'h-[30px] flex-1')}
+            className='flex-1'
           />
           <Chip
             variant='filled'
@@ -242,7 +238,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
         <span className='pl-0.5 font-normal text-[var(--text-muted)] text-sm'>
           Paste SKILL.md Content
         </span>
-        <textarea
+        <ChipTextarea
           placeholder={
             '---\nname: my-skill\ndescription: What this skill does\n---\n\n# Instructions...'
           }
@@ -251,7 +247,8 @@ export function SkillImport({ onImport }: SkillImportProps) {
             setPasteContent(e.target.value)
             if (pasteError) setPasteError('')
           }}
-          className={cn(TEXT_CHROME, 'min-h-[120px] resize-y py-2 font-mono leading-relaxed')}
+          resizable
+          className='min-h-[120px] font-mono leading-relaxed'
         />
         {pasteError && <p className='text-[12px] text-[var(--text-error)]'>{pasteError}</p>}
         <div className='flex justify-end'>

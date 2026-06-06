@@ -8,11 +8,12 @@ import {
   Badge,
   Banner,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  SearchInput,
+  Search,
   Skeleton,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -135,7 +136,8 @@ export function TransferOwnershipDialog({
 
             {portalError && <p className='px-2 text-[var(--text-error)] text-sm'>{portalError}</p>}
 
-            <SearchInput
+            <ChipInput
+              icon={Search}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder='Search members...'

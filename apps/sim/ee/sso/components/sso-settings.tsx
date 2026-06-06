@@ -7,13 +7,13 @@ import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
   ChipCombobox,
+  ChipInput,
   ChipSelect,
+  ChipTextarea,
   Expandable,
   ExpandableContent,
   FormField,
-  Input,
   Switch,
-  Textarea,
   toast,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
@@ -439,22 +439,25 @@ export function SSO() {
             </FormField>
 
             <FormField label='Callback URL'>
-              <div className='relative'>
-                <Input value={providerCallbackUrl} readOnly variant='chip' className='pr-9' />
-                <Button
-                  type='button'
-                  variant='ghost'
-                  onClick={() => copyToClipboard(providerCallbackUrl)}
-                  className='-translate-y-1/2 absolute top-1/2 right-[8px] size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
-                  aria-label='Copy callback URL'
-                >
-                  {copied ? (
-                    <Check className='size-[14px]' />
-                  ) : (
-                    <Clipboard className='size-[14px]' />
-                  )}
-                </Button>
-              </div>
+              <ChipInput
+                value={providerCallbackUrl}
+                readOnly
+                endAdornment={
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => copyToClipboard(providerCallbackUrl)}
+                    className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                    aria-label='Copy callback URL'
+                  >
+                    {copied ? (
+                      <Check className='size-[14px]' />
+                    ) : (
+                      <Clipboard className='size-[14px]' />
+                    )}
+                  </Button>
+                }
+              />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
@@ -591,7 +594,7 @@ export function SSO() {
               showErrors && errors.issuerUrl.length > 0 ? errors.issuerUrl.join(' ') : undefined
             }
           >
-            <Input
+            <ChipInput
               id='sso-issuer'
               type='url'
               placeholder='https://your-identity-provider.com/oauth2/default'
@@ -603,10 +606,7 @@ export function SSO() {
               readOnly
               onFocus={(e) => e.target.removeAttribute('readOnly')}
               onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
-              variant='chip'
-              className={cn(
-                showErrors && errors.issuerUrl.length > 0 && 'border-[var(--text-error)]'
-              )}
+              error={showErrors && errors.issuerUrl.length > 0}
             />
           </FormField>
 
@@ -615,7 +615,7 @@ export function SSO() {
             label='Domain'
             error={showErrors && errors.domain.length > 0 ? errors.domain.join(' ') : undefined}
           >
-            <Input
+            <ChipInput
               id='sso-domain'
               type='text'
               placeholder='company.com'
@@ -627,8 +627,7 @@ export function SSO() {
               readOnly
               onFocus={(e) => e.target.removeAttribute('readOnly')}
               onChange={(e) => handleInputChange('domain', e.target.value)}
-              variant='chip'
-              className={cn(showErrors && errors.domain.length > 0 && 'border-[var(--text-error)]')}
+              error={showErrors && errors.domain.length > 0}
             />
             <p className='text-[var(--text-muted)] text-small'>
               The email domain users sign in with (e.g. company.com)
@@ -644,7 +643,7 @@ export function SSO() {
                   showErrors && errors.clientId.length > 0 ? errors.clientId.join(' ') : undefined
                 }
               >
-                <Input
+                <ChipInput
                   id='sso-client-id'
                   type='text'
                   placeholder='Enter Client ID'
@@ -656,10 +655,7 @@ export function SSO() {
                   readOnly
                   onFocus={(e) => e.target.removeAttribute('readOnly')}
                   onChange={(e) => handleInputChange('clientId', e.target.value)}
-                  variant='chip'
-                  className={cn(
-                    showErrors && errors.clientId.length > 0 && 'border-[var(--text-error)]'
-                  )}
+                  error={showErrors && errors.clientId.length > 0}
                 />
               </FormField>
 
@@ -672,48 +668,44 @@ export function SSO() {
                     : undefined
                 }
               >
-                <div className='relative'>
-                  <Input
-                    id='sso-client-secret'
-                    type='text'
-                    placeholder='Enter Client Secret'
-                    value={formData.clientSecret}
-                    name='sso_client_key'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => {
-                      e.target.removeAttribute('readOnly')
-                      setShowClientSecret(true)
-                    }}
-                    onBlurCapture={() => setShowClientSecret(false)}
-                    onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                    style={
-                      !showClientSecret
-                        ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
-                        : undefined
-                    }
-                    variant='chip'
-                    className={cn(
-                      'pr-9',
-                      showErrors && errors.clientSecret.length > 0 && 'border-[var(--text-error)]'
-                    )}
-                  />
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    onClick={() => setShowClientSecret((s) => !s)}
-                    className='-translate-y-1/2 absolute top-1/2 right-[8px] size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                    aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
-                  >
-                    {showClientSecret ? (
-                      <EyeOff className='size-[14px]' />
-                    ) : (
-                      <Eye className='size-[14px]' />
-                    )}
-                  </Button>
-                </div>
+                <ChipInput
+                  id='sso-client-secret'
+                  type='text'
+                  placeholder='Enter Client Secret'
+                  value={formData.clientSecret}
+                  name='sso_client_key'
+                  autoComplete='off'
+                  autoCapitalize='none'
+                  spellCheck={false}
+                  readOnly
+                  onFocus={(e) => {
+                    e.target.removeAttribute('readOnly')
+                    setShowClientSecret(true)
+                  }}
+                  onBlurCapture={() => setShowClientSecret(false)}
+                  onChange={(e) => handleInputChange('clientSecret', e.target.value)}
+                  style={
+                    !showClientSecret
+                      ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+                      : undefined
+                  }
+                  error={showErrors && errors.clientSecret.length > 0}
+                  endAdornment={
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      onClick={() => setShowClientSecret((s) => !s)}
+                      className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                      aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
+                    >
+                      {showClientSecret ? (
+                        <EyeOff className='size-[14px]' />
+                      ) : (
+                        <Eye className='size-[14px]' />
+                      )}
+                    </Button>
+                  }
+                />
               </FormField>
 
               {/* Scopes */}
@@ -721,7 +713,7 @@ export function SSO() {
                 label='Scopes'
                 error={showErrors && errors.scopes.length > 0 ? errors.scopes.join(' ') : undefined}
               >
-                <Input
+                <ChipInput
                   id='sso-scopes'
                   type='text'
                   placeholder='openid,profile,email'
@@ -730,10 +722,7 @@ export function SSO() {
                   autoCapitalize='none'
                   spellCheck={false}
                   onChange={(e) => handleInputChange('scopes', e.target.value)}
-                  variant='chip'
-                  className={cn(
-                    showErrors && errors.scopes.length > 0 && 'border-[var(--text-error)]'
-                  )}
+                  error={showErrors && errors.scopes.length > 0}
                 />
                 <p className='text-[var(--text-muted)] text-small'>
                   Comma-separated list of OIDC scopes to request
@@ -751,7 +740,7 @@ export function SSO() {
                     : undefined
                 }
               >
-                <Input
+                <ChipInput
                   id='sso-entry-point'
                   type='url'
                   placeholder='https://idp.example.com/sso/saml'
@@ -760,10 +749,7 @@ export function SSO() {
                   autoCapitalize='none'
                   spellCheck={false}
                   onChange={(e) => handleInputChange('entryPoint', e.target.value)}
-                  variant='chip'
-                  className={cn(
-                    showErrors && errors.entryPoint.length > 0 && 'border-[var(--text-error)]'
-                  )}
+                  error={showErrors && errors.entryPoint.length > 0}
                 />
               </FormField>
 
@@ -772,7 +758,7 @@ export function SSO() {
                 label='Identity Provider Certificate'
                 error={showErrors && errors.cert.length > 0 ? errors.cert.join(' ') : undefined}
               >
-                <Textarea
+                <ChipTextarea
                   id='sso-cert'
                   placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
                   value={formData.cert}
@@ -780,10 +766,8 @@ export function SSO() {
                   autoCapitalize='none'
                   spellCheck={false}
                   onChange={(e) => handleInputChange('cert', e.target.value)}
-                  className={cn(
-                    'min-h-[80px] rounded-lg font-mono focus-visible:border-[var(--border-focus)] dark:bg-[var(--surface-4)]',
-                    showErrors && errors.cert.length > 0 && 'border-[var(--text-error)]'
-                  )}
+                  className='min-h-[80px] font-mono'
+                  error={showErrors && errors.cert.length > 0}
                   rows={3}
                 />
               </FormField>
@@ -805,7 +789,7 @@ export function SSO() {
                   <ExpandableContent>
                     <div className='flex flex-col gap-4.5 pt-2'>
                       <FormField label='Audience (Entity ID)' optional>
-                        <Input
+                        <ChipInput
                           type='text'
                           placeholder='Enter Audience'
                           value={formData.audience}
@@ -813,12 +797,11 @@ export function SSO() {
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('audience', e.target.value)}
-                          variant='chip'
                         />
                       </FormField>
 
                       <FormField label='Callback URL Override' optional>
-                        <Input
+                        <ChipInput
                           type='url'
                           placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
                           value={formData.callbackUrl}
@@ -826,7 +809,6 @@ export function SSO() {
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
-                          variant='chip'
                         />
                       </FormField>
 
@@ -840,14 +822,14 @@ export function SSO() {
                       </FormField>
 
                       <FormField label='IDP Metadata XML' optional>
-                        <Textarea
+                        <ChipTextarea
                           placeholder='Paste IDP metadata XML here'
                           value={formData.idpMetadata}
                           autoComplete='off'
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
-                          className='min-h-[60px] rounded-lg font-mono focus-visible:border-[var(--border-focus)] dark:bg-[var(--surface-4)]'
+                          className='min-h-[60px] font-mono'
                           rows={2}
                         />
                       </FormField>
@@ -860,18 +842,25 @@ export function SSO() {
 
           {/* Callback URL */}
           <FormField label='Callback URL'>
-            <div className='relative'>
-              <Input value={callbackUrl} readOnly variant='chip' className='pr-9' />
-              <Button
-                type='button'
-                variant='ghost'
-                onClick={() => copyToClipboard(callbackUrl)}
-                className='-translate-y-1/2 absolute top-1/2 right-[8px] size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
-                aria-label='Copy callback URL'
-              >
-                {copied ? <Check className='size-[14px]' /> : <Clipboard className='size-[14px]' />}
-              </Button>
-            </div>
+            <ChipInput
+              value={callbackUrl}
+              readOnly
+              endAdornment={
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={() => copyToClipboard(callbackUrl)}
+                  className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                  aria-label='Copy callback URL'
+                >
+                  {copied ? (
+                    <Check className='size-[14px]' />
+                  ) : (
+                    <Clipboard className='size-[14px]' />
+                  )}
+                </Button>
+              }
+            />
             <p className='text-[var(--text-muted)] text-small'>
               Configure this in your identity provider
             </p>

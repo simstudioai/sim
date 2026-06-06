@@ -86,7 +86,6 @@ async function exportWorkflow(workflowId: string, outputFile?: string): Promise<
       metadata: {
         name: workflowData.name,
         description: workflowData.description ?? undefined,
-        color: workflowData.color ?? undefined,
         exportedAt: new Date().toISOString(),
       },
       variables: workflowVariables,

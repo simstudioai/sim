@@ -9,6 +9,7 @@ import {
   Button,
   Callout,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -20,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   MoreHorizontal,
-  SearchInput,
+  Search,
   Switch,
   Table,
   TableBody,
@@ -146,7 +147,8 @@ export function DataDrainsSettings() {
             Retention to satisfy long-term compliance archives.
           </Callout>
 
-          <SearchInput
+          <ChipInput
+            icon={Search}
             placeholder='Search data drains...'
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

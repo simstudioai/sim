@@ -23,6 +23,7 @@
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { Check, ChevronRight, Circle, Search } from 'lucide-react'
+import { chipFieldSurfaceClass } from '@/components/emcn/components/chip-input/chip-field-chrome'
 import { cn } from '@/lib/core/utils/cn'
 
 const ANIMATION_CLASSES =
@@ -300,7 +301,12 @@ const DropdownMenuSearchInput = React.forwardRef<
   )
 
   return (
-    <div className='mx-0.5 mt-0.5 mb-0.5 flex h-[30px] shrink-0 items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+    <div
+      className={cn(
+        'mx-0.5 mt-0.5 mb-0.5 flex h-[30px] shrink-0 items-center gap-2 px-2',
+        chipFieldSurfaceClass
+      )}
+    >
       <Search className='size-[14px] shrink-0 text-[var(--text-muted)]' />
       <input
         ref={setRefs}

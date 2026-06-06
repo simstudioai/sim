@@ -9,11 +9,12 @@ import {
   Badge,
   Button,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  SearchInput,
+  Search,
   Tooltip,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
@@ -623,7 +624,8 @@ export function MCP({ initialServerId }: MCPProps) {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <SearchInput
+            <ChipInput
+              icon={Search}
               placeholder='Search MCPs...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
