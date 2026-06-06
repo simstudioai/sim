@@ -458,6 +458,7 @@ async function runCheckpointLoop(
       streamId: context.messageId,
       checkpointId: continuation.checkpointId,
       userId: options.userId,
+      ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
       results,
     }
 
