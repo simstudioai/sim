@@ -380,7 +380,6 @@ export const WorkflowList = memo(function WorkflowList({
             <WorkflowItem
               workflow={workflow}
               active={isWorkflowActive(workflow.id)}
-              level={level}
               dragDisabled={dragDisabled}
               onWorkflowClick={handleWorkflowClick}
               onDragStart={() => handleDragStart(folderId)}
@@ -460,7 +459,6 @@ export const WorkflowList = memo(function WorkflowList({
           >
             <FolderItem
               folder={folder}
-              level={level}
               dragDisabled={dragDisabled}
               onFolderClick={handleFolderClick}
               onDragStart={() => handleDragStart(parentFolderId)}
@@ -573,6 +571,7 @@ export const WorkflowList = memo(function WorkflowList({
         aria-label='Workflows'
         className='flex min-h-full flex-col pb-2'
         onClick={handleContainerClick}
+        onContextMenu={handleContainerContextMenu}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             if (e.target !== e.currentTarget) return
@@ -580,7 +579,6 @@ export const WorkflowList = memo(function WorkflowList({
             workflowId ? selectOnly(workflowId) : clearAllSelection()
           }
         }}
-        onContextMenu={handleContainerContextMenu}
         data-empty-area
       >
         <div

@@ -1,6 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { Mem0Icon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { Mem0Response } from '@/tools/mem0/types'
 import { parseMem0Messages } from '@/tools/mem0/utils'
 
@@ -14,7 +14,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
   icon: Mem0Icon,
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'knowledge-base', 'agentic'],
   docsLink: 'https://docs.sim.ai/tools/mem0',
   subBlocks: [
     {
@@ -272,3 +271,76 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     previous: { type: 'string', description: 'Previous page URL for get operations' },
   },
 }
+
+export const Mem0BlockMeta = {
+  tags: ['llm', 'knowledge-base', 'agentic'],
+  templates: [
+    {
+      icon: Mem0Icon,
+      title: 'Mem0 long-term agent memory',
+      prompt:
+        'Build an agent that uses Mem0 to remember user preferences and prior conversations across sessions, so follow-up requests reference real history instead of starting from scratch.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+    },
+    {
+      icon: Mem0Icon,
+      title: 'Mem0 sales-assistant memory',
+      prompt:
+        'Create a sales agent that persists per-account context in Mem0 — last call notes, open objections, agreed next steps — so every rep starts a follow-up call already up to speed.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+    },
+    {
+      icon: Mem0Icon,
+      title: 'Mem0 + Zep hybrid memory agent',
+      prompt:
+        'Create a chat agent that uses Mem0 for persistent user preferences and Zep for in-session continuity, so the agent recalls long-term context while staying coherent turn-to-turn.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+      alsoIntegrations: ['zep'],
+    },
+    {
+      icon: Mem0Icon,
+      title: 'Mem0 + Slack assistant memory',
+      prompt:
+        'Build a Slack bot that uses Mem0 to remember user preferences and prior conversations, so each follow-up question lands in context instead of starting fresh.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Mem0Icon,
+      title: 'Mem0 + Notion personal-knowledge agent',
+      prompt:
+        'Create an agent that uses Mem0 to recall personal context and Notion as the source-of-truth knowledge base, answering questions with citations plus user-specific memory.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: Mem0Icon,
+      title: 'Mem0 customer-preference store',
+      prompt:
+        'Build a workflow that captures customer preferences from support interactions into Mem0 keyed by account, so future automations reference the real preferences.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'crm'],
+      alsoIntegrations: ['zendesk'],
+    },
+    {
+      icon: Mem0Icon,
+      title: 'Mem0 onboarding-context agent',
+      prompt:
+        'Create an onboarding agent that adds each new user’s role, goals, and stack to Mem0 on first contact, then searches that memory on every later session so guidance stays tailored to the individual instead of generic.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation', 'onboarding'],
+    },
+  ],
+} as const satisfies BlockMeta

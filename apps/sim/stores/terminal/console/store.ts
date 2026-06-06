@@ -3,12 +3,13 @@ import { generateId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { useShallow } from 'zustand/react/shallow'
+import { toast } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { useExecutionStore } from '@/stores/execution'
-import { useNotificationStore } from '@/stores/notifications'
 import { consolePersistence, loadConsoleData } from '@/stores/terminal/console/storage'
 import type {
   ConsoleEntry,
@@ -240,11 +241,10 @@ function appendWorkflowEntry(
 interface NotifyBlockErrorParams {
   error: unknown
   blockName: string
-  workflowId?: string
   logContext: Record<string, unknown>
 }
 
-const notifyBlockError = ({ error, blockName, workflowId, logContext }: NotifyBlockErrorParams) => {
+const notifyBlockError = ({ error, blockName, logContext }: NotifyBlockErrorParams) => {
   const settings = getQueryClient().getQueryData<GeneralSettings>(generalSettingsKeys.settings())
   const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
 
@@ -256,13 +256,10 @@ const notifyBlockError = ({ error, blockName, workflowId, logContext }: NotifyBl
     const displayMessage = `${displayName}: ${errorMessage}`
     const copilotMessage = `${errorMessage}\n\nError in ${displayName}.\n\nPlease fix this.`
 
-    useNotificationStore.getState().addNotification({
-      level: 'error',
-      message: displayMessage,
-      workflowId,
+    toast.error(displayMessage, {
       action: {
-        type: 'copilot',
-        message: copilotMessage,
+        label: 'Fix in Copilot',
+        onClick: () => sendMothershipMessage(copilotMessage),
       },
     })
   } catch (notificationError) {
@@ -325,7 +322,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         notifyBlockError({
           error: createdEntry.error,
           blockName: createdEntry.blockName || 'Unknown Block',
-          workflowId: entry.workflowId,
           logContext: { entryId: createdEntry.id },
         })
       }
@@ -614,7 +610,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         notifyBlockError({
           error: update.error,
           blockName: update.blockName || matchingEntry?.blockName || 'Unknown Block',
-          workflowId: matchingEntry?.workflowId,
           logContext: { blockId },
         })
       }

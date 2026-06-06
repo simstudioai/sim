@@ -1,5 +1,5 @@
 import { ClerkIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { ClerkResponse } from '@/tools/clerk/types'
 
@@ -12,7 +12,6 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
   docsLink: 'https://docs.sim.ai/tools/clerk',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['identity', 'automation'],
   bgColor: '#131316',
   icon: ClerkIcon,
 
@@ -410,3 +409,78 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }
+
+export const ClerkBlockMeta = {
+  tags: ['identity', 'automation'],
+  templates: [
+    {
+      icon: ClerkIcon,
+      title: 'Clerk new-signup pipeline',
+      prompt:
+        'Build a scheduled workflow that lists recent Clerk users, creates each new signup in HubSpot with the right lifecycle stage, and enrolls them in a Loops onboarding sequence.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm'],
+      alsoIntegrations: ['hubspot', 'loops'],
+    },
+    {
+      icon: ClerkIcon,
+      title: 'Clerk MFA enrollment chaser',
+      prompt:
+        'Create a scheduled workflow that finds Clerk users without MFA enrolled in 30 days, sends in-app prompts via Loops, and writes enrollment progress to a security dashboard.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'communication'],
+      alsoIntegrations: ['loops'],
+    },
+    {
+      icon: ClerkIcon,
+      title: 'Clerk session anomaly watcher',
+      prompt:
+        'Build a scheduled workflow that lists recent Clerk sessions, flags unusual patterns — impossible travel, repeated login failures — and pings the security Slack channel on real threats.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ClerkIcon,
+      title: 'Clerk org-management automator',
+      prompt:
+        'Create a workflow that on a new enterprise plan via Stripe creates a Clerk organization, invites the admin, and writes the Clerk org ID back to the Stripe customer.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['stripe'],
+    },
+    {
+      icon: ClerkIcon,
+      title: 'Clerk inactive-user cleaner',
+      prompt:
+        'Build a scheduled workflow that finds Clerk users with no sign-ins in 180 days, sends a re-engagement email, and removes accounts after a grace period.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'enterprise'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: ClerkIcon,
+      title: 'Clerk access-review automator',
+      prompt:
+        'Create a scheduled quarterly workflow that lists Clerk organizations and their users, requires owner re-attestation, and writes the review trail to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: ClerkIcon,
+      title: 'Clerk user roster archiver',
+      prompt:
+        'Build a scheduled workflow that exports the full Clerk user and organization roster to S3 on a retention schedule, and writes the snapshot manifest to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['s3'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -16,9 +16,8 @@ function formatResourceLabel(key: string): string {
     .join(' ')
 }
 
-export const RESOURCE_TYPE_OPTIONS: ComboboxOption[] = [
-  { label: 'All Types', value: '' },
-  ...(Object.entries(AuditResourceType) as [string, string][])
-    .map(([key, value]) => ({ label: formatResourceLabel(key), value }))
-    .sort((a, b) => a.label.localeCompare(b.label)),
-]
+export const RESOURCE_TYPE_OPTIONS: ComboboxOption[] = (
+  Object.entries(AuditResourceType) as [string, string][]
+)
+  .map(([key, value]) => ({ label: formatResourceLabel(key), value }))
+  .sort((a, b) => a.label.localeCompare(b.label))

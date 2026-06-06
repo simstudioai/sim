@@ -10,14 +10,13 @@ import {
   getBlockByToolName,
   getBlocksByCategory,
   isValidBlockType,
-  registry,
 } from '@/blocks/registry'
 import { AuthMode } from '@/blocks/types'
 
 describe.concurrent('Blocks Module', () => {
   describe('Registry', () => {
     it('should have a non-empty registry of blocks', () => {
-      expect(Object.keys(registry).length).toBeGreaterThan(0)
+      expect(getAllBlocks().length).toBeGreaterThan(0)
     })
 
     it('should have all blocks with required properties', () => {
@@ -797,8 +796,8 @@ describe.concurrent('Blocks Module', () => {
 
   describe('Block Consistency', () => {
     it('should have consistent registry keys matching block types', () => {
-      for (const [key, block] of Object.entries(registry)) {
-        expect(key).toBe(block.type)
+      for (const block of getAllBlocks()) {
+        expect(getBlock(block.type)).toBe(block)
       }
     })
 

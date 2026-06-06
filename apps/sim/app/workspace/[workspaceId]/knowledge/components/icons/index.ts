@@ -1,0 +1,15 @@
+export {
+  AudioIcon,
+  CsvIcon,
+  DefaultFileIcon,
+  DocxIcon,
+  getDocumentIcon,
+  HtmlIcon,
+  JsonIcon,
+  MarkdownIcon,
+  PdfIcon,
+  PptxIcon,
+  TxtIcon,
+  VideoIcon,
+  XlsxIcon,
+} from './document-icons'

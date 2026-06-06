@@ -1,5 +1,5 @@
 import { AgentMailIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const AgentMailBlock: BlockConfig = {
@@ -11,7 +11,6 @@ export const AgentMailBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/agentmail',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['messaging'],
   bgColor: '#000000',
   icon: AgentMailIcon,
   authMode: AuthMode.ApiKey,
@@ -621,3 +620,74 @@ export const AgentMailBlock: BlockConfig = {
     updatedAt: { type: 'string', description: 'Last updated timestamp' },
   },
 }
+
+export const AgentMailBlockMeta = {
+  tags: ['messaging', 'automation'],
+  templates: [
+    {
+      icon: AgentMailIcon,
+      title: 'AgentMail inbox-per-customer',
+      prompt:
+        'Build a workflow that creates a dedicated AgentMail inbox for every new customer account, configures the display name and labels, and writes the inbox address back to the customer record so all customer email is isolated and threaded.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation', 'enterprise'],
+    },
+    {
+      icon: AgentMailIcon,
+      title: 'AgentMail support concierge',
+      prompt:
+        'Create a knowledge base from product docs and past resolutions, then build a scheduled workflow that polls an AgentMail inbox for new threads, drafts a contextual reply with citations, and either sends it or saves it as a draft based on confidence.',
+      modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation', 'communication'],
+    },
+    {
+      icon: AgentMailIcon,
+      title: 'AgentMail draft assistant',
+      prompt:
+        'Build a scheduled workflow that polls AgentMail threads, drafts a reply that matches my tone using my recent sent messages as reference, and updates the existing draft each time the thread receives a new message so the draft stays current.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication', 'automation'],
+    },
+    {
+      icon: AgentMailIcon,
+      title: 'AgentMail label organizer',
+      prompt:
+        'Create a workflow that classifies new AgentMail messages by topic and customer tier, applies the matching thread labels, and moves threads with stale labels into archive labels on a weekly schedule.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'team'],
+    },
+    {
+      icon: AgentMailIcon,
+      title: 'AgentMail + Loops support touch-points',
+      prompt:
+        'Create a scheduled workflow that polls AgentMail support threads and sends a Loops event for each customer milestone — first contact, resolved, escalated — so Loops can automate the right follow-up email based on real support outcomes.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation', 'communication'],
+      alsoIntegrations: ['loops'],
+    },
+    {
+      icon: AgentMailIcon,
+      title: 'AgentMail outbound sequence sender',
+      prompt:
+        'Build a workflow that reads a prospects table, creates a personalized AgentMail draft per contact using their enriched profile, sends the message from a dedicated inbox, and logs the thread ID back to the row so replies can be tracked.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'communication'],
+    },
+    {
+      icon: AgentMailIcon,
+      title: 'AgentMail thread escalation router',
+      prompt:
+        'Create a scheduled workflow that polls AgentMail inboxes for new messages, detects urgent or negative threads with an agent, forwards the full thread to the on-call address, and posts a Slack alert so nothing high-priority sits unanswered.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

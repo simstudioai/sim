@@ -1,6 +1,7 @@
-import { ConfluenceIcon } from '@/components/icons'
+import { Search } from '@/components/emcn/icons'
+import { ConfluenceIcon, PagerDutyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ConfluenceResponse } from '@/tools/confluence/types'
@@ -17,8 +18,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   docsLink: 'https://docs.sim.ai/tools/confluence',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['knowledge-base', 'content-management', 'note-taking'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ConfluenceIcon,
   subBlocks: [
     {
@@ -1601,3 +1601,78 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     nextCursor: { type: 'string', description: 'Cursor for fetching next page of results' },
   },
 }
+
+export const ConfluenceBlockMeta = {
+  tags: ['knowledge-base', 'content-management', 'note-taking'],
+  templates: [
+    {
+      icon: PagerDutyIcon,
+      title: 'Incident response coordinator',
+      prompt:
+        'Create a knowledge base connected to my Confluence or Notion with runbooks and incident procedures. Then build a workflow triggered by PagerDuty incidents that searches the runbooks, gathers related Datadog alerts, identifies the on-call rotation, and posts a comprehensive incident brief to Slack.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'engineering', 'automation'],
+      alsoIntegrations: ['notion', 'pagerduty', 'datadog', 'slack'],
+    },
+    {
+      icon: ConfluenceIcon,
+      title: 'Knowledge base sync',
+      prompt:
+        'Create a knowledge base connected to my Confluence workspace so all wiki pages are automatically synced and searchable. Then build a scheduled workflow that identifies stale pages not updated in 90 days and sends a Slack reminder to page owners to review them.',
+      modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync', 'team'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Search,
+      title: 'Multi-source knowledge hub',
+      prompt:
+        'Create a knowledge base and connect it to Confluence, Notion, and Google Drive so all my company documentation is automatically synced, chunked, and embedded. Then deploy a Q&A agent that can answer questions across all sources with citations.',
+      modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'team', 'sync', 'automation'],
+      alsoIntegrations: ['notion', 'google_drive'],
+    },
+    {
+      icon: ConfluenceIcon,
+      title: 'Confluence weekly contributor digest',
+      prompt:
+        'Build a scheduled workflow that aggregates the week’s new and updated Confluence pages, identifies top contributors, and posts a digest to the team Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ConfluenceIcon,
+      title: 'Confluence space migration helper',
+      prompt:
+        'Create a workflow that takes a source Confluence space, copies pages into a target space with rewritten internal links, attachments, and labels, and writes a mapping table for redirects.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'sync'],
+    },
+    {
+      icon: ConfluenceIcon,
+      title: 'Confluence question router',
+      prompt:
+        'Build a workflow that watches a Confluence space for new questions, finds the right SME via labels, pings them on Slack, and updates the question page with a sourced answer once available.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Search,
+      title: 'Confluence knowledge assistant',
+      prompt:
+        'Create a knowledge base synced from a Confluence space, then build a Slack agent that searches Confluence pages to answer team questions, cites the source page, and offers to create a new page when an answer is missing.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'research', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

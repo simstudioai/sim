@@ -1,6 +1,6 @@
 import { RedditIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RedditResponse } from '@/tools/reddit/types'
 
@@ -14,8 +14,8 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
   docsLink: 'https://docs.sim.ai/tools/reddit',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['content-management', 'web-scraping'],
   bgColor: '#FF5700',
+  iconColor: '#FF5700',
   icon: RedditIcon,
   subBlocks: [
     {
@@ -901,3 +901,75 @@ Return ONLY the message content - no meta-commentary.`,
     icon_img: { type: 'string', description: 'Icon image URL' },
   },
 }
+
+export const RedditBlockMeta = {
+  tags: ['content-management', 'web-scraping'],
+  templates: [
+    {
+      icon: RedditIcon,
+      title: 'Social mention tracker',
+      prompt:
+        'Create a scheduled workflow that monitors Reddit and X for mentions of my brand and competitors, scores each mention by sentiment and reach, logs them to a table, and sends a daily Slack digest of notable mentions.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring', 'analysis'],
+      alsoIntegrations: ['x', 'slack'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit subreddit monitor',
+      prompt:
+        'Build a scheduled workflow that uses Reddit to watch target subreddits for posts matching brand or product keywords, scores each for relevance and sentiment, and posts notable hits to Slack with the original link.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit user-question knowledge mining',
+      prompt:
+        'Create a workflow that pulls top questions from Reddit industry subreddits weekly, classifies by theme, and writes a content-opportunity table the marketing team can prioritize.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit AMA preparer',
+      prompt:
+        'Build a workflow that aggregates top Reddit AMA-style questions for a topic, clusters them, drafts polished answers using a knowledge base, and posts a Q&A document for review.',
+      modules: ['knowledge-base', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit competitor watch',
+      prompt:
+        'Create a scheduled workflow that monitors Reddit threads mentioning competitors weekly, summarizes sentiment and pain points, and writes a competitive intelligence note to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit crisis-signal alerter',
+      prompt:
+        'Build a scheduled workflow that polls Reddit for sudden bursts of negative posts about the brand, classifies severity, and pages the PR team via Slack and PagerDuty when a real crisis emerges.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack', 'pagerduty'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit content-idea collector',
+      prompt:
+        'Create a scheduled workflow that polls marketing-relevant Reddit subreddits, captures upvoted long-form posts, summarizes each, and adds them to a content-ideas table with effort and impact scores.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+  ],
+} as const satisfies BlockMeta

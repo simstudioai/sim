@@ -1,5 +1,5 @@
 import { GooglePagespeedIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { GooglePagespeedAnalyzeResponse } from '@/tools/google_pagespeed/types'
 
 export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> = {
@@ -11,8 +11,7 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
   docsLink: 'https://docs.sim.ai/tools/google_pagespeed',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['google-workspace', 'seo', 'monitoring'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GooglePagespeedIcon,
   authMode: AuthMode.ApiKey,
 
@@ -87,3 +86,68 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
     },
   },
 }
+
+export const GooglePagespeedBlockMeta = {
+  tags: ['google-workspace', 'seo', 'monitoring'],
+  templates: [
+    {
+      icon: GooglePagespeedIcon,
+      title: 'PageSpeed monitor for top pages',
+      prompt:
+        'Create a scheduled workflow that runs Google PageSpeed Insights weekly against my top landing pages, writes mobile and desktop scores to a tables-based history, and flags regressions in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GooglePagespeedIcon,
+      title: 'PageSpeed sitemap audit',
+      prompt:
+        'Build a workflow that takes a sitemap URL, runs Google PageSpeed Insights against every page in batches, summarizes Core Web Vitals across the site, and saves the report as a file.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: GooglePagespeedIcon,
+      title: 'PageSpeed pre-deploy gate',
+      prompt:
+        'Build a workflow triggered by a Vercel preview deployment that runs Google PageSpeed Insights against the preview URL, posts the scores as a GitHub PR comment, and fails the check if scores drop below threshold.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['vercel', 'github'],
+    },
+    {
+      icon: GooglePagespeedIcon,
+      title: 'PageSpeed CWV regression watcher',
+      prompt:
+        'Build a scheduled workflow that runs Google PageSpeed Insights daily for the top pages, captures Core Web Vitals, and pages on-call when LCP or CLS regress beyond threshold.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: GooglePagespeedIcon,
+      title: 'PageSpeed accessibility tracker',
+      prompt:
+        'Build a scheduled weekly workflow that runs Google PageSpeed Insights with the accessibility audit, writes per-page scores to a tracking table, and opens Linear tickets on regressions.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: GooglePagespeedIcon,
+      title: 'Core Web Vitals release gate',
+      prompt:
+        'Create a workflow triggered after a marketing-site deploy that runs Google PageSpeed Insights on the key landing pages for both mobile and desktop, compares Core Web Vitals against the prior baseline, and posts a pass/fail summary to Slack with the specific metrics that regressed.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'seo', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

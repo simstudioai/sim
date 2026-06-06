@@ -1,6 +1,6 @@
 import { BoxCompanyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 
@@ -12,8 +12,7 @@ export const BoxBlock: BlockConfig = {
     'Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.',
   docsLink: 'https://docs.sim.ai/tools/box',
   category: 'tools',
-  integrationType: IntegrationType.FileStorage,
-  tags: ['cloud', 'content-management', 'e-signatures'],
+  integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: BoxCompanyIcon,
   authMode: AuthMode.OAuth,
@@ -599,3 +598,75 @@ export const BoxBlock: BlockConfig = {
     nextMarker: 'string',
   },
 }
+
+export const BoxBlockMeta = {
+  tags: ['cloud', 'content-management', 'e-signatures'],
+  templates: [
+    {
+      icon: BoxCompanyIcon,
+      title: 'Box folder onboarding',
+      prompt:
+        'Create a workflow that watches a Box folder for new customer subfolders, applies the standard permissions matrix, seeds template files, and notifies the account owner.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+    },
+    {
+      icon: BoxCompanyIcon,
+      title: 'Box external-share auditor',
+      prompt:
+        'Build a scheduled weekly workflow that lists Box shared links shared with external collaborators, flags items above the sensitivity threshold, and writes a security review.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: BoxCompanyIcon,
+      title: 'Box compliance retention',
+      prompt:
+        'Create a scheduled workflow that finds Box documents past retention, applies legal hold or archives them, and writes the disposition record to an audit table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: BoxCompanyIcon,
+      title: 'Box document Q&A agent',
+      prompt:
+        'Build an agent that indexes Box content into a knowledge base, answers user questions with sourced citations, and deploys as a chat endpoint for internal teams.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'enterprise'],
+    },
+    {
+      icon: BoxCompanyIcon,
+      title: 'Box to S3 backup',
+      prompt:
+        'Create a scheduled workflow that mirrors a Box folder tree into S3 nightly with incremental sync, captures the manifest, and pings Slack on any failed files.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: BoxCompanyIcon,
+      title: 'Box new-vendor folder setup',
+      prompt:
+        'Build a workflow triggered when a new vendor is created in a CRM that provisions a standard Box folder structure for that vendor, invites the right users, and writes the folder link to the vendor record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: BoxCompanyIcon,
+      title: 'Box approval-flow router',
+      prompt:
+        'Create a workflow that watches a Box approval folder, posts a Slack request with quick-action buttons for each new doc, captures the decision, and labels the file accordingly.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

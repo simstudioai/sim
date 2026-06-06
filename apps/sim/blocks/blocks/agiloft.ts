@@ -1,5 +1,5 @@
 import { AgiloftIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 
@@ -12,7 +12,6 @@ export const AgiloftBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/agiloft',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['automation'],
   bgColor: '#001028',
   icon: AgiloftIcon,
   authMode: AuthMode.ApiKey,
@@ -432,3 +431,77 @@ export const AgiloftBlock: BlockConfig = {
     },
   },
 }
+
+export const AgiloftBlockMeta = {
+  tags: ['automation'],
+  templates: [
+    {
+      icon: AgiloftIcon,
+      title: 'Agiloft contract launcher',
+      prompt:
+        'Build a workflow that on a closed-won Salesforce opportunity creates an Agiloft contract record from the right template, fills key fields from the opportunity, and routes for legal review.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'sales'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: AgiloftIcon,
+      title: 'Agiloft clause analyzer',
+      prompt:
+        'Create a workflow that pulls Agiloft contracts on a schedule, extracts key clauses, writes deviations from the standard template to a legal review table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'analysis'],
+    },
+    {
+      icon: AgiloftIcon,
+      title: 'Agiloft renewal tracker',
+      prompt:
+        'Build a scheduled workflow that finds Agiloft contracts with renewals due in the next 90 days, creates a renewal-prep task in the CRM, and emails the account owner.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'legal'],
+      alsoIntegrations: ['salesforce', 'gmail'],
+    },
+    {
+      icon: AgiloftIcon,
+      title: 'Agiloft approval router',
+      prompt:
+        'Create a scheduled workflow that searches Agiloft for contracts needing approval, posts a Microsoft Teams adaptive card to the approver, captures the decision, and updates Agiloft.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: AgiloftIcon,
+      title: 'Agiloft compliance audit',
+      prompt:
+        'Build a scheduled monthly workflow that audits Agiloft contracts against compliance requirements, flags missing clauses or expired terms, and writes a remediation backlog.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: AgiloftIcon,
+      title: 'Agiloft DocuSign bridge',
+      prompt:
+        'Create a scheduled workflow that searches Agiloft for contracts marked ready-to-sign, creates a DocuSign envelope from the template, sends it, and writes the envelope ID back to Agiloft.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'legal'],
+      alsoIntegrations: ['docusign'],
+    },
+    {
+      icon: AgiloftIcon,
+      title: 'Agiloft + Linear ticket bridge',
+      prompt:
+        'Build a scheduled workflow that searches Agiloft for contracts flagged for engineering review and creates a Linear ticket with the contract context and a link, keeping status synced both ways.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['legal', 'engineering'],
+      alsoIntegrations: ['linear'],
+    },
+  ],
+} as const satisfies BlockMeta

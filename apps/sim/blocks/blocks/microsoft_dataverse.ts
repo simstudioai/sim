@@ -1,6 +1,6 @@
 import { MicrosoftDataverseIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DataverseResponse } from '@/tools/microsoft_dataverse/types'
@@ -15,8 +15,7 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_dataverse',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['microsoft-365', 'data-warehouse', 'cloud'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftDataverseIcon,
   subBlocks: [
     {
@@ -592,3 +591,76 @@ Return ONLY the expand expression - no $expand= prefix, no explanations.`,
     fileColumn: { type: 'string', description: 'File column name' },
   },
 }
+
+export const MicrosoftDataverseBlockMeta = {
+  tags: ['microsoft-365', 'data-warehouse', 'cloud'],
+  templates: [
+    {
+      icon: MicrosoftDataverseIcon,
+      title: 'Dataverse record sync',
+      prompt:
+        'Build a scheduled workflow that mirrors records between Microsoft Dataverse and a Sim table, normalizes schemas, and posts conflict reports to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'sync'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: MicrosoftDataverseIcon,
+      title: 'Dataverse approval workflow',
+      prompt:
+        'Create a scheduled workflow that polls Dataverse for new high-value records, posts an adaptive card approval to Microsoft Teams, captures the decision, and updates the record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftDataverseIcon,
+      title: 'Dataverse data-quality auditor',
+      prompt:
+        'Build a scheduled workflow that scans Dataverse tables for missing required fields, format violations, and duplicates, and writes a remediation backlog to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'analysis'],
+    },
+    {
+      icon: MicrosoftDataverseIcon,
+      title: 'Dataverse + Power BI feeder',
+      prompt:
+        'Create a workflow that pulls Dataverse entity data daily, transforms it into BI-ready rows in a Sim table, and stages a refresh signal for downstream Power BI consumption.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'enterprise'],
+    },
+    {
+      icon: MicrosoftDataverseIcon,
+      title: 'Dataverse legacy CRM bridge',
+      prompt:
+        'Build a workflow that mirrors Salesforce contacts into Microsoft Dataverse and back, mapping fields and resolving conflicts deterministically so both CRMs stay in sync during migration.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['crm', 'sync', 'enterprise'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: MicrosoftDataverseIcon,
+      title: 'Dataverse compliance archiver',
+      prompt:
+        'Create a scheduled workflow that exports Dataverse records older than the retention horizon into long-term storage, removes them from the live table, and writes the archive manifest for auditors.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: MicrosoftDataverseIcon,
+      title: 'Dataverse case-routing agent',
+      prompt:
+        'Build a workflow that runs a relevance search across Microsoft Dataverse case and account tables when a new support request arrives, classifies the issue, upserts the case record with the right owner and priority, and notifies the assigned team in Microsoft Teams.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'enterprise', 'automation'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+  ],
+} as const satisfies BlockMeta

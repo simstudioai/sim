@@ -15,12 +15,47 @@ export {
   buttonGroupItemVariants,
   buttonGroupVariants,
 } from './button-group/button-group'
+export { Calendar, type CalendarProps, formatDateLabel, parseDateValue } from './calendar/calendar'
 export { Callout, calloutVariants } from './callout/callout'
 export {
   Checkbox,
   checkboxIconVariants,
   checkboxVariants,
 } from './checkbox/checkbox'
+export { Chip, ChipLink, type ChipLinkProps, type ChipProps, chipVariants } from './chip/chip'
+export { ChipCombobox } from './chip-combobox/chip-combobox'
+export { ChipDatePicker, type ChipDatePickerProps } from './chip-date-picker/chip-date-picker'
+export {
+  ChipDropdown,
+  type ChipDropdownOption,
+  type ChipDropdownProps,
+} from './chip-dropdown/chip-dropdown'
+export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
+export {
+  ChipModal,
+  ChipModalBody,
+  type ChipModalDropdownOption,
+  type ChipModalEmailsFieldProps,
+  ChipModalError,
+  type ChipModalErrorProps,
+  ChipModalField,
+  type ChipModalFieldProps,
+  ChipModalFooter,
+  ChipModalHeader,
+  type ChipModalHeaderProps,
+  type ChipModalProps,
+  type ChipModalTab,
+  ChipModalTabs,
+  type ChipModalTabsProps,
+} from './chip-modal/chip-modal'
+export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
+export {
+  ChipSwitch,
+  type ChipSwitchOption,
+  type ChipSwitchProps,
+} from './chip-switch/chip-switch'
+export { ChipTag, type ChipTagProps, chipTagVariants } from './chip-tag/chip-tag'
+export { ChipTextarea, type ChipTextareaProps } from './chip-textarea/chip-textarea'
 export {
   CODE_LINE_HEIGHT_PX,
   Code,
@@ -43,6 +78,7 @@ export {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuItemAction,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuRadioGroup,
@@ -58,7 +94,16 @@ export {
 export { Expandable, ExpandableContent } from './expandable/expandable'
 export { FieldDivider } from './field-divider/field-divider'
 export { FormField } from './form-field/form-field'
-export { Input, inputVariants } from './input/input'
+export { Info } from './info/info'
+export {
+  InfoCard,
+  InfoCardItem,
+  type InfoCardItemProps,
+  InfoCardList,
+  type InfoCardListProps,
+  type InfoCardProps,
+} from './info-card/info-card'
+export { Input, type InputProps } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
@@ -94,26 +139,8 @@ export {
   PopoverTrigger,
   usePopoverContext,
 } from './popover/popover'
+export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem, progressItemVariants } from './progress-item/progress-item'
-export {
-  SModal,
-  SModalClose,
-  SModalContent,
-  SModalMain,
-  SModalMainBody,
-  SModalMainHeader,
-  SModalSidebar,
-  SModalSidebarHeader,
-  SModalSidebarItem,
-  SModalSidebarSection,
-  SModalSidebarSectionTitle,
-  SModalTabs,
-  SModalTabsBody,
-  SModalTabsContent,
-  SModalTabsList,
-  SModalTabsTrigger,
-  SModalTrigger,
-} from './s-modal/s-modal'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'
@@ -131,16 +158,23 @@ export {
 } from './table/table'
 export {
   type FileInputOptions,
-  Tag,
   TagInput,
   type TagItem,
   tagInputVariants,
-  tagVariants,
 } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker, timePickerVariants } from './time-picker/time-picker'
 export { CountdownRing } from './toast/countdown-ring'
 export { ToastProvider, toast, useToast } from './toast/toast'
-export { Tooltip } from './tooltip/tooltip'
-export { TourCard, TourTooltip } from './tour-tooltip/tour-tooltip'
+export {
+  clamp,
+  FloatingTooltip,
+  type FloatingTooltipHandlers,
+  type FloatingTooltipState,
+  isFocusVisible,
+  isTextClipped,
+  Tooltip,
+  useFloatingTooltip,
+  useIsOverflowing,
+} from './tooltip/tooltip'
 export { Wizard } from './wizard/wizard'

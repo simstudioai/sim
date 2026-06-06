@@ -813,7 +813,6 @@
     "metadata": {
       "name": "ocr-invoice-db",
       "description": "Your first workflow - start building here!",
-      "color": "#3972F6",
       "exportedAt": "2026-03-09T21:40:19.014Z"
     },
     "variables": {}

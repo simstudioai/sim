@@ -1,5 +1,5 @@
 import { SapConcurIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SapConcurProxyResponse, UserFileLike } from '@/tools/sap_concur/types'
@@ -164,8 +164,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     'Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.',
   docsLink: 'https://docs.sim.ai/tools/sap_concur',
   category: 'tools',
-  integrationType: IntegrationType.Other,
-  tags: ['automation'],
+  integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: SapConcurIcon,
   subBlocks: [
@@ -1899,3 +1898,76 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     data: { type: 'json', description: 'Concur API response payload' },
   },
 }
+
+export const SapConcurBlockMeta = {
+  tags: ['automation'],
+  templates: [
+    {
+      icon: SapConcurIcon,
+      title: 'SAP Concur expense classifier',
+      prompt:
+        'Build a scheduled workflow that polls SAP Concur for newly submitted expense reports, classifies each line item, validates against policy, and routes exceptions to the approver in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SapConcurIcon,
+      title: 'SAP Concur policy auditor',
+      prompt:
+        'Create a scheduled monthly workflow that audits SAP Concur expense reports against policy, flags pattern violations by employee, and writes a compliance report.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise'],
+    },
+    {
+      icon: SapConcurIcon,
+      title: 'SAP Concur travel pre-approval',
+      prompt:
+        'Build a scheduled workflow that polls SAP Concur for pending travel requests, routes each to the right approver based on amount and destination, captures the decision over Microsoft Teams, and moves the request to the approved or sent-back state.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: SapConcurIcon,
+      title: 'SAP Concur receipt OCR',
+      prompt:
+        'Create a workflow that processes SAP Concur receipt images with AWS Textract, validates the extracted vendor and amount against the report line, and flags mismatches.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['textract'],
+    },
+    {
+      icon: SapConcurIcon,
+      title: 'SAP Concur reimbursement chaser',
+      prompt:
+        'Build a scheduled workflow that finds SAP Concur reports stuck pending more than 7 days, sends the approver a reminder, and writes the chase log to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+    },
+    {
+      icon: SapConcurIcon,
+      title: 'SAP Concur travel reconciler',
+      prompt:
+        'Create a workflow that reconciles SAP Concur travel bookings with corporate card transactions, flags missing receipts, and writes a reconciliation table for finance.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise'],
+    },
+    {
+      icon: SapConcurIcon,
+      title: 'SAP Concur budget watcher',
+      prompt:
+        'Build a scheduled monthly workflow that aggregates SAP Concur spend per department, compares against budget, and pings managers in Teams when overspend is projected.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+  ],
+} as const satisfies BlockMeta

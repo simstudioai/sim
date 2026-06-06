@@ -1,5 +1,5 @@
 import { DagsterIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { DagsterResponse } from '@/tools/dagster/types'
 
@@ -18,8 +18,7 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
     'Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.',
   docsLink: 'https://docs.sim.ai/tools/dagster',
   category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  tags: ['data-analytics', 'automation'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#ffffff',
   icon: DagsterIcon,
 
@@ -669,3 +668,77 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
     },
   },
 }
+
+export const DagsterBlockMeta = {
+  tags: ['data-analytics', 'automation'],
+  templates: [
+    {
+      icon: DagsterIcon,
+      title: 'Dagster pipeline status digest',
+      prompt:
+        'Create a scheduled daily workflow that pulls Dagster run statuses for the previous day, identifies failed and skipped runs, and posts a digest with links to the worst offenders in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DagsterIcon,
+      title: 'Dagster asset freshness watcher',
+      prompt:
+        'Build a scheduled workflow that polls Dagster assets, checks each critical asset’s latest materialization timestamp against a freshness threshold, alerts when an asset becomes stale, and opens a Linear ticket for the data-platform team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: DagsterIcon,
+      title: 'Dagster job kickoff orchestrator',
+      prompt:
+        'Create a workflow that triggers a Dagster job with run parameters when an upstream condition is satisfied, polls until completion, and writes the run outcome to a control table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: DagsterIcon,
+      title: 'Dagster cost dashboard',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Dagster run durations, calculates compute cost per pipeline, and writes a weekly cost dashboard to a finance review file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'reporting'],
+    },
+    {
+      icon: DagsterIcon,
+      title: 'Dagster lineage map',
+      prompt:
+        'Create a workflow that exports Dagster asset lineage into a graph database for cross-pipeline impact analysis when an upstream source schema changes.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['neo4j'],
+    },
+    {
+      icon: DagsterIcon,
+      title: 'Dagster sensor health watcher',
+      prompt:
+        'Build a scheduled workflow that lists Dagster sensors, checks their tick history, and alerts Slack when a sensor stops emitting ticks unexpectedly.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DagsterIcon,
+      title: 'Dagster + Databricks coordinator',
+      prompt:
+        'Create a workflow that orchestrates a Dagster job that triggers a Databricks notebook, waits for completion, captures outputs, and writes the unified run history to a tracking table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['databricks'],
+    },
+  ],
+} as const satisfies BlockMeta

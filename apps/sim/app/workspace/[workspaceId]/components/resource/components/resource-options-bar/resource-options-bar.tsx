@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react'
+import { memo, type ReactNode, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
   ArrowDown,
@@ -11,14 +11,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   ListFilter,
+  POPOVER_ANIMATION_CLASSES,
   Search,
   X,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 const SEARCH_ICON = (
   <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-icon)]' />
 )
+
+const RESOURCE_MENU_EDGE_OFFSET = 6
 
 type SortDirection = 'asc' | 'desc'
 
@@ -89,6 +93,14 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   extras,
   trailing,
 }: ResourceOptionsBarProps) {
+  /**
+   * Coordinates the Filter popover and Sort menu as a single menu bar: clicking
+   * one while the other is open switches to it in a single click. Functional
+   * updates make the close→open ordering race-proof, so whichever menu the click
+   * targets wins regardless of which `onOpenChange` fires first.
+   */
+  const [openMenu, setOpenMenu] = useState<'filter' | 'sort' | null>(null)
+
   const hasContent =
     search ||
     sort ||
@@ -112,7 +124,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
               className='max-w-[280px] px-2 py-1 text-caption'
               onClick={tag.onRemove}
             >
-              <span className='truncate'>{tag.label}</span>
+              <FloatingOverflowText label={tag.label} className='block truncate' />
               <span className='ml-1 shrink-0 text-[var(--text-icon)] text-micro'>✕</span>
             </Button>
           ))}
@@ -127,32 +139,57 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
             >
               <ListFilter
                 className={cn(
-                  'mr-1.5 h-[14px] w-[14px]',
+                  'mr-1.5 size-[14px]',
                   filterActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-icon)]'
                 )}
               />
               Filter
             </Button>
           ) : filter ? (
-            <PopoverPrimitive.Root>
-              <PopoverPrimitive.Trigger asChild>
-                <Button variant='subtle' className='px-2 py-1 text-caption'>
-                  <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-                  Filter
-                </Button>
-              </PopoverPrimitive.Trigger>
+            <PopoverPrimitive.Root
+              open={openMenu === 'filter'}
+              onOpenChange={(open) =>
+                setOpenMenu((current) => (open ? 'filter' : current === 'filter' ? null : current))
+              }
+            >
+              <PopoverPrimitive.Anchor asChild>
+                <div className='flex items-center gap-1.5'>
+                  <PopoverPrimitive.Trigger asChild>
+                    <Button variant='subtle' className='px-2 py-1 text-caption'>
+                      <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+                      Filter
+                    </Button>
+                  </PopoverPrimitive.Trigger>
+                  {sort && (
+                    <SortDropdown
+                      config={sort}
+                      open={openMenu === 'sort'}
+                      onOpenChange={(open) =>
+                        setOpenMenu((current) =>
+                          open ? 'sort' : current === 'sort' ? null : current
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              </PopoverPrimitive.Anchor>
               <PopoverPrimitive.Portal>
                 <PopoverPrimitive.Content
-                  align='start'
+                  align='end'
+                  alignOffset={RESOURCE_MENU_EDGE_OFFSET}
+                  collisionPadding={6}
                   sideOffset={6}
-                  className='z-50 w-fit rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                  className={cn(
+                    POPOVER_ANIMATION_CLASSES,
+                    'z-50 w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                  )}
                 >
                   {filter}
                 </PopoverPrimitive.Content>
               </PopoverPrimitive.Portal>
             </PopoverPrimitive.Root>
           ) : null}
-          {sort && <SortDropdown config={sort} />}
+          {sort && (onFilterToggle || !filter) && <SortDropdown config={sort} />}
         </div>
         {trailing && <div className='flex shrink-0 items-center gap-1.5'>{trailing}</div>}
       </div>
@@ -170,12 +207,14 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
             key={`${tag.label}-${tag.value}`}
             variant='subtle'
             className={cn(
-              'shrink-0 px-2 py-1 text-caption',
-              search.highlightedTagIndex === i && 'ring-1 ring-[var(--border-focus)] ring-offset-1'
+              'max-w-[280px] shrink-0 px-2 py-1 text-caption',
+              search.highlightedTagIndex === i && 'ring-1 ring-[var(--text-subtle)] ring-offset-1'
             )}
             onClick={tag.onRemove}
           >
-            {tag.label}: {tag.value}
+            <FloatingOverflowText label={`${tag.label}: ${tag.value}`} className='block truncate'>
+              {tag.label}: {tag.value}
+            </FloatingOverflowText>
             <span className='ml-1 text-[var(--text-icon)] text-micro'>✕</span>
           </Button>
         ))}
@@ -212,11 +251,23 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
   )
 })
 
-const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig }) {
+interface SortDropdownProps {
+  config: SortConfig
+  /** Controlled open state — omit for standalone (uncontrolled) usage. */
+  open?: boolean
+  /** Controlled open-change handler, paired with {@link SortDropdownProps.open}. */
+  onOpenChange?: (open: boolean) => void
+}
+
+export const SortDropdown = memo(function SortDropdown({
+  config,
+  open,
+  onOpenChange,
+}: SortDropdownProps) {
   const { options, active, onSort, onClear } = config
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           variant='subtle'
@@ -227,14 +278,18 @@ const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig
         >
           <ArrowUpDown
             className={cn(
-              'mr-1.5 h-[14px] w-[14px]',
+              'mr-1.5 size-[14px]',
               active ? 'text-[var(--text-primary)]' : 'text-[var(--text-icon)]'
             )}
           />
           Sort
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='start'>
+      <DropdownMenuContent
+        align='end'
+        alignOffset={RESOURCE_MENU_EDGE_OFFSET}
+        className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
+      >
         {options.map((option) => {
           const isActive = active?.column === option.id
           const Icon = option.icon

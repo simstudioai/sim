@@ -1,6 +1,6 @@
 import { GoogleSheetsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
@@ -18,8 +18,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleSheetsIcon,
   subBlocks: [
     // Operation selector
@@ -307,8 +306,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleSheetsIcon,
   subBlocks: [
     // Operation selector
@@ -1090,3 +1088,96 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     available: ['google_sheets_poller'],
   },
 }
+
+export const GoogleSheetsBlockMeta = {
+  tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
+  templates: [
+    {
+      icon: GoogleSheetsIcon,
+      title: 'Google Sheets approval gate',
+      prompt:
+        'Build a workflow that watches a Google Sheets row for a status change to "review", posts the row context to Slack with approval buttons, and writes the decision back.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleSheetsIcon,
+      title: 'Google Sheets to Stripe payouts',
+      prompt:
+        'Create a workflow that reads a Google Sheets payouts ledger, validates each row, processes Stripe payouts in batches, and writes the result and Stripe ID back.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['stripe'],
+    },
+    {
+      icon: GoogleSheetsIcon,
+      title: 'Google Sheets CRM updater',
+      prompt:
+        'Build a scheduled workflow that pulls Salesforce opportunities, refreshes the Google Sheets spreadsheet that ops uses for weekly forecasting, and notes the last-updated timestamp.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: GoogleSheetsIcon,
+      title: 'Google Sheets data validator',
+      prompt:
+        'Create a scheduled workflow that validates a Google Sheets spreadsheet against a typed schema, flags rows with errors, writes a remediation column, and emails the sheet owner.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['team', 'analysis'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleSheetsIcon,
+      title: 'Google Sheets inventory sync',
+      prompt:
+        'Build a workflow that pulls Shopify inventory into Google Sheets hourly, calculates days-of-cover, and highlights items needing reorder for the ops team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'sync'],
+      alsoIntegrations: ['shopify'],
+    },
+    {
+      icon: GoogleSheetsIcon,
+      title: 'Google Sheets forms cleanup',
+      prompt:
+        'Create a workflow that normalizes Google Sheets data submitted from Google Forms — title casing, phone formats, deduplication — and writes clean rows to a downstream sheet.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'analysis'],
+      alsoIntegrations: ['google_forms'],
+    },
+
+    {
+      icon: GoogleSheetsIcon,
+      title: 'Send Slack messages from Google Sheets',
+      prompt:
+        'Build a workflow that watches a Google Sheets spreadsheet for new rows or changes, then posts formatted Slack updates to keep stakeholders informed in real time.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleSheetsIcon,
+      title: 'Sync Google Sheets data into Notion',
+      prompt:
+        'Create an agent that reads rows from Google Sheets and transforms them into structured Notion database entries for richer documentation and cross-team project tracking.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['notion'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const GoogleSheetsV2BlockMeta = {
+  tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
+} as const satisfies BlockMeta

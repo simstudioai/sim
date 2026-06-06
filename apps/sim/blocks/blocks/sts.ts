@@ -1,5 +1,5 @@
 import { STSIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { STSBaseResponse } from '@/tools/sts/types'
 
@@ -12,7 +12,6 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
   docsLink: 'https://docs.sim.ai/tools/sts',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['cloud'],
   authMode: AuthMode.ApiKey,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: STSIcon,
@@ -248,3 +247,76 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
     },
   },
 }
+
+export const STSBlockMeta = {
+  tags: ['cloud', 'identity'],
+  templates: [
+    {
+      icon: STSIcon,
+      title: 'AWS STS access key identifier',
+      prompt:
+        'Build a workflow that takes an AWS access key ID, uses AWS STS to look up the owning account and entity, flags keys that belong to unexpected accounts, and pings the security Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS short-lived credential provisioner',
+      prompt:
+        'Create a workflow that on a request grants short-lived AWS STS credentials with the minimum required scope, captures the audit record, and revokes on completion.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS caller identity verifier',
+      prompt:
+        'Build a scheduled workflow that calls AWS STS get caller identity for each configured set of credentials, confirms the resolved account and ARN match the expected principal, and writes a verification report.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS session token rotator',
+      prompt:
+        'Create a scheduled daily workflow that mints fresh AWS STS session tokens for service accounts that need them, records each token expiration in a security log, and flags any token issuance that fails.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS just-in-time access grant',
+      prompt:
+        'Build a workflow that handles JIT-access requests, captures Slack-based approval, mints short-lived AWS STS credentials, and writes the access record.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS cross-account access grant',
+      prompt:
+        'Create a workflow that handles cross-account access requests, assumes the target AWS STS role with the supplied external ID, requires owner attestation in Slack, and writes the grant record to a compliance table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: STSIcon,
+      title: 'STS Identity-Center role broker',
+      prompt:
+        'Build a workflow that takes an Identity Center user request, assumes the matching AWS STS role to mint scoped short-lived credentials, writes the issuance to a session log, and alerts Slack when a request targets a privileged role.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['identity_center', 'slack'],
+    },
+  ],
+} as const satisfies BlockMeta

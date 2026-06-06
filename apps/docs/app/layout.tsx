@@ -45,6 +45,7 @@ export const metadata = {
   classification: 'Developer Documentation',
   manifest: '/favicon/site.webmanifest',
   icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }],
     apple: '/favicon/apple-touch-icon.png',
   },
   appleWebApp: {

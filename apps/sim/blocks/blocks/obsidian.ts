@@ -1,5 +1,5 @@
 import { ObsidianIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const ObsidianBlock: BlockConfig = {
@@ -11,7 +11,6 @@ export const ObsidianBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/obsidian',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['note-taking', 'knowledge-base'],
   bgColor: '#0F0F0F',
   icon: ObsidianIcon,
   authMode: AuthMode.ApiKey,
@@ -270,3 +269,75 @@ export const ObsidianBlock: BlockConfig = {
     period: { type: 'string', description: 'Period type of the periodic note' },
   },
 }
+
+export const ObsidianBlockMeta = {
+  tags: ['note-taking', 'knowledge-base'],
+  templates: [
+    {
+      icon: ObsidianIcon,
+      title: 'Obsidian daily journal agent',
+      prompt:
+        'Build a workflow that pulls calendar events, completed tasks, and journal prompts, and generates a daily Obsidian note draft for the user to review and annotate.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'content'],
+      alsoIntegrations: ['google_calendar'],
+    },
+    {
+      icon: ObsidianIcon,
+      title: 'Obsidian backlink builder',
+      prompt:
+        'Create a workflow that processes new Obsidian notes, identifies entities and concepts that should be wikilinks, and rewrites the note with proper backlinks plus a hub note for new tags.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research'],
+    },
+    {
+      icon: ObsidianIcon,
+      title: 'Obsidian web clipper',
+      prompt:
+        'Build a workflow that accepts a URL from a form, scrapes the page with Firecrawl, summarizes with an agent, and writes the clip as a new Obsidian note with source metadata.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research'],
+      alsoIntegrations: ['firecrawl'],
+    },
+    {
+      icon: ObsidianIcon,
+      title: 'Obsidian knowledge-base sync',
+      prompt:
+        'Create a workflow that mirrors an Obsidian vault into a Sim knowledge base so an agent can answer questions over personal notes with citations.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research'],
+    },
+    {
+      icon: ObsidianIcon,
+      title: 'Obsidian smart review',
+      prompt:
+        'Build a scheduled weekly workflow that surfaces stale Obsidian notes due for spaced-repetition review, scores their freshness, and writes a review queue note for the user.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+    },
+    {
+      icon: ObsidianIcon,
+      title: 'Obsidian meeting-note autopopulator',
+      prompt:
+        'Create a workflow that runs after a Google Meet meeting, fetches the transcript, and appends a structured meeting note to an Obsidian vault under the right project folder.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'team'],
+      alsoIntegrations: ['google_meet'],
+    },
+    {
+      icon: ObsidianIcon,
+      title: 'Obsidian reading-list digester',
+      prompt:
+        'Build a scheduled workflow that reads the links saved in an Obsidian "to read" note, summarizes each article with an agent, and appends the key takeaways back into the vault as individual literature notes with source links.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

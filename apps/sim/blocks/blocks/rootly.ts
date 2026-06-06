@@ -1,5 +1,5 @@
 import { RootlyIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RootlyResponse } from '@/tools/rootly/types'
 
@@ -12,9 +12,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     'Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.',
   docsLink: 'https://docs.sim.ai/tools/rootly',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['incident-management', 'monitoring'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#6C72C8',
+  iconColor: '#6C72C8',
   icon: RootlyIcon,
   subBlocks: [
     {
@@ -1775,3 +1775,78 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     totalCount: { type: 'number', description: 'Total count of items returned' },
   },
 }
+
+export const RootlyBlockMeta = {
+  tags: ['incident-management', 'monitoring'],
+  templates: [
+    {
+      icon: RootlyIcon,
+      title: 'Rootly incident war-room',
+      prompt:
+        'Build a scheduled workflow that polls Rootly for newly opened incidents, creates a Slack war-room channel for each, invites responders, posts the incident summary, and keeps the channel topic in sync with severity.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly retro generator',
+      prompt:
+        'Create a scheduled workflow that polls Rootly for recently closed incidents, drafts the retrospective doc, pulls the Slack thread and timeline, and assigns owners for follow-up actions in Linear.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack', 'linear'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly weekly digest',
+      prompt:
+        'Build a scheduled weekly workflow that summarizes Rootly incident counts, MTTR, top affected services, and outstanding action items, and posts a digest to leadership Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly customer-comms drafter',
+      prompt:
+        'Create a workflow that drafts and queues customer-facing status updates during a Rootly incident based on severity and impacted services, holding for approval before publishing.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly action-item tracker',
+      prompt:
+        'Build a workflow that tracks Rootly follow-up actions across incidents, opens Linear tickets, and writes a tables-based dashboard that flags overdue items by owner.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly on-call digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes the past 24 hours of Rootly pages, the on-call responder load by person, and writes a digest to the SRE Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly + LangSmith agent-incident tracker',
+      prompt:
+        'Build a workflow that for each Rootly incident involving an AI agent attaches the LangSmith trace, captures the failure mode, and writes the agent-quality regression analysis.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'engineering'],
+      alsoIntegrations: ['langsmith'],
+    },
+  ],
+} as const satisfies BlockMeta

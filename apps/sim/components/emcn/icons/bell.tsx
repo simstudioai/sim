@@ -13,7 +13,7 @@ export function Bell(props: SVGProps<SVGSVGElement>) {
       viewBox='0 0 24 24'
       fill='none'
       stroke='currentColor'
-      strokeWidth='2'
+      strokeWidth='1.55'
       strokeLinecap='round'
       strokeLinejoin='round'
       aria-hidden='true'

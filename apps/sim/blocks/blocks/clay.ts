@@ -1,5 +1,5 @@
 import { ClayIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ClayPopulateResponse } from '@/tools/clay/types'
 
 export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
@@ -11,8 +11,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   docsLink: 'https://docs.sim.ai/tools/clay',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ClayIcon,
   subBlocks: [
     {
@@ -69,3 +68,76 @@ Plain Text: Best for populating a table in free-form style.
     },
   },
 }
+
+export const ClayBlockMeta = {
+  tags: ['enrichment', 'sales-engagement', 'data-analytics'],
+  templates: [
+    {
+      icon: ClayIcon,
+      title: 'Clay lead-list builder',
+      prompt:
+        'Build a workflow that reads a list of target prospects from a Sim table and pushes each one to a Clay table via the populate webhook, so Clay enriches them with role and intent signals through its own waterfall.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay CRM enricher',
+      prompt:
+        'Create a scheduled workflow that reads new HubSpot contacts and pushes each one to a Clay table via the populate webhook, so Clay runs its enrichment waterfall on role, seniority, and tech-stack signals.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay account pusher',
+      prompt:
+        'Build a scheduled workflow that reads target accounts from a Sim table and pushes each one to a Clay table via the populate webhook, so Clay enriches them with hiring, funding, and tech-change signals through its waterfall.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay outbound personalizer',
+      prompt:
+        'Create a workflow that reads a prospect record from a Sim table — including the role and company signals already gathered — drafts a personalized first-touch email, queues it for review, and pushes the prospect to a Clay table via the populate webhook for further enrichment.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay TAM seeder',
+      prompt:
+        'Build a workflow that reads a seed account list from Salesforce and pushes each account to a Clay table via the populate webhook, so Clay runs its lookalike and enrichment waterfall to expand the TAM.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay inbound lead router',
+      prompt:
+        'Create a workflow that scores each inbound HubSpot lead against the ICP using the fields already on the contact, routes high-fit leads to sales while parking the rest for nurture, and pushes every lead to a Clay table via the populate webhook for enrichment.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: ClayIcon,
+      title: 'Clay enrichment pusher',
+      prompt:
+        'Build a scheduled workflow that reads new rows from a leads table and pushes each record to a Clay table via the populate webhook, so Clay runs its enrichment waterfall and the data flows back into my outbound stack automatically.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'enrichment'],
+    },
+  ],
+} as const satisfies BlockMeta

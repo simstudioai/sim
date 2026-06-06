@@ -1,5 +1,5 @@
 import { JinaAIIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ReadUrlResponse, SearchResponse } from '@/tools/jina/types'
 
 export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
@@ -12,7 +12,6 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/jina',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'knowledge-base'],
   bgColor: '#333333',
   icon: JinaAIIcon,
   subBlocks: [
@@ -195,3 +194,75 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
     },
   },
 }
+
+export const JinaBlockMeta = {
+  tags: ['web-scraping', 'knowledge-base'],
+  templates: [
+    {
+      icon: JinaAIIcon,
+      title: 'Jina URL-to-knowledge ingester',
+      prompt:
+        'Build a workflow that reads a list of source URLs with Jina Reader, converts each into clean text, and ingests the content into a research knowledge base for retrieval.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina web-research digest',
+      prompt:
+        'Create a scheduled workflow that runs Jina web search on tracked topics, reads the top results with Jina Reader, and writes a summarized digest to a research table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'research'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina web-content reader',
+      prompt:
+        'Build a workflow that uses Jina Reader to convert any URL into clean text, summarizes with an agent, and stores the result in a research knowledge base.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina competitor watch',
+      prompt:
+        'Create a scheduled workflow that reads competitor pricing and changelog pages with Jina Reader, diffs against the last snapshot, and posts notable changes to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina answer enrichment',
+      prompt:
+        'Build a workflow that takes a user question, runs a Jina web search for current sources, reads the top pages with Jina Reader, and has an agent answer with citations.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'automation'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina Slack research bot',
+      prompt:
+        'Create a Slack bot that runs Jina web search on the asked question, reads the most relevant results with Jina Reader, and replies with a summarized answer and source links.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'research'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: JinaAIIcon,
+      title: 'Jina docs-to-Notion clipper',
+      prompt:
+        'Build a workflow that reads a submitted URL with Jina Reader, summarizes the content with an agent, and appends a clean clipped entry to a Notion research database.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+  ],
+} as const satisfies BlockMeta

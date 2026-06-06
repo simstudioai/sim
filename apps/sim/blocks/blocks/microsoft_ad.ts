@@ -1,6 +1,6 @@
 import { AzureIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { MicrosoftAdResponse } from '@/tools/microsoft_ad/types'
 
@@ -13,7 +13,6 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_ad',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['identity', 'microsoft-365'],
   bgColor: '#0078D4',
   icon: AzureIcon,
   authMode: AuthMode.OAuth,
@@ -395,3 +394,76 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     },
   },
 }
+
+export const MicrosoftAdBlockMeta = {
+  tags: ['identity', 'microsoft-365'],
+  templates: [
+    {
+      icon: AzureIcon,
+      title: 'Azure AD provisioning',
+      prompt:
+        'Build a workflow that on a Workday new-hire event creates the Azure AD user account, assigns the right group memberships, and writes the provisioning record to an audit table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure AD offboarding sweep',
+      prompt:
+        'Create a workflow that on a Workday termination disables the Azure AD account, removes its group memberships, and writes the security audit record.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure AD access review',
+      prompt:
+        'Build a scheduled quarterly workflow that lists Azure AD group memberships, requests owner attestation in Microsoft Teams, and writes the audit log to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure AD password-age reminder',
+      prompt:
+        'Create a scheduled workflow that lists Azure AD users, flags accounts whose last password change is older than the policy window, sends targeted reset reminders, and writes the compliance audit.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure AD stale-account sweeper',
+      prompt:
+        'Build a scheduled workflow that lists Azure AD accounts inactive for 90+ days, requests owner re-attestation, and disables accounts that fail attestation.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure AD privileged-group auditor',
+      prompt:
+        'Create a scheduled monthly workflow that lists the members of privileged Azure AD groups, requests owner attestation for each, and writes the review to an audit table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure AD privileged-access monitor',
+      prompt:
+        'Build a scheduled workflow that lists privileged Azure AD group members each run, compares against the last snapshot in a table, and pings the security Microsoft Teams channel on any add or removal.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+  ],
+} as const satisfies BlockMeta

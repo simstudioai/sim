@@ -10,6 +10,8 @@ import {
 } from '@/lib/api/contracts/organization'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import {
   validateBulkInvitations,
   validateSeatAvailability,
@@ -287,8 +289,12 @@ export const POST = withRouteHandler(
         )
       }
 
-      const seatValidation = await validateSeatAvailability(organizationId, emailsToInvite.length)
-      if (!seatValidation.canInvite) {
+      const orgSubscription = await getOrganizationSubscription(organizationId)
+      const enforceFixedSeats = !!orgSubscription && isEnterprise(orgSubscription.plan)
+      const seatValidation = enforceFixedSeats
+        ? await validateSeatAvailability(organizationId, emailsToInvite.length)
+        : null
+      if (seatValidation && !seatValidation.canInvite) {
         return NextResponse.json(
           {
             error: seatValidation.reason,
@@ -378,6 +384,8 @@ export const POST = withRouteHandler(
             targetRole: role,
             isBatch,
             workspaceGrantCount: validGrants.length,
+            enforcedFixedSeats: enforceFixedSeats,
+            plan: orgSubscription?.plan ?? null,
           },
           request,
         })
@@ -394,11 +402,15 @@ export const POST = withRouteHandler(
           (email) => !quickValidateEmail(email.trim().toLowerCase()).isValid
         ),
         workspaceGrantsPerInvite: validGrants.length,
-        seatInfo: {
-          seatsUsed: seatValidation.currentSeats + sentInvitations.length,
-          maxSeats: seatValidation.maxSeats,
-          availableSeats: seatValidation.availableSeats - sentInvitations.length,
-        },
+        ...(seatValidation
+          ? {
+              seatInfo: {
+                seatsUsed: seatValidation.currentSeats + sentInvitations.length,
+                maxSeats: seatValidation.maxSeats,
+                availableSeats: seatValidation.availableSeats - sentInvitations.length,
+              },
+            }
+          : {}),
       }
 
       if (failedInvitations.length > 0 && sentInvitations.length === 0) {

@@ -5,18 +5,16 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
-  Button,
   Checkbox,
+  Chip,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipTextarea,
   DatePicker,
-  Input,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
 } from '@/components/emcn'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import {
@@ -155,95 +153,87 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     const isSingleRow = deleteCount === 1
 
     return (
-      <Modal open={isOpen} onOpenChange={handleClose}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}</ModalHeader>
-          <ModalBody>
-            {error && (
-              <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
-                {error}
-              </div>
-            )}
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              {isSingleRow ? 'this row' : `these ${deleteCount} rows`}?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={handleClose} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={isSubmitting}>
-              {isSubmitting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isOpen}
+        onOpenChange={handleClose}
+        srTitle={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
+      >
+        <ChipModalHeader showDivider={false}>
+          Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}
+        </ChipModalHeader>
+        <ChipModalBody>
+          {error && (
+            <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
+              {error}
+            </div>
+          )}
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete {isSingleRow ? 'this row' : `these ${deleteCount} rows`}
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
+            </span>{' '}
+            This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={handleClose} disabled={isSubmitting}>
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleDelete} disabled={isSubmitting}>
+            {isSubmitting ? 'Deleting...' : 'Delete'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     )
   }
 
   const isAddMode = mode === 'add'
 
   return (
-    <Modal open={isOpen} onOpenChange={handleClose}>
-      <ModalContent size='lg'>
-        <ModalHeader>
-          <div className='flex flex-col gap-1'>
-            <h2 className='font-semibold text-md'>{isAddMode ? 'Add New Row' : 'Edit Row'}</h2>
-            <p className='font-normal text-[var(--text-tertiary)] text-small'>
-              {isAddMode ? 'Fill in the values for' : 'Update values for'} {table?.name ?? 'table'}
-            </p>
-          </div>
-        </ModalHeader>
-        <ModalBody className='max-h-[60vh] overflow-y-auto'>
-          <ModalDescription className='sr-only'>
-            {isAddMode ? 'Fill in values to add a new row' : 'Update values for the selected row'}
-          </ModalDescription>
-          <form onSubmit={handleFormSubmit} className='flex flex-col gap-4'>
-            <ErrorMessage error={error} />
+    <ChipModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      srTitle={isAddMode ? 'Add New Row' : 'Edit Row'}
+      size='lg'
+    >
+      <ChipModalHeader onClose={() => handleClose()}>
+        <div className='flex flex-col gap-1'>
+          <h2 className='font-semibold text-md'>{isAddMode ? 'Add New Row' : 'Edit Row'}</h2>
+          <p className='font-normal text-[var(--text-tertiary)] text-small'>
+            {isAddMode ? 'Fill in the values for' : 'Update values for'} {table?.name ?? 'table'}
+          </p>
+        </div>
+      </ChipModalHeader>
+      <ChipModalBody className='max-h-[60vh] overflow-y-auto'>
+        <form onSubmit={handleFormSubmit} className='flex flex-col gap-4'>
+          <ErrorMessage error={error} />
 
-            {columns.map((column) => (
-              <ColumnField
-                key={column.name}
-                column={column}
-                value={rowData[column.name]}
-                onChange={(value) => setRowData((prev) => ({ ...prev, [column.name]: value }))}
-              />
-            ))}
-          </form>
-        </ModalBody>
-        <ModalFooter className='gap-2.5'>
-          <Button
-            type='button'
-            variant='default'
-            onClick={handleClose}
-            className='min-w-[90px]'
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type='button'
-            variant='primary'
-            onClick={handleFormSubmit}
-            disabled={isSubmitting}
-            className='min-w-[120px]'
-          >
-            {isSubmitting
-              ? isAddMode
-                ? 'Adding...'
-                : 'Updating...'
-              : isAddMode
-                ? 'Add Row'
-                : 'Update Row'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+          {columns.map((column) => (
+            <ColumnField
+              key={column.name}
+              column={column}
+              value={rowData[column.name]}
+              onChange={(value) => setRowData((prev) => ({ ...prev, [column.name]: value }))}
+            />
+          ))}
+        </form>
+      </ChipModalBody>
+      <ChipModalFooter>
+        <Chip variant='filled' flush onClick={handleClose} disabled={isSubmitting}>
+          Cancel
+        </Chip>
+        <Chip variant='primary' flush onClick={handleFormSubmit} disabled={isSubmitting}>
+          {isSubmitting
+            ? isAddMode
+              ? 'Adding...'
+              : 'Updating...'
+            : isAddMode
+              ? 'Add Row'
+              : 'Update Row'}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }
 
@@ -289,7 +279,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           </Label>
         </div>
       ) : column.type === 'json' ? (
-        <Textarea
+        <ChipTextarea
           id={column.name}
           value={formatValueForInput(value, column.type)}
           onChange={(e) => onChange(e.target.value)}
@@ -306,13 +296,12 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           placeholder='Select date'
         />
       ) : (
-        <Input
+        <ChipInput
           id={column.name}
           type={column.type === 'number' ? 'number' : 'text'}
           value={formatValueForInput(value, column.type)}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Enter ${column.name}`}
-          className='h-[38px]'
           required={column.required}
         />
       )}

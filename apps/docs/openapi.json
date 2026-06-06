@@ -5389,11 +5389,6 @@
             "description": "Optional description of what the workflow does.",
             "example": "Routes incoming support tickets and drafts responses"
           },
-          "color": {
-            "type": "string",
-            "description": "Hex color code used for the workflow icon in the dashboard (e.g., #33c482).",
-            "example": "#33c482"
-          },
           "folderId": {
             "type": "string",
             "nullable": true,
@@ -5462,11 +5457,6 @@
             "nullable": true,
             "description": "Optional description of what the workflow does.",
             "example": "Routes incoming support tickets and drafts responses"
-          },
-          "color": {
-            "type": "string",
-            "description": "Hex color code used for the workflow icon in the dashboard.",
-            "example": "#33c482"
           },
           "folderId": {
             "type": "string",

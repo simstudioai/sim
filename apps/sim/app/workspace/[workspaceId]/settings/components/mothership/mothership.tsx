@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Badge, Button, Input as EmcnInput, Label, Skeleton } from '@/components/emcn'
+import { Badge, Button, Input as EmcnInput, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   type MothershipEnv,
@@ -68,83 +68,91 @@ export function Mothership() {
   const [end, setEnd] = useState(defaults.end)
 
   return (
-    <div className='flex h-full flex-col gap-5'>
-      {/* Environment selector */}
-      <div className='flex items-center gap-2'>
-        <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
-        <div className='flex gap-1'>
-          {ENV_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type='button'
-              onClick={() => setEnvironment(opt.id)}
-              className={cn(
-                'rounded-md px-3 py-1 font-medium text-sm transition-colors',
-                environment === opt.id
-                  ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-6 pt-6 pb-6'>
+          {/* Environment selector */}
+          <div className='flex items-center gap-2'>
+            <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
+            <div className='flex gap-1'>
+              {ENV_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type='button'
+                  onClick={() => setEnvironment(opt.id)}
+                  className={cn(
+                    'rounded-md px-3 py-1 font-medium text-sm transition-colors',
+                    environment === opt.id
+                      ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab bar */}
+          <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type='button'
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'relative px-3 py-2 font-medium text-sm transition-colors',
+                  activeTab === tab.id
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+                )}
+              >
+                {tab.label}
+                {activeTab === tab.id && (
+                  <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Time range (shared across tabs) */}
+          <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-2'>
+              <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
+              <EmcnInput
+                type='datetime-local'
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className='h-[30px] text-caption'
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
+              <EmcnInput
+                type='datetime-local'
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                className='h-[30px] text-caption'
+              />
+            </div>
+          </div>
+
+          <Divider />
+
+          {activeTab === 'overview' && (
+            <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
+          )}
+          {activeTab === 'licenses' && <LicensesTab environment={environment} />}
+          {activeTab === 'enterprise' && (
+            <EnterpriseTab
+              environment={environment}
+              start={toRFC3339(start)}
+              end={toRFC3339(end)}
+            />
+          )}
+          {activeTab === 'traces' && <TracesTab environment={environment} />}
         </div>
       </div>
-
-      {/* Tab bar */}
-      <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type='button'
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'relative px-3 py-2 font-medium text-sm transition-colors',
-              activeTab === tab.id
-                ? 'text-[var(--text-primary)]'
-                : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-            )}
-          >
-            {tab.label}
-            {activeTab === tab.id && (
-              <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Time range (shared across tabs) */}
-      <div className='flex items-center gap-3'>
-        <div className='flex items-center gap-2'>
-          <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
-          <EmcnInput
-            type='datetime-local'
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className='h-[30px] text-caption'
-          />
-        </div>
-        <div className='flex items-center gap-2'>
-          <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
-          <EmcnInput
-            type='datetime-local'
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className='h-[30px] text-caption'
-          />
-        </div>
-      </div>
-
-      <Divider />
-
-      {activeTab === 'overview' && (
-        <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
-      )}
-      {activeTab === 'licenses' && <LicensesTab environment={environment} />}
-      {activeTab === 'enterprise' && (
-        <EnterpriseTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
-      )}
-      {activeTab === 'traces' && <TracesTab environment={environment} />}
     </div>
   )
 }
@@ -213,13 +221,6 @@ function OverviewTab({
 
       {/* User breakdown */}
       <SectionLabel>User Breakdown</SectionLabel>
-      {breakdownLoading && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className='h-[36px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
       {breakdown?.users && (
         <div className='flex flex-col gap-0.5'>
           <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
@@ -260,13 +261,6 @@ function OverviewTab({
       {/* Recent requests */}
       <Divider />
       <SectionLabel>Recent Requests ({requests?.count ?? '…'})</SectionLabel>
-      {requestsLoading && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className='h-[36px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
       {requests?.requests && (
         <div className='max-h-[400px] overflow-auto'>
           <div className='flex flex-col gap-0.5'>
@@ -413,14 +407,6 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
       <Divider />
       <SectionLabel>All Licenses</SectionLabel>
 
-      {isLoading && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className='h-[40px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
-
       {data?.licenses && (
         <div className='flex flex-col gap-0.5'>
           <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
@@ -504,14 +490,6 @@ function EnterpriseTab({
       </div>
 
       {error && <p className='text-[var(--text-error)] text-small'>{error.message}</p>}
-
-      {isLoading && customerType && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className='h-[60px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
 
       {data && (
         <>
@@ -614,14 +592,6 @@ function TracesTab({ environment }: { environment: MothershipEnv }) {
       </div>
 
       {error && <p className='text-[var(--text-error)] text-small'>{error.message}</p>}
-
-      {isLoading && activeRequestId && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className='h-[50px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
 
       {trace && <TraceDetail trace={trace} />}
     </div>
@@ -870,9 +840,7 @@ function StatCard({
   return (
     <div className='rounded-md border border-[var(--border-secondary)] p-3'>
       <p className='text-[var(--text-tertiary)] text-caption'>{label}</p>
-      {loading ? (
-        <Skeleton className='mt-1 h-[24px] w-[80px] rounded-sm' />
-      ) : (
+      {loading ? null : (
         <p className='mt-1 font-medium text-[18px] text-[var(--text-primary)]'>{value ?? '—'}</p>
       )}
     </div>

@@ -1,6 +1,6 @@
 import { MicrosoftPlannerIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { MicrosoftPlannerResponse } from '@/tools/microsoft_planner/types'
 
@@ -36,8 +36,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_planner',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'microsoft-365', 'ticketing'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftPlannerIcon,
   subBlocks: [
     {
@@ -662,3 +661,79 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     },
   },
 }
+
+export const MicrosoftPlannerBlockMeta = {
+  tags: ['project-management', 'microsoft-365'],
+  templates: [
+    {
+      icon: MicrosoftPlannerIcon,
+      title: 'Microsoft Planner sprint digest',
+      prompt:
+        'Create a scheduled weekly workflow that pulls Microsoft Planner bucket progress, computes completion rate per bucket, and posts a status digest to the project Microsoft Teams channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftPlannerIcon,
+      title: 'Microsoft Planner SLA monitor',
+      prompt:
+        'Build a workflow that watches Microsoft Planner tasks with due dates, sends reminders 24 hours before, and escalates to managers in Teams when items breach SLA.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'monitoring'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftPlannerIcon,
+      title: 'Microsoft Planner Excel-import',
+      prompt:
+        'Create a workflow that takes a Microsoft Excel task list, creates matching Planner tasks in the right bucket, and writes the planner IDs back to the spreadsheet for tracking.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'sync'],
+      alsoIntegrations: ['microsoft_excel'],
+    },
+    {
+      icon: MicrosoftPlannerIcon,
+      title: 'Microsoft Planner blocker watcher',
+      prompt:
+        'Build a scheduled workflow that scans Microsoft Planner tasks tagged blocked, identifies the blocking party, and posts a Teams ping with the context to unblock the work.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftPlannerIcon,
+      title: 'Microsoft Planner template launcher',
+      prompt:
+        'Create a scheduled workflow that polls Microsoft Dataverse for new projects and creates a Planner plan from the project template, populates the standard buckets, and assigns the right owners.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['microsoft_dataverse'],
+    },
+    {
+      icon: MicrosoftPlannerIcon,
+      title: 'Microsoft Planner retrospective',
+      prompt:
+        'Build a scheduled workflow that runs at the end of a sprint, pulls completed Microsoft Planner tasks, summarizes wins and patterns, and writes the retro doc to a SharePoint page.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['sharepoint'],
+    },
+    {
+      icon: MicrosoftPlannerIcon,
+      title: 'Microsoft Planner workload balancer',
+      prompt:
+        'Create a scheduled weekly workflow that audits Microsoft Planner assignment load per team member, suggests rebalancing, and posts the recommendations to the manager in Teams.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'analysis'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+  ],
+} as const satisfies BlockMeta

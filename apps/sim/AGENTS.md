@@ -14,25 +14,34 @@ These rules apply to files under `apps/sim/` in addition to the repository root 
 ### Root-Level Structure
 
 ```
-apps/sim/
-├── app/                 # Next.js app router (pages, API routes)
-├── blocks/              # Block definitions and registry
-├── components/          # Shared UI (emcn/, ui/)
-├── executor/            # Workflow execution engine
-├── hooks/               # Shared hooks (queries/, selectors/)
-├── lib/                 # App-wide utilities
-├── providers/           # LLM provider integrations
-├── stores/              # Zustand stores
-├── tools/               # Tool definitions
-└── triggers/            # Trigger definitions
+apps/
+├── sim/                 # this app (Next.js: UI + API routes + workflow editor)
+│   ├── app/             # Next.js app router (pages, API routes)
+│   ├── blocks/          # Block definitions and registry
+│   ├── components/      # Shared UI (emcn/, ui/)
+│   ├── executor/        # Workflow execution engine
+│   ├── hooks/           # Shared hooks (queries/, selectors/)
+│   ├── lib/             # App-wide utilities
+│   ├── providers/       # LLM provider integrations
+│   ├── stores/          # Zustand stores
+│   ├── tools/           # Tool definitions
+│   └── triggers/        # Trigger definitions
+└── realtime/            # Bun Socket.IO server (collaborative canvas)
+
+packages/                # @sim/* — audit, auth, db, logger, realtime-protocol,
+                         # security, tsconfig, utils, workflow-authz,
+                         # workflow-persistence, workflow-types
 ```
 
 The Socket.IO collaborative-canvas server lives in a separate workspace at
 `apps/realtime/`. It shares DB + auth with `apps/sim` via the `@sim/*`
-packages. Do not add imports from `@/lib/webhooks/providers/*`, `@/executor/*`,
+packages. `apps/* → packages/*` only — packages never import from `apps/*`.
+Do not add imports from `@/lib/webhooks/providers/*`, `@/executor/*`,
 `@/blocks/*`, or `@/tools/*` to any package consumed by `apps/realtime` —
 those heavyweight registries stay in this app. `apps/realtime` calls back
-into this app only over internal HTTP with `INTERNAL_API_SECRET`.
+into this app only over internal HTTP with `INTERNAL_API_SECRET`. CI enforces
+these boundaries via `scripts/check-monorepo-boundaries.ts` and
+`scripts/check-realtime-prune-graph.ts`.
 
 ### Feature Organization
 
@@ -73,7 +82,7 @@ feature/
 
 ## API Contracts
 
-Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/`** live in `apps/sim/lib/api/contracts/**` (one file per resource family). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
+Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/**` (one file per resource family). Routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types — both sides consume the same contract.
 
 - Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` from `@/lib/api/contracts`.
 - Contracts export named schemas AND named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`). Clients import the named aliases — never `z.input<...>` / `z.output<...>` in hooks.
@@ -164,18 +173,18 @@ When adding a new route + client surface, follow this order. Each step has one p
 
 LLMs will write contracts that compile but are sloppy. The human reviewer should optimize attention on:
 
-- `**required` vs `optional` vs `nullable` is correct**. `optional()` allows omission; `nullable()` allows `null`; chaining both creates a tri-state that's almost never what you want.
+- **`required` vs `optional` vs `nullable` is correct**. `optional()` allows omission; `nullable()` allows `null`; chaining both creates a tri-state that's almost never what you want.
 - **Response schema matches the route's actual JSON output**. The most common drift bug — route emits a field the schema doesn't declare, or omits a required field. Walk every `NextResponse.json(...)` callsite against the schema.
 - **Error messages are descriptive**. `'fileName cannot be empty'` beats `'Required'`. Use the second arg of `min(1, '...')`, `nonempty('...')`, etc. For cross-field refines, use `superRefine` with a `path` and a message that names the failing field.
 - **Bounds are set** on arrays (`.min(1)`, `.max(N)`), strings (`.min(1).max(N)` for IDs/names), and numbers (`.min().max()` for limits/sizes).
-- `**z.unknown()` is a smell** unless the data is genuinely arbitrary (provider passthrough, user-defined tool result, JSON-RPC envelope). When kept, must be annotated `// untyped-response: <specific reason>` in a `schema:` slot.
+- **`z.unknown()` is a smell** unless the data is genuinely arbitrary (provider passthrough, user-defined tool result, JSON-RPC envelope). When kept, must be annotated `// untyped-response: <specific reason>` in a `schema:` slot.
 - **Discriminated unions over plain unions** when the wire has a discriminant field — gives clients exhaustive narrowing.
 
 CI (`bun run check:api-validation:strict`) catches structural violations (Zod imports in routes, raw `request.json()`, double casts, missing annotations). It does **not** catch these schema-quality judgments — that's the human's job in PR review.
 
 ## React Query Client Boundary
 
-Hooks in `apps/sim/hooks/queries/`** consume contracts the same way routes do. Every same-origin JSON call must go through `requestJson(contract, ...)` from `@/lib/api/client/request` instead of raw `fetch`:
+Hooks in `apps/sim/hooks/queries/**` consume contracts the same way routes do. Every same-origin JSON call must go through `requestJson(contract, ...)` from `@/lib/api/client/request` instead of raw `fetch`:
 
 - Hooks import named type aliases from `@/lib/api/contracts/**`. Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code.
 - `requestJson` parses params, query, body, and headers against the contract on the way out and validates the JSON response on the way back. Hooks always forward `signal` for cancellation.

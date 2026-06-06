@@ -1,5 +1,5 @@
 import { AttioIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AttioResponse } from '@/tools/attio/types'
 import { getTrigger } from '@/triggers'
@@ -12,8 +12,7 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
     'Connect to Attio to manage CRM records (people, companies, custom objects), notes, tasks, lists, list entries, comments, workspace members, and webhooks.',
   docsLink: 'https://docs.sim.ai/tools/attio',
   category: 'tools',
-  integrationType: IntegrationType.CRM,
-  tags: ['sales-engagement', 'enrichment'],
+  integrationType: IntegrationType.Sales,
   bgColor: '#1D1E20',
   icon: AttioIcon,
   authMode: AuthMode.OAuth,
@@ -1325,3 +1324,78 @@ workspace-member.created
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
   },
 }
+
+export const AttioBlockMeta = {
+  tags: ['sales-engagement', 'enrichment'],
+  templates: [
+    {
+      icon: AttioIcon,
+      title: 'Attio enrichment pipeline',
+      prompt:
+        'Build a workflow that watches new Attio records, enriches each contact with company size, funding, and tech stack via Apollo, and writes the enriched fields back to Attio.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'research'],
+      alsoIntegrations: ['apollo'],
+    },
+    {
+      icon: AttioIcon,
+      title: 'Attio deal pipeline tracker',
+      prompt:
+        'Create a scheduled workflow that mirrors Attio deals into a Sim table, calculates pipeline velocity per stage, and posts a daily Slack summary of deals at risk.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AttioIcon,
+      title: 'Attio email-to-record logger',
+      prompt:
+        'Build a workflow that watches Gmail for emails to or from Attio contacts, logs each as an interaction on the matching record, and creates a follow-up task if mentioned.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: AttioIcon,
+      title: 'Attio call-summary updater',
+      prompt:
+        'Create a workflow that runs after a Fireflies sales call, summarizes the transcript into a deal-ready summary, and updates the matching Attio deal record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['fireflies'],
+    },
+    {
+      icon: AttioIcon,
+      title: 'Attio win/loss analyzer',
+      prompt:
+        'Build a scheduled monthly workflow that pulls closed Attio deals, analyzes patterns in wins vs losses, and writes an insights report file for the sales team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+    },
+    {
+      icon: AttioIcon,
+      title: 'Attio outreach orchestrator',
+      prompt:
+        'Create a workflow that watches Attio for contacts entering the outreach stage, drafts a personalized first-touch email, and queues it for the rep to review and send.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: AttioIcon,
+      title: 'Attio Slack channel-per-deal',
+      prompt:
+        'Build a workflow that for Attio deals above a threshold creates a Slack channel, invites the account team, and pins the deal record link.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

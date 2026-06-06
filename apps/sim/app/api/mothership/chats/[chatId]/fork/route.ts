@@ -88,7 +88,7 @@ export const POST = withRouteHandler(
         : []
 
       const newId = generateId()
-      const baseTitle = (parent.title ?? 'New task').replace(/^Fork \| /, '')
+      const baseTitle = (parent.title ?? 'New chat').replace(/^Fork \| /, '')
       const title = `Fork | ${baseTitle}`
       const now = new Date()
 

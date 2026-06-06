@@ -10,7 +10,7 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Combobox,
+  ChipCombobox,
   type ComboboxOptionGroup,
   FieldDivider,
   Input,
@@ -938,7 +938,7 @@ export function WorkflowSidebarBody({
 
         <div className='flex flex-col gap-[9.5px]'>
           <RequiredLabel>Workflow</RequiredLabel>
-          <Combobox
+          <ChipCombobox
             options={workflows?.map((wf) => ({ label: wf.name, value: wf.id })) ?? []}
             value={selectedWorkflowId}
             onChange={(v) => setSelectedWorkflowId(v)}
@@ -957,12 +957,11 @@ export function WorkflowSidebarBody({
 
         <div className='flex flex-col gap-[9.5px]'>
           <RequiredLabel>{isEditOutputMode ? 'Output' : 'Output columns'}</RequiredLabel>
-          <Combobox
+          <ChipCombobox
             multiSelect={!outputPickerSingleSelect}
             searchable
             searchPlaceholder='Search outputs…'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
             dropdownWidth='trigger'
             maxHeight={280}
             disabled={workflowState.isLoading || blockOutputGroups.length === 0}

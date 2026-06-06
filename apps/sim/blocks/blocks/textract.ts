@@ -1,5 +1,11 @@
 import { TextractIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
+import {
+  AuthMode,
+  type BlockConfig,
+  type BlockMeta,
+  IntegrationType,
+  type SubBlockType,
+} from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { TextractParserOutput } from '@/tools/textract/types'
 
@@ -13,8 +19,8 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   docsLink: 'https://docs.sim.ai/tools/textract',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['document-processing', 'ocr', 'cloud'],
   bgColor: 'linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)',
+  iconColor: '#56C0A7',
   icon: TextractIcon,
   subBlocks: [
     {
@@ -283,3 +289,78 @@ export const TextractV2Block: BlockConfig<TextractParserOutput> = {
   },
   inputs: textractV2Inputs,
 }
+
+export const TextractBlockMeta = {
+  tags: ['document-processing', 'ocr', 'cloud'],
+  templates: [
+    {
+      icon: TextractIcon,
+      title: 'Textract invoice extractor',
+      prompt:
+        'Create a scheduled workflow that polls an S3 folder for new PDFs, runs AWS Textract to extract line items and totals, writes the structured fields to a table, and flags invoices that fail validation.',
+      modules: ['scheduled', 'tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: TextractIcon,
+      title: 'Receipt OCR for expense reports',
+      prompt:
+        'Build a workflow that processes Gmail attachments with AWS Textract, extracts vendor, date, total, and category, logs each receipt to an expense table, and tags reimbursable items.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: TextractIcon,
+      title: 'Textract ID verification',
+      prompt:
+        'Build a workflow that runs uploaded ID documents through AWS Textract analyze-id, extracts name, DOB, and ID number, validates against a customer record, and flags mismatches for review.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'automation'],
+    },
+    {
+      icon: TextractIcon,
+      title: 'Textract form-to-table',
+      prompt:
+        'Build a workflow that pushes scanned forms from Google Drive through AWS Textract analyze-document, extracts key-value pairs and tables, and writes structured rows to a Sim table for downstream automations.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'enterprise'],
+      alsoIntegrations: ['google_drive'],
+    },
+    {
+      icon: TextractIcon,
+      title: 'Textract + Reducto cross-format extractor',
+      prompt:
+        'Create a workflow that ingests mixed PDF and image files, routes images through AWS Textract and dense PDFs through Reducto, normalizes fields, and writes rows to a table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'analysis'],
+      alsoIntegrations: ['reducto'],
+    },
+    {
+      icon: TextractIcon,
+      title: 'Textract + Extend pipeline composer',
+      prompt:
+        'Build a workflow that uses AWS Textract for layout-aware OCR and Extend for structured field extraction, fusing outputs into clean records for downstream automations.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['extend'],
+    },
+    {
+      icon: TextractIcon,
+      title: 'Textract handwritten-note digitizer',
+      prompt:
+        'Build a workflow that runs scanned handwritten intake notes through AWS Textract, converts the recognized text into clean Markdown, indexes it into a knowledge base, and posts a confidence summary to Slack so low-confidence pages get a human review.',
+      modules: ['files', 'knowledge-base', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ocr', 'automation', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

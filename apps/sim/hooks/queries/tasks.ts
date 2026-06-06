@@ -189,7 +189,7 @@ function mapTask(chat: MothershipTask): TaskMetadata {
   const updatedAt = new Date(chat.updatedAt)
   return {
     id: chat.id,
-    name: chat.title ?? 'New task',
+    name: chat.title ?? 'New chat',
     updatedAt,
     isActive: chat.activeStreamId !== null,
     isUnread:
@@ -485,12 +485,31 @@ async function markTaskUnread(chatId: string): Promise<void> {
   })
 }
 
+function applyUnreadFlag(
+  queryClient: ReturnType<typeof useQueryClient>,
+  workspaceId: string | undefined,
+  chatId: string,
+  isUnread: boolean
+): void {
+  const current = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+  if (!current) return
+  queryClient.setQueryData<TaskMetadata[]>(
+    taskKeys.list(workspaceId),
+    current.map((task) => (task.id === chatId ? { ...task, isUnread } : task))
+  )
+}
+
 /**
  * Marks a task as read with optimistic update.
  *
  * The server only updates `lastSeenAt`, never `updatedAt`, so we deliberately
  * do not invalidate the list cache — that would trigger a refetch that can
  * reorder the sidebar if any unrelated server-side update landed in between.
+ *
+ * If there is no cached list yet (initial fetch still in flight, e.g. on
+ * task-page refresh), we skip cancellation entirely so the in-flight fetch
+ * can resolve normally — otherwise it would be orphaned and never refetched.
+ * `onSuccess` then reconciles whichever state the fetch produced.
  */
 export function useMarkTaskRead(workspaceId?: string) {
   const queryClient = useQueryClient()
@@ -498,14 +517,15 @@ export function useMarkTaskRead(workspaceId?: string) {
     mutationFn: markTaskRead,
     onMutate: async (chatId) => {
       const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
-      if (!previousTasks) return { previousTasks: undefined }
+      if (!previousTasks) return { previousTasks }
 
       await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
-        old?.map((task) => (task.id === chatId ? { ...task, isUnread: false } : task))
-      )
+      applyUnreadFlag(queryClient, workspaceId, chatId, false)
 
       return { previousTasks }
+    },
+    onSuccess: (_data, chatId) => {
+      applyUnreadFlag(queryClient, workspaceId, chatId, false)
     },
     onError: (_err, _variables, context) => {
       if (context?.previousTasks) {
@@ -527,14 +547,15 @@ export function useMarkTaskUnread(workspaceId?: string) {
     mutationFn: markTaskUnread,
     onMutate: async (chatId) => {
       const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
-      if (!previousTasks) return { previousTasks: undefined }
+      if (!previousTasks) return { previousTasks }
 
       await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
-        old?.map((task) => (task.id === chatId ? { ...task, isUnread: true } : task))
-      )
+      applyUnreadFlag(queryClient, workspaceId, chatId, true)
 
       return { previousTasks }
+    },
+    onSuccess: (_data, chatId) => {
+      applyUnreadFlag(queryClient, workspaceId, chatId, true)
     },
     onError: (_err, _variables, context) => {
       if (context?.previousTasks) {
@@ -612,7 +633,7 @@ export function useCreateTask(workspaceId?: string) {
       const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId)) ?? []
       const newTask: TaskMetadata = {
         id: data.id,
-        name: 'New task',
+        name: 'New chat',
         updatedAt: new Date(),
         isActive: false,
         isUnread: false,
@@ -654,7 +675,7 @@ export function useForkTask(workspaceId?: string) {
       const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
       if (existing) {
         const sourceTask = existing.find((t) => t.id === variables.chatId)
-        const baseName = (sourceTask?.name ?? 'New task').replace(/^Fork \| /, '')
+        const baseName = (sourceTask?.name ?? 'New chat').replace(/^Fork \| /, '')
         const optimisticTask: TaskMetadata = {
           id: data.id,
           name: `Fork | ${baseName}`,

@@ -97,7 +97,7 @@ async function assertKnowledgeBaseFileUrlsOwnership(
     ...new Set(
       fileUrls
         .map((url) => getKnowledgeBaseStorageKey(url))
-        .filter((key): key is string => key !== null && key.startsWith('kb/'))
+        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
     ),
   ]
   if (keys.length === 0) {
@@ -1974,7 +1974,7 @@ export async function deleteDocumentStorageFiles(
     ...new Set(
       entries
         .map((entry) => entry.storageKey)
-        .filter((key): key is string => key !== null && key.startsWith('kb/'))
+        .filter((key): key is string => typeof key === 'string' && key.startsWith('kb/'))
     ),
   ]
   const ownerByKey = new Map<string, string | null>()

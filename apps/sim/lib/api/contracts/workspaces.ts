@@ -74,9 +74,7 @@ export const updateWorkspaceBodySchema = z.object({
   allowPersonalApiKeys: z.boolean().optional(),
 })
 
-export const deleteWorkspaceBodySchema = z.object({
-  deleteTemplates: z.boolean().default(false),
-})
+export const deleteWorkspaceBodySchema = z.object({})
 
 export const workspaceUserSchema = z.object({
   userId: z.string(),
@@ -85,6 +83,7 @@ export const workspaceUserSchema = z.object({
   image: z.string().nullable(),
   permissionType: workspacePermissionSchema,
   isExternal: z.boolean(),
+  joinedAt: z.string(),
 })
 
 export type WorkspaceUser = z.output<typeof workspaceUserSchema>
@@ -178,29 +177,6 @@ export const getWorkspaceContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       workspace: workspaceSchema,
-    }),
-  },
-})
-
-export const checkWorkspacePublishedTemplatesContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workspaces/[id]',
-  params: workspaceParamsSchema,
-  query: z.object({
-    'check-templates': z.literal('true'),
-  }),
-  response: {
-    mode: 'json',
-    schema: z.object({
-      hasPublishedTemplates: z.boolean(),
-      publishedTemplates: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          workflowId: z.string().nullable(),
-        })
-      ),
-      count: z.number(),
     }),
   },
 })

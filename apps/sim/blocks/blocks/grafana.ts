@@ -1,5 +1,5 @@
 import { GrafanaIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GrafanaResponse } from '@/tools/grafana/types'
 
@@ -12,9 +12,8 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
     'Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.',
   docsLink: 'https://docs.sim.ai/tools/grafana',
   category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  tags: ['monitoring', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Observability,
+  bgColor: '#FFFFFF',
   icon: GrafanaIcon,
   subBlocks: [
     // Operation dropdown
@@ -916,3 +915,76 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     message: { type: 'string', description: 'Status message' },
   },
 }
+
+export const GrafanaBlockMeta = {
+  tags: ['monitoring', 'data-analytics'],
+  templates: [
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana alert auto-context',
+      prompt:
+        'Build a scheduled workflow that polls Grafana for firing alert rules, pulls related logs and recent deploys, summarizes them with an agent, and posts the enriched alert to PagerDuty and Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty', 'slack'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana SLO scorecard',
+      prompt:
+        'Create a scheduled weekly workflow that queries Grafana for SLO compliance across services, calculates burn rates, and writes a scorecard to a tables-based SRE review board.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana dashboard auditor',
+      prompt:
+        'Build a scheduled workflow that scans Grafana dashboards monthly for broken panels, unused dashboards, and missing alerts, and writes a cleanup queue for the platform team.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana metric export',
+      prompt:
+        'Create a workflow that exports Grafana metric queries on schedule into a Sim table, so the data can be combined with business metrics for unified reporting.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'sync'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana incident annotator',
+      prompt:
+        'Build a scheduled workflow that polls PagerDuty for new incidents and adds Grafana annotations to relevant dashboards with the incident link, so engineers can see the context immediately on the timeline.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana on-call digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes the past 24 hours of Grafana alerts by service and severity, and posts an on-call digest to Slack each morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana + Linear feature-impact',
+      prompt:
+        'Build a scheduled workflow that polls Grafana for metric regressions correlated with recent Linear releases and posts a regression review to the team Slack with the suspected change.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+  ],
+} as const satisfies BlockMeta

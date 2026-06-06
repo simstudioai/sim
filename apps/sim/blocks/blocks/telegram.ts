@@ -1,5 +1,5 @@
 import { TelegramIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { TelegramResponse } from '@/tools/telegram/types'
@@ -15,8 +15,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
   docsLink: 'https://docs.sim.ai/tools/telegram',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'webhooks', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: TelegramIcon,
   triggerAllowed: true,
   subBlocks: [
@@ -427,3 +426,76 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
     available: ['telegram_webhook'],
   },
 }
+
+export const TelegramBlockMeta = {
+  tags: ['messaging', 'webhooks', 'automation'],
+  templates: [
+    {
+      icon: TelegramIcon,
+      title: 'Telegram alert relay',
+      prompt:
+        'Build a workflow that listens for critical alerts from Sentry or PagerDuty and forwards a concise summary with severity, link, and the on-call person to a Telegram group.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['sentry', 'pagerduty'],
+    },
+    {
+      icon: TelegramIcon,
+      title: 'Telegram price-action notifier',
+      prompt:
+        'Create a scheduled workflow that watches tracked assets in a table for price thresholds and pushes a Telegram message with the trigger, price, and a link to the chart.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+    },
+    {
+      icon: TelegramIcon,
+      title: 'Telegram support bot',
+      prompt:
+        'Build a Telegram bot that answers product questions using a knowledge base with citations, escalates to a human via Intercom when it cannot answer, and logs every conversation to a table.',
+      modules: ['knowledge-base', 'tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+      alsoIntegrations: ['intercom'],
+    },
+    {
+      icon: TelegramIcon,
+      title: 'Telegram daily standup poller',
+      prompt:
+        'Create a scheduled workflow that posts a daily standup prompt to a Telegram group, collects the replies, and writes a structured standup digest to a Google Doc.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['google_docs'],
+    },
+    {
+      icon: TelegramIcon,
+      title: 'Telegram broadcast scheduler',
+      prompt:
+        'Build a workflow that reads a tables-based content calendar and posts scheduled Telegram channel messages with formatted text, images, and links at the right time.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+    },
+    {
+      icon: TelegramIcon,
+      title: 'Telegram form-reply collector',
+      prompt:
+        'Create a workflow that asks structured questions in Telegram one at a time, parses replies into fields, and saves the completed response as a row in a Sim table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'communication'],
+    },
+    {
+      icon: TelegramIcon,
+      title: 'Telegram + WhatsApp dual-channel notifier',
+      prompt:
+        'Build a workflow that sends critical operational alerts via both Telegram and WhatsApp based on user preference per recipient, and writes delivery status to a table.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['communication', 'monitoring'],
+      alsoIntegrations: ['whatsapp'],
+    },
+  ],
+} as const satisfies BlockMeta
