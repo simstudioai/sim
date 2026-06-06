@@ -92,7 +92,8 @@ export interface OrgScopeParams {
  * rows in org-attached workspaces, plus org-level rows (`workspace_id IS
  * NULL`) tied to the org via `metadata.organizationId` or the organization
  * resource itself. Actor membership is never a standalone boundary — when
- * `includeDeparted` is false it only narrows the org scope.
+ * `includeDeparted` is false it only narrows the org scope to current members
+ * and system events (null actor).
  */
 export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
   const { organizationId, orgWorkspaceIds, orgMemberIds, includeDeparted } = params
@@ -117,11 +118,12 @@ export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
     return orgScope
   }
 
-  if (orgMemberIds.length === 0) {
-    return sql`1 = 0`
-  }
+  const currentActorCondition =
+    orgMemberIds.length > 0
+      ? or(inArray(auditLog.actorId, orgMemberIds), isNull(auditLog.actorId))!
+      : isNull(auditLog.actorId)
 
-  return and(orgScope, inArray(auditLog.actorId, orgMemberIds))!
+  return and(orgScope, currentActorCondition)!
 }
 
 function buildCursorCondition(cursor: string): SQL<unknown> | null {

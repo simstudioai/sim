@@ -75,9 +75,11 @@ describe('buildOrgScopeCondition', () => {
     expectOrgLevelCondition(orgLevel, ORG_ID)
 
     expect(actorFilter).toMatchObject({
-      type: 'inArray',
-      column: 'actorId',
-      values: MEMBER_IDS,
+      type: 'or',
+      conditions: [
+        expect.objectContaining({ type: 'inArray', column: 'actorId', values: MEMBER_IDS }),
+        expect.objectContaining({ type: 'isNull', column: 'actorId' }),
+      ],
     })
   })
 
@@ -130,13 +132,15 @@ describe('buildOrgScopeCondition', () => {
     const [orgLevel, actorFilter] = condition.conditions!
     expectOrgLevelCondition(orgLevel, ORG_ID)
     expect(actorFilter).toMatchObject({
-      type: 'inArray',
-      column: 'actorId',
-      values: MEMBER_IDS,
+      type: 'or',
+      conditions: [
+        expect.objectContaining({ type: 'inArray', column: 'actorId', values: MEMBER_IDS }),
+        expect.objectContaining({ type: 'isNull', column: 'actorId' }),
+      ],
     })
   })
 
-  it('matches nothing when the org has no current members and includeDeparted is false', () => {
+  it('only matches system events when the org has no current members', () => {
     const condition = asCondition(
       buildOrgScopeCondition({
         organizationId: ORG_ID,
@@ -146,7 +150,9 @@ describe('buildOrgScopeCondition', () => {
       })
     )
 
-    expect(condition.strings?.join('')).toBe('1 = 0')
+    expect(condition.type).toBe('and')
+    const [, actorFilter] = condition.conditions!
+    expect(actorFilter).toMatchObject({ type: 'isNull', column: 'actorId' })
   })
 })
 
