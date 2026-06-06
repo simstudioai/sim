@@ -217,6 +217,22 @@ const ModalContent = React.forwardRef<
             onPointerUp={(e) => {
               e.stopPropagation()
             }}
+            onPointerDownOutside={(e) => {
+              if (!isInteractionReady) {
+                e.preventDefault()
+                return
+              }
+              /**
+               * Radix dispatches pointer-down-outside to every open layer at
+               * once, so a click that should only dismiss an open dropdown /
+               * select / combobox (portaled into a popper wrapper above this
+               * modal) would also close the modal. Keep the modal open and let
+               * the click dismiss just the popper layer.
+               */
+              if (document.querySelector('[data-radix-popper-content-wrapper]')) {
+                e.preventDefault()
+              }
+            }}
             onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
             aria-describedby={ariaDescribedBy}
             {...props}
