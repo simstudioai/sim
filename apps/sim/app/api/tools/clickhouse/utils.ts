@@ -1,4 +1,7 @@
-import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import {
+  validateDatabaseHost,
+  validateSqlWhereClause,
+} from '@/lib/core/security/input-validation.server'
 import type { ClickHouseConnectionConfig } from '@/tools/clickhouse/types'
 
 const REQUEST_TIMEOUT_MS = 30_000
@@ -448,37 +451,14 @@ function sanitizeSingleIdentifier(identifier: string): string {
 }
 
 /**
- * Rejects WHERE clauses containing patterns commonly used in SQL injection so
- * that user-supplied conditions cannot escape the intended mutation.
+ * Rejects WHERE clauses containing SQL-injection or always-true tautology
+ * patterns so user-supplied conditions cannot broaden a mutation to every row.
+ * Delegates to the shared {@link validateSqlWhereClause} guard (defense-in-depth).
  */
 function validateWhereClause(where: string): void {
-  const dangerousPatterns = [
-    /;\s*(drop|delete|insert|alter|create|truncate|rename|grant|revoke)/i,
-    /union\s+(all\s+)?select/i,
-    /into\s+outfile/i,
-    /--/,
-    /\/\*/,
-    /\*\//,
-    /\bor\s+(['"]?)(\w+)\1\s*=\s*\1\2\1/i,
-    /\bor\s+true\b/i,
-    /\bor\s+false\b/i,
-    /\band\s+(['"]?)(\w+)\1\s*=\s*\1\2\1/i,
-    /\band\s+true\b/i,
-    /\band\s+false\b/i,
-    /\bsleep\s*\(/i,
-    /;\s*\w+/,
-    // Constant / tautological conditions that don't reference columns and would
-    // broaden a mutation to all rows (e.g. "1=1", "1 < 2", "'a'='a'", bare "1"/"true").
-    /\b\d+\s*(?:=|==|<>|!=|<=|>=|<|>)\s*\d+\b/,
-    /(['"])([^'"]*)\1\s*(?:=|==|<>|!=)\s*\1\2\1/,
-    /\b(\w+)\s*=\s*\1\b/i,
-    /^\s*(?:\d+|true|false)\s*$/i,
-  ]
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(where)) {
-      throw new Error('WHERE clause contains potentially dangerous operation')
-    }
+  const result = validateSqlWhereClause(where, 'WHERE clause')
+  if (!result.isValid) {
+    throw new Error(result.error)
   }
 }
 
