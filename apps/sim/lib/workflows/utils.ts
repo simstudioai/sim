@@ -173,13 +173,18 @@ export async function resolveWorkflowIdForUser(
     }
   }
 
-  const workflows = await db
+  const workflowRows = await db
     .select()
     .from(workflowTable)
     .where(
       and(inArray(workflowTable.workspaceId, allowedWorkspaceIds), isNull(workflowTable.archivedAt))
     )
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt), asc(workflowTable.id))
+
+  const workflows = workflowRows.filter(
+    (workflow): workflow is (typeof workflowRows)[number] & { workspaceId: string } =>
+      workflow.workspaceId !== null
+  )
 
   if (workflows.length === 0) {
     return {

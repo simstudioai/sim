@@ -2112,10 +2112,14 @@ export class WorkspaceVFS {
         serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
       )
 
-      const oauthProviders = [...new Set(oauthCredentials.map((c) => c.providerId))]
       const envKeys = [...new Set(envCredentials.map((c) => c.envKey))]
       return {
-        oauthIntegrations: oauthProviders.map((key) => ({ providerId: key })),
+        oauthIntegrations: oauthCredentials.map((c) => ({
+          id: c.id,
+          providerId: c.providerId,
+          displayName: c.displayName,
+          role: c.role,
+        })),
         envVariables: envKeys,
       }
     } catch (err) {
