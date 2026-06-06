@@ -136,7 +136,6 @@ export const AuditAction = {
   ORG_INVITATION_REVOKED: 'org_invitation.revoked',
   ORG_INVITATION_RESENT: 'org_invitation.resent',
   ORG_SEAT_PROVISIONED: 'org_seat.provisioned',
-  ORG_SEAT_DRIFT_RECONCILED: 'org_seat.drift_reconciled',
   ORG_PLAN_CONVERTED: 'org_plan.converted',
 
   // Permission Groups
