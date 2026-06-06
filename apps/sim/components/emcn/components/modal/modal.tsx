@@ -52,6 +52,10 @@ import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
 const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
+function hasOpenFloatingLayer() {
+  return Boolean(document.querySelector('[data-radix-popper-content-wrapper] [data-state="open"]'))
+}
+
 /**
  * Root modal component. Manages open state.
  */
@@ -74,25 +78,24 @@ const ModalClose = DialogPrimitive.Close
 
 /**
  * Modal overlay component with fade transition.
- * Clicking this overlay closes the dialog via DialogPrimitive.Close.
+ * Outside interactions are handled by the dialog content so nested poppers can
+ * close without also dismissing the modal.
  */
 const ModalOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, style, ...props }, ref) => {
   return (
-    <DialogPrimitive.Close asChild>
-      <DialogPrimitive.Overlay
-        ref={ref}
-        className={cn(
-          'fixed inset-0 z-[var(--z-modal)] bg-black/10 backdrop-blur-[2px]',
-          ANIMATION_CLASSES,
-          className
-        )}
-        style={style}
-        {...props}
-      />
-    </DialogPrimitive.Close>
+    <DialogPrimitive.Overlay
+      ref={ref}
+      className={cn(
+        'fixed inset-0 z-[var(--z-modal)] bg-black/10 backdrop-blur-[2px]',
+        ANIMATION_CLASSES,
+        className
+      )}
+      style={style}
+      {...props}
+    />
   )
 })
 
@@ -173,14 +176,8 @@ const ModalContent = React.forwardRef<
     },
     ref
   ) => {
-    const [isInteractionReady, setIsInteractionReady] = React.useState(false)
     const pathname = usePathname()
     const isWorkflowPage = pathname?.includes('/w/') ?? false
-
-    React.useEffect(() => {
-      const timer = setTimeout(() => setIsInteractionReady(true), 100)
-      return () => clearTimeout(timer)
-    }, [])
 
     return (
       <ModalPortal>
@@ -205,10 +202,6 @@ const ModalContent = React.forwardRef<
             )}
             style={style}
             onEscapeKeyDown={(e) => {
-              if (!isInteractionReady) {
-                e.preventDefault()
-                return
-              }
               e.stopPropagation()
             }}
             onPointerDown={(e) => {
@@ -218,10 +211,6 @@ const ModalContent = React.forwardRef<
               e.stopPropagation()
             }}
             onInteractOutside={(e) => {
-              if (!isInteractionReady) {
-                e.preventDefault()
-                return
-              }
               /**
                * Radix dispatches outside-interaction events to every open
                * layer at once, so a click that should only dismiss an open
@@ -236,9 +225,7 @@ const ModalContent = React.forwardRef<
                * are merely animating closed, so a follow-up click during the
                * exit animation still dismisses the modal.
                */
-              if (
-                document.querySelector('[data-radix-popper-content-wrapper] [data-state="open"]')
-              ) {
+              if (hasOpenFloatingLayer()) {
                 e.preventDefault()
               }
             }}

@@ -141,20 +141,6 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem, progressItemVariants } from './progress-item/progress-item'
-export {
-  SModal,
-  SModalClose,
-  SModalContent,
-  SModalMain,
-  SModalMainBody,
-  SModalMainHeader,
-  SModalSidebar,
-  SModalSidebarHeader,
-  SModalSidebarItem,
-  SModalSidebarSection,
-  SModalSidebarSectionTitle,
-  SModalTrigger,
-} from './s-modal/s-modal'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { ArrowLeft, Bell, Folder, Key, Moon, Settings, Sun, User } from 'lucide-react'
+import { ArrowLeft, Folder, Moon, Sun } from 'lucide-react'
 import { notFound, useRouter } from 'next/navigation'
 import {
   Avatar,
@@ -65,17 +65,6 @@ import {
   Redo,
   Rocket,
   Slider,
-  SModal,
-  SModalContent,
-  SModalMain,
-  SModalMainBody,
-  SModalMainHeader,
-  SModalSidebar,
-  SModalSidebarHeader,
-  SModalSidebarItem,
-  SModalSidebarSection,
-  SModalSidebarSectionTitle,
-  SModalTrigger,
   Switch,
   Table,
   TableBody,
@@ -151,7 +140,6 @@ export default function PlaygroundPage() {
   const [checkboxValue, setCheckboxValue] = useState(false)
   const [sliderValue, setSliderValue] = useState([50])
   const [timeValue, setTimeValue] = useState('09:30')
-  const [activeTab, setActiveTab] = useState('profile')
   const isDarkMode = useSyncExternalStore(
     subscribeToDarkMode,
     getDarkModeSnapshot,
@@ -889,62 +877,6 @@ export default function PlaygroundPage() {
                 </ModalContent>
               </Modal>
             </VariantRow>
-          </Section>
-
-          {/* SModal (Sidebar Modal) */}
-          <Section title='SModal (Sidebar Modal)'>
-            <SModal>
-              <SModalTrigger asChild>
-                <Button variant='default'>Open Sidebar Modal</Button>
-              </SModalTrigger>
-              <SModalContent>
-                <SModalSidebar>
-                  <SModalSidebarHeader>Settings</SModalSidebarHeader>
-                  <SModalSidebarSection>
-                    <SModalSidebarSectionTitle>Account</SModalSidebarSectionTitle>
-                    <SModalSidebarItem
-                      icon={<User />}
-                      active={activeTab === 'profile'}
-                      onClick={() => setActiveTab('profile')}
-                    >
-                      Profile
-                    </SModalSidebarItem>
-                    <SModalSidebarItem
-                      icon={<Key />}
-                      active={activeTab === 'security'}
-                      onClick={() => setActiveTab('security')}
-                    >
-                      Security
-                    </SModalSidebarItem>
-                  </SModalSidebarSection>
-                  <SModalSidebarSection>
-                    <SModalSidebarSectionTitle>Preferences</SModalSidebarSectionTitle>
-                    <SModalSidebarItem
-                      icon={<Bell />}
-                      active={activeTab === 'notifications'}
-                      onClick={() => setActiveTab('notifications')}
-                    >
-                      Notifications
-                    </SModalSidebarItem>
-                    <SModalSidebarItem
-                      icon={<Settings />}
-                      active={activeTab === 'general'}
-                      onClick={() => setActiveTab('general')}
-                    >
-                      General
-                    </SModalSidebarItem>
-                  </SModalSidebarSection>
-                </SModalSidebar>
-                <SModalMain>
-                  <SModalMainHeader>
-                    {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-                  </SModalMainHeader>
-                  <SModalMainBody>
-                    <p className='text-[var(--text-secondary)]'>Content for {activeTab} tab</p>
-                  </SModalMainBody>
-                </SModalMain>
-              </SModalContent>
-            </SModal>
           </Section>
 
           {/* Code */}
