@@ -164,19 +164,19 @@ export const POST = withRouteHandler(
 
       const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
 
-      // Gate KB indexing (pooled + per-member) before accepting work. The
-      // authoritative backstop also runs in processDocumentAsync for non-HTTP
-      // paths (connector/cron/retry).
-      if (kbWorkspaceId) {
-        const usage = await checkActorUsageLimits(userId, kbWorkspaceId)
-        if (usage.isExceeded) {
-          return NextResponse.json(
-            {
-              error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
-            },
-            { status: 402 }
-          )
-        }
+      // Gate KB indexing (pooled + per-member) before accepting work. Runs even for
+      // legacy KBs with no workspace — the uploader's pooled/frozen status is still
+      // enforced (per-member is simply skipped when there's no org workspace). The
+      // authoritative backstop also runs in processDocumentAsync for non-HTTP paths
+      // (connector/cron/retry).
+      const usage = await checkActorUsageLimits(userId, kbWorkspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          {
+            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          },
+          { status: 402 }
+        )
       }
 
       if (body.bulk === true) {

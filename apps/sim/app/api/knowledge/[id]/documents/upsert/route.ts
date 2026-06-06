@@ -74,18 +74,18 @@ export const POST = withRouteHandler(
       }
 
       // Gate usage before any create/delete so an over-limit upsert is rejected up
-      // front and never deletes the existing (already-indexed) document.
+      // front and never deletes the existing (already-indexed) document. Runs even
+      // for legacy KBs with no workspace — the uploader's pooled/frozen status is
+      // still enforced (per-member is skipped when there's no org workspace).
       const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
-      if (kbWorkspaceId) {
-        const usage = await checkActorUsageLimits(userId, kbWorkspaceId)
-        if (usage.isExceeded) {
-          return NextResponse.json(
-            {
-              error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
-            },
-            { status: 402 }
-          )
-        }
+      const usage = await checkActorUsageLimits(userId, kbWorkspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          {
+            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          },
+          { status: 402 }
+        )
       }
 
       let existingDocumentId: string | null = null
