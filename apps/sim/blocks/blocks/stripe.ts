@@ -850,7 +850,7 @@ export const StripeBlockMeta = {
       icon: GoogleSheetsIcon,
       title: 'Weekly metrics report',
       prompt:
-        'Build a scheduled workflow that pulls data from Stripe and my database every Monday, calculates key metrics like MRR, churn, new subscriptions, and failed payments, populates a Google Sheet, and Slacks the team a summary with week-over-week trends.',
+        'Build a scheduled workflow that pulls data from Stripe and my database every Monday, calculates key metrics like MRR, churn, new subscriptions, and failed payments, writes results to Google Sheets, and sends the team a Slack summary with week-over-week trends.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['founder', 'finance', 'reporting'],

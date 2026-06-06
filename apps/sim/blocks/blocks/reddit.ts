@@ -919,7 +919,7 @@ export const RedditBlockMeta = {
       icon: RedditIcon,
       title: 'Reddit subreddit monitor',
       prompt:
-        'Build a scheduled workflow that watches target subreddits for posts matching brand or product keywords, scores each for relevance and sentiment, and posts notable hits to Slack with the original link.',
+        'Build a scheduled workflow that uses Reddit to watch target subreddits for posts matching brand or product keywords, scores each for relevance and sentiment, and posts notable hits to Slack with the original link.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'monitoring'],
@@ -929,7 +929,7 @@ export const RedditBlockMeta = {
       icon: RedditIcon,
       title: 'Reddit user-question knowledge mining',
       prompt:
-        'Create a workflow that pulls top questions in industry subreddits weekly, classifies by theme, and writes a content-opportunity table the marketing team can prioritize.',
+        'Create a workflow that pulls top questions from Reddit industry subreddits weekly, classifies by theme, and writes a content-opportunity table the marketing team can prioritize.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'research'],
@@ -966,7 +966,7 @@ export const RedditBlockMeta = {
       icon: RedditIcon,
       title: 'Reddit content-idea collector',
       prompt:
-        'Create a workflow that watches r/marketing-relevant subreddits, captures upvoted long-form posts, summarizes each, and adds them to a content-ideas table with effort and impact scores.',
+        'Create a workflow that monitors Reddit marketing subreddits for upvoted long-form posts, summarizes each, and adds them to a content-ideas table with effort and impact scores.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'content'],
