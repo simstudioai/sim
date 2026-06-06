@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GitLabIcon } from '@/components/icons'
+import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
 import { isSameOrigin } from '@/lib/core/utils/validation'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { secureFetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
 
@@ -461,8 +462,8 @@ async function fetchProject(
   encodedProject: string,
   accessToken: string,
   retryOptions?: typeof VALIDATE_RETRY_OPTIONS
-): Promise<Response> {
-  return fetchWithRetry(
+): Promise<SecureFetchResponse> {
+  return secureFetchWithRetry(
     `${apiBase}/projects/${encodedProject}`,
     { method: 'GET', headers: authHeaders(accessToken) },
     retryOptions
@@ -760,7 +761,7 @@ export const gitlabConnector: ConnectorConfig = {
         continued: Boolean(state.fileNextUrl),
       })
 
-      const response = await fetchWithRetry(url, {
+      const response = await secureFetchWithRetry(url, {
         method: 'GET',
         headers: authHeaders(accessToken),
       })
@@ -816,7 +817,7 @@ export const gitlabConnector: ConnectorConfig = {
       const url = `${apiBase}/projects/${encodedProject}/wikis?with_content=1`
       logger.info('Listing GitLab wiki pages', { host, project: encodedProject })
 
-      const response = await fetchWithRetry(url, {
+      const response = await secureFetchWithRetry(url, {
         method: 'GET',
         headers: authHeaders(accessToken),
       })
@@ -891,7 +892,7 @@ export const gitlabConnector: ConnectorConfig = {
         incremental: Boolean(lastSyncAt),
       })
 
-      const response = await fetchWithRetry(url, {
+      const response = await secureFetchWithRetry(url, {
         method: 'GET',
         headers: authHeaders(accessToken),
       })
@@ -954,7 +955,7 @@ export const gitlabConnector: ConnectorConfig = {
         if (!slug) return null
 
         const url = `${apiBase}/projects/${encodedProject}/wikis/${encodeURIComponent(slug)}?render_html=false`
-        const response = await fetchWithRetry(url, {
+        const response = await secureFetchWithRetry(url, {
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -975,7 +976,7 @@ export const gitlabConnector: ConnectorConfig = {
         if (!iidStr || Number.isNaN(iid)) return null
 
         const url = `${apiBase}/projects/${encodedProject}/issues/${iid}`
-        const response = await fetchWithRetry(url, {
+        const response = await secureFetchWithRetry(url, {
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -1002,7 +1003,7 @@ export const gitlabConnector: ConnectorConfig = {
           accessToken
         )
         const url = `${apiBase}/projects/${encodedProject}/repository/files/${encodeURIComponent(path)}?ref=${encodeURIComponent(ref)}`
-        const response = await fetchWithRetry(url, {
+        const response = await secureFetchWithRetry(url, {
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -1078,7 +1079,7 @@ export const gitlabConnector: ConnectorConfig = {
 
       const userRef = typeof sourceConfig.ref === 'string' ? sourceConfig.ref.trim() : ''
       if (userRef && activePhases(choice).includes('repo')) {
-        const refResponse = await fetchWithRetry(
+        const refResponse = await secureFetchWithRetry(
           `${apiBase}/projects/${encodedProject}/repository/commits/${encodeURIComponent(userRef)}`,
           { method: 'GET', headers: authHeaders(accessToken) },
           VALIDATE_RETRY_OPTIONS
