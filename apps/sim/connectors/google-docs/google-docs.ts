@@ -235,13 +235,23 @@ export const googleDocsConnector: ConnectorConfig = {
     const data = await response.json()
     const files = (data.files || []) as DriveFile[]
 
+    /**
+     * Drive sets `incompleteSearch` when it could not search every corpus (it
+     * arises with the `allDrives` scope enabled by `includeItemsFromAllDrives`).
+     * A partial listing drops still-existing docs, so reconciliation must be
+     * suppressed to avoid hard-deleting valid documents.
+     */
+    const incompleteSearch = data.incompleteSearch === true
+
     const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     let documents = files.map(fileToStub)
+    let slicedSome = false
     if (maxDocs > 0) {
       const remaining = maxDocs - previouslyFetched
       if (documents.length > remaining) {
+        slicedSome = true
         documents = documents.slice(0, remaining)
       }
     }
@@ -251,6 +261,19 @@ export const googleDocsConnector: ConnectorConfig = {
     const hitLimit = maxDocs > 0 && totalFetched >= maxDocs
 
     const nextPageToken = data.nextPageToken as string | undefined
+
+    /**
+     * Mark the listing as incomplete so the sync engine skips deletion
+     * reconciliation when this page does not represent the full source set:
+     * - `slicedSome`: the page held more docs than the `maxDocs` cap allowed.
+     * - `hitLimit` with a next page: the cap was reached while more pages remain.
+     * - `incompleteSearch`: Drive could not search every corpus, so the page is
+     *   partial and may omit still-existing docs.
+     * Reconciliation against any of these would hard-delete valid documents.
+     */
+    if (syncContext && (slicedSome || (hitLimit && Boolean(nextPageToken)) || incompleteSearch)) {
+      syncContext.listingCapped = true
+    }
 
     return {
       documents,

@@ -1,5 +1,5 @@
 import { asyncJobs, db } from '@sim/db'
-import { workflowExecutionLogs } from '@sim/db/schema'
+import { userTableDefinitions, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
@@ -110,6 +110,37 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    // Mark stale table imports as failed. Imports run detached on the web container and
+    // are lost if the pod is killed mid-load. `updatedAt` is bumped by progress updates, so
+    // an `importing` table with no recent update has stalled (not merely slow). Rows are
+    // left in place (no rollback); the user re-imports.
+    let staleImportsMarkedFailed = 0
+    try {
+      const staleImports = await db
+        .update(userTableDefinitions)
+        .set({
+          importStatus: 'failed',
+          importError: `Import terminated: no progress for more than ${STALE_THRESHOLD_MINUTES} minutes (worker timeout or crash)`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(userTableDefinitions.importStatus, 'importing'),
+            lt(userTableDefinitions.updatedAt, staleThreshold)
+          )
+        )
+        .returning({ id: userTableDefinitions.id })
+
+      staleImportsMarkedFailed = staleImports.length
+      if (staleImportsMarkedFailed > 0) {
+        logger.info(`Marked ${staleImportsMarkedFailed} stale table imports as failed`)
+      }
+    } catch (error) {
+      logger.error('Failed to clean up stale table imports:', {
+        error: toError(error).message,
+      })
+    }
+
     // Clean up stale pending jobs (never started, e.g., due to server crash before startJob())
     let stalePendingJobsMarkedFailed = 0
 
@@ -178,6 +209,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         oldDeleted: asyncJobsDeleted,
         staleThresholdMinutes: STALE_THRESHOLD_MINUTES,
         retentionHours: JOB_RETENTION_HOURS,
+      },
+      tableImports: {
+        staleMarkedFailed: staleImportsMarkedFailed,
       },
     })
   } catch (error) {

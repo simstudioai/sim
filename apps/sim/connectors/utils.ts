@@ -78,3 +78,36 @@ export function parseMultiValue(value: unknown): string[] {
   }
   return []
 }
+
+/**
+ * Reads a response body into a Buffer while enforcing a hard byte cap. The
+ * declared `content-length` header cannot be trusted as the sole guard —
+ * chunked transfer encoding may omit it entirely — so bytes are accumulated
+ * from the stream and reading aborts as soon as the cap is exceeded, ensuring
+ * an oversized (or hostile) body is never fully buffered into memory.
+ * Returns null when the cap is exceeded.
+ */
+export async function readBodyWithLimit(
+  response: Response,
+  maxBytes: number
+): Promise<Buffer | null> {
+  if (!response.body) {
+    const buffer = Buffer.from(await response.arrayBuffer())
+    return buffer.byteLength > maxBytes ? null : buffer
+  }
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
+}

@@ -8,16 +8,18 @@ import type { TableDefinition } from '@/lib/table'
 
 const {
   mockCheckAccess,
-  mockBatchInsertRowsWithTx,
-  mockReplaceTableRowsWithTx,
-  mockAddTableColumnsWithTx,
+  mockImportAppendRows,
+  mockImportReplaceRows,
   mockDispatchAfterBatchInsert,
+  mockMarkTableImporting,
+  mockReleaseImportClaim,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
-  mockBatchInsertRowsWithTx: vi.fn(),
-  mockReplaceTableRowsWithTx: vi.fn(),
-  mockAddTableColumnsWithTx: vi.fn(),
+  mockImportAppendRows: vi.fn(),
+  mockImportReplaceRows: vi.fn(),
   mockDispatchAfterBatchInsert: vi.fn(),
+  mockMarkTableImporting: vi.fn(),
+  mockReleaseImportClaim: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -33,20 +35,28 @@ vi.mock('@/app/api/table/utils', async () => {
       const message = result.status === 404 ? 'Table not found' : 'Access denied'
       return NextResponse.json({ error: message }, { status: result.status })
     },
+    csvProxyBodyCapResponse: () => null,
+    multipartErrorResponse: (error: { code: string; message: string }) =>
+      NextResponse.json(
+        { error: error.message },
+        { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
+      ),
   }
 })
 
 /**
- * The route imports `batchInsertRows` and `replaceTableRows` from the barrel,
- * which forwards them from `./service`. Mocking the service module replaces
- * both without having to touch the other real helpers (`parseCsvBuffer`,
- * `coerceRowsForTable`, etc.) exported through the barrel.
+ * The route imports `importAppendRows` / `importReplaceRows` from the barrel,
+ * which forwards them from `./service`. These functions own the import
+ * transaction (column adds + row writes); mocking the service module replaces
+ * them without touching the other real helpers (`coerceRowsForTable`,
+ * `createCsvParser`, etc.) exported through the barrel.
  */
 vi.mock('@/lib/table/service', () => ({
-  batchInsertRowsWithTx: mockBatchInsertRowsWithTx,
-  replaceTableRowsWithTx: mockReplaceTableRowsWithTx,
-  addTableColumnsWithTx: mockAddTableColumnsWithTx,
+  importAppendRows: mockImportAppendRows,
+  importReplaceRows: mockImportReplaceRows,
   dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
+  markTableImporting: mockMarkTableImporting,
+  releaseImportClaim: mockReleaseImportClaim,
 }))
 
 import { POST } from '@/app/api/table/[tableId]/import/route'
@@ -64,8 +74,8 @@ function createFormData(
     createColumns?: unknown
   }
 ): FormData {
+  // Text fields must precede the file part for the streaming parser.
   const form = new FormData()
-  form.append('file', file)
   if (options?.workspaceId !== null) {
     form.append('workspaceId', options?.workspaceId ?? 'workspace-1')
   }
@@ -86,6 +96,7 @@ function createFormData(
         : JSON.stringify(options.createColumns)
     )
   }
+  form.append('file', file)
   return form
 }
 
@@ -112,10 +123,21 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   }
 }
 
+/** Additions array the route passed to importAppendRows (2nd positional arg). */
+function appendAdditions(): { name: string; type: string }[] {
+  return mockImportAppendRows.mock.calls[0][1] as { name: string; type: string }[]
+}
+
+/** Rows array the route passed to importAppendRows (3rd positional arg). */
+function appendRows(): unknown[] {
+  return mockImportAppendRows.mock.calls[0][2] as unknown[]
+}
+
 async function callPost(form: FormData, { tableId }: { tableId: string } = { tableId: 'tbl_1' }) {
+  // Building the request from a FormData body gives a real multipart stream and
+  // boundary, exercising the streaming `readMultipart` parser end-to-end.
   const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/import`, {
     method: 'POST',
-    headers: { 'content-length': '1024' },
     body: form,
   })
   return POST(req, { params: Promise.resolve({ tableId }) })
@@ -130,25 +152,15 @@ describe('POST /api/table/[tableId]/import', () => {
       authType: 'session',
     })
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
-    mockBatchInsertRowsWithTx.mockImplementation(async (_trx, data: { rows: unknown[] }) =>
-      data.rows.map((_, i) => ({ id: `row_${i}` }))
-    )
-    mockReplaceTableRowsWithTx.mockResolvedValue({ deletedCount: 0, insertedCount: 0 })
-    mockAddTableColumnsWithTx.mockImplementation(
-      async (
-        _trx,
-        table: { schema: { columns: { name: string; type: string }[] } },
-        columns: { name: string; type: string }[]
-      ) => ({
-        ...table,
-        schema: {
-          columns: [
-            ...table.schema.columns,
-            ...columns.map((c) => ({ name: c.name, type: c.type as 'string' })),
-          ],
-        },
+    mockImportAppendRows.mockImplementation(
+      async (table: TableDefinition, _additions: unknown, rows: unknown[]) => ({
+        inserted: rows.map((_, i) => ({ id: `row_${i}` })),
+        table,
       })
     )
+    mockImportReplaceRows.mockResolvedValue({ deletedCount: 0, insertedCount: 0 })
+    mockMarkTableImporting.mockResolvedValue(true)
+    mockReleaseImportClaim.mockResolvedValue(undefined)
   })
 
   it('returns 401 when the user is not authenticated', async () => {
@@ -158,6 +170,22 @@ describe('POST /api/table/[tableId]/import', () => {
     })
     const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
     expect(response.status).toBe(401)
+  })
+
+  it('returns 409 when a background import already holds the table (claim lost)', async () => {
+    mockMarkTableImporting.mockResolvedValueOnce(false)
+    const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
+    expect(response.status).toBe(409)
+    expect(mockImportAppendRows).not.toHaveBeenCalled()
+    expect(mockImportReplaceRows).not.toHaveBeenCalled()
+    expect(mockReleaseImportClaim).not.toHaveBeenCalled()
+  })
+
+  it('releases the import claim after a successful write', async () => {
+    const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
+    expect(response.status).toBe(200)
+    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
+    expect(mockReleaseImportClaim).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
   })
 
   it('returns 400 when the mode is invalid', async () => {
@@ -186,24 +214,32 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(data.error).toMatch(/archived/i)
   })
 
-  it('returns 413 for oversized CSV files before reading their contents', async () => {
-    const file = createCsvFile('name,age\nAlice,30')
-    Object.defineProperty(file, 'size', {
-      value: 26 * 1024 * 1024,
-    })
-    const arrayBufferSpy = vi.spyOn(file, 'arrayBuffer')
-
+  it('returns 400 when the file part precedes the required fields', async () => {
+    // Build a raw multipart body with the file BEFORE workspaceId.
+    const boundary = '----orderboundary'
+    const body = Buffer.concat([
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="data.csv"\r\nContent-Type: text/csv\r\n\r\nname,age\nAlice,30\r\n`
+      ),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="workspaceId"\r\n\r\n`),
+      Buffer.from('workspace-1\r\n'),
+      Buffer.from(`--${boundary}--\r\n`),
+    ])
     const req = {
-      formData: async () => createFormData(file),
+      headers: new Headers({ 'content-type': `multipart/form-data; boundary=${boundary}` }),
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(body))
+          controller.close()
+        },
+      }),
+      signal: undefined,
     } as unknown as NextRequest
 
     const response = await POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
-    expect(response.status).toBe(413)
-    const data = await response.json()
-    expect(data.error).toMatch(/CSV import file exceeds maximum size/)
-    expect(arrayBufferSpy).not.toHaveBeenCalled()
-    expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
-    expect(mockReplaceTableRowsWithTx).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(mockImportAppendRows).not.toHaveBeenCalled()
+    expect(mockImportReplaceRows).not.toHaveBeenCalled()
   })
 
   it('returns 400 when the CSV is missing a required column', async () => {
@@ -212,10 +248,10 @@ describe('POST /api/table/[tableId]/import', () => {
     const data = await response.json()
     expect(data.error).toMatch(/missing required columns/i)
     expect(data.details?.missingRequired).toEqual(['name'])
-    expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
+    expect(mockImportAppendRows).not.toHaveBeenCalled()
   })
 
-  it('appends rows via batchInsertRows', async () => {
+  it('appends rows via importAppendRows', async () => {
     const response = await callPost(
       createFormData(createCsvFile('name,age\nAlice,30\nBob,40'), { mode: 'append' })
     )
@@ -223,13 +259,12 @@ describe('POST /api/table/[tableId]/import', () => {
     const data = await response.json()
     expect(data.data.mode).toBe('append')
     expect(data.data.insertedCount).toBe(2)
-    expect(mockBatchInsertRowsWithTx).toHaveBeenCalledTimes(1)
-    const callArgs = mockBatchInsertRowsWithTx.mock.calls[0][1] as { rows: unknown[] }
-    expect(callArgs.rows).toEqual([
+    expect(mockImportAppendRows).toHaveBeenCalledTimes(1)
+    expect(appendRows()).toEqual([
       { name: 'Alice', age: 30 },
       { name: 'Bob', age: 40 },
     ])
-    expect(mockReplaceTableRowsWithTx).not.toHaveBeenCalled()
+    expect(mockImportReplaceRows).not.toHaveBeenCalled()
   })
 
   it('accepts chunked multipart imports without a content-length header', async () => {
@@ -244,7 +279,7 @@ describe('POST /api/table/[tableId]/import', () => {
     const response = await POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
 
     expect(response.status).toBe(200)
-    expect(mockBatchInsertRowsWithTx).toHaveBeenCalledTimes(1)
+    expect(mockImportAppendRows).toHaveBeenCalledTimes(1)
   })
 
   it('rejects append when it would exceed maxRows', async () => {
@@ -258,11 +293,11 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(response.status).toBe(400)
     const data = await response.json()
     expect(data.error).toMatch(/exceed table row limit/)
-    expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
+    expect(mockImportAppendRows).not.toHaveBeenCalled()
   })
 
-  it('replaces rows via replaceTableRows', async () => {
-    mockReplaceTableRowsWithTx.mockResolvedValueOnce({ deletedCount: 5, insertedCount: 2 })
+  it('replaces rows via importReplaceRows', async () => {
+    mockImportReplaceRows.mockResolvedValueOnce({ deletedCount: 5, insertedCount: 2 })
     const response = await callPost(
       createFormData(createCsvFile('name,age\nAlice,30\nBob,40'), { mode: 'replace' })
     )
@@ -271,8 +306,8 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(data.data.mode).toBe('replace')
     expect(data.data.deletedCount).toBe(5)
     expect(data.data.insertedCount).toBe(2)
-    expect(mockReplaceTableRowsWithTx).toHaveBeenCalledTimes(1)
-    expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
+    expect(mockImportReplaceRows).toHaveBeenCalledTimes(1)
+    expect(mockImportAppendRows).not.toHaveBeenCalled()
   })
 
   it('uses an explicit mapping when provided', async () => {
@@ -285,8 +320,7 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.data.mappedColumns).toEqual(['First Name', 'Years'])
-    const callArgs = mockBatchInsertRowsWithTx.mock.calls[0][1] as { rows: unknown[] }
-    expect(callArgs.rows).toEqual([
+    expect(appendRows()).toEqual([
       { name: 'Alice', age: 30 },
       { name: 'Bob', age: 40 },
     ])
@@ -316,8 +350,8 @@ describe('POST /api/table/[tableId]/import', () => {
     expect(data.error).toMatch(/Mapping values must be/)
   })
 
-  it('surfaces unique violations from batchInsertRows as 400', async () => {
-    mockBatchInsertRowsWithTx.mockRejectedValueOnce(
+  it('surfaces unique violations from importAppendRows as 400', async () => {
+    mockImportAppendRows.mockRejectedValueOnce(
       new Error('Row 1: Column "name" must be unique. Value "Alice" already exists in row row_xxx')
     )
     const response = await callPost(
@@ -337,7 +371,7 @@ describe('POST /api/table/[tableId]/import', () => {
       )
     )
     expect(response.status).toBe(200)
-    expect(mockBatchInsertRowsWithTx).toHaveBeenCalledTimes(1)
+    expect(mockImportAppendRows).toHaveBeenCalledTimes(1)
   })
 
   it('returns 400 for unsupported file extensions', async () => {
@@ -358,12 +392,9 @@ describe('POST /api/table/[tableId]/import', () => {
         })
       )
       expect(response.status).toBe(200)
-      expect(mockAddTableColumnsWithTx).toHaveBeenCalledTimes(1)
-      const [, , columns] = mockAddTableColumnsWithTx.mock.calls[0]
-      expect(columns).toEqual([{ name: 'email', type: 'string' }])
-
-      const callArgs = mockBatchInsertRowsWithTx.mock.calls[0][1] as { rows: unknown[] }
-      expect(callArgs.rows).toEqual([
+      expect(mockImportAppendRows).toHaveBeenCalledTimes(1)
+      expect(appendAdditions()).toEqual([{ name: 'email', type: 'string' }])
+      expect(appendRows()).toEqual([
         { name: 'Alice', age: 30, email: 'a@x.io' },
         { name: 'Bob', age: 40, email: 'b@x.io' },
       ])
@@ -377,8 +408,7 @@ describe('POST /api/table/[tableId]/import', () => {
         })
       )
       expect(response.status).toBe(200)
-      const [, , columns] = mockAddTableColumnsWithTx.mock.calls[0]
-      expect(columns).toEqual([{ name: 'score', type: 'number' }])
+      expect(appendAdditions()).toEqual([{ name: 'score', type: 'number' }])
     })
 
     it('dedupes when sanitized name collides with an existing column', async () => {
@@ -401,8 +431,7 @@ describe('POST /api/table/[tableId]/import', () => {
         })
       )
       expect(response.status).toBe(200)
-      const [, , columns] = mockAddTableColumnsWithTx.mock.calls[0]
-      expect(columns).toEqual([{ name: 'Email_2', type: 'string' }])
+      expect(appendAdditions()).toEqual([{ name: 'Email_2', type: 'string' }])
     })
 
     it('returns 400 when createColumns references a header not in the CSV', async () => {
@@ -415,8 +444,7 @@ describe('POST /api/table/[tableId]/import', () => {
       expect(response.status).toBe(400)
       const data = await response.json()
       expect(data.error).toMatch(/unknown CSV headers/)
-      expect(mockAddTableColumnsWithTx).not.toHaveBeenCalled()
-      expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
+      expect(mockImportAppendRows).not.toHaveBeenCalled()
     })
 
     it('returns 400 when createColumns is not an array of strings', async () => {
@@ -429,7 +457,7 @@ describe('POST /api/table/[tableId]/import', () => {
       expect(response.status).toBe(400)
       const data = await response.json()
       expect(data.error).toMatch(/createColumns must be a JSON array/)
-      expect(mockAddTableColumnsWithTx).not.toHaveBeenCalled()
+      expect(mockImportAppendRows).not.toHaveBeenCalled()
     })
 
     it('returns 400 when createColumns is invalid JSON', async () => {
@@ -444,8 +472,8 @@ describe('POST /api/table/[tableId]/import', () => {
       expect(data.error).toMatch(/createColumns must be valid JSON/)
     })
 
-    it('surfaces addTableColumns failures as 400', async () => {
-      mockAddTableColumnsWithTx.mockRejectedValueOnce(new Error('Column "email" already exists'))
+    it('surfaces column-creation failures from importAppendRows as 400', async () => {
+      mockImportAppendRows.mockRejectedValueOnce(new Error('Column "email" already exists'))
       const response = await callPost(
         createFormData(createCsvFile('name,age,email\nAlice,30,a@x.io'), {
           mode: 'append',
@@ -455,30 +483,30 @@ describe('POST /api/table/[tableId]/import', () => {
       expect(response.status).toBe(400)
       const data = await response.json()
       expect(data.error).toMatch(/already exists/)
-      expect(mockBatchInsertRowsWithTx).not.toHaveBeenCalled()
     })
 
     it('surfaces row insert failures without success when schema was mutated', async () => {
-      mockBatchInsertRowsWithTx.mockRejectedValueOnce(new Error('must be unique'))
+      mockImportAppendRows.mockRejectedValueOnce(new Error('must be unique'))
       const response = await callPost(
         createFormData(createCsvFile('name,age,email\nAlice,30,a@x.io'), {
           mode: 'append',
           createColumns: ['email'],
         })
       )
-      expect(mockAddTableColumnsWithTx).toHaveBeenCalled()
+      // Route forwarded the column addition into the (now atomic) import op.
+      expect(appendAdditions()).toEqual([{ name: 'email', type: 'string' }])
       expect(response.status).toBe(400)
       const data = await response.json()
       expect(data.success).toBeUndefined()
       expect(data.error).toMatch(/must be unique/)
     })
 
-    it('does not call addTableColumns when createColumns is omitted', async () => {
+    it('passes no additions when createColumns is omitted', async () => {
       const response = await callPost(
         createFormData(createCsvFile('name,age\nAlice,30'), { mode: 'append' })
       )
       expect(response.status).toBe(200)
-      expect(mockAddTableColumnsWithTx).not.toHaveBeenCalled()
+      expect(appendAdditions()).toEqual([])
     })
   })
 })

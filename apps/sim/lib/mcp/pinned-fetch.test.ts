@@ -25,12 +25,23 @@ const { mockAgent, mockCreatePinnedLookup, mockUndiciFetch, capturedAgentOptions
     }
   })
 
+const { mockValidateMcpServerSsrf } = vi.hoisted(() => ({
+  mockValidateMcpServerSsrf: vi.fn(),
+}))
+
 vi.mock('undici', () => ({ Agent: mockAgent, fetch: mockUndiciFetch }))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   createPinnedLookup: mockCreatePinnedLookup,
 }))
+vi.mock('@/lib/mcp/domain-check', () => ({
+  validateMcpServerSsrf: mockValidateMcpServerSsrf,
+}))
 
-import { __resetPinnedAgentsForTests, createMcpPinnedFetch } from '@/lib/mcp/pinned-fetch'
+import {
+  __resetPinnedAgentsForTests,
+  createMcpPinnedFetch,
+  createSsrfGuardedMcpFetch,
+} from '@/lib/mcp/pinned-fetch'
 
 describe('createMcpPinnedFetch', () => {
   beforeEach(() => {
@@ -122,6 +133,48 @@ describe('createMcpPinnedFetch', () => {
     expect(agentCloses).toHaveLength(0)
     // The early closure's captured dispatcher is still callable.
     await earlyClient('https://example.com/still-works')
+    expect(mockUndiciFetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('createSsrfGuardedMcpFetch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    capturedAgentOptions.length = 0
+    __resetPinnedAgentsForTests()
+    mockCreatePinnedLookup.mockReturnValue('pinned-lookup-fn')
+    mockUndiciFetch.mockResolvedValue(new Response('ok'))
+  })
+
+  it('validates each request URL and pins to the resolved IP', async () => {
+    mockValidateMcpServerSsrf.mockResolvedValue('203.0.113.10')
+    const fetchLike = createSsrfGuardedMcpFetch()
+    await fetchLike('https://attacker.example/revoke', { method: 'POST' })
+
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith('https://attacker.example/revoke')
+    expect(mockUndiciFetch).toHaveBeenCalledTimes(1)
+    const [url, init] = mockUndiciFetch.mock.calls[0]
+    expect(url).toBe('https://attacker.example/revoke')
+    expect((init as { dispatcher?: unknown }).dispatcher).toBeInstanceOf(mockAgent)
+    expect((init as { method?: string }).method).toBe('POST')
+  })
+
+  it('rejects URLs that resolve to blocked IPs without issuing the request', async () => {
+    mockValidateMcpServerSsrf.mockRejectedValue(new Error('blocked'))
+    const fetchLike = createSsrfGuardedMcpFetch()
+
+    await expect(
+      fetchLike('http://169.254.169.254/latest/meta-data/', { method: 'POST' })
+    ).rejects.toThrow('blocked')
+    expect(mockUndiciFetch).not.toHaveBeenCalled()
+  })
+
+  it('accepts URL objects and validates their href', async () => {
+    mockValidateMcpServerSsrf.mockResolvedValue('203.0.113.10')
+    const fetchLike = createSsrfGuardedMcpFetch()
+    await fetchLike(new URL('https://attacker.example/discover'))
+
+    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith('https://attacker.example/discover')
     expect(mockUndiciFetch).toHaveBeenCalledTimes(1)
   })
 })

@@ -11,7 +11,9 @@ import {
   filterLayoutEligibleBlockIds,
   getBlockMetrics,
   getBlocksByParent,
+  hasFinitePosition,
   prepareContainerDimensions,
+  resolveNoteOverlaps,
   shouldSkipAutoLayout,
   snapPositionToGrid,
 } from '@/lib/workflows/autolayout/utils'
@@ -107,6 +109,10 @@ export function applyTargetedLayout(
     )
   }
 
+  // Relocate notes only where this pass introduced an overlap, comparing against
+  // the original positions so pre-existing note arrangements are preserved.
+  resolveNoteOverlaps(blocksCopy, verticalSpacing, { previousBlocks: blocks })
+
   return blocksCopy
 }
 
@@ -184,7 +190,7 @@ function layoutGroup(
   const invalidPositions = layoutEligibleChildIds.filter((id) => {
     const block = blocks[id]
     if (!block) return false
-    return !hasPosition(block)
+    return !hasFinitePosition(block)
   })
   const needsLayoutSet = new Set([...requestedLayout, ...invalidPositions])
   const needsLayout = Array.from(needsLayoutSet)
@@ -535,14 +541,4 @@ function updateContainerDimensions(
     measuredWidth: parentBlock.data.width,
     measuredHeight: parentBlock.data.height,
   }
-}
-
-/**
- * Checks if a block has a valid, finite position.
- * Returns false for missing, undefined, NaN, or Infinity coordinates.
- */
-function hasPosition(block: BlockState): boolean {
-  if (!block.position) return false
-  const { x, y } = block.position
-  return Number.isFinite(x) && Number.isFinite(y)
 }

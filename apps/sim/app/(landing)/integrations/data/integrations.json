@@ -2493,6 +2493,129 @@
     "tags": ["identity", "automation"]
   },
   {
+    "type": "clickhouse",
+    "slug": "clickhouse",
+    "name": "ClickHouse",
+    "description": "Connect to a ClickHouse database",
+    "longDescription": "Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.",
+    "bgColor": "#f9ff69",
+    "iconName": "ClickHouseIcon",
+    "docsUrl": "https://docs.sim.ai/tools/clickhouse",
+    "operations": [
+      {
+        "name": "Query (SELECT)",
+        "description": "Execute a SELECT query on a ClickHouse database"
+      },
+      {
+        "name": "Execute Raw SQL",
+        "description": "Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database"
+      },
+      {
+        "name": "Insert Row",
+        "description": "Insert a row into a ClickHouse table"
+      },
+      {
+        "name": "Insert Rows (Bulk)",
+        "description": "Insert multiple rows into a ClickHouse table"
+      },
+      {
+        "name": "Update Data",
+        "description": "Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation"
+      },
+      {
+        "name": "Delete Data",
+        "description": "Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation"
+      },
+      {
+        "name": "List Databases",
+        "description": "List all databases on a ClickHouse server"
+      },
+      {
+        "name": "List Tables",
+        "description": "List tables in the connected ClickHouse database"
+      },
+      {
+        "name": "Describe Table",
+        "description": "Describe the columns of a ClickHouse table"
+      },
+      {
+        "name": "Show Create Table",
+        "description": "Get the CREATE TABLE statement (DDL) for a ClickHouse table"
+      },
+      {
+        "name": "Count Rows",
+        "description": "Count rows in a ClickHouse table, optionally filtered"
+      },
+      {
+        "name": "Introspect Schema",
+        "description": "Introspect a ClickHouse database to retrieve table structures, columns, and engines"
+      },
+      {
+        "name": "Create Database",
+        "description": "Create a new database on a ClickHouse server"
+      },
+      {
+        "name": "Drop Database",
+        "description": "Drop a database from a ClickHouse server"
+      },
+      {
+        "name": "Create Table",
+        "description": "Create a new MergeTree-family table in ClickHouse"
+      },
+      {
+        "name": "Drop Table",
+        "description": "Drop a table from a ClickHouse database"
+      },
+      {
+        "name": "Truncate Table",
+        "description": "Remove all rows from a ClickHouse table"
+      },
+      {
+        "name": "Rename Table",
+        "description": "Rename a ClickHouse table"
+      },
+      {
+        "name": "Optimize Table",
+        "description": "Trigger a merge of table parts via OPTIMIZE TABLE"
+      },
+      {
+        "name": "List Partitions",
+        "description": "List active partitions for a ClickHouse table"
+      },
+      {
+        "name": "Drop Partition",
+        "description": "Drop a partition from a ClickHouse table"
+      },
+      {
+        "name": "List Mutations",
+        "description": "List mutations (async ALTER UPDATE/DELETE) for the connected database"
+      },
+      {
+        "name": "List Running Queries",
+        "description": "List currently running queries on a ClickHouse server"
+      },
+      {
+        "name": "Kill Query",
+        "description": "Kill a running query by its query ID"
+      },
+      {
+        "name": "Table Stats",
+        "description": "Get row counts and on-disk size for tables in the connected database"
+      },
+      {
+        "name": "List Clusters",
+        "description": "List configured clusters, shards, and replicas"
+      }
+    ],
+    "operationCount": 26,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["databases", "analytics"],
+    "tags": ["data-warehouse", "data-analytics"]
+  },
+  {
     "type": "cloudflare",
     "slug": "cloudflare",
     "name": "Cloudflare",
@@ -3110,7 +3233,7 @@
       },
       {
         "name": "List Runs",
-        "description": "List recent Dagster runs, optionally filtered by job name."
+        "description": "List Dagster runs with optional filters by job name, status, and creation-time range, plus cursor pagination."
       },
       {
         "name": "List Jobs",
@@ -3151,9 +3274,29 @@
       {
         "name": "Stop Sensor",
         "description": "Disable (stop) a running sensor in Dagster."
+      },
+      {
+        "name": "List Assets",
+        "description": "List assets tracked by a Dagster instance, optionally filtered by key prefix."
+      },
+      {
+        "name": "Get Asset",
+        "description": "Get an asset definition and its latest materialization by asset key."
+      },
+      {
+        "name": "Materialize Assets",
+        "description": "Materialize selected assets by launching their asset job with an asset selection."
+      },
+      {
+        "name": "Report Asset Materialization",
+        "description": "Report an external (runless) materialization or observation for an asset."
+      },
+      {
+        "name": "Wipe Asset",
+        "description": "DESTRUCTIVE: permanently wipes ALL materialization history (every partition) for an asset. This cannot be undone."
       }
     ],
-    "operationCount": 14,
+    "operationCount": 19,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -14219,11 +14362,11 @@
     "type": "tinybird",
     "slug": "tinybird",
     "name": "Tinybird",
-    "description": "Send events and query data with Tinybird",
-    "longDescription": "Interact with Tinybird using the Events API to stream JSON or NDJSON events, or use the Query API to execute SQL queries against Pipes and Data Sources.",
+    "description": "Send events, query data, and manage Data Sources with Tinybird",
+    "longDescription": "Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.",
     "bgColor": "#2EF598",
     "iconName": "TinybirdIcon",
-    "docsUrl": "https://www.tinybird.co/docs/api-reference",
+    "docsUrl": "https://docs.sim.ai/tools/tinybird",
     "operations": [
       {
         "name": "Send Events",
@@ -14232,9 +14375,25 @@
       {
         "name": "Query",
         "description": "Execute SQL queries against Tinybird Pipes and Data Sources using the Query API."
+      },
+      {
+        "name": "Query Pipe Endpoint",
+        "description": "Call a published Tinybird Pipe API Endpoint by name, passing dynamic parameters and receiving structured JSON results."
+      },
+      {
+        "name": "Append Data Source (from URL)",
+        "description": "Append data to a Tinybird Data Source from a remote file URL (CSV, NDJSON, Parquet)."
+      },
+      {
+        "name": "Truncate Data Source",
+        "description": "Delete all rows from a Tinybird Data Source."
+      },
+      {
+        "name": "Delete Data Source Rows",
+        "description": "Delete rows from a Tinybird Data Source matching a SQL condition."
       }
     ],
-    "operationCount": 2,
+    "operationCount": 6,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",

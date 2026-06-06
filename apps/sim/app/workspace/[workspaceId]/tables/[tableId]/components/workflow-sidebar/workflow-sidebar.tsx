@@ -8,6 +8,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, RepeatIcon, SplitIcon, X } from 'lucide-react'
 import {
   Button,
+  ButtonGroup,
+  ButtonGroupItem,
   Combobox,
   type ComboboxOptionGroup,
   FieldDivider,
@@ -34,6 +36,7 @@ import type {
   ColumnDefinition,
   WorkflowGroup,
   WorkflowGroupDependencies,
+  WorkflowGroupDeploymentMode,
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table'
@@ -346,6 +349,11 @@ export function WorkflowSidebarBody({
   // so the user opts in to auto-run explicitly.
   const [autoRun, setAutoRun] = useState<boolean>(() =>
     existingGroup ? existingGroup.autoRun !== false : false
+  )
+  // Which workflow state per-cell runs execute against. Defaults to `'live'`
+  // (the editable draft) for both new and pre-feature groups.
+  const [deploymentMode, setDeploymentMode] = useState<WorkflowGroupDeploymentMode>(
+    () => existingGroup?.deploymentMode ?? 'live'
   )
   // Deps default to none selected. With auto-run on, at least one is required
   // (enforced via `depsValid` below); a legacy group with empty deps will
@@ -709,6 +717,7 @@ export function WorkflowSidebarBody({
             outputs: fullOutputs,
             ...(newOutputColumns.length > 0 ? { newOutputColumns } : {}),
             inputMappings: inputMappingsList,
+            deploymentMode,
             autoRun,
           })
           toast.success(`Saved "${existingGroup.name ?? 'Workflow'}"`)
@@ -740,6 +749,7 @@ export function WorkflowSidebarBody({
           dependencies,
           outputs: groupOutputs,
           inputMappings: inputMappingsList,
+          deploymentMode,
           autoRun,
         }
         await addWorkflowGroup.mutateAsync({ group, outputColumns: newOutputColumns })
@@ -1027,12 +1037,31 @@ export function WorkflowSidebarBody({
                   <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
                 </div>
                 {showAdvanced && (
-                  <InputMappingSection
-                    inputFields={startBlockInputs.existing}
-                    columnOptions={depOptions}
-                    value={inputMappings}
-                    onChange={setInputMappings}
-                  />
+                  <>
+                    {!isEnrichment && (
+                      <>
+                        <div className='flex items-center justify-between pl-0.5'>
+                          <Label>Workflow version</Label>
+                          <ButtonGroup
+                            value={deploymentMode}
+                            onValueChange={(v) =>
+                              setDeploymentMode(v === 'deployed' ? 'deployed' : 'live')
+                            }
+                          >
+                            <ButtonGroupItem value='live'>Live</ButtonGroupItem>
+                            <ButtonGroupItem value='deployed'>Deployed</ButtonGroupItem>
+                          </ButtonGroup>
+                        </div>
+                        <FieldDivider />
+                      </>
+                    )}
+                    <InputMappingSection
+                      inputFields={startBlockInputs.existing}
+                      columnOptions={depOptions}
+                      value={inputMappings}
+                      onChange={setInputMappings}
+                    />
+                  </>
                 )}
               </>
             )}

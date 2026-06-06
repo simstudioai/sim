@@ -29,6 +29,7 @@ import {
   batchUpdateTableRowsContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
+  cancelTableImportContract,
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
@@ -39,6 +40,8 @@ import {
   deleteWorkflowGroupContract,
   getTableContract,
   type InsertTableRowBodyInput,
+  importIntoTableAsyncContract,
+  importTableAsyncContract,
   listActiveDispatchesContract,
   listTableRowsContract,
   listTablesContract,
@@ -78,6 +81,7 @@ import {
   isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
+import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 
 const logger = createLogger('TableQueries')
 
@@ -178,7 +182,15 @@ function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, t
 /**
  * Fetch all tables for a workspace.
  */
-export function useTablesList(workspaceId?: string, scope: TableQueryScope = 'active') {
+export function useTablesList(
+  workspaceId?: string,
+  scope: TableQueryScope = 'active',
+  options?: {
+    /** Poll cadence, or a predicate over the current list that returns a cadence (or `false`). */
+    refetchInterval?: number | false | ((tables: TableDefinition[] | undefined) => number | false)
+  }
+) {
+  const refetchInterval = options?.refetchInterval
   return useQuery({
     queryKey: tableKeys.list(workspaceId, scope),
     queryFn: async ({ signal }) => {
@@ -193,6 +205,10 @@ export function useTablesList(workspaceId?: string, scope: TableQueryScope = 'ac
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+    refetchInterval:
+      typeof refetchInterval === 'function'
+        ? (query) => refetchInterval(query.state.data)
+        : (refetchInterval ?? false),
   })
 }
 
@@ -496,7 +512,13 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
     ) => {
       return requestJson(createTableRowContract, {
         params: { tableId },
-        body: { workspaceId, data: variables.data as RowData, position: variables.position },
+        body: {
+          workspaceId,
+          data: variables.data as RowData,
+          position: variables.position,
+          afterRowId: variables.afterRowId,
+          beforeRowId: variables.beforeRowId,
+        },
       })
     },
     onSuccess: (response) => {
@@ -576,35 +598,47 @@ function reconcileCreatedRow(
       if (!old) return old
       if (old.pages.some((p) => p.rows.some((r) => r.id === row.id))) return old
 
-      const pages = old.pages.map((page) =>
-        page.rows.some((r) => r.position >= row.position)
-          ? {
-              ...page,
-              rows: page.rows.map((r) =>
-                r.position >= row.position ? { ...r, position: r.position + 1 } : r
-              ),
-            }
-          : page
-      )
+      // Use key-ordering only when the new row AND every cached row have an
+      // `orderKey` — then no neighbor bump is needed and order is exact. If any
+      // cached row is un-keyed (mid-backfill), fall back to the legacy `position`
+      // path so un-keyed rows aren't yanked to the front by an empty-string sort.
+      const byKey =
+        row.orderKey != null && old.pages.every((p) => p.rows.every((r) => r.orderKey != null))
+      const sortRows = (rows: TableRow[]) =>
+        byKey
+          ? [...rows].sort((a, b) => (a.orderKey as string).localeCompare(b.orderKey as string))
+          : [...rows].sort((a, b) => a.position - b.position)
+      const fitsAfter = (last: TableRow | undefined) =>
+        last === undefined ||
+        (byKey
+          ? (last.orderKey as string) >= (row.orderKey as string)
+          : last.position >= row.position)
+
+      const pages = byKey
+        ? old.pages
+        : old.pages.map((page) =>
+            page.rows.some((r) => r.position >= row.position)
+              ? {
+                  ...page,
+                  rows: page.rows.map((r) =>
+                    r.position >= row.position ? { ...r, position: r.position + 1 } : r
+                  ),
+                }
+              : page
+          )
 
       let inserted = false
       const nextPages = pages.map((page) => {
         if (inserted) return page
-        const last = page.rows[page.rows.length - 1]
-        const fits = last === undefined || last.position >= row.position
-        if (!fits) return page
+        if (!fitsAfter(page.rows[page.rows.length - 1])) return page
         inserted = true
-        const merged = [...page.rows, row].sort((a, b) => a.position - b.position)
-        return { ...page, rows: merged }
+        return { ...page, rows: sortRows([...page.rows, row]) }
       })
 
       if (!inserted && nextPages.length > 0) {
         const lastIdx = nextPages.length - 1
         const lastPage = nextPages[lastIdx]
-        nextPages[lastIdx] = {
-          ...lastPage,
-          rows: [...lastPage.rows, row].sort((a, b) => a.position - b.position),
-        }
+        nextPages[lastIdx] = { ...lastPage, rows: sortRows([...lastPage.rows, row]) }
       }
 
       const firstPage = nextPages[0]
@@ -639,6 +673,7 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
           workspaceId,
           rows: variables.rows as RowData[],
           positions: variables.positions,
+          orderKeys: variables.orderKeys,
         },
       })
     },
@@ -1087,9 +1122,11 @@ export function useUploadCsvToTable() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, file }: UploadCsvParams) => {
+      // Text fields must precede the file part: the server parses the body as a
+      // stream and needs workspaceId before it reaches the (large) file.
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('workspaceId', workspaceId)
+      formData.append('file', file)
 
       // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
       const response = await fetch('/api/table/import-csv', {
@@ -1114,7 +1151,101 @@ export function useUploadCsvToTable() {
   })
 }
 
+interface ImportCsvAsyncParams {
+  workspaceId: string
+  file: File
+  onProgress?: (percent: number) => void
+}
+
+/**
+ * Uploads a CSV/TSV straight to workspace storage (bypassing the server's request-body
+ * cap) and returns its storage key. Shared by the async-import kickoff hooks.
+ */
+async function uploadCsvToWorkspaceStorage(
+  file: File,
+  workspaceId: string,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  const upload = await runUploadStrategy({
+    file,
+    workspaceId,
+    context: 'workspace',
+    presignedEndpoint: `/api/workspaces/${workspaceId}/files/presigned`,
+    onProgress: onProgress ? (event) => onProgress(event.percent) : undefined,
+  })
+  return upload.key
+}
+
+/**
+ * Uploads a large CSV/TSV straight to storage, then kicks off a background import into a
+ * new table. Resolves with `{ tableId, importId }` immediately — load progress and the
+ * terminal state arrive over the table-events SSE stream (see `useTableEventStream`).
+ */
+export function useImportCsvAsync() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ workspaceId, file, onProgress }: ImportCsvAsyncParams) => {
+      const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
+      const response = await requestJson(importTableAsyncContract, {
+        body: { workspaceId, fileKey, fileName: file.name },
+      })
+      return response.data
+    },
+    onError: (error) => {
+      logger.error('Failed to start async CSV import:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
 export type CsvImportMode = 'append' | 'replace'
+
+interface ImportCsvIntoTableAsyncParams {
+  workspaceId: string
+  tableId: string
+  file: File
+  mode: CsvImportMode
+  mapping?: CsvHeaderMapping
+  createColumns?: string[]
+  onProgress?: (percent: number) => void
+}
+
+/**
+ * Async append/replace import into an existing table for large files: uploads straight to
+ * storage (bypassing the server's request-body cap), then kicks off the background worker.
+ * Resolves immediately; progress + completion arrive over the table-events SSE stream.
+ */
+export function useImportCsvIntoTableAsync() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      tableId,
+      file,
+      mode,
+      mapping,
+      createColumns,
+      onProgress,
+    }: ImportCsvIntoTableAsyncParams) => {
+      const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
+      const response = await requestJson(importIntoTableAsyncContract, {
+        params: { tableId },
+        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns },
+      })
+      return response.data
+    },
+    onError: (error) => {
+      logger.error('Failed to start async CSV import:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateRowCount(queryClient, variables.tableId)
+    },
+  })
+}
 
 interface ImportCsvIntoTableParams {
   workspaceId: string
@@ -1157,8 +1288,9 @@ export function useImportCsvIntoTable() {
       mapping,
       createColumns,
     }: ImportCsvIntoTableParams): Promise<ImportCsvIntoTableResponse> => {
+      // Text fields must precede the file part: the server parses the body as a
+      // stream and needs these fields before it reaches the (large) file.
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('workspaceId', workspaceId)
       formData.append('mode', mode)
       if (mapping) {
@@ -1167,6 +1299,7 @@ export function useImportCsvIntoTable() {
       if (createColumns && createColumns.length > 0) {
         formData.append('createColumns', JSON.stringify(createColumns))
       }
+      formData.append('file', file)
 
       // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
       const response = await fetch(`/api/table/${tableId}/import`, {
@@ -1195,6 +1328,21 @@ export function useImportCsvIntoTable() {
  * Downloads the full contents of a table to the user's device by streaming
  * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
  */
+/**
+ * Cancels an in-flight async import. Plain function (not a hook) because the import dropdown lists
+ * multiple tables and cancels a chosen one by id rather than binding to a single table.
+ */
+export async function cancelTableImport(
+  workspaceId: string,
+  tableId: string,
+  importId: string
+): Promise<void> {
+  await requestJson(cancelTableImportContract, {
+    params: { tableId },
+    body: { workspaceId, importId },
+  })
+}
+
 export async function downloadTableExport(
   tableId: string,
   fileName: string,
@@ -1563,6 +1711,7 @@ interface UpdateWorkflowGroupVariables {
   newOutputColumns?: UpdateWorkflowGroupBodyInput['newOutputColumns']
   mappingUpdates?: UpdateWorkflowGroupBodyInput['mappingUpdates']
   inputMappings?: UpdateWorkflowGroupBodyInput['inputMappings']
+  deploymentMode?: UpdateWorkflowGroupBodyInput['deploymentMode']
   type?: UpdateWorkflowGroupBodyInput['type']
   autoRun?: boolean
 }

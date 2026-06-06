@@ -4,7 +4,8 @@ import {
   createTableColumnBodySchema,
   deleteTableColumnBodySchema,
   deleteTableRowsBodySchema,
-  insertTableRowBodySchema,
+  insertTableRowBodyBaseSchema,
+  rowAnchorMutexRefine,
   rowDataSchema,
   tableIdParamsSchema,
   tableRowParamsSchema,
@@ -60,7 +61,9 @@ export const v1CreateTableBodySchema = createTableBodySchema.omit({
  * Public API insert row body — no caller-controlled `position`. Server places
  * new rows at the tail; ordering by index is an in-app affordance only.
  */
-export const v1InsertTableRowBodySchema = insertTableRowBodySchema.omit({ position: true })
+export const v1InsertTableRowBodySchema = insertTableRowBodyBaseSchema
+  .omit({ position: true })
+  .refine(...rowAnchorMutexRefine)
 
 /**
  * Public API batch insert body — no `positions`. Same rationale as above.

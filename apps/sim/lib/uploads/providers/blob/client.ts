@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import type { BlobServiceClient as BlobServiceClientType } from '@azure/storage-blob'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -339,6 +340,49 @@ export async function downloadFromBlob(
   )
 
   return downloaded
+}
+
+/**
+ * Stream a blob out of storage without buffering it. The caller MUST fully consume or
+ * `destroy()` the returned stream. Used by the large-CSV import worker.
+ */
+export async function downloadFromBlobStream(
+  key: string,
+  customConfig?: BlobConfig
+): Promise<Readable> {
+  const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
+  let blobServiceClient: BlobServiceClientType
+  let containerName: string
+
+  if (customConfig) {
+    if (customConfig.connectionString) {
+      blobServiceClient = BlobServiceClient.fromConnectionString(customConfig.connectionString)
+    } else if (customConfig.accountName && customConfig.accountKey) {
+      const credential = new StorageSharedKeyCredential(
+        customConfig.accountName,
+        customConfig.accountKey
+      )
+      blobServiceClient = new BlobServiceClient(
+        `https://${customConfig.accountName}.blob.core.windows.net`,
+        credential
+      )
+    } else {
+      throw new Error('Invalid custom blob configuration')
+    }
+    containerName = customConfig.containerName
+  } else {
+    blobServiceClient = await getBlobServiceClient()
+    containerName = BLOB_CONFIG.containerName
+  }
+
+  const containerClient = blobServiceClient.getContainerClient(containerName)
+  const blockBlobClient = containerClient.getBlockBlobClient(key)
+
+  const downloadBlockBlobResponse = await blockBlobClient.download()
+  if (!downloadBlockBlobResponse.readableStreamBody) {
+    throw new Error('Failed to get readable stream from blob download')
+  }
+  return downloadBlockBlobResponse.readableStreamBody as Readable
 }
 
 /**
