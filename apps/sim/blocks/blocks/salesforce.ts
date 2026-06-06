@@ -693,7 +693,7 @@ export const SalesforceBlockMeta = {
       icon: SalesforceIcon,
       title: 'Push Salesforce pipeline updates to Slack',
       prompt:
-        'Alert your sales team in Slack when Salesforce opportunities advance, close, or need immediate attention.',
+        'Build a workflow that monitors Salesforce opportunities and posts a Slack notification to your sales team whenever a deal advances, closes, or needs immediate attention.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

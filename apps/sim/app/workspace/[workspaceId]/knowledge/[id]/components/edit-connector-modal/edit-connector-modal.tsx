@@ -9,12 +9,12 @@ import {
   ButtonGroupItem,
   Chip,
   ChipCombobox,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
-  Input,
   Label,
   Skeleton,
   Tooltip,
@@ -435,8 +435,7 @@ function SettingsTab({
                 placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
               />
             ) : (
-              <Input
-                variant='chip'
+              <ChipInput
                 value={
                   Array.isArray(sourceConfig[field.id])
                     ? (sourceConfig[field.id] as string[]).join(', ')

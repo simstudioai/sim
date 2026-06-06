@@ -8,13 +8,13 @@ import {
   ButtonGroupItem,
   Chip,
   ChipCombobox,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
   DatePicker,
-  Input as EmcnInput,
-  Textarea,
   TimePicker,
 } from '@/components/emcn'
 import type { ScheduleType } from '@/lib/workflows/schedules/utils'
@@ -312,28 +312,27 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
         <div className='flex flex-col gap-4.5'>
           <div className='flex flex-col gap-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>
-            <EmcnInput
+            <ChipInput
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value)
                 if (submitError) setSubmitError(null)
               }}
               placeholder='e.g., Daily report generation'
-              variant='chip'
               autoComplete='off'
             />
           </div>
 
           <div className='flex flex-col gap-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>Task description</p>
-            <Textarea
+            <ChipTextarea
               value={prompt}
               onChange={(e) => {
                 setPrompt(e.target.value)
                 if (submitError) setSubmitError(null)
               }}
               placeholder='Describe what this scheduled task should do...'
-              className='min-h-[80px] resize-none'
+              className='min-h-[80px]'
             />
           </div>
 
@@ -350,14 +349,13 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
           {scheduleType === 'minutes' && (
             <div className='flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>Interval (minutes)</p>
-              <EmcnInput
+              <ChipInput
                 type='number'
                 value={minutesInterval}
                 onChange={(e) => setMinutesInterval(e.target.value)}
                 placeholder='15'
                 min={1}
                 max={1440}
-                variant='chip'
               />
             </div>
           )}
@@ -365,14 +363,13 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
           {scheduleType === 'hourly' && (
             <div className='flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>Minute of hour</p>
-              <EmcnInput
+              <ChipInput
                 type='number'
                 value={hourlyMinute}
                 onChange={(e) => setHourlyMinute(e.target.value)}
                 placeholder='0'
                 min={0}
                 max={59}
-                variant='chip'
               />
             </div>
           )}
@@ -401,14 +398,13 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             <div className='flex gap-3'>
               <div className='flex flex-1 flex-col gap-2'>
                 <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of month</p>
-                <EmcnInput
+                <ChipInput
                   type='number'
                   value={monthlyDay}
                   onChange={(e) => setMonthlyDay(e.target.value)}
                   placeholder='1'
                   min={1}
                   max={31}
-                  variant='chip'
                 />
               </div>
               <div className='flex flex-1 flex-col gap-2'>
@@ -421,12 +417,11 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
           {scheduleType === 'custom' && (
             <div className='flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>Cron expression</p>
-              <EmcnInput
+              <ChipInput
                 value={cronExpression}
                 onChange={(e) => setCronExpression(e.target.value)}
                 placeholder='0 9 * * *'
-                variant='chip'
-                className='font-mono'
+                inputClassName='font-mono'
                 autoComplete='off'
               />
             </div>
@@ -477,13 +472,12 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
                 Max runs
                 <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
               </p>
-              <EmcnInput
+              <ChipInput
                 type='number'
                 value={maxRuns}
                 onChange={(e) => setMaxRuns(e.target.value)}
                 placeholder='No limit'
                 min={1}
-                variant='chip'
               />
             </div>
           )}

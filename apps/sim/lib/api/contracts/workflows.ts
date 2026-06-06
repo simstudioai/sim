@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
 const executionIdSchema = z
@@ -213,7 +212,6 @@ export const workflowListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  color: z.string(),
   workspaceId: z.string().nullable(),
   folderId: z.string().nullable(),
   sortOrder: z.number(),
@@ -227,10 +225,6 @@ export const createWorkflowBodySchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().default(''),
-  color: z
-    .string()
-    .optional()
-    .transform((color) => color || getNextWorkflowColor()),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
@@ -241,7 +235,6 @@ export const createWorkflowResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  color: z.string(),
   workspaceId: z.string(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number(),
@@ -257,7 +250,6 @@ export type CreateWorkflowResponse = z.output<typeof createWorkflowResponseSchem
 export const duplicateWorkflowBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  color: z.string().optional(),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
   newId: z.string().uuid().optional(),
@@ -267,7 +259,6 @@ export const duplicateWorkflowResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  color: z.string(),
   workspaceId: z.string(),
   folderId: z.string().nullable(),
   sortOrder: z.number(),
@@ -283,7 +274,6 @@ export type DuplicateWorkflowResponse = z.output<typeof duplicateWorkflowRespons
 export const updateWorkflowBodySchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),
-  color: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
   locked: z.boolean().optional(),
@@ -633,7 +623,6 @@ export const getWorkflowResponseDataSchema = z.object({
   sortOrder: z.number(),
   name: z.string(),
   description: z.string().nullable(),
-  color: z.string(),
   lastSynced: z.coerce.date(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

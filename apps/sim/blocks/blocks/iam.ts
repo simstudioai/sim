@@ -731,7 +731,7 @@ export const IAMBlockMeta = {
       icon: IAMIcon,
       title: 'IAM policy guardrail watcher',
       prompt:
-        'Build a scheduled workflow that snapshots IAM managed policies and role attachments, classifies risk on each change, and pings the security team in Slack when a change broadens permissions.',
+        'Build a scheduled workflow that snapshots AWS IAM managed policies and role attachments, classifies risk on each change, and pings the security team in Slack when a change broadens permissions.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'enterprise'],

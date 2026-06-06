@@ -4,9 +4,8 @@ import { useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
-import { Button, ChipModalTabs, SearchInput } from '@/components/emcn'
-import { Folder } from '@/components/emcn/icons'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
+import { Button, ChipInput, ChipModalTabs } from '@/components/emcn'
+import { Folder, Search, Workflow } from '@/components/emcn/icons'
 import {
   type ColumnOption,
   SortDropdown,
@@ -116,17 +115,7 @@ const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
 
 function ResourceIcon({ resource }: { resource: DeletedResource }) {
   if (resource.type === 'workflow') {
-    const color = resource.color ?? '#888'
-    return (
-      <div
-        className='size-[14px] shrink-0 rounded-[3px] border-[2px]'
-        style={{
-          backgroundColor: color,
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box',
-        }}
-      />
-    )
+    return <Workflow className={`${ICON_CLASS} shrink-0 text-[var(--text-icon)]`} />
   }
 
   if (resource.type === 'folder' || resource.type === 'workspace_folder') {
@@ -200,7 +189,6 @@ export function RecentlyDeleted() {
         type: 'workflow',
         deletedAt: wf.archivedAt ? new Date(wf.archivedAt) : new Date(wf.lastModified),
         workspaceId: wf.workspaceId ?? workspaceId,
-        color: wf.color,
       })
     }
 
@@ -384,7 +372,8 @@ export function RecentlyDeleted() {
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
           <div className='flex items-center gap-2'>
-            <SearchInput
+            <ChipInput
+              icon={Search}
               placeholder='Search deleted items...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

@@ -665,7 +665,7 @@ export const FirecrawlBlockMeta = {
       icon: FirecrawlIcon,
       title: 'SEO content brief generator',
       prompt:
-        'Build a workflow that takes a target keyword, scrapes the top 10 ranking pages, analyzes their content structure and subtopics, then generates a detailed content brief with outline, word count target, questions to answer, and internal linking suggestions.',
+        'Build a workflow that takes a target keyword, uses Firecrawl to scrape the top 10 ranking pages, analyzes their content structure and subtopics, then generates a detailed content brief with outline, word count target, questions to answer, and internal linking suggestions.',
       modules: ['agent', 'files', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'content', 'research'],

@@ -9,9 +9,9 @@ import {
   Search,
   Settings,
   Table,
+  Workflow,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 export type SidebarView =
@@ -208,14 +208,7 @@ export function LandingPreviewSidebar({
                     isActive && 'bg-[#363636]'
                   )}
                 >
-                  <div
-                    className='size-[14px] flex-shrink-0 rounded-[4px] border-[2.5px]'
-                    style={{
-                      backgroundColor: workflow.color,
-                      borderColor: workflowBorderColor(workflow.color),
-                      backgroundClip: 'padding-box',
-                    }}
-                  />
+                  <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                   <div
                     className='min-w-0 flex-1 truncate text-left text-[13px]'
                     style={{ color: C.TEXT_BODY, fontWeight: 450 }}

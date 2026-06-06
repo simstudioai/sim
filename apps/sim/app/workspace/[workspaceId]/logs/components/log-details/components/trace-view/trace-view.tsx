@@ -18,6 +18,7 @@ import {
   Badge,
   Button,
   ChevronDown,
+  ChipInput,
   Code,
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Duplicate,
-  Input,
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
@@ -561,9 +561,8 @@ function DetailCodeSection({
               className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
               onClick={(e) => e.stopPropagation()}
             >
-              <Input
+              <ChipInput
                 ref={searchInputRef}
-                variant='chip'
                 type='text'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1035,17 +1034,14 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
           ) : null
         })()}
         <div className='ml-auto flex items-center gap-1'>
-          <div className='relative'>
-            <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] size-[11px] text-[var(--text-tertiary)]' />
-            <Input
-              variant='chip'
-              type='text'
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='Filter spans'
-              className='w-[140px] pl-[22px]'
-            />
-          </div>
+          <ChipInput
+            icon={Search}
+            type='text'
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder='Filter spans'
+            className='w-[140px]'
+          />
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button

@@ -6,18 +6,17 @@ import {
   Button,
   Chip,
   ChipCombobox,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
-  Input,
   Label,
   Trash,
 } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { getTagUsageContract, type TagUsageData } from '@/lib/api/contracts/knowledge'
-import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
@@ -334,15 +333,14 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                 <div className='space-y-2 rounded-md border p-3'>
                   <div className='flex flex-col gap-2'>
                     <Label htmlFor='tagName'>Tag Name</Label>
-                    <Input
+                    <ChipInput
                       id='tagName'
-                      variant='chip'
                       value={createTagForm.displayName}
                       onChange={(e) =>
                         setCreateTagForm({ ...createTagForm, displayName: e.target.value })
                       }
                       placeholder='Enter tag name'
-                      className={cn(tagNameConflict && 'border-[var(--text-error)]')}
+                      error={Boolean(tagNameConflict)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag()) {
                           e.preventDefault()

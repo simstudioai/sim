@@ -6,7 +6,6 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
@@ -21,7 +20,6 @@ export interface PerformCreateWorkflowParams {
   name: string
   id?: string
   description?: string | null
-  color?: string
   folderId?: string | null
   sortOrder?: number
   deduplicate?: boolean
@@ -36,7 +34,6 @@ export interface PerformCreateWorkflowResult {
     id: string
     name: string
     description?: string | null
-    color?: string
     workspaceId: string
     folderId?: string | null
     sortOrder: number
@@ -55,7 +52,6 @@ export interface PerformUpdateWorkflowParams {
   currentFolderId?: string | null
   name?: string
   description?: string | null
-  color?: string
   folderId?: string | null
   sortOrder?: number
   locked?: boolean
@@ -70,7 +66,6 @@ export interface PerformUpdateWorkflowResult {
     id: string
     name: string
     description: string | null
-    color: string | null
     workspaceId: string | null
     folderId: string | null
     sortOrder: number | null
@@ -211,7 +206,6 @@ export async function performCreateWorkflow(
         ? params.sortOrder
         : await nextWorkflowSortOrder(params.workspaceId, folderId)
     const now = new Date()
-    const color = params.color ?? getNextWorkflowColor()
     const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
     await db.transaction(async (tx) => {
@@ -223,7 +217,6 @@ export async function performCreateWorkflow(
         sortOrder,
         name,
         description: params.description,
-        color,
         lastSynced: now,
         createdAt: now,
         updatedAt: now,
@@ -248,7 +241,6 @@ export async function performCreateWorkflow(
       metadata: {
         name,
         description: params.description || undefined,
-        color,
         workspaceId: params.workspaceId,
         folderId: folderId || undefined,
         sortOrder,
@@ -261,7 +253,6 @@ export async function performCreateWorkflow(
         id: workflowId,
         name,
         description: params.description,
-        color,
         workspaceId: params.workspaceId,
         folderId,
         sortOrder,
@@ -306,7 +297,6 @@ export async function performUpdateWorkflow(
     const updateData: Record<string, unknown> = { updatedAt: new Date() }
     if (params.name !== undefined) updateData.name = params.name
     if (params.description !== undefined) updateData.description = params.description
-    if (params.color !== undefined) updateData.color = params.color
     if (params.folderId !== undefined) updateData.folderId = params.folderId
     if (params.sortOrder !== undefined) updateData.sortOrder = params.sortOrder
     if (params.locked !== undefined) updateData.locked = params.locked
@@ -319,7 +309,6 @@ export async function performUpdateWorkflow(
         id: workflow.id,
         name: workflow.name,
         description: workflow.description,
-        color: workflow.color,
         workspaceId: workflow.workspaceId,
         folderId: workflow.folderId,
         sortOrder: workflow.sortOrder,

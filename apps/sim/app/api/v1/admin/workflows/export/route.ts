@@ -75,7 +75,6 @@ export const POST = withRouteHandler(
             metadata: {
               name: wf.name,
               description: wf.description ?? undefined,
-              color: wf.color,
               exportedAt: new Date().toISOString(),
             },
             variables,
@@ -88,7 +87,6 @@ export const POST = withRouteHandler(
               id: wf.id,
               name: wf.name,
               description: wf.description,
-              color: wf.color,
               workspaceId: wf.workspaceId,
               folderId: wf.folderId,
             },

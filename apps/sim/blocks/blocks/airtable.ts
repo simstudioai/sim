@@ -424,7 +424,7 @@ export const AirtableBlockMeta = {
       icon: AirtableIcon,
       title: 'Trigger Gmail from Airtable records',
       prompt:
-        'Send personalised Gmail messages when Airtable records are created or updated — great for onboarding flows and follow-up sequences.',
+        'Build a workflow that watches Airtable for new or updated records and sends a personalised Gmail message for each one, so outreach and follow-ups go out automatically.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

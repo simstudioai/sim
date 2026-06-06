@@ -3,9 +3,8 @@
 import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { Command } from 'cmdk'
-import { File } from '@/components/emcn/icons'
+import { File, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 
@@ -49,28 +48,21 @@ export const MemoizedWorkflowItem = memo(
   function WorkflowItem({
     value,
     onSelect,
-    color,
     name,
     folderPath,
     isCurrent,
   }: {
     value: string
     onSelect: () => void
-    color: string
     name: string
     folderPath?: string[]
     isCurrent?: boolean
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div
-          className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
-          style={{
-            backgroundColor: color,
-            borderColor: workflowBorderColor(color),
-            backgroundClip: 'padding-box',
-          }}
-        />
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <Workflow className='size-[14px] text-[var(--text-icon)]' />
+        </div>
         <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
           <span className='truncate'>{name}</span>
           {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
@@ -93,7 +85,6 @@ export const MemoizedWorkflowItem = memo(
   },
   (prev, next) =>
     prev.value === next.value &&
-    prev.color === next.color &&
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
     (prev.folderPath === next.folderPath ||

@@ -208,7 +208,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
             variant='subtle'
             className={cn(
               'max-w-[280px] shrink-0 px-2 py-1 text-caption',
-              search.highlightedTagIndex === i && 'ring-1 ring-[var(--border-focus)] ring-offset-1'
+              search.highlightedTagIndex === i && 'ring-1 ring-[var(--text-subtle)] ring-offset-1'
             )}
             onClick={tag.onRemove}
           >

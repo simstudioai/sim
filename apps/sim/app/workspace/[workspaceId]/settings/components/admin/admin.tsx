@@ -7,11 +7,11 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  ChipInput,
   ChipSelect,
   type ComboboxOptionGroup,
-  Input as EmcnInput,
   Label,
-  SearchInput,
+  Search,
   Switch,
 } from '@/components/emcn'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
@@ -399,8 +399,7 @@ export function Admin() {
               Import a workflow by ID along with its associated copilot chats.
             </p>
             <div className='flex gap-2'>
-              <EmcnInput
-                variant='chip'
+              <ChipInput
                 value={workflowId}
                 onChange={(e) => {
                   setWorkflowId(e.target.value)
@@ -433,7 +432,8 @@ export function Admin() {
           <div className='flex flex-col gap-3'>
             <p className='font-medium text-[var(--text-primary)] text-sm'>User Management</p>
             <div className='flex gap-2'>
-              <SearchInput
+              <ChipInput
+                icon={Search}
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -579,8 +579,7 @@ export function Admin() {
                       </div>
                       {banUserId === u.id && !u.banned && (
                         <div className='flex items-center gap-2 pl-[200px]'>
-                          <EmcnInput
-                            variant='chip'
+                          <ChipInput
                             value={banReason}
                             onChange={(e) => setBanReason(e.target.value)}
                             placeholder='Reason (optional)'

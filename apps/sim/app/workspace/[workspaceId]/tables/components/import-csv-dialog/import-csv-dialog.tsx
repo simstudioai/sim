@@ -11,6 +11,7 @@ import {
   ChipCombobox,
   ChipModal,
   ChipModalBody,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
@@ -23,7 +24,6 @@ import {
   TableRow,
   toast,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
 import { type CsvImportMode, useImportCsvIntoTable } from '@/hooks/queries/tables'
@@ -110,8 +110,6 @@ export function ImportCsvDialog({
   const [mapping, setMapping] = useState<Record<string, string | null>>({})
   const [createHeaders, setCreateHeaders] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<CsvImportMode>('append')
-  const [isDragging, setIsDragging] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const importMutation = useImportCsvIntoTable()
 
   function resetState() {
@@ -121,9 +119,7 @@ export function ImportCsvDialog({
     setMapping({})
     setCreateHeaders(new Set())
     setMode('append')
-    setIsDragging(false)
     setParsing(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function handleOpenChange(newOpen: boolean) {
@@ -180,29 +176,8 @@ export function ImportCsvDialog({
     }
   }
 
-  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) void handleFileSelected(file)
-  }
-
-  function handleDragEnter(e: React.DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  function handleDragOver(e: React.DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-  }
-
-  function handleDragLeave(e: React.DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-    setIsDragging(false)
-  }
-
-  function handleDrop(e: React.DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-    setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
+  function handleFilesSelected(files: File[]) {
+    const file = files[0]
     if (file) void handleFileSelected(file)
   }
 
@@ -351,46 +326,17 @@ export function ImportCsvDialog({
       </ChipModalHeader>
       <ChipModalBody>
         {!parsed ? (
-          <div className='flex flex-col gap-2'>
-            <Label>Import CSV</Label>
-            <Button
-              type='button'
-              variant='default'
-              onClick={() => fileInputRef.current?.click()}
-              onDragEnter={handleDragEnter}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              disabled={parsing}
-              className={cn(
-                '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
-                isDragging && 'border-[var(--surface-7)]'
-              )}
-            >
-              <input
-                ref={fileInputRef}
-                type='file'
-                accept='.csv,.tsv'
-                onChange={handleFileInputChange}
-                className='hidden'
-              />
-              <div className='flex flex-col gap-0.5 text-center'>
-                <span className='text-[var(--text-primary)]'>
-                  {parsing
-                    ? 'Parsing...'
-                    : isDragging
-                      ? 'Drop file here'
-                      : 'Drop CSV or TSV here or click to browse'}
-                </span>
-                <span className='text-[var(--text-tertiary)] text-xs'>
-                  Map columns to append or replace rows in this table
-                </span>
-              </div>
-            </Button>
-            {parseError && (
-              <p className='text-[var(--text-error)] text-caption leading-tight'>{parseError}</p>
-            )}
-          </div>
+          <ChipModalField
+            type='file'
+            flush
+            title='Import CSV'
+            accept='.csv,.tsv'
+            disabled={parsing}
+            onChange={handleFilesSelected}
+            label={parsing ? 'Parsing...' : 'Drop CSV or TSV here or click to browse'}
+            description='Map columns to append or replace rows in this table'
+            error={parseError ?? undefined}
+          />
         ) : (
           <div className='flex flex-col gap-4'>
             <div className='flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] p-2'>

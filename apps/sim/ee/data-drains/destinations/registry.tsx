@@ -1,7 +1,14 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { ChipSelect, FormField, Input, SecretInput, Switch, Textarea } from '@/components/emcn'
+import {
+  ChipInput,
+  ChipSelect,
+  ChipTextarea,
+  FormField,
+  SecretInput,
+  Switch,
+} from '@/components/emcn'
 import type { CreateDataDrainBody } from '@/lib/api/contracts/data-drains'
 import type { DestinationType } from '@/lib/data-drains/types'
 
@@ -45,30 +52,26 @@ const s3FormSpec: DestinationFormSpec<S3State> = {
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='Bucket'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
         />
       </FormField>
       <FormField label='Region'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.region}
           onChange={(e) => setState({ ...state, region: e.target.value })}
         />
       </FormField>
       <FormField label='Prefix (optional)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
       </FormField>
       <FormField label='Endpoint (optional, S3-compatible stores)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.endpoint}
           onChange={(e) => setState({ ...state, endpoint: e.target.value })}
           placeholder='https://s3.example.com'
@@ -127,22 +130,20 @@ const gcsFormSpec: DestinationFormSpec<GCSState> = {
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='Bucket'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.bucket}
           onChange={(e) => setState({ ...state, bucket: e.target.value })}
         />
       </FormField>
       <FormField label='Prefix (optional)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
       </FormField>
       <FormField label='Service account JSON key'>
-        <Textarea
+        <ChipTextarea
           value={state.serviceAccountJson}
           onChange={(e) => setState({ ...state, serviceAccountJson: e.target.value })}
           placeholder='{ "type": "service_account", ... }'
@@ -179,30 +180,26 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='Account name'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.accountName}
           onChange={(e) => setState({ ...state, accountName: e.target.value })}
         />
       </FormField>
       <FormField label='Container'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.containerName}
           onChange={(e) => setState({ ...state, containerName: e.target.value })}
         />
       </FormField>
       <FormField label='Prefix (optional)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.prefix}
           onChange={(e) => setState({ ...state, prefix: e.target.value })}
           placeholder='exports/sim'
         />
       </FormField>
       <FormField label='Endpoint suffix (optional)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.endpointSuffix}
           onChange={(e) => setState({ ...state, endpointSuffix: e.target.value })}
           placeholder='blob.core.windows.net'
@@ -261,16 +258,14 @@ const datadogFormSpec: DestinationFormSpec<DatadogState> = {
         />
       </FormField>
       <FormField label='Service (optional)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.service}
           onChange={(e) => setState({ ...state, service: e.target.value })}
           placeholder='sim'
         />
       </FormField>
       <FormField label='Tags (optional, comma-separated)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.tags}
           onChange={(e) => setState({ ...state, tags: e.target.value })}
           placeholder='env:prod,team:platform'
@@ -306,31 +301,28 @@ const bigqueryFormSpec: DestinationFormSpec<BigQueryState> = {
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='Project ID'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.projectId}
           onChange={(e) => setState({ ...state, projectId: e.target.value })}
           placeholder='my-gcp-project'
         />
       </FormField>
       <FormField label='Dataset'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.datasetId}
           onChange={(e) => setState({ ...state, datasetId: e.target.value })}
           placeholder='sim_drains'
         />
       </FormField>
       <FormField label='Table'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.tableId}
           onChange={(e) => setState({ ...state, tableId: e.target.value })}
           placeholder='workflow_logs'
         />
       </FormField>
       <FormField label='Service account JSON key'>
-        <Textarea
+        <ChipTextarea
           value={state.serviceAccountJson}
           onChange={(e) => setState({ ...state, serviceAccountJson: e.target.value })}
           placeholder='{ "type": "service_account", ... }'
@@ -379,66 +371,58 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='Account identifier'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.account}
           onChange={(e) => setState({ ...state, account: e.target.value })}
           placeholder='orgname-accountname'
         />
       </FormField>
       <FormField label='User'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.user}
           onChange={(e) => setState({ ...state, user: e.target.value })}
           placeholder='SIM_DRAIN_USER'
         />
       </FormField>
       <FormField label='Warehouse'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.warehouse}
           onChange={(e) => setState({ ...state, warehouse: e.target.value })}
         />
       </FormField>
       <FormField label='Database'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.database}
           onChange={(e) => setState({ ...state, database: e.target.value })}
         />
       </FormField>
       <FormField label='Schema'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.schema}
           onChange={(e) => setState({ ...state, schema: e.target.value })}
         />
       </FormField>
       <FormField label='Table'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.table}
           onChange={(e) => setState({ ...state, table: e.target.value })}
         />
       </FormField>
       <FormField label='Column (optional, defaults to "DATA")'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.column}
           onChange={(e) => setState({ ...state, column: e.target.value })}
           placeholder='DATA'
         />
       </FormField>
       <FormField label='Role (optional)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.role}
           onChange={(e) => setState({ ...state, role: e.target.value })}
         />
       </FormField>
       <FormField label='Private key (PEM, PKCS8)'>
-        <Textarea
+        <ChipTextarea
           value={state.privateKey}
           onChange={(e) => setState({ ...state, privateKey: e.target.value })}
           placeholder='-----BEGIN PRIVATE KEY-----'
@@ -484,16 +468,14 @@ const webhookFormSpec: DestinationFormSpec<WebhookState> = {
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='URL'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.url}
           onChange={(e) => setState({ ...state, url: e.target.value })}
           placeholder='https://example.com/sim-drain'
         />
       </FormField>
       <FormField label='Signature header (optional)'>
-        <Input
-          variant='chip'
+        <ChipInput
           value={state.signatureHeader}
           onChange={(e) => setState({ ...state, signatureHeader: e.target.value })}
           placeholder='X-Sim-Signature'

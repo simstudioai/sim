@@ -535,16 +535,10 @@ export function WorkspaceResourceDisplay({
 
   const context = toChatMessageContext(data, resource.title)
 
-  const workflowColor =
-    data.type === 'workflow'
-      ? (workflows.find((workflow) => workflow.id === data.id)?.color ?? null)
-      : null
-
   const mentionContent = (
     <>
       <ContextMentionIcon
         context={context}
-        workflowColor={workflowColor}
         className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
       />
       {resource.title}

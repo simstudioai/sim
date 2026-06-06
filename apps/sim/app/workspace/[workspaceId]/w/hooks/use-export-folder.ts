@@ -147,7 +147,6 @@ export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
         const exportData = await fetchWorkflowForExport(collectedWorkflow.id, {
           name: workflowMeta.name,
           description: workflowMeta.description,
-          color: workflowMeta.color,
           folderId: remappedFolderId,
         })
 

@@ -2648,7 +2648,7 @@ export const LinearBlockMeta = {
       icon: LinearIcon,
       title: 'Linear issue updates in Slack',
       prompt:
-        'Post Slack messages when Linear issues are created, assigned, or completed so your team is always in the loop.',
+        'Build a workflow that monitors Linear for new issues, assignments, and completions, and posts a formatted Slack message for each event so your team is always in the loop.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

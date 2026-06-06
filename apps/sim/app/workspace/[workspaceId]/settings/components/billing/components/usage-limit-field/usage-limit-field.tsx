@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Info, toast } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { ChipInput, Info, toast } from '@/components/emcn'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -107,23 +106,16 @@ export function UsageLimitField({
         </Info>
       }
     >
-      <div
-        className={cn(
-          'flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]',
-          !canEdit && 'opacity-60'
-        )}
-      >
-        <input
-          type='number'
-          inputMode='decimal'
-          min={minimumLimit}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={currentLimit != null ? String(currentLimit) : 'Enter monthly usage limit'}
-          disabled={!canEdit}
-          className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none [appearance:textfield] placeholder:text-[var(--text-muted)] focus:outline-none disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-        />
-      </div>
+      <ChipInput
+        type='number'
+        inputMode='decimal'
+        min={minimumLimit}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder={currentLimit != null ? String(currentLimit) : 'Enter monthly usage limit'}
+        disabled={!canEdit}
+        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+      />
     </SettingsSection>
   )
 }

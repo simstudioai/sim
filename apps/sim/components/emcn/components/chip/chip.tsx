@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import Link, { type LinkProps } from 'next/link'
+import { chipFilledSurfaceTokens } from '@/components/emcn/components/chip-input/chip-field-chrome'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -33,8 +34,7 @@ const chipVariants = cva(
     variants: {
       variant: {
         ghost: 'hover-hover:bg-[var(--surface-active)]',
-        filled:
-          'border border-[var(--border-1)] bg-[var(--surface-5)] hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]',
+        filled: `${chipFilledSurfaceTokens} hover-hover:bg-[var(--surface-active)]`,
         primary:
           'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
         destructive:
@@ -77,7 +77,7 @@ function ChipContent({
 }: ChipBaseProps) {
   const isInverse = variant === 'primary' || variant === 'destructive'
   const iconClass = cn('size-[16px] flex-shrink-0', !isInverse && 'text-[var(--text-icon)]')
-  const labelClass = cn('min-w-0 flex-1 truncate text-sm', !isInverse && 'text-[var(--text-body)]')
+  const labelClass = cn('min-w-0 flex-1 truncate', !isInverse && 'text-[var(--text-body)]')
   return (
     <>
       {LeftIcon ? <LeftIcon className={iconClass} /> : null}

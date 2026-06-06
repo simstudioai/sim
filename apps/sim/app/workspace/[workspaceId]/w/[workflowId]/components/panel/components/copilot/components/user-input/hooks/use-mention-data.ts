@@ -163,7 +163,6 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     .map((w) => ({
       id: w.id,
       name: w.name || 'Untitled Workflow',
-      color: w.color,
     }))
 
   /**

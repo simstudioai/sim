@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -18,7 +19,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type FileInputOptions,
-  SearchInput,
+  Search,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
@@ -599,7 +600,8 @@ export function CredentialSets() {
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
           <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <SearchInput
+            <ChipInput
+              icon={Search}
               placeholder='Search polling groups...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

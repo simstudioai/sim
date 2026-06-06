@@ -94,7 +94,6 @@ export const GET = withRouteHandler(
             metadata: {
               name: wf.name,
               description: wf.description ?? undefined,
-              color: wf.color,
               exportedAt: new Date().toISOString(),
             },
             variables,
@@ -105,7 +104,6 @@ export const GET = withRouteHandler(
               id: wf.id,
               name: wf.name,
               description: wf.description,
-              color: wf.color,
               workspaceId: wf.workspaceId,
               folderId: wf.folderId,
             },
@@ -146,7 +144,6 @@ export const GET = withRouteHandler(
           id: wf.workflow.id,
           name: wf.workflow.name,
           description: wf.workflow.description ?? undefined,
-          color: wf.workflow.color ?? undefined,
           folderId: wf.workflow.folderId,
         },
         state: wf.state,

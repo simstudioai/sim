@@ -25,7 +25,6 @@ interface DuplicateWorkflowOptions {
   userId: string
   name: string
   description?: string
-  color?: string
   workspaceId?: string
   folderId?: string | null
   requestId?: string
@@ -38,7 +37,6 @@ interface DuplicateWorkflowResult {
   id: string
   name: string
   description: string | null
-  color: string
   workspaceId: string
   folderId: string | null
   sortOrder: number
@@ -272,7 +270,6 @@ export async function duplicateWorkflow(
     userId,
     name,
     description,
-    color,
     workspaceId,
     folderId,
     requestId = 'unknown',
@@ -367,7 +364,6 @@ export async function duplicateWorkflow(
       sortOrder,
       name: deduplicatedName,
       description: description || source.description,
-      color: color || source.color,
       lastSynced: now,
       createdAt: now,
       updatedAt: now,
@@ -649,7 +645,6 @@ export async function duplicateWorkflow(
       id: newWorkflowId,
       name: deduplicatedName,
       description: description || source.description,
-      color: color || source.color,
       workspaceId: finalWorkspaceId,
       folderId: targetFolderId,
       sortOrder,

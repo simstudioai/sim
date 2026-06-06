@@ -8,14 +8,14 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Input as EmcnInput,
-  SearchInput,
+  Search,
 } from '@/components/emcn'
 import {
   AnthropicIcon,
@@ -345,7 +345,8 @@ export function BYOK() {
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
-          <SearchInput
+          <ChipInput
+            icon={Search}
             placeholder='Search providers...'
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -461,32 +462,34 @@ export function BYOK() {
               tabIndex={-1}
               readOnly
             />
-            <div className='relative'>
-              <EmcnInput
-                variant='chip'
-                type={showApiKey ? 'text' : 'password'}
-                value={apiKeyInput}
-                onChange={(e) => {
-                  setApiKeyInput(e.target.value)
-                  if (error) setError(null)
-                }}
-                placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
-                className='pr-9'
-                name='byok_api_key'
-                autoComplete='off'
-                autoCorrect='off'
-                autoCapitalize='off'
-                data-lpignore='true'
-                data-form-type='other'
-              />
-              <Button
-                variant='ghost'
-                className='-translate-y-1/2 absolute top-1/2 right-[4px] size-[28px] p-0'
-                onClick={() => setShowApiKey(!showApiKey)}
-              >
-                {showApiKey ? <EyeOff className='size-[14px]' /> : <Eye className='size-[14px]' />}
-              </Button>
-            </div>
+            <ChipInput
+              type={showApiKey ? 'text' : 'password'}
+              value={apiKeyInput}
+              onChange={(e) => {
+                setApiKeyInput(e.target.value)
+                if (error) setError(null)
+              }}
+              placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
+              name='byok_api_key'
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              data-lpignore='true'
+              data-form-type='other'
+              endAdornment={
+                <Button
+                  variant='ghost'
+                  className='size-[28px] p-0'
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOff className='size-[14px]' />
+                  ) : (
+                    <Eye className='size-[14px]' />
+                  )}
+                </Button>
+              }
+            />
           </ChipModalField>
           <ChipModalError>{error}</ChipModalError>
         </ChipModalBody>

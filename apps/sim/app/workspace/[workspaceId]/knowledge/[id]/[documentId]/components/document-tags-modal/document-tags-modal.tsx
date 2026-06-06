@@ -7,12 +7,12 @@ import {
   Button,
   Chip,
   ChipCombobox,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
   DatePicker,
-  Input,
   Label,
   Trash,
 } from '@/components/emcn'
@@ -462,15 +462,14 @@ export function DocumentTagsModal({
                           className={cn(tagNameConflict && 'border-[var(--text-error)]')}
                         />
                       ) : (
-                        <Input
+                        <ChipInput
                           id={`tagName-${index}`}
-                          variant='chip'
                           value={editTagForm.displayName}
                           onChange={(e) =>
                             setEditTagForm({ ...editTagForm, displayName: e.target.value })
                           }
                           placeholder='Enter tag name'
-                          className={cn(tagNameConflict && 'border-[var(--text-error)]')}
+                          error={tagNameConflict}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && canSaveTag) {
                               e.preventDefault()
@@ -505,9 +504,8 @@ export function DocumentTagsModal({
                           placeholder='Select value'
                         />
                       ) : editTagForm.fieldType === 'number' ? (
-                        <Input
+                        <ChipInput
                           id={`tagValue-${index}`}
-                          variant='chip'
                           value={editTagForm.value}
                           onChange={(e) => {
                             const val = e.target.value
@@ -536,9 +534,8 @@ export function DocumentTagsModal({
                           placeholder='Select date'
                         />
                       ) : (
-                        <Input
+                        <ChipInput
                           id={`tagValue-${index}`}
-                          variant='chip'
                           value={editTagForm.value}
                           onChange={(e) =>
                             setEditTagForm({ ...editTagForm, value: e.target.value })
@@ -618,15 +615,14 @@ export function DocumentTagsModal({
                       className={cn(tagNameConflict && 'border-[var(--text-error)]')}
                     />
                   ) : (
-                    <Input
+                    <ChipInput
                       id='newTagName'
-                      variant='chip'
                       value={editTagForm.displayName}
                       onChange={(e) =>
                         setEditTagForm({ ...editTagForm, displayName: e.target.value })
                       }
                       placeholder='Enter tag name'
-                      className={cn(tagNameConflict && 'border-[var(--text-error)]')}
+                      error={tagNameConflict}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag) {
                           e.preventDefault()
@@ -661,9 +657,8 @@ export function DocumentTagsModal({
                       placeholder='Select value'
                     />
                   ) : editTagForm.fieldType === 'number' ? (
-                    <Input
+                    <ChipInput
                       id='newTagValue'
-                      variant='chip'
                       value={editTagForm.value}
                       onChange={(e) => {
                         const val = e.target.value
@@ -692,9 +687,8 @@ export function DocumentTagsModal({
                       placeholder='Select date'
                     />
                   ) : (
-                    <Input
+                    <ChipInput
                       id='newTagValue'
-                      variant='chip'
                       value={editTagForm.value}
                       onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
                       placeholder='Enter tag value'

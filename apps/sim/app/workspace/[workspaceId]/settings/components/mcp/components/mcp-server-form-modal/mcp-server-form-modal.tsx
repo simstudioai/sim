@@ -7,13 +7,13 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Button,
   Chip,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
-  Input as EmcnInput,
+  ChipTextarea,
   SecretInput,
-  Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
@@ -150,15 +150,14 @@ function FormattedInput({
 
   return (
     <div className={cn('relative', className)}>
-      <EmcnInput
+      <ChipInput
         ref={ref}
-        variant='chip'
         placeholder={placeholder}
         value={value}
         onChange={onChange}
         onScroll={handleScroll}
         onInput={handleScroll}
-        className='text-transparent caret-[var(--text-primary)] placeholder:text-[var(--text-muted)]'
+        inputClassName='text-transparent caret-[var(--text-primary)]'
       />
       <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-medium font-sans text-sm'>
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
@@ -619,7 +618,7 @@ export function McpServerFormModal({
       <ChipModalBody className='max-h-[82vh] min-h-0 overflow-y-auto'>
         {formMode === 'json' ? (
           <div className='flex flex-col gap-2'>
-            <Textarea
+            <ChipTextarea
               placeholder={`{\n  "mcpServers": {\n    "server-name": {\n      "url": "https://...",\n      "headers": {\n        "X-API-Key": "..."\n      }\n    }\n  }\n}`}
               value={jsonInput}
               onChange={(e) => {
@@ -651,8 +650,7 @@ export function McpServerFormModal({
               readOnly
             />
             <FormField label='Server Name'>
-              <EmcnInput
-                variant='chip'
+              <ChipInput
                 placeholder='e.g., My MCP Server'
                 value={formData.name}
                 onChange={(e) => {
@@ -728,8 +726,7 @@ export function McpServerFormModal({
             {showAdvanced && (
               <div className='flex flex-col gap-2'>
                 <FormField label='Client ID'>
-                  <EmcnInput
-                    variant='chip'
+                  <ChipInput
                     placeholder='OAuth Client ID (optional)'
                     value={formData.oauthClientId || ''}
                     name='mcp_oauth_client_id'
@@ -761,7 +758,6 @@ export function McpServerFormModal({
                       setOauthClientSecretTouched(value.length > 0)
                       setFormData((prev) => ({ ...prev, oauthClientSecret: value }))
                     }}
-                    variant='chip'
                   />
                 </FormField>
                 <p className='text-[var(--text-tertiary)] text-caption'>

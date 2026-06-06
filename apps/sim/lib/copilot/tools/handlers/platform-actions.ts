@@ -66,7 +66,7 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 | Import workflow | Click import button in sidebar → Select file |
 | Multi-select workflows | Mod+Click or Shift+Click workflows in sidebar |
 | Open in new tab | Right-click workflow → Open in New Tab |
-| Rename/Color/Duplicate/Export/Delete | Right-click workflow → action |
+| Rename/Duplicate/Export/Delete | Right-click workflow → action |
 
 ## Quick Reference — Blocks
 | Action | How |

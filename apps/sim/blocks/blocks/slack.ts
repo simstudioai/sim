@@ -2012,7 +2012,7 @@ export const SlackBlockMeta = {
       icon: ClipboardList,
       title: 'Daily standup summary',
       prompt:
-        'Create a scheduled workflow that reads the #standup Slack channel each morning, summarizes what everyone is working on, identifies blockers, and posts a structured recap to a Google Doc.',
+        'Create a scheduled workflow that reads the #standup Slack channel each morning, summarizes what everyone is working on, identifies blockers, and posts a structured recap to a Google Docs document.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'productivity',
       tags: ['team', 'reporting', 'communication'],
@@ -2052,7 +2052,7 @@ export const SlackBlockMeta = {
       icon: SlackIcon,
       title: 'Archive Slack conversations to Notion',
       prompt:
-        'Capture important Slack messages as Notion pages or database entries — ideal for meeting notes, decision logs, and knowledge bases.',
+        'Build a workflow that captures important Slack messages and threads and saves them as Notion pages or database entries, so meeting notes and decisions are always documented.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

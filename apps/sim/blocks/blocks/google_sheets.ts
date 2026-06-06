@@ -1116,7 +1116,7 @@ export const GoogleSheetsBlockMeta = {
       icon: GoogleSheetsIcon,
       title: 'Google Sheets CRM updater',
       prompt:
-        'Build a scheduled workflow that pulls Salesforce opportunities, refreshes a Google Sheet that ops uses for weekly forecasting, and notes the last-updated timestamp.',
+        'Build a scheduled workflow that pulls Salesforce opportunities, refreshes the Google Sheets spreadsheet that ops uses for weekly forecasting, and notes the last-updated timestamp.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'reporting'],
@@ -1126,7 +1126,7 @@ export const GoogleSheetsBlockMeta = {
       icon: GoogleSheetsIcon,
       title: 'Google Sheets data validator',
       prompt:
-        'Create a scheduled workflow that validates a Google Sheet against a typed schema, flags rows with errors, writes a remediation column, and emails the sheet owner.',
+        'Create a scheduled workflow that validates a Google Sheets spreadsheet against a typed schema, flags rows with errors, writes a remediation column, and emails the sheet owner.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['team', 'analysis'],
@@ -1136,7 +1136,7 @@ export const GoogleSheetsBlockMeta = {
       icon: GoogleSheetsIcon,
       title: 'Google Sheets inventory sync',
       prompt:
-        'Build a workflow that pulls Shopify inventory into a Google Sheet hourly, calculates days-of-cover, and highlights items needing reorder for the ops team.',
+        'Build a workflow that pulls Shopify inventory into Google Sheets hourly, calculates days-of-cover, and highlights items needing reorder for the ops team.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['ecommerce', 'sync'],
@@ -1157,7 +1157,7 @@ export const GoogleSheetsBlockMeta = {
       icon: GoogleSheetsIcon,
       title: 'Send Slack messages from Google Sheets',
       prompt:
-        'Watch a spreadsheet for new rows or changes, then post formatted Slack updates to keep stakeholders informed in real time.',
+        'Build a workflow that watches a Google Sheets spreadsheet for new rows or changes, then posts formatted Slack updates to keep stakeholders informed in real time.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],
@@ -1168,7 +1168,7 @@ export const GoogleSheetsBlockMeta = {
       icon: GoogleSheetsIcon,
       title: 'Sync Google Sheets data into Notion',
       prompt:
-        'Transform spreadsheet rows into structured Notion database entries for richer documentation and cross-team project tracking.',
+        'Create an agent that reads rows from Google Sheets and transforms them into structured Notion database entries for richer documentation and cross-team project tracking.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],

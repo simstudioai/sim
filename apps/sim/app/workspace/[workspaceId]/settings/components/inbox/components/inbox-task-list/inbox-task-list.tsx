@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, ChipSelect, SearchInput } from '@/components/emcn'
+import { Badge, ChipInput, ChipSelect, Search } from '@/components/emcn'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 
@@ -67,7 +67,8 @@ export function InboxTaskList() {
   return (
     <div className='flex flex-col gap-3'>
       <div className='flex items-center gap-2'>
-        <SearchInput
+        <ChipInput
+          icon={Search}
           placeholder='Search tasks...'
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}

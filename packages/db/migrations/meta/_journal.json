@@ -1590,6 +1590,13 @@
       "when": 1780729765218,
       "tag": "0227_strange_killraven",
       "breakpoints": true
+    },
+    {
+      "idx": 228,
+      "version": "7",
+      "when": 1780732953964,
+      "tag": "0228_simple_mojo",
+      "breakpoints": true
     }
   ]
 }

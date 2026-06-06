@@ -4,13 +4,13 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Chip,
+  ChipDropdown,
+  type ChipDropdownOption,
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  ChipMultiSelect,
-  type ChipMultiSelectOption,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
@@ -55,7 +55,7 @@ export function OrganizationInviteModal({
   const inviteMember = useInviteMember()
   const isSubmitting = inviteMember.isPending
 
-  const workspaceOptions = useMemo<ChipMultiSelectOption[]>(
+  const workspaceOptions = useMemo<ChipDropdownOption[]>(
     () => workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
     [workspaces]
   )
@@ -145,8 +145,9 @@ export function OrganizationInviteModal({
           disabled={isSubmitting}
         />
         <ChipModalField type='custom' title='Workspaces'>
-          <ChipMultiSelect
-            values={selectedWorkspaceIds}
+          <ChipDropdown
+            multiple
+            value={selectedWorkspaceIds}
             onChange={setSelectedWorkspaceIds}
             options={workspaceOptions}
             allLabel='Select workspaces'

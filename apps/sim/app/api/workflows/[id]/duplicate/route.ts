@@ -32,7 +32,7 @@ export const POST = withRouteHandler(
     try {
       const parsed = await parseRequest(duplicateWorkflowContract, req, context)
       if (!parsed.success) return parsed.response
-      const { name, description, color, workspaceId, folderId, newId } = parsed.data.body
+      const { name, description, workspaceId, folderId, newId } = parsed.data.body
 
       logger.info(`[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${userId}`)
 
@@ -41,7 +41,6 @@ export const POST = withRouteHandler(
         userId,
         name,
         description,
-        color,
         workspaceId,
         folderId,
         requestId,

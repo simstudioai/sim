@@ -360,9 +360,25 @@ For equal height and width, use the `size-*` shorthand — never `h-[Npx] w-[Npx
 <Icon className='size-[14px] text-[var(--text-icon)]' />
 ```
 
+On chip components (see "EMCN Components"), drive chrome through PROPS, not `className`: `error` for the error state, `icon`/`endAdornment` for adornments, `inputClassName` for the inner field. `className` carries ONLY layout/sizing — never re-specify canonical chrome (border, fill, radius, height, text/icon color) or add focus rings. Full consumer rules in `.claude/rules/sim-styling.md`.
+
 ## EMCN Components
 
-Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA when 2+ variants exist.
+Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA only when 2+ genuine variants exist; otherwise plain `cn()`.
+
+The chip pill is the canonical UI chrome and is progressively replacing the legacy EMCN primitives — prefer the chip equivalents (`ChipInput`/`ChipTextarea` over `Input`/`Textarea`, plus `Chip`/`ChipLink`, `ChipDropdown`, `ChipSelect`/`ChipCombobox`, `ChipModal`, `ChipSwitch`, `ChipTag`, `ChipDatePicker`). Components OWN their chrome (single source of truth) — consumers pass props, not class overrides. Authoring rules in `.claude/rules/emcn-components.md`; consumer rules in `.claude/rules/sim-styling.md`.
+
+## Design-System Consolidation
+
+Principles when building or migrating shared UI:
+
+- One canonical source of truth for shared chrome — compose it, never re-derive it per consumer.
+- Props-driven API over `className` overrides — reaching for `className` to change chrome is a smell; expose a prop instead.
+- Discriminated-union props for modes (e.g. `ChipDropdown multiple`) over near-duplicate components.
+- Delete legacy variants/components after migration — no parallel paths left behind.
+- Plain `cn()` for a single error/state toggle; CVA only for genuinely multiple variants.
+- Align consumers to the canonical defaults — normal weight, `--text-body` text, `--text-icon` icons.
+- Verify referenced CSS vars exist — an undefined var silently falls back to `currentColor` (black-bug).
 
 ## Testing
 

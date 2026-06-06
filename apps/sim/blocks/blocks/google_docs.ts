@@ -240,7 +240,7 @@ export const GoogleDocsBlockMeta = {
       icon: GoogleDocsIcon,
       title: 'Google Docs translation copy',
       prompt:
-        'Build a workflow that takes a Google Doc and creates translated copies into target languages with Google Translate, links them in the source, and notifies the localization team.',
+        'Build a workflow that takes a Google Docs document and creates translated copies into target languages with Google Translate, links them in the source, and notifies the localization team.',
       modules: ['agent', 'workflows'],
       category: 'marketing',
       tags: ['content', 'enterprise'],
@@ -248,9 +248,9 @@ export const GoogleDocsBlockMeta = {
     },
     {
       icon: GoogleDocsIcon,
-      title: 'Meeting notes to Google Doc',
+      title: 'Meeting notes to Google Docs',
       prompt:
-        'Create a workflow that after a meeting pulls the transcript, summarizes decisions, action items, and owners with an agent, and creates a formatted Google Doc in the shared team folder with a link posted to Slack.',
+        'Create a workflow that after a meeting pulls the transcript, summarizes decisions, action items, and owners with an agent, and creates a formatted Google Docs document in the shared team folder with a link posted to Slack.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'meeting', 'reporting'],
@@ -260,7 +260,7 @@ export const GoogleDocsBlockMeta = {
       icon: GoogleDocsIcon,
       title: 'Google Docs proposal generator',
       prompt:
-        'Build a workflow that on a closed-won deal reads the account details, creates a Google Doc from the proposal template, fills in customer name, scope, and pricing, and shares the draft with the account owner for review.',
+        'Build a workflow that on a closed-won deal reads the account details, creates a Google Docs document from the proposal template, fills in customer name, scope, and pricing, and shares the draft with the account owner for review.',
       modules: ['agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'content', 'automation'],
@@ -269,7 +269,7 @@ export const GoogleDocsBlockMeta = {
       icon: GoogleDocsIcon,
       title: 'Weekly report writer',
       prompt:
-        'Create a scheduled weekly workflow that reads metrics from my tables, writes a narrative status report with an agent, and appends the new section to a running Google Doc so leadership has one living document.',
+        'Create a scheduled weekly workflow that reads metrics from my tables, writes a narrative status report with an agent, and appends the new section to a running Google Docs document so leadership has one living record.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['reporting', 'analysis'],

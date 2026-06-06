@@ -543,7 +543,6 @@
     "metadata": {
       "name": "email-triage",
       "description": "New workflow",
-      "color": "#048628",
       "exportedAt": "2026-03-09T21:40:19.012Z"
     },
     "variables": {}

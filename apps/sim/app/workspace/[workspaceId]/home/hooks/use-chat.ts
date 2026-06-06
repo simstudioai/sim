@@ -105,7 +105,6 @@ import {
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
@@ -1373,7 +1372,6 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
     name: title,
     lastModified: new Date(),
     createdAt: new Date(),
-    color: getNextWorkflowColor(),
     workspaceId,
     folderId: null,
     sortOrder,

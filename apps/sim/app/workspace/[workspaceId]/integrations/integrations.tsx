@@ -6,12 +6,13 @@ import { useParams } from 'next/navigation'
 import {
   ArrowRight,
   ChevronDown,
+  ChipInput,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  SearchInput,
+  Search,
 } from '@/components/emcn'
 import {
   blockTypeToIconMap,
@@ -253,7 +254,8 @@ export function Integrations() {
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <ShowcaseWithExplore prompt='Explain the integrations in Sim and what I should connect.' />
           <div className='flex items-center gap-2'>
-            <SearchInput
+            <ChipInput
+              icon={Search}
               className='min-w-0 flex-1'
               placeholder='Search integrations...'
               value={searchTerm}
