@@ -31,7 +31,7 @@ function CreditsChipInner() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { data: memberCredits } = useMyMemberCredits(workspaceId)
+  const { data: memberCredits, isLoading: memberLoading } = useMyMemberCredits(workspaceId)
 
   const upgradeHref = `/workspace/${workspaceId}/upgrade`
 
@@ -56,6 +56,13 @@ function CreditsChipInner() {
       {formatCredits(dollars)}
     </Chip>
   )
+
+  // Wait for the per-member cap result before rendering: until it resolves,
+  // `limitDollars` is null and a capped member would briefly see the larger
+  // pooled number. Disabled (no workspace) → not loading, so non-org users are
+  // unaffected; cached after the first load (30s staleTime), so it's a one-time
+  // wait, not a per-navigation one.
+  if (memberLoading) return null
 
   /**
    * Pooled/plan remaining (dollars): unused plan allowance plus any purchased
