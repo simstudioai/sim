@@ -2,15 +2,10 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { randomFloat } from '@sim/utils/random'
-import {
-  type SecureFetchOptions,
-  type SecureFetchResponse,
-  secureFetchWithValidation,
-} from '@/lib/core/security/input-validation.server'
 
 const logger = createLogger('RetryUtils')
 
-interface HTTPError extends Error {
+export interface HTTPError extends Error {
   status?: number
   statusText?: string
   retryAfterMs?: number
@@ -213,60 +208,4 @@ export async function fetchWithRetry(
 
     return response
   }, retryOptions)
-}
-
-export interface SecureFetchRetryOptions extends RetryOptions {
-  allowHttp?: boolean
-  timeout?: number
-  maxResponseBytes?: number
-}
-
-/**
- * SSRF-safe counterpart to {@link fetchWithRetry} for connector requests to
- * user-controlled hosts. Every attempt re-runs {@link secureFetchWithValidation}
- * (DNS resolution, private/loopback/reserved-IP rejection, IP-pinned connection,
- * redirect re-validation); retry/backoff semantics mirror {@link fetchWithRetry}.
- */
-export async function secureFetchWithRetry(
-  url: string,
-  options: SecureFetchOptions = {},
-  retryOptions: SecureFetchRetryOptions = {}
-): Promise<SecureFetchResponse> {
-  const { allowHttp, timeout, maxResponseBytes, ...retry } = retryOptions
-
-  return retryWithExponentialBackoff(async () => {
-    const response = await secureFetchWithValidation(
-      url,
-      {
-        ...options,
-        ...(allowHttp !== undefined ? { allowHttp } : {}),
-        ...(timeout !== undefined ? { timeout } : {}),
-        ...(maxResponseBytes !== undefined ? { maxResponseBytes } : {}),
-      },
-      'url'
-    )
-
-    if (!response.ok && isRetryableError({ status: response.status })) {
-      const errorText = await response.text()
-      const error: HTTPError = new Error(
-        `HTTP ${response.status}: ${response.statusText} - ${errorText}`
-      )
-      error.status = response.status
-      error.statusText = response.statusText
-
-      const retryAfter = response.headers.get('retry-after')
-      if (retryAfter) {
-        const waitMs = Number.isNaN(Number(retryAfter))
-          ? Math.max(0, new Date(retryAfter).getTime() - Date.now())
-          : Number(retryAfter) * 1000
-        if (waitMs > 0) {
-          error.retryAfterMs = waitMs
-        }
-      }
-
-      throw error
-    }
-
-    return response
-  }, retry)
 }

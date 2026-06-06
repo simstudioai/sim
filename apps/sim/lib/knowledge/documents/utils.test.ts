@@ -11,7 +11,8 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithValidation: mockSecureFetchWithValidation,
 }))
 
-import { isRetryableError, secureFetchWithRetry } from './utils'
+import { secureFetchWithRetry } from './secure-fetch.server'
+import { isRetryableError } from './utils'
 
 /** Builds a minimal SecureFetchResponse-shaped object for tests. */
 function fakeResponse(
