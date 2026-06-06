@@ -63,7 +63,8 @@ export interface ClickHouseIntrospectionResult {
  */
 async function clickhouseRequest(
   config: ClickHouseConnectionConfig,
-  statement: string
+  statement: string,
+  options: { readOnly?: boolean } = {}
 ): Promise<ClickHouseHttpResult> {
   const hostValidation = await validateDatabaseHost(config.host, 'host')
   if (!hostValidation.isValid) {
@@ -73,6 +74,12 @@ async function clickhouseRequest(
   const protocol = config.secure ? 'https' : 'http'
   const url = new URL(`${protocol}://${config.host}:${config.port}/`)
   url.searchParams.set('database', config.database)
+  if (options.readOnly) {
+    // Server-enforced read-only: ClickHouse rejects any write/DDL and forbids the
+    // query from re-enabling writes via `SET readonly=0`. This is the real boundary
+    // for the query operation; the SQL-shape checks below are defense-in-depth.
+    url.searchParams.set('readonly', '1')
+  }
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -293,7 +300,9 @@ export async function executeClickHouseQuery(
       )
     }
   }
-  const result = await clickhouseRequest(config, ensureJsonFormat(query))
+  const result = await clickhouseRequest(config, ensureJsonFormat(query), {
+    readOnly: options.enforceReadOnly,
+  })
   return parseRowsResult(result)
 }
 
