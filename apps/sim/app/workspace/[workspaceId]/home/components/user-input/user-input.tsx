@@ -139,6 +139,10 @@ interface UserInputProps {
 
 export interface UserInputHandle {
   loadQueuedMessage: (msg: QueuedMessage) => void
+  /** Populates the textarea with `text` (running it through auto-mention
+   * chipification), focuses the input, and places the caret at the end.
+   * Does NOT submit. Safe to call with the same text twice in a row. */
+  populatePrompt: (text: string) => void
 }
 
 export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
@@ -451,6 +455,17 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         }))
         files.restoreAttachedFiles(restored)
         contextManagement.setSelectedContexts(msg.contexts ?? [])
+        requestAnimationFrame(() => {
+          const textarea = textareaRef.current
+          if (!textarea) return
+          textarea.focus()
+          const end = textarea.value.length
+          textarea.setSelectionRange(end, end)
+        })
+      },
+      populatePrompt: (text: string) => {
+        const converted = applyAutoMentions(text)
+        setValue(converted)
         requestAnimationFrame(() => {
           const textarea = textareaRef.current
           if (!textarea) return

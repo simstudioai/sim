@@ -28,6 +28,7 @@ import {
   MothershipView,
   SuggestedActions,
   UserInput,
+  type UserInputHandle,
 } from './components'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
@@ -52,6 +53,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
+  const initialViewUserInputRef = useRef<UserInputHandle>(null)
 
   const [isInputEntering, setIsInputEntering] = useState(false)
 
@@ -312,6 +314,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           </h1>
           <div ref={initialViewInputRef} className='w-full'>
             <UserInput
+              ref={initialViewUserInputRef}
               defaultValue={initialPrompt}
               draftScopeKey={draftScopeKey}
               onSubmit={handleSubmit}
@@ -321,7 +324,9 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
               onContextAdd={handleContextAdd}
               onContextRemove={handleInitialContextRemove}
             />
-            <SuggestedActions onSelectPrompt={(prompt) => handleSubmit(prompt)} />
+            <SuggestedActions
+              onSelectPrompt={(prompt) => initialViewUserInputRef.current?.populatePrompt(prompt)}
+            />
           </div>
         </div>
       </div>
