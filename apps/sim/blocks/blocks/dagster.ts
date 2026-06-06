@@ -686,8 +686,8 @@ export const DagsterBlockMeta = {
       icon: DagsterIcon,
       title: 'Dagster asset freshness watcher',
       prompt:
-        'Build a workflow that monitors Dagster asset freshness policies, alerts when a critical asset becomes stale, and opens a Linear ticket for the data-platform team.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Dagster assets, checks each critical asset’s latest materialization timestamp against a freshness threshold, alerts when an asset becomes stale, and opens a Linear ticket for the data-platform team.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['linear'],

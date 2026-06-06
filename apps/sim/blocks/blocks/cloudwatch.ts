@@ -914,8 +914,8 @@ export const CloudWatchBlockMeta = {
       icon: CloudWatchIcon,
       title: 'CloudWatch incident scribe',
       prompt:
-        'Build a workflow triggered by a CloudWatch alarm transition to ALARM that captures the surrounding metrics, recent deploys, and log excerpts into a timeline file for the incident review.',
-      modules: ['agent', 'files', 'workflows'],
+        'Build a scheduled workflow that polls CloudWatch alarms every few minutes for any in ALARM state, captures the surrounding metrics and recent log excerpts, and writes a timeline file for the incident review.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
     },

@@ -548,23 +548,23 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
 }
 
 export const GoogleVaultBlockMeta = {
-  tags: ['google-workspace', 'secrets-management', 'document-processing'],
+  tags: ['google-workspace', 'document-processing'],
   templates: [
     {
       icon: ShieldCheck,
       title: 'Google Vault legal hold automator',
       prompt:
-        'Build a workflow that on a legal hold instruction in Salesforce or a form creates a Google Vault hold for the named custodians, captures the audit, and notifies legal.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Salesforce for new legal-hold instructions, creates a Google Vault matter and hold for the named custodians, and notifies legal with the hold details.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
       alsoIntegrations: ['salesforce'],
     },
     {
       icon: ShieldCheck,
-      title: 'Google Vault retention auditor',
+      title: 'Google Vault hold auditor',
       prompt:
-        'Create a scheduled workflow that audits Google Vault retention rules per OU and writes findings of missing or conflicting rules to a compliance review table.',
+        'Create a scheduled workflow that lists Google Vault matters and holds, flags custodians missing expected holds, and writes the findings to a compliance review table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
@@ -580,28 +580,28 @@ export const GoogleVaultBlockMeta = {
     },
     {
       icon: ShieldCheck,
-      title: 'Google Vault hold release watcher',
+      title: 'Google Vault hold reviewer',
       prompt:
-        'Create a workflow that watches Google Vault legal-hold releases, requires legal team approval before the release applies, and writes the chain of custody.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that lists Google Vault holds across matters, summarizes their custodians and scope, and writes a review report for the legal team to approve.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
     },
     {
       icon: ShieldCheck,
-      title: 'Google Vault search alerter',
+      title: 'Google Vault sensitive-term exporter',
       prompt:
-        'Build a scheduled workflow that runs sensitive-term Google Vault searches weekly, flags new matching documents, and writes them to a compliance review queue.',
+        'Build a scheduled workflow that creates Google Vault exports for sensitive search terms weekly, downloads the export results, and writes the matching items to a compliance review queue.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
     },
     {
       icon: ShieldCheck,
-      title: 'Google Vault audit-event archiver',
+      title: 'Google Vault export archiver',
       prompt:
-        'Create a scheduled workflow that exports Google Vault audit events to S3 long-term storage with retention rotation and writes the manifest to a compliance table.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Create a scheduled workflow that creates Google Vault matter exports, downloads the export files, archives them to S3 long-term storage, and writes the manifest to a compliance table.',
+      modules: ['scheduled', 'tables', 'files', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
       alsoIntegrations: ['s3'],

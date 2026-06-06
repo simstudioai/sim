@@ -637,8 +637,8 @@ export const AgentMailBlockMeta = {
       icon: AgentMailIcon,
       title: 'AgentMail support concierge',
       prompt:
-        'Create a knowledge base from product docs and past resolutions, then build a workflow that watches an AgentMail inbox for new threads, drafts a contextual reply with citations, and either sends it or saves it as a draft based on confidence.',
-      modules: ['knowledge-base', 'agent', 'workflows'],
+        'Create a knowledge base from product docs and past resolutions, then build a scheduled workflow that polls an AgentMail inbox for new threads, drafts a contextual reply with citations, and either sends it or saves it as a draft based on confidence.',
+      modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation', 'communication'],
     },
@@ -646,8 +646,8 @@ export const AgentMailBlockMeta = {
       icon: AgentMailIcon,
       title: 'AgentMail draft assistant',
       prompt:
-        'Build a workflow that watches AgentMail threads, drafts a reply that matches my tone using my recent sent messages as reference, and updates the existing draft each time the thread receives a new message so the draft stays current.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls AgentMail threads, drafts a reply that matches my tone using my recent sent messages as reference, and updates the existing draft each time the thread receives a new message so the draft stays current.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['individual', 'communication', 'automation'],
     },
@@ -664,8 +664,8 @@ export const AgentMailBlockMeta = {
       icon: AgentMailIcon,
       title: 'AgentMail + Loops support touch-points',
       prompt:
-        'Create a workflow that watches AgentMail support threads and sends a Loops event for each customer milestone — first contact, resolved, escalated — so Loops can automate the right follow-up email based on real support outcomes.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that polls AgentMail support threads and sends a Loops event for each customer milestone — first contact, resolved, escalated — so Loops can automate the right follow-up email based on real support outcomes.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation', 'communication'],
       alsoIntegrations: ['loops'],
@@ -683,8 +683,8 @@ export const AgentMailBlockMeta = {
       icon: AgentMailIcon,
       title: 'AgentMail thread escalation router',
       prompt:
-        'Create a workflow that monitors AgentMail inboxes for new messages, detects urgent or negative threads with an agent, forwards the full thread to the on-call address, and posts a Slack alert so nothing high-priority sits unanswered.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that polls AgentMail inboxes for new messages, detects urgent or negative threads with an agent, forwards the full thread to the on-call address, and posts a Slack alert so nothing high-priority sits unanswered.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation', 'monitoring'],
       alsoIntegrations: ['slack'],

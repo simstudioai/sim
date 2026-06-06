@@ -126,9 +126,9 @@ export const HuggingFaceBlockMeta = {
   templates: [
     {
       icon: HuggingFaceIcon,
-      title: 'Hugging Face zero-shot classifier',
+      title: 'Hugging Face row classifier',
       prompt:
-        'Build a workflow that runs each row in a table through a Hugging Face zero-shot classification model with custom labels, writes the predicted label and confidence back, and flags low-confidence rows for review.',
+        'Build a workflow that runs each row in a table through a Hugging Face chat model with custom labels in the prompt, writes the predicted label and a confidence rating back, and flags low-confidence rows for review.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['analysis', 'automation'],
@@ -137,7 +137,7 @@ export const HuggingFaceBlockMeta = {
       icon: HuggingFaceIcon,
       title: 'Open-source sentiment scorer',
       prompt:
-        'Create a workflow that scores customer feedback with a Hugging Face sentiment model, writes sentiment and score columns back to the table, and pings Slack on a sudden negative spike.',
+        'Create a workflow that scores customer feedback with a Hugging Face chat model, writes sentiment and score columns back to the table, and pings Slack on a sudden negative spike.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'analysis'],
@@ -145,9 +145,9 @@ export const HuggingFaceBlockMeta = {
     },
     {
       icon: HuggingFaceIcon,
-      title: 'Hugging Face cross-encoder reranker',
+      title: 'Hugging Face candidate reranker',
       prompt:
-        'Create a retrieval pipeline that fetches top-50 candidates from a knowledge base, reranks them with a Hugging Face cross-encoder, and returns the top-5 to the answering agent for higher precision.',
+        'Create a retrieval pipeline that fetches top-50 candidates from a knowledge base, reranks them with a Hugging Face chat model scoring relevance, and returns the top-5 to the answering agent for higher precision.',
       modules: ['knowledge-base', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'automation'],
@@ -156,7 +156,7 @@ export const HuggingFaceBlockMeta = {
       icon: HuggingFaceIcon,
       title: 'Hugging Face PII redactor',
       prompt:
-        'Build a workflow that runs a Hugging Face NER model over text uploads to detect PII, redacts sensitive entities, and writes the cleaned text to a downstream table.',
+        'Build a workflow that runs a Hugging Face chat model over text uploads to detect PII, redacts the sensitive entities, and writes the cleaned text to a downstream table.',
       modules: ['files', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'automation'],

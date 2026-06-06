@@ -418,9 +418,9 @@ export const MailgunBlockMeta = {
   templates: [
     {
       icon: MailgunIcon,
-      title: 'Mailgun mailing list manager',
+      title: 'Mailgun mailing list builder',
       prompt:
-        'Create a workflow that watches a table of contact opt-ins, creates or updates Mailgun mailing lists by segment, adds and removes members as the table changes, and reports list health weekly to a tracking table.',
+        'Create a scheduled workflow that watches a table of contact opt-ins, creates the matching Mailgun mailing lists by segment, adds each new opt-in as a member, and reports list health weekly to a tracking table.',
       modules: ['tables', 'scheduled', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'sync', 'automation'],
@@ -467,7 +467,7 @@ export const MailgunBlockMeta = {
       icon: MailgunIcon,
       title: 'Mailgun bounce list hygiene',
       prompt:
-        'Build a scheduled workflow that retrieves Mailgun bounce and complaint events, removes the offending addresses from the matching Mailgun mailing lists, and logs every suppression to a table so the marketing team can audit list hygiene.',
+        'Build a scheduled workflow that retrieves Mailgun bounce and complaint events, compiles the offending addresses into a suppression table, and posts a summary so the marketing team can audit and clean list hygiene.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation', 'monitoring'],

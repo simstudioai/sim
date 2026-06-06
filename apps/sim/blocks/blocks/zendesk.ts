@@ -713,8 +713,8 @@ export const ZendeskBlockMeta = {
       icon: ZendeskIcon,
       title: 'Zendesk auto-classifier',
       prompt:
-        'Build a workflow triggered by new Zendesk tickets that classifies each one by product area, severity, and intent, applies the matching tags, sets priority, and assigns it to the right group so triage happens automatically.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Zendesk for new tickets, classifies each one by product area, severity, and intent, applies the matching tags, sets priority, and assigns it to the right group so triage happens automatically.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation'],
     },
@@ -732,8 +732,8 @@ export const ZendeskBlockMeta = {
       icon: ZendeskIcon,
       title: 'Zendesk ticket deflector',
       prompt:
-        'Create a knowledge base from help center articles and past ticket resolutions, then build a workflow that drafts a public reply for every new Zendesk ticket using the knowledge base with citations, and posts it as an internal note for agents to send with one click.',
-      modules: ['knowledge-base', 'agent', 'workflows'],
+        'Create a knowledge base from help center articles and past ticket resolutions, then build a scheduled workflow that polls for new Zendesk tickets, drafts a public reply using the knowledge base with citations, and posts it as an internal note for agents to send with one click.',
+      modules: ['scheduled', 'knowledge-base', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation', 'communication'],
     },
@@ -741,8 +741,8 @@ export const ZendeskBlockMeta = {
       icon: ZendeskIcon,
       title: 'Zendesk to Jira engineering bridge',
       prompt:
-        'Build a workflow that detects when a Zendesk ticket is tagged as a bug, creates a linked Jira issue with the ticket details and customer impact, and posts the Jira link back as an internal note on the Zendesk ticket.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that searches Zendesk for tickets newly tagged as a bug, creates a linked Jira issue with the ticket details and customer impact, and posts the Jira link back as an internal note on the Zendesk ticket.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'engineering', 'automation'],
       alsoIntegrations: ['jira'],

@@ -390,7 +390,7 @@ export const DocuSignBlockMeta = {
       icon: DocuSignIcon,
       title: 'DocuSign chase reminder',
       prompt:
-        'Create a scheduled workflow that lists DocuSign envelopes pending signature for over 48 hours, sends a polite reminder to each signer, and escalates to the rep via Slack after 7 days.',
+        'Create a scheduled workflow that lists DocuSign envelopes pending signature for over 48 hours, notifies the owning rep in Slack to nudge each signer, and escalates with a flagged message after 7 days.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'communication'],
@@ -400,8 +400,8 @@ export const DocuSignBlockMeta = {
       icon: DocuSignIcon,
       title: 'DocuSign completed contract archiver',
       prompt:
-        'Build a workflow that watches DocuSign for completed envelopes, downloads the signed PDF, saves it to a Google Drive contracts folder, and writes the metadata into a contracts table.',
-      modules: ['files', 'tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls DocuSign for completed envelopes, downloads the signed PDF, saves it to a Google Drive contracts folder, and writes the metadata into a contracts table.',
+      modules: ['scheduled', 'files', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'sync'],
       alsoIntegrations: ['google_drive'],
@@ -419,20 +419,21 @@ export const DocuSignBlockMeta = {
       icon: DocuSignIcon,
       title: 'DocuSign renewal tracker',
       prompt:
-        'Build a scheduled workflow that reads DocuSign contracts table, finds renewals due in the next 60 days, and creates a renewal-prep task in Salesforce for each.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a scheduled workflow that reads a DocuSign contracts table, finds renewals due in the next 60 days, and creates a renewal-prep task in Salesforce for each.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'crm'],
       alsoIntegrations: ['salesforce'],
     },
     {
       icon: DocuSignIcon,
-      title: 'DocuSign bulk recipient updater',
+      title: 'DocuSign stalled envelope resolver',
       prompt:
-        'Create a workflow that updates a list of in-flight DocuSign envelopes with a new recipient when a signer leaves the company, ensuring deals don’t stall on transitions.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that lists in-flight DocuSign envelopes, checks each envelope’s recipients for signers who have left the company, voids the affected envelopes, and posts the list to Slack so a rep can resend from the right template.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'automation'],
+      alsoIntegrations: ['slack'],
     },
     {
       icon: DocuSignIcon,

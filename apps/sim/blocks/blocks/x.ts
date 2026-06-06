@@ -763,8 +763,8 @@ export const XBlockMeta = {
       icon: xIcon,
       title: 'X (Twitter) brand mention triage',
       prompt:
-        'Build a workflow that monitors X mentions of the brand, classifies each as praise, support request, or complaint, and routes complaints to the support team with one-tap context.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls X mentions of the brand, classifies each as praise, support request, or complaint, and routes complaints to the support team with one-tap context.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'support'],
       alsoIntegrations: ['slack'],
@@ -811,8 +811,8 @@ export const XBlockMeta = {
       icon: xIcon,
       title: 'X support ticket creator',
       prompt:
-        'Create a workflow that watches X for tweets directed at the brand support handle, classifies as a support request, and opens a Zendesk ticket with the tweet context and customer profile.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that polls X for tweets directed at the brand support handle, classifies each as a support request, and opens a Zendesk ticket with the tweet context and customer profile.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'communication'],
       alsoIntegrations: ['zendesk'],

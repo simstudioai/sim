@@ -108,7 +108,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
 }
 
 export const WikipediaBlockMeta = {
-  tags: ['knowledge-base', 'web-scraping'],
+  tags: ['knowledge-base'],
   templates: [
     {
       icon: WikipediaIcon,

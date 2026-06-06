@@ -131,16 +131,6 @@ export const GooglePagespeedBlockMeta = {
     },
     {
       icon: GooglePagespeedIcon,
-      title: 'PageSpeed + Vercel deploy gate',
-      prompt:
-        'Create a workflow triggered by a Vercel preview deployment that runs Google PageSpeed Insights against the preview URL, comments the score on the GitHub PR, and fails the check if scores regress.',
-      modules: ['agent', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'monitoring'],
-      alsoIntegrations: ['vercel', 'github'],
-    },
-    {
-      icon: GooglePagespeedIcon,
       title: 'PageSpeed accessibility tracker',
       prompt:
         'Build a scheduled weekly workflow that runs Google PageSpeed Insights with the accessibility audit, writes per-page scores to a tracking table, and opens Linear tickets on regressions.',

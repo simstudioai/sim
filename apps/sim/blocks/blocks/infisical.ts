@@ -238,7 +238,7 @@ export const InfisicalBlockMeta = {
       icon: InfisicalIcon,
       title: 'Infisical secret rotation orchestrator',
       prompt:
-        'Build a scheduled workflow that lists Infisical secrets due for rotation, triggers rotation across environments, and writes status to a compliance table.',
+        'Build a scheduled workflow that lists Infisical secrets, generates fresh values for those due for rotation, updates them across each environment, and writes rotation status to a compliance table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'enterprise'],
@@ -255,20 +255,20 @@ export const InfisicalBlockMeta = {
     },
     {
       icon: InfisicalIcon,
-      title: 'Infisical onboarding kit',
+      title: 'Infisical env bootstrapper',
       prompt:
-        'Build a workflow that on a new engineer being provisioned grants Infisical access to the right projects based on team, and writes the access record.',
-      modules: ['agent', 'workflows'],
+        'Build a workflow that on a Workday new-hire event creates the standard set of Infisical secrets for the new engineer’s scoped dev environment from a template, and writes the provisioning record to a table.',
+      modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'enterprise'],
       alsoIntegrations: ['workday'],
     },
     {
       icon: InfisicalIcon,
-      title: 'Infisical offboarding sweep',
+      title: 'Infisical offboarding rotation',
       prompt:
-        'Create a workflow that on a Workday termination revokes Infisical access for the departing engineer, rotates secrets they touched, and writes the audit log.',
-      modules: ['agent', 'workflows'],
+        'Create a workflow that on a Workday termination rotates the shared Infisical secrets the departing engineer had access to by generating new values and updating them across environments, then writes the action log to a table.',
+      modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'enterprise'],
       alsoIntegrations: ['workday'],
@@ -285,9 +285,9 @@ export const InfisicalBlockMeta = {
     },
     {
       icon: InfisicalIcon,
-      title: 'Infisical access-review automator',
+      title: 'Infisical secret-inventory reviewer',
       prompt:
-        'Create a scheduled quarterly workflow that surfaces Infisical project membership, requires owner attestation, and writes the audit log to a compliance table.',
+        'Create a scheduled quarterly workflow that lists Infisical secrets per project and environment, flags ones with weak or aged values for owner attestation in Slack, and writes the review to a compliance table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
@@ -295,10 +295,10 @@ export const InfisicalBlockMeta = {
     },
     {
       icon: InfisicalIcon,
-      title: 'Infisical audit-log shipper',
+      title: 'Infisical secret-inventory snapshot',
       prompt:
-        'Build a scheduled workflow that exports Infisical audit logs to S3 for long-term retention and indexes them in Athena for compliance queries.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a scheduled workflow that lists Infisical secrets across environments, writes a redacted inventory snapshot to S3 for long-term retention, and tracks secret count trends in a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
       alsoIntegrations: ['s3'],

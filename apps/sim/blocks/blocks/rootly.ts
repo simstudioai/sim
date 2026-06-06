@@ -1783,8 +1783,8 @@ export const RootlyBlockMeta = {
       icon: RootlyIcon,
       title: 'Rootly incident war-room',
       prompt:
-        'Build a workflow triggered when a Rootly incident opens that creates a Slack war-room channel, invites responders, posts the incident summary, and keeps the channel topic in sync with severity.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Rootly for newly opened incidents, creates a Slack war-room channel for each, invites responders, posts the incident summary, and keeps the channel topic in sync with severity.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'enterprise'],
       alsoIntegrations: ['slack'],
@@ -1793,11 +1793,11 @@ export const RootlyBlockMeta = {
       icon: RootlyIcon,
       title: 'Rootly retro generator',
       prompt:
-        'Create a workflow triggered when a Rootly incident closes that drafts the retrospective doc, pulls the Slack thread and timeline, and assigns owners for follow-up actions in Linear.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that polls Rootly for recently closed incidents, drafts the retrospective doc, pulls the Slack thread and timeline, and assigns owners for follow-up actions in Linear.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'reporting'],
-      alsoIntegrations: ['linear', 'google_docs'],
+      alsoIntegrations: ['slack', 'linear'],
     },
     {
       icon: RootlyIcon,

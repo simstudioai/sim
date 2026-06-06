@@ -239,9 +239,9 @@ export const KetchBlockMeta = {
   templates: [
     {
       icon: KetchIcon,
-      title: 'Ketch consent intake',
+      title: 'Ketch consent propagator',
       prompt:
-        'Build a workflow that watches Ketch for new consent events and propagates the consent state to downstream systems — HubSpot, Loops, Stripe — keeping privacy preferences in sync.',
+        'Build a workflow that on a consent change reads the contact’s Ketch consent state and propagates it to downstream systems — HubSpot and Loops — keeping privacy preferences in sync.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'sync'],
@@ -276,27 +276,28 @@ export const KetchBlockMeta = {
     },
     {
       icon: KetchIcon,
-      title: 'Ketch jurisdiction matrix builder',
+      title: 'Ketch subscription sync',
       prompt:
-        'Build a workflow that aggregates Ketch jurisdiction configurations, captures the consent requirements per region, and writes a matrix file for legal review.',
+        'Build a workflow that reads each contact’s Ketch subscription topics and mirrors the opt-in state to the marketing tool so unsubscribe preferences stay consistent across systems.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'sync'],
+      alsoIntegrations: ['loops'],
+    },
+    {
+      icon: KetchIcon,
+      title: 'Ketch right-invocation handler',
+      prompt:
+        'Create a workflow that on an incoming privacy request invokes the matching Ketch right for the data subject, captures the confirmation, and writes the action to a compliance file.',
       modules: ['agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
     },
     {
       icon: KetchIcon,
-      title: 'Ketch cookie-banner audit',
+      title: 'Ketch consent-rate digest',
       prompt:
-        'Create a scheduled workflow that audits Ketch cookie banner deployments across properties, flags missing or misconfigured banners, and writes a compliance file.',
-      modules: ['scheduled', 'agent', 'files', 'workflows'],
-      category: 'operations',
-      tags: ['legal', 'enterprise'],
-    },
-    {
-      icon: KetchIcon,
-      title: 'Ketch privacy-report digest',
-      prompt:
-        'Build a scheduled monthly workflow that produces a Ketch privacy compliance report — consent rates, DSR fulfillment SLA, deletion stats — for executive review.',
+        'Build a scheduled monthly workflow that samples Ketch consent state across a contact list, computes opt-in rates per purpose, and writes a privacy report file for executive review.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['legal', 'reporting'],

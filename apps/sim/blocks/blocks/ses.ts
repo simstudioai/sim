@@ -498,7 +498,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
 }
 
 export const SESBlockMeta = {
-  tags: ['cloud', 'marketing'],
+  tags: ['cloud', 'email-marketing', 'messaging'],
   templates: [
     {
       icon: SESIcon,

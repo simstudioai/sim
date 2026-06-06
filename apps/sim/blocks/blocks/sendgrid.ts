@@ -699,10 +699,10 @@ export const SendGridBlockMeta = {
     },
     {
       icon: SendgridIcon,
-      title: 'SendGrid bounce monitor',
+      title: 'SendGrid send-failure monitor',
       prompt:
-        'Create a scheduled workflow that pulls recent SendGrid bounce, block, and spam-report activity, summarizes patterns by domain and template, and posts a Slack alert with recommendations when bounce rate crosses a threshold.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Create a workflow that sends emails through SendGrid, logs each send result and any error to a delivery table, and posts a Slack alert summarizing failure patterns by recipient domain and template when the failure rate crosses a threshold.',
+      modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['monitoring', 'analysis', 'reporting'],
       alsoIntegrations: ['slack'],
@@ -721,7 +721,7 @@ export const SendGridBlockMeta = {
       icon: SendgridIcon,
       title: 'SendGrid contact list cleaner',
       prompt:
-        'Create a scheduled workflow that scans SendGrid marketing contacts for invalid, bouncing, or duplicate entries, removes the bad addresses, merges duplicates, and writes a cleanup report to a tracking table.',
+        'Create a scheduled workflow that searches SendGrid marketing contacts for invalid or duplicate entries, removes the bad addresses, merges duplicates, and writes a cleanup report to a tracking table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation', 'analysis'],
@@ -738,10 +738,10 @@ export const SendGridBlockMeta = {
     },
     {
       icon: SendgridIcon,
-      title: 'SendGrid + Mailgun deliverability scorecard',
+      title: 'SendGrid + Mailgun send scorecard',
       prompt:
-        'Create a scheduled weekly workflow that pulls deliverability metrics from both SendGrid and Mailgun, compares opens, clicks, bounces, and complaints side by side, and generates a scorecard file recommending which provider to use per send category.',
-      modules: ['scheduled', 'agent', 'files', 'workflows'],
+        'Create a scheduled weekly workflow that sends categorized test messages through both SendGrid and Mailgun, records each provider response, latency, and error to a delivery table, and generates a scorecard file recommending which provider to use per send category.',
+      modules: ['scheduled', 'tables', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['analysis', 'reporting', 'enterprise'],
       alsoIntegrations: ['mailgun'],

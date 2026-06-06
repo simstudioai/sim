@@ -533,8 +533,8 @@ export const TrelloBlockMeta = {
       icon: TrelloIcon,
       title: 'Trello card auto-router',
       prompt:
-        'Build a workflow that watches a Trello inbox list, classifies each card by topic, and moves it to the right board column based on the classification.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls a Trello inbox list, classifies each new card by topic, and moves it to the right list based on the classification.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'automation'],
     },
@@ -580,9 +580,9 @@ export const TrelloBlockMeta = {
     },
     {
       icon: TrelloIcon,
-      title: 'Trello automation auditor',
+      title: 'Trello stale-card sweeper',
       prompt:
-        'Create a scheduled workflow that audits Trello board automations, flags rules that haven’t fired in 30 days, and writes a cleanup queue to Slack for the workspace admin.',
+        'Create a scheduled workflow that scans a Trello board for cards with no activity in 30 days, comments a nudge on each, and posts a stale-card list to Slack for the project owner.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'monitoring'],
@@ -590,9 +590,9 @@ export const TrelloBlockMeta = {
     },
     {
       icon: TrelloIcon,
-      title: 'Trello onboarding hub',
+      title: 'Trello onboarding seeder',
       prompt:
-        'Build a workflow that creates a personalized Trello onboarding board for each new hire, seeds the standard cards, and assigns them based on role.',
+        'Build a workflow that creates the standard onboarding cards in a Trello list for each new hire, sets due dates by step, and tailors the card set to their role.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'automation'],

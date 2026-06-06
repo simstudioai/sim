@@ -181,9 +181,9 @@ export const DSPyBlockMeta = {
   templates: [
     {
       icon: DsPyIcon,
-      title: 'DSPy program compiler',
+      title: 'DSPy structured extraction',
       prompt:
-        'Build a workflow that defines a DSPy program for a structured extraction task, compiles it against a labeled examples table, and exports the compiled prompt for production use.',
+        'Build a workflow that reads raw records from a table, runs a DSPy predict program on your self-hosted server to extract structured fields from each, and writes the typed results back to the table.',
       modules: ['tables', 'files', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'automation'],
@@ -199,9 +199,9 @@ export const DSPyBlockMeta = {
     },
     {
       icon: DsPyIcon,
-      title: 'DSPy A/B prompt selector',
+      title: 'DSPy A/B program selector',
       prompt:
-        'Create a workflow that compiles two DSPy programs against the same eval set, runs A/B comparison nightly, and promotes the winner with full evidence written to a table.',
+        'Create a scheduled workflow that runs two DSPy program endpoints against the same eval set nightly, scores each on accuracy, and writes the head-to-head comparison and recommended winner to a table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
@@ -219,7 +219,7 @@ export const DSPyBlockMeta = {
       icon: DsPyIcon,
       title: 'DSPy + LangSmith trace harness',
       prompt:
-        'Create a workflow that wires DSPy compilation outputs into LangSmith trace evaluation, captures the quality delta, and writes the comparison to engineering Slack.',
+        'Create a workflow that runs a DSPy program over an eval set, logs each prediction as a LangSmith trace for evaluation, captures the quality delta against the previous run, and writes the comparison to engineering Slack.',
       modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],

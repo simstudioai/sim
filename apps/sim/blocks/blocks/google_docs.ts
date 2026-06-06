@@ -218,9 +218,9 @@ export const GoogleDocsBlockMeta = {
   templates: [
     {
       icon: GoogleDocsIcon,
-      title: 'Google Docs review-cycle automator',
+      title: 'Google Docs review request',
       prompt:
-        'Build a workflow that watches Google Docs for a "ready-for-review" status comment, notifies named reviewers over Slack, collects approval reactions, and resolves the comment when complete.',
+        'Build a workflow that reads a Google Doc when its title is marked ready for review, summarizes the key points with an agent, and posts a review request with the doc link to the named reviewers in Slack.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'automation'],
@@ -228,10 +228,10 @@ export const GoogleDocsBlockMeta = {
     },
     {
       icon: GoogleDocsIcon,
-      title: 'Google Docs version digester',
+      title: 'Google Docs change digester',
       prompt:
-        'Create a scheduled weekly workflow that compares Google Docs revisions for tracked documents, summarizes who changed what, and posts a digest to the doc owner.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Create a scheduled weekly workflow that reads each tracked Google Doc, compares its content against the snapshot stored in a table, summarizes what changed with an agent, and posts a digest to the team in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'reporting'],
       alsoIntegrations: ['slack'],

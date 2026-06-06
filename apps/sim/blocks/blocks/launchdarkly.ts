@@ -349,8 +349,8 @@ export const LaunchDarklyBlockMeta = {
       icon: LaunchDarklyIcon,
       title: 'LaunchDarkly flag-flip auditor',
       prompt:
-        'Build a workflow that watches LaunchDarkly flag changes, captures who flipped what and when, and writes the audit trail to a tracking table with diff context.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that reads the LaunchDarkly audit log, captures who flipped which flag and when, and writes the audit trail to a tracking table with diff context.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'monitoring'],
     },
@@ -366,9 +366,9 @@ export const LaunchDarklyBlockMeta = {
     },
     {
       icon: LaunchDarklyIcon,
-      title: 'LaunchDarkly experiment digest',
+      title: 'LaunchDarkly rollout digest',
       prompt:
-        'Build a scheduled weekly workflow that pulls LaunchDarkly experiment results, formats winners with lift and significance, and posts a digest to the product Slack channel.',
+        'Build a scheduled weekly workflow that lists LaunchDarkly flags with their current status and rollout percentage per environment, summarizes what changed since last week, and posts a digest to the product Slack channel.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['product', 'analysis'],
@@ -378,8 +378,8 @@ export const LaunchDarklyBlockMeta = {
       icon: LaunchDarklyIcon,
       title: 'LaunchDarkly flag-flip safety gate',
       prompt:
-        'Create a workflow that on a LaunchDarkly flag flip to production, checks Sentry error rate and Datadog SLO burn for 10 minutes, auto-reverts the flag on regression, and posts to Slack.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that reads the LaunchDarkly audit log for recent production flag flips, checks Sentry error rate and Datadog SLO burn against each, toggles the flag back off on regression, and posts to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['sentry', 'datadog', 'slack'],

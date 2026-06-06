@@ -469,8 +469,8 @@ export const AgiloftBlockMeta = {
       icon: Hammer,
       title: 'Agiloft approval router',
       prompt:
-        'Create a workflow that watches Agiloft for contracts needing approval, posts a Microsoft Teams adaptive card to the approver, captures the decision, and updates Agiloft.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that searches Agiloft for contracts needing approval, posts a Microsoft Teams adaptive card to the approver, captures the decision, and updates Agiloft.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
       alsoIntegrations: ['microsoft_teams'],
@@ -488,8 +488,8 @@ export const AgiloftBlockMeta = {
       icon: Hammer,
       title: 'Agiloft DocuSign bridge',
       prompt:
-        'Create a workflow that when an Agiloft contract reaches ready-to-sign creates a DocuSign envelope from the template, sends it, and writes the envelope ID back to Agiloft.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that searches Agiloft for contracts marked ready-to-sign, creates a DocuSign envelope from the template, sends it, and writes the envelope ID back to Agiloft.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'legal'],
       alsoIntegrations: ['docusign'],
@@ -498,8 +498,8 @@ export const AgiloftBlockMeta = {
       icon: Hammer,
       title: 'Agiloft + Linear ticket bridge',
       prompt:
-        'Build a workflow that on an Agiloft contract flagged for engineering review creates a Linear ticket with the contract context and a link, keeping status synced both ways.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that searches Agiloft for contracts flagged for engineering review and creates a Linear ticket with the contract context and a link, keeping status synced both ways.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['legal', 'engineering'],
       alsoIntegrations: ['linear'],

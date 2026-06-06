@@ -482,7 +482,7 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
 }
 
 export const MondayBlockMeta = {
-  tags: ['project-management'],
+  tags: ['project-management', 'ticketing'],
   templates: [
     {
       icon: MondayIcon,

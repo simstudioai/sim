@@ -108,47 +108,47 @@ export const AirweaveBlockMeta = {
   templates: [
     {
       icon: AirweaveIcon,
-      title: 'Airweave knowledge connector',
+      title: 'Airweave cross-source answerer',
       prompt:
-        'Build a workflow that uses Airweave to keep a knowledge base in sync with multiple sources — Notion, Confluence, Drive — chunking and embedding new content as it changes.',
-      modules: ['knowledge-base', 'agent', 'workflows'],
+        'Build a workflow that takes a user question, searches across your Airweave-synced sources — Notion, Confluence, Drive — and returns an AI-generated answer with sourced citations.',
+      modules: ['agent', 'workflows'],
       category: 'productivity',
-      tags: ['sync', 'enterprise'],
+      tags: ['research', 'enterprise'],
     },
     {
       icon: AirweaveIcon,
       title: 'Airweave + agent answer endpoint',
       prompt:
-        'Create an agent that uses an Airweave-managed retrieval layer, answers user questions with sourced citations, and deploys as a chat endpoint for internal teams.',
-      modules: ['knowledge-base', 'agent', 'workflows'],
+        'Create an agent that searches an Airweave-managed retrieval layer, answers user questions with sourced citations, and deploys as a chat endpoint for internal teams.',
+      modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'enterprise'],
     },
     {
       icon: AirweaveIcon,
-      title: 'Airweave connector audit',
+      title: 'Airweave daily knowledge digest',
       prompt:
-        'Build a scheduled workflow that audits Airweave connector health, identifies stale sources, and posts a Slack report to the platform owner.',
+        'Build a scheduled workflow that runs a set of standing Airweave searches each morning, summarizes the freshest results per topic, and posts a digest to Slack for the team.',
       modules: ['scheduled', 'agent', 'workflows'],
-      category: 'engineering',
-      tags: ['monitoring', 'sync'],
+      category: 'productivity',
+      tags: ['research', 'reporting'],
       alsoIntegrations: ['slack'],
     },
     {
       icon: AirweaveIcon,
-      title: 'Airweave reindex orchestrator',
+      title: 'Airweave research-to-table',
       prompt:
-        'Create a workflow that triggers an Airweave reindex when a critical source changes, monitors the job, and writes the run history to a control table.',
+        'Create a workflow that takes a list of research questions, runs an Airweave search for each, and writes the top answers with their citations into a table for review.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'engineering',
-      tags: ['devops', 'automation'],
+      tags: ['research', 'automation'],
     },
     {
       icon: AirweaveIcon,
-      title: 'Airweave duplicate detector',
+      title: 'Airweave answer-quality checker',
       prompt:
-        'Build a workflow that scans Airweave-managed knowledge for near-duplicate chunks, writes merge candidates to a cleanup queue, and applies merges on approval.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that runs a benchmark set of questions against Airweave, has an agent grade each answer for relevance and citation quality, and writes a quality report to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
     },
@@ -156,7 +156,7 @@ export const AirweaveBlockMeta = {
       icon: AirweaveIcon,
       title: 'Airweave + Slack Q&A',
       prompt:
-        'Create a Slack bot that uses an Airweave-managed retrieval layer to answer questions in support channels with sourced citations and confidence scores.',
+        'Create a Slack bot that searches an Airweave-managed retrieval layer to answer questions in support channels with sourced citations.',
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'community'],
@@ -164,12 +164,12 @@ export const AirweaveBlockMeta = {
     },
     {
       icon: AirweaveIcon,
-      title: 'Airweave cost dashboard',
+      title: 'Airweave weekly topic tracker',
       prompt:
-        'Build a scheduled weekly workflow that aggregates Airweave usage and embedding costs per tenant, calculates unit economics, and writes a finance-ready report.',
+        'Build a scheduled weekly workflow that searches Airweave for updates on tracked topics, summarizes what is new since last week, and writes a report for the team.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
-      tags: ['finance', 'reporting'],
+      tags: ['research', 'reporting'],
     },
   ],
 } as const satisfies BlockMeta

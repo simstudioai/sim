@@ -881,8 +881,8 @@ export const LinqBlockMeta = {
       icon: LinqIcon,
       title: 'Linq SMS support responder',
       prompt:
-        'Create a workflow triggered by an incoming Linq SMS webhook that reads the message, generates a reply with an agent, and sends the response back to the same chat.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that lists recent unread Linq messages, generates a reply for each with an agent, and sends the response back to the same chat.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['messaging', 'support'],
     },

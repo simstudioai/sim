@@ -365,7 +365,7 @@ export const TailscaleBlockMeta = {
       icon: TailscaleIcon,
       title: 'Tailscale new-hire provisioner',
       prompt:
-        'Build a workflow that on a Workday new-hire event creates a Tailscale account for the engineer, assigns the right tags, and writes the access record.',
+        'Build a workflow that on a Workday new-hire event creates a scoped Tailscale auth key for the engineer, sets the right device tags, and writes the access record.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'automation'],
@@ -375,7 +375,7 @@ export const TailscaleBlockMeta = {
       icon: TailscaleIcon,
       title: 'Tailscale offboarder',
       prompt:
-        'Create a workflow that on a Workday termination removes the user from Tailscale, revokes node access, and writes the security audit log.',
+        "Create a workflow that on a Workday termination deletes the departing engineer's Tailscale devices, revokes their auth keys, and writes the security audit log.",
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'enterprise'],
@@ -385,8 +385,8 @@ export const TailscaleBlockMeta = {
       icon: TailscaleIcon,
       title: 'Tailscale unauthorized-tag watcher',
       prompt:
-        'Build a workflow that watches Tailscale for unauthorized device tagging or ACL changes, posts a Slack alert to the security channel, and writes the audit.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Tailscale device tags and the ACL for unauthorized changes, posts a Slack alert to the security channel, and writes the audit.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['slack'],

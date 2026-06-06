@@ -830,7 +830,7 @@ Return ONLY the expression - no explanations.`,
 }
 
 export const DynamoDBBlockMeta = {
-  tags: ['cloud', 'data-warehouse'],
+  tags: ['cloud', 'data-analytics'],
   templates: [
     {
       icon: DynamoDBIcon,
@@ -863,10 +863,10 @@ export const DynamoDBBlockMeta = {
     },
     {
       icon: DynamoDBIcon,
-      title: 'DynamoDB stream → events',
+      title: 'DynamoDB change publisher',
       prompt:
-        'Create a workflow that subscribes to a DynamoDB stream, transforms each record into a typed event, and publishes it to an SQS queue with retry and dead-letter handling.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that scans a DynamoDB table for items changed since the last run, transforms each into a typed event, and publishes it to an SQS queue for downstream processing.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'automation'],
       alsoIntegrations: ['sqs'],

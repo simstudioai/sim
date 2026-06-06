@@ -302,7 +302,7 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
 }
 
 export const ZepBlockMeta = {
-  tags: ['llm', 'knowledge-base', 'agentic'],
+  tags: ['knowledge-base', 'agentic'],
   templates: [
     {
       icon: ZepIcon,
@@ -336,7 +336,7 @@ export const ZepBlockMeta = {
       icon: ZepIcon,
       title: 'Zep + Intercom support continuity',
       prompt:
-        'Create a Zep-backed support agent that remembers what each customer has tried before, prefers, or escalated, so support conversations never restart from scratch.',
+        'Create a Zep-backed support agent for Intercom that remembers what each customer has tried before, prefers, or escalated, so support conversations never restart from scratch.',
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'communication'],

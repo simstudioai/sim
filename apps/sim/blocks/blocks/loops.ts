@@ -552,7 +552,7 @@ export const LoopsBlockMeta = {
       icon: LoopsIcon,
       title: 'Loops list hygiene',
       prompt:
-        'Create a scheduled workflow that finds Loops contacts who have been inactive for 90 days, unsubscribes them from non-essential mailing lists, updates their user group to dormant, and writes a hygiene report to a table.',
+        'Create a scheduled workflow that reads a Sim table of user activity to find accounts inactive for 90 days, updates each contact in Loops to the dormant user group and unsubscribes them from non-essential mailing lists, and writes a hygiene report to a table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation', 'analysis'],
@@ -570,7 +570,7 @@ export const LoopsBlockMeta = {
       icon: LoopsIcon,
       title: 'Loops contact property enricher',
       prompt:
-        'Create a scheduled workflow that finds Loops contacts missing key custom properties, enriches each one using Clay or web research, updates the contact in Loops with the new properties, and tracks enrichment coverage in a table.',
+        'Create a scheduled workflow that reads a Sim table of contacts missing key custom properties, enriches each one using Clay or web research, updates the matching contact in Loops with the new properties, and tracks enrichment coverage in a table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'crm', 'sync'],
@@ -598,7 +598,7 @@ export const LoopsBlockMeta = {
       icon: LoopsIcon,
       title: 'Loops churn win-back',
       prompt:
-        'Build a scheduled workflow that finds contacts in Loops who have gone inactive, sends a personalized transactional win-back email, fires a re-engagement event, and logs who was contacted to a table for follow-up.',
+        'Build a scheduled workflow that reads a Sim table of product-usage data to identify users who have gone inactive, sends each a personalized transactional win-back email through Loops, fires a re-engagement event, and logs who was contacted to a table for follow-up.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation', 'communication'],

@@ -814,8 +814,8 @@ export const DiscordBlockMeta = {
       icon: DiscordIcon,
       title: 'Discord support deflector',
       prompt:
-        'Build a workflow that watches help channels in Discord for new questions, searches a knowledge base for an answer, and posts a sourced reply in-thread; escalates to a human when confidence is low.',
-      modules: ['knowledge-base', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls help channels in Discord for new questions, searches a knowledge base for an answer, and posts a sourced reply in-thread; escalates to a human when confidence is low.',
+      modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['community', 'support'],
     },
@@ -831,10 +831,10 @@ export const DiscordBlockMeta = {
     },
     {
       icon: DiscordIcon,
-      title: 'Discord onboarding flow',
+      title: 'Discord onboarding tracker',
       prompt:
-        'Build a workflow triggered when a member joins a Discord server that DMs a welcome with relevant links, opens a private onboarding thread, and tracks completion of starter tasks in a table.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls a Discord server for recently joined members, opens a private onboarding thread for each new member with relevant links, and tracks completion of starter tasks in a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'support',
       tags: ['community', 'automation'],
     },
@@ -842,8 +842,8 @@ export const DiscordBlockMeta = {
       icon: DiscordIcon,
       title: 'Discord moderation triage',
       prompt:
-        'Create a workflow that monitors Discord messages for community-guideline violations using an agent classifier, auto-warns the user on minor issues, and pings moderators in a private channel for severe cases.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that polls Discord channels for new messages, classifies community-guideline violations with an agent, auto-warns the user on minor issues, and pings moderators in a private channel for severe cases.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['community', 'automation'],
     },
@@ -851,8 +851,8 @@ export const DiscordBlockMeta = {
       icon: DiscordIcon,
       title: 'Discord feature request collector',
       prompt:
-        'Build a workflow that watches a Discord feedback channel, classifies posts as bugs vs feature requests, opens Linear tickets for actionable items, and replies in-thread with the ticket link.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls a Discord feedback channel for new posts, classifies them as bugs vs feature requests, opens Linear tickets for actionable items, and replies in-thread with the ticket link.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['community', 'product'],
       alsoIntegrations: ['linear'],
@@ -865,7 +865,7 @@ export const DiscordBlockMeta = {
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['community', 'communication'],
-      alsoIntegrations: ['google_calendar'],
+      alsoIntegrations: ['luma', 'google_calendar'],
     },
   ],
 } as const satisfies BlockMeta

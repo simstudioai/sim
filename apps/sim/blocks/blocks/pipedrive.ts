@@ -854,10 +854,10 @@ export const PipedriveBlockMeta = {
     },
     {
       icon: PipedriveIcon,
-      title: 'Pipedrive enrichment pipeline',
+      title: 'Pipedrive lead enrichment pipeline',
       prompt:
-        'Build a workflow that watches new Pipedrive contacts, enriches each via Apollo, and writes role, seniority, and tech stack back to the contact.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls Pipedrive for new leads, enriches each via Apollo with role, seniority, and tech stack, and updates the lead with the enriched details.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'crm', 'research'],
       alsoIntegrations: ['apollo'],

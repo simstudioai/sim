@@ -910,7 +910,7 @@ export const StripeBlockMeta = {
       icon: StripeIcon,
       title: 'Refund pattern analyzer',
       prompt:
-        'Build a scheduled weekly workflow that lists Stripe refunds and disputes, classifies each by reason and product, identifies recurring patterns or fraud signals, writes a narrative report file, and Slacks finance with the top concerns and recommended actions.',
+        'Build a scheduled weekly workflow that lists Stripe charge and dispute events, classifies each refund or dispute by reason and product, identifies recurring patterns or fraud signals, writes a narrative report file, and Slacks finance with the top concerns and recommended actions.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['finance', 'analysis', 'reporting'],

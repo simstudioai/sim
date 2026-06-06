@@ -217,7 +217,7 @@ export const SimilarwebBlockMeta = {
       icon: SimilarwebIcon,
       title: 'Similarweb account intel sync',
       prompt:
-        'Create a workflow that watches my CRM for new accounts, pulls Similarweb data on each account domain, writes traffic and tech-stack signals back to the account record for sales context.',
+        'Create a workflow that watches my CRM for new accounts, pulls Similarweb data on each account domain, writes traffic estimates, rankings, and engagement signals back to the account record for sales context.',
       modules: ['agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'crm', 'research'],
@@ -227,7 +227,7 @@ export const SimilarwebBlockMeta = {
       icon: SimilarwebIcon,
       title: 'Similarweb category benchmarking',
       prompt:
-        'Create a scheduled workflow that pulls Similarweb category data for my industry, writes the leaderboard, average session duration, and bounce rate to a benchmarking table for the marketing review.',
+        'Create a scheduled workflow that pulls Similarweb category rank, visit duration, and bounce rate for my domain and a set of tracked competitors, then writes a ranked benchmarking table for the marketing review.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'analysis'],
@@ -243,9 +243,9 @@ export const SimilarwebBlockMeta = {
     },
     {
       icon: SimilarwebIcon,
-      title: 'Similarweb keyword-overlap finder',
+      title: 'Similarweb traffic-source overlap finder',
       prompt:
-        'Create a workflow that runs Similarweb keyword analysis between my domain and tracked competitors, identifies high-value overlap and gaps, and writes an SEO opportunity table.',
+        'Create a scheduled workflow that pulls Similarweb traffic-source breakdowns for my domain and tracked competitors, identifies channels where competitors over-index, and writes an acquisition opportunity table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'research'],

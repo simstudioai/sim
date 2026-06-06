@@ -298,73 +298,71 @@ Common patch fields: outputs, end_time, status, error`,
 }
 
 export const LangsmithBlockMeta = {
-  tags: ['monitoring', 'llm', 'data-analytics'],
+  tags: ['monitoring', 'llm'],
   templates: [
     {
       icon: LangsmithIcon,
-      title: 'LangSmith regression alerter',
+      title: 'LangSmith agent-run tracer',
       prompt:
-        'Build a scheduled workflow that runs LangSmith evals on tracked prompt chains, compares scores against baseline, and pings ML team in Slack on regressions.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a workflow that wraps an agent step and forwards each run to LangSmith with inputs, outputs, and latency so the ML team can trace executions in one project.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith error logger',
+      prompt:
+        'Create a workflow that on a failed agent step forwards a LangSmith run tagged as an error with the inputs and error message, and posts the run link to Slack for the ML team.',
+      modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'monitoring'],
       alsoIntegrations: ['slack'],
     },
     {
       icon: LangsmithIcon,
-      title: 'LangSmith trace explorer',
+      title: 'LangSmith feedback capture',
       prompt:
-        'Create a workflow that pulls LangSmith traces for a chosen agent, clusters by failure pattern, and writes a triage table the ML team can iterate against.',
+        'Build a workflow that collects user-reported agent failures from a table and forwards each as a tagged LangSmith run with the inputs and expected output for later review.',
       modules: ['tables', 'agent', 'workflows'],
-      category: 'engineering',
-      tags: ['engineering', 'analysis'],
-    },
-    {
-      icon: LangsmithIcon,
-      title: 'LangSmith eval-set curator',
-      prompt:
-        'Build a workflow that collects user-reported agent failures, transforms each into a LangSmith eval case with expected output, and grows the eval set for nightly regression runs.',
-      modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'automation'],
     },
     {
       icon: LangsmithIcon,
-      title: 'LangSmith cost optimizer',
+      title: 'LangSmith batch run shipper',
       prompt:
-        'Create a scheduled weekly workflow that aggregates LangSmith trace costs by prompt chain, identifies the most expensive, and writes a cost-by-feature report file.',
-      modules: ['scheduled', 'agent', 'files', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'analysis'],
+        'Create a scheduled workflow that reads completed agent runs from a table and posts them to LangSmith in a single batch so observability stays in sync without per-run overhead.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
     },
     {
       icon: LangsmithIcon,
-      title: 'LangSmith prompt-version watcher',
+      title: 'LangSmith session tagger',
       prompt:
-        'Build a workflow that watches LangSmith prompt-version changes, runs eval suites before promotion, and posts a Slack approval request with the pre/post metrics.',
+        'Build a workflow that forwards each agent run to LangSmith tagged with the originating feature and environment so traces can be filtered by surface in the LangSmith project.',
       modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'devops'],
-      alsoIntegrations: ['slack'],
     },
     {
       icon: LangsmithIcon,
-      title: 'LangSmith production replay',
+      title: 'LangSmith RAG step logger',
       prompt:
-        'Create a workflow that replays a sample of production LangSmith traces nightly against the candidate prompt version, captures diffs, and writes a regression review file.',
-      modules: ['scheduled', 'agent', 'files', 'workflows'],
+        'Create a workflow that runs a retrieval-augmented agent and forwards a LangSmith run per step — retriever, prompt, and llm — so the ML team can inspect each stage of the chain.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
     },
     {
       icon: LangsmithIcon,
-      title: 'LangSmith quality dashboard',
+      title: 'LangSmith multi-agent tracer',
       prompt:
-        'Build a scheduled daily workflow that aggregates LangSmith quality metrics by agent, writes a dashboard table, and pages on-call if any agent falls below the SLO line.',
-      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+        'Build a workflow that forwards a LangSmith run for each agent in a multi-step pipeline under one trace, so the full conversation is visible end-to-end in LangSmith.',
+      modules: ['agent', 'workflows'],
       category: 'engineering',
-      tags: ['devops', 'monitoring'],
-      alsoIntegrations: ['pagerduty'],
+      tags: ['engineering', 'monitoring'],
     },
   ],
 } as const satisfies BlockMeta

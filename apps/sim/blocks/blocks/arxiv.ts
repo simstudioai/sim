@@ -180,8 +180,8 @@ export const ArxivBlockMeta = {
       icon: ArxivIcon,
       title: 'ArXiv knowledge-base feeder',
       prompt:
-        'Build a workflow that watches ArXiv for new papers in a topic, fetches PDFs, parses with Mistral Parser, and upserts the chunks into a research knowledge base.',
-      modules: ['knowledge-base', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls ArXiv for new papers in a topic, fetches PDFs, parses with Mistral Parser, and upserts the chunks into a research knowledge base.',
+      modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['research', 'sync'],
       alsoIntegrations: ['mistral_parse'],
@@ -207,9 +207,9 @@ export const ArxivBlockMeta = {
     },
     {
       icon: ArxivIcon,
-      title: 'ArXiv citation grapher',
+      title: 'ArXiv author-topic grapher',
       prompt:
-        'Create a workflow that for a chosen ArXiv paper builds a citation graph in Neo4j and exposes a visualization for the research team.',
+        'Create a workflow that for a chosen ArXiv topic pulls papers and their authors, builds a co-authorship and topic graph in Neo4j, and exposes a visualization for the research team.',
       modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['research', 'analysis'],

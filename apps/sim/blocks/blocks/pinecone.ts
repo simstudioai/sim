@@ -335,8 +335,8 @@ export const PineconeBlockMeta = {
       icon: PineconeIcon,
       title: 'Pinecone reindex pipeline',
       prompt:
-        'Build a workflow that triggers when source documents change, regenerates embeddings with OpenAI, upserts vectors into a Pinecone index, and removes vectors for deleted source rows.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that regenerates embeddings with OpenAI for new or changed source documents and upserts the vectors into a Pinecone index so retrieval stays current.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'sync'],
       alsoIntegrations: ['openai'],
@@ -353,9 +353,9 @@ export const PineconeBlockMeta = {
     },
     {
       icon: PineconeIcon,
-      title: 'Pinecone index health report',
+      title: 'Pinecone retrieval-quality monitor',
       prompt:
-        'Build a scheduled weekly workflow that reports Pinecone index size, vector count, and query latency per namespace, writes a tables-based health report, and pings Slack on regressions.',
+        'Build a scheduled weekly workflow that runs a fixed set of benchmark queries against a Pinecone index, records top-k similarity scores per namespace to a table, and pings Slack when retrieval quality regresses.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'monitoring'],
@@ -365,10 +365,11 @@ export const PineconeBlockMeta = {
       icon: PineconeIcon,
       title: 'Pinecone duplicate detector',
       prompt:
-        'Create a workflow that scans a Pinecone index, finds near-duplicate vectors above a similarity threshold, and writes the merge candidates to a tables-based cleanup queue.',
+        'Create a workflow that reads a table of candidate records, embeds each with OpenAI, searches a Pinecone index for matches above a similarity threshold, and writes the near-duplicates to a cleanup queue.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['openai'],
     },
     {
       icon: PineconeIcon,
@@ -381,12 +382,12 @@ export const PineconeBlockMeta = {
     },
     {
       icon: PineconeIcon,
-      title: 'Pinecone embedding-cost dashboard',
+      title: 'Pinecone FAQ deflection bot',
       prompt:
-        'Create a scheduled workflow that aggregates Pinecone usage and OpenAI embedding spend per tenant, calculates unit economics, and writes a finance-ready report.',
-      modules: ['scheduled', 'agent', 'workflows'],
-      category: 'operations',
-      tags: ['finance', 'reporting'],
+        'Create a workflow that embeds an incoming question with OpenAI, searches a Pinecone index of FAQ entries for the closest match, and returns the answer when similarity is high or escalates when it is not.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
       alsoIntegrations: ['openai'],
     },
     {

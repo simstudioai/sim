@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { ClipboardList, File } from '@/components/emcn/icons'
 import { ClickHouseIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -466,4 +467,34 @@ export const ClickHouseBlock: BlockConfig<ClickHouseResponse> = {
 
 export const ClickHouseBlockMeta = {
   tags: ['data-warehouse', 'data-analytics'],
+  templates: [
+    {
+      icon: ClickHouseIcon,
+      title: 'Natural-language ClickHouse query',
+      prompt:
+        'Build a workflow where I ask a question in plain English, an agent writes the matching ClickHouse SQL against my events table, runs the query, and returns the results formatted as a readable answer.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['data-analytics', 'data-warehouse'],
+    },
+    {
+      icon: File,
+      title: 'Daily ClickHouse metrics digest',
+      prompt:
+        'Create a scheduled workflow that runs a set of ClickHouse aggregation queries each morning, summarizes the key trends and anomalies with an agent, and posts the digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['data-analytics', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ClipboardList,
+      title: 'Event ingestion to ClickHouse',
+      prompt:
+        'Build a workflow that takes incoming event payloads, maps them to the right columns with an agent, and bulk-inserts the rows into a ClickHouse table for analytics.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['data-analytics', 'data-warehouse'],
+    },
+  ],
 } as const satisfies BlockMeta

@@ -609,8 +609,8 @@ export const MicrosoftDataverseBlockMeta = {
       icon: MicrosoftDataverseIcon,
       title: 'Dataverse approval workflow',
       prompt:
-        'Create a workflow that watches Dataverse for new high-value records, posts an adaptive card approval to Microsoft Teams, captures the decision, and updates the record.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that polls Dataverse for new high-value records, posts an adaptive card approval to Microsoft Teams, captures the decision, and updates the record.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'automation'],
       alsoIntegrations: ['microsoft_teams'],

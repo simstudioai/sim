@@ -317,12 +317,12 @@ export const GoogleAdsBlockMeta = {
     },
     {
       icon: GoogleAdsIcon,
-      title: 'Google Ads negative-keyword auto-prune',
+      title: 'Google Ads negative-keyword finder',
       prompt:
-        'Build a scheduled workflow that scans Google Ads search-terms reports weekly, identifies irrelevant terms wasting spend, and proposes a negative-keyword list with a human approval step before applying.',
-      modules: ['scheduled', 'agent', 'workflows'],
+        'Build a scheduled workflow that scans Google Ads search-term performance weekly, identifies irrelevant terms wasting spend, and writes a recommended negative-keyword list to a file for the team to review.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'marketing',
-      tags: ['marketing', 'automation'],
+      tags: ['marketing', 'analysis'],
     },
     {
       icon: GoogleAdsIcon,

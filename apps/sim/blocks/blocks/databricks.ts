@@ -435,7 +435,7 @@ export const DatabricksBlockMeta = {
       icon: DatabricksIcon,
       title: 'Databricks cluster cost guard',
       prompt:
-        'Create a scheduled workflow that pulls Databricks cluster usage hourly, identifies idle clusters, terminates them after a grace period, and writes savings to a finance report.',
+        'Create a scheduled workflow that lists Databricks clusters hourly, flags clusters that are running while idle, and posts a Slack alert with the candidates to shut down so the platform team can reclaim spend.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'devops'],
@@ -455,7 +455,7 @@ export const DatabricksBlockMeta = {
       icon: DatabricksIcon,
       title: 'Databricks ML feature freshness',
       prompt:
-        'Create a scheduled workflow that monitors Databricks feature-store freshness, alerts when a critical feature has stale data, and writes the alert details to a tracking table.',
+        'Create a scheduled workflow that runs SQL against Databricks feature tables to check the latest update timestamp per feature, alerts when a critical feature has stale data, and writes the alert details to a tracking table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'monitoring'],

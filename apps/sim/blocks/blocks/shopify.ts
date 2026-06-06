@@ -1030,7 +1030,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
 }
 
 export const ShopifyBlockMeta = {
-  tags: ['payments', 'subscriptions'],
+  tags: ['payments', 'automation'],
   templates: [
     {
       icon: ShopifyIcon,
@@ -1044,10 +1044,10 @@ export const ShopifyBlockMeta = {
     },
     {
       icon: ShopifyIcon,
-      title: 'Abandoned cart recovery',
+      title: 'Unpaid order recovery',
       prompt:
-        'Build a workflow that scans Shopify for orders stuck in draft or carts abandoned in the past day, drafts a personalized recovery email referencing the items, applies a single-use discount, and sends it via Gmail while logging recovery attempts to a table.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that lists Shopify orders left open and unpaid in the past day, drafts a personalized recovery email referencing the items, and sends it via Gmail while logging recovery attempts to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['ecommerce', 'marketing', 'automation'],
       alsoIntegrations: ['gmail'],
@@ -1075,8 +1075,8 @@ export const ShopifyBlockMeta = {
       icon: ShopifyIcon,
       title: 'Fulfillment status tracker',
       prompt:
-        'Create a workflow that watches Shopify orders for fulfillment milestones, updates a status table with shipped, in-transit, and delivered states, and proactively emails customers when their order misses an SLA so support gets ahead of the inquiry.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Create a scheduled workflow that lists Shopify orders and their fulfillment status, updates a status table with shipped, in-transit, and delivered states, and proactively emails customers when their order misses an SLA so support gets ahead of the inquiry.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['ecommerce', 'support', 'monitoring'],
       alsoIntegrations: ['gmail'],

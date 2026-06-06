@@ -701,7 +701,7 @@ export const IAMBlockMeta = {
       icon: IAMIcon,
       title: 'IAM stale-key sweeper',
       prompt:
-        'Create a scheduled workflow that lists IAM access keys older than 90 days, notifies the owner via Slack, and rotates or removes after a grace period.',
+        'Create a scheduled workflow that reviews IAM users for aged access keys, notifies the owner via Slack, and rotates the key with a fresh one or removes it after a grace period.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'enterprise'],
@@ -721,7 +721,7 @@ export const IAMBlockMeta = {
       icon: IAMIcon,
       title: 'IAM least-privilege recommender',
       prompt:
-        'Create a workflow that uses IAM Access Analyzer findings, generates least-privilege policy suggestions, and opens Linear tickets for engineers to apply.',
+        'Create a workflow that simulates IAM principal policies against expected actions, generates least-privilege policy suggestions for over-permissioned roles, and opens Linear tickets for engineers to apply.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'enterprise'],
@@ -729,10 +729,10 @@ export const IAMBlockMeta = {
     },
     {
       icon: IAMIcon,
-      title: 'IAM SCP guardrail watcher',
+      title: 'IAM policy guardrail watcher',
       prompt:
-        'Build a workflow that watches AWS Organizations SCP changes, classifies risk, and pings the security team on changes that broaden permissions across accounts.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that snapshots IAM managed policies and role attachments, classifies risk on each change, and pings the security team in Slack when a change broadens permissions.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'enterprise'],
       alsoIntegrations: ['slack'],

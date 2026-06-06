@@ -422,7 +422,7 @@ export const NewRelicBlockMeta = {
         'Create a workflow triggered by a PagerDuty incident that runs NRQL queries for the impacted service, pulls the latest deployment change event from New Relic, and posts a war-room summary with golden-signal charts to the incident Slack channel.',
       modules: ['agent', 'workflows'],
       category: 'engineering',
-      tags: ['devops', 'monitoring', 'incident'],
+      tags: ['devops', 'monitoring', 'incident-management'],
       alsoIntegrations: ['pagerduty', 'slack'],
     },
   ],

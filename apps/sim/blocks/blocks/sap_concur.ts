@@ -1906,8 +1906,8 @@ export const SapConcurBlockMeta = {
       icon: SapConcurIcon,
       title: 'SAP Concur expense classifier',
       prompt:
-        'Build a workflow that watches SAP Concur for new expense reports, classifies each line item, validates against policy, and routes exceptions to the approver in Slack.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls SAP Concur for newly submitted expense reports, classifies each line item, validates against policy, and routes exceptions to the approver in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'automation'],
       alsoIntegrations: ['slack'],
@@ -1925,8 +1925,8 @@ export const SapConcurBlockMeta = {
       icon: SapConcurIcon,
       title: 'SAP Concur travel pre-approval',
       prompt:
-        'Build a workflow that on a SAP Concur travel request routes to the right approver based on amount and destination, captures the decision over Microsoft Teams, and writes back.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls SAP Concur for pending travel requests, routes each to the right approver based on amount and destination, captures the decision over Microsoft Teams, and moves the request to the approved or sent-back state.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'enterprise'],
       alsoIntegrations: ['microsoft_teams'],

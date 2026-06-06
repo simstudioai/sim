@@ -249,13 +249,13 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
 }
 
 export const STSBlockMeta = {
-  tags: ['cloud'],
+  tags: ['cloud', 'identity'],
   templates: [
     {
       icon: STSIcon,
-      title: 'AWS STS session monitor',
+      title: 'AWS STS access key identifier',
       prompt:
-        'Build a workflow that watches AWS STS AssumeRole calls in CloudTrail, classifies anomalous role assumption patterns, and pings the security Slack channel.',
+        'Build a workflow that takes an AWS access key ID, uses AWS STS to look up the owning account and entity, flags keys that belong to unexpected accounts, and pings the security Slack channel.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'monitoring'],
@@ -272,18 +272,18 @@ export const STSBlockMeta = {
     },
     {
       icon: STSIcon,
-      title: 'STS federation audit',
+      title: 'STS caller identity verifier',
       prompt:
-        'Build a scheduled workflow that audits AWS STS federation patterns — SAML, OIDC, web identity — flags external trust relationships, and writes a security report.',
+        'Build a scheduled workflow that calls AWS STS get caller identity for each configured set of credentials, confirms the resolved account and ARN match the expected principal, and writes a verification report.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
     },
     {
       icon: STSIcon,
-      title: 'STS GetSessionToken audit',
+      title: 'STS session token rotator',
       prompt:
-        'Create a scheduled daily workflow that lists AWS STS GetSessionToken calls per principal, identifies unusual patterns, and writes the audit to a security log.',
+        'Create a scheduled daily workflow that mints fresh AWS STS session tokens for service accounts that need them, records each token expiration in a security log, and flags any token issuance that fails.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'monitoring'],
@@ -300,19 +300,19 @@ export const STSBlockMeta = {
     },
     {
       icon: STSIcon,
-      title: 'STS cross-account access reviewer',
+      title: 'STS cross-account access grant',
       prompt:
-        'Create a scheduled monthly workflow that lists AWS STS cross-account trusts, requires owner attestation, and writes the audit log to a compliance table.',
-      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+        'Create a workflow that handles cross-account access requests, assumes the target AWS STS role with the supplied external ID, requires owner attestation in Slack, and writes the grant record to a compliance table.',
+      modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
       alsoIntegrations: ['slack'],
     },
     {
       icon: STSIcon,
-      title: 'STS Identity-Center session correlator',
+      title: 'STS Identity-Center role broker',
       prompt:
-        'Build a workflow that correlates AWS STS sessions with Identity Center principals, writes the unified session log, and alerts on unauthorized role escalation.',
+        'Build a workflow that takes an Identity Center user request, assumes the matching AWS STS role to mint scoped short-lived credentials, writes the issuance to a session log, and alerts Slack when a request targets a privileged role.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'monitoring'],

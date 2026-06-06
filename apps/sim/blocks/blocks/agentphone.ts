@@ -755,18 +755,18 @@ export const AgentPhoneBlockMeta = {
   templates: [
     {
       icon: AgentPhoneIcon,
-      title: 'AgentPhone IVR builder',
+      title: 'AgentPhone SMS support line',
       prompt:
-        'Create a workflow that uses AgentPhone to build a multi-level IVR, captures caller intent with voice AI, routes to the right team, and logs the conversation to a support table.',
+        'Create a workflow that provisions an AgentPhone number, replies to inbound support texts with an agent that pulls answers from context, and logs each conversation to a support table.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation'],
     },
     {
       icon: AgentPhoneIcon,
-      title: 'AgentPhone outbound qualification',
+      title: 'AgentPhone lead call + transcript scoring',
       prompt:
-        'Build a workflow that uses AgentPhone to place qualification calls to inbound leads, asks a structured script, captures answers, and writes a scored lead into HubSpot.',
+        'Build a workflow that places an outbound AgentPhone call to a new inbound lead, retrieves the call transcript afterward, scores qualification with an agent, and writes the result into HubSpot.',
       modules: ['agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'communication'],
@@ -784,9 +784,9 @@ export const AgentPhoneBlockMeta = {
     },
     {
       icon: AgentPhoneIcon,
-      title: 'AgentPhone appointment booker',
+      title: 'AgentPhone appointment reminder',
       prompt:
-        'Build a workflow that uses AgentPhone to take inbound booking calls, checks Calendly availability, books the slot, and confirms the meeting back to the caller in the same call.',
+        'Build a workflow that reads upcoming Calendly bookings and sends an AgentPhone SMS reminder to each attendee, then texts a confirmation when they reply.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['individual', 'automation'],
@@ -794,18 +794,18 @@ export const AgentPhoneBlockMeta = {
     },
     {
       icon: AgentPhoneIcon,
-      title: 'AgentPhone NPS dialer',
+      title: 'AgentPhone NPS texter',
       prompt:
-        'Create a scheduled workflow that uses AgentPhone to dial recent customers for an NPS survey, captures verbal responses, transcribes them, and writes structured ratings to a feedback table.',
+        'Create a scheduled workflow that texts recent customers an NPS survey over AgentPhone, reads their SMS replies, and writes structured ratings to a feedback table.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'analysis'],
     },
     {
       icon: AgentPhoneIcon,
-      title: 'AgentPhone collections caller',
+      title: 'AgentPhone collections reminder',
       prompt:
-        'Build a workflow that picks up Stripe overdue invoices, places an AgentPhone collections call with a polite scripted reminder, captures the promise-to-pay date, and updates the invoice record.',
+        'Build a workflow that picks up Stripe overdue invoices, sends a polite AgentPhone SMS payment reminder with the amount due, and reads the customer reply to update the invoice record.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'automation'],
@@ -813,9 +813,9 @@ export const AgentPhoneBlockMeta = {
     },
     {
       icon: AgentPhoneIcon,
-      title: 'AgentPhone overflow support',
+      title: 'AgentPhone call-to-ticket logger',
       prompt:
-        'Create a workflow that when call volume exceeds human agent capacity routes overflow calls to AgentPhone, captures the issue, opens a Zendesk ticket with the transcript, and calls back when an agent is free.',
+        'Create a scheduled workflow that lists recent AgentPhone calls, pulls each transcript, and opens a Zendesk ticket summarizing the issue so no call goes untracked.',
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation'],

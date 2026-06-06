@@ -1,4 +1,5 @@
-import { GreptileIcon } from '@/components/icons'
+import { ClipboardList } from '@/components/emcn/icons'
+import { GreptileIcon, SlackIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GreptileResponse } from '@/tools/greptile/types'
@@ -198,4 +199,36 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
 
 export const GreptileBlockMeta = {
   tags: ['version-control', 'knowledge-base'],
+  templates: [
+    {
+      icon: SlackIcon,
+      title: 'Slack code Q&A bot',
+      prompt:
+        'Build a workflow that monitors a Slack channel for code questions, routes them to Greptile against the relevant repository, and replies in-thread with the answer and the cited files.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GreptileIcon,
+      title: 'Onboarding codebase explainer',
+      prompt:
+        'Create a workflow where a new engineer asks how a part of the codebase works, Greptile answers against the indexed repository with cited files, and the explanation is saved to a Google Doc.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'onboarding'],
+      alsoIntegrations: ['google_docs'],
+    },
+    {
+      icon: ClipboardList,
+      title: 'PR review with codebase context',
+      prompt:
+        'Build a workflow that takes a pull request, asks Greptile how the changed code interacts with the rest of the repository, and writes a review comment summarizing impact and risks with cited files.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'code-review'],
+      alsoIntegrations: ['github'],
+    },
+  ],
 } as const satisfies BlockMeta

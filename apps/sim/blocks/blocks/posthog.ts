@@ -1327,7 +1327,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 }
 
 export const PostHogBlockMeta = {
-  tags: ['data-analytics', 'monitoring'],
+  tags: ['data-analytics', 'monitoring', 'feature-flags'],
   templates: [
     {
       icon: PosthogIcon,
@@ -1343,8 +1343,8 @@ export const PostHogBlockMeta = {
       icon: PosthogIcon,
       title: 'PostHog feature flag flip notifier',
       prompt:
-        'Build a workflow that watches PostHog feature flags, detects status changes, and posts a Slack notification with the old and new state plus the engineer who flipped it.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls PostHog feature flags, detects status changes since the last run, and posts a Slack notification with the old and new state for each changed flag.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'monitoring'],
       alsoIntegrations: ['slack'],

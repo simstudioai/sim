@@ -463,14 +463,14 @@ Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Stat
 }
 
 export const WorkdayBlockMeta = {
-  tags: ['hiring', 'project-management'],
+  tags: ['hiring'],
   templates: [
     {
       icon: WorkdayIcon,
       title: 'Workday new-hire kickoff',
       prompt:
-        'Build a workflow that fires when a Workday pre-hire is converted into a hired employee, gathers their position and start date, kicks off provisioning in downstream tools, assigns an onboarding plan, schedules introductions on Google Calendar, and notifies the team in Slack.',
-      modules: ['tables', 'agent', 'workflows'],
+        'Build a scheduled workflow that polls Workday for newly hired employees, gathers each one’s position and start date, kicks off provisioning in downstream tools, assigns an onboarding plan, schedules introductions on Google Calendar, and notifies the team in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['hr', 'automation', 'enterprise'],
       alsoIntegrations: ['slack', 'google_calendar'],

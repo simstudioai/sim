@@ -1232,8 +1232,8 @@ export const IncidentioBlockMeta = {
       icon: IncidentioIcon,
       title: 'incident.io commander',
       prompt:
-        'Build a workflow triggered when an incident.io incident is declared that opens a Slack war-room, invites responders from the on-call schedule, pulls related PagerDuty alerts, and pins the runbook.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that polls incident.io for newly declared incidents, opens a Slack war-room for each, invites responders from the on-call schedule, pulls related PagerDuty alerts, and pins the runbook.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'enterprise'],
       alsoIntegrations: ['slack', 'pagerduty'],
@@ -1242,8 +1242,8 @@ export const IncidentioBlockMeta = {
       icon: IncidentioIcon,
       title: 'incident.io postmortem starter',
       prompt:
-        'Create a workflow that runs when an incident.io incident is resolved that pulls the Slack thread, related Sentry errors, and deploy timeline, then drafts a postmortem doc in Google Docs.',
-      modules: ['agent', 'workflows'],
+        'Create a scheduled workflow that polls incident.io for recently resolved incidents, pulls the Slack thread, related Sentry errors, and deploy timeline, then drafts a postmortem doc in Google Docs.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'reporting'],
       alsoIntegrations: ['sentry', 'google_docs'],

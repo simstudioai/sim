@@ -394,17 +394,17 @@ export const AsanaBlockMeta = {
       icon: AsanaIcon,
       title: 'Asana cross-team blocker watcher',
       prompt:
-        'Build a workflow that monitors Asana tasks tagged blocked, identifies the blocking team based on dependency metadata, and posts a request to the right channel in Slack.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that searches Asana for tasks tagged blocked, identifies the blocking team based on dependency metadata, and posts a request to the right channel in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'automation'],
       alsoIntegrations: ['slack'],
     },
     {
       icon: AsanaIcon,
-      title: 'Asana template launcher',
+      title: 'Asana onboarding task launcher',
       prompt:
-        'Create a workflow that on a new Salesforce opportunity creates an Asana project from the customer-onboarding template, assigns the right owners, and writes the project link back to the opportunity.',
+        'Create a workflow that on a new Salesforce opportunity creates a customer-onboarding Asana task with the right assignee and due date, and writes the task link back to the opportunity.',
       modules: ['agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'crm'],

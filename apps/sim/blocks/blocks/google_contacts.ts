@@ -300,8 +300,8 @@ export const GoogleContactsBlockMeta = {
       icon: GoogleContactsIcon,
       title: 'Google Contacts enricher',
       prompt:
-        'Build a workflow that watches new Google Contacts entries, enriches each with company and title via Apollo, and writes the enriched contact back to Google Contacts.',
-      modules: ['agent', 'workflows'],
+        'Build a scheduled workflow that scans Google Contacts for entries missing company or title, enriches each via Apollo, and writes the enriched contact back to Google Contacts.',
+      modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'research'],
       alsoIntegrations: ['apollo'],

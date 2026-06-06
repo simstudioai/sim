@@ -430,7 +430,7 @@ export const ProfoundBlockMeta = {
       icon: ProfoundIcon,
       title: 'Profound prompt-coverage audit',
       prompt:
-        'Build a workflow that uploads my list of priority prompts to Profound, monitors how my brand surfaces in AI answers across engines weekly, and writes the coverage report to a tables-based scorecard.',
+        "Build a scheduled weekly workflow that reads Profound's tracked-prompt coverage and prompt answers to monitor how my brand surfaces in AI answers across engines, and writes the coverage scorecard to a tables-based report.",
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'monitoring'],
