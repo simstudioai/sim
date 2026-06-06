@@ -22,7 +22,6 @@ export const adminV1WorkflowSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  color: z.string(),
   workspaceId: z.string().nullable(),
   folderId: z.string().nullable(),
   isDeployed: z.boolean(),
@@ -50,7 +49,6 @@ export const adminV1WorkflowExportStateSchema = workflowStateSchema.extend({
     .object({
       name: z.string().optional(),
       description: z.string().optional(),
-      color: z.string().optional(),
       exportedAt: z.string().optional(),
     })
     .optional(),
@@ -64,7 +62,6 @@ export const adminV1WorkflowExportPayloadSchema = z.object({
     id: z.string(),
     name: z.string(),
     description: z.string().nullable(),
-    color: z.string(),
     workspaceId: z.string().nullable(),
     folderId: z.string().nullable(),
   }),

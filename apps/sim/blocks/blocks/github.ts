@@ -1,5 +1,6 @@
-import { GithubIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { Calendar } from '@/components/emcn/icons'
+import { GithubIcon, NotionIcon } from '@/components/icons'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type { GitHubResponse } from '@/tools/github/types'
@@ -14,8 +15,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
     'Integrate Github into the workflow. Can get get PR details, create PR comment, get repository info, and get latest commit. Can be used in trigger mode to trigger a workflow when a PR is created, commented on, or a commit is pushed.',
   docsLink: 'https://docs.sim.ai/tools/github',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['version-control', 'ci-cd'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',
   icon: GithubIcon,
   triggerAllowed: true,
@@ -2025,8 +2025,7 @@ export const GitHubV2Block: BlockConfig<GitHubResponse> = {
   type: 'github_v2',
   name: 'GitHub',
   hideFromToolbar: false,
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['version-control', 'ci-cd'],
+  integrationType: IntegrationType.DevOps,
   tools: {
     ...GitHubBlock.tools,
     access: (GitHubBlock.tools?.access || []).map((toolId) => `${toolId}_v2`),
@@ -2063,3 +2062,103 @@ export const GitHubV2Block: BlockConfig<GitHubResponse> = {
     commit_author: { type: 'string', description: 'Author of the latest commit' },
   },
 }
+
+export const GitHubBlockMeta = {
+  tags: ['version-control', 'ci-cd'],
+  templates: [
+    {
+      icon: GithubIcon,
+      title: 'PR review assistant',
+      prompt:
+        'Create a knowledge base connected to my GitHub repo so it stays synced with my style guide and coding standards. Then build a workflow that reviews new pull requests against it, checks for common issues and security vulnerabilities, and posts a review comment with specific suggestions.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: GithubIcon,
+      title: 'Changelog generator',
+      prompt:
+        'Build a scheduled workflow that runs every Friday, pulls all merged PRs from GitHub for the week, categorizes changes as features, fixes, or improvements, and generates a user-facing changelog document with clear descriptions.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'product', 'reporting', 'content'],
+    },
+    {
+      icon: NotionIcon,
+      title: 'Documentation auto-updater',
+      prompt:
+        'Create a knowledge base connected to my GitHub repository so code and docs stay synced. Then build a scheduled weekly workflow that detects API changes, compares them against the knowledge base to find outdated documentation, and either updates Notion pages directly or creates Linear tickets for the needed changes.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync', 'automation'],
+      alsoIntegrations: ['notion', 'linear'],
+    },
+    {
+      icon: GithubIcon,
+      title: 'GitHub repository search',
+      prompt:
+        'Create a knowledge base connected to my GitHub repository so all source files, READMEs, and pull request descriptions are automatically synced and searchable. Then build an agent I can ask things like "where do we handle Stripe webhooks?" or "what changed in the auth module last month?" and get answers with file and PR citations.',
+      modules: ['knowledge-base', 'agent'],
+      category: 'engineering',
+      tags: ['engineering', 'research', 'devops'],
+    },
+    {
+      icon: GithubIcon,
+      title: 'Release notes drafter',
+      prompt:
+        'Build a workflow triggered when a GitHub release tag is created. Pull every merged pull request and commit since the previous tag, group them by feature, fix, and chore, draft customer-facing release notes, and post the draft as a comment on the release for final approval.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'content', 'devops'],
+    },
+    {
+      icon: Calendar,
+      title: 'Weekly team digest',
+      prompt:
+        "Build a scheduled workflow that runs every Friday, pulls the week's GitHub commits, closed Linear issues, and key Slack conversations, then emails a formatted weekly summary to the team.",
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['engineering', 'team', 'reporting'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+
+    {
+      icon: GithubIcon,
+      title: 'Link GitHub pull requests to Jira tickets',
+      prompt:
+        'Build a workflow that monitors GitHub pull requests and automatically transitions linked Jira issues when PRs are opened or merged, keeping your project board accurate without any manual updates.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['jira'],
+    },
+    {
+      icon: GithubIcon,
+      title: 'Sync GitHub events with Linear issues',
+      prompt:
+        'Build a workflow that creates Linear issues from GitHub pull requests and commits, and automatically updates their status when a PR is merged.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: GithubIcon,
+      title: 'Get GitHub activity alerts in Slack',
+      prompt:
+        'Create an agent that watches GitHub for new pull requests, commits, issues, or deployments and posts formatted Slack notifications so your engineering team never misses a critical event.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const GitHubV2BlockMeta = {
+  tags: ['version-control', 'ci-cd'],
+} as const satisfies BlockMeta

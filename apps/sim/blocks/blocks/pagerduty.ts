@@ -1,5 +1,5 @@
 import { PagerDutyIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const PagerDutyBlock: BlockConfig = {
   type: 'pagerduty',
@@ -9,9 +9,9 @@ export const PagerDutyBlock: BlockConfig = {
     'Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.',
   docsLink: 'https://docs.sim.ai/tools/pagerduty',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['incident-management', 'monitoring'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#06AC38',
+  iconColor: '#06AC38',
   icon: PagerDutyIcon,
   authMode: AuthMode.ApiKey,
 
@@ -482,3 +482,77 @@ export const PagerDutyBlock: BlockConfig = {
     },
   },
 }
+
+export const PagerDutyBlockMeta = {
+  tags: ['incident-management', 'monitoring'],
+  templates: [
+    {
+      icon: PagerDutyIcon,
+      title: 'PagerDuty incident war room',
+      prompt:
+        'Build a scheduled workflow that polls PagerDuty for new severity-1 incidents, opens a Slack war-room channel, invites responders, posts the incident summary, and updates the channel topic with status.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PagerDutyIcon,
+      title: 'PagerDuty on-call digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes the past 24 hours of PagerDuty incidents, MTTR, and on-call load by responder, and posts a Slack digest to the SRE channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PagerDutyIcon,
+      title: 'PagerDuty escalation auditor',
+      prompt:
+        'Build a scheduled weekly workflow that audits PagerDuty escalation policies, on-call schedules, and gaps in coverage, and writes a remediation backlog to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+    },
+    {
+      icon: PagerDutyIcon,
+      title: 'PagerDuty postmortem starter',
+      prompt:
+        'Create a scheduled workflow that polls PagerDuty for newly resolved incidents and opens a postmortem doc for each with the timeline, responders, and Slack thread linked, ready for the team to fill in root cause.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['google_docs'],
+    },
+    {
+      icon: PagerDutyIcon,
+      title: 'PagerDuty auto-triage enricher',
+      prompt:
+        'Build a scheduled workflow that polls PagerDuty for new incidents, pulls the affected service details, queries recent logs and the latest deploy, and posts an enriched triage summary with likely cause back as an incident note for the responder.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'incident-management', 'automation'],
+    },
+    {
+      icon: PagerDutyIcon,
+      title: 'PagerDuty customer-impact notifier',
+      prompt:
+        'Create a scheduled workflow that polls PagerDuty for incidents on customer-facing services, looks up affected accounts in Salesforce, and drafts a status-page update plus a Slack alert to the customer success team for high-impact outages.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'incident-management', 'communication'],
+      alsoIntegrations: ['slack', 'salesforce'],
+    },
+    {
+      icon: PagerDutyIcon,
+      title: 'PagerDuty alert-to-ticket bridge',
+      prompt:
+        'Build a workflow that creates a PagerDuty incident from inbound monitoring alerts, opens a matching Linear issue with the same severity and links the two, and logs the pairing in a table so engineering can track alert-to-fix time.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'incident-management', 'ticketing'],
+      alsoIntegrations: ['linear'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -374,7 +374,6 @@ async function duplicateWorkflowsInFolderTree(
         userId,
         name: sourceWorkflow.name,
         description: sourceWorkflow.description || undefined,
-        color: sourceWorkflow.color,
         workspaceId: targetWorkspaceId,
         folderId: newFolderId,
         requestId,

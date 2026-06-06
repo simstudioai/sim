@@ -1,5 +1,5 @@
 import { PeopleDataLabsIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PdlPersonEnrichResponse } from '@/tools/peopledatalabs/types'
 
@@ -13,8 +13,8 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
   docsLink: 'https://docs.sim.ai/tools/peopledatalabs',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment'],
   bgColor: '#4831C3',
+  iconColor: '#4831C3',
   icon: PeopleDataLabsIcon,
   subBlocks: [
     {
@@ -629,3 +629,78 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
     suggestions: { type: 'json', description: 'Autocomplete suggestions' },
   },
 }
+
+export const PeopleDataLabsBlockMeta = {
+  tags: ['enrichment'],
+  templates: [
+    {
+      icon: PeopleDataLabsIcon,
+      title: 'PDL person enricher',
+      prompt:
+        'Build a workflow that watches CRM contacts, enriches each via People Data Labs with role, seniority, and company signals, and writes the enriched data back.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'research'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: PeopleDataLabsIcon,
+      title: 'PDL company enricher',
+      prompt:
+        'Create a workflow that takes a list of company domains, runs People Data Labs company-search, and writes firmographics, employee count, and tech stack into a tables-based research base.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: PeopleDataLabsIcon,
+      title: 'PDL ICP scorer',
+      prompt:
+        'Build a workflow that scores inbound leads against the ICP using People Data Labs enrichment fields, routes high-fit leads to sales, and writes the score back to the CRM.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: PeopleDataLabsIcon,
+      title: 'PDL CRM gap-filler',
+      prompt:
+        'Create a scheduled workflow that finds CRM contacts missing key fields, runs People Data Labs to fill gaps, and writes coverage metrics to a hygiene table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: PeopleDataLabsIcon,
+      title: 'PDL lookalike expander',
+      prompt:
+        'Build a workflow that derives firmographic attributes from a seed account list and uses People Data Labs company-search to find similar companies, expanding the TAM and writing the new prospects into Salesforce.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: PeopleDataLabsIcon,
+      title: 'PDL hiring-signal alerter',
+      prompt:
+        'Create a scheduled workflow that runs People Data Labs person-search for new hires in relevant roles at tracked accounts and posts a Slack alert when a match appears.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PeopleDataLabsIcon,
+      title: 'PDL + Email Bison outbound',
+      prompt:
+        'Build a workflow that runs People Data Labs on prospects, drafts a personalized first-touch email based on enrichment fields, and sends via Email Bison.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['emailbison'],
+    },
+  ],
+} as const satisfies BlockMeta

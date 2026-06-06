@@ -1,6 +1,6 @@
 import { ZoomIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ZoomResponse } from '@/tools/zoom/types'
 import { getTrigger } from '@/triggers'
@@ -15,8 +15,8 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
   docsLink: 'https://docs.sim.ai/tools/zoom',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['meeting', 'calendar', 'scheduling'],
   bgColor: '#2D8CFF',
+  iconColor: '#2D8CFF',
   icon: ZoomIcon,
   triggers: {
     enabled: true,
@@ -668,3 +668,79 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
     pageInfo: { type: 'json', description: 'Pagination information' },
   },
 }
+
+export const ZoomBlockMeta = {
+  tags: ['meeting', 'calendar', 'scheduling'],
+  templates: [
+    {
+      icon: ZoomIcon,
+      title: 'Zoom recording recap',
+      prompt:
+        'Build a workflow that runs after a Zoom meeting ends, pulls the cloud recording transcript, summarizes decisions and action items, and posts the recap to the linked Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ZoomIcon,
+      title: 'Zoom meeting prep brief',
+      prompt:
+        'Create a scheduled workflow that runs each morning, lists today’s Zoom meetings, researches attendees with Apollo and the web, and emails a prep brief 30 minutes before each meeting.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sales'],
+      alsoIntegrations: ['apollo', 'gmail'],
+    },
+    {
+      icon: ZoomIcon,
+      title: 'Zoom webinar follow-up',
+      prompt:
+        'Build a workflow that runs after a Zoom webinar, pulls the registrant and attendee lists, sends a follow-up email with the recording link, and writes attendance into HubSpot for marketing scoring.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm'],
+      alsoIntegrations: ['hubspot', 'gmail'],
+    },
+    {
+      icon: ZoomIcon,
+      title: 'Zoom + Notion meeting notes',
+      prompt:
+        'Create a workflow that watches for Zoom recordings, transcribes, and writes a structured meeting-notes page to Notion under the right team space, with action items linked to owners.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: ZoomIcon,
+      title: 'Zoom sales-call deal updater',
+      prompt:
+        'Build a workflow that runs after a Zoom sales call, summarizes objections, next steps, and stage signals from the transcript, and updates the linked Salesforce or HubSpot opportunity.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce', 'hubspot'],
+    },
+    {
+      icon: ZoomIcon,
+      title: 'Zoom recurring 1:1 logger',
+      prompt:
+        'Create a workflow that captures Zoom 1:1 meeting recaps, appends them to a per-employee log file, and surfaces talking points for the next 1:1 to the manager in Slack.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'individual'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ZoomIcon,
+      title: 'Zoom + Telegram recap pusher',
+      prompt:
+        'Create a workflow that runs after a Zoom meeting, summarizes the transcript, and pushes the recap to a chosen Telegram channel for asynchronous review.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'communication'],
+      alsoIntegrations: ['telegram'],
+    },
+  ],
+} as const satisfies BlockMeta

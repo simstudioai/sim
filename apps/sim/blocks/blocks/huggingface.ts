@@ -1,5 +1,5 @@
 import { HuggingFaceIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { HuggingFaceChatResponse } from '@/tools/huggingface/types'
 
@@ -13,7 +13,6 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
   docsLink: 'https://docs.sim.ai/tools/huggingface',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'agentic'],
   bgColor: '#0B0F19',
   icon: HuggingFaceIcon,
   subBlocks: [
@@ -121,3 +120,74 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
     usage: { type: 'json', description: 'Token usage stats' },
   },
 }
+
+export const HuggingFaceBlockMeta = {
+  tags: ['llm', 'agentic'],
+  templates: [
+    {
+      icon: HuggingFaceIcon,
+      title: 'Hugging Face row classifier',
+      prompt:
+        'Build a workflow that runs each row in a table through a Hugging Face chat model with custom labels in the prompt, writes the predicted label and a confidence rating back, and flags low-confidence rows for review.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'automation'],
+    },
+    {
+      icon: HuggingFaceIcon,
+      title: 'Open-source sentiment scorer',
+      prompt:
+        'Create a workflow that scores customer feedback with a Hugging Face chat model, writes sentiment and score columns back to the table, and pings Slack on a sudden negative spike.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: HuggingFaceIcon,
+      title: 'Hugging Face candidate reranker',
+      prompt:
+        'Create a retrieval pipeline that fetches top-50 candidates from a knowledge base, reranks them with a Hugging Face chat model scoring relevance, and returns the top-5 to the answering agent for higher precision.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: HuggingFaceIcon,
+      title: 'Hugging Face PII redactor',
+      prompt:
+        'Build a workflow that runs a Hugging Face chat model over text uploads to detect PII, redacts the sensitive entities, and writes the cleaned text to a downstream table.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'automation'],
+    },
+    {
+      icon: HuggingFaceIcon,
+      title: 'Hugging Face open-model summarizer',
+      prompt:
+        'Create a workflow that on a new document fetches the text and runs it through a Hugging Face chat model to produce a concise summary and key takeaways, then writes the result back to a table — keeping the workload on open-weight models you control.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['llm', 'content', 'automation'],
+    },
+    {
+      icon: HuggingFaceIcon,
+      title: 'Hugging Face feedback classifier',
+      prompt:
+        'Build a workflow that reads new customer feedback rows, uses a Hugging Face chat model to classify sentiment and theme, writes the labels back to the table, and posts a Slack alert when negative feedback spikes.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'llm', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: HuggingFaceIcon,
+      title: 'Hugging Face model A/B harness',
+      prompt:
+        'Create a workflow that runs the same prompt through a Hugging Face open model and a hosted model side by side, compares the outputs with a grading agent, and logs quality, latency, and cost to a table for evaluation.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['llm', 'engineering', 'analysis'],
+    },
+  ],
+} as const satisfies BlockMeta

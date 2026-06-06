@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { stripVersionSuffix } from '@sim/utils/string'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
@@ -15,13 +16,13 @@ import type { ToolConfig } from '@/tools/types'
 const logger = createLogger('ToolsUtils')
 
 /**
- * Strips version suffix (_v2, _v3, etc.) from a tool ID or name
+ * Strips version suffix (_v2, _v3, etc.) from a tool ID or name.
+ * Re-exported from the canonical `@sim/utils/string` helper so existing
+ * `@/tools/utils` consumers keep working unchanged.
  * @example stripVersionSuffix('notion_search_v2') => 'notion_search'
  * @example stripVersionSuffix('github_create_pr_v3') => 'github_create_pr'
  */
-export function stripVersionSuffix(name: string): string {
-  return name.replace(/_v\d+$/, '')
-}
+export { stripVersionSuffix } from '@sim/utils/string'
 
 /**
  * Filters a tools map to return only the latest version of each tool.

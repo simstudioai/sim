@@ -1,5 +1,5 @@
 import { CloudflareIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { CloudflareResponse } from '@/tools/cloudflare/types'
 
 export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
@@ -11,8 +11,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
     'Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.',
   docsLink: 'https://docs.sim.ai/tools/cloudflare',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['cloud', 'monitoring'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#F5F6FA',
   icon: CloudflareIcon,
   subBlocks: [
@@ -1098,3 +1097,76 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
     total_count: { type: 'number', description: 'Total count of results' },
   },
 }
+
+export const CloudflareBlockMeta = {
+  tags: ['cloud', 'monitoring'],
+  templates: [
+    {
+      icon: CloudflareIcon,
+      title: 'Cloudflare DNS change tracker',
+      prompt:
+        'Create a scheduled workflow that pulls every Cloudflare DNS record for my zones each hour, diffs the snapshot against the previous run, logs added, removed, and modified records to a table, and posts a Slack alert when sensitive records like MX or NS change.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudflareIcon,
+      title: 'Cache purge on deploy',
+      prompt:
+        'Build a workflow that fires when a Vercel deployment succeeds on production, purges the Cloudflare cache for the affected hostnames, verifies the new content is being served, and posts a confirmation message to Slack with the purged paths.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation', 'infrastructure'],
+      alsoIntegrations: ['vercel', 'slack'],
+    },
+    {
+      icon: CloudflareIcon,
+      title: 'SSL and zone health check',
+      prompt:
+        'Create a scheduled weekly workflow that inspects every Cloudflare zone for SSL certificate status, security level, and zone settings drift, logs findings to a table, and opens Linear tickets for any zones that need attention.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'enterprise'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: CloudflareIcon,
+      title: 'DNS analytics digest',
+      prompt:
+        'Build a scheduled workflow that pulls Cloudflare DNS analytics for the top zones every Monday, identifies query spikes, anomalies, and surges in particular record types, and emails a written analysis to the platform team with traffic graphs and recommendations.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting', 'analysis'],
+    },
+    {
+      icon: CloudflareIcon,
+      title: 'Zone provisioning workflow',
+      prompt:
+        'Create a workflow that accepts a domain name from a form, creates a new Cloudflare zone, sets opinionated default DNS records and zone settings, generates the nameserver instructions, and posts the setup summary to Slack so the team can finalize delegation.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudflareIcon,
+      title: 'DNS record bulk importer',
+      prompt:
+        'Build a workflow that reads a table of DNS records — name, type, content, TTL — validates each row, creates or updates the matching record in Cloudflare, and writes results back to the table so DNS changes are versioned and reviewable.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation', 'infrastructure'],
+    },
+    {
+      icon: CloudflareIcon,
+      title: 'Zone settings policy enforcer',
+      prompt:
+        'Create a scheduled workflow that reads a baseline of required Cloudflare zone settings from a knowledge base, compares it against every zone weekly, automatically reverts unauthorized changes, and emails a compliance report to security leadership.',
+      modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise', 'monitoring'],
+    },
+  ],
+} as const satisfies BlockMeta

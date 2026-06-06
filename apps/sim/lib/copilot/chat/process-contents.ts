@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { document, knowledgeBase, templates } from '@sim/db/schema'
+import { document, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
@@ -13,7 +13,6 @@ import {
 } from '@/lib/copilot/vfs/serializers'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
-import { canAccessTemplate } from '@/lib/templates/permissions'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
@@ -32,7 +31,6 @@ type AgentContextType =
   | 'knowledge'
   | 'table'
   | 'file'
-  | 'templates'
   | 'workflow_block'
   | 'docs'
   | 'folder'
@@ -89,14 +87,6 @@ export async function processContextsServer(
           ctx.blockIds[0],
           ctx.label ? `@${ctx.label}` : '@',
           userId,
-          currentWorkspaceId
-        )
-      }
-      if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(
-          ctx.templateId,
-          userId,
-          ctx.label ? `@${ctx.label}` : '@',
           currentWorkspaceId
         )
       }
@@ -532,56 +522,6 @@ async function processBlockMetadata(
     return { type: 'blocks', tag, content }
   } catch (error) {
     logger.error('Error processing block metadata', { blockId, error })
-    return null
-  }
-}
-
-async function processTemplateFromDb(
-  templateId: string,
-  userId: string | undefined,
-  tag: string,
-  currentWorkspaceId?: string
-): Promise<AgentContext | null> {
-  try {
-    const access = await canAccessTemplate(templateId, userId)
-    if (!access.allowed) {
-      return null
-    }
-
-    if (currentWorkspaceId && access.template?.workflowId) {
-      const workflowRecord = await getActiveWorkflowRecord(access.template.workflowId)
-      if (!workflowRecord || workflowRecord.workspaceId !== currentWorkspaceId) {
-        return null
-      }
-    } else if (currentWorkspaceId) {
-      return null
-    }
-
-    const rows = await db
-      .select({
-        id: templates.id,
-        name: templates.name,
-        details: templates.details,
-        stars: templates.stars,
-        state: templates.state,
-      })
-      .from(templates)
-      .where(eq(templates.id, templateId))
-      .limit(1)
-    const t = rows?.[0]
-    if (!t) return null
-    const workflowState = t.state || {}
-    const summary = {
-      id: t.id,
-      name: t.name,
-      description: (t.details as any)?.tagline || '',
-      stars: t.stars || 0,
-      workflow: workflowState,
-    }
-    const content = JSON.stringify(summary)
-    return { type: 'templates', tag, content }
-  } catch (error) {
-    logger.error('Error processing template context (db)', { templateId, error })
     return null
   }
 }

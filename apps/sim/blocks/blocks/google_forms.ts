@@ -1,6 +1,6 @@
 import { GoogleFormsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
@@ -14,8 +14,7 @@ export const GoogleFormsBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_forms',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['google-workspace', 'forms', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleFormsIcon,
   subBlocks: [
     {
@@ -469,3 +468,79 @@ Example for "Add a required multiple choice question about favorite color":
     available: ['google_forms_webhook'],
   },
 }
+
+export const GoogleFormsBlockMeta = {
+  tags: ['google-workspace', 'forms', 'data-analytics'],
+  templates: [
+    {
+      icon: GoogleFormsIcon,
+      title: 'Google Forms to CRM',
+      prompt:
+        'Build a workflow that watches Google Forms responses, enriches each submitter with company data, and pushes qualified leads into HubSpot with the right owner and source.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: GoogleFormsIcon,
+      title: 'Google Forms support intake',
+      prompt:
+        'Create a workflow that turns Google Forms support submissions into Zendesk tickets, prioritizes them with an agent, and posts the new ticket to the support Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+      alsoIntegrations: ['zendesk', 'slack'],
+    },
+    {
+      icon: GoogleFormsIcon,
+      title: 'Google Forms event RSVP tracker',
+      prompt:
+        'Build a workflow that captures Google Forms event RSVPs into a table, sends confirmation emails, and provides a daily attendee dashboard to the organizer.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleFormsIcon,
+      title: 'Google Forms survey analyzer',
+      prompt:
+        'Create a workflow that processes Google Forms survey responses, classifies sentiment and themes with an agent, and writes a weekly insight digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleFormsIcon,
+      title: 'Google Forms approvals router',
+      prompt:
+        'Build a workflow that turns Google Forms approval requests into Slack messages with quick-action buttons, captures the decision, and emails the requester the outcome.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleFormsIcon,
+      title: 'Google Forms PTO collector',
+      prompt:
+        'Create a workflow that processes PTO requests from Google Forms, captures manager approval over Slack, and updates the HR table with approved time off.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleFormsIcon,
+      title: 'Google Forms quiz grader',
+      prompt:
+        'Build a workflow that captures Google Forms quiz responses, scores each automatically with an agent, writes scores to a tables-based gradebook, and emails the student.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'analysis'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

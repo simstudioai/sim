@@ -1,6 +1,6 @@
 import { WordpressIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { WordPressResponse } from '@/tools/wordpress/types'
@@ -14,9 +14,9 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     'Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.',
   docsLink: 'https://docs.sim.ai/tools/wordpress',
   category: 'tools',
-  integrationType: IntegrationType.Design,
-  tags: ['content-management', 'seo'],
+  integrationType: IntegrationType.Marketing,
   bgColor: '#21759B',
+  iconColor: '#21759B',
   icon: WordpressIcon,
   subBlocks: [
     // Operation Selection
@@ -1014,3 +1014,75 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
     totalPages: { type: 'number', description: 'Total pages' },
   },
 }
+
+export const WordPressBlockMeta = {
+  tags: ['content-management', 'seo'],
+  templates: [
+    {
+      icon: WordpressIcon,
+      title: 'Blog auto-publisher',
+      prompt:
+        'Build a workflow that takes a draft document, optimizes it for SEO by researching target keywords, formats it for WordPress with proper headings and meta description, and publishes it as a draft post for final review.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'automation'],
+    },
+    {
+      icon: WordpressIcon,
+      title: 'WordPress release-notes publisher',
+      prompt:
+        'Create a scheduled workflow that runs every Friday, pulls merged GitHub PRs for the week, drafts a user-facing changelog, and publishes it as a WordPress post.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'engineering'],
+      alsoIntegrations: ['github'],
+    },
+    {
+      icon: WordpressIcon,
+      title: 'WordPress comment moderator',
+      prompt:
+        'Build a scheduled workflow that polls new WordPress comments, classifies each as spam, question, or constructive, auto-moderates spam, and replies to questions using a knowledge base.',
+      modules: ['scheduled', 'knowledge-base', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+    },
+    {
+      icon: WordpressIcon,
+      title: 'WordPress SEO refresher',
+      prompt:
+        'Create a scheduled monthly workflow that finds underperforming WordPress posts, runs Ahrefs keyword analysis, drafts refreshed sections, and stages the update as a draft revision.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+      alsoIntegrations: ['ahrefs'],
+    },
+    {
+      icon: WordpressIcon,
+      title: 'WordPress newsletter republisher',
+      prompt:
+        'Build a workflow that publishes a new WordPress post and then drafts an adapted Mailchimp newsletter version, links back to the post, and queues it for the editor’s review.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'communication'],
+      alsoIntegrations: ['mailchimp'],
+    },
+    {
+      icon: WordpressIcon,
+      title: 'WordPress broken-link sweeper',
+      prompt:
+        'Create a scheduled workflow that scans WordPress posts for broken outbound links, proposes replacement URLs via web search, and stages each as a draft revision for approval.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+    },
+    {
+      icon: WordpressIcon,
+      title: 'WordPress media-rich post builder',
+      prompt:
+        'Build a workflow that takes a draft article and its image files, uploads each image to the WordPress media library, generates a hero image with an image generator, assigns the right categories and tags, and publishes the fully illustrated post as a draft for review.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

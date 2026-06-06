@@ -3,7 +3,6 @@ import { db } from '@sim/db'
 import {
   a2aAgent,
   chat,
-  form,
   webhook,
   workflow,
   workflowFolder,
@@ -391,7 +390,6 @@ async function restoreFolderRecursively(
       .where(inArray(workflowSchedule.workflowId, workflowIds))
     await tx.update(webhook).set(restoreSet).where(inArray(webhook.workflowId, workflowIds))
     await tx.update(chat).set(restoreSet).where(inArray(chat.workflowId, workflowIds))
-    await tx.update(form).set(restoreSet).where(inArray(form.workflowId, workflowIds))
     await tx
       .update(workflowMcpTool)
       .set(restoreSet)

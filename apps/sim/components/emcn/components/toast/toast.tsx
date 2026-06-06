@@ -1,9 +1,11 @@
 'use client'
 
 import {
+  type ComponentType,
   type CSSProperties,
   createContext,
   type ReactNode,
+  type SVGProps,
   useCallback,
   useContext,
   useEffect,
@@ -12,24 +14,39 @@ import {
   useState,
 } from 'react'
 import { generateId } from '@sim/utils/id'
-import { X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { cn } from '@/lib/core/utils/cn'
+import { Button } from '@/components/emcn/components/button/button'
+import { Chip } from '@/components/emcn/components/chip/chip'
+import { CountdownRing } from '@/components/emcn/components/toast/countdown-ring'
+import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
+import { Bell } from '@/components/emcn/icons/bell'
+import { Check } from '@/components/emcn/icons/check'
+import { X } from '@/components/emcn/icons/x'
 
 const AUTO_DISMISS_MS = 5000
 const EXIT_ANIMATION_MS = 200
-const MAX_VISIBLE = 4
+/**
+ * Visible stack depth. The per-step `translateX` cascade keeps the depth
+ * cue legible; raising this much higher would crowd the bottom-right edge
+ * once the portal insets for the workflow panel + terminal.
+ */
+const MAX_VISIBLE = 3
 const STACK_OFFSET_PX = 3
-
-const RING_RADIUS = 5.5
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 
 type ToastVariant = 'default' | 'success' | 'error'
 
-const VARIANT_STYLES: Record<ToastVariant, string> = {
-  default: 'border-[var(--border)] bg-[var(--bg)]',
-  success: 'border-[var(--border)] bg-[var(--bg)]',
-  error: 'border-[var(--border)] bg-[var(--bg)]',
+/**
+ * Leading icon shown next to the toast title, per variant. Icons are EMCN
+ * primitives so this surface stays inside the design system. All variants
+ * share the neutral `text-[var(--text-icon)]` color used by sidebar items;
+ * variant intent is communicated through icon shape and message content,
+ * not tint.
+ */
+const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>> = {
+  default: Bell,
+  error: Bell,
+  success: Check,
 }
 
 interface ToastAction {
@@ -58,21 +75,30 @@ type ToastFn = {
   (input: ToastInput): string
   success: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
   error: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
+  /** Dismisses a single toast by id. No-op if the id is unknown or the provider is unmounted. */
+  dismiss: (id: string) => void
+  /** Dismisses every visible toast. No-op when the provider is unmounted. */
+  dismissAll: () => void
 }
 
 interface ToastContextValue {
   toast: ToastFn
   dismiss: (id: string) => void
+  dismissAll: () => void
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
 
 let globalToast: ToastFn | null = null
+let globalDismiss: ((id: string) => void) | null = null
+let globalDismissAll: (() => void) | null = null
 
 function createToastFn(add: (input: ToastInput) => string): ToastFn {
   const fn = ((input: ToastInput) => add(input)) as ToastFn
   fn.success = (message, options) => add({ ...options, message, variant: 'success' })
   fn.error = (message, options) => add({ ...options, message, variant: 'error' })
+  fn.dismiss = (id) => globalDismiss?.(id)
+  fn.dismissAll = () => globalDismissAll?.()
   return fn
 }
 
@@ -81,8 +107,8 @@ function createToastFn(add: (input: ToastInput) => string): ToastFn {
  *
  * @example
  * ```tsx
- * toast.success('Item restored', { action: { label: 'View', onClick: () => router.push('/item') } })
- * toast.error('Something went wrong')
+ * toast.error('Upload failed', { description: 'Network timed out' })
+ * toast.success('Saved', { action: { label: 'View', onClick: () => router.push('/x') } })
  * toast({ message: 'Hello', variant: 'default' })
  * ```
  */
@@ -93,152 +119,141 @@ export const toast: ToastFn = createToastFn((input) => {
   return globalToast(input)
 })
 
-/**
- * Hook to access the toast function from context.
- */
+/** Hook to access the toast function and dismiss helper from context. */
 export function useToast() {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used within <ToastProvider>')
   return ctx
 }
 
-function CountdownRing({ duration }: { duration: number }) {
-  return (
-    <svg
-      width='14'
-      height='14'
-      viewBox='0 0 16 16'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-      style={{ transform: 'rotate(-90deg) scaleX(-1)' }}
-    >
-      <circle cx='8' cy='8' r={RING_RADIUS} stroke='var(--border)' strokeWidth='1.5' />
-      <circle
-        cx='8'
-        cy='8'
-        r={RING_RADIUS}
-        stroke='var(--text-icon)'
-        strokeWidth='1.5'
-        strokeLinecap='round'
-        strokeDasharray={RING_CIRCUMFERENCE}
-        style={{
-          animation: `notification-countdown ${duration}ms linear forwards`,
-        }}
-      />
-    </svg>
-  )
+interface ToastItemProps {
+  toast: ToastData
+  depth: number
+  isPaused: boolean
+  onPause: () => void
+  onDismiss: (id: string) => void
 }
 
-function ToastItem({
-  toast: t,
-  stackOffset,
-  onDismiss,
-}: {
-  toast: ToastData
-  stackOffset: number
-  onDismiss: (id: string) => void
-}) {
+function ToastItem({ toast: t, depth, isPaused, onPause, onDismiss }: ToastItemProps) {
   const [exiting, setExiting] = useState(false)
-  const pausedRef = useRef(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const remainingRef = useRef(t.duration)
-  const startRef = useRef(0)
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const dismiss = useCallback(() => {
     setExiting(true)
-    setTimeout(() => onDismiss(t.id), EXIT_ANIMATION_MS)
+    exitTimerRef.current = setTimeout(() => onDismiss(t.id), EXIT_ANIMATION_MS)
   }, [onDismiss, t.id])
 
   useEffect(() => {
-    if (t.duration > 0) {
-      startRef.current = Date.now()
-      remainingRef.current = t.duration
-      timerRef.current = setTimeout(dismiss, t.duration)
-      return () => clearTimeout(timerRef.current)
-    }
-  }, [dismiss, t.duration])
+    return () => clearTimeout(exitTimerRef.current)
+  }, [])
 
-  const handleMouseEnter = useCallback(() => {
-    if (t.duration <= 0) return
-    clearTimeout(timerRef.current)
-    remainingRef.current -= Date.now() - startRef.current
-    pausedRef.current = true
-  }, [t.duration])
+  const showCountdown = !isPaused && !exiting && t.duration > 0
 
-  const handleMouseLeave = useCallback(() => {
-    if (t.duration <= 0) return
-    pausedRef.current = false
-    startRef.current = Date.now()
-    timerRef.current = setTimeout(dismiss, Math.max(remainingRef.current, 0))
-  }, [dismiss, t.duration])
+  /**
+   * The `--stack-offset` custom property is read by the `notification-enter` /
+   * `notification-exit` keyframes (see `globals.css`) so each item animates in
+   * along its target translate-X without duplicating per-depth keyframe rules.
+   */
+  const style = {
+    '--stack-offset': `${depth * STACK_OFFSET_PX}px`,
+    animation: exiting
+      ? `notification-exit ${EXIT_ANIMATION_MS}ms ease-in forwards`
+      : 'notification-enter 200ms ease-out forwards',
+    gridArea: '1 / 1',
+  } as CSSProperties
 
-  const hasDuration = t.duration > 0
+  const Icon = VARIANT_ICON[t.variant]
 
   return (
     <div
-      onMouseEnter={hasDuration ? handleMouseEnter : undefined}
-      onMouseLeave={hasDuration ? handleMouseLeave : undefined}
-      style={{ '--stack-offset': `${stackOffset}px` } as CSSProperties}
-      className={cn(
-        'pointer-events-auto flex flex-col gap-2 overflow-hidden rounded-lg border px-3 py-2.5 shadow-md transition-[transform,opacity] [grid-area:1/1]',
-        t.variant === 'error' ? 'w-[min(100vw-2rem,400px)]' : 'w-[min(100vw-2rem,320px)]',
-        VARIANT_STYLES[t.variant],
-        exiting
-          ? 'animate-[toast-exit_200ms_ease-in_forwards] motion-reduce:animate-none'
-          : 'animate-[toast-enter_200ms_ease-out_forwards] motion-reduce:animate-none'
-      )}
+      style={style}
+      className='w-[min(100vw-2rem,280px)] self-end overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)] shadow-[var(--shadow-overlay)]'
     >
-      <div className='flex items-start gap-2'>
-        <div className='min-w-0 flex-1'>
-          <div
-            className={cn(
-              'font-medium text-[var(--text-body)] text-small leading-[18px]',
-              t.variant === 'error' ? 'line-clamp-3' : 'line-clamp-2'
-            )}
-          >
-            {t.variant === 'error' && (
-              <span className='mr-2 mb-0.5 inline-block size-2 rounded-[2px] bg-[var(--text-error)] align-middle' />
-            )}
-            {t.variant === 'success' && (
-              <span className='mr-2 mb-0.5 inline-block size-2 rounded-[2px] bg-[var(--text-success)] align-middle' />
-            )}
-            {t.message}
+      <div className='flex flex-col gap-2 p-2'>
+        <div className='flex items-start gap-2.5'>
+          {/*
+           * Each affordance row (leading icon, close cluster) is wrapped in a
+           * `h-5` flex so its center sits on the title's first-line center
+           * (`text-[14px] leading-5`). Glyphs are all `size-[14px]` so the
+           * leading variant icon, title, and trailing close icon read as a
+           * single horizontal rhythm regardless of how many lines the title
+           * or description wrap to.
+           */}
+          <div className='flex h-5 flex-shrink-0 items-center'>
+            <Icon className='size-[14px] text-[var(--text-icon)]' />
           </div>
-          {t.description ? (
-            <p className='mt-0.5 text-caption leading-4 opacity-80'>{t.description}</p>
-          ) : null}
+          <div className='flex min-w-0 flex-1 flex-col'>
+            <span className='line-clamp-2 text-[14px] text-[var(--text-body)] leading-5'>
+              {t.message}
+            </span>
+            {t.description ? (
+              <p className='line-clamp-3 text-[12px] text-[var(--text-muted)] leading-4'>
+                {t.description}
+              </p>
+            ) : null}
+          </div>
+          <div className='flex h-5 flex-shrink-0 items-center gap-1.5'>
+            {showCountdown ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='quiet'
+                    onClick={onPause}
+                    aria-label='Keep notifications visible'
+                    className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm p-0 text-[var(--text-icon)]'
+                  >
+                    <CountdownRing duration={t.duration} />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content className='z-[calc(var(--z-toast)+1)]'>
+                  <p>Keep visible</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            ) : null}
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='quiet'
+                  onClick={dismiss}
+                  aria-label='Dismiss notification'
+                  className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm p-0'
+                >
+                  <X className='size-[14px] text-[var(--text-icon)]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content className='z-[calc(var(--z-toast)+1)]'>
+                <p>Dismiss</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </div>
         </div>
-        <div className='flex shrink-0 items-start gap-0.5'>
-          {t.duration > 0 ? <CountdownRing duration={t.duration} /> : null}
-          <button
-            type='button'
-            onClick={dismiss}
-            aria-label='Dismiss notification'
-            className='-m-0.5 relative shrink-0 rounded-sm p-1 text-[var(--text-icon)] before:absolute before:inset-[-8px] before:content-[""] hover:bg-[var(--surface-active)]'
+        {t.action ? (
+          <Chip
+            variant='filled'
+            fullWidth
+            flush
+            onClick={() => {
+              t.action!.onClick()
+              dismiss()
+            }}
+            className='justify-center'
           >
-            <X className='size-[14px]' />
-          </button>
-        </div>
+            {t.action.label}
+          </Chip>
+        ) : null}
       </div>
-      {t.action ? (
-        <button
-          type='button'
-          onClick={() => {
-            t.action!.onClick()
-            dismiss()
-          }}
-          className='w-full rounded-md bg-[var(--surface-active)] px-2 py-1 font-medium text-small hover:bg-[var(--surface-hover)]'
-        >
-          {t.action.label}
-        </button>
-      ) : null}
     </div>
   )
 }
 
 /**
- * Toast container that renders toasts via portal.
- * Mount once in your root layout.
+ * Toast container that renders toasts via portal. Mount once in your root
+ * layout. Each item is a chip-modal-styled card with a leading EMCN icon,
+ * header, optional description, and a trailing close/countdown cluster.
+ * Items stack bottom-right via grid-overlay + `--stack-offset` (consumed
+ * by the `notification-enter` / `notification-exit` keyframes in
+ * `globals.css`). Clicking any countdown ring pauses every active timer
+ * until the stack empties.
  *
  * @example
  * ```tsx
@@ -246,12 +261,29 @@ function ToastItem({
  * ```
  */
 export function ToastProvider({ children }: { children?: ReactNode }) {
+  const pathname = usePathname()
+  /**
+   * On workflow pages the toast portal must sit inside the workflow surface
+   * — not over the right-side panel or the bottom terminal. Mirrors the
+   * `ModalContent` workflow-aware inset using the same `--panel-width` and
+   * `--terminal-height` CSS variables maintained by the panel + terminal
+   * stores.
+   */
+  const isWorkflowPage = pathname?.includes('/w/') ?? false
+
   const [toasts, setToasts] = useState<ToastData[]>([])
+  const [isPaused, setIsPaused] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const isPausedRef = useRef(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    isPausedRef.current = isPaused
+  }, [isPaused])
 
   const addToast = useCallback((input: ToastInput): string => {
     const id = generateId()
@@ -268,49 +300,124 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [])
 
   const dismissToast = useCallback((id: string) => {
+    const timer = timersRef.current.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      timersRef.current.delete(id)
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
+  const dismissAllToasts = useCallback(() => {
+    for (const timer of timersRef.current.values()) clearTimeout(timer)
+    timersRef.current.clear()
+    setToasts([])
+  }, [])
+
+  const pauseAll = useCallback(() => {
+    setIsPaused(true)
+    isPausedRef.current = true
+    for (const timer of timersRef.current.values()) clearTimeout(timer)
+    timersRef.current.clear()
+  }, [])
+
+  /**
+   * Per-toast auto-dismiss timers. Cleared when the stack empties so a fresh
+   * arrival after a pause gets new timers. Pausing clears all live timers.
+   */
+  useEffect(() => {
+    if (toasts.length === 0) {
+      if (isPausedRef.current) setIsPaused(false)
+      for (const timer of timersRef.current.values()) clearTimeout(timer)
+      timersRef.current.clear()
+      return
+    }
+    if (isPausedRef.current) return
+
+    const timers = timersRef.current
+    const activeIds = new Set<string>()
+
+    for (const t of toasts) {
+      if (t.duration <= 0 || timers.has(t.id)) continue
+      activeIds.add(t.id)
+      timers.set(
+        t.id,
+        setTimeout(() => {
+          timers.delete(t.id)
+          if (isPausedRef.current) return
+          dismissToast(t.id)
+        }, t.duration)
+      )
+    }
+
+    for (const [id, timer] of timers) {
+      if (!activeIds.has(id) && !toasts.some((t) => t.id === id)) {
+        clearTimeout(timer)
+        timers.delete(id)
+      }
+    }
+  }, [toasts, dismissToast])
+
+  useEffect(() => {
+    const timers = timersRef.current
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer)
+    }
+  }, [])
+
+  /**
+   * Stable across mounts because `addToast` is memoized with no deps. Capturing
+   * once at mount lets the module-level `toast` re-export bind to the live
+   * provider without re-allocating wrappers on every render.
+   */
   const toastFn = useRef<ToastFn>(createToastFn(addToast))
 
   useEffect(() => {
-    toastFn.current = createToastFn(addToast)
     globalToast = toastFn.current
+    globalDismiss = dismissToast
+    globalDismissAll = dismissAllToasts
     return () => {
       globalToast = null
+      globalDismiss = null
+      globalDismissAll = null
     }
-  }, [addToast])
+  }, [dismissToast, dismissAllToasts])
 
   const ctx = useMemo<ToastContextValue>(
-    () => ({ toast: toastFn.current, dismiss: dismissToast }),
-    [dismissToast]
+    () => ({ toast: toastFn.current, dismiss: dismissToast, dismissAll: dismissAllToasts }),
+    [dismissToast, dismissAllToasts]
   )
 
   return (
     <ToastContext.Provider value={ctx}>
       {children}
-      {mounted &&
-        createPortal(
-          <div
-            aria-live='polite'
-            aria-label='Notifications'
-            className='pointer-events-none fixed right-6 bottom-6 z-[var(--z-toast)] grid justify-items-end'
-          >
-            {toasts.map((t, index) => {
-              const depth = toasts.length - index - 1
-
-              return (
-                <ToastItem
-                  key={t.id}
-                  toast={t}
-                  stackOffset={depth * STACK_OFFSET_PX}
-                  onDismiss={dismissToast}
-                />
-              )
-            })}
-          </div>,
-          document.body
-        )}
+      {mounted && toasts.length > 0
+        ? createPortal(
+            <Tooltip.Provider>
+              <div
+                aria-live='polite'
+                aria-label='Notifications'
+                className='fixed z-[var(--z-toast)] grid'
+                style={{
+                  right: isWorkflowPage ? 'calc(var(--panel-width) + 16px)' : '16px',
+                  bottom: isWorkflowPage ? 'calc(var(--terminal-height) + 16px)' : '16px',
+                }}
+              >
+                {[...toasts].reverse().map((t, index, stacked) => (
+                  <ToastItem
+                    key={t.id}
+                    toast={t}
+                    depth={stacked.length - index - 1}
+                    isPaused={isPaused}
+                    onPause={pauseAll}
+                    onDismiss={dismissToast}
+                  />
+                ))}
+              </div>
+            </Tooltip.Provider>,
+            document.body
+          )
+        : null}
     </ToastContext.Provider>
   )
 }

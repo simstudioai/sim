@@ -2,7 +2,6 @@
 
 import { memo } from 'react'
 import {
-  Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -15,8 +14,8 @@ import {
   Folder,
   FolderInput,
   Pencil,
-  Trash2,
 } from '@/components/emcn'
+import { Download, Trash } from '@/components/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 
@@ -103,7 +102,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
               </DropdownMenuSub>
             )}
             <DropdownMenuItem onSelect={onDelete}>
-              <Trash2 />
+              <Trash />
               {isMultiSelect ? `Delete ${selectedCount} items` : 'Delete'}
             </DropdownMenuItem>
           </>

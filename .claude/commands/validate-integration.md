@@ -192,6 +192,12 @@ For **each tool** in `tools.access`:
 - [ ] `authMode` is set correctly (`AuthMode.OAuth` or `AuthMode.ApiKey`)
 - [ ] Block is registered in `blocks/registry.ts` alphabetically
 
+### BlockMeta
+- [ ] `{Service}BlockMeta` is exported in the same file as the block
+- [ ] Has at least 7 templates, each with `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
+- [ ] Prompts describe concrete use cases, not generic descriptions of what the service does
+- [ ] `alsoIntegrations` is set on any template whose prompt references another service
+
 ### Block Inputs
 - [ ] `inputs` section lists all subBlock params that the block accepts
 - [ ] Input types match the subBlock types
@@ -282,6 +288,7 @@ After fixing, confirm:
 - [ ] Validated pagination consistency across tools and block
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
+- [ ] Validated `{Service}BlockMeta` exported with at least 7 templates
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run lint` after fixes

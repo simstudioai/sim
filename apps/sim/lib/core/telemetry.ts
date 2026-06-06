@@ -861,25 +861,6 @@ export const PlatformEvents = {
   },
 
   /**
-   * Track template used
-   */
-  templateUsed: (attrs: {
-    templateId: string
-    templateName: string
-    newWorkflowId: string
-    blocksCount: number
-    workspaceId: string
-  }) => {
-    trackPlatformEvent('platform.template.used', {
-      'template.id': attrs.templateId,
-      'template.name': attrs.templateName,
-      'workflow.created_id': attrs.newWorkflowId,
-      'workflow.blocks_count': attrs.blocksCount,
-      'workspace.id': attrs.workspaceId,
-    })
-  },
-
-  /**
    * Track subscription created
    */
   subscriptionCreated: (attrs: {

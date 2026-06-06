@@ -1,5 +1,5 @@
 import { HunterIOIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { HunterResponse } from '@/tools/hunter/types'
 
 export const HunterBlock: BlockConfig<HunterResponse> = {
@@ -12,8 +12,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
   docsLink: 'https://docs.sim.ai/tools/hunter',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: HunterIOIcon,
   subBlocks: [
     {
@@ -409,3 +408,76 @@ Return ONLY the search query text - no explanations.`,
     },
   },
 }
+
+export const HunterBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  templates: [
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter email finder',
+      prompt:
+        'Build a workflow that takes a target company and role from a table, runs Hunter to find the matching email, validates it, and writes the verified contact back.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter email verifier',
+      prompt:
+        'Create a workflow that runs a list of email addresses through Hunter verification, removes invalid emails, and writes a clean list for outbound sends.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter + Email Bison outbound',
+      prompt:
+        'Build a workflow that uses Hunter to find prospect emails, validates each, and pushes valid prospects into an active Email Bison campaign.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['emailbison'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter domain finder',
+      prompt:
+        'Create a workflow that takes a list of company names, finds the matching domains via Hunter, and enriches the rows so the CRM has accurate domain data.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter event-list enricher',
+      prompt:
+        'Build a workflow that takes a Luma event registrants list, finds their work emails via Hunter, and writes the verified emails into HubSpot for followup.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm'],
+      alsoIntegrations: ['luma', 'hubspot'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter CRM gap-filler',
+      prompt:
+        'Create a scheduled workflow that finds HubSpot contacts missing email addresses, looks them up via Hunter, validates each, and updates the contact record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter + Apollo prospect builder',
+      prompt:
+        'Build a workflow that runs an Apollo search for an ICP, finds verified emails via Hunter, and writes the deliverable prospect list to a sender table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['apollo'],
+    },
+  ],
+} as const satisfies BlockMeta

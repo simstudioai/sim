@@ -1,5 +1,6 @@
+import { ClipboardList, Table } from '@/components/emcn/icons'
 import { MailServerIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
@@ -11,7 +12,6 @@ export const ImapBlock: BlockConfig = {
     'Connect to any email server via IMAP protocol to trigger workflows when new emails are received. Supports Gmail, Outlook, Yahoo, and any other IMAP-compatible email provider.',
   category: 'triggers',
   integrationType: IntegrationType.Email,
-  tags: ['messaging', 'automation'],
   bgColor: '#6366F1',
   icon: MailServerIcon,
   triggerAllowed: true,
@@ -54,3 +54,37 @@ export const ImapBlock: BlockConfig = {
     available: ['imap_poller'],
   },
 }
+
+export const ImapBlockMeta = {
+  tags: ['automation', 'messaging'],
+  templates: [
+    {
+      icon: MailServerIcon,
+      title: 'Inbound email to Slack',
+      prompt:
+        'Build a workflow that triggers when a new email arrives via IMAP, summarizes the subject and body with an agent, and posts the summary with the sender to a Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['communication', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ClipboardList,
+      title: 'Support inbox triage',
+      prompt:
+        'Create a workflow that triggers on new emails arriving via IMAP, classifies each one by topic and urgency with an agent, and logs the sender, subject, and category to a triage table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['communication', 'automation'],
+    },
+    {
+      icon: Table,
+      title: 'Invoice email to records',
+      prompt:
+        'Build a workflow that triggers when an email arrives via IMAP, extracts the vendor, amount, and due date from the body and attachments with an agent, and writes a row to an invoices table.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['communication', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

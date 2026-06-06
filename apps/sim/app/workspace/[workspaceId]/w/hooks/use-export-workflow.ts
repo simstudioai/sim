@@ -78,7 +78,6 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
           const exportData = await fetchWorkflowForExport(workflowId, {
             name: workflowMeta.name,
             description: workflowMeta.description,
-            color: workflowMeta.color,
             folderId: workflowMeta.folderId,
           })
 

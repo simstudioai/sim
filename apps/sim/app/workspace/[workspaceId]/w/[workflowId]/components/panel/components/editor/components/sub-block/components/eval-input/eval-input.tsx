@@ -1,9 +1,8 @@
 import { useMemo, useRef } from 'react'
 import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
-import { Button, Input, Textarea, Tooltip } from '@/components/emcn'
+import { Button, Input, Label, Textarea, Tooltip } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -79,7 +78,7 @@ export function EvalInput({
       valuePath: [metricIndex, ...metricPath],
     })
 
-  const renderFieldLabel = (label: string) => <Label className='text-small'>{label}</Label>
+  const renderFieldLabel = (label: string) => <Label>{label}</Label>
 
   const addMetric = () => {
     if (isPreview || disabled) return

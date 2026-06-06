@@ -143,7 +143,6 @@ export const GET = withRouteHandler(
           id: string
           name: string
           description: string | null
-          color: string | null
           folderId: string | null
         }
         state: WorkflowExportState
@@ -181,7 +180,6 @@ export const GET = withRouteHandler(
             metadata: {
               name: wfData.name,
               description: wfData.description ?? undefined,
-              color: wfData.color,
               exportedAt: new Date().toISOString(),
             },
             variables,
@@ -192,7 +190,6 @@ export const GET = withRouteHandler(
               id: wfData.id,
               name: wfData.name,
               description: wfData.description,
-              color: wfData.color,
               folderId: remappedFolderId,
             },
             state,
@@ -226,7 +223,6 @@ export const GET = withRouteHandler(
           id: wf.workflow.id,
           name: wf.workflow.name,
           description: wf.workflow.description ?? undefined,
-          color: wf.workflow.color ?? undefined,
           folderId: wf.workflow.folderId,
         },
         state: wf.state,

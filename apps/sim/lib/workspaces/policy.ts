@@ -5,7 +5,8 @@ import { and, count, eq, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
-import { isEnterprise, isMax, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import type { PlanCategory } from '@/lib/billing/plan-helpers'
+import { getPlanType, isEnterprise, isMax, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
@@ -68,39 +69,40 @@ export function isOrganizationWorkspace(
  * Computes whether new members can be invited to the given workspace
  * under the active product policy.
  *
- * - `personal`: never allowed; tooltip routes the user to upgrade.
- * - `organization`: allowed for workspaces that belong to an active
- *   Team/Enterprise org; seat-gated at the API layer.
- * - `grandfathered_shared`: allowed only when the workspace's billed
- *   account user has an active Team/Enterprise subscription. Otherwise
- *   blocked with the same upgrade tooltip as `personal` so the UX is
- *   uniform across plans.
+ * Any paid billed account (Pro, Team, or Enterprise) may invite — the
+ * seat, and any Pro→Team upgrade, is provisioned when the invitee
+ * accepts, so invites are no longer seat-gated at this layer. Free
+ * accounts are blocked with an upgrade tooltip because there is no
+ * payment method to charge at acceptance.
  *
- * Billing-disabled deployments always allow invites.
+ * - `organization`: allowed; the org already holds a Team/Enterprise
+ *   subscription. Only Enterprise keeps an invite-time `requiresSeat`
+ *   gate (fixed seats).
+ * - `personal` / `grandfathered_shared`: allowed when the billed user is
+ *   Pro/Team/Enterprise. For Pro, acceptance creates the org and moves the
+ *   subscription to the Team tier.
  *
- * Existing members on a grandfathered workspace keep their access —
- * this policy only governs *new* invitations.
+ * Billing-disabled deployments always allow invites. Existing members
+ * keep their access — this policy only governs *new* invitations.
  */
 export async function getWorkspaceInvitePolicy(
   workspaceState: WorkspaceOwnershipState
 ): Promise<WorkspaceInvitePolicy> {
-  const requiresSubscriptionLookup =
-    isBillingEnabled && workspaceState.workspaceMode === WORKSPACE_MODE.GRANDFATHERED_SHARED
-  const billedUserHasTeamOrEnterprise = requiresSubscriptionLookup
-    ? await hasActiveTeamOrEnterpriseSubscription(workspaceState.billedAccountUserId)
-    : false
-  return evaluateWorkspaceInvitePolicy(workspaceState, { billedUserHasTeamOrEnterprise })
+  const billedPlanCategory = isBillingEnabled
+    ? await resolveBilledPlanCategory(workspaceState)
+    : 'free'
+  return evaluateWorkspaceInvitePolicy(workspaceState, { billedPlanCategory })
 }
 
 /**
- * Pure evaluator — given precomputed subscription context, returns the
- * policy synchronously. Exposed so bulk callers (e.g. listing every
- * workspace a user can see) can batch the subscription lookups by
+ * Pure evaluator — given the billed account's resolved plan category,
+ * returns the policy synchronously. Exposed so bulk callers (e.g. listing
+ * every workspace a user can see) can batch the subscription lookups by
  * unique billed account user rather than re-querying per workspace.
  */
 export function evaluateWorkspaceInvitePolicy(
   workspaceState: WorkspaceOwnershipState,
-  context: { billedUserHasTeamOrEnterprise: boolean }
+  context: { billedPlanCategory: PlanCategory }
 ): WorkspaceInvitePolicy {
   if (!isBillingEnabled) {
     return {
@@ -113,53 +115,99 @@ export function evaluateWorkspaceInvitePolicy(
   }
 
   if (workspaceState.workspaceMode === WORKSPACE_MODE.ORGANIZATION) {
-    if (workspaceState.organizationId === null) {
-      return {
-        allowed: false,
-        reason: UPGRADE_TO_INVITE_REASON,
-        requiresSeat: false,
-        organizationId: null,
-        upgradeRequired: true,
-      }
+    if (workspaceState.organizationId === null || context.billedPlanCategory === 'free') {
+      return blockInvite(workspaceState.organizationId)
     }
 
     return {
       allowed: true,
       reason: null,
-      requiresSeat: true,
+      requiresSeat: context.billedPlanCategory === 'enterprise',
       organizationId: workspaceState.organizationId,
       upgradeRequired: false,
     }
   }
 
-  if (workspaceState.workspaceMode === WORKSPACE_MODE.GRANDFATHERED_SHARED) {
-    return {
-      allowed: context.billedUserHasTeamOrEnterprise,
-      reason: context.billedUserHasTeamOrEnterprise ? null : UPGRADE_TO_INVITE_REASON,
-      requiresSeat: false,
-      organizationId: null,
-      upgradeRequired: !context.billedUserHasTeamOrEnterprise,
-    }
+  switch (context.billedPlanCategory) {
+    case 'pro':
+    case 'team':
+      return {
+        allowed: true,
+        reason: null,
+        requiresSeat: false,
+        organizationId: workspaceState.organizationId,
+        upgradeRequired: false,
+      }
+    case 'enterprise':
+      return {
+        allowed: true,
+        reason: null,
+        requiresSeat: true,
+        organizationId: workspaceState.organizationId,
+        upgradeRequired: false,
+      }
+    default:
+      return blockInvite(workspaceState.organizationId)
   }
+}
 
+function blockInvite(organizationId: string | null): WorkspaceInvitePolicy {
   return {
     allowed: false,
     reason: UPGRADE_TO_INVITE_REASON,
     requiresSeat: false,
-    organizationId: null,
+    organizationId,
     upgradeRequired: true,
   }
 }
 
-export async function hasActiveTeamOrEnterpriseSubscription(userId: string): Promise<boolean> {
+async function resolveBilledPlanCategory(
+  workspaceState: WorkspaceOwnershipState
+): Promise<PlanCategory> {
+  if (
+    workspaceState.workspaceMode === WORKSPACE_MODE.ORGANIZATION &&
+    workspaceState.organizationId
+  ) {
+    return getInvitePlanCategoryForOrganization(workspaceState.organizationId)
+  }
+  return getInvitePlanCategoryForUser(workspaceState.billedAccountUserId)
+}
+
+/**
+ * Resolve the invite-governing plan category for an organization from its
+ * subscription. Exposed so bulk callers can batch by unique organization id.
+ * Returns `'free'` when there is no usable subscription so lapsed orgs are
+ * blocked consistently with accept-time provisioning.
+ */
+export async function getInvitePlanCategoryForOrganization(
+  organizationId: string
+): Promise<PlanCategory> {
+  try {
+    const orgSub = await getOrganizationSubscription(organizationId)
+    if (!orgSub || !hasUsableSubscriptionStatus(orgSub.status)) return 'free'
+    return getPlanType(orgSub.plan)
+  } catch (error) {
+    logger.error('Failed to resolve organization subscription for invite policy', {
+      organizationId,
+      error,
+    })
+    return 'free'
+  }
+}
+
+/**
+ * Resolve the invite-governing plan category for a single billed account
+ * user. Exposed so bulk callers can batch by unique user id. Returns
+ * `'free'` when there is no usable paid subscription.
+ */
+export async function getInvitePlanCategoryForUser(userId: string): Promise<PlanCategory> {
   try {
     const sub = await getHighestPrioritySubscription(userId)
-    if (!sub) return false
-    if (!hasUsableSubscriptionStatus(sub.status)) return false
-    return isTeam(sub.plan) || isEnterprise(sub.plan)
+    if (!sub || !hasUsableSubscriptionStatus(sub.status)) return 'free'
+    return getPlanType(sub.plan)
   } catch (error) {
     logger.error('Failed to resolve subscription for invite policy', { userId, error })
-    return false
+    return 'free'
   }
 }
 

@@ -6,9 +6,9 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
+  ChipInput,
   type ComboboxOption,
-  Input,
   Label,
   Skeleton,
   Textarea,
@@ -18,7 +18,7 @@ import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-to
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/create-workflow-mcp-server-modal'
+import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components/create-workflow-mcp-server-modal'
 import {
   useAddWorkflowMcpTool,
   useDeleteWorkflowMcpTool,
@@ -509,12 +509,12 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Tool name
         </Label>
-        <Input
+        <ChipInput
           value={toolName}
           onChange={(e) => setToolName(e.target.value)}
           placeholder='e.g., book_flight'
           aria-invalid={!!toolNameError}
-          className={cn(toolNameError && 'border-[var(--text-error)]')}
+          error={Boolean(toolNameError)}
         />
         <p
           className={cn(
@@ -562,7 +562,7 @@ export function McpDeploy({
                 <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                   <div className='flex flex-col gap-1.5'>
                     <Label className='text-small'>Description</Label>
-                    <Input
+                    <ChipInput
                       value={parameterDescriptions[field.name] || ''}
                       onChange={(e) =>
                         setParameterDescriptions((prev) => ({
@@ -584,7 +584,7 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Servers
         </Label>
-        <Combobox
+        <ChipCombobox
           options={serverOptions}
           multiSelect
           multiSelectValues={selectedServerIdsForForm}

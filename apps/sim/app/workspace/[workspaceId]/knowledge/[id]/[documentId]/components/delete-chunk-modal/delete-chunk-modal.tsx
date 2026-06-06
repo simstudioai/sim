@@ -1,14 +1,6 @@
 'use client'
 
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn'
+import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { useDeleteChunk } from '@/hooks/queries/kb/knowledge'
 
@@ -38,23 +30,23 @@ export function DeleteChunkModal({
   if (!chunk) return null
 
   return (
-    <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent size='sm'>
-        <ModalHeader>Delete Chunk</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='text-[var(--text-secondary)]'>
-            Are you sure you want to delete this chunk? This action cannot be undone.
-          </ModalDescription>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' disabled={isDeleting} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant='destructive' onClick={handleDeleteChunk} disabled={isDeleting}>
-            {isDeleting ? <>Deleting…</> : <>Delete</>}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+    <ChipModal open={isOpen} onOpenChange={onClose} srTitle='Delete Chunk'>
+      <ChipModalHeader onClose={onClose} showDivider={false}>
+        Delete Chunk
+      </ChipModalHeader>
+      <ChipModalBody>
+        <p className='px-2 text-[var(--text-secondary)] text-sm'>
+          Are you sure you want to delete this chunk? This action cannot be undone.
+        </p>
+      </ChipModalBody>
+      <ChipModalFooter>
+        <Chip variant='filled' flush disabled={isDeleting} onClick={onClose}>
+          Cancel
+        </Chip>
+        <Chip variant='destructive' flush onClick={handleDeleteChunk} disabled={isDeleting}>
+          {isDeleting ? <>Deleting…</> : <>Delete</>}
+        </Chip>
+      </ChipModalFooter>
+    </ChipModal>
   )
 }

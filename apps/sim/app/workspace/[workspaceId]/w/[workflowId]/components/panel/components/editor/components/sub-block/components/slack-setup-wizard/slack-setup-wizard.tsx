@@ -453,7 +453,7 @@ function StatusRow({ label, ok }: StatusRowProps) {
     <span className='flex items-center gap-2'>
       <Check
         className={cn(
-          'h-[14px] w-[14px]',
+          'size-[14px]',
           ok ? 'text-[var(--text-success)]' : 'text-[var(--text-muted)]'
         )}
       />

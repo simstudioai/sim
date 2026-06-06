@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { Users } from '@/components/emcn/icons'
 import { ApolloIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ApolloResponse } from '@/tools/apollo/types'
 
@@ -14,7 +15,6 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
   docsLink: 'https://docs.sim.ai/tools/apollo',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#EBF212',
   icon: ApolloIcon,
   subBlocks: [
@@ -1372,3 +1372,74 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     },
   },
 }
+
+export const ApolloBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  templates: [
+    {
+      icon: Users,
+      title: 'Lead enrichment pipeline',
+      prompt:
+        'Build a workflow that watches my leads table for new entries, enriches each lead with company size, funding, tech stack, and decision-maker contacts using Apollo and web search, then updates the table with the enriched information.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'automation', 'research'],
+    },
+    {
+      icon: ApolloIcon,
+      title: 'Prospect researcher',
+      prompt:
+        'Create an agent that takes a company name, deep-researches them across the web and Apollo, finds key decision-makers, recent news, funding rounds, and pain points, then compiles a prospect brief I can review before outreach.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ApolloIcon,
+      title: 'ICP account builder',
+      prompt:
+        'Build a workflow that runs an Apollo organization search for accounts matching my ideal customer profile — industry, headcount, and tech stack — creates each as an Apollo account, and writes the new target list to a table for the SDR team.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'automation'],
+    },
+    {
+      icon: Users,
+      title: 'Buying committee mapper',
+      prompt:
+        'Create a workflow that takes a target account, runs an Apollo people search across the relevant titles, enriches each contact with verified email and role, and writes a mapped buying committee to a table so reps know exactly who to engage.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'crm'],
+    },
+    {
+      icon: ApolloIcon,
+      title: 'Inbound lead enricher to HubSpot',
+      prompt:
+        'Build a workflow that on a new inbound signup enriches the person and their company with Apollo, scores fit against my ICP, and creates or updates the matching contact and company in HubSpot with the enriched fields.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'automation'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: ApolloIcon,
+      title: 'Pipeline opportunity tracker',
+      prompt:
+        'Create a scheduled workflow that searches Apollo opportunities by stage, summarizes new and at-risk deals with an agent, logs the snapshot to a pipeline table, and posts a daily deal-movement digest to the sales Slack channel.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting', 'crm'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Users,
+      title: 'CRM contact freshness sweep',
+      prompt:
+        'Build a scheduled workflow that pulls contacts from my CRM, bulk-enriches them through Apollo to refresh titles, emails, and company data, and bulk-updates the records so the database stays accurate for outbound.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'automation', 'enrichment'],
+    },
+  ],
+} as const satisfies BlockMeta

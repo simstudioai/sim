@@ -74,7 +74,6 @@ export const GET = withRouteHandler(
         id: workflowData.id,
         name: workflowData.name,
         description: workflowData.description,
-        color: workflowData.color,
         folderId: workflowData.folderId,
         workspaceId: workflowData.workspaceId,
         isDeployed: workflowData.isDeployed,

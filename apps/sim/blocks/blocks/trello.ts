@@ -1,6 +1,6 @@
 import { TrelloIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 import type { TrelloResponse } from '@/tools/trello'
@@ -62,7 +62,6 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
   docsLink: 'https://docs.sim.ai/tools/trello',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management', 'ticketing'],
   bgColor: '#0052CC',
   icon: TrelloIcon,
   subBlocks: [
@@ -526,3 +525,77 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
     },
   },
 }
+
+export const TrelloBlockMeta = {
+  tags: ['project-management', 'ticketing'],
+  templates: [
+    {
+      icon: TrelloIcon,
+      title: 'Trello card auto-router',
+      prompt:
+        'Build a scheduled workflow that polls a Trello inbox list, classifies each new card by topic, and moves it to the right list based on the classification.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'automation'],
+    },
+    {
+      icon: TrelloIcon,
+      title: 'Trello + Linear bridge',
+      prompt:
+        'Create a workflow that mirrors Trello cards in a chosen list into Linear issues, keeps status and comments in sync, and writes the link back to the Trello card.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['engineering', 'sync'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: TrelloIcon,
+      title: 'Trello SLA monitor',
+      prompt:
+        'Build a workflow that watches Trello cards for due-date breaches, sends reminders, and escalates to managers via Slack when items slip more than 2 days.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TrelloIcon,
+      title: 'Trello content pipeline',
+      prompt:
+        'Create a workflow that reads a Trello editorial board, publishes the cards in the "ready" list to WordPress on schedule, and moves the card to "live" with the URL attached.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+      alsoIntegrations: ['wordpress'],
+    },
+    {
+      icon: TrelloIcon,
+      title: 'Trello weekly digest',
+      prompt:
+        'Build a scheduled weekly workflow that summarizes Trello board movements — cards completed, blocked, in-progress — and emails the digest to the project owner.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: TrelloIcon,
+      title: 'Trello stale-card sweeper',
+      prompt:
+        'Create a scheduled workflow that scans a Trello board for cards with no activity in 30 days, comments a nudge on each, and posts a stale-card list to Slack for the project owner.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TrelloIcon,
+      title: 'Trello onboarding seeder',
+      prompt:
+        'Build a workflow that creates the standard onboarding cards in a Trello list for each new hire, sets due dates by step, and tailors the card set to their role.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

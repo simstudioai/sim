@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type ComponentType,
   forwardRef,
   memo,
   useCallback,
@@ -11,35 +12,29 @@ import {
   useState,
 } from 'react'
 import clsx from 'clsx'
-import { Search } from 'lucide-react'
+import { ChevronDown, Search } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
-import { Button } from '@/components/emcn'
+import { Button, chipVariants, Expandable, ExpandableContent, Info } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureEvent } from '@/lib/posthog/client'
-import {
-  getBlocksForSidebar,
-  getTriggersForSidebar,
-  hasTriggerCapability,
-} from '@/lib/workflows/triggers/trigger-utils'
+import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { ToolbarItemContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
-import {
-  calculateTriggerHeights,
-  useToolbarItemInteractions,
-  useToolbarResize,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
+import { useToolbarItemInteractions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
 import { useToolbarStore } from '@/stores/panel'
+import type { ToolbarSectionKey } from '@/stores/panel/toolbar/store'
 
 interface BlockItem {
   name: string
   type: string
-  isSpecial: boolean
   config?: BlockConfig
-  icon?: any
+  icon?: ComponentType<{ className?: string }>
   bgColor?: string
   docsLink?: string
 }
@@ -78,7 +73,7 @@ const ToolbarItem = memo(function ToolbarItem({
         iconElement: iconElement as HTMLElement | null,
       })
     },
-    [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart, isTrigger]
+    [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart]
   )
 
   const addBlockToPanel = useCallback(() => {
@@ -111,10 +106,9 @@ const ToolbarItem = memo(function ToolbarItem({
       onDragStart={handleDragStart}
       onClick={addBlockToPanel}
       onContextMenu={handleContextMenu}
-      className={clsx(
-        'group flex h-[28px] items-center gap-2 rounded-lg px-1.5 text-sm',
-        'cursor-pointer hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
-        'focus-visible:bg-[var(--surface-6)] focus-visible:outline-none dark:focus-visible:bg-[var(--surface-5)]'
+      className={cn(
+        chipVariants({ fullWidth: true }),
+        'focus-visible:bg-[var(--surface-active)] focus-visible:outline-none active:cursor-grabbing'
       )}
       onKeyDown={handleKeyDown}
     >
@@ -127,20 +121,12 @@ const ToolbarItem = memo(function ToolbarItem({
             className={clsx(
               'toolbar-item-icon text-white transition-transform duration-200',
               'group-hover:scale-110',
-              '!h-[10px] !w-[10px]'
+              '!size-[10px]'
             )}
           />
         )}
       </div>
-      <span
-        className={clsx(
-          'truncate font-medium',
-          'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
-          'group-focus-visible:text-[var(--text-primary)]'
-        )}
-      >
-        {item.name}
-      </span>
+      <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{item.name}</span>
     </div>
   )
 })
@@ -179,76 +165,153 @@ function getTriggers(): BlockItem[] {
       icon: trigger.icon,
       bgColor: trigger.bgColor,
       docsLink: trigger.docsLink,
-      isSpecial: false,
     }))
   }
   return cachedTriggers
 }
 
 /**
- * Cached blocks data - lazy initialized on first access (client-side only)
+ * Cached first-party blocks (`category === 'blocks'`) plus Loop / Parallel subflow tools.
+ * Lazy initialized on first access (client-side only).
  */
 let cachedBlocks: BlockItem[] | null = null
 
 /**
- * Gets blocks data, computing it once and caching for subsequent calls
+ * Cached third-party integration tools (`category === 'tools'`).
+ * Lazy initialized on first access (client-side only).
  */
-function getBlocks() {
-  if (cachedBlocks === null) {
-    const allBlocks = getBlocksForSidebar()
+let cachedTools: BlockItem[] | null = null
 
-    // Separate blocks by category
-    const regularBlockConfigs = allBlocks.filter((block) => block.category === 'blocks')
-    const toolConfigs = allBlocks.filter((block) => block.category === 'tools')
+function ensureBlockCaches() {
+  if (cachedBlocks !== null && cachedTools !== null) return
 
-    // Create regular block items
-    const regularBlockItems: BlockItem[] = regularBlockConfigs.map((block) => ({
-      name: block.name,
-      type: block.type,
-      config: block,
-      icon: block.icon,
-      bgColor: block.bgColor,
-      isSpecial: false,
-    }))
+  const regularBlockConfigs = getCanonicalBlocksByCategory('blocks')
+  const toolConfigs = getCanonicalBlocksByCategory('tools')
 
-    // Add Loop and Parallel to blocks
-    regularBlockItems.push({
-      name: LoopTool.name,
-      type: LoopTool.type,
-      icon: LoopTool.icon,
-      bgColor: LoopTool.bgColor,
-      docsLink: LoopTool.docsLink,
-      isSpecial: true,
-    })
+  const regularBlockItems: BlockItem[] = regularBlockConfigs.map((block) => ({
+    name: block.name,
+    type: block.type,
+    config: block,
+    icon: block.icon,
+    bgColor: block.bgColor,
+  }))
 
-    regularBlockItems.push({
-      name: ParallelTool.name,
-      type: ParallelTool.type,
-      icon: ParallelTool.icon,
-      bgColor: ParallelTool.bgColor,
-      docsLink: ParallelTool.docsLink,
-      isSpecial: true,
-    })
+  regularBlockItems.push({
+    name: LoopTool.name,
+    type: LoopTool.type,
+    icon: LoopTool.icon,
+    bgColor: LoopTool.bgColor,
+    docsLink: LoopTool.docsLink,
+  })
 
-    // Create tool items
-    const toolItems: BlockItem[] = toolConfigs.map((block) => ({
-      name: block.name,
-      type: block.type,
-      config: block,
-      icon: block.icon,
-      bgColor: block.bgColor,
-      isSpecial: false,
-    }))
+  regularBlockItems.push({
+    name: ParallelTool.name,
+    type: ParallelTool.type,
+    icon: ParallelTool.icon,
+    bgColor: ParallelTool.bgColor,
+    docsLink: ParallelTool.docsLink,
+  })
 
-    // Sort each group alphabetically
-    regularBlockItems.sort((a, b) => a.name.localeCompare(b.name))
-    toolItems.sort((a, b) => a.name.localeCompare(b.name))
+  const toolItems: BlockItem[] = toolConfigs.map((block) => ({
+    name: block.name,
+    type: block.type,
+    config: block,
+    icon: block.icon,
+    bgColor: block.bgColor,
+  }))
 
-    // Cache blocks first, then tools
-    cachedBlocks = [...regularBlockItems, ...toolItems]
-  }
-  return cachedBlocks
+  regularBlockItems.sort((a, b) => a.name.localeCompare(b.name))
+  toolItems.sort((a, b) => a.name.localeCompare(b.name))
+
+  cachedBlocks = regularBlockItems
+  cachedTools = toolItems
 }
+
+function getBlocks(): BlockItem[] {
+  ensureBlockCaches()
+  return cachedBlocks as BlockItem[]
+}
+
+function getTools(): BlockItem[] {
+  ensureBlockCaches()
+  return cachedTools as BlockItem[]
+}
+
+interface ToolbarSectionProps {
+  label: string
+  tooltip: string
+  sectionKey: ToolbarSectionKey
+  items: BlockItem[]
+  isTrigger: boolean
+  expanded: boolean
+  searching: boolean
+  animate: boolean
+  onToggle: (key: ToolbarSectionKey) => void
+  getItemRef: (index: number) => (el: HTMLDivElement | null) => void
+  onDragStart: ToolbarItemProps['onDragStart']
+  onItemClick: ToolbarItemProps['onClick']
+  onContextMenu: ToolbarItemProps['onContextMenu']
+}
+
+const ToolbarSection = memo(function ToolbarSection({
+  label,
+  tooltip,
+  sectionKey,
+  items,
+  isTrigger,
+  expanded,
+  searching,
+  animate,
+  onToggle,
+  getItemRef,
+  onDragStart,
+  onItemClick,
+  onContextMenu,
+}: ToolbarSectionProps) {
+  const toggle = useCallback(() => onToggle(sectionKey), [onToggle, sectionKey])
+
+  if (items.length === 0) return null
+
+  return (
+    <section>
+      <div className='sticky top-0 z-10 flex w-full flex-shrink-0 items-center gap-2 bg-[var(--bg)] px-4 pt-3 pb-2'>
+        <button
+          type='button'
+          onClick={toggle}
+          aria-expanded={expanded}
+          disabled={searching}
+          className='flex flex-1 items-center gap-2 text-left'
+        >
+          <span className='text-[var(--text-muted)] text-small'>{label}</span>
+          <ChevronDown
+            className={clsx(
+              'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
+              !expanded && '-rotate-90'
+            )}
+          />
+        </button>
+        <Info>{tooltip}</Info>
+      </div>
+      <Expandable expanded={expanded}>
+        <ExpandableContent className={animate ? undefined : '!animate-none'}>
+          <div className='flex flex-col gap-0.5 px-2'>
+            {items.map((item, index) => (
+              <ToolbarItem
+                key={item.type}
+                item={item}
+                isTrigger={isTrigger}
+                onDragStart={onDragStart}
+                onClick={onItemClick}
+                onContextMenu={onContextMenu}
+                itemRef={getItemRef(index)}
+              />
+            ))}
+          </div>
+        </ExpandableContent>
+      </Expandable>
+    </section>
+  )
+})
 
 interface ToolbarProps {
   /** Whether the toolbar tab is currently active */
@@ -258,7 +321,7 @@ interface ToolbarProps {
 /**
  * Imperative handle exposed by the Toolbar component.
  */
-export interface ToolbarRef {
+interface ToolbarRef {
   /**
    * Focuses the search input and ensures search mode is active.
    */
@@ -266,32 +329,25 @@ export interface ToolbarRef {
 }
 
 /**
- * Toolbar component displaying triggers and blocks in a resizable split view.
- * Top half shows triggers, bottom half shows blocks, with a resizable divider between them.
+ * Toolbar component displaying triggers, blocks, and tools in a single scrollable
+ * view with three collapsible sections. Each section is independently expandable
+ * and its state is persisted across reloads.
  *
  * @param props - Component props
  * @param props.isActive - Whether the toolbar tab is currently active
- * @returns Toolbar view with triggers and blocks
+ * @returns Toolbar view with triggers, blocks, and tools sections
  */
-/**
- * Threshold for determining if triggers are at minimum height (in pixels)
- * Triggers slightly above header height are considered at minimum
- */
-const TRIGGERS_MIN_THRESHOLD = 50
-
 export const Toolbar = memo(
   forwardRef<ToolbarRef, ToolbarProps>(function Toolbar({ isActive = true }: ToolbarProps, ref) {
     const rootRef = useRef<HTMLDivElement>(null)
-    const containerRef = useRef<HTMLDivElement>(null)
-    const triggersContentRef = useRef<HTMLDivElement>(null)
-    const triggersHeaderRef = useRef<HTMLDivElement>(null)
-    const blocksHeaderRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
     const triggerItemRefs = useRef<Array<HTMLDivElement | null>>([])
     const blockItemRefs = useRef<Array<HTMLDivElement | null>>([])
+    const toolItemRefs = useRef<Array<HTMLDivElement | null>>([])
 
     const triggerRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
     const blockRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
+    const toolRefCallbacks = useRef<Record<number, (el: HTMLDivElement | null) => void>>({})
 
     const getTriggerRefCallback = useCallback((index: number) => {
       if (!triggerRefCallbacks.current[index]) {
@@ -311,23 +367,41 @@ export const Toolbar = memo(
       return blockRefCallbacks.current[index]
     }, [])
 
-    // Search state
+    const getToolRefCallback = useCallback((index: number) => {
+      if (!toolRefCallbacks.current[index]) {
+        toolRefCallbacks.current[index] = (el) => {
+          toolItemRefs.current[index] = el
+        }
+      }
+      return toolRefCallbacks.current[index]
+    }, [])
+
+    const posthog = usePostHog()
+    const { filterBlocks } = usePermissionConfig()
+    const sandboxAllowedBlocks = useSandboxBlockConstraints()
+
+    const expandedSections = useToolbarStore((state) => state.expandedSections)
+    const setSectionExpanded = useToolbarStore((state) => state.setSectionExpanded)
+
     const [isSearchActive, setIsSearchActive] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    /**
+     * Collapsible animations are only enabled after the user explicitly toggles
+     * a section. Reset when the tab becomes inactive so the next visibility
+     * cycle (display: none → block) does not replay the open animation —
+     * CSS animations restart whenever a hidden ancestor becomes visible again.
+     */
+    const [animationsEnabled, setAnimationsEnabled] = useState(false)
     const [prevIsActive, setPrevIsActive] = useState(isActive)
     if (isActive !== prevIsActive) {
       setPrevIsActive(isActive)
       if (!isActive) {
         setIsSearchActive(false)
         setSearchQuery('')
+        setAnimationsEnabled(false)
       }
     }
 
-    // Toggle animation state
-    const [isToggling, setIsToggling] = useState(false)
-
-    // Context menu state
-    const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
     const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
     const contextMenuRef = useRef<HTMLDivElement>(null)
     const [activeItemInfo, setActiveItemInfo] = useState<{
@@ -335,213 +409,119 @@ export const Toolbar = memo(
       isTrigger: boolean
       docsLink?: string
     } | null>(null)
+    const isContextMenuOpen = activeItemInfo !== null
 
-    const toolbarTriggersHeight = useToolbarStore((state) => state.toolbarTriggersHeight)
-    const setToolbarTriggersHeight = useToolbarStore((state) => state.setToolbarTriggersHeight)
-    const preSearchHeight = useToolbarStore((state) => state.preSearchHeight)
-    const setPreSearchHeight = useToolbarStore((state) => state.setPreSearchHeight)
-
-    const toolbarInteractionsConfig = useMemo(() => ({ disabled: false }), [])
-    const { handleDragStart, handleItemClick } =
-      useToolbarItemInteractions(toolbarInteractionsConfig)
-
-    const { handleMouseDown, isResizing } = useToolbarResize({
-      containerRef,
-      triggersContentRef,
-      triggersHeaderRef,
-    })
-
-    const posthog = usePostHog()
-    const { filterBlocks } = usePermissionConfig()
-    const sandboxAllowedBlocks = useSandboxBlockConstraints()
+    const { handleDragStart, handleItemClick } = useToolbarItemInteractions()
 
     const allTriggers = getTriggers()
     const allBlocks = getBlocks()
+    const allTools = getTools()
 
-    const blocks = useMemo(() => {
-      const permitted = filterBlocks(allBlocks)
-      if (sandboxAllowedBlocks === null) return permitted
-      return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
-    }, [filterBlocks, allBlocks, sandboxAllowedBlocks])
-    const triggers = useMemo(() => {
+    const visibleTriggers = useMemo(() => {
       if (sandboxAllowedBlocks !== null) return []
       return filterBlocks(allTriggers)
     }, [filterBlocks, allTriggers, sandboxAllowedBlocks])
 
-    const isTriggersAtMinimum = toolbarTriggersHeight <= TRIGGERS_MIN_THRESHOLD
+    const visibleBlocks = useMemo(() => {
+      const permitted = filterBlocks(allBlocks)
+      if (sandboxAllowedBlocks === null) return permitted
+      return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
+    }, [filterBlocks, allBlocks, sandboxAllowedBlocks])
 
-    /**
-     * Filter items based on search query
-     */
+    const visibleTools = useMemo(() => {
+      const permitted = filterBlocks(allTools)
+      if (sandboxAllowedBlocks === null) return permitted
+      return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
+    }, [filterBlocks, allTools, sandboxAllowedBlocks])
 
-    /**
-     * Filter items based on search query
-     */
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+    const isSearching = normalizedQuery.length > 0
+
     const filteredTriggers = useMemo(() => {
-      if (!searchQuery.trim()) return triggers
-      const query = searchQuery.toLowerCase()
-      return triggers.filter((trigger) => trigger.name.toLowerCase().includes(query))
-    }, [triggers, searchQuery])
+      if (!isSearching) return visibleTriggers
+      return visibleTriggers.filter((trigger) =>
+        trigger.name.toLowerCase().includes(normalizedQuery)
+      )
+    }, [visibleTriggers, isSearching, normalizedQuery])
 
     const filteredBlocks = useMemo(() => {
-      if (!searchQuery.trim()) return blocks
-      const query = searchQuery.toLowerCase()
-      return blocks.filter((block) => block.name.toLowerCase().includes(query))
-    }, [blocks, searchQuery])
+      if (!isSearching) return visibleBlocks
+      return visibleBlocks.filter((block) => block.name.toLowerCase().includes(normalizedQuery))
+    }, [visibleBlocks, isSearching, normalizedQuery])
+
+    const filteredTools = useMemo(() => {
+      if (!isSearching) return visibleTools
+      return visibleTools.filter((tool) => tool.name.toLowerCase().includes(normalizedQuery))
+    }, [visibleTools, isSearching, normalizedQuery])
 
     /**
-     * Track pre-search height in a ref to avoid cascading re-renders.
-     * The store's preSearchHeight is still used for persistence, but we use
-     * this ref to prevent the effect from re-running when we update it.
+     * Trim ref arrays to current filtered length to prevent stale refs from
+     * polluting keyboard navigation when items disappear (search, sandbox).
      */
-    const preSearchHeightRef = useRef(preSearchHeight)
-    preSearchHeightRef.current = preSearchHeight
+    triggerItemRefs.current.length = filteredTriggers.length
+    blockItemRefs.current.length = filteredBlocks.length
+    toolItemRefs.current.length = filteredTools.length
 
     /**
-     * Adjust heights based on search results
-     * - If no triggers found, collapse triggers to minimum (expand blocks)
-     * - If no blocks found, expand triggers to maximum (collapse blocks)
-     * - If triggers are found, dynamically resize to show all filtered triggers without scrolling
+     * Section expansion is derived during search (force-expand sections with
+     * matches, hide sections with zero matches via items.length === 0). When
+     * not searching, the persisted store state drives expansion.
      */
-    useEffect(() => {
-      const hasSearchQuery = searchQuery.trim().length > 0
-      const triggersCount = filteredTriggers.length
-      const blocksCount = filteredBlocks.length
-
-      if (hasSearchQuery && preSearchHeightRef.current === null) {
-        setPreSearchHeight(toolbarTriggersHeight)
-        return
-      }
-
-      if (!hasSearchQuery && preSearchHeightRef.current !== null) {
-        const heightToRestore = preSearchHeightRef.current
-        setPreSearchHeight(null)
-        setToolbarTriggersHeight(heightToRestore)
-        return
-      }
-
-      if (hasSearchQuery) {
-        const { minHeight, maxHeight, optimalHeight } = calculateTriggerHeights(
-          containerRef,
-          triggersContentRef,
-          triggersHeaderRef
-        )
-
-        if (triggersCount === 0 && blocksCount > 0) {
-          setToolbarTriggersHeight(minHeight)
-        } else if (blocksCount === 0 && triggersCount > 0) {
-          setToolbarTriggersHeight(maxHeight)
-        } else if (triggersCount > 0) {
-          setToolbarTriggersHeight(optimalHeight)
-        }
-      }
-    }, [
-      searchQuery,
-      filteredTriggers.length,
-      filteredBlocks.length,
-      toolbarTriggersHeight,
-      setToolbarTriggersHeight,
-      setPreSearchHeight,
-    ])
-
-    /**
-     * Handle search icon click to activate search mode
-     */
-    const handleSearchClick = () => {
-      setIsSearchActive(true)
-      setTimeout(() => {
-        searchInputRef.current?.focus()
-      }, 0)
+    const sectionExpanded: Record<ToolbarSectionKey, boolean> = {
+      triggers: isSearching ? filteredTriggers.length > 0 : expandedSections.triggers,
+      blocks: isSearching ? filteredBlocks.length > 0 : expandedSections.blocks,
+      tools: isSearching ? filteredTools.length > 0 : expandedSections.tools,
     }
 
-    /**
-     * Expose imperative handle for focusing the search input.
-     */
-    useImperativeHandle(
-      ref,
-      () => ({
-        focusSearch: () => {
-          setIsSearchActive(true)
-          setTimeout(() => {
-            searchInputRef.current?.focus()
-          }, 0)
-        },
-      }),
-      []
+    const handleSectionToggle = useCallback(
+      (key: ToolbarSectionKey) => {
+        if (isSearching) return
+        setAnimationsEnabled(true)
+        setSectionExpanded(key, !expandedSections[key])
+      },
+      [isSearching, expandedSections, setSectionExpanded]
     )
+
+    const focusSearch = useCallback(() => {
+      setIsSearchActive(true)
+      queueMicrotask(() => searchInputRef.current?.focus())
+    }, [])
+
+    useImperativeHandle(ref, () => ({ focusSearch }), [focusSearch])
 
     /**
      * Handle search input blur.
      *
      * If the search query is empty, deactivate search mode to show the search icon again.
      * If there's a query, keep search mode active so ArrowUp/Down navigation continues
-     * to work after focus moves into the triggers/blocks list (e.g. when initiated via toolbar search shortcut).
+     * to work after focus moves into the section lists.
      */
-    const handleSearchBlur = () => {
+    const handleSearchBlur = useCallback(() => {
       if (!searchQuery.trim()) {
         setIsSearchActive(false)
       }
-    }
+    }, [searchQuery])
 
-    /**
-     * Handle blocks header click - toggle between min and max.
-     * If triggers are greater than minimum, collapse to minimum (just header).
-     * If triggers are at minimum, expand to maximum (full content height).
-     */
-    const handleBlocksHeaderClick = useCallback(() => {
-      setIsToggling(true)
-
-      const { minHeight, maxHeight } = calculateTriggerHeights(
-        containerRef,
-        triggersContentRef,
-        triggersHeaderRef
-      )
-
-      // Toggle between min and max
-      setToolbarTriggersHeight(isTriggersAtMinimum ? maxHeight : minHeight)
-    }, [isTriggersAtMinimum, setToolbarTriggersHeight])
-
-    /**
-     * Handle transition end - reset toggling state
-     */
-    const handleTransitionEnd = useCallback(() => {
-      setIsToggling(false)
-    }, [])
-
-    /**
-     * Handle context menu for toolbar items
-     */
     const handleItemContextMenu = useCallback(
       (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => {
         e.preventDefault()
         e.stopPropagation()
         setContextMenuPosition({ x: e.clientX, y: e.clientY })
         setActiveItemInfo({ type, isTrigger, docsLink })
-        setIsContextMenuOpen(true)
       },
       []
     )
 
-    /**
-     * Close context menu and clear active item state
-     */
     const closeContextMenu = useCallback(() => {
-      setIsContextMenuOpen(false)
       setActiveItemInfo(null)
     }, [])
 
-    /**
-     * Handle add to canvas from context menu
-     */
     const handleContextMenuAddToCanvas = useCallback(() => {
       if (activeItemInfo) {
         handleItemClick(activeItemInfo.type, activeItemInfo.isTrigger)
       }
     }, [activeItemInfo, handleItemClick])
 
-    /**
-     * Handle view documentation from context menu
-     */
     const handleViewDocumentation = useCallback(() => {
       if (activeItemInfo?.docsLink) {
         window.open(activeItemInfo.docsLink, '_blank', 'noopener,noreferrer')
@@ -552,9 +532,6 @@ export const Toolbar = memo(
       }
     }, [activeItemInfo, posthog])
 
-    /**
-     * Handle clicks outside the context menu to close it
-     */
     useEffect(() => {
       if (!isContextMenuOpen) return
 
@@ -575,69 +552,70 @@ export const Toolbar = memo(
     }, [isContextMenuOpen, closeContextMenu])
 
     /**
-     * Handle keyboard navigation with ArrowUp / ArrowDown when the toolbar tab
-     * is active and search is open (e.g. after Mod+F). Navigation order:
-     * - From search input or no current focus: first trigger, then subsequent triggers
-     * - After the last trigger: first block
-     * - Within blocks: linear navigation
-     * - ArrowUp from first trigger: moves focus back to search input
+     * Keyboard navigation across the three sections.
      *
-     * This is designed to work seamlessly when the toolbar search shortcut opens it,
-     * and to take precedence over other global ArrowUp/Down
-     * handlers (e.g. terminal navigation) while the toolbar tab is active.
+     * - Active only when the toolbar tab is active and search mode is on.
+     * - Skips collapsed or empty sections so focus only lands on visible items.
+     * - ArrowDown traverses search → triggers → blocks → tools.
+     * - ArrowUp moves backward; from the first item of the first visible section
+     *   it wraps back to the search input.
      */
     useEffect(() => {
-      if (!isActive || !isSearchActive) {
-        return
-      }
+      if (!isActive || !isSearchActive) return
 
       const handleKeyDown = (event: KeyboardEvent) => {
-        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
-          return
-        }
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
 
         const activeEl = document.activeElement as HTMLElement | null
-
-        // Only handle navigation when focus is currently inside the toolbar UI
         const toolbarRoot = rootRef.current
-        if (!toolbarRoot || !activeEl || !toolbarRoot.contains(activeEl)) {
-          return
+        if (!toolbarRoot || !activeEl || !toolbarRoot.contains(activeEl)) return
+
+        type SectionList = {
+          key: ToolbarSectionKey
+          items: HTMLDivElement[]
         }
 
-        const triggers = triggerItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
-        const blocks = blockItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+        const allSections: SectionList[] = [
+          {
+            key: 'triggers',
+            items: sectionExpanded.triggers
+              ? triggerItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+              : [],
+          },
+          {
+            key: 'blocks',
+            items: sectionExpanded.blocks
+              ? blockItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+              : [],
+          },
+          {
+            key: 'tools',
+            items: sectionExpanded.tools
+              ? toolItemRefs.current.filter((el): el is HTMLDivElement => el !== null)
+              : [],
+          },
+        ]
+        const sections = allSections.filter((section) => section.items.length > 0)
 
-        type Region = 'search' | 'trigger' | 'block' | 'none'
-        let region: Region = 'none'
-        let index = -1
+        let sectionIndex = -1
+        let itemIndex = -1
+        const isSearch = activeEl === searchInputRef.current
 
-        if (activeEl && searchInputRef.current && activeEl === searchInputRef.current) {
-          region = 'search'
-        } else if (activeEl) {
-          const triggerIndex = triggers.findIndex((el) => el === activeEl || el.contains(activeEl))
-          if (triggerIndex !== -1) {
-            region = 'trigger'
-            index = triggerIndex
-          } else {
-            const blockIndex = blocks.findIndex((el) => el === activeEl || el.contains(activeEl))
-            if (blockIndex !== -1) {
-              region = 'block'
-              index = blockIndex
+        if (!isSearch) {
+          for (let s = 0; s < sections.length; s++) {
+            const idx = sections[s].items.findIndex(
+              (el) => el === activeEl || el.contains(activeEl)
+            )
+            if (idx !== -1) {
+              sectionIndex = s
+              itemIndex = idx
+              break
             }
           }
         }
 
-        const focusTrigger = (i: number) => {
-          const el = triggers[i]
-          if (el) {
-            event.preventDefault()
-            event.stopPropagation()
-            el.focus()
-          }
-        }
-
-        const focusBlock = (i: number) => {
-          const el = blocks[i]
+        const focusItem = (sIdx: number, iIdx: number) => {
+          const el = sections[sIdx]?.items[iIdx]
           if (el) {
             event.preventDefault()
             event.stopPropagation()
@@ -654,66 +632,45 @@ export const Toolbar = memo(
         }
 
         if (event.key === 'ArrowDown') {
-          if (region === 'none' || region === 'search') {
-            if (triggers.length > 0) {
-              focusTrigger(0)
-              return
-            }
-            if (blocks.length > 0) {
-              focusBlock(0)
-            }
+          if (isSearch || sectionIndex === -1) {
+            if (sections.length > 0) focusItem(0, 0)
             return
           }
+          const currentSection = sections[sectionIndex]
+          if (itemIndex < currentSection.items.length - 1) {
+            focusItem(sectionIndex, itemIndex + 1)
+            return
+          }
+          if (sectionIndex < sections.length - 1) {
+            focusItem(sectionIndex + 1, 0)
+          }
+          return
+        }
 
-          if (region === 'trigger') {
-            if (index < triggers.length - 1) {
-              focusTrigger(index + 1)
-              return
-            }
-            if (index === triggers.length - 1 && blocks.length > 0) {
-              focusBlock(0)
-            }
+        if (event.key === 'ArrowUp') {
+          if (isSearch || sectionIndex === -1) return
+          if (itemIndex > 0) {
+            focusItem(sectionIndex, itemIndex - 1)
             return
           }
-
-          if (region === 'block') {
-            if (index < blocks.length - 1) {
-              focusBlock(index + 1)
-            }
+          if (sectionIndex > 0) {
+            const prev = sections[sectionIndex - 1]
+            focusItem(sectionIndex - 1, prev.items.length - 1)
             return
           }
-        } else if (event.key === 'ArrowUp') {
-          if (region === 'block') {
-            if (index > 0) {
-              focusBlock(index - 1)
-              return
-            }
-            if (index === 0 && triggers.length > 0) {
-              focusTrigger(triggers.length - 1)
-            }
-            return
-          }
-
-          if (region === 'trigger') {
-            if (index > 0) {
-              focusTrigger(index - 1)
-              return
-            }
-            if (index === 0) {
-              focusSearchInput()
-            }
-            return
-          }
-
-          if (region === 'none' || region === 'search') {
-            return
-          }
+          focusSearchInput()
         }
       }
 
       window.addEventListener('keydown', handleKeyDown)
       return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isActive, isSearchActive])
+    }, [
+      isActive,
+      isSearchActive,
+      sectionExpanded.triggers,
+      sectionExpanded.blocks,
+      sectionExpanded.tools,
+    ])
 
     return (
       <div
@@ -727,8 +684,8 @@ export const Toolbar = memo(
           role='button'
           tabIndex={0}
           className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
-          onClick={handleSearchClick}
-          onKeyDown={(event) => handleKeyboardActivation(event, handleSearchClick)}
+          onClick={focusSearch}
+          onKeyDown={(event) => handleKeyboardActivation(event, focusSearch)}
         >
           <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
           <div className='flex shrink-0 items-center gap-2'>
@@ -737,7 +694,7 @@ export const Toolbar = memo(
                 variant='ghost'
                 className='p-0'
                 aria-label='Search toolbar'
-                onClick={handleSearchClick}
+                onClick={focusSearch}
               >
                 <Search className='size-[14px]' />
               </Button>
@@ -754,77 +711,53 @@ export const Toolbar = memo(
           </div>
         </div>
 
-        <div ref={containerRef} className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
-          {/* Triggers Section */}
-          <div
-            className={clsx(
-              'triggers-section flex flex-col overflow-hidden',
-              isToggling && !isResizing && 'transition-100ms transition-[height]'
-            )}
-            style={{ height: 'var(--toolbar-triggers-height)' }}
-            onTransitionEnd={handleTransitionEnd}
-          >
-            <div
-              ref={triggersHeaderRef}
-              className='px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
-            >
-              Triggers
-            </div>
-            <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5'>
-              <div ref={triggersContentRef} className='space-y-1 pb-2'>
-                {filteredTriggers.map((trigger, index) => (
-                  <ToolbarItem
-                    key={trigger.type}
-                    item={trigger}
-                    isTrigger={true}
-                    onDragStart={handleDragStart}
-                    onClick={handleItemClick}
-                    onContextMenu={handleItemContextMenu}
-                    itemRef={getTriggerRefCallback(index)}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Resize Handle */}
-          <div className='relative flex-shrink-0 border-[var(--border)] border-t'>
-            <div
-              role='separator'
-              aria-orientation='horizontal'
-              className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
-              onMouseDown={handleMouseDown}
-            />
-          </div>
-
-          {/* Blocks Section */}
-          <div className='blocks-section flex flex-1 flex-col overflow-hidden'>
-            <div
-              ref={blocksHeaderRef}
-              role='button'
-              tabIndex={0}
-              onClick={handleBlocksHeaderClick}
-              onKeyDown={(event) => handleKeyboardActivation(event, handleBlocksHeaderClick)}
-              className='cursor-pointer px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
-            >
-              Blocks
-            </div>
-            <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5'>
-              <div className='space-y-1 pb-2'>
-                {filteredBlocks.map((block, index) => (
-                  <ToolbarItem
-                    key={block.type}
-                    item={block}
-                    isTrigger={false}
-                    onDragStart={handleDragStart}
-                    onClick={handleItemClick}
-                    onContextMenu={handleItemContextMenu}
-                    itemRef={getBlockRefCallback(index)}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+        {/* Single scroll container with three collapsible sections */}
+        <div className='flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-none pb-3'>
+          <ToolbarSection
+            label='Triggers'
+            tooltip='Events that start a workflow'
+            sectionKey='triggers'
+            items={filteredTriggers}
+            isTrigger={true}
+            expanded={sectionExpanded.triggers}
+            searching={isSearching}
+            animate={animationsEnabled}
+            onToggle={handleSectionToggle}
+            getItemRef={getTriggerRefCallback}
+            onDragStart={handleDragStart}
+            onItemClick={handleItemClick}
+            onContextMenu={handleItemContextMenu}
+          />
+          <ToolbarSection
+            label='Blocks'
+            tooltip='Core building blocks for agent logic'
+            sectionKey='blocks'
+            items={filteredBlocks}
+            isTrigger={false}
+            expanded={sectionExpanded.blocks}
+            searching={isSearching}
+            animate={animationsEnabled}
+            onToggle={handleSectionToggle}
+            getItemRef={getBlockRefCallback}
+            onDragStart={handleDragStart}
+            onItemClick={handleItemClick}
+            onContextMenu={handleItemContextMenu}
+          />
+          <ToolbarSection
+            label='Tools'
+            tooltip='Connect agents to external services'
+            sectionKey='tools'
+            items={filteredTools}
+            isTrigger={false}
+            expanded={sectionExpanded.tools}
+            searching={isSearching}
+            animate={animationsEnabled}
+            onToggle={handleSectionToggle}
+            getItemRef={getToolRefCallback}
+            onDragStart={handleDragStart}
+            onItemClick={handleItemClick}
+            onContextMenu={handleItemContextMenu}
+          />
         </div>
 
         {/* Toolbar Item Context Menu */}

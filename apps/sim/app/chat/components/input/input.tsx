@@ -193,7 +193,7 @@ export const ChatInput: React.FC<{
               handleKeyboardActivation(event, focusTextarea)
             }}
             className={cn(
-              'relative z-10 cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] px-2.5 py-2',
+              'relative z-10 cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] px-2.5 py-2',
               isDragOver && 'border-purple-500'
             )}
             onDragEnter={(e) => {

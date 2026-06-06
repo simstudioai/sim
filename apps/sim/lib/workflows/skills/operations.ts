@@ -42,6 +42,23 @@ export async function deleteSkill(params: {
   return true
 }
 
+/** Whether a given skill in an upsert was newly inserted or an existing row updated. */
+export type SkillUpsertOperation = 'created' | 'updated'
+
+/** A skill touched by an upsert, tagged with whether it was created or updated. */
+export interface TouchedSkill {
+  id: string
+  name: string
+  operation: SkillUpsertOperation
+}
+
+export interface UpsertSkillsResult {
+  /** Every skill in the workspace after the upsert, ordered by createdAt desc. */
+  skills: Awaited<ReturnType<typeof listSkills>>
+  /** Only the skills this upsert created or updated, tagged with the operation. */
+  touched: TouchedSkill[]
+}
+
 /**
  * Internal function to create/update skills.
  * Can be called from API routes or internal services.
@@ -56,10 +73,12 @@ export async function upsertSkills(params: {
   workspaceId: string
   userId: string
   requestId?: string
-}) {
+}): Promise<UpsertSkillsResult> {
   const { skills, workspaceId, userId, requestId = generateRequestId() } = params
 
   return await db.transaction(async (tx) => {
+    const touched: TouchedSkill[] = []
+
     for (const s of skills) {
       const nowTime = new Date()
 
@@ -95,6 +114,7 @@ export async function upsertSkills(params: {
             })
             .where(and(eq(skill.id, s.id), eq(skill.workspaceId, workspaceId)))
 
+          touched.push({ id: s.id, name: s.name, operation: 'updated' })
           logger.info(`[${requestId}] Updated skill ${s.id}`)
           continue
         }
@@ -110,8 +130,9 @@ export async function upsertSkills(params: {
         throw new Error(`A skill with the name "${s.name}" already exists in this workspace`)
       }
 
+      const newId = generateShortId()
       await tx.insert(skill).values({
-        id: generateShortId(),
+        id: newId,
         workspaceId,
         userId,
         name: s.name,
@@ -121,6 +142,7 @@ export async function upsertSkills(params: {
         updatedAt: nowTime,
       })
 
+      touched.push({ id: newId, name: s.name, operation: 'created' })
       logger.info(`[${requestId}] Created skill "${s.name}"`)
     }
 
@@ -130,6 +152,6 @@ export async function upsertSkills(params: {
       .where(eq(skill.workspaceId, workspaceId))
       .orderBy(desc(skill.createdAt))
 
-    return resultSkills
+    return { skills: resultSkills, touched }
   })
 }

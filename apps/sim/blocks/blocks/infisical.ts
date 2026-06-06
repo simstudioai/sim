@@ -1,5 +1,5 @@
 import { InfisicalIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { InfisicalResponse } from '@/tools/infisical/types'
 
@@ -12,7 +12,6 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
   docsLink: 'https://docs.sim.ai/tools/infisical',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['secrets-management'],
   bgColor: '#F7FE62',
   icon: InfisicalIcon,
   authMode: AuthMode.ApiKey,
@@ -231,3 +230,78 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
     secret: { type: 'json', description: 'Secret object (get/create/update/delete operations)' },
   },
 }
+
+export const InfisicalBlockMeta = {
+  tags: ['secrets-management'],
+  templates: [
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical secret rotation orchestrator',
+      prompt:
+        'Build a scheduled workflow that lists Infisical secrets, generates fresh values for those due for rotation, updates them across each environment, and writes rotation status to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical environment drift detector',
+      prompt:
+        'Create a scheduled workflow that diffs Infisical environments against expected schemas, alerts on missing or extra secrets, and writes a remediation queue.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical env bootstrapper',
+      prompt:
+        'Build a workflow that on a Workday new-hire event creates the standard set of Infisical secrets for the new engineer’s scoped dev environment from a template, and writes the provisioning record to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical offboarding rotation',
+      prompt:
+        'Create a workflow that on a Workday termination rotates the shared Infisical secrets the departing engineer had access to by generating new values and updating them across environments, then writes the action log to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical CI sync',
+      prompt:
+        'Build a workflow that mirrors Infisical secrets into GitHub Actions environments for CI deploys, keeping the secret store as the single source of truth.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['github'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical secret-inventory reviewer',
+      prompt:
+        'Create a scheduled quarterly workflow that lists Infisical secrets per project and environment, flags ones with weak or aged values for owner attestation in Slack, and writes the review to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: InfisicalIcon,
+      title: 'Infisical secret-inventory snapshot',
+      prompt:
+        'Build a scheduled workflow that lists Infisical secrets across environments, writes a redacted inventory snapshot to S3 for long-term retention, and tracks secret count trends in a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['s3'],
+    },
+  ],
+} as const satisfies BlockMeta

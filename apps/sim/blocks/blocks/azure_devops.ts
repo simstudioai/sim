@@ -1,5 +1,5 @@
 import { AzureIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AzureDevOpsBasicWorkItemType, AzureDevOpsResponse } from '@/tools/azure_devops/types'
 import { AZURE_DEVOPS_BASIC_WORK_ITEM_STATES } from '@/tools/azure_devops/utils'
@@ -20,8 +20,7 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
     'Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.',
   docsLink: 'https://docs.sim.ai/tools/azure_devops',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['ci-cd', 'project-management', 'version-control'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#0078D4',
   icon: AzureIcon,
   authMode: AuthMode.ApiKey,
@@ -625,3 +624,77 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
     ],
   },
 }
+
+export const AzureDevOpsBlockMeta = {
+  tags: ['version-control', 'ci-cd', 'project-management'],
+  templates: [
+    {
+      icon: AzureIcon,
+      title: 'Azure DevOps build failure alerter',
+      prompt:
+        'Build a workflow triggered when an Azure DevOps build fails that fetches the build timeline and failing-stage logs, summarizes the root cause with an agent, and posts an actionable Slack alert with a deep link to the run.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'engineering'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure DevOps work-item triager',
+      prompt:
+        'Create a workflow triggered when an Azure DevOps work item is created that classifies it by type and priority, enriches the description, assigns the right area path, and posts a summary to the team channel.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'project-management', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure DevOps release notes generator',
+      prompt:
+        'Build a workflow that pulls the work items completed between two Azure DevOps builds, groups them by type with an agent, and writes formatted release notes to a file for the release manager.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting', 'engineering'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure DevOps pipeline health report',
+      prompt:
+        'Create a scheduled daily workflow that lists Azure DevOps pipeline runs, computes pass rate and average duration per pipeline, logs them to a table for trend tracking, and Slacks a morning summary highlighting any regressions.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure DevOps to Linear bridge',
+      prompt:
+        'Build a workflow that watches new Azure DevOps work items, mirrors each as a Linear issue with full context and a back-link, and keeps the team aligned across both trackers.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'project-management'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure DevOps PR review summarizer',
+      prompt:
+        'Create a workflow triggered on a new Azure DevOps pull request that fetches the diff and linked work items, drafts a concise review summary and risk callouts with an agent, and posts it as a PR comment for reviewers.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'engineering', 'automation'],
+    },
+    {
+      icon: AzureIcon,
+      title: 'Azure DevOps sprint burndown digest',
+      prompt:
+        'Build a scheduled daily workflow that queries Azure DevOps work items in the active sprint, computes remaining effort and at-risk items, logs the burndown to a table, and posts a morning summary to the team Slack channel.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'project-management', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -119,7 +119,6 @@ export const GET = withRouteHandler(
 /**
  * PUT /api/organizations/[id]
  * Update organization settings (name, slug, logo)
- * Note: For seat updates, use PUT /api/organizations/[id]/seats instead
  */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {

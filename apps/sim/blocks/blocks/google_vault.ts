@@ -1,6 +1,7 @@
+import { ShieldCheck } from '@/components/emcn/icons'
 import { GoogleVaultIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 
@@ -14,7 +15,6 @@ export const GoogleVaultBlock: BlockConfig = {
   docsLink: 'https://developers.google.com/vault',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['google-workspace', 'secrets-management', 'document-processing'],
   bgColor: '#E8F0FE',
   icon: GoogleVaultIcon,
   subBlocks: [
@@ -546,3 +546,74 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     },
   },
 }
+
+export const GoogleVaultBlockMeta = {
+  tags: ['google-workspace', 'document-processing'],
+  templates: [
+    {
+      icon: ShieldCheck,
+      title: 'Google Vault legal hold automator',
+      prompt:
+        'Build a scheduled workflow that polls Salesforce for new legal-hold instructions, creates a Google Vault matter and hold for the named custodians, and notifies legal with the hold details.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Google Vault hold auditor',
+      prompt:
+        'Create a scheduled workflow that lists Google Vault matters and holds, flags custodians missing expected holds, and writes the findings to a compliance review table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Google Vault eDiscovery exporter',
+      prompt:
+        'Build a workflow that takes an eDiscovery request, runs a Google Vault search, exports the matters into structured archives, and writes the export manifest.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Google Vault hold reviewer',
+      prompt:
+        'Create a scheduled workflow that lists Google Vault holds across matters, summarizes their custodians and scope, and writes a review report for the legal team to approve.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Google Vault sensitive-term exporter',
+      prompt:
+        'Build a scheduled workflow that creates Google Vault exports for sensitive search terms weekly, downloads the export results, and writes the matching items to a compliance review queue.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Google Vault export archiver',
+      prompt:
+        'Create a scheduled workflow that creates Google Vault matter exports, downloads the export files, archives them to S3 long-term storage, and writes the manifest to a compliance table.',
+      modules: ['scheduled', 'tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Google Vault custodian dashboard',
+      prompt:
+        'Build a scheduled monthly workflow that summarizes Google Vault holds and custodians, generates a status dashboard, and writes it to a legal review file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+  ],
+} as const satisfies BlockMeta

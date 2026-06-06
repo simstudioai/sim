@@ -1,5 +1,5 @@
 import { SapS4HanaIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SapProxyResponse } from '@/tools/sap_s4hana/types'
 
@@ -12,8 +12,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
     'Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.',
   docsLink: 'https://docs.sim.ai/tools/sap_s4hana',
   category: 'tools',
-  integrationType: IntegrationType.Other,
-  tags: ['automation'],
+  integrationType: IntegrationType.HR,
   bgColor: '#FFFFFF',
   icon: SapS4HanaIcon,
   subBlocks: [
@@ -1208,3 +1207,75 @@ Return ONLY the JSON array - no explanations, no extra text.`,
     data: { type: 'json', description: 'Parsed OData payload (entity, collection, or null)' },
   },
 }
+
+export const SapS4HanaBlockMeta = {
+  tags: ['automation'],
+  templates: [
+    {
+      icon: SapS4HanaIcon,
+      title: 'SAP business partner sync',
+      prompt:
+        'Build a workflow that takes new customer rows from a CRM-backed table and creates or updates SAP S/4HANA business partners via the API_BUSINESS_PARTNER service, mapping person and organization categories correctly so finance and sales stay aligned.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise', 'sync'],
+    },
+    {
+      icon: SapS4HanaIcon,
+      title: 'SAP sales order monitor',
+      prompt:
+        'Create a scheduled workflow that lists open SAP S/4HANA sales orders, flags orders past their expected delivery date, summarizes top blockers, logs them to a tracking table, and emails the operations leads a daily prioritized list.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise', 'monitoring'],
+    },
+    {
+      icon: SapS4HanaIcon,
+      title: 'SAP supplier invoice intake',
+      prompt:
+        'Build a workflow that ingests inbound supplier invoice PDFs from Gmail, extracts header and line-item data with an agent, validates the vendor against SAP S/4HANA suppliers, creates the supplier invoice via OData, and writes the outcome to a finance audit table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: SapS4HanaIcon,
+      title: 'SAP billing reconciliation',
+      prompt:
+        'Create a scheduled workflow that pulls SAP S/4HANA billing documents, joins them against your CRM revenue table, flags mismatches in amounts or customers, and emails finance a reconciliation report file with the specific rows to investigate.',
+      modules: ['scheduled', 'tables', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise', 'reporting'],
+    },
+    {
+      icon: SapS4HanaIcon,
+      title: 'SAP delivery exception alerts',
+      prompt:
+        'Build a workflow that runs every hour, lists SAP S/4HANA outbound and inbound deliveries with delays or missing reference documents, classifies the exception, posts a Slack alert to the operations channel, and updates a remediation tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SapS4HanaIcon,
+      title: 'SAP stock-level digest',
+      prompt:
+        'Create a scheduled daily workflow that queries SAP S/4HANA for product stock and material document movements, identifies SKUs trending toward stock-out, writes a prioritized digest file, and Slacks the supply chain team for action.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['operations', 'enterprise', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SapS4HanaIcon,
+      title: 'Purchase requisition router',
+      prompt:
+        'Build a workflow exposed to internal users as a form that captures purchase requisition details, classifies the request, creates the requisition in SAP S/4HANA via OData, posts the requisition number back to the requester, and logs the request in a tracking table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'enterprise', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

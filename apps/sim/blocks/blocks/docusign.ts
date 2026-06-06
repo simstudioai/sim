@@ -1,6 +1,6 @@
 import { DocuSignIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DocuSignResponse } from '@/tools/docusign/types'
@@ -14,7 +14,6 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
   docsLink: 'https://docs.sim.ai/tools/docusign',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['e-signatures', 'document-processing'],
   bgColor: '#FFFFFF',
   icon: DocuSignIcon,
   authMode: AuthMode.OAuth,
@@ -373,3 +372,78 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
     resultSetSize: { type: 'number', description: 'Results returned in this response' },
   },
 }
+
+export const DocuSignBlockMeta = {
+  tags: ['e-signatures', 'document-processing'],
+  templates: [
+    {
+      icon: DocuSignIcon,
+      title: 'DocuSign envelope sender',
+      prompt:
+        'Build a workflow that takes a deal from Salesforce above a threshold, pre-fills a DocuSign envelope from a template, sends it, and writes the envelope ID back to the opportunity.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: DocuSignIcon,
+      title: 'DocuSign chase reminder',
+      prompt:
+        'Create a scheduled workflow that lists DocuSign envelopes pending signature for over 48 hours, notifies the owning rep in Slack to nudge each signer, and escalates with a flagged message after 7 days.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DocuSignIcon,
+      title: 'DocuSign completed contract archiver',
+      prompt:
+        'Build a scheduled workflow that polls DocuSign for completed envelopes, downloads the signed PDF, saves it to a Google Drive contracts folder, and writes the metadata into a contracts table.',
+      modules: ['scheduled', 'files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'sync'],
+      alsoIntegrations: ['google_drive'],
+    },
+    {
+      icon: DocuSignIcon,
+      title: 'DocuSign clause analyzer',
+      prompt:
+        'Create a workflow that processes signed DocuSign contracts, extracts payment terms, liability caps, and renewal dates, writes them to a table, and flags non-standard clauses for legal review.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'analysis'],
+    },
+    {
+      icon: DocuSignIcon,
+      title: 'DocuSign renewal tracker',
+      prompt:
+        'Build a scheduled workflow that reads a DocuSign contracts table, finds renewals due in the next 60 days, and creates a renewal-prep task in Salesforce for each.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: DocuSignIcon,
+      title: 'DocuSign stalled envelope resolver',
+      prompt:
+        'Create a scheduled workflow that lists in-flight DocuSign envelopes, checks each envelope’s recipients for signers who have left the company, voids the affected envelopes, and posts the list to Slack so a rep can resend from the right template.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DocuSignIcon,
+      title: 'DocuSign signature analytics digest',
+      prompt:
+        'Build a scheduled weekly workflow that pulls DocuSign envelope analytics — time-to-sign, completion rate, drop-off — and posts a digest to the sales ops Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

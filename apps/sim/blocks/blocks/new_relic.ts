@@ -1,5 +1,5 @@
 import { NewRelicIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { NewRelicCustomAttributes, NewRelicResponse } from '@/tools/new_relic/types'
 
@@ -28,8 +28,7 @@ export const NewRelicBlock: BlockConfig<NewRelicResponse> = {
   docsLink: 'https://docs.sim.ai/tools/new_relic',
   category: 'tools',
   authMode: AuthMode.ApiKey,
-  integrationType: IntegrationType.Analytics,
-  tags: ['monitoring', 'data-analytics', 'incident-management'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#000000',
   icon: NewRelicIcon,
   subBlocks: [
@@ -353,3 +352,78 @@ Return ONLY the numeric timestamp - no explanations, no extra text.`,
     messages: { type: 'json', description: 'New Relic change tracking messages' },
   },
 }
+
+export const NewRelicBlockMeta = {
+  tags: ['monitoring', 'error-tracking', 'incident-management'],
+  templates: [
+    {
+      icon: NewRelicIcon,
+      title: 'New Relic health report',
+      prompt:
+        'Create a scheduled daily workflow that runs NRQL queries against New Relic for error rate, latency percentiles, and throughput, logs the results to a table for trend tracking, and Slacks a morning summary highlighting any degradations.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: NewRelicIcon,
+      title: 'New Relic deployment tracker',
+      prompt:
+        'Build a workflow that fires after each production release, records a New Relic deployment change event for the affected entity, and posts a Slack note linking the deployment to the dashboard for the on-call engineer.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: NewRelicIcon,
+      title: 'New Relic anomaly investigator',
+      prompt:
+        'Create a workflow triggered by an alert that runs targeted NRQL queries to pull the surrounding error and latency data, searches related New Relic entities for blast radius, summarizes likely causes, and opens a Linear ticket.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: NewRelicIcon,
+      title: 'New Relic entity inventory',
+      prompt:
+        'Build a scheduled weekly workflow that searches New Relic for all monitored entities, fetches details for each, logs them into an inventory table, and Slacks a diff of newly added or removed services.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'monitoring', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: NewRelicIcon,
+      title: 'New Relic SLO weekly review',
+      prompt:
+        'Create a scheduled weekly workflow that runs NRQL queries to compute error budget burn for each service, writes a narrative review file for the SRE team, and links the supporting dashboards.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+    },
+    {
+      icon: NewRelicIcon,
+      title: 'New Relic cost-by-service breakdown',
+      prompt:
+        'Build a scheduled monthly workflow that runs NRQL queries to attribute data ingest and compute to each New Relic entity, writes a per-team cost breakdown to a table, and emails finance the services trending over budget.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'finance', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: NewRelicIcon,
+      title: 'New Relic incident war-room kickoff',
+      prompt:
+        'Create a workflow triggered by a PagerDuty incident that runs NRQL queries for the impacted service, pulls the latest deployment change event from New Relic, and posts a war-room summary with golden-signal charts to the incident Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'incident-management'],
+      alsoIntegrations: ['pagerduty', 'slack'],
+    },
+  ],
+} as const satisfies BlockMeta

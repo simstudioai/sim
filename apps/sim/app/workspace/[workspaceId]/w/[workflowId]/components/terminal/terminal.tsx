@@ -4,16 +4,7 @@ import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import clsx from 'clsx'
-import {
-  ArrowDown,
-  ArrowDownToLine,
-  ArrowUp,
-  Database,
-  MoreHorizontal,
-  Palette,
-  Pause,
-  Trash2,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, Database, MoreHorizontal, Palette, Pause, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import {
@@ -25,8 +16,10 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
@@ -58,7 +51,6 @@ import {
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
-import { sendMothershipMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
   safeConsoleStringify,
@@ -125,7 +117,9 @@ const BlockRow = memo(function BlockRow({
         e.stopPropagation()
         onSelect(entry)
       }}
-      onKeyDown={(event) => handleKeyboardActivation(event, () => onSelect(entry))}
+      onKeyDown={(event) =>
+        handleKeyboardActivation(event, () => onSelect(entry), { stopPropagation: true })
+      }
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <div
@@ -136,19 +130,14 @@ const BlockRow = memo(function BlockRow({
         </div>
         <span
           className={clsx(
-            'min-w-0 truncate font-base text-sm',
+            'min-w-0 truncate text-sm',
             hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
           )}
         >
           {entry.blockName}
         </span>
       </div>
-      <span
-        className={clsx(
-          'flex-shrink-0 font-base text-sm',
-          !isRunning && 'text-[var(--text-secondary)]'
-        )}
-      >
+      <span className={clsx('flex-shrink-0 text-sm', !isRunning && 'text-[var(--text-secondary)]')}>
         <StatusDisplay
           isRunning={isRunning}
           isCanceled={isCanceled}
@@ -166,6 +155,8 @@ const IterationNodeRow = memo(function IterationNodeRow({
   node,
   selectedEntryId,
   onSelectEntry,
+  isExpanded,
+  onToggle,
   expandedNodes,
   onToggleNode,
   renderChildren = true,
@@ -173,20 +164,17 @@ const IterationNodeRow = memo(function IterationNodeRow({
   node: EntryNode
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
+  isExpanded: boolean
+  onToggle: () => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
   renderChildren?: boolean
 }) {
   const { entry, children, iterationInfo } = node
-  const nodeId = entry.id
-  const isExpanded = expandedNodes.has(nodeId)
   const hasError = Boolean(entry.error) || children.some((c) => c.entry.error)
   const hasChildren = children.length > 0
   const hasRunningChild = children.some((c) => c.entry.isRunning)
   const hasCanceledChild = children.some((c) => c.entry.isCanceled) && !hasRunningChild
-  const handleToggle = useCallback(() => {
-    onToggleNode(nodeId)
-  }, [nodeId, onToggleNode])
 
   const iterationLabel = iterationInfo
     ? `Iteration ${iterationInfo.current + 1}${iterationInfo.total !== undefined ? ` / ${iterationInfo.total}` : ''}`
@@ -201,14 +189,14 @@ const IterationNodeRow = memo(function IterationNodeRow({
         className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
         onClick={(e) => {
           e.stopPropagation()
-          handleToggle()
+          onToggle()
         }}
-        onKeyDown={(event) => handleKeyboardActivation(event, handleToggle)}
+        onKeyDown={(event) => handleKeyboardActivation(event, onToggle, { stopPropagation: true })}
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-sm',
+              'min-w-0 truncate text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -225,7 +213,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-sm',
+            'flex-shrink-0 text-sm',
             !hasRunningChild && 'text-[var(--text-secondary)]'
           )}
         >
@@ -303,7 +291,9 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           e.stopPropagation()
           onToggleNode(nodeId)
         }}
-        onKeyDown={(event) => handleKeyboardActivation(event, () => onToggleNode(nodeId))}
+        onKeyDown={(event) =>
+          handleKeyboardActivation(event, () => onToggleNode(nodeId), { stopPropagation: true })
+        }
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
@@ -314,7 +304,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-sm',
+              'min-w-0 truncate text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -331,7 +321,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-sm',
+            'flex-shrink-0 text-sm',
             !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
@@ -352,6 +342,8 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
               node={iterNode}
               selectedEntryId={selectedEntryId}
               onSelectEntry={onSelectEntry}
+              isExpanded={expandedNodes.has(iterNode.entry.id)}
+              onToggle={() => onToggleNode(iterNode.entry.id)}
               expandedNodes={expandedNodes}
               onToggleNode={onToggleNode}
             />
@@ -418,10 +410,14 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           if (hasChildren) onToggleNode(nodeId)
         }}
         onKeyDown={(event) =>
-          handleKeyboardActivation(event, () => {
-            if (!isSelected) onSelectEntry(entry)
-            if (hasChildren) onToggleNode(nodeId)
-          })
+          handleKeyboardActivation(
+            event,
+            () => {
+              if (!isSelected) onSelectEntry(entry)
+              if (hasChildren) onToggleNode(nodeId)
+            },
+            { stopPropagation: true }
+          )
         }
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
@@ -433,7 +429,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-sm',
+              'min-w-0 truncate text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -450,7 +446,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-sm',
+            'flex-shrink-0 text-sm',
             !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
@@ -533,6 +529,8 @@ const EntryNodeRow = memo(function EntryNodeRow({
         node={node}
         selectedEntryId={selectedEntryId}
         onSelectEntry={onSelectEntry}
+        isExpanded={expandedNodes.has(node.entry.id)}
+        onToggle={() => onToggleNode(node.entry.id)}
         expandedNodes={expandedNodes}
         onToggleNode={onToggleNode}
         renderChildren={renderChildren}
@@ -1319,14 +1317,8 @@ export const Terminal = memo(function Terminal() {
           >
             {/* Header */}
             <div
-              role='group'
-              aria-label='Terminal logs header'
               className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
               onClick={handleHeaderClick}
-              onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return
-                handleKeyboardActivation(event, handleHeaderClick)
-              }}
             >
               {/* Left side - Logs label */}
               <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
@@ -1348,9 +1340,9 @@ export const Terminal = memo(function Terminal() {
                           className='!p-1.5 -m-1.5'
                         >
                           {sortConfig.direction === 'desc' ? (
-                            <ArrowDown className='size-3.5' />
+                            <ArrowDown className='h-3.5 w-3.5' />
                           ) : (
-                            <ArrowUp className='size-3.5' />
+                            <ArrowUp className='h-3.5 w-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1369,7 +1361,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Component Playground'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Palette className='size-3.5' />
+                            <Palette className='h-3.5 w-3.5' />
                           </Button>
                         </Link>
                       </Tooltip.Trigger>
@@ -1392,9 +1384,9 @@ export const Terminal = memo(function Terminal() {
                           )}
                         >
                           {isTraining ? (
-                            <Pause className='size-3.5' />
+                            <Pause className='h-3.5 w-3.5' />
                           ) : (
-                            <Database className='size-3.5' />
+                            <Database className='h-3.5 w-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1411,14 +1403,14 @@ export const Terminal = memo(function Terminal() {
                           <Button
                             variant='ghost'
                             onClick={handleExportConsole}
-                            aria-label='Download console CSV'
+                            aria-label='Export console CSV'
                             className='!p-1.5 -m-1.5'
                           >
-                            <ArrowDownToLine className='size-3.5' />
+                            <Download className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
-                          <span>Download CSV</span>
+                          <span>Export CSV</span>
                         </Tooltip.Content>
                       </Tooltip.Root>
                       <Tooltip.Root>
@@ -1429,7 +1421,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Clear console'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Trash2 className='size-3.5' />
+                            <Trash2 className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
@@ -1449,7 +1441,7 @@ export const Terminal = memo(function Terminal() {
                         aria-label='Terminal options'
                         className='!p-1.5 -m-1.5'
                       >
-                        <MoreHorizontal className='size-3.5' />
+                        <MoreHorizontal className='h-3.5 w-3.5' />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
