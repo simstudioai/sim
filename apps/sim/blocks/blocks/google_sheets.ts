@@ -1157,7 +1157,7 @@ export const GoogleSheetsBlockMeta = {
       icon: GoogleSheetsIcon,
       title: 'Send Slack messages from Google Sheets',
       prompt:
-        'Watch a spreadsheet for new rows or changes, then post formatted Slack updates to keep stakeholders informed in real time.',
+        'Build a workflow that watches a Google Sheets spreadsheet for new rows or changes, then posts formatted Slack updates to keep stakeholders informed in real time.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],
@@ -1168,7 +1168,7 @@ export const GoogleSheetsBlockMeta = {
       icon: GoogleSheetsIcon,
       title: 'Sync Google Sheets data into Notion',
       prompt:
-        'Transform spreadsheet rows into structured Notion database entries for richer documentation and cross-team project tracking.',
+        'Create an agent that reads rows from Google Sheets and transforms them into structured Notion database entries for richer documentation and cross-team project tracking.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],
