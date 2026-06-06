@@ -58,30 +58,35 @@ function CreditsChipInner() {
   )
 
   /**
-   * A per-member org credit cap is the authoritative personal remaining for this
-   * member — show it even when the plan-based chip would otherwise be hidden (e.g.
-   * external members). Values are dollars (the chip formats via `formatCredits`),
-   * clamped at 0 so an over-cap member never sees a negative.
+   * Pooled/plan remaining (dollars): unused plan allowance plus any purchased
+   * credit balance. Null when the plan-based chip wouldn't show on its own (data
+   * not ready, or the plan isn't credit-metered). `ON_DEMAND_UNLIMITED` means
+   * effectively unbounded — rendered as ∞ — so short-circuit instead of
+   * subtracting usage from the sentinel.
+   */
+  const pooledData = !isLoading && hasData && planView.showCredits ? (data?.data ?? null) : null
+  const pooledRemaining =
+    pooledData === null
+      ? null
+      : pooledData.usageLimit >= ON_DEMAND_UNLIMITED
+        ? ON_DEMAND_UNLIMITED
+        : Math.max(0, pooledData.usageLimit + pooledData.creditBalance - pooledData.currentUsage)
+
+  /**
+   * A per-member cap is the authoritative personal remaining, but the actor gate
+   * blocks on the pooled cap first — so show the tighter of the two, or a member
+   * could see credits left while every action 402s on org/plan usage. Clamp at 0.
+   * Fall back to personal alone when pooled isn't available/shown, so a capped
+   * member still sees a balance even where the plan chip would be hidden.
    */
   const limitDollars = memberCredits?.limitDollars ?? null
   if (limitDollars !== null) {
-    return renderChip(Math.max(0, limitDollars - (memberCredits?.usedDollars ?? 0)))
+    const personalRemaining = Math.max(0, limitDollars - (memberCredits?.usedDollars ?? 0))
+    return renderChip(
+      pooledRemaining === null ? personalRemaining : Math.min(personalRemaining, pooledRemaining)
+    )
   }
 
-  if (isLoading || !hasData || !data?.data) return null
-  if (!planView.showCredits) return null
-
-  const { usageLimit, currentUsage, creditBalance } = data.data
-
-  /**
-   * Credits remaining = unused plan allowance plus any purchased credit balance.
-   * Uncapped plans (limit at/above the on-demand threshold) render as ∞ via
-   * `formatCredits`, so short-circuit instead of subtracting usage from it.
-   */
-  const remainingCredits =
-    usageLimit >= ON_DEMAND_UNLIMITED
-      ? ON_DEMAND_UNLIMITED
-      : Math.max(0, usageLimit + creditBalance - currentUsage)
-
-  return renderChip(remainingCredits)
+  if (pooledRemaining === null) return null
+  return renderChip(pooledRemaining)
 }
