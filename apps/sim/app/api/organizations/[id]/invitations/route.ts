@@ -384,6 +384,8 @@ export const POST = withRouteHandler(
             targetRole: role,
             isBatch,
             workspaceGrantCount: validGrants.length,
+            enforcedFixedSeats: enforceFixedSeats,
+            plan: orgSubscription?.plan ?? null,
           },
           request,
         })

@@ -195,6 +195,13 @@ export interface PostHogEventMap {
     source?: 'settings' | 'tool_input'
   }
 
+  skill_updated: {
+    skill_id: string
+    skill_name: string
+    workspace_id: string
+    source?: 'settings' | 'tool_input'
+  }
+
   skill_deleted: {
     skill_id: string
     workspace_id: string
@@ -339,6 +346,34 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  credential_shared: {
+    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    role: 'admin' | 'member'
+    workspace_id: string
+  }
+
+  credential_unshared: {
+    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    workspace_id: string
+  }
+
+  environment_updated: {
+    workspace_id: string
+    key_count: number
+  }
+
+  environment_deleted: {
+    workspace_id: string
+    key_count: number
+  }
+
+  seats_provisioned: {
+    organization_id: string
+    previous_seats: number
+    seats: number
+    reason: string
+  }
+
   copilot_chat_sent: {
     workflow_id: string
     workspace_id: string
@@ -388,6 +423,8 @@ export interface PostHogEventMap {
     /** Number of explicitly targeted rows; `null` when the run targets all rows in scope. */
     row_count: number | null
     has_limit: boolean
+    /** Which workflow version the run targets; omitted when groups mix modes. */
+    deployment_mode?: 'live' | 'deployed' | 'mixed'
   }
 
   /**
@@ -401,6 +438,33 @@ export interface PostHogEventMap {
     scope: 'all' | 'row' | 'rows'
     /** Number of rows targeted; `null` for the `all` scope. */
     row_count: number | null
+  }
+
+  table_import_started: {
+    table_id: string
+    workspace_id: string
+    import_id: string
+    file_type: 'csv' | 'tsv'
+  }
+
+  table_import_completed: {
+    table_id: string
+    workspace_id: string
+    import_id: string
+    status: 'completed' | 'failed'
+    row_count: number | null
+    error_message?: string
+  }
+
+  table_exported: {
+    table_id: string
+    workspace_id: string
+  }
+
+  file_downloaded: {
+    workspace_id: string
+    is_bulk: boolean
+    file_count: number
   }
 
   custom_tool_saved: {

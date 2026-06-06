@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -69,7 +70,22 @@ export async function reconcileTeamSeatDrift(): Promise<SeatDriftSweepResult> {
         organizationId: row.organizationId,
         reason: 'seat-drift-sweep',
       })
-      if (result.changed) reconciled++
+      if (result.changed) {
+        reconciled++
+        recordAudit({
+          workspaceId: null,
+          actorId: 'system',
+          action: AuditAction.ORG_SEAT_DRIFT_RECONCILED,
+          resourceType: AuditResourceType.ORGANIZATION,
+          resourceId: row.organizationId,
+          description: 'Reconciled seat drift to member count',
+          metadata: {
+            previousSeats: result.previousSeats ?? 0,
+            seats: result.seats ?? 0,
+            reason: 'seat-drift-sweep',
+          },
+        })
+      }
     } catch (error) {
       logger.error('Failed to reconcile seat drift for organization', {
         organizationId: row.organizationId,

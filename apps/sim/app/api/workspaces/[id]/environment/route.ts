@@ -24,6 +24,7 @@ import {
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
@@ -116,6 +117,12 @@ export const PUT = withRouteHandler(
       })
       const forbiddenExisting = incomingKeys.filter((k) => knownKeys.has(k) && !adminKeys.has(k))
       if (forbiddenExisting.length > 0) {
+        logger.warn(`[${requestId}] Workspace env update denied`, {
+          workspaceId,
+          userId,
+          reason: 'not-secret-admin',
+          keys: forbiddenExisting,
+        })
         return NextResponse.json(
           { error: 'You must be an admin of these secrets to edit them' },
           { status: 403 }
@@ -126,6 +133,12 @@ export const PUT = withRouteHandler(
         permission !== 'admin' &&
         permission !== 'write'
       ) {
+        logger.warn(`[${requestId}] Workspace env update denied`, {
+          workspaceId,
+          userId,
+          reason: 'write-access-required',
+          keys: incomingKeys.filter((k) => !knownKeys.has(k)),
+        })
         return NextResponse.json(
           { error: 'Write access is required to add new secrets' },
           { status: 403 }
@@ -192,6 +205,11 @@ export const PUT = withRouteHandler(
         request,
       })
 
+      captureServerEvent(userId, 'environment_updated', {
+        workspace_id: workspaceId,
+        key_count: Object.keys(variables).length,
+      })
+
       return NextResponse.json({ success: true })
     } catch (error) {
       logger.error(`[${requestId}] Workspace env PUT error`, error)
@@ -236,12 +254,24 @@ export const DELETE = withRouteHandler(
       })
       const forbiddenExisting = keys.filter((k) => knownKeys.has(k) && !adminKeys.has(k))
       if (forbiddenExisting.length > 0) {
+        logger.warn(`[${requestId}] Workspace env delete denied`, {
+          workspaceId,
+          userId,
+          reason: 'not-secret-admin',
+          keys: forbiddenExisting,
+        })
         return NextResponse.json(
           { error: 'You must be an admin of these secrets to delete them' },
           { status: 403 }
         )
       }
       if (keys.some((k) => !knownKeys.has(k)) && permission !== 'admin' && permission !== 'write') {
+        logger.warn(`[${requestId}] Workspace env delete denied`, {
+          workspaceId,
+          userId,
+          reason: 'write-access-required',
+          keys: keys.filter((k) => !knownKeys.has(k)),
+        })
         return NextResponse.json(
           { error: 'Write access is required to remove these secrets' },
           { status: 403 }
@@ -300,6 +330,11 @@ export const DELETE = withRouteHandler(
           remainingKeysCount: result.remainingKeysCount,
         },
         request,
+      })
+
+      captureServerEvent(userId, 'environment_deleted', {
+        workspace_id: workspaceId,
+        key_count: keys.length,
       })
 
       return NextResponse.json({ success: true })

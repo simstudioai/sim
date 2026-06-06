@@ -7,6 +7,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
   getWorkspaceTableLimits,
@@ -108,6 +109,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       delimiter,
       mode: 'create',
     })
+  )
+
+  captureServerEvent(
+    userId,
+    'table_import_started',
+    {
+      table_id: table.id,
+      workspace_id: workspaceId,
+      import_id: importId,
+      file_type: ext,
+    },
+    { groups: { workspace: workspaceId } }
   )
 
   logger.info(`[${requestId}] Async CSV import started`, { tableId: table.id, importId, fileName })
