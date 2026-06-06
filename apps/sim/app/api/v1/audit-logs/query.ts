@@ -1,7 +1,8 @@
+import { AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, gte, ilike, inArray, lt, lte, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
 
 type DbAuditLog = InferSelectModel<typeof auditLog>
 
@@ -68,33 +69,59 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
   return conditions
 }
 
-export async function buildOrgScopeCondition(
-  orgMemberIds: string[],
+/**
+ * Returns the IDs of all workspaces attached to the organization.
+ */
+export async function getOrgWorkspaceIds(organizationId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.organizationId, organizationId))
+  return rows.map((row) => row.id)
+}
+
+export interface OrgScopeParams {
+  organizationId: string
+  orgWorkspaceIds: string[]
+  orgMemberIds: string[]
   includeDeparted: boolean
-): Promise<SQL<unknown>> {
+}
+
+/**
+ * Builds the tenant-boundary predicate for organization audit log access:
+ * rows in org-attached workspaces, plus org-level rows (`workspace_id IS
+ * NULL`) tied to the org via `metadata.organizationId` or the organization
+ * resource itself. Actor membership is never a standalone boundary — when
+ * `includeDeparted` is false it only narrows the org scope.
+ */
+export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
+  const { organizationId, orgWorkspaceIds, orgMemberIds, includeDeparted } = params
+
+  const orgLevelCondition = and(
+    isNull(auditLog.workspaceId),
+    or(
+      sql`${auditLog.metadata}->>'organizationId' = ${organizationId}`,
+      and(
+        eq(auditLog.resourceType, AuditResourceType.ORGANIZATION),
+        eq(auditLog.resourceId, organizationId)
+      )
+    )
+  )!
+
+  const orgScope =
+    orgWorkspaceIds.length > 0
+      ? or(inArray(auditLog.workspaceId, orgWorkspaceIds), orgLevelCondition)!
+      : orgLevelCondition
+
+  if (includeDeparted) {
+    return orgScope
+  }
+
   if (orgMemberIds.length === 0) {
     return sql`1 = 0`
   }
 
-  if (!includeDeparted) {
-    return inArray(auditLog.actorId, orgMemberIds)
-  }
-
-  const orgWorkspaces = await db
-    .select({ id: workspace.id })
-    .from(workspace)
-    .where(inArray(workspace.ownerId, orgMemberIds))
-
-  const orgWorkspaceIds = orgWorkspaces.map((w) => w.id)
-
-  if (orgWorkspaceIds.length > 0) {
-    return or(
-      inArray(auditLog.actorId, orgMemberIds),
-      inArray(auditLog.workspaceId, orgWorkspaceIds)
-    )!
-  }
-
-  return inArray(auditLog.actorId, orgMemberIds)
+  return and(orgScope, inArray(auditLog.actorId, orgMemberIds))!
 }
 
 function buildCursorCondition(cursor: string): SQL<unknown> | null {
