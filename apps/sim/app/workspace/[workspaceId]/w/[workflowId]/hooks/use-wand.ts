@@ -245,12 +245,20 @@ export function useWand({
         if (error.name === 'AbortError') {
           logger.debug('Wand generation cancelled')
         } else if (isApiClientError(error) && error.status === 402) {
-          toast.error(error.message || 'Usage limit reached', {
-            action: {
-              label: 'Upgrade',
-              onClick: () => navigateToSettings({ section: 'billing' }),
-            },
-          })
+          // A per-member cap is only raisable by an org admin, so skip the Upgrade
+          // affordance the member can't act on.
+          const isMemberLimit = (error.body as { scope?: string } | null)?.scope === 'member'
+          toast.error(
+            error.message || 'Usage limit reached',
+            isMemberLimit
+              ? undefined
+              : {
+                  action: {
+                    label: 'Upgrade',
+                    onClick: () => navigateToSettings({ section: 'billing' }),
+                  },
+                }
+          )
         } else {
           logger.error('Wand generation failed', { error })
           setError(error.message || 'Generation failed')

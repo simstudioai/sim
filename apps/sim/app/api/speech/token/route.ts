@@ -155,6 +155,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           {
             error:
               usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            scope: usageCheck.scope,
           },
           { status: 402 }
         )

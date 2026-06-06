@@ -16,10 +16,12 @@ import {
 } from '@/lib/api/contracts/invitations'
 import {
   createOrganizationContract,
+  getMyMemberCreditsContract,
   getOrganizationMemberUsageLimitContract,
   getOrganizationRosterContract,
   inviteOrganizationMembersContract,
   listOrganizationMembersContract,
+  type MyMemberCreditsData,
   type OrganizationMembersResponse,
   type OrganizationMemberUsageLimitData,
   type OrganizationRoster,
@@ -107,6 +109,8 @@ export const organizationKeys = {
   memberUsageLimit: (id: string, userId: string) =>
     [...organizationKeys.detail(id), 'member-usage-limit', userId] as const,
   roster: (id: string) => [...organizationKeys.detail(id), 'roster'] as const,
+  myMemberCredits: (workspaceId: string) =>
+    [...organizationKeys.all, 'my-member-credits', workspaceId] as const,
 }
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
@@ -537,6 +541,31 @@ export function useUpdateOrganizationMemberUsageLimit() {
         queryKey: organizationKeys.memberUsageLimit(variables.orgId, variables.userId),
       })
     },
+  })
+}
+
+async function fetchMyMemberCredits(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<MyMemberCreditsData> {
+  const response = await requestJson(getMyMemberCreditsContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return response.data
+}
+
+/**
+ * The caller's OWN per-member credit usage + cap for a workspace's organization.
+ * `creditLimit` is null when no per-member cap applies (non-hosted, non-org
+ * workspace, or no cap set) — callers then fall back to the plan-level view.
+ */
+export function useMyMemberCredits(workspaceId?: string) {
+  return useQuery({
+    queryKey: organizationKeys.myMemberCredits(workspaceId ?? ''),
+    queryFn: ({ signal }) => fetchMyMemberCredits(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 30 * 1000,
   })
 }
 

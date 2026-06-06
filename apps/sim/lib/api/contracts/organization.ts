@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
@@ -404,6 +405,37 @@ export const updateOrganizationMemberUsageLimitContract = defineRouteContract({
           creditLimit: z.number().nullable(),
         })
         .optional(),
+    }),
+  },
+})
+
+/**
+ * Self-service per-member usage for the chat-home credits chip. Values are in
+ * DOLLARS (the DB unit) so the client's `formatCredits` performs the single
+ * dollars→credits conversion — returning credits here would double-convert.
+ * `limitDollars` is null when no per-member cap applies (non-hosted, the
+ * workspace isn't org-owned, or no cap is set), so the chip falls back to the
+ * plan-level credits view.
+ */
+export const myMemberCreditsDataSchema = z.object({
+  usedDollars: z.number(),
+  limitDollars: z.number().nullable(),
+})
+export type MyMemberCreditsData = z.infer<typeof myMemberCreditsDataSchema>
+
+/**
+ * Own-data-only (no admin gate, unlike the admin route above) and workspace-
+ * scoped, so the chat-home chip can resolve the acting member's own remaining.
+ */
+export const getMyMemberCreditsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/billing/member-credits',
+  query: z.object({ workspaceId: workspaceIdSchema }),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.boolean(),
+      data: myMemberCreditsDataSchema,
     }),
   },
 })

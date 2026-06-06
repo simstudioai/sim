@@ -8,6 +8,7 @@ import { Credit } from '@/components/emcn/icons'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCredits } from '@/lib/billing/credits/conversion'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useMyMemberCredits } from '@/hooks/queries/organization'
 import { usePlanView } from '@/hooks/queries/plan-view'
 import { prefetchUpgradeBillingData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { prefetchWorkspaceSettings } from '@/hooks/queries/workspace'
@@ -30,6 +31,7 @@ function CreditsChipInner() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: memberCredits } = useMyMemberCredits(workspaceId)
 
   const upgradeHref = `/workspace/${workspaceId}/upgrade`
 
@@ -42,6 +44,29 @@ function CreditsChipInner() {
     prefetchUpgradeBillingData(queryClient)
     prefetchWorkspaceSettings(queryClient, workspaceId)
   }, [router, queryClient, upgradeHref, workspaceId])
+
+  const renderChip = (dollars: number) => (
+    <Chip
+      aria-label='Credits remaining — upgrade plan'
+      onClick={() => router.push(upgradeHref)}
+      onMouseEnter={prefetchUpgrade}
+      onFocus={prefetchUpgrade}
+      leftIcon={Credit}
+    >
+      {formatCredits(dollars)}
+    </Chip>
+  )
+
+  /**
+   * A per-member org credit cap is the authoritative personal remaining for this
+   * member — show it even when the plan-based chip would otherwise be hidden (e.g.
+   * external members). Values are dollars (the chip formats via `formatCredits`),
+   * clamped at 0 so an over-cap member never sees a negative.
+   */
+  const limitDollars = memberCredits?.limitDollars ?? null
+  if (limitDollars !== null) {
+    return renderChip(Math.max(0, limitDollars - (memberCredits?.usedDollars ?? 0)))
+  }
 
   if (isLoading || !hasData || !data?.data) return null
   if (!planView.showCredits) return null
@@ -58,15 +83,5 @@ function CreditsChipInner() {
       ? ON_DEMAND_UNLIMITED
       : Math.max(0, usageLimit + creditBalance - currentUsage)
 
-  return (
-    <Chip
-      aria-label='Credits remaining — upgrade plan'
-      onClick={() => router.push(upgradeHref)}
-      onMouseEnter={prefetchUpgrade}
-      onFocus={prefetchUpgrade}
-      leftIcon={Credit}
-    >
-      {formatCredits(remainingCredits)}
-    </Chip>
-  )
+  return renderChip(remainingCredits)
 }

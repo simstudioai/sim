@@ -499,21 +499,23 @@ export async function checkOrgMemberUsageLimit(
  * ({@link checkOrgMemberUsageLimit}) when a workspace is in scope. Returns the
  * first exceeded result so every billable surface (workflow exec, copilot,
  * voice, wand, enrichment, KB indexing) can gate on a single
- * `{ isExceeded, message }` and surface the same message.
+ * `{ isExceeded, message }`. `scope` distinguishes a pooled cap from a per-member
+ * cap so clients can hide an "Upgrade" affordance a capped member can't act on (a
+ * per-member cap is only raisable by an org admin).
  */
 export async function checkActorUsageLimits(
   userId: string,
   workspaceId?: string | null
-): Promise<{ isExceeded: boolean; message?: string }> {
+): Promise<{ isExceeded: boolean; message?: string; scope?: 'pooled' | 'member' }> {
   const pooled = await checkServerSideUsageLimits(userId)
   if (pooled.isExceeded) {
-    return { isExceeded: true, message: pooled.message }
+    return { isExceeded: true, message: pooled.message, scope: 'pooled' }
   }
 
   if (workspaceId) {
     const member = await checkOrgMemberUsageLimit(userId, workspaceId)
     if (member.isExceeded) {
-      return { isExceeded: true, message: member.message }
+      return { isExceeded: true, message: member.message, scope: 'member' }
     }
   }
 

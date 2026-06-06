@@ -20,7 +20,11 @@ export type PermissionState = 'prompt' | 'granted' | 'denied'
 
 interface UseSpeechToTextProps {
   onTranscript: (text: string) => void
-  onUsageLimitExceeded?: () => void
+  /**
+   * Called on a 402 from the token endpoint, with the server's limit message and
+   * whether it was a per-member cap (which only an org admin can raise).
+   */
+  onUsageLimitExceeded?: (message?: string, isMemberLimit?: boolean) => void
   language?: string
   /** Attributes the voice-input cost to this workspace for per-member usage. */
   workspaceId?: string
@@ -176,7 +180,8 @@ export function useSpeechToText({
         })
       } catch (err) {
         if (isApiClientError(err) && err.status === 402) {
-          onUsageLimitExceededRef.current?.()
+          const isMemberLimit = (err.body as { scope?: string } | null)?.scope === 'member'
+          onUsageLimitExceededRef.current?.(err.message, isMemberLimit)
           return false
         }
         throw err instanceof Error ? err : new Error('Failed to get speech token')
