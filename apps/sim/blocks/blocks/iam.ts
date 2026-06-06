@@ -731,7 +731,7 @@ export const IAMBlockMeta = {
       icon: IAMIcon,
       title: 'IAM SCP guardrail watcher',
       prompt:
-        'Build a workflow that watches AWS Organizations SCP changes, classifies risk, and pings the security team on changes that broaden permissions across accounts.',
+        'Build a workflow that watches AWS IAM and Organizations SCP changes, classifies each by risk level, and pings the security team in Slack on changes that broaden permissions across accounts.',
       modules: ['agent', 'workflows'],
       category: 'operations',
       tags: ['devops', 'enterprise'],

@@ -2138,7 +2138,7 @@ export const GitHubBlockMeta = {
       icon: GithubIcon,
       title: 'Sync GitHub events with Linear issues',
       prompt:
-        'Create Linear issues from GitHub activity, update status on merge, and keep your engineering workflow tightly connected.',
+        'Build a workflow that creates Linear issues from GitHub pull requests and commits, and automatically updates their status when a PR is merged.',
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['automation', 'communication'],
