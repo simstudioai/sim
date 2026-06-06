@@ -404,6 +404,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   } = useSpeechToText({
     onTranscript: handleTranscript,
     onUsageLimitExceeded: handleUsageLimitExceeded,
+    workspaceId,
   })
 
   const toggleListening = useCallback(() => {

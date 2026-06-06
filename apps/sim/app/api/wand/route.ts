@@ -14,7 +14,6 @@ import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-f
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enrichTableSchema } from '@/lib/table/llm/wand'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
 import { getModelPricing } from '@/providers/utils'
@@ -170,6 +169,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       stream = false,
       history = [],
       workflowId,
+      workspaceId: requestedWorkspaceId,
       generationType,
       wandContext = {},
     } = body
@@ -221,22 +221,22 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           { status: 403 }
         )
       }
+    } else if (requestedWorkspaceId) {
+      // No workflow entity to resolve from (e.g. table-schema wand or an
+      // unhydrated editor); attribute to the workspace the wand is running in,
+      // but only when the caller is a member so usage can't be misattributed.
+      const permission = await verifyWorkspaceMembership(session.user.id, requestedWorkspaceId)
+      if (permission) {
+        workspaceId = requestedWorkspaceId
+      }
     }
 
-    let billingUserId = session.user.id
-    if (workspaceId) {
-      const workspaceBilledAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
-      if (!workspaceBilledAccountUserId) {
-        logger.error(`[${requestId}] Unable to resolve billed account for workspace`, {
-          workspaceId,
-        })
-        return NextResponse.json(
-          { success: false, error: 'Unable to resolve billing account for this workspace' },
-          { status: 500 }
-        )
-      }
-      billingUserId = workspaceBilledAccountUserId
-    }
+    // Wand is always an interactive, session-authenticated editor action, so the
+    // person using it is the billing actor — matching client-side executions and
+    // editor voice rather than the workspace billed account. deriveBillingContext
+    // still routes payment to the org for org-scoped members; per-member usage is
+    // attributed to the member who actually used the wand.
+    const billingUserId = session.user.id
 
     let isBYOK = false
     let activeOpenAIKey = openaiApiKey

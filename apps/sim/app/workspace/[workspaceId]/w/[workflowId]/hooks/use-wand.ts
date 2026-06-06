@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
 import { requestRaw } from '@/lib/api/client'
 import { wandGenerateStreamContract } from '@/lib/api/contracts'
 import { readSSEStream } from '@/lib/core/utils/sse'
@@ -94,6 +95,7 @@ export function useWand({
   onGenerationComplete,
 }: UseWandProps) {
   const queryClient = useQueryClient()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const workflowId = useWorkflowRegistry((state) => state.hydration.workflowId)
   const [isLoading, setIsLoading] = useState(false)
   const [isPromptVisible, setIsPromptVisible] = useState(false)
@@ -189,6 +191,7 @@ export function useWand({
               history: wandConfig?.maintainHistory ? conversationHistory : [],
               generationType: wandConfig?.generationType,
               workflowId: workflowId ?? undefined,
+              workspaceId: workspaceId ?? undefined,
               wandContext: contextParams?.tableId ? { tableId: contextParams.tableId } : undefined,
             },
             signal: abortControllerRef.current.signal,
@@ -257,6 +260,7 @@ export function useWand({
       queryClient,
       contextParams?.tableId,
       workflowId,
+      workspaceId,
     ]
   )
 
