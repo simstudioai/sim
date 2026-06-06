@@ -1,0 +1,52 @@
+---
+title: How workflows run
+description: How Sim orders the blocks, runs independent ones in parallel, and follows branches.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+When you run a workflow, Sim works out the order from the [connections](/workflows/connections): a block runs as soon as the blocks it depends on have finished. You never set the order by hand; the way blocks are wired implies it.
+
+## Independent blocks run in parallel
+
+Two blocks that don't depend on each other run at the same time. There's nothing to configure. If neither block is downstream of the other, Sim runs them together.
+
+<Image src="/static/execution/concurrency.png" alt="Two agent blocks running at the same time after the Start trigger" width={800} height={500} />
+
+Here the Customer Support and Deep Researcher agents both run right after the Start trigger, instead of one waiting on the other.
+
+## A block waits for all its inputs
+
+When several blocks feed into one, that block waits for all of them to finish, then runs once with each of their outputs available to read. You don't merge them yourself.
+
+<Image src="/static/execution/combination.png" alt="A Function block running after two agent blocks complete" width={800} height={500} />
+
+The Function block here runs after both agents complete, with both of their outputs ready.
+
+## Branches follow one path
+
+A workflow can split. A [Condition](/blocks/condition) block branches on an explicit rule; a [Router](/blocks/router) block lets a model choose the path. Only the branch that is taken runs. A block on a branch that didn't run produces no output, which is why a [connection tag](/workflows/connections) pointing at it comes back empty.
+
+<Image src="/static/execution/routing.png" alt="A workflow branching by condition and by router" width={800} height={500} />
+
+To repeat work, a [Loop](/blocks/loop) block runs its inner blocks over a list or a count, and a [Parallel](/blocks/parallel) block runs them for several items at once.
+
+<Callout type="info">
+A workflow can call other workflows, through a Workflow block, an MCP tool, or an API block. Sim tracks the call chain and stops a run that exceeds 25 hops, so workflows that call each other can't loop forever.
+</Callout>
+
+## Watching a run
+
+While a workflow runs, the editor shows each block's state live: queued, running, done, or errored. A failed block stops its own path but leaves independent paths running. Every run is recorded, so you can open the [logs](/logs-debugging) to see what each block received and returned after it finishes.
+
+## Next
+
+<Cards>
+  <Card title="Blocks" href="/blocks" description="The catalog of block types." />
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="How a block reads an earlier block's output." />
+  <Card title="Triggers" href="/triggers" description="The ways a workflow can start." />
+  <Card title="Logs & debugging" href="/logs-debugging" description="Inspect and debug a run." />
+</Cards>

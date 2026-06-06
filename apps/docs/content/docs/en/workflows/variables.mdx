@@ -1,0 +1,110 @@
+---
+title: Variables
+description: Define reusable workflow variables referenced with angle brackets and environment variables referenced with double curly braces.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+A **variable** is a value you set yourself and reuse across a workflow. Sim has two kinds. **Workflow variables** hold data during a run, like a counter or a config object, and you reference them with `<variable.name>`. **Environment variables** hold secrets and configuration, like API keys, and you reference them with `{{KEY}}`.
+
+A variable is different from a **connection tag**. A variable is a value you define; a connection tag like `<agent.content>` reads the output a block produced earlier in the run. See [how blocks pass data](/workflows/data-flow) for connection tags.
+
+## Syntax at a glance
+
+| Syntax | References | Example |
+|--------|-----------|---------|
+| `<variable.name>` | A workflow variable | `<variable.counter>` |
+| `<variable.obj.prop>` | A nested property of an object variable | `<variable.config.retryCount>` |
+| `{{KEY}}` | An environment variable | `{{OPENAI_API_KEY}}` |
+| `<blockname.field>` | A block output (connection tag) | `<agent.content>` |
+
+Type `<` in any block text field to open the picker and browse the variables and outputs you can reference.
+
+## Workflow variables
+
+Workflow variables are a global store any block can read or update during a run. Open the panel with **⋯ → Variables** in the top-right of the editor. Each variable has a **name**, a **type**, and a **value**.
+
+Reference one anywhere a field accepts input. For an object or array variable, use dot notation to reach a nested value, like `<variable.config.timeout>`. Name matching ignores case and spaces, so a variable named `My Counter` resolves from `<variable.mycounter>`. Consistent names like `camelCase` are still the clearest.
+
+### Types
+
+<Tabs items={['Plain', 'Number', 'Boolean', 'Object', 'Array']}>
+  <Tab>
+    ```
+    "Hello, World!"
+    ```
+    Text, for messages, names, and other strings.
+  </Tab>
+  <Tab>
+    ```
+    42
+    ```
+    A numeric value for calculations or comparisons.
+  </Tab>
+  <Tab>
+    ```
+    true
+    ```
+    A `true`/`false` flag.
+  </Tab>
+  <Tab>
+    ```json
+    { "name": "John", "age": 30 }
+    ```
+    Structured data with named fields, reached with dot notation.
+  </Tab>
+  <Tab>
+    ```json
+    [1, 2, 3, "four", "five"]
+    ```
+    An ordered list of values.
+  </Tab>
+</Tabs>
+
+### Scope
+
+Workflow variables are global: every block in the workflow can read and modify them. Use the [Variables block](/blocks/variables) to update a value mid-run.
+
+Each run starts fresh from the values defined in the panel. A change made during a run is visible to later blocks in that same run, but it never alters the saved initial value for future runs.
+
+## Environment variables
+
+Environment variables store sensitive values like API keys, tokens, and configuration that should never appear in logs or on the canvas. Create them under **Settings → Secrets** by adding a key-value pair.
+
+Reference them with double curly braces in any block field, including Agent system prompts and Function block code. The value is substituted before the block runs, so the secret never appears in logs or outputs.
+
+```
+{{API_KEY}}
+```
+
+<Callout type="info">
+  Environment variable names must start with a letter or underscore and contain only letters, numbers, and underscores, like `MY_API_KEY`.
+</Callout>
+
+### Personal vs. workspace
+
+| Scope | Visible to | Use for |
+|-------|-----------|---------|
+| **Workspace** | All workspace members, including external members | Shared API keys, team configuration |
+| **Personal** | Only you | Your personal tokens, dev credentials |
+
+When a workspace and a personal variable share a key, the workspace value wins.
+
+### Versus credentials
+
+Environment variables hold raw string values you reference with `{{KEY}}`. [Credentials](/credentials) hold OAuth tokens and managed connections for services like Slack, GitHub, and Google, selected from a dropdown in a block's config. Use an environment variable for a raw API key or config value; use a credential when a service needs OAuth or managed token refresh.
+
+## Name conflicts
+
+When a reference could match more than one thing, Sim resolves it in a fixed order: loop and parallel context first, then workflow variables, then environment variables, then block outputs. If nothing matches, the raw reference is left in place unsubstituted, which usually breaks the block that reads it. Use distinct names for variables and blocks to avoid ambiguity.
+
+## Next
+
+<Cards>
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="Block outputs and connection tags." />
+  <Card title="Variables block" href="/blocks/variables" description="Update a variable mid-run." />
+  <Card title="Secrets" href="/credentials" description="Manage environment variables and credentials." />
+</Cards>

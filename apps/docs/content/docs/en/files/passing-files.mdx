@@ -1,5 +1,5 @@
 ---
-title: Passing Files
+title: Passing files
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -13,11 +13,12 @@ When blocks output files (like Gmail attachments, generated images, or parsed do
 
 ```json
 {
+  "id": "f_8c2...",
   "name": "report.pdf",
   "url": "https://...",
-  "base64": "JVBERi0xLjQK...",
+  "size": 245678,
   "type": "application/pdf",
-  "size": 245678
+  "base64": "JVBERi0xLjQK..."
 }
 ```
 
@@ -33,7 +34,7 @@ The **File block** is the universal entry point for files in your workflows. It 
 - **Files from other blocks** - Pass files from Gmail attachments, Slack downloads, etc.
 
 **Outputs:**
-- A list of `UserFile` objects with consistent structure (`name`, `url`, `base64`, `type`, `size`)
+- A list of `UserFile` objects with consistent structure (`id`, `name`, `url`, `size`, `type`, `base64`)
 - `combinedContent` - Extracted text content from all files (for documents)
 
 **Example usage:**

@@ -1,0 +1,108 @@
+---
+title: Workflow columns
+description: A column backed by a workflow that runs once per row, reading chosen columns as inputs and writing its results back into result columns.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+A [table](/tables) is a grid of typed columns. Usually you type a column's values in. A **workflow column** is different: its values come from a [workflow](/workflows) that runs once per row. For each row, the workflow reads the columns you choose as input, runs its blocks, and writes its results back into columns on that same row.
+
+This is what makes a table active. Instead of running a workflow by hand and pasting the results in, you attach the workflow to the table and it fills each row on its own. It works a bit like a spreadsheet macro that runs on every row, except each step is a full workflow.
+
+{/* VISUAL: side-by-side. Left: traditional enrichment (table → webhook → external service → manual write-back). Right: active table (one workflow column; data stays in place, the workflow runs per row in the grid). */}
+
+Here's an example. A table of companies has one column, `company`, that you type in. A workflow reads each company name and returns whether it's a qualified lead, the reason, and a confidence score. Those three values land in three new columns:
+
+```
+company        │ qualified │ reason                  │ confidence
+───────────────┼───────────┼─────────────────────────┼───────────
+Acme Corp      │ true      │ Enterprise, 500+ seats  │ 0.92
+Globex         │ false     │ Out of target market    │ 0.41
+```
+
+## The parts of a workflow column
+
+### Workflow group
+
+A **workflow group** is the unit you configure: one workflow, plus how its inputs and outputs map to columns, plus what makes it run. One group can produce several result columns from a single run per row. In the example, one group runs the qualify workflow and fills `qualified`, `reason`, and `confidence` together.
+
+You set a group up in the column configuration sidebar, where you pick the workflow, map its inputs and outputs to columns, and set what it runs after.
+
+{/* VISUAL: column configuration sidebar. Workflow picker, input mappings (column → input field), output picker grouped by block name, "Run after" deps, "Auto-run" toggle. */}
+
+### Input columns
+
+**Input columns** are the columns whose per-row values feed the workflow. Each input mapping links one column to one input field on the workflow's [Start](/triggers/start) trigger. When the group runs on a row, that row's `company` value is read into the workflow's input, and the workflow reads it as `<start.company>`.
+
+The workflow only sees the columns you mapped. The rest of the row is left untouched. Inputs are read-only during the run.
+
+### Output columns
+
+**Output columns** are plain columns that receive the workflow's results. Each output column is linked to one block output inside the workflow, picked by name: `qualified` is linked to the agent's `qualified` value, `reason` to its `reason`, and so on. The workflow runs once; every output you picked is written to its column. Outputs you didn't pick are discarded.
+
+{/* VISUAL: before/after. A plain `company` column, then the same table with `qualified` (boolean), `reason` (text), `confidence` (number) populated per row. */}
+
+### Run after
+
+**Run after** is the set of columns that must be filled before the group runs on a row. In the example, the group runs after `company`: a row with an empty `company` waits, and the moment `company` gets a value, that row becomes eligible.
+
+A dependency can be a typed column or another group's output column. That second case is what makes cascades work (below). At least one dependency is required when auto-run is on.
+
+### Auto-run
+
+**Auto-run** decides whether the group fires on its own. With auto-run on, a group runs a row as soon as that row's Run-after columns are filled, with no click needed. With auto-run off, the group is manual: it runs only when you trigger it.
+
+You trigger a group by hand from its column header menu:
+
+- **Run this row** runs the one row.
+- **Run all rows** runs every row, and re-runs rows that already finished.
+- **Run empty rows** runs only rows whose output columns are still empty.
+- **Run selected rows** runs the rows you've checked.
+
+Auto-run only ever runs rows it hasn't attempted yet. To re-run a row that already finished or errored, use **Run all rows**.
+
+### Execution status
+
+While a group works a row, its output cells show their state instead of a value:
+
+| State | Meaning |
+| --- | --- |
+| **Pending** | Waiting on a Run-after column that isn't filled yet. |
+| **Queued** | Eligible and waiting to start. |
+| **Running** | The workflow is executing for this row. |
+| **Error** | A block failed. The cell links to which block and why. |
+| **Cancelled** | The run was stopped before it finished. |
+| **Not found** | An enrichment finished but matched nothing for this row. |
+
+When a value arrives, it replaces the badge. Cells that finish stay filled even while other blocks in the same group are still running on that row.
+
+{/* VISUAL: execution status badges in output columns: Running (spinner), Queued, Pending (tooltip "waiting on company"), Error (red), and a completed value. */}
+
+<Callout type="info">
+On error, the row stays in the **Error** state. Auto-run skips errored rows, so a failure doesn't loop. To retry, fix the input and use **Run all rows**, which re-runs regardless of the auto-run setting. A row is only ever worked by one run at a time, so re-running doesn't race.
+</Callout>
+
+## Cascades
+
+Because a group can run after another group's output column, you can chain groups across the table. Each group fills its columns; the next group runs after those columns and fills the next set. This is a **cascade**.
+
+The example extends naturally: an **Enrich** group fills `industry` and `headcount` from `company`. A **Qualify** group runs after `industry` and fills `qualified`. An **Outreach** group runs after `qualified` and drafts an email. Each row advances through the groups independently, becoming eligible for the next group the moment its own Run-after columns are filled.
+
+{/* VISUAL: cascade diagram. Three group headers left to right (Enrich → Qualify → Outreach), arrows showing each group's output columns feeding the next group's Run-after. */}
+
+## When to use a workflow column
+
+Reach for a workflow column when you have a row-by-row job: enrich each record, classify each entry, score each lead. The work is the same shape on every row, and you want the results to live next to the source data.
+
+Use a [workflow on its own](/workflows) instead when the job isn't per-row: a one-off transform, an aggregation across many rows, or a real-time decision tied to a single request. To pull table data into a workflow rather than push workflow results into a table, see [using tables in workflows](/tables/using-in-workflows).
+
+## Next
+
+<Cards>
+  <Card title="Tables overview" href="/tables" description="Typed columns, schemas, filtering, and the Tables API." />
+  <Card title="Using tables in workflows" href="/tables/using-in-workflows" description="Read and write table rows from inside a workflow." />
+  <Card title="Workflows" href="/workflows" description="What a workflow is and the blocks it's built from." />
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="Outputs, references, and the values a workflow produces." />
+</Cards>

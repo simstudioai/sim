@@ -1,5 +1,5 @@
 {
-  "title": "Integrations",
+  "title": "Connecting accounts",
   "pages": ["index", "google-service-account", "atlassian-service-account"],
   "defaultOpen": false
 }

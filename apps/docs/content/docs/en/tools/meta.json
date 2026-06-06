@@ -1,4 +1,5 @@
 {
+  "title": "Integrations",
   "pages": [
     "index",
     "a2a",
@@ -34,7 +35,6 @@
     "confluence",
     "crowdstrike",
     "cursor",
-    "custom-tools",
     "dagster",
     "databricks",
     "datadog",
@@ -104,7 +104,6 @@
     "jira_service_management",
     "kalshi",
     "ketch",
-    "knowledge",
     "langsmith",
     "launchdarkly",
     "lemlist",
@@ -117,7 +116,6 @@
     "mailchimp",
     "mailgun",
     "mem0",
-    "memory",
     "microsoft_ad",
     "microsoft_dataverse",
     "microsoft_excel",

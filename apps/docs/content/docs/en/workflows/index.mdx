@@ -1,0 +1,83 @@
+---
+title: Overview
+description: A workflow is a visual program made of blocks, a saved procedure your AI systems run.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
+
+Your Sim workspace is where your AI systems live. A system is made of two things. **Workflows** are the procedures it runs. **Resources** are the data those procedures work with: tables, knowledge bases, and files.
+
+A workflow is a visual program made of blocks. Like a recipe, it's a fixed set of steps you write once and run again and again, each time with new input. Each block does one step of work, and connections set the order the blocks run in.
+
+Here's a simple one. It takes an incoming customer message, classifies its category and urgency, and returns the result:
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
+
+## The parts of a workflow
+
+### Trigger
+
+A **trigger** is where a workflow begins and what it hands in. Every workflow has exactly one. The [Start](/triggers/start) trigger takes input directly, which is what you use while building. In production you swap in a [chat](/triggers/start), [webhook](/triggers/webhook), [schedule](/triggers/schedule), or API trigger, and the downstream blocks don't change.
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightBlock="start" />
+
+In our example, the Start trigger receives the customer message. Later blocks read it by name, as `<start.input>`.
+
+### Block
+
+A **block** is a single step, and each does one thing: an [Agent](/blocks/agent) reasons with a model, a [Function](/blocks/function) runs code, a [Condition](/blocks/condition) branches, a [Loop](/blocks/loop) repeats. Some blocks are deterministic (Function, Condition); others are model-driven (Agent) and can vary run to run. That difference is the first thing to know when debugging.
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightBlock="agent" />
+
+Our example has one Agent block, configured with a model and a prompt, that reads the message and returns a classification.
+
+<Callout type="info">
+A block is not the same as a tool. A **tool** is a capability an agent can call during a step: send a Slack message, search a knowledge base, run a snippet of code. An [Agent](/blocks/agent) block decides which tools to call and when. Blocks are the workflow's steps; tools are the actions an agent takes inside one.
+</Callout>
+
+### Connection
+
+A **connection** wires one block to the next and sets the execution order: the block at the arrow's head runs after the one at its tail. Once a block has run, the blocks after it can read its output by reference.
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightEdge="start-agent" />
+
+You read an earlier output with a **connection tag**, written `<blockName.field>`: name the block, then the value you want. The Agent's prompt reads the message with `<start.input>`; a later block could read the Agent's answer with `<agent.content>`.
+
+Most workflow issues are data issues, not crashed blocks: a reference points at a value that isn't there, or a block on the path didn't run. See [how blocks pass data](/workflows/data-flow) for outputs, references, and types.
+
+### Output
+
+An **output** is what a block produces; later blocks read it through connection tags. By default the workflow's output is its **last block's** output. In our example that's the Agent's `{ category, urgency }`. There's no separate return step.
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightBlock="agent" />
+
+On reuse, the consumer picks which outputs it wants by name: a [chat deployment](/deployment/chat), a [table column](/tables/workflow-columns), or an [API call](/deployment/api) each select block outputs individually. It's the same idea as connection tags, applied at the workflow's edge. (For precise HTTP control, add a [Response block](/blocks/response).)
+
+## How it runs
+
+When a workflow runs, blocks execute in dependency order: a block runs as soon as the blocks it depends on have finished, so independent branches run in parallel. Conditions, loops, and parallel blocks change the path data takes.
+
+<Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, concurrency, branches, and loops." />
+
+## Workflows in context
+
+A workflow is where the rest of the workspace becomes behavior. On their own, tables, knowledge bases, files, and integrations are just resources. Workflows are where they *do* something.
+
+{/* VISUAL: system-context diagram. Mothership builds; tables/KBs/files/integrations feed; deployments expose; logs verify. */}
+
+- **Mothership** builds and edits workflows in natural language.
+- **Tables, knowledge bases, files, and integrations** feed data, memory, artifacts, and actions into a workflow.
+- **Deployments** expose a workflow as an API, chat, or MCP server.
+- **Logs** record every run so you can verify what happened, step by step.
+
+## Next
+
+<Cards>
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="Outputs, references, and the data types you'll work with." />
+  <Card title="Blocks" href="/blocks" description="The full catalog of block types." />
+  <Card title="Triggers" href="/triggers" description="Start a workflow from chat, webhooks, schedules, or an API." />
+  <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, concurrency, and control flow." />
+</Cards>
