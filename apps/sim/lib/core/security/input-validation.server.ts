@@ -207,22 +207,13 @@ export async function validateDatabaseHost(
 }
 
 /**
- * Patterns that indicate SQL injection or an always-true ("tautology") condition
- * in a free-form WHERE clause supplied to a database mutation (UPDATE/DELETE) or
- * a filtered COUNT, where the value may originate from an LLM or untrusted
- * upstream workflow data.
- *
- * IMPORTANT: this is **defense-in-depth, not a security boundary**. A free-form
- * SQL condition cannot be exhaustively validated against every always-true
- * expression (e.g. `OR 2 > 1`, `OR (1)`, `OR NOT 0`, `OR length(x) >= 0`). The
- * real boundary is that the caller supplies their own database credentials and
- * could run equivalent SQL directly (e.g. via a raw-SQL/execute operation). This
- * guard exists to stop the easy, obvious ways an injected condition broadens a
- * mutation to every row.
- */
-/**
  * Patterns run against the WHERE clause with string/identifier literals masked
  * out (so an attacker cannot smuggle `OR 1` or `; DROP` inside a quoted value).
+ *
+ * The connector-literal rules below are intentionally `OR`-only: only an
+ * `OR <truthy>` term broadens a mutation to every row. `AND <number>` is a no-op
+ * for broadening and is also exactly what `BETWEEN low AND high` produces, so
+ * matching it would reject legitimate range filters (e.g. `id BETWEEN 1 AND 10`).
  */
 const SQL_WHERE_MASKED_PATTERNS: readonly RegExp[] = [
   /;\s*\w/, // stacked statement
@@ -234,8 +225,8 @@ const SQL_WHERE_MASKED_PATTERNS: readonly RegExp[] = [
   /\b(?:sleep|pg_sleep|benchmark)\s*\(/i,
   /\b(\w+)\s*=\s*\1\b/i, // same (unquoted) operand both sides: x=x, 1=1
   /\b\d+(?:\.\d+)?\s*(?:=|==|<>|!=|<=|>=|<|>)\s*\d+(?:\.\d+)?\b/, // constant vs constant: 1=1, 1<2, 2>1
-  /\b(?:or|and)\s+(?:true|false)\b/i, // OR TRUE / AND FALSE
-  /\b(?:or|and)\s+\d+(?:\.\d+)?\b(?!\s*[=<>!+\-*/%])/i, // standalone truthy literal: OR 1, AND 42
+  /\bor\s+(?:true|false)\b/i, // OR TRUE / OR FALSE
+  /\bor\s+\d+(?:\.\d+)?\b(?!\s*[=<>!+\-*/%])/i, // standalone truthy literal after OR: OR 1, OR 42
   /^\s*(?:\d+(?:\.\d+)?|true|false)\s*$/i, // bare constant: "1" / "true" / "false"
 ]
 
