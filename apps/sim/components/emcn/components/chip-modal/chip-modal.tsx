@@ -106,11 +106,11 @@ function ChipModal({
       <ModalContent bare showClose={false} srTitle={srTitle} size={size}>
         <div
           className={cn(
-            'w-full rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+            'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
             className
           )}
         >
-          <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
+          <div className='flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
             {children}
           </div>
         </div>
@@ -246,11 +246,20 @@ ChipModalTabs.displayName = 'ChipModalTabs'
 
 /**
  * Body container. Applies the panel's standard vertical spacing between
- * fields and matching horizontal gutter.
+ * fields and matching horizontal gutter. Scrolls internally when the modal
+ * content exceeds the viewport cap (`max-h-[84vh]` on `ModalContent`), so
+ * header and footer stay pinned.
  */
 const ChipModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex flex-col gap-4 px-2 pt-4 pb-4.5', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn(
+        'flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pt-4 pb-4.5',
+        className
+      )}
+      {...props}
+    />
   )
 )
 
