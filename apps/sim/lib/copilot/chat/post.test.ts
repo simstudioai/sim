@@ -13,7 +13,6 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
-const getWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
 const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 const {
@@ -138,9 +137,9 @@ describe('handleUnifiedChatPost', () => {
     resolveWorkflowIdForUser.mockResolvedValue({
       status: 'resolved',
       workflowId: 'wf-1',
+      workspaceId: 'ws-1',
       workflowName: 'Workflow One',
     })
-    getWorkflowById.mockResolvedValue({ workspaceId: 'ws-1' })
     getUserEntityPermissions.mockResolvedValue('write')
     getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
     generateWorkspaceContext.mockResolvedValue('workspace context')

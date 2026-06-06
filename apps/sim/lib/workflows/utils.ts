@@ -108,6 +108,7 @@ export type WorkflowResolutionResult =
   | {
       status: 'resolved'
       workflowId: string
+      workspaceId: string
       workflowName?: string
     }
   | {
@@ -143,7 +144,18 @@ export async function resolveWorkflowIdForUser(
       }
     }
     const wf = await getWorkflowById(workflowId)
-    return { status: 'resolved', workflowId, workflowName: wf?.name || undefined }
+    if (!wf?.workspaceId) {
+      return {
+        status: 'not_found',
+        message: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+      }
+    }
+    return {
+      status: 'resolved',
+      workflowId,
+      workspaceId: wf.workspaceId,
+      workflowName: wf.name || undefined,
+    }
   }
 
   const workspaceIds = await db
@@ -189,6 +201,7 @@ export async function resolveWorkflowIdForUser(
       return {
         status: 'resolved',
         workflowId: match.id,
+        workspaceId: match.workspaceId,
         workflowName: match.name || undefined,
       }
     }
@@ -213,6 +226,7 @@ export async function resolveWorkflowIdForUser(
     return {
       status: 'resolved',
       workflowId: workflows[0].id,
+      workspaceId: workflows[0].workspaceId,
       workflowName: workflows[0].name || undefined,
     }
   }

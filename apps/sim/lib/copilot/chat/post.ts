@@ -44,7 +44,7 @@ import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
+import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
   getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
@@ -563,13 +563,7 @@ async function resolveBranch(params: {
     }
 
     const resolvedWorkflowId = resolved.workflowId
-    let resolvedWorkspaceId: string | undefined
-    try {
-      const workflow = await getWorkflowById(resolvedWorkflowId)
-      resolvedWorkspaceId = workflow?.workspaceId ?? requestedWorkspaceId
-    } catch {
-      resolvedWorkspaceId = requestedWorkspaceId
-    }
+    const resolvedWorkspaceId = resolved.workspaceId
 
     const selectedModel = model || DEFAULT_MODEL
     return {
@@ -1015,7 +1009,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         orchestrateOptions: {
           userId: authenticatedUserId,
           ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
-          ...(branch.kind === 'workspace' ? { workspaceId: branch.workspaceId } : {}),
+          ...(workspaceId ? { workspaceId } : {}),
           chatId: actualChatId,
           executionId,
           runId,

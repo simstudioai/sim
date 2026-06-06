@@ -44,6 +44,12 @@ const logger = createLogger('CopilotLifecycle')
 const MAX_RESUME_ATTEMPTS = 3
 const RESUME_BACKOFF_MS = [250, 500, 1000] as const
 
+function nonBlankString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
 function resultContent(context: StreamingContext, options: CopilotLifecycleOptions): string {
   if (options.interactive === false && context.sawMainToolCall) {
     return context.finalAssistantContent
@@ -220,11 +226,21 @@ async function runCheckpointLoop(
   let resumeAttempt = 0
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+  const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
+
+  // Go's auth middleware re-validates every Sim -> Go request by reading
+  // workspaceId from the JSON body and forwarding it to Sim's validate route,
+  // where it is required for the per-member usage gate. Normalize the initial
+  // leg from the lifecycle option so callers that only set the option (not the
+  // raw payload) still send it on the first request.
+  if (lifecycleWorkspaceId && !nonBlankString(payload.workspaceId)) {
+    payload = { ...payload, workspaceId: lifecycleWorkspaceId }
+  }
 
   // Enterprise BYOK eligibility hint: set once on the initial mothership request
   // so Go only attempts a BYOK lookup for entitled workspaces. This is only a
   // gate — Go re-confirms entitlement authoritatively before using any key.
-  payload = await withByokEligibilityHint(payload, route, options.workspaceId)
+  payload = await withByokEligibilityHint(payload, route, lifecycleWorkspaceId)
 
   for (;;) {
     context.streamComplete = false
@@ -458,7 +474,7 @@ async function runCheckpointLoop(
       streamId: context.messageId,
       checkpointId: continuation.checkpointId,
       userId: options.userId,
-      ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
+      ...(lifecycleWorkspaceId ? { workspaceId: lifecycleWorkspaceId } : {}),
       results,
     }
 

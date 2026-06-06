@@ -343,6 +343,92 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
+  it('normalizes the initial request body with workspaceId from lifecycle options', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
+        requestBody = JSON.parse(String(fetchOptions.body))
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+    )
+
+    expect(requestBody).toEqual(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+      })
+    )
+  })
+
+  it('uses the lifecycle workspaceId for async tool resume requests', async () => {
+    const requestBodies: Record<string, unknown>[] = []
+    const fetchUrls: string[] = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        fetchUrls.push(fetchUrl)
+        requestBodies.push(JSON.parse(String(fetchOptions.body)))
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
+        fetchUrls.push(fetchUrl)
+        requestBodies.push(JSON.parse(String(fetchOptions.body)))
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        workflowId: 'workflow-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+    expect(requestBodies[1]).toEqual(
+      expect.objectContaining({
+        checkpointId: 'ckpt-1',
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      })
+    )
+  })
+
   it('finalizes as success when a resume fails with a retryable error then the retry succeeds', async () => {
     const executionContext: ExecutionContext = {
       userId: 'user-1',
