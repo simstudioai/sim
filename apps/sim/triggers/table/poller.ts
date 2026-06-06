@@ -146,10 +146,6 @@ export const tableNewRowTrigger: TriggerConfig = {
       type: 'json',
       description: 'Column names from the table schema',
     },
-    rowNumber: {
-      type: 'number',
-      description: 'The position of the row in the table',
-    },
     tableId: {
       type: 'string',
       description: 'The table ID',

@@ -8,6 +8,8 @@ export interface DeletedRowSnapshot {
   rowId: string
   data: Record<string, unknown>
   position: number
+  /** Fractional order key, when present — restore re-inserts at this exact key. */
+  orderKey?: string
 }
 
 export type TableUndoAction =
@@ -27,10 +29,21 @@ export type TableUndoAction =
         newData: Record<string, unknown>
       }>
     }
-  | { type: 'create-row'; rowId: string; position: number; data?: Record<string, unknown> }
+  | {
+      type: 'create-row'
+      rowId: string
+      position: number
+      orderKey?: string
+      data?: Record<string, unknown>
+    }
   | {
       type: 'create-rows'
-      rows: Array<{ rowId: string; position: number; data: Record<string, unknown> }>
+      rows: Array<{
+        rowId: string
+        position: number
+        orderKey?: string
+        data: Record<string, unknown>
+      }>
     }
   | { type: 'delete-rows'; rows: DeletedRowSnapshot[] }
   | { type: 'create-column'; columnName: string; position: number }
