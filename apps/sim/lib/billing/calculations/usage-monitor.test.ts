@@ -121,8 +121,8 @@ describe('checkOrgMemberUsageLimit', () => {
     expect(result.isExceeded).toBe(false)
   })
 
-  it('fails open when org-workspace usage cannot be computed (e.g. missing subscription)', async () => {
-    mockGetOrgMemberWorkspaceUsage.mockRejectedValue(new Error('no billing period'))
+  it('fails open when org-workspace usage cannot be computed (unexpected error)', async () => {
+    mockGetOrgMemberWorkspaceUsage.mockRejectedValue(new Error('db unavailable'))
     const result = await checkOrgMemberUsageLimit('user-1', 'ws-1')
     expect(result.isExceeded).toBe(false)
   })

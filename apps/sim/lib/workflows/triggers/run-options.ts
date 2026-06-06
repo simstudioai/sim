@@ -366,8 +366,9 @@ export function validateTriggerInput(
       // A field with an author-configured default is optional: the executor fills
       // the default when it's omitted (deriveInputFromFormat), so requiring it
       // would reject a run the workflow itself accepts.
-      const shape: z.ZodRawShape = {}
-      for (const [name, zodType] of Object.entries(baseShape)) {
+      const shape: Record<string, z.ZodTypeAny> = {}
+      for (const [name, baseType] of Object.entries(baseShape)) {
+        const zodType = baseType as z.ZodTypeAny
         const field = option.inputFormat.find((f) => f.name === name)
         const hasDefault = field?.value !== undefined && field?.value !== null
         shape[name] = hasDefault ? zodType.optional() : zodType

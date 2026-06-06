@@ -60,6 +60,7 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   getOrgWorkspaceUsageCostForUser: mockGetOrgWorkspaceUsageCostForUser,
 }))
 
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
   getOrgMemberUsageLimit,
   getOrgMemberWorkspaceUsage,
@@ -127,10 +128,34 @@ describe('getOrgMemberWorkspaceUsage', () => {
     })
   })
 
-  it('throws (no silent all-time fallback) when the org has no subscription window', async () => {
+  it('falls back to the all-time window when the org has no subscription', async () => {
     mockGetOrganizationSubscription.mockResolvedValue(null)
+    mockGetOrgWorkspaceUsageCostForUser.mockResolvedValue(7)
 
-    await expect(getOrgMemberWorkspaceUsage('org-1', 'user-2')).rejects.toThrow(/billing period/i)
-    expect(mockGetOrgWorkspaceUsageCostForUser).not.toHaveBeenCalled()
+    const result = await getOrgMemberWorkspaceUsage('org-1', 'user-2')
+
+    expect(result).toBe(7)
+    expect(mockGetOrgWorkspaceUsageCostForUser).toHaveBeenCalledWith(
+      'org-1',
+      'user-2',
+      defaultBillingPeriod()
+    )
+  })
+
+  it('falls back to the all-time window when the subscription is missing periodEnd', async () => {
+    mockGetOrganizationSubscription.mockResolvedValue({
+      periodStart: new Date('2026-06-01T00:00:00.000Z'),
+      periodEnd: null,
+    })
+    mockGetOrgWorkspaceUsageCostForUser.mockResolvedValue(3)
+
+    const result = await getOrgMemberWorkspaceUsage('org-1', 'user-2')
+
+    expect(result).toBe(3)
+    expect(mockGetOrgWorkspaceUsageCostForUser).toHaveBeenCalledWith(
+      'org-1',
+      'user-2',
+      defaultBillingPeriod()
+    )
   })
 })

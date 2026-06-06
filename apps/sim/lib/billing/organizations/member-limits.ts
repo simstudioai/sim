@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getOrgWorkspaceUsageCostForUser } from '@/lib/billing/core/usage-log'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
@@ -92,25 +93,22 @@ export async function setOrgMemberUsageLimit(
  * usage — daily-refresh credits are a pooled concept and intentionally not
  * deducted here.
  *
- * Throws if the org has no resolvable billing-period window. This path is only
- * reached for a hosted, billing-enabled org with a per-member cap set, which by
- * construction must have a subscription — so a missing window is an invariant
- * violation, not a normal state. We fail loudly rather than silently falling
- * back to an all-time window (which would over-count usage and wrongly block).
+ * When the org has no resolvable subscription window, falls back to the open
+ * (all-time) window, matching how the rest of the billing layer resolves a
+ * missing period (e.g. {@link deriveBillingContext}, the pooled-org and user
+ * usage paths). A hosted org with a per-member cap normally has a period, so
+ * this fallback is an edge case; using the shared convention keeps this path
+ * consistent with every other usage read rather than special-casing it.
  */
 export async function getOrgMemberWorkspaceUsage(
   organizationId: string,
   userId: string
 ): Promise<number> {
   const subscription = await getOrganizationSubscription(organizationId)
-  if (!subscription?.periodStart || !subscription?.periodEnd) {
-    throw new Error(
-      `Cannot resolve billing period for organization ${organizationId}: missing or incomplete subscription. Per-member usage cannot be computed.`
-    )
-  }
+  const billingPeriod =
+    subscription?.periodStart && subscription.periodEnd
+      ? { start: subscription.periodStart, end: subscription.periodEnd }
+      : defaultBillingPeriod()
 
-  return getOrgWorkspaceUsageCostForUser(organizationId, userId, {
-    start: subscription.periodStart,
-    end: subscription.periodEnd,
-  })
+  return getOrgWorkspaceUsageCostForUser(organizationId, userId, billingPeriod)
 }
