@@ -741,9 +741,8 @@ function MessageContentInner({
                 <ThinkingBlock
                   content={segment.content}
                   isActive={isActive}
-                  isStreaming={isStreaming}
                   startedAt={segment.startedAt}
-                  endedAt={segment.endedAt}
+                  isStreaming={isStreaming}
                 />
               </div>
             )
