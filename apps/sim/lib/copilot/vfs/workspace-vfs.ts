@@ -649,7 +649,7 @@ export class WorkspaceVFS {
 
         // Only PDF can be attached as a model-readable `document` block —
         // Bedrock/Anthropic document blocks accept application/pdf ONLY. Attaching
-        // a raw pptx/docx/xlsx binary is rejected by the provider (400). So for
+        // raw pptx/docx/xlsx binary is rejected by the provider (400). So for
         // pptx/docx, render to page images (which the model CAN read) and return
         // those directly — /compiled can never emit an invalid document block for
         // these formats. xlsx isn't renderable; direct to /extract for its content.
