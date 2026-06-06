@@ -129,7 +129,7 @@ const handler = useCallback(() => {
 ## Boundary Types
 
 - Hooks import named type aliases from `@/lib/api/contracts/**` (e.g., `import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'`). Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code.
-- Raw `fetch` is allowed only for documented exceptions — multipart uploads, binary downloads, streaming responses, signed-URL flows, OAuth redirects, external origins. Each such raw `fetch(` inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**` must be preceded by a `// boundary-raw-fetch: <reason>` annotation (reason non-empty; up to three preceding comment lines tolerated). Enforced by `scripts/check-api-validation-contracts.ts` (`bun run check:api-validation` / `:strict`).
+- Raw `fetch` is allowed only for documented exceptions — multipart uploads, binary downloads, streaming responses, signed-URL flows, OAuth redirects, external origins. Each such raw `fetch(` inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**` — and any same-origin `/api/...` fetch elsewhere under `apps/sim/**` outside an API route handler — must be preceded by a `// boundary-raw-fetch: <reason>` annotation (reason non-empty; up to three preceding comment lines tolerated). Enforced by `scripts/check-api-validation-contracts.ts` (`bun run check:api-validation` / `:strict`).
 
 ## Naming
 

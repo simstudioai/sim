@@ -2,7 +2,6 @@
 description: Tailwind CSS and styling conventions
 globs: ["apps/sim/**/*.tsx", "apps/sim/**/*.css"]
 ---
-
 # Styling Rules
 
 ## Tailwind
@@ -15,7 +14,7 @@ globs: ["apps/sim/**/*.tsx", "apps/sim/**/*.css"]
 ## Conditional Classes
 
 ```typescript
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 <div className={cn(
   'base-classes',

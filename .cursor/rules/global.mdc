@@ -2,10 +2,7 @@
 description: Global coding standards that apply to all files
 alwaysApply: true
 ---
-
 # Global Standards
-
-You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
 
 ## Logging
 Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID.
