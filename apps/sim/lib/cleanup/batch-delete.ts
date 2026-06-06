@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 const logger = createLogger('BatchDelete')
@@ -274,6 +274,13 @@ export interface DrainByColumnOptions {
   batchSize?: number
   /** Max rows to delete in this call across all batches. */
   rowBudget: number
+  /**
+   * Extra predicate ANDed into each batch's selection. Re-evaluated per batch
+   * (each batch is its own statement), so it can gate the drain on live state —
+   * e.g. "the parent row is still soft-deleted" — and stop deleting as soon as
+   * that state flips (a restore committed between batches).
+   */
+  guard?: SQL
 }
 
 export interface DrainResult {
@@ -302,17 +309,15 @@ export async function drainRowsByColumn({
   tableName,
   batchSize = DEFAULT_DELETE_CHUNK_SIZE,
   rowBudget,
+  guard,
 }: DrainByColumnOptions): Promise<DrainResult> {
   let deleted = 0
   let remaining = rowBudget
+  const matchPredicate = guard ? and(eq(matchCol, matchValue), guard) : eq(matchCol, matchValue)
 
   while (remaining > 0) {
     const limit = Math.min(batchSize, remaining)
-    const targetIds = db
-      .select({ id: idCol })
-      .from(tableDef)
-      .where(eq(matchCol, matchValue))
-      .limit(limit)
+    const targetIds = db.select({ id: idCol }).from(tableDef).where(matchPredicate).limit(limit)
 
     let batchDeleted: { id: unknown }[]
     try {

@@ -16,7 +16,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
-import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, exists, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
@@ -296,11 +296,28 @@ async function cleanupArchivedUserTables(
   for (const { id: tableId } of doomedTables) {
     if (rowBudget <= 0) break
 
+    // Re-checked atomically on every drain batch: if the table is restored
+    // mid-run (archivedAt cleared) the next batch deletes nothing, so a concurrent
+    // restore can't keep purging an active table's rows.
+    const stillArchived = exists(
+      db
+        .select({ one: sql`1` })
+        .from(userTableDefinitions)
+        .where(
+          and(
+            eq(userTableDefinitions.id, tableId),
+            isNotNull(userTableDefinitions.archivedAt),
+            lt(userTableDefinitions.archivedAt, retentionDate)
+          )
+        )
+    )
+
     const drain = await drainRowsByColumn({
       tableDef: userTableRows,
       idCol: userTableRows.id,
       matchCol: userTableRows.tableId,
       matchValue: tableId,
+      guard: stillArchived,
       tableName: `${label}/userTableRows`,
       batchSize: TABLE_ROW_DRAIN_BATCH_SIZE,
       rowBudget,
@@ -308,8 +325,19 @@ async function cleanupArchivedUserTables(
     rowBudget -= drain.deleted
 
     if (drain.fullyDrained) {
-      await db.delete(userTableDefinitions).where(eq(userTableDefinitions.id, tableId))
-      definitionsDeleted++
+      // Delete the definition only while it is still archived+expired; a restore
+      // makes this a no-op, so an active table is never purged.
+      const deletedDef = await db
+        .delete(userTableDefinitions)
+        .where(
+          and(
+            eq(userTableDefinitions.id, tableId),
+            isNotNull(userTableDefinitions.archivedAt),
+            lt(userTableDefinitions.archivedAt, retentionDate)
+          )
+        )
+        .returning({ id: userTableDefinitions.id })
+      if (deletedDef.length === 1) definitionsDeleted++
       continue
     }
 

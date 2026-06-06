@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockBatchDeleteByWorkspaceAndTimestamp,
-  mockDeleteDefinition,
+  mockDefDeleteReturning,
+  mockDefDeleteWhere,
   mockDeleteFileMetadata,
   mockDeleteFiles,
   mockDeleteRowsById,
@@ -28,11 +29,15 @@ const {
     leftJoin: vi.fn(() => ({ where: mockWhere })),
   }))
   const mockSelect = vi.fn(() => ({ from: mockFrom }))
-  const mockDeleteDefinition = vi.fn(async () => undefined)
+  // Definition delete chain: db.delete(...).where(pred).returning() — captures
+  // the predicate so tests can assert the archivedAt guard.
+  const mockDefDeleteReturning = vi.fn(async () => [{ id: 'def' }])
+  const mockDefDeleteWhere = vi.fn(() => ({ returning: mockDefDeleteReturning }))
 
   return {
     mockBatchDeleteByWorkspaceAndTimestamp: vi.fn(async () => ({ deleted: 0, failed: 0 })),
-    mockDeleteDefinition,
+    mockDefDeleteReturning,
+    mockDefDeleteWhere,
     mockDeleteFileMetadata: vi.fn(async () => true),
     mockDeleteFiles: vi.fn(async () => ({ deleted: 0, failed: [] as Array<{ key: string }> })),
     mockDeleteRowsById: vi.fn(async () => ({ deleted: 0, failed: 0 })),
@@ -49,7 +54,7 @@ const {
 })
 
 vi.mock('@sim/db', () => ({
-  db: { select: mockSelect, delete: vi.fn(() => ({ where: mockDeleteDefinition })) },
+  db: { select: mockSelect, delete: vi.fn(() => ({ where: mockDefDeleteWhere })) },
 }))
 
 vi.mock('@sim/db/schema', () => {
@@ -84,6 +89,7 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...args: unknown[]) => ({ op: 'and', args })),
   asc: vi.fn((column: unknown) => ({ op: 'asc', column })),
   eq: vi.fn((...args: unknown[]) => ({ op: 'eq', args })),
+  exists: vi.fn((query: unknown) => ({ op: 'exists', query })),
   inArray: vi.fn((...args: unknown[]) => ({ op: 'inArray', args })),
   isNotNull: vi.fn((...args: unknown[]) => ({ op: 'isNotNull', args })),
   isNull: vi.fn((...args: unknown[]) => ({ op: 'isNull', args })),
@@ -191,13 +197,16 @@ describe('cleanup soft deletes — archived user tables', () => {
 
     await runCleanupSoftDeletes(basePayload)
 
+    // Drain is gated by a per-batch guard (parent still archived).
     expect(mockDrainRowsByColumn).toHaveBeenCalledWith(
-      expect.objectContaining({ matchValue: 'tbl-1' })
+      expect.objectContaining({ matchValue: 'tbl-1', guard: expect.anything() })
     )
-    expect(mockDeleteDefinition).toHaveBeenCalledTimes(1)
+    expect(mockDefDeleteReturning).toHaveBeenCalledTimes(1)
+    // The definition delete is conditional on the archivedAt guard.
+    expect(JSON.stringify(mockDefDeleteWhere.mock.calls[0][0])).toContain('archivedAt')
     // Rows are drained first, then the definition is deleted.
     expect(mockDrainRowsByColumn.mock.invocationCallOrder[0]).toBeLessThan(
-      mockDeleteDefinition.mock.invocationCallOrder[0]
+      mockDefDeleteReturning.mock.invocationCallOrder[0]
     )
   })
 
@@ -209,7 +218,7 @@ describe('cleanup soft deletes — archived user tables', () => {
     await runCleanupSoftDeletes(basePayload)
 
     expect(mockDrainRowsByColumn).toHaveBeenCalledTimes(1)
-    expect(mockDeleteDefinition).not.toHaveBeenCalled()
+    expect(mockDefDeleteReturning).not.toHaveBeenCalled()
   })
 
   it('skips a table that errors mid-drain but keeps cleaning the rest', async () => {
@@ -222,7 +231,19 @@ describe('cleanup soft deletes — archived user tables', () => {
     await runCleanupSoftDeletes(basePayload)
 
     expect(mockDrainRowsByColumn).toHaveBeenCalledTimes(2)
-    // Only the fully-drained table's definition is deleted.
-    expect(mockDeleteDefinition).toHaveBeenCalledTimes(1)
+    // Only the fully-drained table's definition delete is attempted.
+    expect(mockDefDeleteReturning).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not count a restored table whose conditional definition delete no-ops', async () => {
+    mockSelectRowsByIdChunks.mockResolvedValueOnce([{ id: 'tbl-restored' }])
+    mockDrainRowsByColumn.mockResolvedValue({ deleted: 0, fullyDrained: true })
+    // Restored mid-run: the archivedAt-guarded delete matches no row.
+    mockDefDeleteReturning.mockResolvedValueOnce([])
+
+    await runCleanupSoftDeletes(basePayload)
+
+    // The delete is attempted but conditional, so it safely removes nothing.
+    expect(mockDefDeleteReturning).toHaveBeenCalledTimes(1)
   })
 })
