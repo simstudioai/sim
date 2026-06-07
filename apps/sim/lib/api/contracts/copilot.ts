@@ -420,7 +420,6 @@ const copilotConnectedCredentialSchema = z.object({
   serviceName: z.string(),
   lastUsed: z.string(),
   isDefault: z.boolean(),
-  accessToken: z.string().nullable(),
 })
 
 const copilotNotConnectedServiceSchema = z.object({

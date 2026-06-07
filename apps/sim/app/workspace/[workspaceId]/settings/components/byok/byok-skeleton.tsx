@@ -20,26 +20,3 @@ export function BYOKKeySkeleton() {
     </div>
   )
 }
-
-/**
- * Skeleton for the BYOK section shown during dynamic import loading.
- */
-export function BYOKSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='flex items-center gap-2'>
-        <Skeleton className='h-[30px] flex-1 rounded-lg' />
-      </div>
-      <Skeleton className='h-[14px] w-[280px]' />
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-2'>
-          <BYOKKeySkeleton />
-          <BYOKKeySkeleton />
-          <BYOKKeySkeleton />
-          <BYOKKeySkeleton />
-          <BYOKKeySkeleton />
-        </div>
-      </div>
-    </div>
-  )
-}

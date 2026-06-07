@@ -6,10 +6,8 @@ import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getAllOAuthServices } from '@/lib/oauth'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 interface GetCredentialsParams {
   workflowId?: string
@@ -76,9 +74,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       serviceName: string
       lastUsed: string
       isDefault: boolean
-      accessToken: string | null
     }> = []
-    const requestId = generateRequestId()
 
     for (const acc of accounts) {
       const providerId = acc.providerId
@@ -104,19 +100,6 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       const service = allOAuthServices.find((s) => s.providerId === providerId)
       const serviceName = service?.name ?? providerId
 
-      let accessToken: string | null = acc.accessToken ?? null
-      try {
-        const { accessToken: refreshedToken } = await refreshTokenIfNeeded(
-          requestId,
-          acc as any,
-          acc.id
-        )
-        accessToken = refreshedToken || accessToken
-      } catch (error) {
-        logger.warn('Failed to refresh OAuth access token', {
-          error: toError(error).message,
-        })
-      }
       connectedCredentials.push({
         id: acc.id,
         name: displayName,
@@ -124,7 +107,6 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         serviceName,
         lastUsed: acc.updatedAt.toISOString(),
         isDefault: featureType === 'default',
-        accessToken,
       })
     }
 

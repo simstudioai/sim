@@ -15,6 +15,7 @@ export {
   buttonGroupItemVariants,
   buttonGroupVariants,
 } from './button-group/button-group'
+export { Calendar, type CalendarProps, formatDateLabel, parseDateValue } from './calendar/calendar'
 export { Callout, calloutVariants } from './callout/callout'
 export {
   Checkbox,
