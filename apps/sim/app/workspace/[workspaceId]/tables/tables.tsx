@@ -24,7 +24,12 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  InlineRenameInput,
+  ownerCell,
+  Resource,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
@@ -36,11 +41,13 @@ import {
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
+  useRenameTable,
   useTablesList,
   useUploadCsvToTable,
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Tables')
@@ -75,8 +82,13 @@ export function Tables() {
     logger.error('Failed to load tables:', error)
   }
   const deleteTable = useDeleteTable(workspaceId)
+  const renameTable = useRenameTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
   const uploadCsv = useUploadCsvToTable()
+
+  const tableRename = useInlineRename({
+    onSave: (tableId, name) => renameTable.mutate({ tableId, name }),
+  })
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -162,6 +174,20 @@ export function Tables() {
           name: {
             icon: <TableIcon className='size-[14px]' />,
             label: table.name,
+            content:
+              tableRename.editingId === table.id ? (
+                <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
+                  <span className='flex-shrink-0 text-[var(--text-icon)]'>
+                    <TableIcon className='size-[14px]' />
+                  </span>
+                  <InlineRenameInput
+                    value={tableRename.editValue}
+                    onChange={tableRename.setEditValue}
+                    onSubmit={tableRename.submitRename}
+                    onCancel={tableRename.cancelRename}
+                  />
+                </span>
+              ) : undefined,
           },
           columns: {
             icon: <Columns3 className='size-[14px]' />,
@@ -176,7 +202,15 @@ export function Tables() {
           updated: timeCell(table.updatedAt),
         },
       })),
-    [processedTables, members]
+    [
+      processedTables,
+      members,
+      tableRename.editingId,
+      tableRename.editValue,
+      tableRename.setEditValue,
+      tableRename.submitRename,
+      tableRename.cancelRename,
+    ]
   )
 
   const searchConfig: SearchConfig = useMemo(
@@ -527,6 +561,9 @@ export function Tables() {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
+        onRename={() => {
+          if (activeTable) tableRename.startRename(activeTable.id, activeTable.name)
+        }}
         onImportCsv={() => setIsImportDialogOpen(true)}
         onExportCsv={async () => {
           if (!activeTable) return
