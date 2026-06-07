@@ -43,6 +43,10 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   KnowledgeBaseFileOwnershipError: class KnowledgeBaseFileOwnershipError extends Error {},
 }))
 
+vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
+  checkActorUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
+}))
+
 vi.mock('@sim/audit', () => auditMock)
 
 import {
