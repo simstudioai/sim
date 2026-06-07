@@ -290,6 +290,15 @@ export const SortDropdown = memo(function SortDropdown({
         alignOffset={RESOURCE_MENU_EDGE_OFFSET}
         className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
       >
+        {active && onClear && (
+          <>
+            <DropdownMenuItem onSelect={onClear}>
+              <X />
+              Clear sort
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {options.map((option) => {
           const isActive = active?.column === option.id
           const Icon = option.icon
@@ -314,15 +323,6 @@ export const SortDropdown = memo(function SortDropdown({
             </DropdownMenuItem>
           )
         })}
-        {active && onClear && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onClear}>
-              <X />
-              Clear sort
-            </DropdownMenuItem>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
