@@ -1066,7 +1066,11 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       const endRange = mentionTokensWithContext.findRangeContaining(end)
       // A lone moved edge (keyboard extend/shrink, drag) snaps in its direction
       // of travel: growing absorbs the chip, shrinking releases it. Fresh
-      // selections (double-click, select-all) expand outward.
+      // selections (double-click, select-all) expand outward. A fresh selection
+      // sharing one edge with `prev` (e.g. select-all from a caret at 0) takes
+      // the single-edge path, but a grown edge snaps outward there too — the
+      // two paths only differ for a shrinking edge, which implies a real
+      // single-edge gesture.
       const singleEdgeMoved = (start !== prev.start) !== (end !== prev.end)
       newStart = startRange
         ? singleEdgeMoved && start > prev.start
@@ -1091,10 +1095,10 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       // Deferred so in-flight click/drag processing can't override the write;
       // bails if the selection moved again first (a newer event supersedes it).
       // The write re-fires this handler, which then syncs the menus below.
-      const direction = textarea.selectionDirection ?? undefined
+      // Direction is read at apply time so it's never stale.
       setTimeout(() => {
         if (textarea.selectionStart !== start || textarea.selectionEnd !== end) return
-        textarea.setSelectionRange(newStart, newEnd, direction)
+        textarea.setSelectionRange(newStart, newEnd, textarea.selectionDirection ?? undefined)
       }, 0)
       return
     }
