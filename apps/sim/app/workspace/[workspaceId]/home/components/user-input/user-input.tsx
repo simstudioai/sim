@@ -1052,6 +1052,15 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const handleSelectAdjust = useCallback(() => {
     const textarea = textareaRef.current
     if (!textarea) return
+    // Controlled-value reconciliation: state and DOM can only drift when an
+    // edit's change event is lost (programmatic edits pair setValue
+    // synchronously). The DOM is the user's intent — adopt it and let the
+    // render rebuild the overlay; selection logic resumes on the next event.
+    if (textarea.value !== valueRef.current) {
+      valueRef.current = textarea.value
+      setValue(textarea.value)
+      return
+    }
     const start = textarea.selectionStart ?? 0
     const end = textarea.selectionEnd ?? 0
     const prev = lastSelectionRef.current
