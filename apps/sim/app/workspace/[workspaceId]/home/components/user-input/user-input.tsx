@@ -829,8 +829,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
       // Single-chip delete: remove the token's text atomically. A selection
       // delete falls through to the native edit; either way the context-sync
-      // effect prunes contexts whose last token is gone.
-      if ((e.key === 'Backspace' || e.key === 'Delete') && selectionLength === 0) {
+      // effect prunes contexts whose last token is gone. Cmd+Backspace
+      // (delete to line start) stays native — it spans more than one chip.
+      if ((e.key === 'Backspace' || e.key === 'Delete') && selectionLength === 0 && !e.metaKey) {
         const ranges = mentionTokensWithContext.mentionRanges
         const target =
           e.key === 'Backspace'
