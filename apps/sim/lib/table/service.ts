@@ -41,7 +41,7 @@ import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } fr
 import { areGroupDepsSatisfied } from './deps'
 import { CSV_MAX_BATCH_SIZE } from './import'
 import { keyBetween, nKeysBetween } from './order-key'
-import { buildFilterClause, buildSortClause } from './sql'
+import { buildFilterClause, buildSortClause, escapeLikePattern } from './sql'
 import { fireTableTrigger } from './trigger'
 import type {
   AddWorkflowGroupData,
@@ -56,6 +56,7 @@ import type {
   CreateTableData,
   DeleteColumnData,
   DeleteWorkflowGroupData,
+  Filter,
   InsertRowData,
   QueryOptions,
   QueryResult,
@@ -65,6 +66,7 @@ import type {
   RowData,
   RowExecutionMetadata,
   RowExecutions,
+  Sort,
   TableDefinition,
   TableMetadata,
   TableRow,
@@ -2365,6 +2367,113 @@ export async function upsertRow(
 }
 
 /**
+ * Canonical ORDER BY for a table's rows, shared by `queryRows` (the paginated
+ * list) and `findRowMatches` so a match's ordinal lines up with its index in
+ * the list. Order: explicit data sort (if any) → fractional `order_key` or
+ * legacy `position` → `id`. The `id` tiebreak is always appended so equal
+ * positions order deterministically — without it two separate query executions
+ * (a find vs a list page) could shuffle ties and misalign ordinals.
+ */
+function buildRowOrderBySql(
+  sort: Sort | undefined,
+  tableName: string,
+  columns: ColumnDefinition[]
+): SQL {
+  const primary = isTablesFractionalOrderingEnabled
+    ? `${tableName}.order_key`
+    : `${tableName}.position`
+  const id = `${tableName}.id`
+  if (sort && Object.keys(sort).length > 0) {
+    const sortClause = buildSortClause(sort, tableName, columns)
+    if (sortClause) {
+      return sql.join([sortClause, sql.raw(primary), sql.raw(id)], sql.raw(', '))
+    }
+  }
+  return sql.raw(`${primary}, ${id}`)
+}
+
+/** One matching cell from {@link findRowMatches}. */
+export interface FindRowMatch {
+  /** 0-based index of the row in the filtered+sorted view (aligns with the list query). */
+  ordinal: number
+  rowId: string
+  column: string
+}
+
+/** Max matching cells returned by {@link findRowMatches}; one extra is fetched to detect truncation. */
+const FIND_MATCH_LIMIT = 1000
+
+/**
+ * Case-insensitive substring search across every cell of a table's rows. Each
+ * matching cell becomes a {@link FindRowMatch} carrying its row id, column, and
+ * 0-based ordinal in the filtered+sorted view (so the client can page up to and
+ * reveal it). `filter`/`sort` mirror the active list view via
+ * {@link buildRowOrderBySql}, keeping ordinals aligned.
+ *
+ * Cost: sequential scan bounded by the `table_id` btree prefix — `ILIKE` over
+ * `jsonb_each_text` cannot use the JSONB GIN index. Acceptable for tables
+ * ≪1M rows; a `pg_trgm` GIN index on a text projection is the future
+ * accelerator if needed.
+ */
+export async function findRowMatches(
+  table: TableDefinition,
+  options: { q: string; filter?: Filter; sort?: Sort },
+  requestId: string
+): Promise<{ matches: FindRowMatch[]; truncated: boolean }> {
+  const tableName = USER_TABLE_ROWS_SQL_NAME
+  const columns = table.schema.columns
+  const columnNames = columns.map((c) => c.name)
+  if (columnNames.length === 0) return { matches: [], truncated: false }
+
+  const baseConditions = and(
+    eq(userTableRows.tableId, table.id),
+    eq(userTableRows.workspaceId, table.workspaceId)
+  )
+  let whereClause: SQL | undefined = baseConditions
+  if (options.filter && Object.keys(options.filter).length > 0) {
+    const filterClause = buildFilterClause(options.filter, tableName, columns)
+    if (filterClause) whereClause = and(baseConditions, filterClause)
+  }
+
+  const orderBySql = buildRowOrderBySql(options.sort, tableName, columns)
+  const pattern = `%${escapeLikePattern(options.q)}%`
+
+  const result = await db.execute<{
+    ordinal: string | number
+    id: string
+    column_name: string
+  }>(sql`
+    WITH ordered AS (
+      SELECT id, data, row_number() OVER (ORDER BY ${orderBySql}) - 1 AS ordinal
+      FROM ${userTableRows}
+      WHERE ${whereClause}
+    )
+    SELECT o.ordinal, o.id, kv.key AS column_name
+    FROM ordered o
+    CROSS JOIN LATERAL jsonb_each_text(o.data) kv
+    WHERE kv.value ILIKE ${pattern}
+      AND ${inArray(sql`kv.key`, columnNames)}
+    ORDER BY o.ordinal
+    LIMIT ${FIND_MATCH_LIMIT + 1}
+  `)
+
+  const all = Array.from(result)
+  const truncated = all.length > FIND_MATCH_LIMIT
+  const sliced = truncated ? all.slice(0, FIND_MATCH_LIMIT) : all
+  const matches: FindRowMatch[] = sliced.map((r) => ({
+    ordinal: Number(r.ordinal),
+    rowId: r.id,
+    column: r.column_name,
+  }))
+
+  logger.info(
+    `[${requestId}] Find "${options.q}" in table ${table.id}: ${matches.length} match(es)${truncated ? ' (truncated)' : ''}`
+  )
+
+  return { matches, truncated }
+}
+
+/**
  * Queries rows from a table with filtering, sorting, and pagination.
  *
  * Filter cost model: equality filters (`$eq`, `$in`) compile to JSONB
@@ -2410,27 +2519,11 @@ export async function queryRows(
     }
   }
 
-  let orderByClause
-  if (sort && Object.keys(sort).length > 0) {
-    orderByClause = buildSortClause(sort, tableName, columns)
-  }
-
-  let query = db
+  const query = db
     .select()
     .from(userTableRows)
     .where(whereClause ?? baseConditions)
-  if (orderByClause) {
-    // Explicit data-column sort: tiebreak by the default order for stability.
-    query = query.orderBy(
-      orderByClause,
-      isTablesFractionalOrderingEnabled ? userTableRows.orderKey : userTableRows.position,
-      userTableRows.id
-    ) as typeof query
-  } else if (isTablesFractionalOrderingEnabled) {
-    query = query.orderBy(userTableRows.orderKey, userTableRows.id) as typeof query
-  } else {
-    query = query.orderBy(userTableRows.position) as typeof query
-  }
+    .orderBy(buildRowOrderBySql(sort, tableName, columns))
 
   // Count and page fetch are independent reads — run them concurrently so the
   // `includeTotal` hot path doesn't pay two serial round-trips.

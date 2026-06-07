@@ -18,9 +18,9 @@ export const SKELETON_ROW_COUNT = 10
 export const CELL =
   'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 export const CELL_CHECKBOX =
-  'sticky left-0 z-[6] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] align-middle select-none'
+  'sticky left-0 z-[6] border-[var(--border)] border-r border-b bg-[var(--bg)] px-0 py-[7px] align-middle select-none'
 export const CELL_HEADER_CHECKBOX =
-  'sticky left-0 z-[12] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] text-center align-middle'
+  'sticky left-0 z-[12] border-[var(--border)] border-r border-b bg-[var(--bg)] px-0 py-[7px] align-middle'
 /** Fixed height (not min-) so a Badge-rendered status pill doesn't make the row grow vs a plain-text neighbor. */
 export const CELL_CONTENT =
   'relative flex h-[22px] min-w-0 items-center overflow-clip text-ellipsis whitespace-nowrap text-small'

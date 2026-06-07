@@ -69,15 +69,17 @@ export const TableBodySkeleton = React.memo(function TableBodySkeleton({
 export const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   checked,
   onCheckedChange,
+  numRegionWidth,
 }: {
-  checked: boolean
+  checked: boolean | 'indeterminate'
   onCheckedChange: () => void
+  numRegionWidth: number
 }) {
   return (
     <th
       className={cn(CELL_HEADER_CHECKBOX, 'cursor-pointer')}
       role='checkbox'
-      aria-checked={checked}
+      aria-checked={checked === 'indeterminate' ? 'mixed' : checked}
       tabIndex={0}
       onMouseDown={(e) => {
         if (e.button !== 0) return
@@ -89,7 +91,7 @@ export const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
         onCheckedChange()
       }}
     >
-      <div className='flex items-center justify-center'>
+      <div className='flex items-center justify-center' style={{ width: numRegionWidth }}>
         <Checkbox size='sm' checked={checked} className='pointer-events-none' />
       </div>
     </th>
