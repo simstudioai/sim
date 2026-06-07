@@ -20,6 +20,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import type {
   PlusMenuHandle,
   SkillsMenuHandle,
@@ -1056,53 +1057,31 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     // may get superseded — so edge-movement inference stays true to the DOM.
     lastSelectionRef.current = { start, end }
 
-    // Reconciliation backstop for non-keyboard mutations; the render rebuilds
-    // the overlay and selection logic resumes on the next event.
+    // Adopt value changes that bypassed React's change tracking (browser
+    // autofill, password managers, grammar extensions — see facebook/react#2125)
+    // so state never drifts from the DOM. The render rebuilds the overlay and
+    // selection logic resumes on the next event.
     if (textarea.value !== valueRef.current) {
       adoptDomValue(textarea)
       return
     }
 
-    let newStart = start
-    let newEnd = end
-    if (start !== end) {
-      const startRange = mentionTokensWithContext.findRangeContaining(start)
-      const endRange = mentionTokensWithContext.findRangeContaining(end)
-      // A lone moved edge (keyboard extend/shrink, drag) snaps in its direction
-      // of travel: growing absorbs the chip, shrinking releases it. Fresh
-      // selections (double-click, select-all) expand outward. A fresh selection
-      // sharing one edge with `prev` (e.g. select-all from a caret at 0) takes
-      // the single-edge path, but a grown edge snaps outward there too — the
-      // two paths only differ for a shrinking edge, which implies a real
-      // single-edge gesture.
-      const singleEdgeMoved = (start !== prev.start) !== (end !== prev.end)
-      newStart = startRange
-        ? singleEdgeMoved && start > prev.start
-          ? startRange.end
-          : startRange.start
-        : start
-      newEnd = endRange ? (singleEdgeMoved && end < prev.end ? endRange.start : endRange.end) : end
-      // A selection contained in one chip snaps both edges; don't let it invert.
-      if (newStart > newEnd) {
-        newStart = newEnd
-      }
-    } else {
-      const r = mentionTokensWithContext.findRangeContaining(start)
-      if (r) {
-        const snapPos = start - r.start < r.end - start ? r.start : r.end
-        newStart = snapPos
-        newEnd = snapPos
-      }
-    }
+    const startChip = mentionTokensWithContext.findRangeContaining(start)
+    const endChip = start === end ? startChip : mentionTokensWithContext.findRangeContaining(end)
+    const snapped = snapSelectionToChips({ start, end }, prev, startChip, endChip)
 
-    if (newStart !== start || newEnd !== end) {
+    if (snapped.start !== start || snapped.end !== end) {
       // Deferred so in-flight click/drag processing can't override the write;
       // bails if the selection moved again first (a newer event supersedes it).
       // The write re-fires this handler, which then syncs the menus below.
       // Direction is read at apply time so it's never stale.
       setTimeout(() => {
         if (textarea.selectionStart !== start || textarea.selectionEnd !== end) return
-        textarea.setSelectionRange(newStart, newEnd, textarea.selectionDirection ?? undefined)
+        textarea.setSelectionRange(
+          snapped.start,
+          snapped.end,
+          textarea.selectionDirection ?? undefined
+        )
       }, 0)
       return
     }
