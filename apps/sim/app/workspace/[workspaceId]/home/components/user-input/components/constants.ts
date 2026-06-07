@@ -53,25 +53,34 @@ const FIELD_MIRROR_CLASSES = cn(
   'px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em]'
 )
 
+/**
+ * The textarea grows to its full content height (`h-auto`, no internal scroll);
+ * the shared scroller clips and scrolls it. Its text is transparent so the
+ * mirror overlay shows through; only the caret paints.
+ */
 export const TEXTAREA_BASE_CLASSES = cn(
   FIELD_MIRROR_CLASSES,
-  'h-auto resize-none overflow-y-auto overflow-x-hidden',
+  'block h-auto resize-none overflow-hidden',
   'text-transparent caret-[var(--text-primary)] outline-none',
   'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
-  'focus-visible:ring-0 focus-visible:ring-offset-0',
-  '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+  'focus-visible:ring-0 focus-visible:ring-offset-0'
 )
 
 /**
- * Pinned to the textarea's box (`inset-0`) and clipped (`overflow-hidden`).
- * The box itself never scrolls — its content is translated to mirror the
- * textarea's scroll offset, so the compositor never holds scrolled textures
- * for it (a scrolled box can ghost stale paint after its content is cleared).
+ * Pinned over the full-height textarea (`inset-0` of the sizer). Both are flow
+ * children of the same scroller, so they scroll together natively — no JS
+ * scroll-sync, so the caret and mirrored text never drift apart.
  */
 export const OVERLAY_CLASSES = cn(
   FIELD_MIRROR_CLASSES,
-  'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap',
+  'pointer-events-none absolute inset-0 whitespace-pre-wrap',
   'text-[var(--text-primary)]'
+)
+
+/** Single scroll container for the textarea + overlay; caps height and hides its scrollbar. */
+export const SCROLLER_CLASSES = cn(
+  'relative overflow-y-auto overflow-x-hidden',
+  '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )
 
 export const SEND_BUTTON_BASE = 'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors'
@@ -79,14 +88,7 @@ export const SEND_BUTTON_ACTIVE =
   'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
 export const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
 
-export const MAX_CHAT_TEXTAREA_HEIGHT = 200
 export const SPEECH_RECOGNITION_LANG = 'en-US'
-
-export function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>, maxHeight: number) {
-  const target = e.target as HTMLTextAreaElement
-  target.style.height = 'auto'
-  target.style.height = `${Math.min(target.scrollHeight, maxHeight)}px`
-}
 
 /**
  * Maps a {@link MothershipResource} (resource-picker domain) to a

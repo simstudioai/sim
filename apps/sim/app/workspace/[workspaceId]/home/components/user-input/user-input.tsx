@@ -27,16 +27,15 @@ import type {
 import {
   AnimatedPlaceholderEffect,
   AttachedFilesList,
-  autoResizeTextarea,
   chipDisplayToken,
   chipLinkToContext,
   DropOverlay,
-  MAX_CHAT_TEXTAREA_HEIGHT,
   MicButton,
   mapResourceToContext,
   OVERLAY_CLASSES,
   PlusMenuDropdown,
   parseChipLinks,
+  SCROLLER_CLASSES,
   SendButton,
   SkillsMenuDropdown,
   serializeSelectionForClipboard,
@@ -171,7 +170,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   })
   const valueRef = useRef(value)
   valueRef.current = value
-  const overlayContentRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
   const skillsMenuRef = useRef<SkillsMenuHandle>(null)
 
@@ -477,26 +475,14 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     ]
   )
 
-  /**
-   * Mirrors the textarea's scroll offset by translating the overlay content.
-   * The overlay box itself never scrolls — a scrolled box (even with
-   * `overflow: hidden`) is a compositor scroll container whose stale textures
-   * can ghost cleared content; a transform always repaints cleanly and never
-   * clamps, so the mirror tracks the textarea offset exactly.
-   */
-  const syncOverlayScroll = useCallback((scrollTop: number) => {
-    const content = overlayContentRef.current
-    if (content) content.style.transform = `translateY(${-scrollTop}px)`
-  }, [])
-
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-    const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
+    // Grow the textarea to its full content height; the scroller caps the
+    // visible height and scrolls textarea + overlay together natively.
     textarea.style.height = 'auto'
-    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`
-    syncOverlayScroll(textarea.scrollTop)
-  }, [value, isInitialView, textareaRef, syncOverlayScroll])
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [value, textareaRef])
 
   const handleResourceSelect = useCallback(
     (resource: MothershipResource) => {
@@ -1126,15 +1112,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     syncSlashState(textarea, textarea.value, focusPos)
   }, [textareaRef, mentionTokensWithContext, adoptDomValue, syncMentionState, syncSlashState])
 
-  const handleInput = useCallback(
-    (e: React.FormEvent<HTMLTextAreaElement>) => {
-      const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
-      autoResizeTextarea(e, maxHeight)
-      syncOverlayScroll((e.target as HTMLTextAreaElement).scrollTop)
-    },
-    [isInitialView, syncOverlayScroll]
-  )
-
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget
 
@@ -1218,13 +1195,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     }
     filesRef.current.processFiles(dt.files)
   }, [])
-
-  const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLTextAreaElement>) => {
-      syncOverlayScroll(e.currentTarget.scrollTop)
-    },
-    [syncOverlayScroll]
-  )
 
   /**
    * On copy/cut, write a portable representation of the selection to the
@@ -1361,27 +1331,30 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         onRemoveFile={handleRemoveFile}
       />
 
-      <div className='relative'>
-        <div className={OVERLAY_CLASSES} aria-hidden='true'>
-          <div ref={overlayContentRef}>{overlayContent}</div>
-        </div>
+      {/* Single scroller for textarea + overlay so they co-scroll natively;
+          the sizer is sized by the full-height textarea, and the overlay fills
+          it via `inset-0`. */}
+      <div className={cn(SCROLLER_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}>
+        <div className='relative'>
+          <div className={OVERLAY_CLASSES} aria-hidden='true'>
+            {overlayContent}
+          </div>
 
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onInput={handleInput}
-          onPaste={handlePaste}
-          onCopy={handleCopy}
-          onCut={handleCut}
-          onSelect={handleSelectAdjust}
-          onMouseUp={handleSelectAdjust}
-          onScroll={handleScroll}
-          placeholder='Ask Sim to '
-          rows={1}
-          className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
-        />
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onCopy={handleCopy}
+            onCut={handleCut}
+            onSelect={handleSelectAdjust}
+            onMouseUp={handleSelectAdjust}
+            placeholder='Ask Sim to '
+            rows={1}
+            className={TEXTAREA_BASE_CLASSES}
+          />
+        </div>
       </div>
 
       <div className='flex items-center justify-between'>
