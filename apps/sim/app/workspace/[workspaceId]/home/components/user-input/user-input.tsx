@@ -1030,7 +1030,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     ]
   )
 
-  /** Last observed selection; tells which edge of a range moved, and which way. */
+  /** Last selection reported by the DOM; tells which edge of a range moved, and which way. */
   const lastSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
 
   /**
@@ -1045,17 +1045,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     const start = textarea.selectionStart ?? 0
     const end = textarea.selectionEnd ?? 0
     const prev = lastSelectionRef.current
+    // Always track the raw observed selection — never an intended write that
+    // may get superseded — so edge-movement inference stays true to the DOM.
+    lastSelectionRef.current = { start, end }
 
-    // Deferred so in-flight click/drag processing can't override the write;
-    // bails if the selection moved again first (a newer event supersedes it).
-    const applySelection = (nextStart: number, nextEnd: number) => {
-      const direction = textarea.selectionDirection ?? undefined
-      setTimeout(() => {
-        if (textarea.selectionStart !== start || textarea.selectionEnd !== end) return
-        textarea.setSelectionRange(nextStart, nextEnd, direction)
-      }, 0)
-    }
-
+    let newStart = start
+    let newEnd = end
     if (start !== end) {
       const startRange = mentionTokensWithContext.findRangeContaining(start)
       const endRange = mentionTokensWithContext.findRangeContaining(end)
@@ -1063,37 +1058,40 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       // of travel: growing absorbs the chip, shrinking releases it. Fresh
       // selections (double-click, select-all) expand outward.
       const singleEdgeMoved = (start !== prev.start) !== (end !== prev.end)
-      let newStart = startRange
+      newStart = startRange
         ? singleEdgeMoved && start > prev.start
           ? startRange.end
           : startRange.start
         : start
-      const newEnd = endRange
-        ? singleEdgeMoved && end < prev.end
-          ? endRange.start
-          : endRange.end
-        : end
+      newEnd = endRange ? (singleEdgeMoved && end < prev.end ? endRange.start : endRange.end) : end
       // A selection contained in one chip snaps both edges; don't let it invert.
       if (newStart > newEnd) {
         newStart = newEnd
       }
-      lastSelectionRef.current = { start: newStart, end: newEnd }
-      if (newStart !== start || newEnd !== end) {
-        applySelection(newStart, newEnd)
+    } else {
+      const r = mentionTokensWithContext.findRangeContaining(start)
+      if (r) {
+        const snapPos = start - r.start < r.end - start ? r.start : r.end
+        newStart = snapPos
+        newEnd = snapPos
       }
+    }
+
+    if (newStart !== start || newEnd !== end) {
+      // Deferred so in-flight click/drag processing can't override the write;
+      // bails if the selection moved again first (a newer event supersedes it).
+      // The write re-fires this handler, which then syncs the menus below.
+      const direction = textarea.selectionDirection ?? undefined
+      setTimeout(() => {
+        if (textarea.selectionStart !== start || textarea.selectionEnd !== end) return
+        textarea.setSelectionRange(newStart, newEnd, direction)
+      }, 0)
       return
     }
 
-    const r = mentionTokensWithContext.findRangeContaining(start)
-    if (r) {
-      const snapPos = start - r.start < r.end - start ? r.start : r.end
-      lastSelectionRef.current = { start: snapPos, end: snapPos }
-      applySelection(snapPos, snapPos)
-      return
-    }
-    lastSelectionRef.current = { start, end }
-    syncMentionState(textarea, textarea.value, start)
-    syncSlashState(textarea, textarea.value, start)
+    const focusPos = textarea.selectionDirection === 'backward' ? start : end
+    syncMentionState(textarea, textarea.value, focusPos)
+    syncSlashState(textarea, textarea.value, focusPos)
   }, [textareaRef, mentionTokensWithContext, syncMentionState, syncSlashState])
 
   const handleInput = useCallback(
