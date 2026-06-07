@@ -38,6 +38,7 @@ import {
   deleteTableRowContract,
   deleteTableRowsContract,
   deleteWorkflowGroupContract,
+  findTableRowsContract,
   getTableContract,
   type InsertTableRowBodyInput,
   importIntoTableAsyncContract,
@@ -50,6 +51,7 @@ import {
   renameTableContract,
   restoreTableContract,
   runColumnContract,
+  type TableFindMatch,
   type TableIdParamsInput,
   type TableRowParamsInput,
   type TableRowsQueryInput,
@@ -98,6 +100,8 @@ export const tableKeys = {
   infiniteRows: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
+  find: (tableId: string, paramsKey: string) =>
+    [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
   activeDispatches: (tableId: string) =>
     [...tableKeys.detail(tableId), 'active-dispatches'] as const,
 }
@@ -355,6 +359,52 @@ export function tableRowsParamsKey({
   sort,
 }: Pick<InfiniteTableRowsParams, 'pageSize' | 'filter' | 'sort'>): string {
   return JSON.stringify({ pageSize, filter: filter ?? null, sort: sort ?? null })
+}
+
+interface FindTableRowsParams {
+  workspaceId: string
+  tableId: string
+  q: string
+  filter?: Filter | null
+  sort?: Sort | null
+}
+
+export interface TableFindResult {
+  matches: TableFindMatch[]
+  truncated: boolean
+}
+
+async function fetchTableRowMatches({
+  workspaceId,
+  tableId,
+  q,
+  filter,
+  sort,
+  signal,
+}: FindTableRowsParams & { signal?: AbortSignal }): Promise<TableFindResult> {
+  const response = await requestJson(findTableRowsContract, {
+    params: { tableId },
+    query: { workspaceId, q, filter: filter ?? undefined, sort: sort ?? undefined },
+    signal,
+  })
+  return response.data
+}
+
+/**
+ * Server-side find across all cells. `q` is the *submitted* term (search is
+ * Enter-triggered), so React Query caches each submitted term and re-searching
+ * a prior one is instant. Disabled while `q` is empty.
+ */
+export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: FindTableRowsParams) {
+  const paramsKey = JSON.stringify({ q, filter: filter ?? null, sort: sort ?? null })
+  return useQuery({
+    queryKey: tableKeys.find(tableId, paramsKey),
+    queryFn: ({ signal }) =>
+      fetchTableRowMatches({ workspaceId, tableId, q, filter, sort, signal }),
+    enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+  })
 }
 
 export function tableRowsInfiniteOptions({

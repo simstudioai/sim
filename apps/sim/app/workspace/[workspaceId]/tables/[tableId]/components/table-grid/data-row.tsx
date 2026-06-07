@@ -50,8 +50,8 @@ export interface DataRowProps {
   runningCount: number
   /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
   hasWorkflowColumns: boolean
-  /** Width of the row-number inner div in px, derived from the table's maxRows digit count. */
-  numDivWidth: number
+  /** Width of the centered row-number/checkbox region in px, derived from the table's maxRows digit count. */
+  numRegionWidth: number
   onStopRow: (rowId: string) => void
   onRunRow: (rowId: string) => void
   /**
@@ -124,7 +124,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onRowMouseEnter !== next.onRowMouseEnter ||
     prev.runningCount !== next.runningCount ||
     prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
-    prev.numDivWidth !== next.numDivWidth ||
+    prev.numRegionWidth !== next.numRegionWidth ||
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
     prev.workflowGroups !== next.workflowGroups ||
@@ -172,7 +172,7 @@ export const DataRow = React.memo(function DataRow({
   onRowMouseEnter,
   runningCount,
   hasWorkflowColumns,
-  numDivWidth,
+  numRegionWidth,
   onStopRow,
   onRunRow,
   workflowGroups,
@@ -228,24 +228,14 @@ export const DataRow = React.memo(function DataRow({
             )}
           />
         )}
-        <div
-          className={cn(
-            'flex items-center',
-            hasWorkflowColumns ? 'justify-end gap-1.5 pr-1' : 'justify-center'
-          )}
-        >
+        <div className={cn('flex items-center justify-start', hasWorkflowColumns && 'gap-1.5')}>
           <div
             role='checkbox'
             tabIndex={0}
             aria-checked={isRowSelected}
             aria-label={`Select row ${rowIndex + 1}`}
-            className={cn(
-              'group/checkbox flex h-[20px] shrink-0 items-center justify-end',
-              // Lighter right inset for narrow indices (≤3 digits → numDivWidth ≤ 28);
-              // full 4px once the column widens (4+ digits, numDivWidth ≥ 36).
-              numDivWidth >= 36 ? 'pr-1' : 'pr-0.5'
-            )}
-            style={{ width: numDivWidth }}
+            className='group/checkbox flex h-[20px] shrink-0 items-center justify-center'
+            style={{ width: numRegionWidth }}
             onMouseDown={(e) => {
               if (e.button !== 0) return
               onRowMouseDown(rowIndex, e.shiftKey)
@@ -256,7 +246,7 @@ export const DataRow = React.memo(function DataRow({
           >
             <span
               className={cn(
-                'text-right text-[var(--text-tertiary)] text-xs tabular-nums',
+                'text-[var(--text-tertiary)] text-xs tabular-nums',
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
@@ -264,7 +254,7 @@ export const DataRow = React.memo(function DataRow({
             </span>
             <div
               className={cn(
-                'items-center justify-end',
+                'items-center justify-center',
                 isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
               )}
             >
