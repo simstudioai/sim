@@ -5,12 +5,16 @@
  * between two rows mints a key strictly between their keys, so no other row's
  * key changes — insert and delete become O(1) (no position reshift / recompact).
  *
- * Thin wrapper over `fractional-indexing` (Figma/rocicorp algorithm) so the
- * implementation is swappable. Keys never run out (variable-length strings);
- * the only cost is gradual length growth under repeated same-spot inserts.
+ * Thin wrapper over the in-house fractional-indexing port (Figma/rocicorp
+ * algorithm) so the implementation is swappable. Keys never run out
+ * (variable-length strings); the only cost is gradual length growth under
+ * repeated same-spot inserts.
  */
 
-import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing'
+import {
+  generateKeyBetween,
+  generateNKeysBetween,
+} from '@/lib/fractional-indexing/fractional-indexing'
 
 /**
  * Returns a key that sorts strictly between `a` and `b`. Pass `null` for an open
