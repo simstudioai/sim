@@ -43,22 +43,35 @@ export interface PlusMenuHandle {
   selectActive: () => boolean
 }
 
+/**
+ * Box and typography shared by the textarea and its mirror overlay — both must
+ * produce identical line wrapping so the overlay text sits exactly over the
+ * (transparent) textarea text.
+ */
+const FIELD_MIRROR_CLASSES = cn(
+  'm-0 box-border min-h-[24px] w-full break-words [overflow-wrap:anywhere] border-0 bg-transparent',
+  'px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em]'
+)
+
 export const TEXTAREA_BASE_CLASSES = cn(
-  'm-0 box-border h-auto min-h-[24px] w-full resize-none',
-  'overflow-y-auto overflow-x-hidden break-words [overflow-wrap:anywhere] border-0 bg-transparent',
-  'px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em]',
+  FIELD_MIRROR_CLASSES,
+  'h-auto resize-none overflow-y-auto overflow-x-hidden',
   'text-transparent caret-[var(--text-primary)] outline-none',
   'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
   'focus-visible:ring-0 focus-visible:ring-offset-0',
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )
 
+/**
+ * Pinned to the textarea's box (`inset-0`) and clipped (`overflow-hidden`) so
+ * stale paints can never escape the input. Not a scroll container — it mirrors
+ * the textarea's scroll position via programmatic `scrollTop`, which works on
+ * `overflow: hidden` boxes.
+ */
 export const OVERLAY_CLASSES = cn(
-  'pointer-events-none absolute top-0 left-0 m-0 box-border h-auto w-full resize-none',
-  'overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words [overflow-wrap:anywhere] border-0 bg-transparent',
-  'px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em]',
-  'text-[var(--text-primary)] outline-none',
-  '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+  FIELD_MIRROR_CLASSES,
+  'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap',
+  'text-[var(--text-primary)]'
 )
 
 export const SEND_BUTTON_BASE = 'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors'

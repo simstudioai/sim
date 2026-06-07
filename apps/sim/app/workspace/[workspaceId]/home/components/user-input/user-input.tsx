@@ -834,7 +834,18 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         }
       }
 
-      if (selectionLength === 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      // Hop chips on plain arrows only: Shift/Cmd/Alt/Ctrl variants and IME
+      // composition keep native handling; the select handler snaps any
+      // resulting edge inside a chip to a chip boundary.
+      if (
+        selectionLength === 0 &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.nativeEvent.isComposing
+      ) {
         if (textarea) {
           if (e.key === 'ArrowLeft') {
             const nextPos = Math.max(0, selStart - 1)
@@ -858,7 +869,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         }
       }
 
-      if (e.key.length === 1 || e.key === 'Space') {
+      // Block typing inside a chip (snap to its end instead). Cmd/Ctrl
+      // shortcuts (Cmd+A, Cmd+C, ...) don't insert text and must pass through.
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
         const blocked =
           selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
         if (blocked) {
@@ -1017,20 +1030,70 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     ]
   )
 
+  /** Last observed selection; tells which edge of a range moved, and which way. */
+  const lastSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
+
+  /**
+   * Keeps mention chips atomic under every selection gesture. A collapsed
+   * caret inside a chip snaps to the nearest edge; a ranged selection edge
+   * inside a chip snaps to a chip boundary — never collapsed — so select-all,
+   * Shift+arrows, drag, and double-click all select chips whole.
+   */
   const handleSelectAdjust = useCallback(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-    const pos = textarea.selectionStart ?? 0
-    const r = mentionTokensWithContext.findRangeContaining(pos)
-    if (r) {
-      const snapPos = pos - r.start < r.end - pos ? r.start : r.end
+    const start = textarea.selectionStart ?? 0
+    const end = textarea.selectionEnd ?? 0
+    const prev = lastSelectionRef.current
+
+    // Deferred so in-flight click/drag processing can't override the write;
+    // bails if the selection moved again first (a newer event supersedes it).
+    const applySelection = (nextStart: number, nextEnd: number) => {
+      const direction = textarea.selectionDirection ?? undefined
       setTimeout(() => {
-        textarea.setSelectionRange(snapPos, snapPos)
+        if (textarea.selectionStart !== start || textarea.selectionEnd !== end) return
+        textarea.setSelectionRange(nextStart, nextEnd, direction)
       }, 0)
+    }
+
+    if (start !== end) {
+      const startRange = mentionTokensWithContext.findRangeContaining(start)
+      const endRange = mentionTokensWithContext.findRangeContaining(end)
+      // A lone moved edge (keyboard extend/shrink, drag) snaps in its direction
+      // of travel: growing absorbs the chip, shrinking releases it. Fresh
+      // selections (double-click, select-all) expand outward.
+      const singleEdgeMoved = (start !== prev.start) !== (end !== prev.end)
+      let newStart = startRange
+        ? singleEdgeMoved && start > prev.start
+          ? startRange.end
+          : startRange.start
+        : start
+      const newEnd = endRange
+        ? singleEdgeMoved && end < prev.end
+          ? endRange.start
+          : endRange.end
+        : end
+      // A selection contained in one chip snaps both edges; don't let it invert.
+      if (newStart > newEnd) {
+        newStart = newEnd
+      }
+      lastSelectionRef.current = { start: newStart, end: newEnd }
+      if (newStart !== start || newEnd !== end) {
+        applySelection(newStart, newEnd)
+      }
       return
     }
-    syncMentionState(textarea, textarea.value, pos)
-    syncSlashState(textarea, textarea.value, pos)
+
+    const r = mentionTokensWithContext.findRangeContaining(start)
+    if (r) {
+      const snapPos = start - r.start < r.end - start ? r.start : r.end
+      lastSelectionRef.current = { start: snapPos, end: snapPos }
+      applySelection(snapPos, snapPos)
+      return
+    }
+    lastSelectionRef.current = { start, end }
+    syncMentionState(textarea, textarea.value, start)
+    syncSlashState(textarea, textarea.value, start)
   }, [textareaRef, mentionTokensWithContext, syncMentionState, syncSlashState])
 
   const handleInput = useCallback(
@@ -1230,12 +1293,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       elements.push(
         <span key={`mention-${i}-${range.start}-${range.end}`}>
           <span className='relative'>
-            {/* Spacer reserves the real trigger glyph's width so the overlay's
-                advance matches the transparent textarea char-for-char —
-                hardcoding a width here would drift the text. For '@' the glyph is
-                ~1em; skill chips store an EM SPACE sentinel (SKILL_CHIP_TRIGGER)
-                in place of the narrow '/' so the centered 12px icon fits its slot
-                exactly like '@' does. */}
+            {/* Invisible trigger glyph keeps the overlay's advance identical to
+                the transparent textarea; the icon centers over its slot. */}
             <span className='invisible'>{range.token.charAt(0)}</span>
             {mentionIconNode}
           </span>
@@ -1274,16 +1333,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         onRemoveFile={handleRemoveFile}
       />
 
-      {/* Clip the absolutely-positioned mirror overlay to the textarea's box.
-          The overlay is `h-auto`, so its content (e.g. the trailing-newline
-          sentinel on Shift+Enter) can exceed the textarea height and would
-          otherwise paint over the toolbar below. */}
-      <div className='relative overflow-hidden'>
-        <div
-          ref={overlayRef}
-          className={cn(OVERLAY_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
-          aria-hidden='true'
-        >
+      <div className='relative'>
+        <div ref={overlayRef} className={OVERLAY_CLASSES} aria-hidden='true'>
           {overlayContent}
         </div>
 
