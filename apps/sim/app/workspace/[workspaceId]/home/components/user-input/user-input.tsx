@@ -752,6 +752,16 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     }
   }, [onSubmit, textareaRef, resetTranscript])
 
+  /**
+   * Adopts the textarea's DOM value into state. State and DOM can only drift
+   * when an edit's input event is lost (programmatic edits pair setValue
+   * synchronously) — the DOM is the user's intent.
+   */
+  const adoptDomValue = useCallback((textarea: HTMLTextAreaElement) => {
+    valueRef.current = textarea.value
+    setValue(textarea.value)
+  }, [])
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (mentionRangeRef.current && !e.nativeEvent.isComposing) {
@@ -1060,13 +1070,10 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     // may get superseded — so edge-movement inference stays true to the DOM.
     lastSelectionRef.current = { start, end }
 
-    // Controlled-value reconciliation: state and DOM can only drift when an
-    // edit's change event is lost (programmatic edits pair setValue
-    // synchronously). The DOM is the user's intent — adopt it and let the
-    // render rebuild the overlay; selection logic resumes on the next event.
+    // Reconciliation backstop for non-keyboard mutations; the render rebuilds
+    // the overlay and selection logic resumes on the next event.
     if (textarea.value !== valueRef.current) {
-      valueRef.current = textarea.value
-      setValue(textarea.value)
+      adoptDomValue(textarea)
       return
     }
 
@@ -1117,7 +1124,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     const focusPos = textarea.selectionDirection === 'backward' ? start : end
     syncMentionState(textarea, textarea.value, focusPos)
     syncSlashState(textarea, textarea.value, focusPos)
-  }, [textareaRef, mentionTokensWithContext, syncMentionState, syncSlashState])
+  }, [textareaRef, mentionTokensWithContext, adoptDomValue, syncMentionState, syncSlashState])
 
   const handleInput = useCallback(
     (e: React.FormEvent<HTMLTextAreaElement>) => {
