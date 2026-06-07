@@ -1,8 +1,9 @@
 'use client'
 
 import type React from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Button, Input } from '@/components/emcn'
-import { ArrowDown, ArrowUp, Loader, Search, X } from '@/components/emcn/icons'
+import { Loader, X } from '@/components/emcn/icons'
 
 export interface TableFindProps {
   query: string
@@ -57,62 +58,51 @@ export function TableFind({
   }
 
   const hasMatches = count > 0
+  const label =
+    count === 0 ? 'No results' : `${currentIndex + 1} of ${count}${truncated ? '+' : ''}`
 
   return (
-    <div className='absolute top-2 right-2 z-[20] flex items-center gap-1.5 rounded-[8px] border border-[var(--border)] bg-[var(--bg)] py-1 pr-1 pl-2 shadow-medium'>
-      <Search className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+    <div className='absolute top-2 right-2 z-[20] flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1 shadow-medium'>
       <Input
         ref={inputRef}
         value={query}
+        placeholder='Search'
+        className='h-8 w-[200px]'
         onChange={(e) => onQueryChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder='Find in table'
-        className='h-[24px] w-[180px] border-none bg-transparent px-0 text-small shadow-none focus-visible:ring-0'
       />
-      <span className='min-w-[44px] shrink-0 text-right text-[var(--text-tertiary)] text-xs tabular-nums'>
-        {isLoading ? (
-          <Loader className='ml-auto size-[12px] animate-spin' />
-        ) : (
-          `${hasMatches ? currentIndex + 1 : 0}/${count}${truncated ? '+' : ''}`
-        )}
+      <span className='flex min-w-[64px] shrink-0 items-center justify-end whitespace-nowrap px-1 text-[var(--text-muted)] text-xs tabular-nums'>
+        {isLoading ? <Loader className='size-[12px] animate-spin' /> : label}
       </span>
-      <div className='flex items-center'>
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          aria-label='Previous match'
-          title='Previous match (Shift+Enter)'
-          disabled={!hasMatches}
-          className='size-[24px] shrink-0 p-0'
-          onClick={onPrev}
-        >
-          <ArrowUp className='size-[14px]' />
-        </Button>
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          aria-label='Next match'
-          title='Next match (Enter)'
-          disabled={!hasMatches}
-          className='size-[24px] shrink-0 p-0'
-          onClick={onNext}
-        >
-          <ArrowDown className='size-[14px]' />
-        </Button>
-        <Button
-          type='button'
-          variant='ghost'
-          size='sm'
-          aria-label='Close find'
-          title='Close (Esc)'
-          className='size-[24px] shrink-0 p-0'
-          onClick={onClose}
-        >
-          <X className='size-[14px]' />
-        </Button>
-      </div>
+      <Button
+        variant='ghost'
+        className='size-8 shrink-0 p-0'
+        aria-label='Previous match'
+        title='Previous match (Shift+Enter)'
+        disabled={!hasMatches}
+        onClick={onPrev}
+      >
+        <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
+      </Button>
+      <Button
+        variant='ghost'
+        className='size-8 shrink-0 p-0'
+        aria-label='Next match'
+        title='Next match (Enter)'
+        disabled={!hasMatches}
+        onClick={onNext}
+      >
+        <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
+      </Button>
+      <Button
+        variant='ghost'
+        className='size-8 shrink-0 p-0'
+        aria-label='Close find'
+        title='Close (Esc)'
+        onClick={onClose}
+      >
+        <X className='size-[14px] text-[var(--text-icon)]' />
+      </Button>
     </div>
   )
 }
