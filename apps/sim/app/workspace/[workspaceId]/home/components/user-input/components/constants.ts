@@ -63,10 +63,10 @@ export const TEXTAREA_BASE_CLASSES = cn(
 )
 
 /**
- * Pinned to the textarea's box (`inset-0`) and clipped (`overflow-hidden`) so
- * stale paints can never escape the input. Not a scroll container — it mirrors
- * the textarea's scroll position via programmatic `scrollTop`, which works on
- * `overflow: hidden` boxes.
+ * Pinned to the textarea's box (`inset-0`) and clipped (`overflow-hidden`).
+ * The box itself never scrolls — its content is translated to mirror the
+ * textarea's scroll offset, so the compositor never holds scrolled textures
+ * for it (a scrolled box can ghost stale paint after its content is cleared).
  */
 export const OVERLAY_CLASSES = cn(
   FIELD_MIRROR_CLASSES,

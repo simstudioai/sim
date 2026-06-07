@@ -171,7 +171,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   })
   const valueRef = useRef(value)
   valueRef.current = value
-  const overlayRef = useRef<HTMLDivElement>(null)
+  const overlayContentRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
   const skillsMenuRef = useRef<SkillsMenuHandle>(null)
 
@@ -477,16 +477,26 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     ]
   )
 
+  /**
+   * Mirrors the textarea's scroll offset by translating the overlay content.
+   * The overlay box itself never scrolls — a scrolled box (even with
+   * `overflow: hidden`) is a compositor scroll container whose stale textures
+   * can ghost cleared content; a transform always repaints cleanly and never
+   * clamps, so the mirror tracks the textarea offset exactly.
+   */
+  const syncOverlayScroll = useCallback((scrollTop: number) => {
+    const content = overlayContentRef.current
+    if (content) content.style.transform = `translateY(${-scrollTop}px)`
+  }, [])
+
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
     const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
     textarea.style.height = 'auto'
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = textarea.scrollTop
-    }
-  }, [value, isInitialView, textareaRef])
+    syncOverlayScroll(textarea.scrollTop)
+  }, [value, isInitialView, textareaRef, syncOverlayScroll])
 
   const handleResourceSelect = useCallback(
     (resource: MothershipResource) => {
@@ -1098,12 +1108,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     (e: React.FormEvent<HTMLTextAreaElement>) => {
       const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
       autoResizeTextarea(e, maxHeight)
-
-      if (overlayRef.current) {
-        overlayRef.current.scrollTop = (e.target as HTMLTextAreaElement).scrollTop
-      }
+      syncOverlayScroll((e.target as HTMLTextAreaElement).scrollTop)
     },
-    [isInitialView]
+    [isInitialView, syncOverlayScroll]
   )
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -1190,11 +1197,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     filesRef.current.processFiles(dt.files)
   }, [])
 
-  const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = e.currentTarget.scrollTop
-    }
-  }, [])
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLTextAreaElement>) => {
+      syncOverlayScroll(e.currentTarget.scrollTop)
+    },
+    [syncOverlayScroll]
+  )
 
   /**
    * On copy/cut, write a portable representation of the selection to the
@@ -1332,8 +1340,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       />
 
       <div className='relative'>
-        <div ref={overlayRef} className={OVERLAY_CLASSES} aria-hidden='true'>
-          {overlayContent}
+        <div className={OVERLAY_CLASSES} aria-hidden='true'>
+          <div ref={overlayContentRef}>{overlayContent}</div>
         </div>
 
         <textarea
