@@ -134,16 +134,19 @@ export function useMentionTokens({
           ? range.end + (after.length - after.replace(/^ +/, '').length)
           : range.end
 
-      // Delete via `execCommand` (not `setMessage`/`setRangeText`) so the
-      // removal lands on the browser's native undo stack and Cmd+Z restores the
-      // chip — empirically the only primitive that preserves undo in Chromium.
-      // `execCommand` is deprecated but remains the sole API wired to undo.
+      // Prefer `execCommand` (deprecated, but the only primitive that lands the
+      // removal on the native undo stack, so Cmd+Z restores the chip). It's a
+      // no-op on Firefox textareas and returns false there, so fall back to a
+      // direct edit — correct deletion, just no native undo on that browser.
       textarea.focus()
       textarea.setSelectionRange(range.start, deleteEnd)
-      document.execCommand('delete')
+      const valueBeforeDelete = textarea.value
+      if (!document.execCommand('delete') || textarea.value === valueBeforeDelete) {
+        textarea.setRangeText('', range.start, deleteEnd, 'start')
+      }
 
-      // `execCommand` fires `input`, but sync state explicitly so this hook
-      // doesn't depend on the consumer's onChange wiring.
+      // The edit fires `input`, but sync state explicitly so this hook doesn't
+      // depend on the consumer's onChange wiring.
       setMessage(textarea.value)
 
       setTimeout(() => {
