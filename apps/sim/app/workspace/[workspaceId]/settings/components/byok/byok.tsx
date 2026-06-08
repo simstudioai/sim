@@ -282,7 +282,17 @@ const PROVIDER_SECTIONS: { label: string; ids: BYOKProviderId[] }[] = [
   },
   {
     label: 'Enrichment',
-    ids: ['brandfetch', 'hunter', 'peopledatalabs', 'findymail', 'prospeo', 'wiza'],
+    ids: [
+      'brandfetch',
+      'hunter',
+      'peopledatalabs',
+      'findymail',
+      'prospeo',
+      'wiza',
+      'zerobounce',
+      'neverbounce',
+      'millionverifier',
+    ],
   },
 ]
 

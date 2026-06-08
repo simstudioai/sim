@@ -33,7 +33,9 @@ export function zerobounceHosting<P>(
     },
     rateLimit: {
       mode: 'per_request',
-      requestsPerMinute: 60,
+      // ZeroBounce caps /validate at 80k/10s per key (~480k/min); 20/sec per
+      // workspace leaves large upstream headroom while keeping enrichment fast.
+      requestsPerMinute: 1200,
     },
   }
 }

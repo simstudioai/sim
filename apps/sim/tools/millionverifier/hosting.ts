@@ -33,7 +33,9 @@ export function millionverifierHosting<P>(
     },
     rateLimit: {
       mode: 'per_request',
-      requestsPerMinute: 60,
+      // MillionVerifier caps the real-time API at 160/sec per account (~9.6k/min);
+      // 20/sec per workspace stays well under while keeping enrichment fast.
+      requestsPerMinute: 1200,
     },
   }
 }
