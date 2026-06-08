@@ -812,12 +812,10 @@ export const auth = betterAuth({
         const accessControl = await getAccessControlConfig()
         const requestEmail = ctx.body?.email?.toLowerCase()
 
-        if (requestEmail && accessControl.bannedEmails.includes(requestEmail)) {
-          throw new APIError('FORBIDDEN', {
-            message: 'Access restricted. Please contact your administrator.',
-          })
-        }
-
+        // Note: banning an existing account is owned by better-auth's admin plugin
+        // (a `session.create.before` hook that blocks banned users at sign-in across
+        // all providers). `bannedEmails` here is a signup-only denylist enforced in
+        // `databaseHooks.user.create.before`, so it is not checked on sign-in.
         const hasAllowlist =
           accessControl.allowedLoginEmails.length > 0 ||
           accessControl.allowedLoginDomains.length > 0

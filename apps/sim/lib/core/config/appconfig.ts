@@ -19,12 +19,15 @@ export interface AppConfigProfileIdentifiers {
 }
 
 interface CacheEntry<T> {
-  /** Last successfully parsed value, or `null` if no successful fetch yet. */
+  /** Last successfully parsed value, or `null` if the config is empty/unseeded. */
   value: T | null
+  /** True once any poll has completed (success, empty payload, or error). */
+  loaded: boolean
   /** Token for the next `GetLatestConfiguration` poll, rotated on each call. */
   nextToken: string | undefined
   expiresAt: number
-  refreshing: boolean
+  /** In-flight poll, shared so concurrent callers don't each hit AppConfig. */
+  inflight: Promise<T | null> | null
 }
 
 const cache = new Map<string, CacheEntry<unknown>>()
@@ -52,9 +55,11 @@ function cacheKey(ids: AppConfigProfileIdentifiers): string {
 
 /**
  * Run one AppConfig poll for `entry`: starts a session if no token is held, then
- * calls `GetLatestConfiguration`. An empty payload means "unchanged" and the
- * previous value is kept. Any error is logged and the last good value is
- * retained. Returns the (possibly unchanged) value.
+ * calls `GetLatestConfiguration`. An empty payload means "unchanged" (or an
+ * unseeded profile) and the previous value is kept. Any error is logged and the
+ * last good value is retained. Marks the entry `loaded` on any outcome so callers
+ * never re-block on the cold path, and honors AppConfig's `NextPollInterval` so we
+ * don't poll faster than the server allows (which would throttle).
  */
 async function poll<T>(
   ids: AppConfigProfileIdentifiers,
@@ -85,13 +90,17 @@ async function poll<T>(
       entry.value = parse(JSON.parse(text))
     }
 
-    entry.expiresAt = Date.now() + DEFAULT_TTL_MS
+    const intervalMs = (response.NextPollIntervalInSeconds ?? 60) * 1000
+    entry.expiresAt = Date.now() + Math.max(DEFAULT_TTL_MS, intervalMs)
+    entry.loaded = true
     return entry.value
   } catch (error) {
     // Drop the token so the next attempt starts a fresh session (handles expired
-    // or invalid tokens). Keep the last good value rather than failing the caller.
+    // or invalid tokens). Mark loaded + back off so we serve the fallback and
+    // retry in the background rather than blocking every request during an outage.
     entry.nextToken = undefined
     entry.expiresAt = Date.now() + DEFAULT_TTL_MS
+    entry.loaded = true
     logger.error('AppConfig fetch failed; serving last known value', {
       profile: cacheKey(ids),
       error: getErrorMessage(error),
@@ -107,8 +116,9 @@ async function poll<T>(
  * `profile` constant owned by the calling feature. Uses an in-process TTL cache
  * with stale-while-revalidate — a warm cache returns immediately and refreshes
  * in the background once the TTL lapses, so no request blocks on the AppConfig
- * round trip after the first (cold) fetch. Returns `null` only when the very
- * first fetch fails before any value is cached.
+ * round trip after the first (cold) fetch. Concurrent callers share one in-flight
+ * poll (avoids racing the rotating session token). Returns `null` when the config
+ * is empty/unseeded or the first fetch fails.
  */
 export async function fetchAppConfigProfile<T>(
   ids: AppConfigProfileIdentifiers,
@@ -117,22 +127,26 @@ export async function fetchAppConfigProfile<T>(
   const key = cacheKey(ids)
   const entry = (cache.get(key) as CacheEntry<T> | undefined) ?? {
     value: null,
+    loaded: false,
     nextToken: undefined,
     expiresAt: 0,
-    refreshing: false,
+    inflight: null,
   }
   cache.set(key, entry)
 
-  // Cold: no value yet — fetch synchronously so the caller gets real data.
-  if (entry.value === null) {
-    return poll(ids, parse, entry)
+  // Cold: never polled — await a single shared poll so concurrent callers don't
+  // each hit AppConfig (and don't race the rotating session token).
+  if (!entry.loaded) {
+    entry.inflight ??= poll(ids, parse, entry).finally(() => {
+      entry.inflight = null
+    })
+    return entry.inflight
   }
 
-  // Warm but stale: serve cached value, refresh in the background.
-  if (Date.now() >= entry.expiresAt && !entry.refreshing) {
-    entry.refreshing = true
-    void poll(ids, parse, entry).finally(() => {
-      entry.refreshing = false
+  // Warm but stale: serve cached value, refresh once in the background.
+  if (Date.now() >= entry.expiresAt && !entry.inflight) {
+    entry.inflight = poll(ids, parse, entry).finally(() => {
+      entry.inflight = null
     })
   }
 

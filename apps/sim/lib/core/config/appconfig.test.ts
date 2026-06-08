@@ -77,4 +77,42 @@ describe('fetchAppConfigProfile', () => {
     )
     expect(result).toBe(20)
   })
+
+  it('warms the cache on an empty payload and does not re-poll (unseeded profile)', async () => {
+    mockSend.mockImplementation((command: { __type: string }) => {
+      if (command.__type === 'start') return Promise.resolve({ InitialConfigurationToken: 'tok-1' })
+      return Promise.resolve({
+        Configuration: new Uint8Array(),
+        NextPollConfigurationToken: 'tok-2',
+        NextPollIntervalInSeconds: 60,
+      })
+    })
+
+    const ids = uniqueIds()
+    expect(await fetchAppConfigProfile(ids, (json) => json)).toBeNull()
+    const callsAfterFirst = mockSend.mock.calls.length
+
+    expect(await fetchAppConfigProfile(ids, (json) => json)).toBeNull()
+    expect(mockSend.mock.calls.length).toBe(callsAfterFirst)
+  })
+
+  it('dedupes concurrent cold fetches into a single poll', async () => {
+    mockSend.mockImplementation((command: { __type: string }) => {
+      if (command.__type === 'start') return Promise.resolve({ InitialConfigurationToken: 'tok-1' })
+      return Promise.resolve({
+        Configuration: encode({ x: 1 }),
+        NextPollConfigurationToken: 'tok-2',
+      })
+    })
+
+    const ids = uniqueIds()
+    const [a, b] = await Promise.all([
+      fetchAppConfigProfile(ids, (json) => json),
+      fetchAppConfigProfile(ids, (json) => json),
+    ])
+
+    expect(a).toEqual({ x: 1 })
+    expect(b).toEqual({ x: 1 })
+    expect(mockSend.mock.calls.map(([c]) => c.__type)).toEqual(['start', 'get'])
+  })
 })
