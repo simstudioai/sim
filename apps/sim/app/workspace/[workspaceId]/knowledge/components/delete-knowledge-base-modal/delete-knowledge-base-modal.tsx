@@ -63,6 +63,7 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
+        cancelDisabled={isDeleting}
         primaryAction={{
           label: isDeleting ? 'Deleting...' : 'Delete',
           onClick: onConfirm,

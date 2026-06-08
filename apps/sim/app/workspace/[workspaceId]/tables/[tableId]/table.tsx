@@ -787,6 +787,7 @@ export function Table({
           </ChipModalBody>
           <ChipModalFooter
             onCancel={() => setShowDeleteTableConfirm(false)}
+            cancelDisabled={deleteTableMutation.isPending}
             primaryAction={{
               label: deleteTableMutation.isPending ? 'Deleting...' : 'Delete',
               onClick: handleDeleteTable,

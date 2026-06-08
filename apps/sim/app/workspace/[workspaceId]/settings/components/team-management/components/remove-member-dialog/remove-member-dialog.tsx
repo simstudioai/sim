@@ -65,6 +65,7 @@ export function RemoveMemberDialog({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onCancel}
+        cancelDisabled={isSubmitting}
         primaryAction={{
           label: isSelfRemoval ? 'Leave Organization' : 'Remove',
           onClick: () => onConfirmRemove(),

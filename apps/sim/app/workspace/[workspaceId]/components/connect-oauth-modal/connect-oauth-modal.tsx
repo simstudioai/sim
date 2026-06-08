@@ -443,6 +443,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       </ChipModalBody>
       <ChipModalFooter
         onCancel={handleClose}
+        cancelDisabled={isPending}
         primaryAction={{
           label: isPending ? 'Connecting...' : 'Connect',
           onClick: handleConnect,

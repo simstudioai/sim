@@ -103,6 +103,7 @@ export function RenameDocumentModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        cancelDisabled={isSubmitting}
         primaryAction={{
           label: isSubmitting ? 'Renaming...' : 'Rename',
           onClick: () => void handleSubmit(),

@@ -561,6 +561,7 @@ export default function LoginPage({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setForgotPasswordOpen(false)}
+          cancelDisabled={isSubmittingReset}
           primaryAction={{
             label: isSubmittingReset ? 'Sending…' : 'Send Reset Link',
             onClick: handleForgotPassword,

@@ -437,6 +437,7 @@ export function ChatDeploy({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setShowDeleteConfirmation(false)}
+          cancelDisabled={deleteChatMutation.isPending}
           primaryAction={{
             label: deleteChatMutation.isPending ? 'Deleting...' : 'Delete',
             onClick: handleDelete,

@@ -702,6 +702,7 @@ function WorkspaceHeaderImpl({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setIsLeaveModalOpen(false)}
+          cancelDisabled={isLeavingWorkspace}
           primaryAction={{
             label: isLeavingWorkspace ? 'Leaving...' : 'Leave workspace',
             onClick: handleLeaveWorkspace,

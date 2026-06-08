@@ -205,6 +205,7 @@ export function TransferOwnershipDialog({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => handleClose(false)}
+        cancelDisabled={isSubmitting}
         primaryAction={{
           label: isSubmitting ? 'Transferring...' : 'Transfer & leave',
           onClick: handleConfirm,

@@ -479,6 +479,7 @@ export function ImportCsvDialog({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        cancelDisabled={importMutation.isPending}
         primaryAction={{
           label: importMutation.isPending
             ? mode === 'replace'

@@ -284,6 +284,7 @@ export function ConnectorsSection({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={closeDeleteModal}
+          cancelDisabled={isDeleting}
           primaryAction={{
             label: isDeleting ? 'Removing...' : 'Remove',
             onClick: handleDeleteConnector,

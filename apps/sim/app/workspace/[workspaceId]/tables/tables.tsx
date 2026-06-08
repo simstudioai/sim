@@ -618,6 +618,7 @@ export function Tables() {
             setIsDeleteDialogOpen(false)
             setActiveTable(null)
           }}
+          cancelDisabled={deleteTable.isPending}
           primaryAction={{
             label: deleteTable.isPending ? 'Deleting...' : 'Delete',
             onClick: handleDelete,

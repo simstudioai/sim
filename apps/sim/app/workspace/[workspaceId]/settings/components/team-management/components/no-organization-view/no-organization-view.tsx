@@ -165,6 +165,7 @@ export function NoOrganizationView({
           </ChipModalBody>
           <ChipModalFooter
             onCancel={() => setCreateOrgDialogOpen(false)}
+            cancelDisabled={isCreatingOrg}
             primaryAction={{
               label: isCreatingOrg ? 'Creating...' : 'Create Organization',
               onClick: onCreateOrganization,

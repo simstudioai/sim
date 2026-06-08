@@ -432,6 +432,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setDeleteTagDialogOpen(false)}
+          cancelDisabled={deleteTagMutation.isPending}
           primaryAction={{
             label: deleteTagMutation.isPending ? 'Deleting...' : 'Delete Tag',
             onClick: confirmDeleteTag,

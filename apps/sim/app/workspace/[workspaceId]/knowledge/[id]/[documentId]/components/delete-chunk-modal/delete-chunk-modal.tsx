@@ -39,6 +39,7 @@ export function DeleteChunkModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
+        cancelDisabled={isDeleting}
         primaryAction={{
           label: isDeleting ? 'Deleting…' : 'Delete',
           onClick: handleDeleteChunk,

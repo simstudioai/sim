@@ -466,6 +466,7 @@ export function ScheduledTasks() {
         </ChipModalBody>
         <ChipModalFooter
           onCancel={handleCancelDelete}
+          cancelDisabled={deleteSchedule.isPending}
           primaryAction={{
             label: deleteSchedule.isPending ? 'Deleting...' : 'Delete',
             onClick: handleDelete,

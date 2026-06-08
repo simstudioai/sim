@@ -157,6 +157,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        cancelDisabled={isSubmitting}
         primaryAction={{
           label: isSubmitting ? 'Saving...' : 'Save',
           onClick: handleSubmit,

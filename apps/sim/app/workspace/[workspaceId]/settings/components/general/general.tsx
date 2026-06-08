@@ -532,6 +532,7 @@ export function General() {
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setShowResetPasswordModal(false)}
+          cancelDisabled={resetPassword.isPending || resetPassword.isSuccess}
           primaryAction={{
             label: resetPassword.isPending
               ? 'Sending...'

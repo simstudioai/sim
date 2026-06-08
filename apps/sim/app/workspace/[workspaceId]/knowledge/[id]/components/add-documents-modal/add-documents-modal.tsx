@@ -259,6 +259,7 @@ export function AddDocumentsModal({
 
       <ChipModalFooter
         onCancel={handleClose}
+        cancelDisabled={isUploading}
         primaryAction={{
           label: isUploading
             ? uploadProgress.stage === 'uploading'

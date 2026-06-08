@@ -500,6 +500,7 @@ export function BYOK() {
             setShowApiKey(false)
             setError(null)
           }}
+          cancelDisabled={upsertKey.isPending}
           primaryAction={{
             label: upsertKey.isPending ? 'Saving...' : 'Save',
             onClick: handleSave,

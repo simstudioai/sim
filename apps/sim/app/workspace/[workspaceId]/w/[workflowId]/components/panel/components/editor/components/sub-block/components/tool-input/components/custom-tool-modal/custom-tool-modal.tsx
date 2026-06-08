@@ -1201,6 +1201,7 @@ try {
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setShowDeleteConfirm(false)}
+          cancelDisabled={deleteToolMutation.isPending}
           primaryAction={{
             label: deleteToolMutation.isPending ? 'Deleting...' : 'Delete',
             onClick: handleDelete,

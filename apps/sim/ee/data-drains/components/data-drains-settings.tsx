@@ -341,6 +341,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setShowDeleteConfirm(false)}
+          cancelDisabled={deleteMutation.isPending}
           primaryAction={{
             label: deleteMutation.isPending ? 'Deleting...' : 'Delete',
             onClick: handleConfirmDelete,
@@ -494,6 +495,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
+        cancelDisabled={createMutation.isPending}
         primaryAction={{
           label: createMutation.isPending ? 'Creating...' : 'Create drain',
           onClick: handleSubmit,

@@ -360,6 +360,7 @@ export function ApiKeys() {
             setShowDeleteDialog(false)
             setDeleteKey(null)
           }}
+          cancelDisabled={deleteApiKeyMutation.isPending}
           primaryAction={{
             label: deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete',
             onClick: handleDeleteKey,

@@ -852,6 +852,7 @@ export function DeployModal({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setUndeployTargetWorkflowId(null)}
+          cancelDisabled={isUndeploying}
           primaryAction={{
             label: isUndeploying ? 'Undeploying...' : 'Undeploy',
             onClick: handleUndeploy,
@@ -884,6 +885,7 @@ export function DeployModal({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setShowA2aDeleteConfirm(false)}
+          cancelDisabled={a2aSubmitting}
           primaryAction={{
             label: a2aSubmitting ? 'Deleting...' : 'Delete',
             onClick: handleA2aDelete,

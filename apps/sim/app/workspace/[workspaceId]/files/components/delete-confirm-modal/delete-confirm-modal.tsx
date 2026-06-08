@@ -49,6 +49,7 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        cancelDisabled={isPending}
         primaryAction={{
           label: isPending ? 'Deleting...' : 'Delete',
           onClick: onDelete,

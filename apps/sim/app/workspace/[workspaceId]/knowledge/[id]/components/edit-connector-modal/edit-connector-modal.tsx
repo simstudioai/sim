@@ -315,6 +315,7 @@ export function EditConnectorModal({
       {activeTab === 'settings' && (
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
+          cancelDisabled={isSaving}
           primaryAction={{
             label: isSaving ? 'Saving…' : 'Save',
             onClick: handleSave,

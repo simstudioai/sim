@@ -761,9 +761,17 @@ export interface ChipModalFooterProps {
   /**
    * Dismiss handler for the always-present Cancel button. Like the header's
    * close (X), Cancel is structural — it always reads "Cancel" and there is no
-   * prop to relabel, remove, or disable it.
+   * prop to relabel or remove it. Its enabled state can be controlled via
+   * {@link ChipModalFooterProps.cancelDisabled}.
    */
   onCancel: () => void
+  /**
+   * Disables the Cancel button. Set this while a primary/secondary action is
+   * in flight (e.g. an async delete or save) so the user cannot dismiss the
+   * modal and assume the operation was aborted while the mutation keeps running.
+   * @default false
+   */
+  cancelDisabled?: boolean
   /** Primary action, anchored bottom-right (e.g. Save, Create, Delete). */
   primaryAction: ChipModalFooterAction
   /**
@@ -779,7 +787,12 @@ export interface ChipModalFooterProps {
  * `primaryAction`. Buttons are described via {@link ChipModalFooterAction} and
  * rendered as {@link Chip}s, so no footer can drift from the canonical layout.
  */
-function ChipModalFooter({ onCancel, primaryAction, secondaryAction }: ChipModalFooterProps) {
+function ChipModalFooter({
+  onCancel,
+  cancelDisabled,
+  primaryAction,
+  secondaryAction,
+}: ChipModalFooterProps) {
   return (
     <div className='flex flex-col'>
       <ChipModalSeparator />
@@ -800,7 +813,7 @@ function ChipModalFooter({ onCancel, primaryAction, secondaryAction }: ChipModal
           </Chip>
         ) : null}
         <div className='flex gap-2'>
-          <Chip variant='filled' flush onClick={onCancel}>
+          <Chip variant='filled' flush onClick={onCancel} disabled={cancelDisabled}>
             Cancel
           </Chip>
           <Chip

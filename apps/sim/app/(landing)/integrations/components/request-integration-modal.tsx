@@ -145,6 +145,7 @@ export function RequestIntegrationModal() {
         ) : (
           <ChipModalFooter
             onCancel={() => setOpen(false)}
+            cancelDisabled={status === 'submitting'}
             primaryAction={{
               label: status === 'submitting' ? 'Submitting...' : 'Submit request',
               onClick: handleSubmit,

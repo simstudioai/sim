@@ -349,6 +349,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
+          cancelDisabled={helpMutation.isPending}
           primaryAction={{
             label: helpMutation.isPending
               ? 'Submitting...'

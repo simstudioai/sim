@@ -66,6 +66,7 @@ export function CreateWorkspaceModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        cancelDisabled={isCreating}
         primaryAction={{
           label: isCreating ? 'Creating...' : 'Create',
           onClick: () => void handleSubmit(),

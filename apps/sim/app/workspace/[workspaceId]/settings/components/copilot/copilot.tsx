@@ -352,6 +352,7 @@ export function Copilot() {
             setShowDeleteDialog(false)
             setDeleteKey(null)
           }}
+          cancelDisabled={deleteKeyMutation.isPending}
           primaryAction={{
             label: deleteKeyMutation.isPending ? 'Deleting...' : 'Delete',
             onClick: handleDeleteKey,

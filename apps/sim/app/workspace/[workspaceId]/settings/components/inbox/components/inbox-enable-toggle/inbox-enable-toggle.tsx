@@ -126,6 +126,7 @@ export function InboxEnableToggle() {
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setIsDisableOpen(false)}
+          cancelDisabled={toggleInbox.isPending}
           primaryAction={{
             label: toggleInbox.isPending ? 'Disabling...' : 'Disable inbox',
             onClick: handleDisable,

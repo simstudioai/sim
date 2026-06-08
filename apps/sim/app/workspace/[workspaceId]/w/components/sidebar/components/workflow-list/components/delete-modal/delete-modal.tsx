@@ -277,6 +277,7 @@ export function DeleteModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={handleClose}
+        cancelDisabled={isDeleting}
         primaryAction={{
           label: isDeleting ? 'Deleting...' : 'Delete',
           onClick: onConfirm,

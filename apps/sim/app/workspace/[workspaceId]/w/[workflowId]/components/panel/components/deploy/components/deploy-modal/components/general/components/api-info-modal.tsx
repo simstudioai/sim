@@ -274,6 +274,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
         </ChipModalBody>
         <ChipModalFooter
           onCancel={handleCloseAttempt}
+          cancelDisabled={isSaving}
           primaryAction={{
             label: 'Save',
             onClick: handleSave,

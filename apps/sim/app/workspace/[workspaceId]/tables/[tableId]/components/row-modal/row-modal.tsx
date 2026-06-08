@@ -177,6 +177,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         </ChipModalBody>
         <ChipModalFooter
           onCancel={handleClose}
+          cancelDisabled={isSubmitting}
           primaryAction={{
             label: isSubmitting ? 'Deleting...' : 'Delete',
             onClick: handleDelete,
@@ -221,6 +222,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       </ChipModalBody>
       <ChipModalFooter
         onCancel={handleClose}
+        cancelDisabled={isSubmitting}
         primaryAction={{
           label: isSubmitting
             ? isAddMode

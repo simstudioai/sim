@@ -579,6 +579,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
         <ChipModalFooter
           onCancel={() => handleClose(false)}
+          cancelDisabled={isSubmitting}
           primaryAction={{
             label: isSubmitting
               ? isUploading

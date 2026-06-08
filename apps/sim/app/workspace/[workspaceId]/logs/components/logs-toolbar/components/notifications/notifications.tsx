@@ -1285,6 +1285,7 @@ export const NotificationSettings = memo(function NotificationSettings({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setShowDeleteDialog(false)}
+          cancelDisabled={deleteNotification.isPending}
           primaryAction={{
             label: deleteNotification.isPending ? 'Deleting...' : 'Delete',
             onClick: handleDelete,

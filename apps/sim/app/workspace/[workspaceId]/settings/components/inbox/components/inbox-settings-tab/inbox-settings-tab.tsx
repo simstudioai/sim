@@ -308,6 +308,7 @@ export function InboxSettingsTab() {
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setIsEditAddressOpen(false)}
+          cancelDisabled={updateAddress.isPending}
           primaryAction={{
             label: updateAddress.isPending ? 'Updating...' : 'Change address',
             onClick: handleEditAddress,

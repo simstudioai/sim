@@ -1212,6 +1212,7 @@ export function KnowledgeBase({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setShowDeleteDialog(false)}
+          cancelDisabled={isDeleting}
           primaryAction={{
             label: isDeleting ? 'Deleting...' : 'Delete Knowledge Base',
             onClick: handleDeleteKnowledgeBase,

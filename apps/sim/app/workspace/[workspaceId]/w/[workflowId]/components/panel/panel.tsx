@@ -953,6 +953,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setIsDeleteModalOpen(false)}
+          cancelDisabled={isDeleting}
           primaryAction={{
             label: isDeleting ? 'Deleting...' : 'Delete',
             onClick: handleDeleteWorkflow,

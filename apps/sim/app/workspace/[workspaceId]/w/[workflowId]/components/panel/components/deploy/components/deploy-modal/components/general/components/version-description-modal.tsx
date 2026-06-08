@@ -135,6 +135,7 @@ export function VersionDescriptionModal({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={handleCloseAttempt}
+          cancelDisabled={updateMutation.isPending || isGenerating}
           primaryAction={{
             label: updateMutation.isPending ? 'Saving...' : 'Save',
             onClick: handleSave,

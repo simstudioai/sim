@@ -499,6 +499,7 @@ export function AddConnectorModal({
         {step === 'configure' && (
           <ChipModalFooter
             onCancel={() => onOpenChange(false)}
+            cancelDisabled={isCreating}
             primaryAction={{
               label: isCreating ? 'Connecting…' : 'Connect & Sync',
               onClick: handleSubmit,

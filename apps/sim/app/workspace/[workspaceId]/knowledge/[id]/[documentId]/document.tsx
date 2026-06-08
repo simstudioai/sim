@@ -1229,6 +1229,7 @@ export function Document({
         </ChipModalBody>
         <ChipModalFooter
           onCancel={() => setShowDeleteDocumentDialog(false)}
+          cancelDisabled={isDeletingDocument}
           primaryAction={{
             label: isDeletingDocument ? 'Deleting...' : 'Delete Document',
             onClick: handleDeleteDocument,
