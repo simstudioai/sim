@@ -122,7 +122,7 @@ export async function transferWorkspaceOwnershipToBilledAccountForMemberRemovalT
   }
 
   const newOwnerId = workspaceRow.billedAccountUserId
-  if (newOwnerId === departingUserId) {
+  if (!newOwnerId || newOwnerId === departingUserId) {
     throw new WorkspaceBillingAccountRemovalError()
   }
 
@@ -198,8 +198,29 @@ export async function reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
   const reassigned: ReassignWorkflowOwnershipResult['reassigned'] = []
   const unresolved: string[] = []
   const reassignmentWorkspaceIds: string[] = []
+  const workflowCounts = await tx
+    .select({
+      workspaceId: workflow.workspaceId,
+      workflowCount: count(workflow.id),
+    })
+    .from(workflow)
+    .where(
+      and(eq(workflow.userId, departingUserId), inArray(workflow.workspaceId, uniqueWorkspaceIds))
+    )
+    .groupBy(workflow.workspaceId)
+
+  const workflowCountsByWorkspaceId = new Map<string, number>()
+  for (const { workspaceId, workflowCount } of workflowCounts) {
+    if (!workspaceId || workflowCount === 0) continue
+    workflowCountsByWorkspaceId.set(workspaceId, workflowCount)
+  }
 
   for (const ws of workspaceRows) {
+    const workflowCount = workflowCountsByWorkspaceId.get(ws.id) ?? 0
+    if (workflowCount === 0) {
+      continue
+    }
+
     const replacementUserId =
       ws.billedAccountUserId !== departingUserId ? ws.billedAccountUserId : null
 
@@ -212,20 +233,6 @@ export async function reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
   }
 
   if (reassignmentWorkspaceIds.length > 0) {
-    const workflowCounts = await tx
-      .select({
-        workspaceId: workflow.workspaceId,
-        workflowCount: count(workflow.id),
-      })
-      .from(workflow)
-      .where(
-        and(
-          eq(workflow.userId, departingUserId),
-          inArray(workflow.workspaceId, reassignmentWorkspaceIds)
-        )
-      )
-      .groupBy(workflow.workspaceId)
-
     await tx
       .update(workflow)
       .set({
@@ -246,8 +253,8 @@ export async function reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
     const billedAccountByWorkspaceId = new Map(
       workspaceRows.map((ws) => [ws.id, ws.billedAccountUserId])
     )
-    for (const { workspaceId, workflowCount } of workflowCounts) {
-      if (!workspaceId || workflowCount === 0) continue
+    for (const workspaceId of reassignmentWorkspaceIds) {
+      const workflowCount = workflowCountsByWorkspaceId.get(workspaceId) ?? 0
       const newWorkflowUserId = billedAccountByWorkspaceId.get(workspaceId)
       if (!newWorkflowUserId) continue
       reassigned.push({

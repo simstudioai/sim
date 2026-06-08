@@ -74,8 +74,11 @@ describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
     const workspaceSelect = createSelectChain([
       { id: 'workspace-1', billedAccountUserId: 'departing-1' },
     ])
+    const workflowCountSelect = createGroupedSelectChain([
+      { workspaceId: 'workspace-1', workflowCount: 1 },
+    ])
     const tx = {
-      select: vi.fn().mockReturnValue(workspaceSelect),
+      select: vi.fn().mockReturnValueOnce(workspaceSelect).mockReturnValueOnce(workflowCountSelect),
       update: vi.fn(),
     }
 
@@ -89,10 +92,33 @@ describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
     expect(result).toEqual({ reassigned: [], unresolved: ['workspace-1'] })
   })
 
+  it('does not mark a workspace unresolved when the departing billing account owns no workflows', async () => {
+    const workspaceSelect = createSelectChain([
+      { id: 'workspace-1', billedAccountUserId: 'departing-1' },
+    ])
+    const workflowCountSelect = createGroupedSelectChain([])
+    const tx = {
+      select: vi.fn().mockReturnValueOnce(workspaceSelect).mockReturnValueOnce(workflowCountSelect),
+      update: vi.fn(),
+    }
+
+    const result = await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+      tx: tx as any,
+      workspaceIds: ['workspace-1'],
+      departingUserId: 'departing-1',
+    })
+
+    expect(tx.update).not.toHaveBeenCalled()
+    expect(result).toEqual({ reassigned: [], unresolved: [] })
+  })
+
   it('marks a workspace unresolved when no billed account is configured', async () => {
     const workspaceSelect = createSelectChain([{ id: 'workspace-1', billedAccountUserId: null }])
+    const workflowCountSelect = createGroupedSelectChain([
+      { workspaceId: 'workspace-1', workflowCount: 1 },
+    ])
     const tx = {
-      select: vi.fn().mockReturnValue(workspaceSelect),
+      select: vi.fn().mockReturnValueOnce(workspaceSelect).mockReturnValueOnce(workflowCountSelect),
       update: vi.fn(),
     }
 
