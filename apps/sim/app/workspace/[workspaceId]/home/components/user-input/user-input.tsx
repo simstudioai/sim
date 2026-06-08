@@ -1068,8 +1068,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     if (!textarea) return
     const start = textarea.selectionStart ?? 0
     const end = textarea.selectionEnd ?? 0
-    // `selectionchange` fires before this `select` handler, so prevSelectionRef
-    // already holds the selection from just before this change.
     const prev = prevSelectionRef.current
 
     // Adopt value changes that bypassed React's change tracking (browser
@@ -1086,10 +1084,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     const snapped = snapSelectionToChips({ start, end }, prev, startChip, endChip)
 
     if (snapped.start !== start || snapped.end !== end) {
-      // Deferred so in-flight click/drag processing can't override the write;
-      // bails if the selection moved again first (a newer event supersedes it).
-      // The write re-fires this handler, which then syncs the menus below.
-      // Direction is read at apply time so it's never stale.
+      // Deferred so in-flight click/drag processing can't override the write,
+      // and bailed if the selection moved again first. The write re-fires this
+      // handler, which then syncs the menus.
       setTimeout(() => {
         if (textarea.selectionStart !== start || textarea.selectionEnd !== end) return
         textarea.setSelectionRange(

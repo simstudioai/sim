@@ -23,17 +23,13 @@ export interface Selection {
 /**
  * Snaps a selection so no edge sits inside a chip.
  *
- * - **Collapsed caret inside a chip** → nearest chip edge (so the caret can't
- *   rest mid-chip).
- * - **Ranged selection** → each edge inside a chip snaps to a chip boundary,
- *   never collapsing the range. Which boundary depends on the gesture:
- *   - A *lone moved edge* (keyboard extend/shrink, drag) snaps in its direction
- *     of travel — growing absorbs the chip, shrinking releases it.
- *   - A *fresh selection* (double-click, select-all) expands outward to include
- *     touched chips whole. A fresh selection that happens to share one edge with
- *     `prev` (e.g. select-all from a caret already at 0) takes the single-edge
- *     path, but a grown edge expands outward there too — the paths differ only
- *     for a *shrinking* edge, which implies a genuine single-edge gesture.
+ * - **Collapsed caret inside a chip** → nearest chip edge.
+ * - **Ranged selection** → each edge inside a chip snaps to a boundary without
+ *   collapsing the range. A lone moved edge (keyboard extend/shrink, drag) snaps
+ *   in its direction of travel — growing absorbs the chip, shrinking releases
+ *   it; a fresh selection (double-click, select-all) expands outward. The two
+ *   paths differ only for a shrinking edge, so the gesture inference is safe
+ *   even when a fresh selection happens to share an edge with `prev`.
  *
  * @param sel - The observed selection.
  * @param prev - The previously observed selection, used to infer which edge moved.
