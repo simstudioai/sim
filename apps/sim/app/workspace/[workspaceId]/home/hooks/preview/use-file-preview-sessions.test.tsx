@@ -10,7 +10,7 @@ import {
   pickActiveSessionId,
   reduceFilePreviewSessions,
   shouldReplaceSession,
-} from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
+} from '@/app/workspace/[workspaceId]/home/hooks/preview/use-file-preview-sessions'
 
 function createSession(
   overrides: Partial<FilePreviewSession> & Pick<FilePreviewSession, 'id' | 'toolCallId'>

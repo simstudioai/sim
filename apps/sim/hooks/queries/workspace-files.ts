@@ -204,6 +204,7 @@ export function useWorkspaceFileBinary(
     enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
     staleTime: 30 * 1000,
     refetchOnWindowFocus: 'always',
+    placeholderData: keepPreviousData,
     // While a generated doc is still compiling, serve returns 409. Poll (stay in
     // the loading state) until the artifact is ready instead of surfacing an
     // error. The artifact is written before the source commits, so a fresh serve

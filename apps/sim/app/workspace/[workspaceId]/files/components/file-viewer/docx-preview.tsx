@@ -5,10 +5,10 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
 import { PDF_PAGE_SKELETON, PreviewError, resolvePreviewError } from './preview-shared'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 const logger = createLogger('DocxPreview')
 
@@ -62,30 +62,15 @@ function fitDocxToContainer(host: HTMLElement, viewport: HTMLElement, zoomPercen
 export const DocxPreview = memo(function DocxPreview({
   file,
   workspaceId,
-  streamingContent,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
-  streamingContent?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const zoomPercentRef = useRef(100)
-  // Generated docs are 0 bytes until the tool commits the compiled source at the
-  // end of the run; only fetch the compiled artifact once content exists so we
-  // don't 409-poll the serve route throughout generation. Uploaded docs always
-  // have size > 0, so they fetch immediately as before.
-  const hasCommittedContent = (file.size ?? 0) > 0
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
-    enabled: hasCommittedContent,
-    // edit_content updates in place (same storage key); version on updatedAt so an
-    // open preview refetches the new binary instead of showing the stale one.
-    version: Number(new Date(file.updatedAt)) || file.size,
-  })
+  const preview = useDocPreviewBinary(workspaceId, file)
+  const fileData = preview.data
   const [renderError, setRenderError] = useState<string | null>(null)
   const [rendering, setRendering] = useState(false)
   const [hasRenderedPreview, setHasRenderedPreview] = useState(false)
@@ -191,7 +176,7 @@ export const DocxPreview = memo(function DocxPreview({
   }, [pageCount, documentRenderVersion])
 
   useEffect(() => {
-    if (!containerRef.current || !fileData || streamingContent !== undefined) return
+    if (!containerRef.current || !fileData) return
 
     let cancelled = false
 
@@ -229,18 +214,12 @@ export const DocxPreview = memo(function DocxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData, streamingContent, applyPostRenderStyling])
+  }, [fileData, applyPostRenderStyling])
 
-  // The document is compiled to a committed binary (E2B doc sandbox, or
-  // isolated-vm when disabled) and rendered from the committed artifact above.
-  // There is no live per-tick preview: while the agent is still generating
-  // (streamingContent defined), the skeleton shows until the artifact lands.
-  const error = streamingContent !== undefined ? null : resolvePreviewError(fetchError, renderError)
+  const error = resolvePreviewError(preview.error, renderError)
   if (error) return <PreviewError label='document' error={error} />
 
-  const showSkeleton =
-    !hasRenderedPreview &&
-    (streamingContent !== undefined || isLoading || rendering || !hasCommittedContent)
+  const showSkeleton = !hasRenderedPreview && (!fileData || rendering)
 
   const scrollToPage = (page: number) => {
     const scrollContainer = scrollContainerRef.current

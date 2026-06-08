@@ -7,9 +7,9 @@ import type { WorkBook } from 'xlsx'
 import { Button, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
 import { DataTable } from './data-table'
 import { PreviewError, resolvePreviewError } from './preview-shared'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 const logger = createLogger('XlsxPreview')
 
@@ -54,20 +54,8 @@ export const XlsxPreview = memo(function XlsxPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
-  // Generated spreadsheets are 0 bytes until the tool commits the compiled source
-  // at the end of the run; only fetch the compiled artifact once content exists so
-  // we don't 409-poll the serve route throughout generation. Uploaded sheets
-  // always have size > 0, so they fetch immediately as before.
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
-    enabled: (file.size ?? 0) > 0,
-    // edit_content updates in place (same storage key); version on updatedAt so an
-    // open preview refetches the new binary instead of showing the stale one.
-    version: Number(new Date(file.updatedAt)) || file.size,
-  })
+  const preview = useDocPreviewBinary(workspaceId, file)
+  const fileData = preview.data
 
   const [sheetNames, setSheetNames] = useState<string[]>([])
   const [activeSheet, setActiveSheet] = useState(0)
@@ -144,12 +132,10 @@ export const XlsxPreview = memo(function XlsxPreview({
     }
   }, [sheetNames, activeSheet])
 
-  const error = resolvePreviewError(fetchError, renderError)
+  const error = resolvePreviewError(preview.error, renderError)
   if (error) return <PreviewError label='spreadsheet' error={error} />
-  if (isLoading || currentSheet === null) return XLSX_SKELETON
+  if (!fileData || currentSheet === null) return XLSX_SKELETON
 
-  // Read-only, like the pptx/docx/pdf previews — generated spreadsheets are owned
-  // by their source script; manual edits aren't supported.
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
       <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)]'>

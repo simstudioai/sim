@@ -27,13 +27,14 @@ import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/
 import {
   FileViewer,
   type PreviewMode,
+  resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
-import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
+import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
   MothershipResource,
@@ -116,50 +117,28 @@ export const ResourceContent = memo(function ResourceContent({
   }, [workspaceId, streamFileName])
 
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
-  const rawPreviewText = previewSession?.previewText
-  // Compiled docs (docx/pptx/pdf/xlsx) stream un-renderable source while the tool
-  // runs; their viewer renders the COMPILED binary, not the source. Once the tool
-  // completes, stop treating the session as live streaming — otherwise the viewer
-  // sits on its skeleton forever instead of rendering the committed artifact.
-  // Text/markdown intentionally keep their streamed content after completion (it
-  // IS the rendered content), so this narrows only the compiled-doc case.
-  const previewSessionExt = getFileExtension(previewSession?.fileName ?? '')
-  const isCompiledDocPreview = ['docx', 'pptx', 'pdf', 'xlsx'].includes(previewSessionExt)
-  const compiledDocSessionDone = isCompiledDocPreview && previewSession?.status === 'complete'
-  const streamingPreviewText =
-    previewSession &&
-    !compiledDocSessionDone &&
-    typeof rawPreviewText === 'string' &&
+  const isTextPreview =
+    !!previewSession && resolveFileCategory(null, previewSession.fileName) === 'text-editable'
+  const textStreamingContent =
+    isTextPreview &&
+    typeof previewSession?.previewText === 'string' &&
     hasRenderableFilePreviewContent(previewSession)
-      ? rawPreviewText
-      : undefined
-  const pendingOrStreamingFilePreviewText =
-    !compiledDocSessionDone &&
-    previewSession?.fileId === resource.id &&
-    typeof rawPreviewText === 'string' &&
-    hasRenderableFilePreviewContent(previewSession)
-      ? rawPreviewText
+      ? previewSession.previewText
       : undefined
 
   if (resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
-        {streamingPreviewText !== undefined ? (
-          <FileViewer
-            file={syntheticFile}
-            workspaceId={workspaceId}
-            canEdit={false}
-            previewMode={previewMode ?? 'preview'}
-            streamingContent={streamingPreviewText}
-            streamingMode='replace'
-            disableStreamingAutoScroll={disableStreamingAutoScroll}
-            previewContextKey={previewContextKey}
-          />
-        ) : (
-          <div className='flex h-full items-center justify-center'>
-            <p className='text-[13px] text-[var(--text-muted)]'>Processing file…</p>
-          </div>
-        )}
+        <FileViewer
+          file={syntheticFile}
+          workspaceId={workspaceId}
+          canEdit={false}
+          previewMode={previewMode ?? 'preview'}
+          streamingContent={textStreamingContent}
+          streamingMode='replace'
+          disableStreamingAutoScroll={disableStreamingAutoScroll}
+          previewContextKey={previewContextKey}
+        />
       </div>
     )
   }
@@ -176,7 +155,9 @@ export const ResourceContent = memo(function ResourceContent({
           fileId={resource.id}
           filePath={resource.path}
           previewMode={previewMode}
-          streamingContent={pendingOrStreamingFilePreviewText}
+          streamingContent={
+            previewSession?.fileId === resource.id ? textStreamingContent : undefined
+          }
           streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}

@@ -9,7 +9,7 @@ import {
   PreviewError,
   resolvePreviewError,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
-import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
+import { useDocPreviewBinary } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-doc-preview-binary'
 
 const logger = createLogger('PptxPreview')
 
@@ -44,36 +44,16 @@ function pptxCacheKey(fileId: string, dataUpdatedAt: number, byteLength: number)
 export const PptxPreview = memo(function PptxPreview({
   file,
   workspaceId,
-  streamingContent,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
-  streamingContent?: string
 }) {
-  // Generated decks are 0 bytes until the tool commits the compiled source at the
-  // end of the run; only fetch the compiled artifact once content exists so we
-  // don't 409-poll the serve route throughout generation. Uploaded decks always
-  // have size > 0, so they fetch immediately as before.
-  const {
-    data: fileData,
-    error: fetchError,
-    dataUpdatedAt,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
-    enabled: (file.size ?? 0) > 0,
-    // edit_content updates in place (same storage key); version on updatedAt so an
-    // open preview refetches the new binary instead of showing the stale one.
-    version: Number(new Date(file.updatedAt)) || file.size,
-  })
-
-  const cacheKey = pptxCacheKey(file.id, dataUpdatedAt, fileData?.byteLength ?? 0)
+  const preview = useDocPreviewBinary(workspaceId, file)
+  const fileData = preview.data
+  const cacheKey = pptxCacheKey(file.id, preview.dataUpdatedAt, fileData?.byteLength ?? 0)
 
   const [hasRendered, setHasRendered] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
-  // The deck is compiled to a committed binary (E2B doc sandbox, or isolated-vm
-  // when disabled) and served by useWorkspaceFileBinary. There is no live per-tick
-  // preview: while the agent is still generating (isStreaming), we show the
-  // loading skeleton and render the committed artifact once it lands/updates.
-  const isStreaming = streamingContent !== undefined
 
   useEffect(() => {
     setRenderError(null)
@@ -93,9 +73,7 @@ export const PptxPreview = memo(function PptxPreview({
     setRenderError(message || 'Failed to render presentation')
   }
 
-  // Suppress transient fetch errors while generating — show the skeleton instead
-  // of a "failed to preview" flash until the committed artifact is ready.
-  const error = isStreaming ? null : resolvePreviewError(fetchError, renderError)
+  const error = resolvePreviewError(preview.error, renderError)
 
   if (error) return <PreviewError label='presentation' error={error} />
 

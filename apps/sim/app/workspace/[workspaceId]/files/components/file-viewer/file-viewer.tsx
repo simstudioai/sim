@@ -9,6 +9,7 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
 import { resolveFileCategory } from './file-category'
 import type { StreamingMode } from './text-editor-state'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 export type { StreamingMode } from './text-editor-state'
 
@@ -88,14 +89,7 @@ export function FileViewer({
   }
 
   if (category === 'iframe-previewable') {
-    return (
-      <IframePreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <IframePreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'image-previewable') {
@@ -111,29 +105,15 @@ export function FileViewer({
   }
 
   if (category === 'docx-previewable') {
-    return (
-      <DocxPreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <DocxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'pptx-previewable') {
-    return (
-      <PptxPreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <PptxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'xlsx-previewable') {
-    return <XlsxPreview file={file} workspaceId={workspaceId} />
+    return <XlsxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   return <UnsupportedPreview file={file} />
@@ -142,45 +122,30 @@ export function FileViewer({
 const IframePreview = memo(function IframePreview({
   file,
   workspaceId,
-  streamingContent,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
-  streamingContent?: string
 }) {
-  // Generated PDFs are 0 bytes until the tool commits the compiled source at the
-  // end of the run; only fetch the compiled artifact once content exists so we
-  // don't 409-poll the serve route throughout generation. Uploaded PDFs always
-  // have size > 0, so they fetch immediately as before. Re-fetches when the file
-  // record is invalidated, so the preview renders once the artifact lands.
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-    dataUpdatedAt,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
-    enabled: (file.size ?? 0) > 0,
-    // edit_content updates in place (same storage key); version on updatedAt so an
-    // open preview refetches the new binary instead of showing the stale one.
-    version: Number(new Date(file.updatedAt)) || file.size,
-  })
+  const preview = useDocPreviewBinary(workspaceId, file)
 
   const bufferSource = useMemo<PdfDocumentSource | null>(
-    () => (fileData ? { kind: 'buffer', buffer: fileData } : null),
-    [fileData]
+    () => (preview.data ? { kind: 'buffer', buffer: preview.data } : null),
+    [preview.data]
   )
 
-  // No live per-tick preview: suppress transient fetch errors while generating
-  // (streamingContent defined) so the skeleton shows instead of a flash.
-  const error = streamingContent !== undefined ? null : resolvePreviewError(fetchError, null)
+  const error = resolvePreviewError(preview.error, null)
   if (error) return <PreviewError label='PDF' error={error} />
 
-  if (streamingContent !== undefined || isLoading || !bufferSource) {
+  if (!bufferSource) {
     return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
   }
 
   return (
-    <PdfViewerCore key={`${file.id}:${dataUpdatedAt}`} source={bufferSource} filename={file.name} />
+    <PdfViewerCore
+      key={`${file.id}:${preview.dataUpdatedAt}`}
+      source={bufferSource}
+      filename={file.name}
+    />
   )
 })
 
