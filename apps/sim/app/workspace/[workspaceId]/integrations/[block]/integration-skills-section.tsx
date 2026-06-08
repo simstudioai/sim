@@ -68,6 +68,7 @@ export function IntegrationSkillsSection({
   const { data: existingSkills = [] } = useSkills(workspaceId)
   const createSkill = useCreateSkill()
   const [pendingName, setPendingName] = useState<string | null>(null)
+  const [optimisticAdded, setOptimisticAdded] = useState<ReadonlySet<string>>(new Set())
 
   const existingNames = useMemo(() => new Set(existingSkills.map((s) => s.name)), [existingSkills])
 
@@ -75,6 +76,9 @@ export function IntegrationSkillsSection({
     setPendingName(skill.name)
     try {
       await createSkill.mutateAsync({ workspaceId, skill })
+      // Mark added locally so the row flips to "Added" immediately — the list
+      // refetch that backs `existingNames` lands after this mutation resolves.
+      setOptimisticAdded((prev) => new Set(prev).add(skill.name))
       captureEvent(posthog, 'integration_skill_added', {
         workspace_id: workspaceId,
         integration_type: integrationType,
@@ -96,7 +100,7 @@ export function IntegrationSkillsSection({
           <SkillRow
             key={skill.name}
             skill={skill}
-            added={existingNames.has(skill.name)}
+            added={existingNames.has(skill.name) || optimisticAdded.has(skill.name)}
             pending={pendingName === skill.name}
             onAdd={() => handleAdd(skill, index)}
           />
