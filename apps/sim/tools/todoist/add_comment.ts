@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import type { TodoistAddCommentParams, TodoistAddCommentResponse } from '@/tools/todoist/types'
 import { mapTodoistComment } from '@/tools/todoist/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -40,6 +41,7 @@ export const todoistAddCommentTool: ToolConfig<TodoistAddCommentParams, TodoistA
         return {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${params.apiKey}`,
+          'X-Request-Id': generateId(),
         }
       },
       body: (params) => {

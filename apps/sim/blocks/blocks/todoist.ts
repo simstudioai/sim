@@ -222,7 +222,8 @@ Return ONLY the description string.`,
               taskId: params.taskId,
               content: params.content || undefined,
               description: params.description || undefined,
-              priority: params.priority ? Number(params.priority) : undefined,
+              priority:
+                params.priority && params.priority !== '1' ? Number(params.priority) : undefined,
               dueString: params.dueString || undefined,
               labels: labelsArray,
             }

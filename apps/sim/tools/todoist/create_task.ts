@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import type { TodoistCreateTaskParams, TodoistCreateTaskResponse } from '@/tools/todoist/types'
 import { mapTodoistTask } from '@/tools/todoist/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -65,6 +66,7 @@ export const todoistCreateTaskTool: ToolConfig<TodoistCreateTaskParams, TodoistC
         return {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${params.apiKey}`,
+          'X-Request-Id': generateId(),
         }
       },
       body: (params) => {
