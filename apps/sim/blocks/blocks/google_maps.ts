@@ -1,5 +1,5 @@
 import { GoogleMapsIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 
 export const GoogleMapsBlock: BlockConfig = {
@@ -10,9 +10,8 @@ export const GoogleMapsBlock: BlockConfig = {
     'Integrate Google Maps Platform APIs into your workflow. Supports geocoding addresses to coordinates, reverse geocoding, getting directions between locations, calculating distance matrices, searching for places, retrieving place details, elevation data, and timezone information.',
   docsLink: 'https://docs.sim.ai/tools/google_maps',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['google-workspace', 'enrichment'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Search,
+  bgColor: '#FFFFFF',
   icon: GoogleMapsIcon,
 
   subBlocks: [
@@ -639,3 +638,78 @@ export const GoogleMapsBlock: BlockConfig = {
     healthRecommendations: { type: 'json', description: 'Health recommendations' },
   },
 }
+
+export const GoogleMapsBlockMeta = {
+  tags: ['google-workspace', 'enrichment'],
+  templates: [
+    {
+      icon: GoogleMapsIcon,
+      title: 'Google Maps competitor location finder',
+      prompt:
+        'Build a workflow that uses Google Maps to find competitor locations in a target city, writes coordinates and details to a table, and emails the sales team a route map.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleMapsIcon,
+      title: 'Google Maps territory builder',
+      prompt:
+        'Create a workflow that takes a list of CRM accounts, geocodes them via Google Maps, clusters into territories, and writes the assignment to a tables-based territory plan.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: GoogleMapsIcon,
+      title: 'Google Maps event-attendee proximity',
+      prompt:
+        'Build a workflow that for a Luma event sorts registrants by proximity to the venue via Google Maps, writes the list, and offers a quick-action transport option.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'communication'],
+      alsoIntegrations: ['luma'],
+    },
+    {
+      icon: GoogleMapsIcon,
+      title: 'Google Maps logistics planner',
+      prompt:
+        'Create a workflow that takes a delivery list, optimizes the route via Google Maps directions, and writes a per-driver itinerary to a tables-based dispatcher view.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'automation'],
+    },
+    {
+      icon: GoogleMapsIcon,
+      title: 'Google Maps store-locator updater',
+      prompt:
+        'Build a scheduled workflow that audits store locations on the website against Google Maps Places data, flags out-of-date hours or addresses, and pings the team to correct.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleMapsIcon,
+      title: 'Google Maps review tracker',
+      prompt:
+        'Create a scheduled workflow that watches Google Maps reviews of brand locations daily, classifies sentiment, and pings the right manager in Slack on new negative reviews.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleMapsIcon,
+      title: 'Google Maps lead-by-region exporter',
+      prompt:
+        'Build a workflow that uses Google Maps to find businesses matching an ICP in a region, enriches via Hunter, and writes the prospect list to HubSpot.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['hunter', 'hubspot'],
+    },
+  ],
+} as const satisfies BlockMeta

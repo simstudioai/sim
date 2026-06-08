@@ -72,7 +72,7 @@ export async function executeManageSkill(
         }
       }
 
-      const resultSkills = await upsertSkills({
+      const { skills: resultSkills } = await upsertSkills({
         skills: [{ name: params.name, description: params.description, content: params.content }],
         workspaceId,
         userId: context.userId,

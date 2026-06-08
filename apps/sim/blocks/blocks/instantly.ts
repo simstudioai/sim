@@ -1,5 +1,5 @@
 import { InstantlyIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { InstantlyResponse } from '@/tools/instantly/types'
 import { getTrigger } from '@/triggers'
@@ -54,7 +54,6 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
   docsLink: 'https://docs.sim.ai/tools/instantly',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['sales-engagement', 'email-marketing', 'automation'],
   bgColor: '#FFFFFF',
   icon: InstantlyIcon,
   authMode: AuthMode.ApiKey,
@@ -1253,3 +1252,77 @@ function optionalIdParam(value: unknown): string | undefined {
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
+
+export const InstantlyBlockMeta = {
+  tags: ['sales-engagement', 'email-marketing', 'automation'],
+  templates: [
+    {
+      icon: InstantlyIcon,
+      title: 'Instantly lead loader',
+      prompt:
+        'Build a workflow that reads new prospects from a table and creates each as a lead in the right Instantly campaign, then writes the Instantly lead ID back so the sender table stays in sync.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: InstantlyIcon,
+      title: 'Instantly reply triager',
+      prompt:
+        'Create a workflow triggered when an Instantly reply is received that classifies intent, updates the lead interest status, and posts a Slack alert for positive replies so reps follow up fast.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: InstantlyIcon,
+      title: 'Instantly campaign launcher',
+      prompt:
+        'Build a workflow that creates a new Instantly campaign from a brief, builds a lead list, loads the prospects, and activates the campaign once the list is ready.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: InstantlyIcon,
+      title: 'Instantly performance report',
+      prompt:
+        'Create a scheduled weekly workflow that lists Instantly campaigns and emails, computes reply and interest rates per campaign, logs them to a table for trend tracking, and Slacks a summary to the sales team.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: InstantlyIcon,
+      title: 'Instantly meeting-booked sync',
+      prompt:
+        'Build a workflow triggered when an Instantly lead is marked meeting booked that creates or updates the matching HubSpot contact and deal so the CRM reflects pipeline from outbound.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: InstantlyIcon,
+      title: 'Hunter + Instantly outbound',
+      prompt:
+        'Create a workflow that finds verified prospect emails with Hunter, validates each, and loads the deliverable contacts into an active Instantly campaign.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['hunter'],
+    },
+    {
+      icon: InstantlyIcon,
+      title: 'Instantly reply router',
+      prompt:
+        "Build a scheduled workflow that lists new Instantly campaign email replies, classifies each as interested, objection, or out-of-office with an agent, updates the lead's interest status, and posts hot replies to the sales Slack channel for a fast follow-up.",
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

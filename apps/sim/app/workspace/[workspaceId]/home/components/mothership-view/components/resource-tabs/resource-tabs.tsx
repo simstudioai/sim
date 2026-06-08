@@ -202,7 +202,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
           isDragging && 'opacity-30'
         )}
       >
-        {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
+        {config.renderTabIcon(resource, 'mr-1.5 size-[14px]')}
         {displayName}
         {(isHovered || isActive) && chatId && (
           <span

@@ -6,18 +6,19 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
+  ChipInput,
   type ComboboxOption,
-  Input,
   Label,
   Skeleton,
   Textarea,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/create-workflow-mcp-server-modal'
+import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components/create-workflow-mcp-server-modal'
 import {
   useAddWorkflowMcpTool,
   useDeleteWorkflowMcpTool,
@@ -31,6 +32,14 @@ import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subb
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('McpToolDeploy')
+
+/**
+ * Mirrors the server's `sanitizeToolName` output: lowercase alphanumerics with single
+ * underscores between segments. Disallows leading/trailing and consecutive underscores so
+ * the validated name matches exactly what the server persists (no silent rewrite).
+ */
+const TOOL_NAME_PATTERN = /^[a-z0-9]+(_[a-z0-9]+)*$/
+const MAX_TOOL_NAME_LENGTH = 64
 
 /** InputFormatField with guaranteed name (after normalization) */
 type NormalizedField = InputFormatField & { name: string }
@@ -166,6 +175,18 @@ export function McpDeploy({
     [inputFormat, parameterDescriptions]
   )
 
+  const toolNameError = useMemo(() => {
+    const trimmed = toolName.trim()
+    if (!trimmed) return null
+    if (trimmed.length > MAX_TOOL_NAME_LENGTH) {
+      return `Tool name must be ${MAX_TOOL_NAME_LENGTH} characters or fewer`
+    }
+    if (!TOOL_NAME_PATTERN.test(trimmed)) {
+      return 'Use lowercase letters and numbers, separated by single underscores'
+    }
+    return null
+  }, [toolName])
+
   const [serverToolsMap, setServerToolsMap] = useState<
     Record<string, { tool: WorkflowMcpTool | null; isLoading: boolean }>
   >({})
@@ -270,11 +291,11 @@ export function McpDeploy({
     (hasToolConfigurationChanges && selectedServerIdsForForm.length > 0)
 
   useEffect(() => {
-    onCanSaveChange?.(hasChanges && !!toolName.trim())
-  }, [hasChanges, toolName, onCanSaveChange])
+    onCanSaveChange?.(hasChanges && !!toolName.trim() && !toolNameError)
+  }, [hasChanges, toolName, toolNameError, onCanSaveChange])
 
   const handleSave = async () => {
-    if (!toolName.trim()) return
+    if (!toolName.trim() || toolNameError) return
 
     const currentIds = new Set(selectedServerIds)
     const nextIds = new Set(selectedServerIdsForForm)
@@ -488,13 +509,20 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Tool name
         </Label>
-        <Input
+        <ChipInput
           value={toolName}
           onChange={(e) => setToolName(e.target.value)}
           placeholder='e.g., book_flight'
+          aria-invalid={!!toolNameError}
+          error={Boolean(toolNameError)}
         />
-        <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-          Use lowercase letters, numbers, and underscores only
+        <p
+          className={cn(
+            'mt-[6.5px] text-xs',
+            toolNameError ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
+          )}
+        >
+          {toolNameError ?? 'Use lowercase letters, numbers, and underscores only'}
         </p>
       </div>
 
@@ -534,7 +562,7 @@ export function McpDeploy({
                 <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                   <div className='flex flex-col gap-1.5'>
                     <Label className='text-small'>Description</Label>
-                    <Input
+                    <ChipInput
                       value={parameterDescriptions[field.name] || ''}
                       onChange={(e) =>
                         setParameterDescriptions((prev) => ({
@@ -556,7 +584,7 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Servers
         </Label>
-        <Combobox
+        <ChipCombobox
           options={serverOptions}
           multiSelect
           multiSelectValues={selectedServerIdsForForm}
@@ -564,16 +592,20 @@ export function McpDeploy({
           placeholder='Select servers...'
           searchable
           searchPlaceholder='Search servers...'
-          disabled={!toolName.trim() || isPending}
+          disabled={!toolName.trim() || !!toolNameError || isPending}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
           }
         />
-        {!toolName.trim() && (
+        {!toolName.trim() ? (
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             Enter a tool name to select servers
           </p>
-        )}
+        ) : toolNameError ? (
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
+            Fix the tool name to select servers
+          </p>
+        ) : null}
       </div>
 
       {saveErrors.length > 0 && (

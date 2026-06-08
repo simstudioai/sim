@@ -1,5 +1,5 @@
 import { ZeroBounceIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ZeroBounceResponse } from '@/tools/zerobounce/types'
 
 export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
@@ -12,7 +12,6 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
   docsLink: 'https://docs.sim.ai/tools/zerobounce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#00B894',
   icon: ZeroBounceIcon,
   subBlocks: [
@@ -99,3 +98,7 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
     credits: { type: 'number', description: 'Remaining validation credits' },
   },
 }
+
+export const ZeroBounceBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+} as const satisfies BlockMeta

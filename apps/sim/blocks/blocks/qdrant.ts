@@ -1,5 +1,5 @@
 import { QdrantIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { QdrantResponse } from '@/tools/qdrant/types'
 
@@ -12,7 +12,6 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   docsLink: 'https://qdrant.tech/documentation/',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#1A223F',
   icon: QdrantIcon,
 
@@ -247,3 +246,75 @@ Return ONLY the JSON object.`,
     status: { type: 'string', description: 'Operation status' },
   },
 }
+
+export const QdrantBlockMeta = {
+  tags: ['vector-search', 'knowledge-base'],
+  templates: [
+    {
+      icon: QdrantIcon,
+      title: 'Qdrant document ingestion',
+      prompt:
+        'Build a workflow that watches a Google Drive folder for new docs, chunks each, generates embeddings, and upserts the vectors into a Qdrant collection with rich metadata.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+      alsoIntegrations: ['google_drive', 'openai'],
+    },
+    {
+      icon: QdrantIcon,
+      title: 'Qdrant retrieval agent',
+      prompt:
+        'Create an agent that performs hybrid search against a Qdrant collection — semantic + filter conditions — and answers user questions with the matched documents cited.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'enterprise'],
+    },
+    {
+      icon: QdrantIcon,
+      title: 'Qdrant payload schema migrator',
+      prompt:
+        'Build a workflow that scans a Qdrant collection, migrates payload schema to a new version with backfilled fields, and writes the migration plan and outcome to an audit table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: QdrantIcon,
+      title: 'Qdrant + knowledge base sync',
+      prompt:
+        'Create a workflow that mirrors a Sim knowledge base into a Qdrant collection so downstream applications outside Sim can perform retrieval against the same vectors.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+    },
+    {
+      icon: QdrantIcon,
+      title: 'Qdrant snapshot manager',
+      prompt:
+        'Build a scheduled workflow that takes a Qdrant collection snapshot each night, uploads it to S3 with retention rotation, and writes the snapshot manifest to a tracking table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: QdrantIcon,
+      title: 'Qdrant abandoned-document detector',
+      prompt:
+        'Create a workflow that scans a Qdrant collection for vectors whose source document no longer exists, deletes the orphans, and writes a hygiene report each week.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: QdrantIcon,
+      title: 'Qdrant support-answer retriever',
+      prompt:
+        'Build a workflow that embeds each new Zendesk ticket with OpenAI, runs a filtered Qdrant search scoped to the customer’s product, and drafts a cited reply from the closest matching resolved tickets for the agent to approve.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'vector-search', 'automation'],
+      alsoIntegrations: ['openai', 'zendesk'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -8,7 +8,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Skeleton, toast, useToast } from '@/components/emcn'
 import { Loader, TableX } from '@/components/emcn/icons'
-import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
+import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
@@ -21,6 +21,7 @@ import {
   useCreateTableRow,
   useDeleteColumn,
   useDeleteWorkflowGroup,
+  useFindTableRows,
   useTableRunState,
   useUpdateColumn,
   useUpdateTableMetadata,
@@ -45,6 +46,7 @@ import { ExpandedCellPopover } from './cells'
 import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
+import { TableFind } from './table-find'
 import {
   AddRowButton,
   SelectAllCheckbox,
@@ -74,6 +76,7 @@ import {
 const logger = createLogger('TableView')
 
 const EMPTY_RUNNING_BY_ROW: Readonly<Record<string, number>> = Object.freeze({})
+const EMPTY_FIND_MATCHES: readonly TableFindMatch[] = Object.freeze([])
 
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
@@ -281,6 +284,18 @@ export function TableGrid({
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelection>(ROW_SELECTION_NONE)
   const [isColumnSelection, setIsColumnSelection] = useState(false)
+  // Find (Cmd/Ctrl+F): `findQuery` is the live input, `submittedQuery` is the
+  // last Enter/search-triggered term the query hook runs on.
+  const [findOpen, setFindOpen] = useState(false)
+  const [findQuery, setFindQuery] = useState('')
+  const [submittedQuery, setSubmittedQuery] = useState('')
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const [isJumping, setIsJumping] = useState(false)
+  // Bumped on every navigation so the reveal effect re-runs even when the target
+  // row was already loaded (so `rows` identity didn't change).
+  const [pendingMatchTick, setPendingMatchTick] = useState(0)
+  const findInputRef = useRef<HTMLInputElement>(null)
+  const pendingMatchRef = useRef<TableFindMatch | null>(null)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
@@ -309,6 +324,16 @@ export function TableGrid({
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
   const isDraggingRef = useRef(false)
   const suppressFocusScrollRef = useRef(false)
+  /**
+   * Row-gutter drag-to-select. `isRowDraggingRef` is the active flag (kept
+   * separate from the cell-drag `isDraggingRef` so the two don't cross-fire),
+   * `rowDragAnchorRef` is the row index the drag started on, and
+   * `rowDragBaseRef` is the materialized selection captured before the drag so
+   * the swept range is unioned onto whatever was already selected.
+   */
+  const isRowDraggingRef = useRef(false)
+  const rowDragAnchorRef = useRef<number | null>(null)
+  const rowDragBaseRef = useRef<Set<string> | null>(null)
 
   const {
     tableData,
@@ -584,7 +609,7 @@ export function TableGrid({
   )
 
   const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
-  const { colWidth: checkboxColWidth, numDivWidth } = checkboxColLayout(
+  const { colWidth: checkboxColWidth, numRegionWidth } = checkboxColLayout(
     tableData?.maxRows ?? 0,
     hasWorkflowColumns
   )
@@ -713,8 +738,13 @@ export function TableGrid({
     [rowSelection, rows]
   )
 
-  const isAllRowsSelectedRef = useRef(isAllRowsSelected)
-  isAllRowsSelectedRef.current = isAllRowsSelected
+  // Header select-all: filled check when all rows are selected, filled minus when
+  // some are, empty when none. Any non-empty selection turns it into a "clear" affordance.
+  const selectAllState: boolean | 'indeterminate' = isAllRowsSelected
+    ? true
+    : rowSelectionIsEmpty(rowSelection)
+      ? false
+      : 'indeterminate'
 
   const columnsRef = useRef(displayColumns)
   const schemaColumnsRef = useRef(columns)
@@ -741,6 +771,106 @@ export function TableGrid({
   focusRowIdRef.current = selectionFocus
     ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
     : null
+
+  const { data: findData, isFetching: isFindFetching } = useFindTableRows({
+    workspaceId,
+    tableId,
+    q: submittedQuery,
+    filter: queryOptions.filter,
+    sort: queryOptions.sort,
+  })
+
+  /**
+   * Server matches, narrowed to columns present in the current view and ordered
+   * by (row ordinal, display-column index) so next/prev steps left→right,
+   * top→bottom. Matches on stale/hidden columns are dropped — we can't navigate
+   * to a cell that isn't rendered.
+   */
+  const findMatches = useMemo<readonly TableFindMatch[]>(() => {
+    const raw = findData?.matches
+    if (!raw || raw.length === 0) return EMPTY_FIND_MATCHES
+    const colIndexByName = new Map(displayColumns.map((c, i) => [c.name, i]))
+    return raw
+      .filter((m) => colIndexByName.has(m.column))
+      .sort(
+        (a, b) =>
+          a.ordinal - b.ordinal ||
+          (colIndexByName.get(a.column) ?? 0) - (colIndexByName.get(b.column) ?? 0)
+      )
+  }, [findData, displayColumns])
+
+  const findMatchesRef = useRef(findMatches)
+  findMatchesRef.current = findMatches
+  const currentMatchIndexRef = useRef(currentMatchIndex)
+  currentMatchIndexRef.current = currentMatchIndex
+  const findOpenRef = useRef(findOpen)
+  findOpenRef.current = findOpen
+
+  /** Loads the row containing match `index` (wrapping), then queues the cell reveal. */
+  const goToMatch = useCallback(async (index: number) => {
+    const matches = findMatchesRef.current
+    if (matches.length === 0) return
+    const wrapped = ((index % matches.length) + matches.length) % matches.length
+    const match = matches[wrapped]
+    setCurrentMatchIndex(wrapped)
+    setIsJumping(true)
+    try {
+      await ensureRowsLoadedUpToRef.current(match.ordinal + 1)
+    } finally {
+      setIsJumping(false)
+    }
+    // Defer the anchor set to the reveal effect: it must run after the freshly
+    // loaded rows have committed, else scrollToIndex clamps to the stale count.
+    pendingMatchRef.current = match
+    setPendingMatchTick((t) => t + 1)
+  }, [])
+
+  /**
+   * Reveal the pending match's cell once its row is in the loaded window. Keyed
+   * on `rows` (new pages) and `pendingMatchTick` (so it fires even when the row
+   * was already loaded). Sets the cell anchor → the existing scroll effect
+   * brings it into view and draws the highlight.
+   */
+  useEffect(() => {
+    const match = pendingMatchRef.current
+    if (!match) return
+    const rowIndex = rows.findIndex((r) => r.id === match.rowId)
+    if (rowIndex === -1) return
+    const colIndex = displayColumns.findIndex((c) => c.name === match.column)
+    pendingMatchRef.current = null
+    if (colIndex === -1) return
+    setEditingCell(null)
+    setIsColumnSelection(false)
+    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
+    setSelectionFocus(null)
+    setSelectionAnchor({ rowIndex, colIndex })
+  }, [rows, displayColumns, pendingMatchTick])
+
+  /** New result set (new submitted term) → reset to and reveal the first match. */
+  useEffect(() => {
+    setCurrentMatchIndex(0)
+    if (findMatches.length > 0) goToMatch(0)
+  }, [findMatches, goToMatch])
+
+  const handleFindSubmit = useCallback(() => {
+    setSubmittedQuery(findQuery.trim())
+  }, [findQuery])
+
+  const handleFindNext = useCallback(() => {
+    goToMatch(currentMatchIndexRef.current + 1)
+  }, [goToMatch])
+
+  const handleFindPrev = useCallback(() => {
+    goToMatch(currentMatchIndexRef.current - 1)
+  }, [goToMatch])
+
+  const handleFindClose = useCallback(() => {
+    setFindOpen(false)
+    setFindQuery('')
+    setSubmittedQuery('')
+    pendingMatchRef.current = null
+    scrollRef.current?.focus({ preventScroll: true })
+  }, [])
 
   const columnRename = useInlineRename({
     onSave: (columnName, newName) => {
@@ -837,9 +967,12 @@ export function TableGrid({
 
   function handleInsertRow(offset: 0 | 1) {
     if (!contextMenu.row) return
+    const anchorId = contextMenu.row.id
+    // Fractional ordering: express intent by neighbor id, not integer position.
+    const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
     const position = contextMenu.row.position + offset
     createRef.current(
-      { data: {}, position },
+      { data: {}, ...intent },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
@@ -904,7 +1037,7 @@ export function TableGrid({
     const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
-      { data: rowData, position },
+      { data: rowData, afterRowId: contextRow.id },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
@@ -1055,6 +1188,44 @@ export function TableGrid({
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
+  /** Selects every row between the drag anchor and `rowIndex`, unioned onto the base. */
+  const extendRowDragTo = useCallback((rowIndex: number) => {
+    const anchor = rowDragAnchorRef.current
+    if (anchor === null) return
+    const currentRows = rowsRef.current
+    const next = new Set(rowDragBaseRef.current ?? [])
+    const from = Math.min(anchor, rowIndex)
+    const to = Math.max(anchor, rowIndex)
+    for (let i = from; i <= to; i++) {
+      const r = currentRows[i]
+      if (r) next.add(r.id)
+    }
+    setRowSelection(next.size === 0 ? ROW_SELECTION_NONE : { kind: 'some', ids: next })
+  }, [])
+
+  const handleRowMouseDown = useCallback(
+    (rowIndex: number, shiftKey: boolean) => {
+      // Capture the selection before the click mutates it so a drag unions the
+      // swept range onto the prior selection rather than the toggled result.
+      rowDragBaseRef.current = rowSelectionMaterialize(rowSelectionRef.current, rowsRef.current)
+      handleRowToggle(rowIndex, shiftKey)
+      // Shift-click extends from the last checkbox row — leave ranging to that
+      // path and don't begin a drag.
+      if (shiftKey) return
+      isRowDraggingRef.current = true
+      rowDragAnchorRef.current = rowIndex
+    },
+    [handleRowToggle]
+  )
+
+  const handleRowMouseEnter = useCallback(
+    (rowIndex: number) => {
+      if (!isRowDraggingRef.current || rowDragAnchorRef.current === null) return
+      extendRowDragTo(rowIndex)
+    },
+    [extendRowDragTo]
+  )
+
   const handleClearSelection = useCallback(() => {
     setSelectionAnchor(null)
     setSelectionFocus(null)
@@ -1129,7 +1300,8 @@ export function TableGrid({
   }, [])
 
   const handleSelectAllToggle = useCallback(() => {
-    if (isAllRowsSelectedRef.current) {
+    // Any existing selection (partial or full) clears; an empty selection selects all.
+    if (!rowSelectionIsEmpty(rowSelectionRef.current)) {
       handleClearSelection()
     } else {
       handleSelectAllRows()
@@ -1527,6 +1699,9 @@ export function TableGrid({
   useEffect(() => {
     const handleMouseUp = () => {
       isDraggingRef.current = false
+      isRowDraggingRef.current = false
+      rowDragAnchorRef.current = null
+      rowDragBaseRef.current = null
     }
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
@@ -1558,6 +1733,15 @@ export function TableGrid({
       if (pointerX === null || pointerY === null) return
       const target = document.elementFromPoint(pointerX, pointerY)
       if (!target) return
+      if (isRowDraggingRef.current) {
+        // The gutter cell carries no coords; read the row index off any data
+        // cell in the same `<tr>` and extend the swept row range.
+        const cell = (target as HTMLElement).closest('tr')?.querySelector('td[data-row]')
+        const rowIndex = Number.parseInt(cell?.getAttribute('data-row') ?? '', 10)
+        if (Number.isNaN(rowIndex)) return
+        extendRowDragTo(rowIndex)
+        return
+      }
       const td = (target as HTMLElement).closest('td[data-row][data-col]') as HTMLElement | null
       if (!td) return
       const rowIndex = Number.parseInt(td.getAttribute('data-row') ?? '', 10)
@@ -1569,7 +1753,7 @@ export function TableGrid({
     const tick = () => {
       rafId = null
       const el = scrollRef.current
-      if (!isDraggingRef.current || !el || pointerY === null) return
+      if ((!isDraggingRef.current && !isRowDraggingRef.current) || !el || pointerY === null) return
       const rect = el.getBoundingClientRect()
       const distFromTop = pointerY - rect.top
       const distFromBottom = rect.bottom - pointerY
@@ -1589,7 +1773,7 @@ export function TableGrid({
     }
 
     const handleMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return
+      if (!isDraggingRef.current && !isRowDraggingRef.current) return
       pointerX = e.clientX
       pointerY = e.clientY
       if (rafId === null) rafId = requestAnimationFrame(tick)
@@ -1611,7 +1795,7 @@ export function TableGrid({
       document.removeEventListener('mouseup', handleStop)
       handleStop()
     }
-  }, [])
+  }, [extendRowDragTo])
 
   useEffect(() => {
     // Skip during transient empty-rows state (initial load of a new sort/filter
@@ -1818,6 +2002,13 @@ export function TableGrid({
 
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (findOpenRef.current) {
+          setFindOpen(false)
+          setFindQuery('')
+          setSubmittedQuery('')
+          pendingMatchRef.current = null
+          return
+        }
         if (dragColumnNameRef.current) {
           dragColumnNameRef.current = null
           dropTargetColumnNameRef.current = null
@@ -2584,6 +2775,23 @@ export function TableGrid({
     return () => document.removeEventListener('keydown', handleSelectAll)
   }, [embedded])
 
+  /** Override the browser's Cmd/Ctrl+F with the in-table find while mounted. */
+  useEffect(() => {
+    if (embedded) return
+    const handleFindShortcut = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== 'f') return
+      if (!containerRef.current) return
+      e.preventDefault()
+      setFindOpen(true)
+      requestAnimationFrame(() => {
+        findInputRef.current?.focus()
+        findInputRef.current?.select()
+      })
+    }
+    document.addEventListener('keydown', handleFindShortcut)
+    return () => document.removeEventListener('keydown', handleFindShortcut)
+  }, [embedded])
+
   const navigateAfterSave = useCallback((reason: SaveReason) => {
     const anchor = selectionAnchorRef.current
     if (!anchor) return
@@ -3246,6 +3454,22 @@ export function TableGrid({
   return (
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
       <div className='relative flex min-h-0 flex-1'>
+        {findOpen && (
+          <TableFind
+            query={findQuery}
+            onQueryChange={setFindQuery}
+            onSubmit={handleFindSubmit}
+            onNext={handleFindNext}
+            onPrev={handleFindPrev}
+            onClose={handleFindClose}
+            count={findMatches.length}
+            currentIndex={currentMatchIndex}
+            truncated={findData?.truncated ?? false}
+            isLoading={isFindFetching || isJumping}
+            isDirty={findQuery.trim() !== submittedQuery}
+            inputRef={findInputRef}
+          />
+        )}
         <div
           ref={scrollRef}
           tabIndex={-1}
@@ -3400,8 +3624,9 @@ export function TableGrid({
                     )}
                     <tr>
                       <SelectAllCheckbox
-                        checked={isAllRowsSelected}
+                        checked={selectAllState}
                         onCheckedChange={handleSelectAllToggle}
+                        numRegionWidth={numRegionWidth}
                       />
                       {displayColumns.map((column, idx) => {
                         const colIsPinned = pinnedColumnSet.has(column.name)
@@ -3522,9 +3747,11 @@ export function TableGrid({
                               onCellMouseEnter={handleCellMouseEnter}
                               isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
                               onRowToggle={handleRowToggle}
+                              onRowMouseDown={handleRowMouseDown}
+                              onRowMouseEnter={handleRowMouseEnter}
                               runningCount={runningByRowId[row.id] ?? 0}
                               hasWorkflowColumns={hasWorkflowColumns}
-                              numDivWidth={numDivWidth}
+                              numRegionWidth={numRegionWidth}
                               onStopRow={onStopRow}
                               onRunRow={onRunRow}
                               workflowGroups={tableWorkflowGroups}

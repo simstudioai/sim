@@ -1,6 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { AgentPhoneIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 const CONVERSATION_OPS = [
@@ -33,8 +33,7 @@ export const AgentPhoneBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/agentphone',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'automation'],
-  bgColor: '#000000',
+  bgColor: 'linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)',
   icon: AgentPhoneIcon,
   authMode: AuthMode.ApiKey,
 
@@ -750,3 +749,77 @@ export const AgentPhoneBlock: BlockConfig = {
     months: { type: 'number', description: 'Months returned for monthly usage' },
   },
 }
+
+export const AgentPhoneBlockMeta = {
+  tags: ['messaging', 'automation'],
+  templates: [
+    {
+      icon: AgentPhoneIcon,
+      title: 'AgentPhone SMS support line',
+      prompt:
+        'Create a workflow that provisions an AgentPhone number, replies to inbound support texts with an agent that pulls answers from context, and logs each conversation to a support table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+    },
+    {
+      icon: AgentPhoneIcon,
+      title: 'AgentPhone lead call + transcript scoring',
+      prompt:
+        'Build a workflow that places an outbound AgentPhone call to a new inbound lead, retrieves the call transcript afterward, scores qualification with an agent, and writes the result into HubSpot.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: AgentPhoneIcon,
+      title: 'AgentPhone post-call summary',
+      prompt:
+        'Create a workflow that runs after every AgentPhone call, summarizes the transcript with action items, and updates the linked Salesforce or HubSpot record with next steps.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce', 'hubspot'],
+    },
+    {
+      icon: AgentPhoneIcon,
+      title: 'AgentPhone appointment reminder',
+      prompt:
+        'Build a workflow that reads upcoming Calendly bookings and sends an AgentPhone SMS reminder to each attendee, then texts a confirmation when they reply.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+      alsoIntegrations: ['calendly'],
+    },
+    {
+      icon: AgentPhoneIcon,
+      title: 'AgentPhone NPS texter',
+      prompt:
+        'Create a scheduled workflow that texts recent customers an NPS survey over AgentPhone, reads their SMS replies, and writes structured ratings to a feedback table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'analysis'],
+    },
+    {
+      icon: AgentPhoneIcon,
+      title: 'AgentPhone collections reminder',
+      prompt:
+        'Build a workflow that picks up Stripe overdue invoices, sends a polite AgentPhone SMS payment reminder with the amount due, and reads the customer reply to update the invoice record.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['stripe'],
+    },
+    {
+      icon: AgentPhoneIcon,
+      title: 'AgentPhone call-to-ticket logger',
+      prompt:
+        'Create a scheduled workflow that lists recent AgentPhone calls, pulls each transcript, and opens a Zendesk ticket summarizing the issue so no call goes untracked.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+      alsoIntegrations: ['zendesk'],
+    },
+  ],
+} as const satisfies BlockMeta

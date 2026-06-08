@@ -3,7 +3,7 @@ import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, lte } from 'drizzle-orm'
+import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm'
 
 const logger = createLogger('OutboxService')
 
@@ -111,6 +111,51 @@ export async function enqueueOutboxEvent<T>(
   })
   logger.info('Enqueued outbox event', { id, eventType })
   return id
+}
+
+/** Cap on how many dead-lettered rows a single reconciler scan materializes. */
+const DEAD_LETTER_SCAN_LIMIT = 100
+
+/**
+ * Return events currently in `dead_letter` for the given event types (capped at
+ * `DEAD_LETTER_SCAN_LIMIT`). Used by periodic reconcilers to surface stuck work
+ * that exhausted its retries and now needs operator attention — the cap keeps a
+ * runaway backlog from materializing unboundedly into memory each run.
+ */
+export async function findDeadLetteredEvents(
+  eventTypes: string[]
+): Promise<(typeof outboxEvent.$inferSelect)[]> {
+  if (eventTypes.length === 0) return []
+  return db
+    .select()
+    .from(outboxEvent)
+    .where(and(eq(outboxEvent.status, 'dead_letter'), inArray(outboxEvent.eventType, eventTypes)))
+    .limit(DEAD_LETTER_SCAN_LIMIT)
+}
+
+/**
+ * True when an event of the given type whose JSON payload has
+ * `payload->>payloadKey === payloadValue` is still `pending` or `processing`.
+ * Lets a competing writer detect that a DB→external sync is already in flight
+ * for a subject and avoid clobbering the not-yet-pushed DB value.
+ */
+export async function hasInflightOutboxEvent(
+  eventType: string,
+  payloadKey: string,
+  payloadValue: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, eventType),
+        inArray(outboxEvent.status, ['pending', 'processing']),
+        sql`${outboxEvent.payload} ->> ${payloadKey} = ${payloadValue}`
+      )
+    )
+    .limit(1)
+  return Boolean(row)
 }
 
 /**

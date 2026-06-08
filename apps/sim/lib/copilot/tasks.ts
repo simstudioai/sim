@@ -7,7 +7,7 @@
  * Channel: `task:status_changed`
  */
 
-import { createPubSubChannel } from '@/lib/events/pubsub'
+import { createPubSubChannel, type PubSubChannel } from '@/lib/events/pubsub'
 
 interface TaskStatusEvent {
   workspaceId: string
@@ -16,10 +16,20 @@ interface TaskStatusEvent {
   streamId?: string
 }
 
-const channel =
-  typeof window !== 'undefined'
-    ? null
-    : createPubSubChannel<TaskStatusEvent>({ channel: 'task:status_changed', label: 'task' })
+type TaskPubSubGlobal = typeof globalThis & {
+  _taskStatusChannel?: PubSubChannel<TaskStatusEvent> | null
+}
+
+const g = globalThis as TaskPubSubGlobal
+
+if (!('_taskStatusChannel' in g)) {
+  g._taskStatusChannel =
+    typeof window !== 'undefined'
+      ? null
+      : createPubSubChannel<TaskStatusEvent>({ channel: 'task:status_changed', label: 'task' })
+}
+
+const channel = g._taskStatusChannel
 
 export const taskPubSub = channel
   ? {

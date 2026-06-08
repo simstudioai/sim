@@ -35,7 +35,7 @@
  *         >
  *           {workflows.map(wf => (
  *             <PopoverItem key={wf.id} onClick={() => selectWorkflow(wf)}>
- *               <div className="h-3.5 w-3.5 rounded" style={{ backgroundColor: wf.color }} />
+ *               <Workflow className="size-[14px] text-[var(--text-icon)]" />
  *               <span>{wf.name}</span>
  *             </PopoverItem>
  *           ))}
@@ -67,17 +67,17 @@ type PopoverVariant = 'default' | 'secondary'
 const STYLES = {
   /** Base classes shared by all interactive items */
   itemBase:
-    'flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 font-medium disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+    'flex min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
 
   /** Content container */
-  content: 'px-1.5 py-1.5 rounded-md',
+  content: 'px-1.5 py-1.5 rounded-xl',
 
   /** Size variants */
   size: {
-    sm: { item: 'h-[22px] text-xs', icon: 'h-3 w-3', section: 'px-1.5 py-1 text-xs' },
+    sm: { item: 'h-[22px] text-xs', icon: 'size-3', section: 'px-1.5 py-1 text-xs' },
     md: {
-      item: 'h-[26px] text-caption',
-      icon: 'h-3.5 w-3.5',
+      item: 'h-[30px] text-sm',
+      icon: 'size-[14px]',
       section: 'px-1.5 py-1 text-xs',
     },
   } satisfies Record<PopoverSize, { item: string; icon: string; section: string }>,
@@ -85,7 +85,7 @@ const STYLES = {
   /** Color scheme variants */
   colorScheme: {
     default: {
-      text: 'text-[var(--text-body)]',
+      text: 'text-[var(--text-body)] [&_svg]:text-[var(--text-icon)]',
       section: 'text-[var(--text-tertiary)]',
       search: 'text-[var(--text-muted)]',
       searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',

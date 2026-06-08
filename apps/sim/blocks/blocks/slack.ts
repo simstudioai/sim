@@ -1,6 +1,7 @@
-import { SlackIcon } from '@/components/icons'
+import { BookOpen, ClipboardList, File, Table, Users } from '@/components/emcn/icons'
+import { GoogleTranslateIcon, GreptileIcon, LinearIcon, SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SlackResponse } from '@/tools/slack/types'
@@ -17,7 +18,6 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   docsLink: 'https://docs.sim.ai/tools/slack',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'webhooks', 'automation'],
   bgColor: '#611f69',
   icon: SlackIcon,
   triggerAllowed: true,
@@ -1938,3 +1938,126 @@ Do not include any explanations, markdown formatting, or other text outside the 
     available: ['slack_webhook'],
   },
 }
+
+export const SlackBlockMeta = {
+  tags: ['messaging', 'webhooks', 'automation'],
+  templates: [
+    {
+      icon: SlackIcon,
+      title: 'Slack Q&A bot',
+      prompt:
+        'Create a knowledge base connected to my Notion workspace so it stays synced with my company wiki. Then build a workflow that monitors Slack channels for questions and answers them using the knowledge base with source citations.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication', 'team'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: Table,
+      title: 'Churn risk detector',
+      prompt:
+        'Create a workflow that monitors customer activity — support ticket frequency, response sentiment, usage patterns — scores each account for churn risk in a table, and triggers a Slack alert to the account team when a customer crosses the risk threshold.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'sales', 'monitoring', 'analysis'],
+    },
+    {
+      icon: LinearIcon,
+      title: 'Incident postmortem writer',
+      prompt:
+        'Create a workflow that when triggered after an incident, pulls the Slack thread from the incident channel, gathers relevant Sentry errors and deployment logs, and drafts a structured postmortem with timeline, root cause, and action items.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops', 'analysis'],
+      alsoIntegrations: ['sentry'],
+    },
+    {
+      icon: GreptileIcon,
+      title: 'Slack code Q&A bot',
+      prompt:
+        'Build a workflow that monitors a Slack channel for code questions, routes them to Greptile against the relevant repository, and replies in-thread with the answer and the cited files so the team gets quick, sourced engineering answers.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'communication', 'team'],
+      alsoIntegrations: ['greptile'],
+    },
+    {
+      icon: SlackIcon,
+      title: 'Slack knowledge search',
+      prompt:
+        'Create a knowledge base connected to my Slack workspace so all channel conversations and threads are automatically synced and searchable. Then build an agent I can ask things like "what did the team decide about the launch date?" or "what was the outcome of the design review?" and get answers with links to the original messages.',
+      modules: ['knowledge-base', 'agent'],
+      category: 'productivity',
+      tags: ['team', 'research', 'communication'],
+    },
+    {
+      icon: File,
+      title: 'Automated narrative report',
+      prompt:
+        'Build a scheduled workflow that pulls key data from my tables every week, analyzes trends and anomalies, and writes a narrative report — not just charts and numbers, but written insights explaining what changed, why it matters, and what to do next. Save it as a document and send a summary to Slack.',
+      modules: ['tables', 'scheduled', 'agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['founder', 'reporting', 'analysis'],
+    },
+    {
+      icon: BookOpen,
+      title: 'Email digest curator',
+      prompt:
+        'Create a scheduled daily workflow that searches the web for the latest articles, papers, and news on topics I care about, picks the top 5 most relevant pieces, writes a one-paragraph summary for each, and delivers a curated reading digest to my inbox or Slack.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research', 'content'],
+    },
+    {
+      icon: ClipboardList,
+      title: 'Daily standup summary',
+      prompt:
+        'Create a scheduled workflow that reads the #standup Slack channel each morning, summarizes what everyone is working on, identifies blockers, and posts a structured recap to a Google Docs document.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting', 'communication'],
+      alsoIntegrations: ['google_docs'],
+    },
+    {
+      icon: Users,
+      title: 'New hire onboarding automation',
+      prompt:
+        "Build a workflow that when triggered with a new hire's info, creates their accounts, sends a personalized welcome message in Slack, schedules 1:1s with their team on Google Calendar, shares relevant onboarding docs from the knowledge base, and tracks completion in a table.",
+      modules: ['knowledge-base', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation', 'team'],
+      alsoIntegrations: ['google_calendar'],
+    },
+    {
+      icon: Table,
+      title: 'Customer 360 view',
+      prompt:
+        'Create a comprehensive customer table that aggregates data from my CRM, support tickets, billing history, and product usage into a single unified view per customer. Schedule it to sync daily and send a Slack alert when any customer shows signs of trouble across multiple signals.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['founder', 'sales', 'support', 'enterprise', 'sync'],
+    },
+    {
+      icon: GoogleTranslateIcon,
+      title: 'Slack thread translator',
+      prompt:
+        'Build a workflow that watches international Slack channels, detects non-English messages, translates them with Google Translate, and posts the English version in a thread so the wider team stays in the loop.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'communication'],
+      alsoIntegrations: ['google_translate'],
+    },
+
+    {
+      icon: SlackIcon,
+      title: 'Archive Slack conversations to Notion',
+      prompt:
+        'Build a workflow that captures important Slack messages and threads and saves them as Notion pages or database entries, so meeting notes and decisions are always documented.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['notion'],
+    },
+  ],
+} as const satisfies BlockMeta

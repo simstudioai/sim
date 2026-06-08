@@ -1,3 +1,3 @@
-export { Deploy } from './deploy/deploy'
-export { Editor } from './editor/editor'
-export { Toolbar } from './toolbar/toolbar'
+export { Deploy } from './deploy'
+export { Editor } from './editor'
+export { Toolbar } from './toolbar'

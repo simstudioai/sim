@@ -74,7 +74,7 @@ export type ComboboxOptionGroup = {
   items: ComboboxOption[]
 }
 
-interface ComboboxProps
+export interface ComboboxProps
   extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'>,
     VariantProps<typeof comboboxVariants> {
   /** Available options for selection */
@@ -579,7 +579,7 @@ const Combobox = memo(
                     >
                       <ChevronDown
                         className={cn(
-                          'h-4 w-4 opacity-50 transition-transform',
+                          'size-4 opacity-50 transition-transform',
                           open && 'rotate-180'
                         )}
                       />
@@ -614,7 +614,7 @@ const Combobox = memo(
                     </span>
                     <ChevronDown
                       className={cn(
-                        'ml-2 h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+                        'ml-2 size-4 flex-shrink-0 opacity-50 transition-transform',
                         open && 'rotate-180'
                       )}
                     />
@@ -661,7 +661,7 @@ const Combobox = memo(
                   <Search className='mr-[7px] ml-[1px] size-[13px] shrink-0 text-[var(--text-muted)]' />
                   <input
                     ref={searchInputRef}
-                    className='w-full bg-transparent font-base text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
+                    className='w-full bg-transparent text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -707,16 +707,16 @@ const Combobox = memo(
                   {isLoading ? (
                     <div className='flex items-center justify-center py-3.5'>
                       <Loader className='size-[16px] text-[var(--text-muted)]' animate />
-                      <span className='ml-2 font-base text-[var(--text-muted)] text-caption'>
-                        Loading options…
+                      <span className='ml-2 text-[var(--text-muted)] text-caption'>
+                        Loading options...
                       </span>
                     </div>
                   ) : error ? (
-                    <div className='px-1.5 py-3.5 text-center font-base text-caption text-red-500'>
+                    <div className='px-1.5 py-3.5 text-center text-caption text-red-500'>
                       {error}
                     </div>
                   ) : filteredOptions.length === 0 ? (
-                    <div className='py-3.5 text-center font-base text-[var(--text-muted)] text-caption'>
+                    <div className='py-3.5 text-center text-[var(--text-muted)] text-caption'>
                       {emptyMessage ||
                         (searchQuery || (editable && value)
                           ? 'No matching options found'
@@ -730,7 +730,7 @@ const Combobox = memo(
                           {group.sectionElement
                             ? group.sectionElement
                             : group.section && (
-                                <div className='px-1.5 py-1 font-base text-[var(--text-tertiary)] text-xs first:pt-1'>
+                                <div className='px-1.5 py-1 text-[var(--text-tertiary)] text-xs first:pt-1'>
                                   {group.section}
                                 </div>
                               )}
@@ -870,4 +870,4 @@ const Combobox = memo(
 
 Combobox.displayName = 'Combobox'
 
-export { Combobox }
+export { Combobox, comboboxVariants }

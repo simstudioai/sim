@@ -1,5 +1,11 @@
 import { PulseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
+import {
+  AuthMode,
+  type BlockConfig,
+  type BlockMeta,
+  IntegrationType,
+  type SubBlockType,
+} from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { PulseParserOutput } from '@/tools/pulse/types'
 
@@ -14,8 +20,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
   docsLink: 'https://docs.sim.ai/tools/pulse',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['document-processing', 'ocr'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: PulseIcon,
   subBlocks: [
     {
@@ -203,3 +208,73 @@ export const PulseV2Block: BlockConfig<PulseParserOutput> = {
   },
   inputs: pulseV2Inputs,
 }
+
+export const PulseBlockMeta = {
+  tags: ['document-processing', 'ocr'],
+  templates: [
+    {
+      icon: PulseIcon,
+      title: 'Pulse invoice extractor',
+      prompt:
+        'Create a workflow that runs each uploaded invoice PDF through Pulse OCR, extracts vendor, line items, and totals into structured fields, and writes the parsed records to an accounts-payable table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['document-processing', 'automation'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse contract clause extractor',
+      prompt:
+        'Build a workflow that extracts the full text of uploaded contract PDFs with Pulse OCR, has an agent pull out key clauses, parties, and renewal dates, and writes a structured summary to a table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['document-processing', 'analysis'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse scanned-document indexer',
+      prompt:
+        'Create a workflow that runs each scanned image or PDF through Pulse OCR, chunks the extracted markdown, and indexes the cleaned content into a knowledge base so agents can search across every document.',
+      modules: ['files', 'knowledge-base', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ocr', 'knowledge-base'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse form data extractor',
+      prompt:
+        'Build a workflow that extracts text from uploaded form PDFs and images with Pulse OCR, maps the values into structured fields with an agent, and writes each submission to a table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ocr', 'automation'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse table-to-spreadsheet extractor',
+      prompt:
+        'Create a workflow that runs uploaded reports through Pulse OCR, pulls the embedded tables into structured rows, and writes the consolidated data to a tracking table.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['document-processing', 'automation'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse document summarizer',
+      prompt:
+        'Build a workflow that extracts the text of an uploaded PDF or Office file with Pulse OCR, has an agent write a concise summary, and posts it to Slack.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['document-processing', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PulseIcon,
+      title: 'Pulse document OCR pipeline',
+      prompt:
+        'Build a workflow that runs each uploaded PDF, image, or Office file through Pulse OCR, extracts the text into structured rows in a table, and indexes the cleaned content into a knowledge base so agents can search across every scanned document.',
+      modules: ['files', 'tables', 'knowledge-base', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ocr', 'document-processing', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

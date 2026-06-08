@@ -43,6 +43,7 @@ interface FileViewerProps {
   workspaceId: string
   canEdit: boolean
   previewMode?: PreviewMode
+  autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
@@ -57,6 +58,7 @@ export function FileViewer({
   workspaceId,
   canEdit,
   previewMode,
+  autoFocus,
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
@@ -74,6 +76,7 @@ export function FileViewer({
         workspaceId={workspaceId}
         canEdit={canEdit}
         previewMode={previewMode ?? 'editor'}
+        autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}

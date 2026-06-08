@@ -73,8 +73,15 @@ Get the status and details of a Dagster run by its ID.
 | `runId` | string | Run ID |
 | `jobName` | string | Name of the job this run belongs to |
 | `status` | string | Run status \(QUEUED, NOT_STARTED, STARTING, MANAGED, STARTED, SUCCESS, FAILURE, CANCELING, CANCELED\) |
+| `mode` | string | Execution mode of the run |
 | `startTime` | number | Run start time as Unix timestamp |
 | `endTime` | number | Run end time as Unix timestamp |
+| `creationTime` | number | Time the run was created as Unix timestamp |
+| `updateTime` | number | Time the run was last updated as Unix timestamp |
+| `parentRunId` | string | ID of the immediate parent run \(for re-executions\) |
+| `rootRunId` | string | ID of the root run in the re-execution group |
+| `canTerminate` | boolean | Whether the run can currently be terminated |
+| `assetSelection` | json | Asset keys targeted by the run, as slash-joined strings |
 | `runConfigYaml` | string | Run configuration as YAML |
 | `tags` | json | Run tags as array of \{key, value\} objects |
 
@@ -108,7 +115,7 @@ Fetch execution event logs for a Dagster run.
 
 ### `dagster_list_runs`
 
-List recent Dagster runs, optionally filtered by job name.
+List Dagster runs with optional filters by job name, status, and creation-time range, plus cursor pagination.
 
 #### Input
 
@@ -118,6 +125,9 @@ List recent Dagster runs, optionally filtered by job name.
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `jobName` | string | No | Filter runs by job name \(optional\) |
 | `statuses` | string | No | Comma-separated run statuses to filter by, e.g. "SUCCESS,FAILURE" \(optional\) |
+| `createdAfter` | number | No | Only return runs created at or after this Unix timestamp in seconds \(optional\) |
+| `createdBefore` | number | No | Only return runs created at or before this Unix timestamp in seconds \(optional\) |
+| `cursor` | string | No | Run ID to page after, from a previous response cursor \(optional\) |
 | `limit` | number | No | Maximum number of runs to return \(default 20\) |
 
 #### Output
@@ -131,6 +141,8 @@ List recent Dagster runs, optionally filtered by job name.
 |   ↳ `tags` | json | Run tags as array of \{key, value\} objects |
 |   ↳ `startTime` | number | Start time as Unix timestamp |
 |   ↳ `endTime` | number | End time as Unix timestamp |
+| `cursor` | string | Run ID of the last returned run — pass as cursor to fetch the next page |
+| `hasMore` | boolean | Whether more runs are likely available beyond this page |
 
 ### `dagster_list_jobs`
 
@@ -295,7 +307,7 @@ List all sensors in a Dagster repository, optionally filtered by status.
 | --------- | ---- | ----------- |
 | `sensors` | json | Array of sensors \(name, sensorType, status, id, description\) |
 |   ↳ `name` | string | Sensor name |
-|   ↳ `sensorType` | string | Sensor type \(ASSET, AUTO_MATERIALIZE, FRESHNESS_POLICY, MULTI_ASSET, RUN_STATUS, STANDARD\) |
+|   ↳ `sensorType` | string | Sensor type \(ASSET, AUTO_MATERIALIZE, FRESHNESS_POLICY, MULTI_ASSET, RUN_STATUS, STANDARD, UNKNOWN\) |
 |   ↳ `status` | string | Sensor status: RUNNING or STOPPED |
 |   ↳ `id` | string | Instigator state ID — use this to start or stop the sensor |
 |   ↳ `description` | string | Human-readable sensor description |
@@ -339,5 +351,121 @@ Disable (stop) a running sensor in Dagster.
 | --------- | ---- | ----------- |
 | `id` | string | Instigator state ID of the sensor |
 | `status` | string | Updated sensor status \(RUNNING or STOPPED\) |
+
+### `dagster_list_assets`
+
+List assets tracked by a Dagster instance, optionally filtered by key prefix.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `prefix` | string | No | Slash-delimited asset key prefix to filter by, e.g. "raw" or "raw/events" \(optional\) |
+| `cursor` | string | No | Asset key cursor from a previous response, for pagination \(optional\) |
+| `limit` | number | No | Maximum number of assets to return per page \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assets` | json | Array of assets \(assetKey, path\) |
+|   ↳ `assetKey` | string | Slash-joined asset key |
+|   ↳ `path` | json | Asset key path segments |
+| `cursor` | string | Cursor to pass on the next call to fetch more assets |
+| `hasMore` | boolean | Whether more assets are likely available beyond this page |
+
+### `dagster_get_asset`
+
+Get an asset definition and its latest materialization by asset key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `assetKey` | string | Yes | Slash-delimited asset key, e.g. "my_asset" or "raw/events" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assetKey` | string | Slash-joined asset key |
+| `path` | json | Asset key path segments |
+| `groupName` | string | Asset group the definition belongs to |
+| `description` | string | Asset description |
+| `jobNames` | json | Names of jobs that can materialize this asset |
+| `computeKind` | string | Compute kind tag \(e.g., python, dbt, spark\) |
+| `isPartitioned` | boolean | Whether the asset is partitioned |
+| `latestMaterialization` | json | Most recent materialization \(runId, timestamp, partition, stepKey\) |
+|   ↳ `runId` | string | Run that produced the materialization |
+|   ↳ `timestamp` | string | Materialization timestamp \(epoch ms string\) |
+|   ↳ `partition` | string | Partition key, if partitioned |
+|   ↳ `stepKey` | string | Step key that emitted it |
+
+### `dagster_materialize_assets`
+
+Materialize selected assets by launching their asset job with an asset selection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
+| `repositoryName` | string | Yes | Repository name within the code location |
+| `jobName` | string | Yes | Asset job that contains the assets, e.g. "__ASSET_JOB" or a named asset job |
+| `assetSelection` | string | Yes | Comma- or newline-separated asset keys to materialize, each slash-delimited \(e.g. "raw/events, summary"\) |
+| `tags` | string | No | Tags as a JSON array of \{key, value\} objects \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | string | The globally unique ID of the launched materialization run |
+
+### `dagster_report_asset_materialization`
+
+Report an external (runless) materialization or observation for an asset.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `assetKey` | string | Yes | Slash-delimited asset key to report against, e.g. "my_asset" or "raw/events" |
+| `eventType` | string | No | Event type to report: ASSET_MATERIALIZATION \(default\) or ASSET_OBSERVATION |
+| `partitionKeys` | string | No | Comma-separated partition keys to report against \(optional\) |
+| `description` | string | No | Human-readable description for the reported event \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the event was reported successfully |
+| `assetKey` | string | Slash-joined asset key the event was reported against |
+
+### `dagster_wipe_asset`
+
+DESTRUCTIVE: permanently wipes ALL materialization history (every partition) for an asset. This cannot be undone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
+| `assetKey` | string | Yes | Slash-delimited asset key to wipe, e.g. "my_asset" or "raw/events" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the asset was wiped successfully |
+| `assetKey` | string | Slash-joined asset key that was wiped |
 
 

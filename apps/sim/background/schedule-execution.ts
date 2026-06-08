@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import {
   db,
   jobExecutionLogs,
@@ -6,7 +7,7 @@ import {
   workflowSchedule,
 } from '@sim/db'
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task } from '@trigger.dev/sdk'
@@ -155,7 +156,7 @@ async function applyScheduleUpdate(
 
     return updatedRows.length > 0
   } catch (error) {
-    logger.error(`[${requestId}] ${context}`, error)
+    logger.error(`[${requestId}] ${context}`, error, { cause: describeError(error) })
     throw error
   }
 }
@@ -529,7 +530,13 @@ async function runWorkflowExecution({
       }
     }
 
-    logger.error(`[${requestId}] Early failure in scheduled workflow ${payload.workflowId}`, error)
+    logger.error(
+      `[${requestId}] Early failure in scheduled workflow ${payload.workflowId}`,
+      error,
+      {
+        cause: describeError(error),
+      }
+    )
 
     if (wasExecutionFinalizedByCore(error, executionId)) {
       throw error
@@ -943,16 +950,30 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
         )
       }
     } catch (error: unknown) {
-      if (isRetryableInfrastructureError(error)) {
-        await retryScheduleAfterInfraFailure({ payload, requestId, claimedAt, error })
-        return
-      }
+      try {
+        if (isRetryableInfrastructureError(error)) {
+          await retryScheduleAfterInfraFailure({ payload, requestId, claimedAt, error })
+          return
+        }
 
-      logger.error(`[${requestId}] Error processing schedule ${payload.scheduleId}`, error)
-      await releaseClaim(
-        now,
-        `Failed to release schedule ${payload.scheduleId} after unhandled error`
-      )
+        logger.error(`[${requestId}] Error processing schedule ${payload.scheduleId}`, error, {
+          cause: describeError(error),
+        })
+        await releaseClaim(
+          now,
+          `Failed to release schedule ${payload.scheduleId} after unhandled error`
+        )
+      } catch (recoveryError: unknown) {
+        // A secondary failure during error recovery (e.g. a transient DB blip while
+        // releasing the claim or scheduling an infra retry) must not fault the run. The
+        // claim expires on its TTL and the next tick re-claims the schedule. Record the
+        // exception on the span so it stays visible in traces without faulting the run.
+        logger.error(
+          `[${requestId}] Failed to recover schedule ${payload.scheduleId} after error`,
+          recoveryError
+        )
+        trace.getActiveSpan()?.recordException(toError(recoveryError))
+      }
     }
   })
 }

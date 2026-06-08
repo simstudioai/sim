@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import {
@@ -30,61 +29,6 @@ const logger = createLogger('ApiKeyAuth')
 export function isEncryptedKey(storedKey: string): boolean {
   // Check if it follows the encrypted format: iv:encrypted:authTag
   return storedKey.includes(':') && storedKey.split(':').length === 3
-}
-
-/**
- * Authenticates an API key against a stored key, supporting both legacy and new encrypted formats
- * @param inputKey - The API key provided by the client
- * @param storedKey - The key stored in the database (may be plain text or encrypted)
- * @returns Promise<boolean> - true if the key is valid
- */
-export async function authenticateApiKey(inputKey: string, storedKey: string): Promise<boolean> {
-  try {
-    // If input key has new encrypted prefix (sk-sim-), only check against encrypted storage
-    if (isEncryptedApiKeyFormat(inputKey)) {
-      if (isEncryptedKey(storedKey)) {
-        try {
-          const { decrypted } = await decryptApiKey(storedKey)
-          return safeCompare(inputKey, decrypted)
-        } catch (decryptError) {
-          logger.error('Failed to decrypt stored API key:', { error: decryptError })
-          return false
-        }
-      }
-      // New format keys should never match against plain text storage
-      return false
-    }
-
-    // If input key has legacy prefix (sim_), check both encrypted and plain text
-    if (isLegacyApiKeyFormat(inputKey)) {
-      if (isEncryptedKey(storedKey)) {
-        try {
-          const { decrypted } = await decryptApiKey(storedKey)
-          return safeCompare(inputKey, decrypted)
-        } catch (decryptError) {
-          logger.error('Failed to decrypt stored API key:', { error: decryptError })
-          // Fall through to plain text comparison if decryption fails
-        }
-      }
-      // Legacy format can match against plain text storage
-      return safeCompare(inputKey, storedKey)
-    }
-
-    // If no recognized prefix, fall back to original behavior
-    if (isEncryptedKey(storedKey)) {
-      try {
-        const { decrypted } = await decryptApiKey(storedKey)
-        return safeCompare(inputKey, decrypted)
-      } catch (decryptError) {
-        logger.error('Failed to decrypt stored API key:', { error: decryptError })
-      }
-    }
-
-    return safeCompare(inputKey, storedKey)
-  } catch (error) {
-    logger.error('API key authentication error:', { error })
-    return false
-  }
 }
 
 /**

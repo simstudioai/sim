@@ -37,14 +37,8 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.headers).toContain('X-API-Key')
   })
 
-  it('reflects origin for chat and form embeds with credentials enabled', () => {
-    const paths = [
-      '/api/chat/abc',
-      '/api/chat/abc/otp',
-      '/api/chat/abc/sso',
-      '/api/form/xyz',
-      '/api/form/xyz/otp',
-    ]
+  it('reflects origin for chat embeds with credentials enabled', () => {
+    const paths = ['/api/chat/abc', '/api/chat/abc/otp', '/api/chat/abc/sso']
     for (const path of paths) {
       const policy = resolveApiCorsPolicy(makeRequest(path, 'https://customer.example'))
       expect(policy).toEqual({
@@ -77,15 +71,8 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.credentials).toBe(true)
   })
 
-  it('uses the default credentialed policy for workspace-internal chat/form routes', () => {
-    const paths = [
-      '/api/chat',
-      '/api/chat/manage/abc',
-      '/api/chat/validate',
-      '/api/form',
-      '/api/form/manage/abc',
-      '/api/form/validate',
-    ]
+  it('uses the default credentialed policy for workspace-internal chat routes', () => {
+    const paths = ['/api/chat', '/api/chat/manage/abc', '/api/chat/validate']
     for (const path of paths) {
       const policy = resolveApiCorsPolicy(makeRequest(path, 'https://customer.example'))
       expect(policy.origin).toBe('https://app.sim.test')
@@ -124,7 +111,6 @@ describe('resolveApiCorsPolicy', () => {
       '/api/auth/oauth2/token',
       '/api/mcp/copilot',
       '/api/chat/abc',
-      '/api/form',
       '/api/workflows/wf/execute',
       '/api/files/upload',
     ]

@@ -1,5 +1,5 @@
 import { EvernoteIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const EvernoteBlock: BlockConfig = {
@@ -11,8 +11,7 @@ export const EvernoteBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/evernote',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['note-taking', 'knowledge-base'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: EvernoteIcon,
   authMode: AuthMode.ApiKey,
 
@@ -308,3 +307,75 @@ export const EvernoteBlock: BlockConfig = {
     noteGuid: { type: 'string', description: 'GUID of the affected note' },
   },
 }
+
+export const EvernoteBlockMeta = {
+  tags: ['note-taking', 'knowledge-base'],
+  templates: [
+    {
+      icon: EvernoteIcon,
+      title: 'Evernote to knowledge base sync',
+      prompt:
+        'Build a workflow that syncs Evernote notebooks into a knowledge base on a schedule so all notes and clipped web pages become searchable by an agent.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research'],
+    },
+    {
+      icon: EvernoteIcon,
+      title: 'Evernote weekly summary',
+      prompt:
+        'Create a scheduled weekly workflow that summarizes new Evernote notes by tag, writes the summary as a Markdown file, and emails it to the user as a knowledge digest.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: EvernoteIcon,
+      title: 'Evernote action-item extractor',
+      prompt:
+        'Build a workflow that searches Evernote for recently created notes, extracts action items and due dates with an agent, and creates a matching task in Asana for each.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+      alsoIntegrations: ['asana'],
+    },
+    {
+      icon: EvernoteIcon,
+      title: 'Evernote research collector',
+      prompt:
+        'Create a workflow that takes web clippings saved to Evernote, classifies by topic, and writes structured rows to a research table for downstream analysis.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research'],
+    },
+    {
+      icon: EvernoteIcon,
+      title: 'Evernote tag auto-organizer',
+      prompt:
+        'Build a workflow that scans new Evernote notes, suggests and applies tags based on content, and writes the tag changes to an audit log for review.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+    },
+    {
+      icon: EvernoteIcon,
+      title: 'Evernote to Notion migrator',
+      prompt:
+        'Create a workflow that imports an Evernote notebook into Notion as pages in a chosen database, preserving formatting, attachments, and tags.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'sync'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: EvernoteIcon,
+      title: 'Evernote research-assistant agent',
+      prompt:
+        'Build an agent that searches across the user’s Evernote notebooks for grounded answers with citations, and saves the answer plus sources back as a new Evernote note.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research'],
+    },
+  ],
+} as const satisfies BlockMeta

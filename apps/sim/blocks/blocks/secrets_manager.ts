@@ -1,5 +1,5 @@
 import { SecretsManagerIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { SecretsManagerBaseResponse } from '@/tools/secrets_manager/types'
 
@@ -9,10 +9,9 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
   description: 'Connect to AWS Secrets Manager',
   longDescription:
     'Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.',
-  docsLink: 'https://docs.sim.ai/tools/secrets-manager',
+  docsLink: 'https://docs.sim.ai/tools/secrets_manager',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['cloud', 'secrets-management'],
+  integrationType: IntegrationType.Security,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: SecretsManagerIcon,
   subBlocks: [
@@ -280,3 +279,78 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
     },
   },
 }
+
+export const SecretsManagerBlockMeta = {
+  tags: ['cloud', 'secrets-management'],
+  templates: [
+    {
+      icon: SecretsManagerIcon,
+      title: 'Secrets Manager scheduled rotation',
+      prompt:
+        'Build a scheduled workflow that lists AWS Secrets Manager secrets, generates a new value for each secret past its rotation window, updates it with the new value, and writes the rotation status to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+    },
+    {
+      icon: SecretsManagerIcon,
+      title: 'Secrets Manager inventory auditor',
+      prompt:
+        'Create a scheduled workflow that lists all AWS Secrets Manager secrets, flags ones missing descriptions or older than a chosen age, writes a security review, and posts the findings to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SecretsManagerIcon,
+      title: 'Secrets Manager stale-secret cleaner',
+      prompt:
+        'Build a scheduled workflow that lists AWS Secrets Manager secrets, identifies ones created before a chosen cutoff, requests owner approval in Slack, deletes the approved secrets, and writes the cleanup audit.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SecretsManagerIcon,
+      title: 'Secrets Manager + Infisical mirror',
+      prompt:
+        'Create a workflow that mirrors secrets between AWS Secrets Manager and Infisical for cross-cloud applications, normalizes naming, and writes a sync log.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['infisical'],
+    },
+    {
+      icon: SecretsManagerIcon,
+      title: 'Secrets Manager break-glass retrieval',
+      prompt:
+        'Build a workflow that gates retrieval of a sensitive AWS Secrets Manager secret behind a Slack approval, captures the requester and justification, fetches the secret only after sign-off, and writes the audit record.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SecretsManagerIcon,
+      title: 'Secrets Manager + 1Password bridge',
+      prompt:
+        'Create a workflow that bridges select AWS Secrets Manager secrets into 1Password for human-shared credentials while keeping access logs aligned for audit.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['onepassword'],
+    },
+    {
+      icon: SecretsManagerIcon,
+      title: 'Secrets Manager change watcher',
+      prompt:
+        'Build a scheduled workflow that polls AWS Secrets Manager secret version IDs, compares them against a baseline stored in a table, and pings the security Slack channel when a secret changes unexpectedly.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

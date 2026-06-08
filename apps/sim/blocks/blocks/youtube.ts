@@ -1,5 +1,5 @@
-import { YouTubeIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import { ElevenLabsIcon, YouTubeIcon } from '@/components/icons'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { YouTubeResponse } from '@/tools/youtube/types'
 
@@ -13,7 +13,6 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
   docsLink: 'https://docs.sim.ai/tools/youtube',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['google-workspace', 'marketing', 'content-management'],
   bgColor: '#FF0000',
   icon: YouTubeIcon,
   subBlocks: [
@@ -549,3 +548,86 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     assignable: { type: 'boolean', description: 'Whether category can be assigned' },
   },
 }
+
+export const YouTubeBlockMeta = {
+  tags: ['marketing', 'content-management'],
+  templates: [
+    {
+      icon: YouTubeIcon,
+      title: 'Content repurposer',
+      prompt:
+        'Build a workflow that takes a YouTube video URL, pulls the video details and description, researches the topic on the web for additional context, and generates a Twitter thread, LinkedIn post, and blog summary optimized for each platform.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'automation'],
+    },
+    {
+      icon: ElevenLabsIcon,
+      title: 'YouTube video audio brief',
+      prompt:
+        'Build a workflow that takes a YouTube URL, pulls the video details and top comments, summarizes them with an agent, narrates the summary with ElevenLabs, and saves the audio file for distribution.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['content', 'automation'],
+      alsoIntegrations: ['elevenlabs'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube channel performance digest',
+      prompt:
+        'Create a scheduled weekly workflow that pulls a YouTube channel’s public stats and recent videos, ranks the top performers by views, writes a digest file, and emails it to the content team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube comment triage',
+      prompt:
+        'Build a scheduled workflow that pulls recent YouTube comments on a video, classifies each as helpful, question, or spam, drafts suggested answers to questions using a knowledge base, and routes them to the community team in Slack for review.',
+      modules: ['scheduled', 'knowledge-base', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'community'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube upload-to-blog',
+      prompt:
+        'Create a scheduled workflow that polls a YouTube channel for new uploads, pulls each video’s details and description, generates a long-form blog post with proper SEO structure, and stages it as a WordPress draft.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+      alsoIntegrations: ['wordpress'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube competitor watcher',
+      prompt:
+        'Build a scheduled workflow that monitors competitor YouTube channels, flags videos that exceed average performance, and writes outline of their format to a content-research table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube video curation finder',
+      prompt:
+        'Create a workflow that reads a tables-based topic list, finds matching YouTube videos via search, scores each for relevance, writes the candidates back to the table, and pings the editorial team for the final cut.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: YouTubeIcon,
+      title: 'YouTube video recap to Notion',
+      prompt:
+        'Build a workflow that takes a YouTube video URL, pulls the video details, description, and top comments, summarizes the highlights and audience reaction, and saves a recap to a Notion page for the marketing team.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+  ],
+} as const satisfies BlockMeta

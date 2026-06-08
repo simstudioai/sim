@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -220,6 +221,34 @@ export async function downloadFile(options: DownloadFileOptions): Promise<Buffer
   }
 
   return readFile(filePath)
+}
+
+/**
+ * Stream a file out of the configured storage provider without buffering it in memory.
+ * The caller MUST fully consume or `destroy()` the returned stream. Used by the large-CSV
+ * import worker so a multi-hundred-MB file is never held resident.
+ */
+export async function downloadFileStream(options: {
+  key: string
+  context: StorageContext
+}): Promise<Readable> {
+  const { key, context } = options
+  const config = getStorageConfig(context)
+
+  if (USE_BLOB_STORAGE) {
+    const { downloadFromBlobStream } = await import('@/lib/uploads/providers/blob/client')
+    return downloadFromBlobStream(key, createBlobConfig(config))
+  }
+
+  if (USE_S3_STORAGE) {
+    const { downloadFromS3Stream } = await import('@/lib/uploads/providers/s3/client')
+    return downloadFromS3Stream(key, createS3Config(config))
+  }
+
+  const { createReadStream } = await import('fs')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  return createReadStream(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
 }
 
 /**

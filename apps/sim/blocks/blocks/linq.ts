@@ -1,5 +1,5 @@
 import { LinqIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 
@@ -63,7 +63,6 @@ export const LinqBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/linq',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'automation', 'webhooks'],
   bgColor: '#000000',
   icon: LinqIcon,
   authMode: AuthMode.ApiKey,
@@ -865,3 +864,36 @@ export const LinqBlock: BlockConfig = {
     docUrl: { type: 'string', description: 'Documentation URL' },
   },
 }
+
+export const LinqBlockMeta = {
+  tags: ['messaging', 'automation', 'webhooks'],
+  templates: [
+    {
+      icon: LinqIcon,
+      title: 'Linq iMessage campaign sender',
+      prompt:
+        'Build a workflow that reads a contact list from a table, composes a personalized iMessage for each recipient using an agent, and sends them via Linq in batches.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['messaging', 'automation'],
+    },
+    {
+      icon: LinqIcon,
+      title: 'Linq SMS support responder',
+      prompt:
+        'Create a scheduled workflow that lists recent unread Linq messages, generates a reply for each with an agent, and sends the response back to the same chat.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['messaging', 'support'],
+    },
+    {
+      icon: LinqIcon,
+      title: 'Linq RCS notification dispatcher',
+      prompt:
+        'Build a workflow that monitors a table for new alert rows, formats an RCS notification for each, and dispatches it to the relevant phone number via Linq.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['messaging', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,6 +1,6 @@
 import { MondayIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type {
   MondayArchiveItemResponse,
@@ -62,7 +62,6 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
   docsLink: 'https://docs.sim.ai/tools/monday',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['project-management'],
   bgColor: '#FFFFFF',
   icon: MondayIcon,
   subBlocks: [
@@ -481,3 +480,77 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
     ],
   },
 }
+
+export const MondayBlockMeta = {
+  tags: ['project-management', 'ticketing'],
+  templates: [
+    {
+      icon: MondayIcon,
+      title: 'Monday status digest',
+      prompt:
+        'Create a scheduled weekly workflow that pulls Monday board progress, computes completion rate, and posts a status update to leadership Slack with the at-risk items highlighted.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: MondayIcon,
+      title: 'Monday board automator',
+      prompt:
+        'Build a workflow that watches Monday boards for status changes, applies branching automations — assign owners, set due dates, post Slack updates — based on a rules table.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: MondayIcon,
+      title: 'Monday client portal',
+      prompt:
+        'Create a workflow that mirrors a Monday project board into a client-facing summary table, refreshes hourly, and emails the client a snapshot link each week.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: MondayIcon,
+      title: 'Monday SLA enforcer',
+      prompt:
+        'Build a workflow that watches Monday items with due dates, sends reminders 24 hours before, and escalates to managers when items breach SLA.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'monitoring'],
+    },
+    {
+      icon: MondayIcon,
+      title: 'Monday + CRM sync',
+      prompt:
+        'Create a workflow that mirrors Monday CRM board items into Salesforce as opportunities, keeps stage and amount synced, and writes the Salesforce ID back to the Monday item.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'sync'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: MondayIcon,
+      title: 'Monday workspace audit',
+      prompt:
+        'Build a scheduled monthly workflow that audits Monday boards for unused columns, stale automations, and missing owners, and writes a cleanup plan to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+    },
+    {
+      icon: MondayIcon,
+      title: 'Monday onboarding kickoff',
+      prompt:
+        'Create a workflow that on a new hire in Workday creates a personalized Monday onboarding board, seeds the role-specific tasks, and invites the new hire and buddy.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['workday'],
+    },
+  ],
+} as const satisfies BlockMeta

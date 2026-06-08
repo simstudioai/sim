@@ -1,5 +1,5 @@
 import { NeverBounceIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { NeverBounceResponse } from '@/tools/neverbounce/types'
 
 export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
@@ -12,7 +12,6 @@ export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
   docsLink: 'https://docs.sim.ai/tools/neverbounce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#1A6DF0',
   icon: NeverBounceIcon,
   subBlocks: [
@@ -101,3 +100,7 @@ export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
     freeCredits: { type: 'number', description: 'Remaining free verification credits' },
   },
 }
+
+export const NeverBounceBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+} as const satisfies BlockMeta

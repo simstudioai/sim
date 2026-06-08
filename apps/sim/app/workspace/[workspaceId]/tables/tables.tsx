@@ -5,14 +5,12 @@ import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
 import {
-  Button,
-  Combobox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  Chip,
+  ChipCombobox,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   toast,
   Upload,
 } from '@/components/emcn'
@@ -26,7 +24,12 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  InlineRenameInput,
+  ownerCell,
+  Resource,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
@@ -38,11 +41,13 @@ import {
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
+  useRenameTable,
   useTablesList,
   useUploadCsvToTable,
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Tables')
@@ -77,8 +82,13 @@ export function Tables() {
     logger.error('Failed to load tables:', error)
   }
   const deleteTable = useDeleteTable(workspaceId)
+  const renameTable = useRenameTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
   const uploadCsv = useUploadCsvToTable()
+
+  const tableRename = useInlineRename({
+    onSave: (tableId, name) => renameTable.mutate({ tableId, name }),
+  })
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -164,6 +174,20 @@ export function Tables() {
           name: {
             icon: <TableIcon className='size-[14px]' />,
             label: table.name,
+            content:
+              tableRename.editingId === table.id ? (
+                <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
+                  <span className='flex-shrink-0 text-[var(--text-icon)]'>
+                    <TableIcon className='size-[14px]' />
+                  </span>
+                  <InlineRenameInput
+                    value={tableRename.editValue}
+                    onChange={tableRename.setEditValue}
+                    onSubmit={tableRename.submitRename}
+                    onCancel={tableRename.cancelRename}
+                  />
+                </span>
+              ) : undefined,
           },
           columns: {
             icon: <Columns3 className='size-[14px]' />,
@@ -178,7 +202,15 @@ export function Tables() {
           updated: timeCell(table.updatedAt),
         },
       })),
-    [processedTables, members]
+    [
+      processedTables,
+      members,
+      tableRename.editingId,
+      tableRename.editValue,
+      tableRename.setEditValue,
+      tableRename.submitRename,
+      tableRename.cancelRename,
+    ]
   )
 
   const searchConfig: SearchConfig = useMemo(
@@ -256,7 +288,7 @@ export function Tables() {
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
               { value: 'small', label: 'Small (1–100 rows)' },
@@ -270,14 +302,13 @@ export function Tables() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
             <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
-            <Combobox
+            <ChipCombobox
               options={memberOptions}
               multiSelect
               multiSelectValues={ownerFilter}
@@ -289,8 +320,7 @@ export function Tables() {
               searchPlaceholder='Search members...'
               showAllOption
               allOptionLabel='All'
-              size='sm'
-              className='h-[32px] w-full rounded-md'
+              className='w-full'
             />
           </div>
         )}
@@ -400,6 +430,7 @@ export function Tables() {
         }
 
         setUploadProgress({ completed: 0, total: csvFiles.length })
+        const failed: string[] = []
 
         for (let i = 0; i < csvFiles.length; i++) {
           try {
@@ -412,13 +443,23 @@ export function Tables() {
               }
             }
           } catch (err) {
+            failed.push(csvFiles[i].name)
             logger.error('Error uploading CSV:', err)
           } finally {
             setUploadProgress({ completed: i + 1, total: csvFiles.length })
           }
         }
+
+        if (failed.length > 0) {
+          toast.error(
+            failed.length === 1
+              ? `Failed to import ${failed[0]}`
+              : `Failed to import ${failed.length} file${failed.length > 1 ? 's' : ''}: ${failed.join(', ')}`
+          )
+        }
       } catch (err) {
         logger.error('Error uploading CSV:', err)
+        toast.error('Failed to import CSV')
       } finally {
         setUploading(false)
         setUploadProgress({ completed: 0, total: 0 })
@@ -520,6 +561,9 @@ export function Tables() {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
+        onRename={() => {
+          if (activeTable) tableRename.startRename(activeTable.id, activeTable.name)
+        }}
         onImportCsv={() => setIsImportDialogOpen(true)}
         onExportCsv={async () => {
           if (!activeTable) return
@@ -547,36 +591,39 @@ export function Tables() {
         />
       )}
 
-      <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Table</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>
-                All {activeTable?.rowCount} rows will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setIsDeleteDialogOpen(false)
-                setActiveTable(null)
-              }}
-              disabled={deleteTable.isPending}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={deleteTable.isPending}>
-              {deleteTable.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        srTitle='Delete Table'
+      >
+        <ChipModalHeader showDivider={false}>Delete Table</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All {activeTable?.rowCount} rows will be removed.
+            </span>{' '}
+            You can restore it from Recently Deleted in Settings.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => {
+              setIsDeleteDialogOpen(false)
+              setActiveTable(null)
+            }}
+            disabled={deleteTable.isPending}
+          >
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleDelete} disabled={deleteTable.isPending}>
+            {deleteTable.isPending ? 'Deleting...' : 'Delete'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

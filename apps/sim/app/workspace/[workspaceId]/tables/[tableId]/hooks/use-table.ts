@@ -195,6 +195,10 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
       if (group.type === 'enrichment') continue
       const state = workflowStates.get(group.workflowId)
       const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)?.blocks
+      // `useWorkflowStates` only fetches the live draft, so we can only judge
+      // "block missing" for live-mode groups. A deployed-mode group runs a
+      // different graph we don't load client-side — don't risk a false badge.
+      const isLiveMode = group.deploymentMode !== 'deployed'
       for (const out of group.outputs) {
         const block = blocks?.[out.blockId]
         const blockConfig = block?.type ? getBlock(block.type) : undefined
@@ -202,7 +206,10 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
           ? { icon: blockConfig.icon, color: blockConfig.bgColor || '#2F55FF' }
           : undefined
         const blockName = block?.name?.trim() || undefined
-        map.set(out.columnName, { blockIconInfo, blockName })
+        // Flag a missing source block only once the workflow state has loaded
+        // (truthy `blocks`), so a still-loading workflow never flashes the badge.
+        const blockMissing = Boolean(isLiveMode && blocks && out.blockId && !block)
+        map.set(out.columnName, { blockIconInfo, blockName, blockMissing })
       }
     }
     return map

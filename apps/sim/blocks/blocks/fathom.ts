@@ -1,5 +1,5 @@
 import { FathomIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { FathomResponse } from '@/tools/fathom/types'
 import { getTrigger } from '@/triggers'
 import { fathomTriggerOptions } from '@/triggers/fathom/utils'
@@ -15,7 +15,6 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
   docsLink: 'https://docs.sim.ai/tools/fathom',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['meeting', 'note-taking'],
   bgColor: '#181C1E',
   icon: FathomIcon,
   subBlocks: [
@@ -211,3 +210,77 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
     available: ['fathom_new_meeting', 'fathom_webhook'],
   },
 }
+
+export const FathomBlockMeta = {
+  tags: ['meeting', 'note-taking'],
+  templates: [
+    {
+      icon: FathomIcon,
+      title: 'Fathom meeting recap to Slack',
+      prompt:
+        'Build a workflow that triggers when a Fathom meeting completes, pulls the summary and action items, and posts a recap to the relevant Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['meeting', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom transcript to Notion notes',
+      prompt:
+        'Create a workflow that triggers on a new Fathom meeting, pulls the transcript and summary, and writes a structured meeting note to Notion with attendees and next steps.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['meeting', 'note-taking'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom weekly meeting digest',
+      prompt:
+        'Build a scheduled weekly workflow that lists Fathom meetings from the past week, summarizes the key decisions and commitments across calls with an agent, and emails the digest to the team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['meeting', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom CRM call logger',
+      prompt:
+        'Build a workflow that triggers when a Fathom meeting ends, pulls the summary and CRM matches, and logs the call notes and next steps to the matched HubSpot contact.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['meeting', 'sales'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom action-item tracker',
+      prompt:
+        'Create a workflow that triggers on a new Fathom meeting, extracts action items from the summary with an agent, and writes each one to a tasks table with owner and due date.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['meeting', 'automation'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom meeting archive',
+      prompt:
+        'Build a workflow that triggers on a completed Fathom meeting, pulls the full transcript and summary, and saves a formatted recap file to the shared meeting archive.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['meeting', 'note-taking'],
+    },
+    {
+      icon: FathomIcon,
+      title: 'Fathom sales-call action items',
+      prompt:
+        'Create a workflow that after a Fathom meeting pulls the summary and transcript, extracts the customer commitments and next steps with an agent, creates follow-up tasks in the CRM, and emails a recap to the attendees.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'meeting', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

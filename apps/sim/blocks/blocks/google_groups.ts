@@ -1,6 +1,6 @@
 import { GoogleGroupsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 
@@ -14,7 +14,6 @@ export const GoogleGroupsBlock: BlockConfig = {
   docsLink: 'https://developers.google.com/admin-sdk/directory/v1/guides/manage-groups',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['google-workspace', 'messaging', 'identity'],
   bgColor: '#E8F0FE',
   icon: GoogleGroupsIcon,
   subBlocks: [
@@ -456,3 +455,79 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
     deleted: { type: 'boolean', description: 'Deletion result (for remove_alias)' },
   },
 }
+
+export const GoogleGroupsBlockMeta = {
+  tags: ['google-workspace', 'messaging', 'identity'],
+  templates: [
+    {
+      icon: GoogleGroupsIcon,
+      title: 'Google Groups onboarding sync',
+      prompt:
+        'Create a workflow that watches Rippling or Greenhouse for new hires, adds them to the right Google Groups based on team and department, and emails the new hire a list of the groups joined.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+      alsoIntegrations: ['rippling', 'greenhouse'],
+    },
+    {
+      icon: GoogleGroupsIcon,
+      title: 'Google Groups quarterly access review',
+      prompt:
+        'Build a scheduled workflow that runs each quarter, lists every Google Group with members and owners, writes the report to a table for compliance review, and pings owners to confirm membership in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleGroupsIcon,
+      title: 'Google Groups departure cleanup',
+      prompt:
+        'Create a workflow that watches Workday or Rippling for terminations and removes the departing user from every Google Group they belonged to, writing the change to a security audit log.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday', 'rippling'],
+    },
+    {
+      icon: GoogleGroupsIcon,
+      title: 'Google Groups self-serve requester',
+      prompt:
+        'Build a workflow that accepts a Google Group access request via a form, gets manager approval over Slack, adds the user to the group, and notifies the requester when access is granted.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleGroupsIcon,
+      title: 'Google Groups distribution-list audit',
+      prompt:
+        'Create a scheduled workflow that scans Google Groups marked as distribution lists, flags external members against an allowlist, and posts a Slack report to the security team.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleGroupsIcon,
+      title: 'Google Groups empty-group cleanup',
+      prompt:
+        'Build a scheduled workflow that lists Google Groups with no members, opens a confirmation thread with the owner in Slack, and deletes the group once approved.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleGroupsIcon,
+      title: 'Google Groups settings hardening',
+      prompt:
+        'Create a scheduled workflow that reads the settings for every Google Group, flags groups that allow external posting or open membership against policy, and posts the findings to the security team in Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

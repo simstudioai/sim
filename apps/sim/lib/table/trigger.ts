@@ -21,7 +21,6 @@ interface TableTriggerPayload {
   changedColumns: string[]
   rowId: string
   headers: string[]
-  rowNumber: number
   tableId: string
   tableName: string
   timestamp: string
@@ -113,7 +112,6 @@ export async function fireTableTrigger(
           changedColumns,
           rowId: row.id,
           headers,
-          rowNumber: row.position,
           tableId,
           tableName,
           timestamp: new Date().toISOString(),

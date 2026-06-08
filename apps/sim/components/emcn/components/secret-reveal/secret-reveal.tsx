@@ -18,7 +18,7 @@
  */
 'use client'
 
-import { Button, Check, Copy } from '@/components/emcn'
+import { Button, Check, Duplicate } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
@@ -64,7 +64,7 @@ export function SecretReveal({ value, className, redacted = false }: SecretRevea
           className='-translate-y-1/2 absolute top-1/2 right-[4px] size-[28px] rounded-sm text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
           onClick={handleCopy}
         >
-          {copied ? <Check className='size-[14px]' /> : <Copy className='size-[14px]' />}
+          {copied ? <Check className='size-[14px]' /> : <Duplicate className='size-[14px]' />}
           <span className='sr-only'>Copy to clipboard</span>
         </Button>
       )}

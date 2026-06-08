@@ -1,5 +1,5 @@
 import { CalendlyIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
@@ -15,7 +15,6 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/calendly',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['scheduling', 'calendar', 'meeting'],
   bgColor: '#FFFFFF',
   icon: CalendlyIcon,
   subBlocks: [
@@ -328,3 +327,78 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     ],
   },
 }
+
+export const CalendlyBlockMeta = {
+  tags: ['scheduling', 'calendar', 'meeting'],
+  templates: [
+    {
+      icon: CalendlyIcon,
+      title: 'Scheduling follow-up automator',
+      prompt:
+        'Build a workflow that monitors new Calendly bookings, researches each attendee and their company, prepares a pre-meeting brief with relevant context, and sends a personalized confirmation email with an agenda and any prep materials.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['sales', 'research', 'automation'],
+    },
+    {
+      icon: CalendlyIcon,
+      title: 'Calendly meeting-prep brief',
+      prompt:
+        'Build a workflow that runs 30 minutes before a Calendly booking, researches the attendee and company with Apollo, and emails the host a structured prep brief.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['apollo', 'gmail'],
+    },
+    {
+      icon: CalendlyIcon,
+      title: 'Calendly post-meeting recap',
+      prompt:
+        'Create a workflow that runs after a Calendly meeting ends, pulls the meeting notes from the calendar, writes a CRM-ready summary, and updates the linked Salesforce opportunity.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: CalendlyIcon,
+      title: 'Calendly no-show recovery',
+      prompt:
+        'Build a workflow that detects Calendly no-shows, sends a polite reschedule email with a one-tap link, and updates the deal record with the no-show event.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: CalendlyIcon,
+      title: 'Calendly + Loops nurture',
+      prompt:
+        'Create a workflow that on a Calendly booking enrolls the attendee into a Loops nurture campaign tailored to the meeting topic, ensuring follow-up emails reach them before the meeting.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'communication'],
+      alsoIntegrations: ['loops'],
+    },
+    {
+      icon: CalendlyIcon,
+      title: 'Calendly no-show tracker',
+      prompt:
+        "Build a scheduled workflow that lists yesterday's Calendly scheduled events, checks invitee status to find no-shows, logs them to a table for follow-up, and posts a recap of attended versus missed meetings to Slack.",
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'reporting', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CalendlyIcon,
+      title: 'Calendly booking prep brief',
+      prompt:
+        'Create a workflow that on a new Calendly booking fetches the scheduled event and invitee details, researches the attendee and their company, and emails the meeting owner a one-page prep brief before the call.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

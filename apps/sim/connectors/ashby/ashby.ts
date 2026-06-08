@@ -298,7 +298,32 @@ function renderFeedbackValue(value: unknown): string {
 
 /**
  * Stable, metadata-based content hash for a candidate document. Identical between the
- * listing stub and the fully-fetched document so unchanged candidates are skipped.
+ * listing stub and the fully-fetched document so unchanged candidates are skipped,
+ * which keeps the `getDocument` re-hydration (notes + feedback fetches) cheap: the
+ * sync engine only re-hydrates a deferred stub when this hash differs from the stored
+ * document's hash (see `lib/knowledge/connectors/sync-engine.ts`).
+ *
+ * Known limitation — notes/feedback freshness depends on `candidate.updatedAt`.
+ * Candidate notes (`candidate.listNotes`) and interview feedback
+ * (`applicationFeedback.list`) are separate Ashby objects, not candidate fields. This
+ * hash is derived solely from the candidate's own `updatedAt`, so a new note or newly
+ * submitted feedback is only re-synced if Ashby advances `candidate.updatedAt` as a
+ * side effect of that write.
+ *
+ * As of this writing Ashby's public API docs do not specify what counts as a
+ * "modification" for `candidate.updatedAt` or for `candidate.list` syncToken
+ * incremental sync, and no third-party ATS-integration vendor (Merge, Nango, Knit)
+ * documents it either — so this behavior is unverified. If Ashby does NOT touch
+ * `candidate.updatedAt` on note/feedback writes, those additions will not be picked up
+ * until some other candidate field changes; a forced full sync re-hydrates everything
+ * regardless. No cheaper listing-time signal exists to fold into this hash: the
+ * `candidate.list` object exposes no note/feedback count, and syncToken carries the
+ * same unspecified change semantics as `updatedAt`.
+ *
+ * Refs:
+ * - https://developers.ashbyhq.com/reference/candidatelist
+ * - https://developers.ashbyhq.com/reference/candidatecreatenote
+ * - https://developers.ashbyhq.com/docs/pagination-and-incremental-sync
  */
 function buildContentHash(id: string, updatedAt: string | null): string {
   return `ashby:${id}:${updatedAt ?? ''}`

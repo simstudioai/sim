@@ -1,5 +1,5 @@
 import { SixtyfourIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const SixtyfourBlock: BlockConfig = {
   type: 'sixtyfour',
@@ -10,7 +10,6 @@ export const SixtyfourBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/sixtyfour',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#000000',
   icon: SixtyfourIcon,
   authMode: AuthMode.ApiKey,
@@ -296,3 +295,78 @@ export const SixtyfourBlock: BlockConfig = {
     },
   },
 }
+
+export const SixtyfourBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  templates: [
+    {
+      icon: SixtyfourIcon,
+      title: 'Sixtyfour contact researcher',
+      prompt:
+        'Build a workflow that runs Sixtyfour AI on inbound leads, enriches with deep research-grade signals, and writes a research brief into the CRM contact record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: SixtyfourIcon,
+      title: 'Sixtyfour account intelligence',
+      prompt:
+        'Create a workflow that for tracked accounts runs Sixtyfour deep research weekly, surfaces new signals, and writes the digest into a research table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: SixtyfourIcon,
+      title: 'Sixtyfour outbound briefer',
+      prompt:
+        'Build a workflow that runs Sixtyfour on a prospect, generates a tailored outreach brief with hooks, and queues it for the rep to send via Email Bison.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['emailbison'],
+    },
+    {
+      icon: SixtyfourIcon,
+      title: 'Sixtyfour event-attendee researcher',
+      prompt:
+        'Create a workflow that takes a Luma event attendee list, runs Sixtyfour deep research per attendee, and writes per-person briefs for the sales team.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['luma'],
+    },
+    {
+      icon: SixtyfourIcon,
+      title: 'Sixtyfour competitor-intel digest',
+      prompt:
+        'Build a scheduled weekly workflow that runs Sixtyfour deep research on competitors and writes a competitive-intel digest to a Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SixtyfourIcon,
+      title: 'Sixtyfour CRM enricher',
+      prompt:
+        'Create a scheduled workflow that finds CRM accounts missing deep-research signals, runs Sixtyfour, and writes the structured findings back to the account record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: SixtyfourIcon,
+      title: 'Sixtyfour deal-prep packet',
+      prompt:
+        'Build a workflow that runs Sixtyfour the morning of every meeting, generates a meeting-prep packet with company and attendee research, and emails the rep.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

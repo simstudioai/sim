@@ -534,16 +534,6 @@ export interface DeploymentData {
     customizations: unknown
     isActive: boolean
   } | null
-  form?: {
-    id: string
-    identifier: string
-    title: string
-    description?: string | null
-    authType: string
-    showBranding: boolean
-    customizations: unknown
-    isActive: boolean
-  } | null
   mcp: Array<{
     serverId: string
     serverName: string
@@ -599,20 +589,6 @@ export function serializeDeployments(data: DeploymentData): string {
       authType: data.chat.authType,
       customizations: data.chat.customizations,
       isActive: data.chat.isActive,
-    }
-  }
-
-  if (data.form) {
-    result.form = {
-      id: data.form.id,
-      identifier: data.form.identifier,
-      formUrl: `/form/${data.form.identifier}`,
-      title: data.form.title,
-      description: data.form.description || undefined,
-      authType: data.form.authType,
-      showBranding: data.form.showBranding,
-      customizations: data.form.customizations,
-      isActive: data.form.isActive,
     }
   }
 

@@ -2,6 +2,7 @@
 // prefix (`sim-mothership:` / `go-mothership:`) to separate the two
 // halves of a mothership trace in the OTLP backend.
 
+import { hostname } from 'node:os'
 import type { Attributes, Context, Link, SpanKind } from '@opentelemetry/api'
 import { DiagConsoleLogger, DiagLogLevel, diag, TraceFlags, trace } from '@opentelemetry/api'
 import type {
@@ -58,6 +59,25 @@ function normalizeOtlpTracesUrl(url: string): string {
     if (u.pathname.endsWith('/v1/traces')) return url
     const base = url.replace(/\/$/, '')
     return `${base}/v1/traces`
+  } catch {
+    return url
+  }
+}
+
+// Metrics counterpart to `normalizeOtlpTracesUrl`. Operates on the parsed
+// pathname (not a raw string suffix) so query strings and trailing slashes
+// don't corrupt the result: swap a `/v1/traces` suffix for `/v1/metrics`,
+// otherwise append `/v1/metrics`.
+function normalizeOtlpMetricsUrl(url: string): string {
+  if (!url) return url
+  try {
+    const u = new URL(url)
+    const path = u.pathname.replace(/\/$/, '')
+    if (path.endsWith('/v1/metrics')) return url
+    u.pathname = path.endsWith('/v1/traces')
+      ? path.replace(/\/v1\/traces$/, '/v1/metrics')
+      : `${path}/v1/metrics`
+    return u.toString()
   } catch {
     return url
   }
@@ -144,6 +164,8 @@ async function initializeOpenTelemetry() {
       '@opentelemetry/semantic-conventions/incubating'
     )
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http')
+    const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http')
+    const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics')
     const { BatchSpanProcessor } = await import('@opentelemetry/sdk-trace-node')
     const { TraceIdRatioBasedSampler, SamplingDecision } = await import(
       '@opentelemetry/sdk-trace-base'
@@ -226,10 +248,24 @@ async function initializeOpenTelemetry() {
       exportTimeoutMillis: telemetryConfig.batchSettings.exportTimeoutMillis,
     })
 
-    // Unique instance id per origin keeps Jaeger's clock-skew adjuster
-    // from grouping Sim+Go spans together (they'd see multi-second
-    // drift as intra-service and emit spurious warnings).
-    const serviceInstanceId = `${telemetryConfig.serviceName}-${SERVICE_INSTANCE_SLUG}`
+    // Metrics (hosted-key counters/histograms) share the trace endpoint and
+    // headers — only the signal path differs. Unlike spans these aren't sampled.
+    const metricReader = new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter({
+        url: normalizeOtlpMetricsUrl(telemetryConfig.endpoint),
+        headers: otlpHeaders,
+        timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
+        keepAlive: false,
+      }),
+      exportIntervalMillis: 60000,
+    })
+
+    // Must be unique per process: replicas sharing one instance id collapse
+    // into a single Prometheus series, so their independent cumulative
+    // counters interleave and corrupt rate()/increase(). The slug keeps Sim
+    // distinct from Go for Jaeger's clock-skew grouping; the hostname (the
+    // container id under ECS) makes each replica its own series.
+    const serviceInstanceId = `${telemetryConfig.serviceName}-${SERVICE_INSTANCE_SLUG}-${hostname()}`
     const resource = defaultResource().merge(
       resourceFromAttributes({
         [ATTR_SERVICE_NAME]: telemetryConfig.serviceName,
@@ -268,6 +304,7 @@ async function initializeOpenTelemetry() {
       resource,
       spanProcessors,
       sampler,
+      metricReader,
     })
 
     sdk.start()

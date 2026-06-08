@@ -92,7 +92,6 @@ describe('Workflow By ID API Route', () => {
         id: params.workflowId,
         name: params.name ?? params.currentName,
         description: params.description ?? null,
-        color: params.color ?? null,
         workspaceId: params.workspaceId,
         folderId: params.folderId ?? params.currentFolderId ?? null,
         sortOrder: params.sortOrder ?? null,
@@ -833,7 +832,11 @@ describe('Workflow By ID API Route', () => {
         workspaceId: 'workspace-456',
       }
 
-      const updatedWorkflow = { ...mockWorkflow, color: '#FF0000', updatedAt: new Date() }
+      const updatedWorkflow = {
+        ...mockWorkflow,
+        description: 'Updated description',
+        updatedAt: new Date(),
+      }
 
       mockGetSession({ user: { id: 'user-123' } })
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
@@ -854,7 +857,7 @@ describe('Workflow By ID API Route', () => {
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'PUT',
-        body: JSON.stringify({ color: '#FF0000' }),
+        body: JSON.stringify({ description: 'Updated description' }),
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 

@@ -1,5 +1,5 @@
 import { DatadogIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DatadogResponse } from '@/tools/datadog/types'
 
@@ -12,9 +12,9 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
     'Integrate Datadog monitoring into workflows. Submit metrics, manage monitors, query logs, create events, handle downtimes, and more.',
   docsLink: 'https://docs.sim.ai/tools/datadog',
   category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  tags: ['monitoring', 'incident-management', 'error-tracking'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#632CA6',
+  iconColor: '#632CA6',
   icon: DatadogIcon,
   subBlocks: [
     // Operation selector
@@ -833,3 +833,78 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     downtimes: { type: 'json', description: 'List of downtimes' },
   },
 }
+
+export const DatadogBlockMeta = {
+  tags: ['monitoring', 'incident-management', 'error-tracking'],
+  templates: [
+    {
+      icon: DatadogIcon,
+      title: 'Infrastructure health report',
+      prompt:
+        'Create a scheduled daily workflow that queries Datadog for key infrastructure metrics — error rates, latency percentiles, CPU and memory usage — logs them to a table for trend tracking, and sends a morning Slack report highlighting any anomalies or degradations.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'infrastructure', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DatadogIcon,
+      title: 'Datadog alert-to-Linear bridge',
+      prompt:
+        'Build a scheduled workflow that polls Datadog monitors for any in an alerting state, classifies severity, creates a Linear ticket for non-paging issues with full context, and posts a Slack notification linking both.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+    {
+      icon: DatadogIcon,
+      title: 'Datadog SLO weekly review',
+      prompt:
+        'Create a scheduled weekly workflow that queries Datadog timeseries for the key reliability metrics behind each service SLO, computes error budget burn, and writes a narrative review file for the SRE team to discuss in the weekly meeting.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+    },
+    {
+      icon: DatadogIcon,
+      title: 'Datadog cost optimizer',
+      prompt:
+        'Build a scheduled workflow that queries Datadog estimated-usage timeseries for the top custom metrics by volume, writes optimization recommendations to a finance review file, and pings the platform team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DatadogIcon,
+      title: 'Datadog monitor config backup',
+      prompt:
+        'Create a scheduled workflow that lists every Datadog monitor nightly, fetches each monitor’s full configuration, exports the definitions as JSON to S3 with version history, and writes a manifest to a tracking table for restore drills.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: DatadogIcon,
+      title: 'Datadog deploy guardrail',
+      prompt:
+        'Build a workflow triggered after a deploy that creates a Datadog event marker, queries error-rate and latency timeseries over the next few minutes, and pages the team via PagerDuty if the metrics breach the rollback threshold.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'engineering'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: DatadogIcon,
+      title: 'Datadog SLO weekly report',
+      prompt:
+        'Create a scheduled weekly workflow that queries Datadog timeseries for key service SLOs, lists which monitors fired during the week, writes the SLO compliance numbers to a table, and emails an availability summary to the on-call leads.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'reporting', 'monitoring'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

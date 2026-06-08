@@ -1,5 +1,5 @@
 import { PineconeIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PineconeResponse } from '@/tools/pinecone/types'
 
@@ -13,7 +13,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   docsLink: 'https://docs.sim.ai/tools/pinecone',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#0D1117',
   icon: PineconeIcon,
 
@@ -328,3 +327,78 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     usage: { type: 'json', description: 'Usage statistics' },
   },
 }
+
+export const PineconeBlockMeta = {
+  tags: ['vector-search', 'knowledge-base'],
+  templates: [
+    {
+      icon: PineconeIcon,
+      title: 'Pinecone reindex pipeline',
+      prompt:
+        'Build a scheduled workflow that regenerates embeddings with OpenAI for new or changed source documents and upserts the vectors into a Pinecone index so retrieval stays current.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+      alsoIntegrations: ['openai'],
+    },
+    {
+      icon: PineconeIcon,
+      title: 'Pinecone semantic search agent',
+      prompt:
+        'Create an agent that takes a natural-language query, embeds it with OpenAI, retrieves top-k matches from Pinecone, and answers with cited passages plus a confidence score.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'enterprise'],
+      alsoIntegrations: ['openai'],
+    },
+    {
+      icon: PineconeIcon,
+      title: 'Pinecone retrieval-quality monitor',
+      prompt:
+        'Build a scheduled weekly workflow that runs a fixed set of benchmark queries against a Pinecone index, records top-k similarity scores per namespace to a table, and pings Slack when retrieval quality regresses.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: PineconeIcon,
+      title: 'Pinecone duplicate detector',
+      prompt:
+        'Create a workflow that reads a table of candidate records, embeds each with OpenAI, searches a Pinecone index for matches above a similarity threshold, and writes the near-duplicates to a cleanup queue.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['openai'],
+    },
+    {
+      icon: PineconeIcon,
+      title: 'Pinecone tenant isolation auditor',
+      prompt:
+        'Build a workflow that verifies Pinecone namespace isolation by sampling cross-namespace queries, ensuring no leakage, and writing a compliance audit report each week.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'enterprise'],
+    },
+    {
+      icon: PineconeIcon,
+      title: 'Pinecone FAQ deflection bot',
+      prompt:
+        'Create a workflow that embeds an incoming question with OpenAI, searches a Pinecone index of FAQ entries for the closest match, and returns the answer when similarity is high or escalates when it is not.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+      alsoIntegrations: ['openai'],
+    },
+    {
+      icon: PineconeIcon,
+      title: 'Pinecone support knowledge retriever',
+      prompt:
+        'Build a workflow that fetches each new Zendesk ticket, embeds the question with OpenAI, queries a Pinecone index of resolved tickets and docs, and drafts a suggested reply citing the most relevant matches for the agent to approve.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'vector-search', 'automation'],
+      alsoIntegrations: ['openai', 'zendesk'],
+    },
+  ],
+} as const satisfies BlockMeta

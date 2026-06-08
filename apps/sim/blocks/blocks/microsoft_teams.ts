@@ -1,6 +1,6 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { MicrosoftTeamsResponse } from '@/tools/microsoft_teams/types'
@@ -16,9 +16,8 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_teams',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'microsoft-365'],
   triggerAllowed: true,
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftTeamsIcon,
   subBlocks: [
     {
@@ -481,3 +480,77 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     available: ['microsoftteams_webhook'],
   },
 }
+
+export const MicrosoftTeamsBlockMeta = {
+  tags: ['messaging', 'microsoft-365'],
+  templates: [
+    {
+      icon: MicrosoftTeamsIcon,
+      title: 'Microsoft Teams daily brief',
+      prompt:
+        'Build a scheduled workflow that pulls updates from your project tools — GitHub commits, Jira ticket status changes, and calendar events — and posts a formatted daily brief to your Microsoft Teams channel each morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting', 'enterprise'],
+      alsoIntegrations: ['github', 'jira'],
+    },
+    {
+      icon: MicrosoftTeamsIcon,
+      title: 'Teams incident war room',
+      prompt:
+        'Build a workflow triggered by a PagerDuty incident that creates a Microsoft Teams war-room channel, invites responders, posts the incident summary, and keeps the channel name in sync with incident state.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: MicrosoftTeamsIcon,
+      title: 'Teams sales-deal channel',
+      prompt:
+        'Create a workflow that listens for new Salesforce opportunities above a threshold, creates a Microsoft Teams channel for the deal, invites the account team, and pins the opportunity link.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'enterprise'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: MicrosoftTeamsIcon,
+      title: 'Teams approval router',
+      prompt:
+        'Build a workflow that posts approval requests with quick-action buttons in Microsoft Teams, captures the decision, writes it back to the source record, and notifies the requester.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+    },
+    {
+      icon: MicrosoftTeamsIcon,
+      title: 'Teams weekly metrics digest',
+      prompt:
+        'Create a scheduled weekly workflow that aggregates key business metrics from Stripe and HubSpot, formats them into a polished Microsoft Teams adaptive card, and posts to the leadership channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'enterprise'],
+      alsoIntegrations: ['stripe', 'hubspot'],
+    },
+    {
+      icon: MicrosoftTeamsIcon,
+      title: 'Teams onboarding bot',
+      prompt:
+        'Build a Microsoft Teams bot that greets new hires when added to the org, walks them through onboarding tasks with progress checkboxes, and writes completion status to an HR table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation'],
+    },
+    {
+      icon: MicrosoftTeamsIcon,
+      title: 'Teams ticket-bridge for Zendesk',
+      prompt:
+        'Create a workflow that mirrors high-priority Zendesk tickets into Microsoft Teams channels, keeps replies synced both ways, and closes the Teams thread when the ticket is resolved.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'enterprise'],
+      alsoIntegrations: ['zendesk'],
+    },
+  ],
+} as const satisfies BlockMeta

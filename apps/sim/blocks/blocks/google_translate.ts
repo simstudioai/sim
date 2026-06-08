@@ -1,5 +1,5 @@
 import { GoogleTranslateIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
 const SUPPORTED_LANGUAGES = [
   { label: 'Afrikaans', id: 'af' },
@@ -146,8 +146,7 @@ export const GoogleTranslateBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/google_translate',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['google-workspace', 'content-management', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleTranslateIcon,
   authMode: AuthMode.ApiKey,
   subBlocks: [
@@ -216,3 +215,78 @@ export const GoogleTranslateBlock: BlockConfig = {
     confidence: { type: 'number', description: 'Detection confidence score' },
   },
 }
+
+export const GoogleTranslateBlockMeta = {
+  tags: ['google-workspace', 'content-management', 'automation'],
+  templates: [
+    {
+      icon: GoogleTranslateIcon,
+      title: 'Google Translate doc localizer',
+      prompt:
+        'Create a workflow that watches a Google Drive folder of source-language docs, translates each into target languages with Google Translate while preserving structure, and writes the localized files back.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['content', 'enterprise'],
+      alsoIntegrations: ['google_drive'],
+    },
+    {
+      icon: GoogleTranslateIcon,
+      title: 'Multilingual support replier',
+      prompt:
+        'Build a workflow that detects the language of a new Intercom message, translates it to the agent language with Google Translate, drafts a reply, then translates the reply back before sending.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+      alsoIntegrations: ['intercom'],
+    },
+    {
+      icon: GoogleTranslateIcon,
+      title: 'Google Translate + Hugging Face confidence',
+      prompt:
+        'Create a workflow that runs Google Translate then scores translation quality with a Hugging Face model, flags low-confidence segments for human review, and writes the scored output.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['content', 'enterprise'],
+      alsoIntegrations: ['huggingface'],
+    },
+    {
+      icon: GoogleTranslateIcon,
+      title: 'Google Translate + Mistral Parser localization',
+      prompt:
+        'Build a workflow that uses Mistral Parser to extract structured content from source-language PDFs and Google Translate to localize each section while preserving structure.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['content', 'enterprise'],
+      alsoIntegrations: ['mistral_parse'],
+    },
+    {
+      icon: GoogleTranslateIcon,
+      title: 'Google Translate Confluence localization',
+      prompt:
+        'Create a workflow that watches Confluence pages tagged for localization, translates each into the target languages with Google Translate, and publishes localized copies.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['content', 'enterprise'],
+      alsoIntegrations: ['confluence'],
+    },
+    {
+      icon: GoogleTranslateIcon,
+      title: 'Multilingual support replies',
+      prompt:
+        "Build a workflow that on a new support ticket detects the customer's language with Google Translate, translates the message to English for the agent, drafts a reply, then translates the response back into the customer's language before sending.",
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication', 'automation'],
+    },
+    {
+      icon: GoogleTranslateIcon,
+      title: 'Slack channel translator',
+      prompt:
+        "Create a workflow that watches an international Slack channel, detects non-English messages with Google Translate, translates them to the team's language, and posts the translation in a thread so everyone stays in the loop.",
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

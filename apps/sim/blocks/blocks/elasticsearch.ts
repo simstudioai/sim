@@ -1,5 +1,5 @@
 import { ElasticsearchIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ElasticsearchResponse } from '@/tools/elasticsearch/types'
 
@@ -13,8 +13,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
   docsLink: 'https://docs.sim.ai/tools/elasticsearch',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['vector-search', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ElasticsearchIcon,
   subBlocks: [
     // Operation selector
@@ -535,3 +534,77 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
     nodes: { type: 'json', description: 'Node statistics' },
   },
 }
+
+export const ElasticsearchBlockMeta = {
+  tags: ['vector-search', 'data-analytics'],
+  templates: [
+    {
+      icon: ElasticsearchIcon,
+      title: 'Elasticsearch log triage',
+      prompt:
+        'Build a scheduled workflow that runs saved Elasticsearch queries hourly for error patterns, clusters the matches, writes the top groups to a triage table, and pings on-call.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: ElasticsearchIcon,
+      title: 'Elasticsearch security event correlator',
+      prompt:
+        'Create a workflow that pulls Elasticsearch security events, correlates them across sources, and opens a CrowdStrike or PagerDuty incident on a confirmed pattern.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['crowdstrike', 'pagerduty'],
+    },
+    {
+      icon: ElasticsearchIcon,
+      title: 'Elasticsearch index lifecycle audit',
+      prompt:
+        'Build a scheduled weekly workflow that audits Elasticsearch indices against retention policies, identifies over-retained data, and writes the cleanup plan to a Slack approval thread.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ElasticsearchIcon,
+      title: 'Elasticsearch search-as-a-service connector',
+      prompt:
+        'Create a workflow that exposes a saved Elasticsearch query as an internal search endpoint, normalizes results into a standard shape, and writes usage telemetry to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: ElasticsearchIcon,
+      title: 'Elasticsearch + knowledge base hybrid',
+      prompt:
+        'Build a workflow that combines Elasticsearch keyword search with a vector knowledge base, fuses results with reciprocal-rank fusion, and answers user questions with grounded citations.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'research'],
+    },
+    {
+      icon: ElasticsearchIcon,
+      title: 'Elasticsearch slow-query digest',
+      prompt:
+        'Create a scheduled daily workflow that aggregates Elasticsearch slow-log entries, clusters the top offenders, and posts a digest to the platform Slack channel with recommended fixes.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ElasticsearchIcon,
+      title: 'Elasticsearch + LangSmith retrieval evaluator',
+      prompt:
+        'Create a workflow that uses LangSmith to evaluate retrieval quality from Elasticsearch versus a vector knowledge base, writes the head-to-head scores to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['langsmith'],
+    },
+  ],
+} as const satisfies BlockMeta

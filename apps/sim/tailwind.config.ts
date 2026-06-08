@@ -121,12 +121,7 @@ export default {
         'kbd-sm': 'var(--shadow-kbd-sm)',
         card: 'var(--shadow-card)',
       },
-      dropShadow: {
-        tour: [
-          '0 0 0.5px color-mix(in srgb, var(--text-primary) 10%, transparent)',
-          '0 4px 12px rgba(0,0,0,0.1)',
-        ],
-      },
+      dropShadow: {},
       transitionProperty: {
         width: 'width',
         left: 'left',
@@ -197,10 +192,6 @@ export default {
           from: { opacity: '0', transform: 'translateY(20px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
-        'tour-tooltip-in': {
-          from: { opacity: '0', transform: 'scale(0.96) translateY(4px)' },
-          to: { opacity: '1', transform: 'scale(1) translateY(0)' },
-        },
         'collapsible-down': {
           from: { height: '0' },
           to: { height: 'var(--radix-collapsible-content-height)' },
@@ -222,7 +213,6 @@ export default {
         'thinking-block': 'thinking-block 1.6s ease-in-out infinite',
         'slide-in-right': 'slide-in-right 350ms ease-out forwards',
         'slide-in-bottom': 'slide-in-bottom 400ms cubic-bezier(0.16, 1, 0.3, 1)',
-        'tour-tooltip-in': 'tour-tooltip-in 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
         'collapsible-down': 'collapsible-down 300ms cubic-bezier(0.4, 0, 0.2, 1)',
         'collapsible-up': 'collapsible-up 300ms cubic-bezier(0.4, 0, 0.2, 1)',
       },

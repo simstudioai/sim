@@ -1,5 +1,5 @@
 import { ResendIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
@@ -12,7 +12,6 @@ export const ResendBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/resend',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['email-marketing', 'messaging'],
   bgColor: '#181C1E',
   icon: ResendIcon,
   authMode: AuthMode.ApiKey,
@@ -323,3 +322,75 @@ Return ONLY the email body - no explanations, no extra text.`,
     deleted: { type: 'boolean', description: 'Whether the resource was deleted' },
   },
 }
+
+export const ResendBlockMeta = {
+  tags: ['email-marketing', 'messaging'],
+  templates: [
+    {
+      icon: ResendIcon,
+      title: 'Resend + Loops onboarding emails',
+      prompt:
+        'Build a workflow that listens for new signups, creates a Loops contact with the right user group, and sends the welcome email through Resend with a personalized subject and body so the first impression is on-brand and fast.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['marketing', 'automation', 'communication'],
+      alsoIntegrations: ['loops'],
+    },
+    {
+      icon: ResendIcon,
+      title: 'Resend domain monitor',
+      prompt:
+        'Create a scheduled workflow that lists Resend domains, checks DNS verification status for each, and posts a Slack alert the moment any domain shows a verification or DKIM problem so we never silently lose deliverability.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'devops', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ResendIcon,
+      title: 'Resend transactional flow',
+      prompt:
+        'Build a workflow that listens for product events, renders the right transactional email body, sends it through Resend, then retrieves the message status after a short delay and writes delivery, open, and click events to a per-user activity table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'communication'],
+    },
+    {
+      icon: ResendIcon,
+      title: 'Resend + AgentMail reply handler',
+      prompt:
+        'Create a workflow that sends outbound messages through Resend but routes replies into a per-customer AgentMail inbox, threads them with the original send, and posts unread inbox digests to the support owner.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication', 'automation'],
+      alsoIntegrations: ['agentmail'],
+    },
+    {
+      icon: ResendIcon,
+      title: 'Resend marketing broadcast',
+      prompt:
+        'Build a workflow that takes a marketing message and a Resend audience, splits the recipient list into safe-volume batches, sends each batch through Resend with rate-limit pacing, and logs per-batch send results to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+    },
+    {
+      icon: ResendIcon,
+      title: 'Resend audience sync',
+      prompt:
+        'Create a workflow that reads my subscriber list from a table, creates or updates each Resend contact in the matching audience, and removes contacts that have unsubscribed by deleting them so the Resend audience stays in sync with my source of truth.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation', 'sync'],
+    },
+    {
+      icon: ResendIcon,
+      title: 'Resend unsubscribe handler',
+      prompt:
+        'Build a workflow that listens for unsubscribe events, looks up the matching Resend contact, updates it to unsubscribed, logs the opt-out reason to a table, and sends a confirmation email through Resend acknowledging the change.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'communication', 'compliance'],
+    },
+  ],
+} as const satisfies BlockMeta

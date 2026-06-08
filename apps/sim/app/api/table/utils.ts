@@ -5,11 +5,45 @@ import {
   deleteTableColumnBodySchema,
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
+import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table'
 import { getTableById } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
+
+/**
+ * Next.js buffers the request body for the proxy and silently truncates it past this
+ * size (`experimental.proxyClientMaxBodySize`, default 10MB). The synchronous CSV
+ * import routes reject bodies over the cap up front; larger files use the async
+ * direct-to-storage path instead.
+ */
+export const CSV_IMPORT_PROXY_BODY_CAP_BYTES = 10 * 1024 * 1024
+
+/** 413 response when a synchronous CSV upload would exceed (and be truncated at) the proxy cap; `null` otherwise. */
+export function csvProxyBodyCapResponse(request: { headers: Headers }): NextResponse | null {
+  const contentLength = Number(request.headers.get('content-length') ?? 0)
+  if (contentLength > CSV_IMPORT_PROXY_BODY_CAP_BYTES) {
+    return NextResponse.json(
+      {
+        error:
+          'File too large to import through the server. Files over 10MB import in the background.',
+      },
+      { status: 413 }
+    )
+  }
+  return null
+}
+
+/** Maps a {@link MultipartError} from the streaming CSV parser to its HTTP response. */
+export function multipartErrorResponse(error: MultipartError): NextResponse {
+  if (error.code === 'FILE_TOO_LARGE') {
+    return NextResponse.json({ error: 'CSV import file exceeds maximum size' }, { status: 413 })
+  }
+  const message =
+    error.code === 'NO_FILE' ? 'CSV file is required' : `Invalid CSV upload: ${error.message}`
+  return NextResponse.json({ error: message }, { status: 400 })
+}
 
 interface TableAccessResult {
   hasAccess: true

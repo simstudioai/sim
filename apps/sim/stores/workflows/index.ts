@@ -40,7 +40,6 @@ export function getWorkflowWithValues(workflowId: string, workspaceId: string) {
     id: workflowId,
     name: metadata.name,
     description: metadata.description,
-    color: metadata.color || '#3972F6',
     workspaceId: metadata.workspaceId,
     folderId: metadata.folderId,
     state: {

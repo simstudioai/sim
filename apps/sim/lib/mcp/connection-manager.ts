@@ -461,6 +461,13 @@ export class McpConnectionManager {
   }
 }
 
-export const mcpConnectionManager: McpConnectionManager | null = isTest
-  ? null
-  : new McpConnectionManager()
+type McpManagerGlobal = typeof globalThis & {
+  _mcpConnectionManager?: McpConnectionManager | null
+}
+
+const _g = globalThis as McpManagerGlobal
+if (!('_mcpConnectionManager' in _g)) {
+  _g._mcpConnectionManager = isTest ? null : new McpConnectionManager()
+}
+
+export const mcpConnectionManager: McpConnectionManager | null = _g._mcpConnectionManager ?? null

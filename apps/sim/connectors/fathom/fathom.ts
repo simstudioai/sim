@@ -498,18 +498,28 @@ export const fathomConnector: ConnectorConfig = {
       }
 
       const header = readCachedHeader(syncContext, externalId)
+      if (!header) {
+        logger.warn(
+          'No cached header for Fathom meeting; skipping to avoid an un-refreshable record',
+          {
+            externalId,
+          }
+        )
+        return null
+      }
+
       const content = formatMeetingContent(header, transcript, summary).trim()
       if (!content) return null
 
       return {
         externalId,
-        title: header?.title ?? 'Untitled Fathom Meeting',
+        title: header.title,
         content,
         contentDeferred: false,
         mimeType: 'text/plain',
-        sourceUrl: header?.sourceUrl,
-        contentHash: header?.contentHash ?? `fathom:${externalId}`,
-        metadata: { ...(header?.metadata ?? { recordingId: externalId }) },
+        sourceUrl: header.sourceUrl,
+        contentHash: header.contentHash,
+        metadata: { ...header.metadata },
       }
     } catch (error) {
       logger.warn('Failed to get Fathom meeting', {

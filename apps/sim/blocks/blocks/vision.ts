@@ -29,9 +29,8 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate Vision into the workflow. Can analyze images with vision models.',
   docsLink: 'https://docs.sim.ai/tools/vision',
-  category: 'tools',
+  category: 'blocks',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'document-processing', 'ocr'],
   bgColor: '#4D5FFF',
   icon: EyeIcon,
   subBlocks: [

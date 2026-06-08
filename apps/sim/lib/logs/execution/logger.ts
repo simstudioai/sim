@@ -34,7 +34,11 @@ import {
 } from '@/lib/execution/payloads/large-value-metadata'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
-import { externalizeExecutionData, stripSpanCosts } from '@/lib/logs/execution/trace-store'
+import {
+  externalizeExecutionData,
+  stripSpanCosts,
+  TRACE_STORE_REF_KEY,
+} from '@/lib/logs/execution/trace-store'
 import type {
   BlockOutputData,
   ExecutionEnvironment,
@@ -686,31 +690,30 @@ export class ExecutionLogger implements IExecutionLoggerService {
       models: costSummary.models,
     }
 
-    const boundedExecutionData = this.compactExecutionDataForStorage(
-      this.buildCompletedExecutionData({
-        existingExecutionData,
-        traceSpans: mergedTraceSpans,
-        finalOutput,
-        finalizationPath,
-        completionFailure,
-        executionCost,
-        executionState,
-        workflowInput,
-      }),
-      executionId
-    )
+    const builtExecutionData = this.buildCompletedExecutionData({
+      existingExecutionData,
+      traceSpans: mergedTraceSpans,
+      finalOutput,
+      finalizationPath,
+      completionFailure,
+      executionCost,
+      executionState,
+      workflowInput,
+    })
 
+    // Extract files from the full (pre-summarization) payload so large runs keep
+    // every file reference even when the inline fallback later summarizes spans.
     const executionFiles = this.extractFilesFromExecution(
-      boundedExecutionData.traceSpans,
-      boundedExecutionData.finalOutput,
-      boundedExecutionData.workflowInput
+      builtExecutionData.traceSpans,
+      builtExecutionData.finalOutput,
+      builtExecutionData.workflowInput
     )
 
-    const filteredTraceSpans = filterForDisplay(boundedExecutionData.traceSpans)
-    const filteredFinalOutput = filterForDisplay(boundedExecutionData.finalOutput)
+    const filteredTraceSpans = filterForDisplay(builtExecutionData.traceSpans)
+    const filteredFinalOutput = filterForDisplay(builtExecutionData.finalOutput)
     const filteredWorkflowInput =
-      boundedExecutionData.workflowInput !== undefined
-        ? filterForDisplay(boundedExecutionData.workflowInput)
+      builtExecutionData.workflowInput !== undefined
+        ? filterForDisplay(builtExecutionData.workflowInput)
         : undefined
     const redactedTraceSpans = redactApiKeys(filteredTraceSpans)
     const redactedFinalOutput = redactApiKeys(filteredFinalOutput)
@@ -726,22 +729,30 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ? Math.max(0, Math.round(rawDurationMs))
         : 0
 
+    const cleanExecutionData: ExecutionData = {
+      ...builtExecutionData,
+      traceSpans: redactedTraceSpans,
+      finalOutput: redactedFinalOutput,
+      ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
+    }
+
+    stripSpanCosts((cleanExecutionData as Record<string, unknown>).traceSpans)
+
+    // Bounded in-memory form. Returned to callers (notification delivery/events)
+    // and reused as the inline-storage fallback below. This is a no-op for
+    // payloads already within MAX_EXECUTION_DATA_BYTES.
     const completedExecutionData = this.compactExecutionDataForStorage(
-      {
-        ...boundedExecutionData,
-        traceSpans: redactedTraceSpans,
-        finalOutput: redactedFinalOutput,
-        ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
-      },
+      cleanExecutionData,
       executionId
     )
 
-    stripSpanCosts((completedExecutionData as Record<string, unknown>).traceSpans)
-
+    // Persist the FULL payload to object storage first: blob storage holds up to
+    // MAX_DURABLE_LARGE_VALUE_BYTES (64MB), far above the inline row budget, so
+    // externalized logs keep full-fidelity trace IO instead of being summarized.
     // Externalization requires the execution owner (workspace_files.user_id is
     // NOT NULL). billingUserId comes from environment.userId and is effectively
     // always present for a real run; if it's somehow absent, keep data inline.
-    let storedExecutionData = completedExecutionData as Record<string, unknown>
+    let storedExecutionData = cleanExecutionData as Record<string, unknown>
     if (billingUserId) {
       storedExecutionData = await externalizeExecutionData(storedExecutionData, {
         workspaceId: existingLog?.workspaceId ?? null,
@@ -753,6 +764,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
       execLog.warn('Skipping execution-data externalization: missing owner userId', {
         executionId,
       })
+    }
+
+    // A successful externalization returns a slim row carrying TRACE_STORE_REF_KEY.
+    // Only when externalization was skipped or fell back to inline do we compact
+    // the payload to keep the Postgres row within MAX_EXECUTION_DATA_BYTES.
+    if (!(TRACE_STORE_REF_KEY in storedExecutionData)) {
+      storedExecutionData = completedExecutionData as Record<string, unknown>
     }
     const completedExecutionLargeValueKeys = collectLargeValueReferenceKeys(storedExecutionData)
 

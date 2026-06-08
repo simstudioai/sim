@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
+import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   cancelInvitationContract,
   resendInvitationContract,
@@ -29,7 +29,6 @@ import {
   updateOrganizationContract,
   updateOrganizationMemberRoleContract,
   updateOrganizationUsageLimitContract,
-  updateSeatsContract,
 } from '@/lib/api/contracts/organization'
 import {
   getOrganizationBillingContract,
@@ -416,7 +415,7 @@ export function useInviteMember() {
       })
 
       if (result.success === false) {
-        throw new Error(result.error || result.message || 'Failed to invite member')
+        throw new Error(result.error || result.message || 'Failed to invite teammate')
       }
 
       return result
@@ -437,19 +436,15 @@ export function useInviteMember() {
 interface RemoveMemberParams {
   memberId: string
   orgId: string
-  shouldReduceSeats?: ContractQueryInput<
-    typeof removeOrganizationMemberContract
-  >['shouldReduceSeats']
 }
 
 export function useRemoveMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ memberId, orgId, shouldReduceSeats }: RemoveMemberParams) => {
+    mutationFn: async ({ memberId, orgId }: RemoveMemberParams) => {
       return requestJson(removeOrganizationMemberContract, {
         params: { id: orgId, memberId },
-        query: { shouldReduceSeats },
       })
     },
     onSettled: (_data, _error, variables) => {
@@ -585,33 +580,6 @@ export function useResendInvitation() {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
-    },
-  })
-}
-
-/**
- * Update seats mutation (handles both add and reduce)
- */
-type UpdateSeatsParams = {
-  orgId: string
-} & ContractBodyInput<typeof updateSeatsContract>
-
-export function useUpdateSeats() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ seats, orgId }: UpdateSeatsParams) => {
-      return requestJson(updateSeatsContract, {
-        params: { id: orgId },
-        body: { seats },
-      })
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
 }

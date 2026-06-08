@@ -1,5 +1,5 @@
 import { BrightDataIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { BrightDataResponse } from '@/tools/brightdata/types'
 
@@ -13,8 +13,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
   docsLink: 'https://docs.sim.ai/tools/brightdata',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'automation'],
-  bgColor: '#FFFFFF',
+  bgColor: '#0F4C81',
   icon: BrightDataIcon,
   subBlocks: [
     {
@@ -344,3 +343,75 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
     cancelled: { type: 'boolean', description: 'Whether cancellation was successful' },
   },
 }
+
+export const BrightDataBlockMeta = {
+  tags: ['web-scraping', 'automation'],
+  templates: [
+    {
+      icon: BrightDataIcon,
+      title: 'Bright Data scraper orchestrator',
+      prompt:
+        'Build a workflow that uses Bright Data unblockers to scrape geo-restricted competitor pages, captures the data daily, and writes to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['research', 'monitoring'],
+    },
+    {
+      icon: BrightDataIcon,
+      title: 'Bright Data competitor pricing',
+      prompt:
+        'Create a workflow that uses Bright Data to track competitor pricing across regions, captures geo-priced data, and posts notable price changes to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: BrightDataIcon,
+      title: 'Bright Data SERP collector',
+      prompt:
+        'Build a scheduled workflow that uses Bright Data SERP scraping to capture rankings for tracked keywords across regions, and writes the results to an SEO scoreboard.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+    {
+      icon: BrightDataIcon,
+      title: 'Bright Data review collector',
+      prompt:
+        'Create a workflow that uses Bright Data to scrape product reviews across geos, classifies sentiment, and writes findings into a product-feedback table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['product', 'analysis'],
+    },
+    {
+      icon: BrightDataIcon,
+      title: 'Bright Data localization checker',
+      prompt:
+        'Build a scheduled workflow that uses Bright Data geo-targeted browsing to verify the brand’s site renders correctly in tracked regions, and writes findings to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: BrightDataIcon,
+      title: 'Bright Data brand mention search',
+      prompt:
+        'Create a workflow that uses Bright Data to scrape mentions of the brand across global forums and review sites, writes mentions into a tracking table, and pings on spikes.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: BrightDataIcon,
+      title: 'Bright Data inventory tracker',
+      prompt:
+        'Build a scheduled workflow that uses Bright Data to track competitor stock availability across regions, writes the data, and pings on low-stock signals indicating shifts.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['ecommerce', 'research'],
+    },
+  ],
+} as const satisfies BlockMeta

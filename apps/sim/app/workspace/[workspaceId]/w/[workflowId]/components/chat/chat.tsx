@@ -3,15 +3,7 @@
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import {
-  AlertCircle,
-  ArrowDownToLine,
-  ArrowUp,
-  MoreVertical,
-  Paperclip,
-  Square,
-  X,
-} from 'lucide-react'
+import { AlertCircle, ArrowUp, MoreVertical, Paperclip, Square, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
@@ -25,6 +17,7 @@ import {
   Tooltip,
   Trash,
 } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -928,7 +921,6 @@ export function Chat() {
 
         {/* Start inputs button and output selector - with max-width to prevent overflow */}
         <div
-          role='presentation'
           className='ml-auto flex min-w-0 flex-shrink items-center gap-1.5'
           onMouseDown={(e) => e.stopPropagation()}
         >
@@ -937,9 +929,7 @@ export function Chat() {
               type='button'
               className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
               title='Add chat inputs to Start block'
-              onMouseDown={(e) => {
-                e.stopPropagation()
-              }}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation()
                 handleConfigureStartInputs()
@@ -987,8 +977,8 @@ export function Chat() {
                   }}
                   disabled={workflowMessages.length === 0}
                 >
-                  <ArrowDownToLine className='size-[13px]' />
-                  <span>Download</span>
+                  <Download className='size-[13px]' />
+                  <span>Export</span>
                 </PopoverItem>
                 <PopoverItem
                   onClick={() => {
@@ -1050,7 +1040,7 @@ export function Chat() {
                     </div>
                     <div className='space-y-1'>
                       {uploadErrors.map((err, idx) => (
-                        <div key={`${err}-${idx}`} className='text-[var(--text-error)] text-micro'>
+                        <div key={idx} className='text-[var(--text-error)] text-micro'>
                           {err}
                         </div>
                       ))}
@@ -1079,7 +1069,7 @@ export function Chat() {
                       className={cn(
                         'group relative flex-shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)]',
                         previewUrl
-                          ? 'h-[40px] w-[40px]'
+                          ? 'size-[40px]'
                           : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-2 py-0.5'
                       )}
                     >
@@ -1108,7 +1098,7 @@ export function Chat() {
                         }}
                         className='absolute top-0.5 right-0.5 size-4 p-0 opacity-0 transition-opacity group-hover:opacity-100'
                       >
-                        <X className='size-2.5' />
+                        <X className='h-2.5 w-2.5' />
                       </Button>
                     </div>
                   )
@@ -1155,7 +1145,7 @@ export function Chat() {
                     variant='ghost'
                     className='size-[22px] rounded-full bg-[#383838] p-0 transition-colors hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
                   >
-                    <Square className='size-2.5 fill-white text-white dark:fill-black dark:text-black' />
+                    <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </Button>
                 ) : (
                   <Button
@@ -1168,13 +1158,16 @@ export function Chat() {
                       isStreaming
                     }
                     className={cn(
-                      'h-[22px] w-[22px] rounded-full p-0 transition-colors',
+                      'size-[22px] rounded-full p-0 transition-colors',
                       chatMessage.trim() || chatFiles.length > 0
                         ? 'bg-[#383838] hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
                         : 'bg-[#808080] dark:bg-[#808080]'
                     )}
                   >
-                    <ArrowUp className='size-3.5 text-white dark:text-black' strokeWidth={2.25} />
+                    <ArrowUp
+                      className='h-3.5 w-3.5 text-white dark:text-black'
+                      strokeWidth={2.25}
+                    />
                   </Button>
                 )}
               </div>

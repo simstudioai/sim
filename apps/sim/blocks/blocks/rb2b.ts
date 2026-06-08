@@ -1,5 +1,5 @@
 import { RB2BIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { Rb2bResponse } from '@/tools/rb2b/types'
 
@@ -29,7 +29,6 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
     'Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn. Requires an RB2B API key.',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'identity', 'sales-engagement'],
   docsLink: 'https://docs.sim.ai/tools/rb2b',
   bgColor: '#51FF00',
   icon: RB2BIcon,
@@ -217,3 +216,83 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
     md5: { type: 'string', description: 'MD5 hash of the resolved email' },
   },
 }
+
+export const RB2BBlockMeta = {
+  tags: ['enrichment', 'sales-engagement', 'identity'],
+  templates: [
+    {
+      icon: RB2BIcon,
+      title: 'Website visitor de-anonymizer',
+      prompt:
+        'Build a workflow that takes the IP addresses of anonymous website visitors, uses RB2B to resolve each IP to a hashed email and company domain, and writes the identified visitors into a table for the sales team.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'identity', 'enrichment'],
+    },
+    {
+      icon: RB2BIcon,
+      title: 'Visitor IP to LinkedIn profile',
+      prompt:
+        'Create a workflow that resolves a visitor IP to a hashed email with RB2B, then enriches that hashed email into a LinkedIn profile and business profile so reps know exactly who visited.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'identity', 'research'],
+    },
+    {
+      icon: RB2BIcon,
+      title: 'Hashed email enrichment pipeline',
+      prompt:
+        'Build a workflow that reads hashed emails from a table, uses RB2B to enrich each into a full business profile with name, title, seniority, and company details, and writes the enriched records back to the row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'enrichment', 'research'],
+    },
+    {
+      icon: RB2BIcon,
+      title: 'LinkedIn to mobile phone finder',
+      prompt:
+        "Create a workflow that takes a list of LinkedIn profile slugs, uses RB2B to look up each prospect's mobile phone and best personal email, and writes a ready-to-contact table for outbound calling.",
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'enrichment', 'research'],
+    },
+    {
+      icon: RB2BIcon,
+      title: 'Intent-to-CRM identity sync',
+      prompt:
+        'Build a workflow that resolves visitor IPs to company domains with RB2B, enriches the matched person into a business profile, and creates or updates the matching contact and company in HubSpot.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'identity', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: RB2BIcon,
+      title: 'High-intent visitor Slack alerts',
+      prompt:
+        'Create a workflow that reads a list of website visitor IPs, uses RB2B to resolve each person and their company, and posts an alert with the identified LinkedIn profile and company to the sales Slack channel.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'identity', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RB2BIcon,
+      title: 'LinkedIn slug resolver',
+      prompt:
+        'Build a workflow that takes a first name, last name, and company domain, uses RB2B LinkedIn slug search to resolve the matching profile, and enriches it into a business profile written to a prospect table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'enrichment'],
+    },
+    {
+      icon: RB2BIcon,
+      title: 'Account engagement freshness sweep',
+      prompt:
+        'Create a scheduled workflow that runs my list of prospect emails through RB2B email-to-last-active-date lookups, flags recently active contacts, and logs the engagement snapshot to a table for prioritized follow-up.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'enrichment', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

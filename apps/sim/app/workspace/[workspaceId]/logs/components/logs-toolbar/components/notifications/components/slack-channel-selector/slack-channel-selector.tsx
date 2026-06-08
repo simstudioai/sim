@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Hash, Lock } from 'lucide-react'
-import { Combobox, type ComboboxOption } from '@/components/emcn'
+import { ChipCombobox, type ComboboxOption } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { slackChannelsSelectorContract } from '@/lib/api/contracts'
 
@@ -86,7 +86,7 @@ export function SlackChannelSelector({
 
   return (
     <div className='flex flex-col gap-1'>
-      <Combobox
+      <ChipCombobox
         options={options}
         value={value}
         onChange={handleChange}

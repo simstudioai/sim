@@ -1,5 +1,5 @@
 import { OktaIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { OktaResponse } from '@/tools/okta/types'
 
@@ -12,8 +12,8 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/okta',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['identity', 'automation'],
   bgColor: '#191919',
+  iconColor: '#007DC1',
   icon: OktaIcon,
 
   subBlocks: [
@@ -382,3 +382,77 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }
+
+export const OktaBlockMeta = {
+  tags: ['identity', 'automation'],
+  templates: [
+    {
+      icon: OktaIcon,
+      title: 'Okta quarterly access review',
+      prompt:
+        'Build a scheduled quarterly workflow that pulls Okta group memberships per app, posts an attestation thread to each owner in Slack, captures confirmations, and writes the audit log to a compliance table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: OktaIcon,
+      title: 'Okta orphan-account sweeper',
+      prompt:
+        'Create a scheduled workflow that compares Okta users against HRIS data, finds accounts for departed employees, disables them, and writes the sweep log to an audit table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: OktaIcon,
+      title: 'Okta new-hire provisioning',
+      prompt:
+        'Build a workflow that polls Workday for new hires, creates the matching Okta user, adds them to the right groups for their role, and emails IT a provisioning summary.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise'],
+      alsoIntegrations: ['workday', 'gmail'],
+    },
+    {
+      icon: OktaIcon,
+      title: 'Okta compromised-account responder',
+      prompt:
+        'Create a workflow triggered by a CrowdStrike detection on a user that suspends the matching Okta account, resets their password, and pings the security Slack channel with the action taken.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'monitoring'],
+      alsoIntegrations: ['crowdstrike', 'slack'],
+    },
+    {
+      icon: OktaIcon,
+      title: 'Okta access-group provisioner',
+      prompt:
+        'Build a workflow that reads an access-request table, creates the Okta group if it is missing, adds the approved users to it, and writes the grant record back to the table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+    },
+    {
+      icon: OktaIcon,
+      title: 'Okta SSO group sync',
+      prompt:
+        'Create a scheduled workflow that mirrors org structure from Workday into Okta groups, ensuring group memberships stay in sync as employees change roles.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'sync'],
+      alsoIntegrations: ['workday'],
+    },
+    {
+      icon: OktaIcon,
+      title: 'Okta group membership audit',
+      prompt:
+        'Build a scheduled monthly workflow that lists every Okta group and its members, flags privileged groups with unexpected membership, and writes a review report for the security team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'enterprise'],
+    },
+  ],
+} as const satisfies BlockMeta

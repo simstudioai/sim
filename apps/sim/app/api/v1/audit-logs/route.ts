@@ -6,7 +6,7 @@
  *
  * Query Parameters:
  *   - action: string (optional) - Filter by action (e.g., "workflow.created")
- *   - resourceType: string (optional) - Filter by resource type (e.g., "workflow")
+ *   - resourceType: string (optional) - Filter by resource type(s), comma-separated (e.g., "workflow,api_key")
  *   - resourceId: string (optional) - Filter by resource ID
  *   - workspaceId: string (optional) - Filter by workspace ID
  *   - actorId: string (optional) - Filter by actor user ID (must be an org member)
@@ -31,6 +31,7 @@ import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {
   buildFilterConditions,
   buildOrgScopeCondition,
+  getOrgWorkspaceIds,
   queryAuditLogs,
 } from '@/app/api/v1/audit-logs/query'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
@@ -57,7 +58,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return authResult.response
     }
 
-    const { orgMemberIds } = authResult.context
+    const { organizationId, orgMemberIds } = authResult.context
 
     const parsed = await parseRequest(
       v1ListAuditLogsContract,
@@ -85,7 +86,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const scopeCondition = await buildOrgScopeCondition(orgMemberIds, params.includeDeparted)
+    const orgWorkspaceIds = await getOrgWorkspaceIds(organizationId)
+
+    if (params.workspaceId && !orgWorkspaceIds.includes(params.workspaceId)) {
+      return NextResponse.json(
+        { error: 'workspaceId does not belong to your organization' },
+        { status: 400 }
+      )
+    }
+
+    const scopeCondition = buildOrgScopeCondition({
+      organizationId,
+      orgWorkspaceIds,
+      orgMemberIds,
+      includeDeparted: params.includeDeparted,
+    })
     const filterConditions = buildFilterConditions({
       action: params.action,
       resourceType: params.resourceType,

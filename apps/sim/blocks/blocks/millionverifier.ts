@@ -1,5 +1,5 @@
 import { MillionVerifierIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { MillionVerifierResponse } from '@/tools/millionverifier/types'
 
 export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
@@ -12,7 +12,6 @@ export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
   docsLink: 'https://docs.sim.ai/tools/millionverifier',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#00B67A',
   icon: MillionVerifierIcon,
   subBlocks: [
@@ -100,3 +99,7 @@ export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
     credits: { type: 'number', description: 'Remaining verification credits' },
   },
 }
+
+export const MillionVerifierBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+} as const satisfies BlockMeta

@@ -1,4 +1,45 @@
 /**
+ * Builds the GraphQL endpoint URL from a Dagster host, tolerating surrounding whitespace and a
+ * trailing slash (e.g. `https://myorg.dagster.cloud/prod` → `https://myorg.dagster.cloud/prod/graphql`).
+ */
+export function dagsterGraphqlUrl(host: string): string {
+  return `${host.trim().replace(/\/$/, '')}/graphql`
+}
+
+/**
+ * Builds the request headers for a Dagster GraphQL call, attaching the Dagster+ API token when one
+ * is provided (omitted for OSS / self-hosted instances).
+ */
+export function dagsterRequestHeaders(params: { apiKey?: string }): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (params.apiKey) headers['Dagster-Cloud-Api-Token'] = params.apiKey.trim()
+  return headers
+}
+
+/**
+ * Splits a slash-delimited asset key string into a Dagster asset key path
+ * (e.g. `prefix/my_asset` → `['prefix', 'my_asset']`).
+ */
+export function parseAssetKeyPath(input: string): string[] {
+  return input
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Parses a comma- or newline-separated list of slash-delimited asset keys into the
+ * `[AssetKeyInput!]` shape expected by Dagster (`{ path: string[] }[]`).
+ */
+export function parseAssetSelection(input: string): Array<{ path: string[] }> {
+  return input
+    .split(/[\n,]/)
+    .map((key) => key.trim())
+    .filter(Boolean)
+    .map((key) => ({ path: parseAssetKeyPath(key) }))
+}
+
+/**
  * Parses a Dagster GraphQL JSON body and throws if the HTTP status is not OK or the payload
  * contains top-level GraphQL errors.
  *

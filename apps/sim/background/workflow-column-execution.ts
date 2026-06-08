@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -164,12 +165,18 @@ async function runWorkflowAndWriteTerminal(
 ): Promise<'completed' | 'error' | 'paused' | 'blocked'> {
   const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId, dispatchId } =
     payload
+  // Read from the live `group`, not the payload: in a cascade the payload is the
+  // first group's snapshot, so a downstream group with a different version must
+  // use its own setting (same reason `workflowId` is re-derived per iteration).
+  const deploymentMode = group.deploymentMode
   const requestId = `wfgrp-${executionId}`
 
   return runWithRequestContext({ requestId }, async () => {
     const { getRowById } = await import('@/lib/table/service')
     const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
-    const { loadWorkflowFromNormalizedTables } = await import('@/lib/workflows/persistence/utils')
+    const { loadWorkflowFromNormalizedTables, loadDeployedWorkflowState } = await import(
+      '@/lib/workflows/persistence/utils'
+    )
     const { writeWorkflowGroupState, markWorkflowGroupPickedUp, buildOutputsByBlockId } =
       await import('@/lib/table/cell-write')
     const { stashCellContextForResume } = await import('@/lib/table/workflow-columns')
@@ -381,7 +388,28 @@ async function runWorkflowAndWriteTerminal(
         return 'error'
       }
 
-      const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+      // `deployed` groups run the workflow's latest active deployment; `live`
+      // (default) runs the editable draft. A `deployed` group whose workflow
+      // has never been deployed fails the cell — no silent fallback to draft.
+      let normalizedData: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
+      if (deploymentMode === 'deployed') {
+        try {
+          normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
+        } catch (err) {
+          // Surface the real reason (missing deployment vs. transient DB/migration
+          // failure) rather than always claiming the workflow isn't deployed.
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId,
+            error: toError(err).message,
+          })
+          return 'error'
+        }
+      } else {
+        normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+      }
       const startBlock = normalizedData
         ? Object.values(normalizedData.blocks).find((b) => b?.type === 'start_trigger')
         : undefined
@@ -561,7 +589,6 @@ async function runWorkflowAndWriteTerminal(
         changedColumns: [],
         rowId,
         headers,
-        rowNumber: row.position,
         tableId,
         tableName,
         timestamp: new Date().toISOString(),
@@ -597,8 +624,8 @@ async function runWorkflowAndWriteTerminal(
           })
           .catch((err) => {
             logger.warn(
-              `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId}):`,
-              err
+              `Per-block partial write failed (table=${tableId} row=${rowId} group=${groupId})`,
+              { cause: describeError(err), retryable: isRetryableInfrastructureError(err) }
             )
           })
       }
@@ -664,7 +691,10 @@ async function runWorkflowAndWriteTerminal(
             executionMode: 'sync',
             workflowTriggerType: 'table',
             triggerBlockId: startBlock.id,
-            useDraftState: true,
+            // `deployed` groups execute the latest active deployment; everything
+            // else runs the editable draft (the table default). Matches the
+            // state loaded above for start-block / output-block resolution.
+            useDraftState: deploymentMode !== 'deployed',
             abortSignal,
             onBlockStart,
             onBlockComplete,
@@ -720,7 +750,12 @@ async function runWorkflowAndWriteTerminal(
       const message = toError(err).message
       logger.error(
         `Workflow group cell execution failed (table=${tableId} row=${rowId} group=${groupId})`,
-        { error: message, executionId }
+        {
+          error: message,
+          executionId,
+          cause: describeError(err),
+          retryable: isRetryableInfrastructureError(err),
+        }
       )
       terminalWritten = true
       await writeChain.catch(() => {})
@@ -735,7 +770,11 @@ async function runWorkflowAndWriteTerminal(
           blockErrors,
         })
       } catch (writeErr) {
-        logger.error('Also failed to write error state', { error: toError(writeErr).message })
+        logger.error('Also failed to write error state', {
+          error: toError(writeErr).message,
+          cause: describeError(writeErr),
+          retryable: isRetryableInfrastructureError(writeErr),
+        })
       }
       return 'error'
     }
