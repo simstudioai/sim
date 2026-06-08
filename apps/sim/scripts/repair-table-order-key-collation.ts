@@ -12,11 +12,13 @@
  * out of order — or duplicated — under bytewise comparison. That makes inserts
  * throw `generateKeyBetween`'s `a >= b` assertion and rows display out of order.
  *
- * This script finds every table whose keys are mis-ordered under `COLLATE "C"`
- * (some row's key `>=` the next row's key — covers both inversions and
- * duplicates) and re-keys it from `position` order — the legacy authoritative
- * order the original backfill also used — minting a fresh, evenly-spaced,
- * distinct run with `nKeysBetween`.
+ * This script finds every table whose `order_key`s are mis-assigned: walking rows
+ * in their authoritative `position, id` order, a row's key is `>=` the next row's
+ * under bytewise (`COLLATE "C"`) comparison. That covers swapped keys (a low
+ * position holding a bytewise-larger key than a higher one) and duplicates. Each
+ * flagged table is re-keyed from `position` order — the legacy authoritative order
+ * the original backfill also used — minting a fresh, evenly-spaced, distinct run
+ * with `nKeysBetween`.
  *
  * Distinct from `backfill-table-order-keys.ts`, which keys tables with NULL keys;
  * this one repairs tables that are fully keyed but bytewise-disordered. Run it
@@ -63,15 +65,20 @@ export async function runRepair(): Promise<void> {
 
   try {
     // Tables with a bytewise (`COLLATE "C"`) inversion or duplicate among their
-    // non-null keys. The explicit `COLLATE "C"` makes detection correct whether or
-    // not migration 0228 has been applied yet.
+    // non-null keys. Walking rows in their authoritative `position, id` order (the
+    // order the re-key writes), a healthy table has strictly INCREASING keys; flag
+    // any table where a row's key is `>=` the next row's. Ordering by `position`
+    // (not by `order_key`) is what makes this detect actual mis-assignment — e.g.
+    // pos 0 holding "a0" while pos 1 holds "Zz" (bytewise "Zz" < "a0") — and not
+    // just adjacent duplicates. The explicit `COLLATE "C"` keeps the comparison
+    // bytewise whether or not migration 0228 has been applied yet.
     const pending = await db.execute<{ table_id: string }>(sql`
       SELECT DISTINCT table_id FROM (
         SELECT
           table_id,
           order_key,
           LEAD(order_key) OVER (
-            PARTITION BY table_id ORDER BY order_key COLLATE "C", id
+            PARTITION BY table_id ORDER BY position, id
           ) AS next_key
         FROM user_table_rows
         WHERE order_key IS NOT NULL
