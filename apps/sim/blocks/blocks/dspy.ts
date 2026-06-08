@@ -1,5 +1,5 @@
 import { DsPyIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 
 export const DSPyBlock: BlockConfig = {
@@ -10,8 +10,7 @@ export const DSPyBlock: BlockConfig = {
     'Integrate with your self-hosted DSPy programs for LLM-powered predictions. Supports Predict, Chain of Thought, and ReAct agents. DSPy is the framework for programming—not prompting—language models.',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'agentic', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: DsPyIcon,
 
   subBlocks: [
@@ -176,3 +175,73 @@ export const DSPyBlock: BlockConfig = {
     rawOutput: { type: 'json', description: 'Complete raw output from the DSPy program' },
   },
 }
+
+export const DSPyBlockMeta = {
+  tags: ['llm', 'agentic', 'automation'],
+  templates: [
+    {
+      icon: DsPyIcon,
+      title: 'DSPy structured extraction',
+      prompt:
+        'Build a workflow that reads raw records from a table, runs a DSPy predict program on your self-hosted server to extract structured fields from each, and writes the typed results back to the table.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: DsPyIcon,
+      title: 'DSPy evaluation harness',
+      prompt:
+        'Create a workflow that runs a DSPy program against a labeled evals table, computes accuracy, F1, and per-class breakdowns, and writes the metrics to a reporting table for tracking over iterations.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: DsPyIcon,
+      title: 'DSPy A/B program selector',
+      prompt:
+        'Create a scheduled workflow that runs two DSPy program endpoints against the same eval set nightly, scores each on accuracy, and writes the head-to-head comparison and recommended winner to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: DsPyIcon,
+      title: 'DSPy production traffic replay',
+      prompt:
+        'Build a workflow that periodically replays sample production traces through a DSPy program, captures divergences, and writes regression analysis to a tracking file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: DsPyIcon,
+      title: 'DSPy + LangSmith trace harness',
+      prompt:
+        'Create a workflow that runs a DSPy program over an eval set, logs each prediction as a LangSmith trace for evaluation, captures the quality delta against the previous run, and writes the comparison to engineering Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['langsmith', 'slack'],
+    },
+    {
+      icon: DsPyIcon,
+      title: 'DSPy ticket classifier',
+      prompt:
+        'Build a workflow that runs new support tickets through a DSPy predict signature to classify category, urgency, and sentiment with structured outputs, then routes each ticket to the right queue and writes the labels back to the ticket.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation', 'llm'],
+    },
+    {
+      icon: DsPyIcon,
+      title: 'DSPy reasoning research agent',
+      prompt:
+        'Create a workflow that takes a research question, uses DSPy chain-of-thought to break it into sub-questions, runs DSPy ReAct with web search to gather evidence, and writes a structured, cited answer to a file.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['research', 'llm', 'agentic'],
+    },
+  ],
+} as const satisfies BlockMeta

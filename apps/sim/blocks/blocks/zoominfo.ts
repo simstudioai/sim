@@ -1,5 +1,5 @@
 import { ZoomInfoIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ZoomInfoResponse } from '@/tools/zoominfo/types'
 
@@ -13,7 +13,6 @@ export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
   docsLink: 'https://docs.sim.ai/tools/zoominfo',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#EA1B15',
   icon: ZoomInfoIcon,
   subBlocks: [
@@ -552,3 +551,75 @@ export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
     totalPages: { type: 'number', description: 'Total number of pages available' },
   },
 }
+
+export const ZoomInfoBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  templates: [
+    {
+      icon: ZoomInfoIcon,
+      title: 'ZoomInfo contact enricher',
+      prompt:
+        'Build a workflow that watches CRM contacts, enriches each via ZoomInfo with title, seniority, and verified contact details, and writes the enriched data back.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'research'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: ZoomInfoIcon,
+      title: 'ZoomInfo account builder',
+      prompt:
+        'Create a workflow that runs a ZoomInfo company search against my ICP filters, enriches each match with firmographics, and writes the target account list into a tables-based research base.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ZoomInfoIcon,
+      title: 'ZoomInfo intent monitor',
+      prompt:
+        'Build a scheduled workflow that pulls ZoomInfo intent signals for tracked accounts, ranks accounts surging on relevant topics, and posts a daily Slack alert for the sales team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ZoomInfoIcon,
+      title: 'ZoomInfo news digest',
+      prompt:
+        'Create a scheduled weekly workflow that searches ZoomInfo news for tracked accounts, summarizes notable events with an agent, and writes a per-account briefing for the sales team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: ZoomInfoIcon,
+      title: 'ZoomInfo CRM gap-filler',
+      prompt:
+        'Build a scheduled workflow that finds Salesforce contacts missing firmographic or contact fields, runs ZoomInfo enrichment to fill the gaps, and writes coverage metrics to a hygiene table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: ZoomInfoIcon,
+      title: 'ZoomInfo buying-committee builder',
+      prompt:
+        'Build a workflow that takes a target account, runs a ZoomInfo contact search to find the decision-makers by title and department, enriches each with verified email and phone, and writes the mapped buying committee into a sales table for outreach.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'enrichment'],
+    },
+    {
+      icon: ZoomInfoIcon,
+      title: 'ZoomInfo account briefing pack',
+      prompt:
+        'Create a workflow that takes an upcoming meeting account, pulls ZoomInfo company firmographics, recent intent signals, and the latest news for that company, and assembles a one-page pre-meeting briefing document the rep reads before the call.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+  ],
+} as const satisfies BlockMeta

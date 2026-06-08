@@ -1,5 +1,5 @@
 import { CloudFormationIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type {
   CloudFormationDescribeStackDriftDetectionStatusResponse,
@@ -26,10 +26,10 @@ export const CloudFormationBlock: BlockConfig<
   longDescription:
     'Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['cloud'],
+  integrationType: IntegrationType.DevOps,
   docsLink: 'https://docs.sim.ai/tools/cloudformation',
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
+  iconColor: '#FF4F8B',
   icon: CloudFormationIcon,
   subBlocks: [
     {
@@ -328,3 +328,76 @@ export const CloudFormationBlock: BlockConfig<
     },
   },
 }
+
+export const CloudFormationBlockMeta = {
+  tags: ['cloud'],
+  templates: [
+    {
+      icon: CloudFormationIcon,
+      title: 'CloudFormation drift detector',
+      prompt:
+        'Create a scheduled daily workflow that runs drift detection on every CloudFormation stack in my AWS account, waits for detection to complete, summarizes drifted resources, logs them to a table, and posts a Slack alert when any production stack drifts.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudFormationIcon,
+      title: 'Stack inventory builder',
+      prompt:
+        'Build a scheduled weekly workflow that describes every CloudFormation stack, lists its resources, and writes a unified inventory of stacks, status, region, and resource counts into a tracking table so the platform team has a single source of truth.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise', 'reporting'],
+    },
+    {
+      icon: CloudFormationIcon,
+      title: 'Template validator gate',
+      prompt:
+        'Create a workflow triggered when a CloudFormation template is changed in a GitHub pull request. Pull the template, validate it via the CloudFormation API, summarize any syntax or structural errors, and post the validation result as a PR comment to block merges on broken templates.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation', 'engineering'],
+      alsoIntegrations: ['github'],
+    },
+    {
+      icon: CloudFormationIcon,
+      title: 'Stack failure investigator',
+      prompt:
+        'Build a scheduled workflow that polls CloudFormation stack events every few minutes, detects rollbacks and create-failed events, pulls the failure reason and recent events from the stack, summarizes the root cause, opens a Linear ticket with the diagnosis, and posts to the on-call Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'automation'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+    {
+      icon: CloudFormationIcon,
+      title: 'Template archive and search',
+      prompt:
+        'Create a scheduled workflow that retrieves the deployed template for every CloudFormation stack, stores each template as a versioned file in your files store, and updates a knowledge base so engineers can search infrastructure definitions in natural language.',
+      modules: ['scheduled', 'files', 'knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise', 'research'],
+    },
+    {
+      icon: CloudFormationIcon,
+      title: 'Resource change report',
+      prompt:
+        'Build a scheduled weekly workflow that pulls CloudFormation stack events, summarizes resource creates, updates, and deletes across the account, classifies risky changes, and writes a written change report file for platform leadership review.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting', 'enterprise'],
+    },
+    {
+      icon: CloudFormationIcon,
+      title: 'Pre-deploy drift gate',
+      prompt:
+        'Create a workflow that runs before a deploy, initiates drift detection on the target CloudFormation stack, polls until drift detection completes, and either approves the deploy or blocks it with a Slack alert explaining the drifted resources.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

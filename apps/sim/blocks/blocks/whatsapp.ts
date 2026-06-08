@@ -1,5 +1,5 @@
 import { WhatsAppIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { WhatsAppResponse } from '@/tools/whatsapp/types'
 import { getTrigger } from '@/triggers'
@@ -13,8 +13,8 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   docsLink: 'https://docs.sim.ai/tools/whatsapp',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'automation'],
   bgColor: '#25D366',
+  iconColor: '#25D366',
   icon: WhatsAppIcon,
   triggerAllowed: true,
   subBlocks: [
@@ -176,3 +176,77 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
     available: ['whatsapp_webhook'],
   },
 }
+
+export const WhatsAppBlockMeta = {
+  tags: ['messaging', 'automation'],
+  templates: [
+    {
+      icon: WhatsAppIcon,
+      title: 'WhatsApp appointment confirmations',
+      prompt:
+        'Build a workflow that reads upcoming Google Calendar appointments each morning and sends a WhatsApp confirmation with date, time, and a one-tap reschedule link.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['communication', 'automation'],
+      alsoIntegrations: ['google_calendar'],
+    },
+    {
+      icon: WhatsAppIcon,
+      title: 'WhatsApp order tracking',
+      prompt:
+        'Create a workflow that watches Shopify shipment events and sends customers a WhatsApp message with the tracking number, ETA, and a follow-up review request after delivery.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['ecommerce', 'communication'],
+      alsoIntegrations: ['shopify'],
+    },
+    {
+      icon: WhatsAppIcon,
+      title: 'WhatsApp customer support agent',
+      prompt:
+        'Build a WhatsApp business agent that answers customer questions using a knowledge base, hands off to a human in Zendesk on complex tickets, and writes the conversation back to the contact record.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+      alsoIntegrations: ['zendesk'],
+    },
+    {
+      icon: WhatsAppIcon,
+      title: 'WhatsApp lead qualifier',
+      prompt:
+        'Create a workflow that engages new leads via WhatsApp with a guided qualification script, scores them based on responses, and pushes qualified leads into Salesforce with the conversation log attached.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: WhatsAppIcon,
+      title: 'WhatsApp campaign sender',
+      prompt:
+        'Build a workflow that reads a segmented audience from a table and sends a personalized WhatsApp template message to each, throttling to stay under provider limits.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'communication'],
+    },
+    {
+      icon: WhatsAppIcon,
+      title: 'WhatsApp event RSVP collector',
+      prompt:
+        'Create a workflow that messages contacts about an upcoming event on WhatsApp, parses yes/no/maybe replies, and updates the RSVP table with the attendee count and dietary notes.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'communication'],
+    },
+    {
+      icon: WhatsAppIcon,
+      title: 'WhatsApp + Zoom meeting confirmer',
+      prompt:
+        'Build a workflow that sends a WhatsApp confirmation when a Zoom meeting is booked, with the join link and a one-tap reschedule option for the attendee.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['communication', 'automation'],
+      alsoIntegrations: ['zoom'],
+    },
+  ],
+} as const satisfies BlockMeta

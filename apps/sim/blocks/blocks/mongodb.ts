@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { MongoDBIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { MongoDBIntrospectResponse, MongoDBResponse } from '@/tools/mongodb/types'
 
@@ -13,8 +13,7 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
   docsLink: 'https://docs.sim.ai/tools/mongodb',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['data-warehouse', 'cloud'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MongoDBIcon,
   subBlocks: [
     {
@@ -963,3 +962,78 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
     },
   },
 }
+
+export const MongoDBBlockMeta = {
+  tags: ['data-warehouse', 'cloud'],
+  templates: [
+    {
+      icon: MongoDBIcon,
+      title: 'MongoDB to data lake export',
+      prompt:
+        'Build a scheduled workflow that runs each night, exports MongoDB collections to S3 with partitioned Parquet files, and registers them in an Athena-queryable catalog.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: MongoDBIcon,
+      title: 'MongoDB index health monitor',
+      prompt:
+        'Create a scheduled workflow that scans MongoDB collections for slow queries and missing indexes, writes a remediation table, and opens Linear tickets for the worst offenders.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: MongoDBIcon,
+      title: 'MongoDB to vector enrichment',
+      prompt:
+        'Build a scheduled workflow that polls a MongoDB collection for new documents, generates OpenAI embeddings, and upserts them into Pinecone with the source document ID for retrieval.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+      alsoIntegrations: ['pinecone', 'openai'],
+    },
+    {
+      icon: MongoDBIcon,
+      title: 'MongoDB user-event triage',
+      prompt:
+        'Create a scheduled workflow that polls a MongoDB user-events collection for new records, classifies events as engagement or risk signals, and writes high-priority items to a triage table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['product', 'analysis'],
+    },
+    {
+      icon: MongoDBIcon,
+      title: 'MongoDB orphaned-doc cleaner',
+      prompt:
+        'Build a scheduled workflow that runs weekly, finds orphaned references in MongoDB, dry-runs the cleanup plan, posts to Slack for approval, and executes once approved.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: MongoDBIcon,
+      title: 'MongoDB query digest',
+      prompt:
+        'Create a scheduled daily workflow that aggregates MongoDB query telemetry from the profiler, identifies the top-cost queries, and posts a Slack engineering digest.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: MongoDBIcon,
+      title: 'MongoDB + Tinybird feeder',
+      prompt:
+        'Build a scheduled workflow that batches new MongoDB records into a Tinybird pipe on a short interval, exposes the data to downstream apps, and writes the load metrics to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'sync'],
+      alsoIntegrations: ['tinybird'],
+    },
+  ],
+} as const satisfies BlockMeta

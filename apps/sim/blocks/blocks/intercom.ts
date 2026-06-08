@@ -1,5 +1,5 @@
 import { IntercomIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
@@ -14,9 +14,8 @@ export const IntercomBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/intercom',
   authMode: AuthMode.ApiKey,
   category: 'tools',
-  integrationType: IntegrationType.CustomerSupport,
-  tags: ['customer-support', 'messaging'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Support,
+  bgColor: '#FFFFFF',
   icon: IntercomIcon,
   subBlocks: [
     {
@@ -1407,8 +1406,7 @@ export const IntercomV2Block: BlockConfig = {
   ...IntercomBlock,
   type: 'intercom_v2',
   name: 'Intercom',
-  integrationType: IntegrationType.CustomerSupport,
-  tags: ['customer-support', 'messaging'],
+  integrationType: IntegrationType.Support,
   hideFromToolbar: false,
   subBlocks: [
     ...IntercomBlock.subBlocks,
@@ -1738,3 +1736,82 @@ export const IntercomV2Block: BlockConfig = {
     },
   },
 }
+
+export const IntercomBlockMeta = {
+  tags: ['customer-support', 'messaging'],
+  templates: [
+    {
+      icon: IntercomIcon,
+      title: 'Customer feedback analyzer',
+      prompt:
+        'Build a scheduled workflow that pulls support tickets and conversations from Intercom daily, categorizes them by theme and sentiment, tracks trends in a table, and sends a weekly Slack report highlighting the top feature requests and pain points.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'product', 'analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IntercomIcon,
+      title: 'Intercom auto-resolver',
+      prompt:
+        'Create a knowledge base from my help center and product docs, then build a workflow that watches new Intercom conversations, attempts an answer with cited sources, and only assigns to a human admin when confidence is low or the customer asks.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation', 'communication'],
+    },
+    {
+      icon: IntercomIcon,
+      title: 'Intercom to Linear bug ticketer',
+      prompt:
+        'Build a workflow triggered by new Intercom conversations that classifies whether the message is a bug report, extracts the repro steps and affected area, creates a Linear issue with the conversation transcript attached, and replies in Intercom with the issue ID.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['support', 'engineering', 'automation'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: IntercomIcon,
+      title: 'Intercom VIP escalation',
+      prompt:
+        'Create a workflow that monitors new Intercom conversations, looks up the contact in the CRM, and when the contact belongs to a top-tier account, snoozes the conversation, posts a Slack alert in #vip-support with full context, and tags the conversation as VIP.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'sales', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IntercomIcon,
+      title: 'Intercom conversation summarizer',
+      prompt:
+        'Build a workflow triggered when an Intercom conversation is closed that summarizes the issue, resolution, and any follow-up actions, then appends the summary to a Notion knowledge log so the team can learn from past conversations.',
+      modules: ['agent', 'workflows', 'knowledge-base'],
+      category: 'support',
+      tags: ['support', 'team', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: IntercomIcon,
+      title: 'Intercom contact enrichment',
+      prompt:
+        'Create a workflow triggered when a new Intercom contact is created that enriches the contact with company, title, and seniority data from Apollo, updates the Intercom contact attributes, and adds a note with the enrichment source.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'automation'],
+      alsoIntegrations: ['apollo'],
+    },
+    {
+      icon: IntercomIcon,
+      title: 'Intercom-Zendesk migration mirror',
+      prompt:
+        'Build a workflow that mirrors new Intercom conversations into Zendesk as tickets during a migration window, syncs status and replies in both directions, and writes a table of every mapped conversation-to-ticket pair for audit.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'sync', 'enterprise'],
+      alsoIntegrations: ['zendesk'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const IntercomV2BlockMeta = {
+  tags: ['customer-support', 'messaging'],
+} as const satisfies BlockMeta

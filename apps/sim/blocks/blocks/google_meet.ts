@@ -1,6 +1,6 @@
 import { GoogleMeetIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleMeetResponse } from '@/tools/google_meet/types'
@@ -14,8 +14,7 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_meet',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['meeting', 'google-workspace', 'scheduling'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleMeetIcon,
   authMode: AuthMode.OAuth,
   subBlocks: [
@@ -182,3 +181,77 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
     totalSize: { type: 'number', description: 'Total participant count' },
   },
 }
+
+export const GoogleMeetBlockMeta = {
+  tags: ['meeting', 'google-workspace', 'scheduling'],
+  templates: [
+    {
+      icon: GoogleMeetIcon,
+      title: 'Google Meet conference recap to Drive',
+      prompt:
+        'Build a workflow that pulls the conference record and participant list for a finished Google Meet, generates a structured attendance and follow-up recap with an agent, and saves the document to a per-team folder in Google Drive.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'content'],
+      alsoIntegrations: ['google_drive'],
+    },
+    {
+      icon: GoogleMeetIcon,
+      title: 'Google Meet daily meeting links',
+      prompt:
+        "Create a scheduled workflow that reads the day's meetings from a table each morning, creates a Google Meet space for each one, and emails attendees the agenda and join link via Gmail.",
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleMeetIcon,
+      title: 'Google Meet conference record archiver',
+      prompt:
+        'Build a scheduled workflow that lists Google Meet conference records, captures attendance and duration per meeting, and writes the history to a source-of-truth meetings table for reporting.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation'],
+    },
+    {
+      icon: GoogleMeetIcon,
+      title: 'Google Meet auto-invite from CRM',
+      prompt:
+        'Create a workflow that watches Salesforce for new meetings logged on opportunities, creates a matching Google Meet event, invites the right attendees, and writes the meeting link back to the opportunity.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: GoogleMeetIcon,
+      title: 'Google Meet daily standup link',
+      prompt:
+        'Build a scheduled workflow that posts the day’s Google Meet standup link to the team Slack channel five minutes before standup, with the rolling agenda from the standup table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleMeetIcon,
+      title: 'Google Meet customer interview logger',
+      prompt:
+        'Create a workflow that takes a customer-interview note or transcript, pulls the matching Google Meet conference record and participants for context, extracts themes, quotes, and feature requests with an agent, and writes structured rows to a research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'product'],
+    },
+    {
+      icon: GoogleMeetIcon,
+      title: 'Google Meet retro publisher',
+      prompt:
+        'Build a workflow that runs after a sprint-retro Google Meet, summarizes what went well, what to improve, and action items, and posts the retro to a Notion page tagged with the sprint number.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['notion'],
+    },
+  ],
+} as const satisfies BlockMeta

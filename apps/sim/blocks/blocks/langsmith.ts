@@ -1,6 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { LangsmithResponse } from '@/tools/langsmith/types'
 
 export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
@@ -11,8 +11,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
     'Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.',
   docsLink: 'https://docs.sim.ai/tools/langsmith',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['monitoring', 'llm', 'data-analytics'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#181C1E',
   icon: LangsmithIcon,
   authMode: AuthMode.ApiKey,
@@ -297,3 +296,73 @@ Common patch fields: outputs, end_time, status, error`,
     messages: { type: 'array', description: 'Per-run response messages' },
   },
 }
+
+export const LangsmithBlockMeta = {
+  tags: ['monitoring', 'llm'],
+  templates: [
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith agent-run tracer',
+      prompt:
+        'Build a workflow that wraps an agent step and forwards each run to LangSmith with inputs, outputs, and latency so the ML team can trace executions in one project.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith error logger',
+      prompt:
+        'Create a workflow that on a failed agent step forwards a LangSmith run tagged as an error with the inputs and error message, and posts the run link to Slack for the ML team.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith feedback capture',
+      prompt:
+        'Build a workflow that collects user-reported agent failures from a table and forwards each as a tagged LangSmith run with the inputs and expected output for later review.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith batch run shipper',
+      prompt:
+        'Create a scheduled workflow that reads completed agent runs from a table and posts them to LangSmith in a single batch so observability stays in sync without per-run overhead.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'sync'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith session tagger',
+      prompt:
+        'Build a workflow that forwards each agent run to LangSmith tagged with the originating feature and environment so traces can be filtered by surface in the LangSmith project.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith RAG step logger',
+      prompt:
+        'Create a workflow that runs a retrieval-augmented agent and forwards a LangSmith run per step — retriever, prompt, and llm — so the ML team can inspect each stage of the chain.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: LangsmithIcon,
+      title: 'LangSmith multi-agent tracer',
+      prompt:
+        'Build a workflow that forwards a LangSmith run for each agent in a multi-step pipeline under one trace, so the full conversation is visible end-to-end in LangSmith.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+    },
+  ],
+} as const satisfies BlockMeta

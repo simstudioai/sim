@@ -1,5 +1,5 @@
 import { RipplingIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 /** Operations that support the filter query parameter */
@@ -198,8 +198,7 @@ export const RipplingBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/rippling',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  tags: ['hiring'],
-  bgColor: '#FFCC1C',
+  bgColor: '#502D3C',
   icon: RipplingIcon,
   authMode: AuthMode.ApiKey,
 
@@ -1473,3 +1472,77 @@ Return ONLY the sort expression - no explanations, no extra text.`,
     __meta: { type: 'json', description: 'Metadata including redacted_fields' },
   },
 }
+
+export const RipplingBlockMeta = {
+  tags: ['hiring'],
+  templates: [
+    {
+      icon: RipplingIcon,
+      title: 'Rippling new-hire provisioning',
+      prompt:
+        'Build a scheduled workflow that polls Rippling for new workers, creates accounts in the matching downstream tools, drops each new hire into the right Slack channels, books day-one onboarding via Google Calendar, and writes provisioning status to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'automation', 'team'],
+      alsoIntegrations: ['slack', 'google_calendar'],
+    },
+    {
+      icon: RipplingIcon,
+      title: 'Rippling departure offboarder',
+      prompt:
+        'Create a scheduled workflow that polls Rippling for workers transitioning out, gathers their owned resources, deactivates downstream accounts, schedules data handoff meetings, posts a structured offboarding checklist to a table, and notifies the people team in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise', 'compliance'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RipplingIcon,
+      title: 'Org chart export and review',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Rippling workers, departments, teams, and titles, writes an updated org chart file, diffs against last week to find structural changes, and Slacks people operations any unexpected moves for review.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RipplingIcon,
+      title: 'Custom object data sync',
+      prompt:
+        'Create a workflow that reads rows from a Sim table representing custom Rippling objects — perks, equipment, allowances — and upserts them into Rippling so HR can manage company-specific data with the same governance as core worker records.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'sync', 'automation'],
+    },
+    {
+      icon: RipplingIcon,
+      title: 'Team and title auditor',
+      prompt:
+        'Build a scheduled monthly workflow that lists Rippling teams, titles, and job functions, flags duplicates, unused values, and inconsistent naming, writes a cleanup report file, and opens a Linear task for the people operations owner of each issue.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'enterprise', 'analysis'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: RipplingIcon,
+      title: 'Manager change notifier',
+      prompt:
+        'Create a scheduled workflow that polls Rippling workers for manager reassignments, notifies the worker and the new manager via email, schedules a thirty-minute intro on Google Calendar, and logs the transition in a tracking table for HR visibility.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'team', 'communication'],
+      alsoIntegrations: ['gmail', 'google_calendar'],
+    },
+    {
+      icon: RipplingIcon,
+      title: 'Department headcount digest',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Rippling workers grouped by department and employment type, computes headcount, open requisitions, and growth versus the prior week, writes a narrative summary, and emails it to department heads.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'reporting', 'enterprise'],
+    },
+  ],
+} as const satisfies BlockMeta

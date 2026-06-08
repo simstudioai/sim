@@ -8,6 +8,11 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
   Loader,
   Modal,
   ModalBody,
@@ -52,12 +57,15 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { A2aDeploy } from './components/a2a/a2a'
-import { ApiDeploy } from './components/api/api'
-import { ChatDeploy, type ExistingChat } from './components/chat/chat'
+import {
+  A2aDeploy,
+  ApiDeploy,
+  ChatDeploy,
+  type ExistingChat,
+  GeneralDeploy,
+  McpDeploy,
+} from './components'
 import { ApiInfoModal } from './components/general/components/api-info-modal'
-import { GeneralDeploy } from './components/general/general'
-import { McpDeploy } from './components/mcp/mcp'
 
 const logger = createLogger('DeployModal')
 
@@ -825,67 +833,70 @@ export function DeployModal({
         </ModalContent>
       </Modal>
 
-      <Modal
+      <ChipModal
         open={Boolean(undeployTargetWorkflowId)}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setUndeployTargetWorkflowId(null)
         }}
+        srTitle='Undeploy API'
       >
-        <ModalContent size='sm'>
-          <ModalHeader>Undeploy API</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to undeploy this workflow?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will remove the API endpoint and make it unavailable to external users.
-              </span>
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setUndeployTargetWorkflowId(null)}
-              disabled={isUndeploying}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleUndeploy} disabled={isUndeploying}>
-              {isUndeploying ? 'Undeploying...' : 'Undeploy'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+        <ChipModalHeader showDivider={false}>Undeploy API</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to undeploy this workflow?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will remove the API endpoint and make it unavailable to external users.
+            </span>
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => setUndeployTargetWorkflowId(null)}
+            disabled={isUndeploying}
+          >
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleUndeploy} disabled={isUndeploying}>
+            {isUndeploying ? 'Undeploying...' : 'Undeploy'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
-      <Modal open={showA2aDeleteConfirm} onOpenChange={setShowA2aDeleteConfirm}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete A2A Agent</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {existingA2aAgent?.name || 'this agent'}
-              </span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will permanently remove the agent configuration.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setShowA2aDeleteConfirm(false)}
-              disabled={a2aSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleA2aDelete} disabled={a2aSubmitting}>
-              {a2aSubmitting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showA2aDeleteConfirm}
+        onOpenChange={setShowA2aDeleteConfirm}
+        srTitle='Delete A2A Agent'
+      >
+        <ChipModalHeader showDivider={false}>Delete A2A Agent</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {existingA2aAgent?.name || 'this agent'}
+            </span>
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove the agent configuration.
+            </span>{' '}
+            This action cannot be undone.
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={() => setShowA2aDeleteConfirm(false)}
+            disabled={a2aSubmitting}
+          >
+            Cancel
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleA2aDelete} disabled={a2aSubmitting}>
+            {a2aSubmitting ? 'Deleting...' : 'Delete'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
       <CreateApiKeyModal
         open={isCreateKeyModalOpen}

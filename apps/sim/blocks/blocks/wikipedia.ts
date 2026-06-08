@@ -1,5 +1,5 @@
 import { WikipediaIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { WikipediaResponse } from '@/tools/wikipedia/types'
 
@@ -12,7 +12,6 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
   docsLink: 'https://docs.sim.ai/tools/wikipedia',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['knowledge-base', 'web-scraping'],
   bgColor: '#000000',
   icon: WikipediaIcon,
   subBlocks: [
@@ -107,3 +106,74 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
     randomPage: { type: 'json', description: 'Random page data' },
   },
 }
+
+export const WikipediaBlockMeta = {
+  tags: ['knowledge-base'],
+  templates: [
+    {
+      icon: WikipediaIcon,
+      title: 'Wikipedia background-research helper',
+      prompt:
+        'Build a workflow that for a chosen topic queries Wikipedia, extracts the lead and infobox, and writes a structured background brief file for the user.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+    },
+    {
+      icon: WikipediaIcon,
+      title: 'Wikipedia entity disambiguator',
+      prompt:
+        'Create a workflow that for an ambiguous person or company name queries Wikipedia, identifies the most likely entity given context, and writes the canonical reference back.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'analysis'],
+    },
+    {
+      icon: WikipediaIcon,
+      title: 'Wikipedia knowledge-base seeder',
+      prompt:
+        'Build a workflow that for tracked topics fetches Wikipedia articles, chunks and embeds them, and seeds a knowledge base with canonical context.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: WikipediaIcon,
+      title: 'Wikipedia citation validator',
+      prompt:
+        'Create a workflow that checks if claims drafted by an agent are supported by Wikipedia content, flags claims without strong sources, and writes a quality score.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'analysis'],
+    },
+    {
+      icon: WikipediaIcon,
+      title: 'Wikipedia infobox extractor',
+      prompt:
+        'Build a workflow that takes a list of entity names, extracts the Wikipedia infobox fields for each, and writes structured rows for downstream analytics.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: WikipediaIcon,
+      title: 'Wikipedia related-topic graph',
+      prompt:
+        'Create a workflow that for a topic explores related Wikipedia pages, builds a topic graph in Neo4j, and surfaces adjacent themes.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['research', 'analysis'],
+      alsoIntegrations: ['neo4j'],
+    },
+    {
+      icon: WikipediaIcon,
+      title: 'Wikipedia summary alerter',
+      prompt:
+        'Build a scheduled workflow that monitors Wikipedia pages for tracked entities, detects significant edits, and posts a summary diff to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'research'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

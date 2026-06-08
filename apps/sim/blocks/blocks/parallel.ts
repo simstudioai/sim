@@ -1,5 +1,5 @@
 import { ParallelIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
 export const ParallelBlock: BlockConfig<ToolResponse> = {
@@ -9,11 +9,10 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.',
-  docsLink: 'https://docs.sim.ai/tools/parallel-ai',
+  docsLink: 'https://docs.sim.ai/tools/parallel_ai',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'llm', 'agentic'],
-  bgColor: '#E0E0E0',
+  bgColor: '#1D1C1A',
   icon: ParallelIcon,
   subBlocks: [
     {
@@ -275,3 +274,76 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     },
   },
 }
+
+export const ParallelBlockMeta = {
+  tags: ['web-scraping', 'llm', 'agentic'],
+  templates: [
+    {
+      icon: ParallelIcon,
+      title: 'Parallel AI account research agent',
+      prompt:
+        'Build a workflow that takes a company name, runs Parallel AI deep research for recent funding, leadership changes, and product launches, and writes a structured account brief with citations back to the matching CRM record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'enrichment'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: ParallelIcon,
+      title: 'Parallel AI competitor monitor',
+      prompt:
+        'Create a scheduled workflow that uses Parallel AI search to find new announcements from a list of competitors, extracts the key details from each source URL, and posts a cited digest to Slack for the product team.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['research', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ParallelIcon,
+      title: 'Parallel AI URL fact extractor',
+      prompt:
+        'Build a workflow that reads a table of source URLs, uses Parallel AI extract to pull the structured facts requested for each page, and writes the normalized results back to the table for review.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['research', 'automation', 'enrichment'],
+    },
+    {
+      icon: ParallelIcon,
+      title: 'Parallel AI market landscape report',
+      prompt:
+        'Create a workflow that runs Parallel AI deep research on a market category, synthesizes the players, pricing, and trends into a Markdown report file, and shares the link with the strategy team.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['research', 'analysis', 'reporting'],
+    },
+    {
+      icon: ParallelIcon,
+      title: 'Parallel AI lead enrichment pipeline',
+      prompt:
+        'Build a workflow that runs Parallel AI search and extract on each new inbound lead to find company size, industry, and tech stack, scores fit against the ICP, and updates the lead record with the enriched profile.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'enrichment', 'automation'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: ParallelIcon,
+      title: 'Parallel AI due-diligence brief',
+      prompt:
+        'Create a workflow that runs Parallel AI deep research on a target company for litigation, leadership, and financial signals, extracts supporting detail from each cited source, and writes a due-diligence brief file for the deal team.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['research', 'enterprise', 'analysis'],
+    },
+    {
+      icon: ParallelIcon,
+      title: 'Parallel AI daily topic digest',
+      prompt:
+        'Build a scheduled daily workflow that uses Parallel AI search across the topics a team follows, extracts the key facts from the top results, and emails a concise cited digest each morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'reporting', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

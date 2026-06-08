@@ -7,10 +7,10 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { getStorageMethod } from '@/lib/core/storage'
 
-export type DeploymentKind = 'chat' | 'form'
+export type DeploymentKind = 'chat'
 
 /**
- * Shared OTP configuration for deployment (chat/form) email-auth gates.
+ * Shared OTP configuration for deployment (chat) email-auth gates.
  */
 export const OTP_EXPIRY_SECONDS = 15 * 60
 export const OTP_EXPIRY_MS = OTP_EXPIRY_SECONDS * 1000
@@ -31,17 +31,12 @@ export const OTP_EMAIL_RATE_LIMIT: TokenBucketConfig = {
 /**
  * Key formats are kept per-kind to preserve any in-flight OTPs already issued
  * against existing chat deployments. The chat Redis key uses the legacy `otp:`
- * prefix; the chat DB identifier uses `chat-otp:`. Forms use `form-otp:` for
- * both.
+ * prefix; the chat DB identifier uses `chat-otp:`.
  */
 const OTP_KEYS = {
   chat: {
     redisKey: (email: string, deploymentId: string) => `otp:${email}:${deploymentId}`,
     dbIdentifier: (email: string, deploymentId: string) => `chat-otp:${deploymentId}:${email}`,
-  },
-  form: {
-    redisKey: (email: string, deploymentId: string) => `form-otp:${email}:${deploymentId}`,
-    dbIdentifier: (email: string, deploymentId: string) => `form-otp:${deploymentId}:${email}`,
   },
 } as const satisfies Record<
   DeploymentKind,

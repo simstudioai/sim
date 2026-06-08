@@ -1,6 +1,7 @@
-import { GmailIcon } from '@/components/icons'
+import { Card } from '@/components/emcn/icons'
+import { GmailIcon, LemlistIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   createVersionedToolSelector,
@@ -53,8 +54,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   docsLink: 'https://docs.sim.ai/tools/gmail',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['google-workspace', 'messaging'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GmailIcon,
   hideFromToolbar: true,
   triggerAllowed: true,
@@ -579,7 +579,6 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
   name: 'Gmail',
   hideFromToolbar: false,
   integrationType: IntegrationType.Email,
-  tags: ['google-workspace', 'messaging'],
   tools: {
     ...GmailBlock.tools,
     access: [
@@ -643,3 +642,94 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
     timestamp: { type: 'string', description: 'Event timestamp' },
   },
 }
+
+export const GmailBlockMeta = {
+  tags: ['google-workspace', 'messaging'],
+  templates: [
+    {
+      icon: GmailIcon,
+      title: 'Auto-reply agent',
+      prompt:
+        'Create a workflow that reads my Gmail inbox, identifies emails that need a response, and drafts contextual replies for each one. Schedule it to run every hour.',
+      image: '/templates/gmail-agent-dark.png',
+      modules: ['agent', 'workflows'],
+      category: 'popular',
+      tags: ['individual', 'communication', 'automation'],
+      featured: true,
+    },
+    {
+      icon: LemlistIcon,
+      title: 'Outbound sequence builder',
+      prompt:
+        'Build a workflow that reads leads from my table, researches each prospect and their company on the web, writes a personalized cold email tailored to their role and pain points, and sends it via Gmail. Schedule it to run daily to process new leads automatically.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication', 'automation'],
+    },
+    {
+      icon: GmailIcon,
+      title: 'Email knowledge search',
+      prompt:
+        'Create a knowledge base connected to my Gmail so all my emails are automatically synced, chunked, and searchable. Then build an agent I can ask things like "what did Sarah say about the pricing proposal?" or "find the contract John sent last month" and get instant answers with the original email cited.',
+      modules: ['knowledge-base', 'agent'],
+      category: 'support',
+      tags: ['individual', 'research', 'communication'],
+    },
+    {
+      icon: GmailIcon,
+      title: 'Email triage assistant',
+      prompt:
+        'Build a workflow that scans my Gmail inbox every hour, categorizes emails by urgency and type (action needed, FYI, follow-up), drafts replies for routine messages, and sends me a prioritized summary in Slack so I only open what matters. Schedule it to run hourly.',
+      modules: ['agent', 'scheduled', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Card,
+      title: 'Invoice processor',
+      prompt:
+        'Build a workflow that processes invoice PDFs from Gmail, extracts vendor name, amount, due date, and line items, then logs everything to a tracking table and sends a Slack alert for invoices due within 7 days.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GmailIcon,
+      title: 'Gmail to CRM activity logger',
+      prompt:
+        'Build a workflow that reads new Gmail threads with customers, extracts the contact, deal context, and key points discussed, and logs a timestamped activity to the matching HubSpot contact or deal so every conversation stays attached to the record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm', 'communication', 'automation'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: GmailIcon,
+      title: 'Gmail attachment vault',
+      prompt:
+        'Create a workflow that watches Gmail for new emails with attachments, saves each attachment into a categorized folder in Google Drive based on sender and subject, and logs a row to a tracking table with the file link and source email.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation', 'sync'],
+      alsoIntegrations: ['google_drive'],
+    },
+
+    {
+      icon: GmailIcon,
+      title: 'Save incoming emails to Notion databases',
+      prompt:
+        'Build a workflow that monitors Gmail for incoming emails, extracts structured data from each one, and stores it as a Notion database entry — useful for lead capture, support tickets, and meeting scheduling.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['notion'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const GmailV2BlockMeta = {
+  tags: ['google-workspace', 'messaging'],
+} as const satisfies BlockMeta

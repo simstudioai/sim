@@ -1,5 +1,5 @@
 import { CloudWatchIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type {
   CloudWatchDescribeAlarmsResponse,
@@ -32,10 +32,10 @@ export const CloudWatchBlock: BlockConfig<
   longDescription:
     'Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.',
   category: 'tools',
-  integrationType: IntegrationType.Analytics,
+  integrationType: IntegrationType.Observability,
   docsLink: 'https://docs.sim.ai/tools/cloudwatch',
-  tags: ['cloud', 'monitoring'],
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
+  iconColor: '#FF4F8B',
   icon: CloudWatchIcon,
   subBlocks: [
     {
@@ -876,3 +876,78 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     },
   },
 }
+
+export const CloudWatchBlockMeta = {
+  tags: ['cloud', 'monitoring'],
+  templates: [
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch alarm digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes the past 24 hours of CloudWatch alarms by service and severity, identifies repeat offenders, and posts a digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch log triage',
+      prompt:
+        'Build a scheduled workflow that runs CloudWatch Logs Insights queries hourly for error patterns, clusters matches, writes top groups to a triage table, and pings the on-call engineer.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch cost-control alerts',
+      prompt:
+        'Create a scheduled workflow that pulls CloudWatch billing alarms daily, projects month-end spend by service, and posts an alert when projection exceeds budget thresholds.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch incident scribe',
+      prompt:
+        'Build a scheduled workflow that polls CloudWatch alarms every few minutes for any in ALARM state, captures the surrounding metrics and recent log excerpts, and writes a timeline file for the incident review.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch SLO burn-rate watcher',
+      prompt:
+        'Create a workflow that monitors CloudWatch SLO burn rate every five minutes, classifies severity, and pages the on-call team via PagerDuty when burn exceeds fast-burn thresholds.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch metric archiver',
+      prompt:
+        'Build a scheduled workflow that exports CloudWatch metric snapshots into S3 long-term storage, preserving granularity for compliance, and writing a manifest table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch log error triager',
+      prompt:
+        'Create a workflow that runs a CloudWatch Logs Insights query against application log groups every few minutes, groups recurring error signatures with an agent, opens a Linear issue for any new error pattern, and posts a Slack alert.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'engineering'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+  ],
+} as const satisfies BlockMeta

@@ -1,5 +1,5 @@
 import { RedisIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type {
   RedisCommandResponse,
@@ -82,8 +82,8 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
   docsLink: 'https://docs.sim.ai/tools/redis',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['cloud', 'data-warehouse'],
   bgColor: '#FF4438',
+  iconColor: '#FF4438',
   authMode: AuthMode.ApiKey,
   icon: RedisIcon,
   subBlocks: [
@@ -320,3 +320,73 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
     },
   },
 }
+
+export const RedisBlockMeta = {
+  tags: ['cloud'],
+  templates: [
+    {
+      icon: RedisIcon,
+      title: 'Redis response cache',
+      prompt:
+        'Build a workflow that checks Redis for a cached result by key before running an expensive step, and writes the computed result back with a TTL when there is a miss so repeat requests stay fast.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis rate limiter',
+      prompt:
+        'Create a workflow that increments a per-user Redis counter on each request, sets an expiry on the first hit, and blocks the request when the counter passes the allowed threshold within the window.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis feature-flag reader',
+      prompt:
+        'Build a workflow that reads feature-flag values from a Redis hash, branches downstream logic on whether each flag is enabled, and falls back to a default when a flag key is missing.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis job queue worker',
+      prompt:
+        'Create a scheduled workflow that pops the next job off a Redis list, processes it with an agent, and writes the outcome to a table so a backlog of work is drained on an interval.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis cache warmer',
+      prompt:
+        'Build a scheduled workflow that reads a list of hot keys from a table and sets each one in Redis with fresh values and a TTL, so popular lookups stay warm.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis daily counter digest',
+      prompt:
+        'Create a scheduled workflow that reads the day’s Redis counters by key pattern, builds a summary of the totals with an agent, and posts the digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RedisIcon,
+      title: 'Redis session lookup',
+      prompt:
+        'Build a workflow that reads a session hash from Redis by token, returns the stored user context to the caller, and refreshes the key’s expiry so active sessions stay alive.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

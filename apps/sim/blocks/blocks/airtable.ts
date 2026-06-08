@@ -1,6 +1,6 @@
 import { AirtableIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AirtableResponse } from '@/tools/airtable/types'
 import { getTrigger } from '@/triggers'
@@ -15,8 +15,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   docsLink: 'https://docs.sim.ai/tools/airtable',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['spreadsheet', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: AirtableIcon,
   subBlocks: [
     {
@@ -346,3 +345,91 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     available: ['airtable_webhook'],
   },
 }
+
+export const AirtableBlockMeta = {
+  tags: ['spreadsheet', 'automation'],
+  templates: [
+    {
+      icon: AirtableIcon,
+      title: 'Airtable data sync',
+      prompt:
+        'Create a scheduled workflow that syncs records from my Airtable base into a Sim table every hour, keeping both in sync. Use an agent to detect changes, resolve conflicts, and flag any discrepancies for review in Slack.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['sync', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AirtableIcon,
+      title: 'Airtable two-way sync',
+      prompt:
+        'Build a scheduled workflow that mirrors records between an Airtable base and a Sim table, detects conflicts, and pings Slack on records that need manual resolution.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['sync', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AirtableIcon,
+      title: 'Airtable form-to-CRM',
+      prompt:
+        'Create a workflow that watches Airtable form submissions, enriches each row with company data, and pushes qualifying leads into HubSpot with the right owner.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: AirtableIcon,
+      title: 'Airtable content calendar publisher',
+      prompt:
+        'Build a workflow that reads an Airtable content calendar, publishes due posts to WordPress with proper formatting, and writes the live URL back to the row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+      alsoIntegrations: ['wordpress'],
+    },
+    {
+      icon: AirtableIcon,
+      title: 'Airtable approval workflow',
+      prompt:
+        'Create a workflow that watches Airtable for new approval rows, posts a Slack message with quick-action buttons, captures the decision, and updates the row state.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['team', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AirtableIcon,
+      title: 'Airtable digest reporter',
+      prompt:
+        'Build a scheduled weekly workflow that summarizes activity in a chosen Airtable base — new rows, status changes, completed items — and emails a digest to the project owner.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['team', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: AirtableIcon,
+      title: 'Airtable to data-warehouse sync',
+      prompt:
+        'Create a scheduled workflow that exports an Airtable base to BigQuery nightly with schema mapping, partitions by ingestion date, and writes the run history to a control table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['sync', 'enterprise'],
+      alsoIntegrations: ['google_bigquery'],
+    },
+
+    {
+      icon: AirtableIcon,
+      title: 'Trigger Gmail from Airtable records',
+      prompt:
+        'Build a workflow that watches Airtable for new or updated records and sends a personalised Gmail message for each one, so outreach and follow-ups go out automatically.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation', 'communication'],
+      featured: true,
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

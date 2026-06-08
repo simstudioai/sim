@@ -11,6 +11,7 @@ import {
   Library,
   Square,
   SquareArrowUpRight,
+  Workflow as WorkflowIcon,
   WorkflowX,
 } from '@/components/emcn/icons'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -22,12 +23,11 @@ import {
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   FileViewer,
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/generic-resource-content'
+import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -276,7 +276,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     }
 
     if (usageExceeded) {
-      navigateToSettings({ section: 'subscription' })
+      navigateToSettings({ section: 'billing' })
       return
     }
 
@@ -616,14 +616,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
               onClick={() => window.open(`/workspace/${workspaceId}/w/${w.id}`, '_blank')}
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
-              <div
-                className='size-[12px] flex-shrink-0 rounded-[3px] border-[2px]'
-                style={{
-                  backgroundColor: w.color,
-                  borderColor: workflowBorderColor(w.color),
-                  backgroundClip: 'padding-box',
-                }}
-              />
+              <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               <span className='truncate text-[13px] text-[var(--text-primary)]'>{w.name}</span>
             </button>
           ))}

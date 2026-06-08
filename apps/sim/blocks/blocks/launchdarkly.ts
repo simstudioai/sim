@@ -1,5 +1,5 @@
 import { LaunchDarklyIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const LaunchDarklyBlock: BlockConfig = {
@@ -10,9 +10,9 @@ export const LaunchDarklyBlock: BlockConfig = {
     'Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/launchdarkly',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['feature-flags', 'ci-cd'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#191919',
+  iconColor: '#405BFF',
   icon: LaunchDarklyIcon,
   authMode: AuthMode.ApiKey,
 
@@ -341,3 +341,78 @@ export const LaunchDarklyBlock: BlockConfig = {
     lastRequested: { type: 'string', description: 'Last time the flag was evaluated' },
   },
 }
+
+export const LaunchDarklyBlockMeta = {
+  tags: ['feature-flags', 'ci-cd'],
+  templates: [
+    {
+      icon: LaunchDarklyIcon,
+      title: 'LaunchDarkly flag-flip auditor',
+      prompt:
+        'Build a scheduled workflow that reads the LaunchDarkly audit log, captures who flipped which flag and when, and writes the audit trail to a tracking table with diff context.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'monitoring'],
+    },
+    {
+      icon: LaunchDarklyIcon,
+      title: 'LaunchDarkly stale-flag sweeper',
+      prompt:
+        'Create a scheduled workflow that identifies LaunchDarkly flags inactive for 60 days, opens Linear tickets to remove them, and writes the cleanup queue to a dashboard table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: LaunchDarklyIcon,
+      title: 'LaunchDarkly rollout digest',
+      prompt:
+        'Build a scheduled weekly workflow that lists LaunchDarkly flags with their current status and rollout percentage per environment, summarizes what changed since last week, and posts a digest to the product Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: LaunchDarklyIcon,
+      title: 'LaunchDarkly flag-flip safety gate',
+      prompt:
+        'Create a scheduled workflow that reads the LaunchDarkly audit log for recent production flag flips, checks Sentry error rate and Datadog SLO burn against each, toggles the flag back off on regression, and posts to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['sentry', 'datadog', 'slack'],
+    },
+    {
+      icon: LaunchDarklyIcon,
+      title: 'LaunchDarkly targeted rollout assistant',
+      prompt:
+        'Build a workflow that takes a LaunchDarkly flag and a rollout plan, advances the rollout percentage on a schedule while watching health metrics, pausing on degradation.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['datadog'],
+    },
+    {
+      icon: LaunchDarklyIcon,
+      title: 'LaunchDarkly + Linear release planner',
+      prompt:
+        'Create a workflow that watches Linear releases marked behind a LaunchDarkly flag, validates the flag exists, posts the rollout plan to Slack, and tracks rollout progress on the release ticket.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+    {
+      icon: LaunchDarklyIcon,
+      title: 'LaunchDarkly customer-segment toggler',
+      prompt:
+        'Build a workflow that turns a HubSpot segment into a LaunchDarkly targeting rule, keeping the rule in sync with the segment, and writes the sync log to a tracking table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm', 'sync'],
+      alsoIntegrations: ['hubspot'],
+    },
+  ],
+} as const satisfies BlockMeta

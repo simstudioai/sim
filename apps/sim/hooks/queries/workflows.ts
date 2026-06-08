@@ -26,7 +26,6 @@ import {
   restoreWorkflowContract,
   updateWorkflowContract,
 } from '@/lib/api/contracts/workflows'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
@@ -140,7 +139,6 @@ interface CreateWorkflowVariables {
   workspaceId: string
   name?: string
   description?: string
-  color?: string
   folderId?: string | null
   sortOrder?: number
   id?: string
@@ -151,7 +149,6 @@ interface CreateWorkflowMutationData {
   id: string
   name: string
   description?: string
-  color: string
   workspaceId: string
   folderId?: string | null
   sortOrder: number
@@ -163,8 +160,7 @@ export function useCreateWorkflow() {
 
   return useMutation({
     mutationFn: async (variables: CreateWorkflowVariables): Promise<CreateWorkflowMutationData> => {
-      const { workspaceId, name, description, color, folderId, sortOrder, id, deduplicate } =
-        variables
+      const { workspaceId, name, description, folderId, sortOrder, id, deduplicate } = variables
 
       logger.info(`Creating new workflow in workspace: ${workspaceId}`)
 
@@ -173,7 +169,6 @@ export function useCreateWorkflow() {
           id,
           name: name || generateCreativeWorkflowName(),
           description: description || 'New workflow',
-          color: color || getNextWorkflowColor(),
           workspaceId,
           folderId: folderId || null,
           sortOrder,
@@ -188,7 +183,6 @@ export function useCreateWorkflow() {
         id: workflowId,
         name: createdWorkflow.name,
         description: createdWorkflow.description,
-        color: createdWorkflow.color,
         workspaceId,
         folderId: createdWorkflow.folderId,
         sortOrder: createdWorkflow.sortOrder ?? 0,
@@ -226,7 +220,6 @@ export function useCreateWorkflow() {
         lastModified: new Date(),
         createdAt: new Date(),
         description: variables.description || 'New workflow',
-        color: variables.color || getNextWorkflowColor(),
         workspaceId: variables.workspaceId,
         folderId: variables.folderId || null,
         sortOrder,
@@ -256,7 +249,6 @@ export function useCreateWorkflow() {
                   lastModified: new Date(),
                   createdAt: new Date(),
                   description: data.description,
-                  color: data.color,
                   workspaceId: data.workspaceId,
                   folderId: data.folderId,
                   sortOrder: data.sortOrder,
@@ -311,7 +303,6 @@ interface DuplicateWorkflowVariables {
   sourceId: string
   name: string
   description?: string
-  color: string
   folderId?: string | null
   newId?: string
 }
@@ -320,7 +311,6 @@ interface DuplicateWorkflowMutationData {
   id: string
   name: string
   description?: string
-  color: string
   workspaceId: string
   folderId?: string | null
   sortOrder: number
@@ -337,7 +327,7 @@ export function useDuplicateWorkflowMutation() {
     mutationFn: async (
       variables: DuplicateWorkflowVariables
     ): Promise<DuplicateWorkflowMutationData> => {
-      const { workspaceId, sourceId, name, description, color, folderId, newId } = variables
+      const { workspaceId, sourceId, name, description, folderId, newId } = variables
 
       logger.info(`Duplicating workflow ${sourceId} in workspace: ${workspaceId}`)
 
@@ -346,7 +336,6 @@ export function useDuplicateWorkflowMutation() {
         body: {
           name,
           description,
-          color,
           workspaceId,
           folderId: folderId ?? null,
           newId,
@@ -363,7 +352,6 @@ export function useDuplicateWorkflowMutation() {
         id: duplicatedWorkflow.id,
         name: duplicatedWorkflow.name || name,
         description: duplicatedWorkflow.description || description,
-        color: duplicatedWorkflow.color || color,
         workspaceId,
         folderId: duplicatedWorkflow.folderId ?? folderId,
         sortOrder: duplicatedWorkflow.sortOrder ?? 0,
@@ -394,7 +382,6 @@ export function useDuplicateWorkflowMutation() {
         lastModified: new Date(),
         createdAt: new Date(),
         description: variables.description,
-        color: variables.color,
         workspaceId: variables.workspaceId,
         folderId: targetFolderId,
         sortOrder: getTopInsertionSortOrder(
@@ -429,7 +416,6 @@ export function useDuplicateWorkflowMutation() {
                   lastModified: new Date(),
                   createdAt: new Date(),
                   description: data.description,
-                  color: data.color,
                   workspaceId: data.workspaceId,
                   folderId: data.folderId,
                   sortOrder: data.sortOrder,

@@ -1,6 +1,6 @@
 ---
 paths:
-  - "apps/sim/app/(home)/**/*.tsx"
+  - "apps/sim/app/(landing)/**/*.tsx"
 ---
 
 # Landing Page — SEO / GEO
@@ -21,6 +21,6 @@ paths:
 - **Answer-first pattern**: each section's H2 + subtitle should directly answer a user question (e.g. "What is Sim?", "How fast can I deploy?").
 - **Atomic answer blocks**: each feature / template card should be independently extractable by an AI summariser.
 - **Entity consistency**: always write "Sim" by name — never "the platform" or "our tool".
-- **Keyword density**: first 150 visible chars of Hero must name "Sim", "AI agents", "agentic workflows".
+- **Keyword density**: first 150 visible chars of Hero must name "Sim", "AI workspace", "AI agents".
 - **sr-only summaries**: Hero and Templates each have a `<p className="sr-only">` (~50 words) as an atomic product/catalog summary for AI citation.
 - **Specific numbers**: prefer concrete figures ("1,000+ integrations", "15+ AI providers") over vague claims.

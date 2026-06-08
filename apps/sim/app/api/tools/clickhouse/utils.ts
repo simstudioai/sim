@@ -1,4 +1,8 @@
-import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import {
+  secureFetchWithPinnedIP,
+  validateDatabaseHost,
+  validateSqlWhereClause,
+} from '@/lib/core/security/input-validation.server'
 import type { ClickHouseConnectionConfig } from '@/tools/clickhouse/types'
 
 const REQUEST_TIMEOUT_MS = 30_000
@@ -60,7 +64,8 @@ export interface ClickHouseIntrospectionResult {
  */
 async function clickhouseRequest(
   config: ClickHouseConnectionConfig,
-  statement: string
+  statement: string,
+  options: { readOnly?: boolean } = {}
 ): Promise<ClickHouseHttpResult> {
   const hostValidation = await validateDatabaseHost(config.host, 'host')
   if (!hostValidation.isValid) {
@@ -70,25 +75,28 @@ async function clickhouseRequest(
   const protocol = config.secure ? 'https' : 'http'
   const url = new URL(`${protocol}://${config.host}:${config.port}/`)
   url.searchParams.set('database', config.database)
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-
-  let response: Response
-  try {
-    response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'X-ClickHouse-User': config.username,
-        'X-ClickHouse-Key': config.password,
-        'Content-Type': 'text/plain; charset=utf-8',
-      },
-      body: statement,
-      signal: controller.signal,
-    })
-  } finally {
-    clearTimeout(timeout)
+  if (options.readOnly) {
+    // Server-enforced read-only: ClickHouse rejects any write/DDL and forbids the
+    // query from re-enabling writes via `SET readonly=0`. This is the real boundary
+    // for the query operation; the SQL-shape checks below are defense-in-depth.
+    url.searchParams.set('readonly', '1')
   }
+
+  // Pin the connection to the IP that passed validation. Without this, fetch()
+  // would re-resolve `config.host` and a DNS-rebinding hostname could point the
+  // actual request at an internal/private address after validation succeeded.
+  const response = await secureFetchWithPinnedIP(url.toString(), hostValidation.resolvedIP!, {
+    method: 'POST',
+    headers: {
+      'X-ClickHouse-User': config.username,
+      'X-ClickHouse-Key': config.password,
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Length': String(Buffer.byteLength(statement, 'utf-8')),
+    },
+    body: statement,
+    timeout: REQUEST_TIMEOUT_MS,
+    allowHttp: !config.secure,
+  })
 
   const text = await response.text()
 
@@ -290,7 +298,9 @@ export async function executeClickHouseQuery(
       )
     }
   }
-  const result = await clickhouseRequest(config, ensureJsonFormat(query))
+  const result = await clickhouseRequest(config, ensureJsonFormat(query), {
+    readOnly: options.enforceReadOnly,
+  })
   return parseRowsResult(result)
 }
 
@@ -448,37 +458,14 @@ function sanitizeSingleIdentifier(identifier: string): string {
 }
 
 /**
- * Rejects WHERE clauses containing patterns commonly used in SQL injection so
- * that user-supplied conditions cannot escape the intended mutation.
+ * Rejects WHERE clauses containing SQL-injection or always-true tautology
+ * patterns so user-supplied conditions cannot broaden a mutation to every row.
+ * Delegates to the shared {@link validateSqlWhereClause} guard (defense-in-depth).
  */
 function validateWhereClause(where: string): void {
-  const dangerousPatterns = [
-    /;\s*(drop|delete|insert|alter|create|truncate|rename|grant|revoke)/i,
-    /union\s+(all\s+)?select/i,
-    /into\s+outfile/i,
-    /--/,
-    /\/\*/,
-    /\*\//,
-    /\bor\s+(['"]?)(\w+)\1\s*=\s*\1\2\1/i,
-    /\bor\s+true\b/i,
-    /\bor\s+false\b/i,
-    /\band\s+(['"]?)(\w+)\1\s*=\s*\1\2\1/i,
-    /\band\s+true\b/i,
-    /\band\s+false\b/i,
-    /\bsleep\s*\(/i,
-    /;\s*\w+/,
-    // Constant / tautological conditions that don't reference columns and would
-    // broaden a mutation to all rows (e.g. "1=1", "1 < 2", "'a'='a'", bare "1"/"true").
-    /\b\d+\s*(?:=|==|<>|!=|<=|>=|<|>)\s*\d+\b/,
-    /(['"])([^'"]*)\1\s*(?:=|==|<>|!=)\s*\1\2\1/,
-    /\b(\w+)\s*=\s*\1\b/i,
-    /^\s*(?:\d+|true|false)\s*$/i,
-  ]
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(where)) {
-      throw new Error('WHERE clause contains potentially dangerous operation')
-    }
+  const result = validateSqlWhereClause(where, 'WHERE clause')
+  if (!result.isValid) {
+    throw new Error(result.error)
   }
 }
 

@@ -40,13 +40,18 @@ export interface DataRowProps {
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
   onCellMouseEnter: (rowIndex: number, colIndex: number) => void
   isRowChecked: boolean
+  /** Keyboard (space/enter) toggle of the row checkbox. */
   onRowToggle: (rowIndex: number, shiftKey: boolean) => void
+  /** Pointer-down on the gutter — toggles the row and arms gutter drag-select. */
+  onRowMouseDown: (rowIndex: number, shiftKey: boolean) => void
+  /** Pointer entering the gutter cell — extends an in-progress gutter drag. */
+  onRowMouseEnter: (rowIndex: number) => void
   /** Number of workflow cells in this row currently in a running/queued state. */
   runningCount: number
   /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
   hasWorkflowColumns: boolean
-  /** Width of the row-number inner div in px, derived from the table's maxRows digit count. */
-  numDivWidth: number
+  /** Width of the centered row-number/checkbox region in px, derived from the table's maxRows digit count. */
+  numRegionWidth: number
   onStopRow: (rowId: string) => void
   onRunRow: (rowId: string) => void
   /**
@@ -115,9 +120,11 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onCellMouseEnter !== next.onCellMouseEnter ||
     prev.isRowChecked !== next.isRowChecked ||
     prev.onRowToggle !== next.onRowToggle ||
+    prev.onRowMouseDown !== next.onRowMouseDown ||
+    prev.onRowMouseEnter !== next.onRowMouseEnter ||
     prev.runningCount !== next.runningCount ||
     prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
-    prev.numDivWidth !== next.numDivWidth ||
+    prev.numRegionWidth !== next.numRegionWidth ||
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
     prev.workflowGroups !== next.workflowGroups ||
@@ -161,9 +168,11 @@ export const DataRow = React.memo(function DataRow({
   onCellMouseDown,
   onCellMouseEnter,
   onRowToggle,
+  onRowMouseDown,
+  onRowMouseEnter,
   runningCount,
   hasWorkflowColumns,
-  numDivWidth,
+  numRegionWidth,
   onStopRow,
   onRunRow,
   workflowGroups,
@@ -212,7 +221,10 @@ export const DataRow = React.memo(function DataRow({
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
+      <td
+        className={cn(CELL_CHECKBOX, 'cursor-pointer')}
+        onMouseEnter={() => onRowMouseEnter(rowIndex)}
+      >
         {isLeftEdgeSelected && (
           <div
             className={cn(
@@ -221,27 +233,17 @@ export const DataRow = React.memo(function DataRow({
             )}
           />
         )}
-        <div
-          className={cn(
-            'flex items-center',
-            hasWorkflowColumns ? 'justify-end gap-1.5 pr-1' : 'justify-center'
-          )}
-        >
+        <div className={cn('flex items-center justify-start', hasWorkflowColumns && 'gap-1.5')}>
           <div
             role='checkbox'
             tabIndex={0}
             aria-checked={isRowSelected}
             aria-label={`Select row ${rowIndex + 1}`}
-            className={cn(
-              'group/checkbox flex h-[20px] shrink-0 items-center justify-end',
-              // Lighter right inset for narrow indices (≤3 digits → numDivWidth ≤ 28);
-              // full 4px once the column widens (4+ digits, numDivWidth ≥ 36).
-              numDivWidth >= 36 ? 'pr-1' : 'pr-0.5'
-            )}
-            style={{ width: numDivWidth }}
+            className='group/checkbox flex h-[20px] shrink-0 items-center justify-center'
+            style={{ width: numRegionWidth }}
             onMouseDown={(e) => {
               if (e.button !== 0) return
-              onRowToggle(rowIndex, e.shiftKey)
+              onRowMouseDown(rowIndex, e.shiftKey)
             }}
             onKeyDown={(event) =>
               handleKeyboardActivation(event, () => onRowToggle(rowIndex, event.shiftKey))
@@ -249,7 +251,7 @@ export const DataRow = React.memo(function DataRow({
           >
             <span
               className={cn(
-                'text-right text-[var(--text-tertiary)] text-xs tabular-nums',
+                'text-[var(--text-tertiary)] text-xs tabular-nums',
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
@@ -257,7 +259,7 @@ export const DataRow = React.memo(function DataRow({
             </span>
             <div
               className={cn(
-                'items-center justify-end',
+                'items-center justify-center',
                 isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
               )}
             >

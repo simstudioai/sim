@@ -1,6 +1,6 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type {
@@ -19,8 +19,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['spreadsheet', 'microsoft-365'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftExcelIcon,
   subBlocks: [
     {
@@ -358,8 +357,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['spreadsheet', 'microsoft-365'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftExcelIcon,
   subBlocks: [
     // Operation selector
@@ -675,3 +673,82 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     metadata: { type: 'json', description: 'Spreadsheet metadata including ID and URL' },
   },
 }
+
+export const MicrosoftExcelBlockMeta = {
+  tags: ['spreadsheet', 'microsoft-365'],
+  templates: [
+    {
+      icon: MicrosoftExcelIcon,
+      title: 'Excel financial close automator',
+      prompt:
+        'Build a scheduled workflow that closes the books each period — pulls Stripe and accounting data, updates a Microsoft Excel close workbook, and emails the controller the reconciled file.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'reporting'],
+      alsoIntegrations: ['stripe', 'gmail'],
+    },
+    {
+      icon: MicrosoftExcelIcon,
+      title: 'Excel invoice generator',
+      prompt:
+        'Create a workflow that reads a sales orders table, populates a Microsoft Excel invoice template per order, and saves the file to a SharePoint folder for finance review.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['sharepoint'],
+    },
+    {
+      icon: MicrosoftExcelIcon,
+      title: 'Excel pivot refresher',
+      prompt:
+        'Build a scheduled workflow that refreshes a Microsoft Excel pivot table from a SQL source, exports the rendered snapshot, and posts the file link to a Microsoft Teams channel.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'enterprise'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+    {
+      icon: MicrosoftExcelIcon,
+      title: 'Excel + SharePoint forecast hub',
+      prompt:
+        'Create a workflow that aggregates regional forecasts submitted in Microsoft Excel files on SharePoint, normalizes formats, and writes a consolidated forecast table for leadership.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'analysis'],
+      alsoIntegrations: ['sharepoint'],
+    },
+    {
+      icon: MicrosoftExcelIcon,
+      title: 'Excel commission calculator',
+      prompt:
+        'Build a workflow that pulls closed Salesforce deals each month, computes commission per rep using a Microsoft Excel commission model, and emails the per-rep statements.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'finance'],
+      alsoIntegrations: ['salesforce', 'gmail'],
+    },
+    {
+      icon: MicrosoftExcelIcon,
+      title: 'Excel scenario modeler',
+      prompt:
+        'Create a workflow that runs scenarios against a Microsoft Excel financial model — pessimistic, base, optimistic — captures outputs, and writes a comparison report to a finance file.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis'],
+    },
+    {
+      icon: MicrosoftExcelIcon,
+      title: 'Excel + Power BI feeder',
+      prompt:
+        'Build a scheduled workflow that updates a Microsoft Excel data table from a Sim source, refreshes the dependent Power BI dataset, and notifies BI consumers in Teams.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'enterprise'],
+      alsoIntegrations: ['microsoft_teams'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const MicrosoftExcelV2BlockMeta = {
+  tags: ['spreadsheet', 'microsoft-365'],
+} as const satisfies BlockMeta

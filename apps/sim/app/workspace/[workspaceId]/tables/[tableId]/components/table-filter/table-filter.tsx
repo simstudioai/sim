@@ -200,7 +200,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
       </DropdownMenu>
 
       {VALUELESS_OPERATORS.has(rule.operator) ? (
-        <div className='h-[28px] flex-1' />
+        <div className='h-[30px] flex-1' />
       ) : (
         <input
           type='text'
@@ -210,7 +210,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
             if (e.key === 'Enter') onApply()
           }}
           placeholder='Enter a value'
-          className='h-[28px] flex-1 rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-subtle)] hover-hover:border-[var(--border-1)] focus:border-[var(--border-1)]'
+          className='h-[30px] flex-1 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-subtle)] dark:bg-[var(--surface-4)]'
         />
       )}
 

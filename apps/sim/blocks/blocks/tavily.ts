@@ -1,5 +1,5 @@
 import { TavilyIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { TavilyResponse } from '@/tools/tavily/types'
 
@@ -12,7 +12,6 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
     'Integrate Tavily into the workflow. Can search the web and extract content from specific URLs. Requires API Key.',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'enrichment'],
   docsLink: 'https://docs.sim.ai/tools/tavily',
   bgColor: '#0066FF',
   icon: TavilyIcon,
@@ -368,3 +367,75 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
     request_id: { type: 'string', description: 'Request identifier for support' },
   },
 }
+
+export const TavilyBlockMeta = {
+  tags: ['web-scraping', 'enrichment'],
+  templates: [
+    {
+      icon: TavilyIcon,
+      title: 'Tavily research-augmented agent',
+      prompt:
+        'Create an agent that grounds every answer in fresh Tavily web search results, returns answers with inline citations, and saves long-form research to a knowledge base for re-use.',
+      modules: ['agent', 'knowledge-base', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+    },
+    {
+      icon: TavilyIcon,
+      title: 'Tavily competitive monitor',
+      prompt:
+        'Create a scheduled workflow that runs Tavily searches for competitor mentions weekly, scores each by relevance, logs the top hits to a tables-based competitive log, and posts highlights to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TavilyIcon,
+      title: 'Tavily research-augmented chat',
+      prompt:
+        'Build a chat agent that grounds each answer in fresh Tavily web search results, returns inline citations, and saves long-form answers to a knowledge base for re-use.',
+      modules: ['agent', 'knowledge-base', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+    },
+    {
+      icon: TavilyIcon,
+      title: 'Tavily news watcher',
+      prompt:
+        'Create a scheduled daily workflow that runs Tavily searches for topics I follow, summarizes the top hits with citations, and posts a digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TavilyIcon,
+      title: 'Tavily account refresher',
+      prompt:
+        'Build a workflow that walks accounts in the CRM, runs Tavily research on each for new funding, hiring, or product launches, and writes the digest back to the account record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: TavilyIcon,
+      title: 'Tavily competitor mention log',
+      prompt:
+        'Create a scheduled workflow that runs Tavily searches for competitor mentions weekly, scores each by relevance, and writes a competitive log to a table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+    },
+    {
+      icon: TavilyIcon,
+      title: 'Tavily URL content extractor',
+      prompt:
+        'Build a workflow that reads a table of article URLs, uses Tavily extract to pull the clean main content from each page, summarizes the key points with an agent, and writes the summary back to the row.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'web-scraping', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

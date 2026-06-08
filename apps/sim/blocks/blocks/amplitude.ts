@@ -1,5 +1,5 @@
 import { AmplitudeIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const AmplitudeBlock: BlockConfig = {
   type: 'amplitude',
@@ -10,8 +10,8 @@ export const AmplitudeBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/amplitude',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['data-analytics', 'marketing'],
   bgColor: '#1B1F3B',
+  iconColor: '#1F77E0',
   icon: AmplitudeIcon,
   authMode: AuthMode.ApiKey,
 
@@ -745,3 +745,78 @@ export const AmplitudeBlock: BlockConfig = {
     },
   },
 }
+
+export const AmplitudeBlockMeta = {
+  tags: ['data-analytics', 'marketing'],
+  templates: [
+    {
+      icon: AmplitudeIcon,
+      title: 'Product analytics digest',
+      prompt:
+        'Create a scheduled weekly workflow that pulls key product metrics from Amplitude — active users, event segmentation for top events, and revenue — generates an executive summary with week-over-week trends, and posts it to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'reporting', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AmplitudeIcon,
+      title: 'Amplitude event regression watcher',
+      prompt:
+        'Build a scheduled workflow that runs event segmentation on key Amplitude events every morning, compares the counts against the trailing 14-day baseline, and posts a Slack alert when any event drops more than a configurable threshold.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'monitoring', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AmplitudeIcon,
+      title: 'Amplitude active-user tracker',
+      prompt:
+        'Create a scheduled workflow that pulls daily and monthly active users from Amplitude, writes the values into a tracking table, and feeds the trend to downstream marketing automations.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'sync'],
+    },
+    {
+      icon: AmplitudeIcon,
+      title: 'Amplitude revenue digest',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Amplitude revenue data, breaks it down by week-over-week change, and posts a digest to the product Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: AmplitudeIcon,
+      title: 'Amplitude + PostHog cross-tool dashboard',
+      prompt:
+        'Build a scheduled workflow that aggregates equivalent active-user and event metrics from both Amplitude and PostHog, writes a side-by-side comparison to a table, and surfaces discrepancies to the product team in Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'analysis', 'reporting'],
+      alsoIntegrations: ['posthog', 'slack'],
+    },
+    {
+      icon: AmplitudeIcon,
+      title: 'Amplitude + Fathom unified analytics',
+      prompt:
+        'Build a scheduled workflow that joins Amplitude product analytics with Fathom web analytics, writes a unified active-user and engagement report, and surfaces anomalies.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'analysis'],
+      alsoIntegrations: ['fathom'],
+    },
+    {
+      icon: AmplitudeIcon,
+      title: 'Amplitude + Hex deep-dive notebook',
+      prompt:
+        'Create a workflow that triggers a Hex deep-dive notebook when an Amplitude metric crosses an anomaly threshold, runs analysis, and posts the notebook output to Slack.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'analysis'],
+      alsoIntegrations: ['hex', 'slack'],
+    },
+  ],
+} as const satisfies BlockMeta

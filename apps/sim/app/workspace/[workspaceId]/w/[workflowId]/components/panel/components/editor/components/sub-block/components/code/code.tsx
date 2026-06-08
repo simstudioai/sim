@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Check, Copy, Wand2 } from 'lucide-react'
+import { Check, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import 'prismjs/components/prism-python'
 import { createLogger } from '@sim/logger'
@@ -9,6 +9,7 @@ import {
   CODE_LINE_HEIGHT_PX,
   Code as CodeEditor,
   calculateGutterWidth,
+  Duplicate,
   getCodeEditorProps,
   highlight,
   languages,
@@ -826,14 +827,14 @@ export const Code = memo(function Code({
           onClick={handleCopy}
           disabled={!code}
           className={cn(
-            'h-8 w-8 p-0',
+            'size-8 p-0',
             'text-muted-foreground/60 transition-all duration-200',
             'hover-hover:scale-105 hover-hover:bg-muted/50 hover-hover:text-foreground',
             'active:scale-95'
           )}
           aria-label='Copy code'
         >
-          {copied ? <Check className='size-3.5' /> : <Copy className='size-3.5' />}
+          {copied ? <Check className='h-3.5 w-3.5' /> : <Duplicate className='h-3.5 w-3.5' />}
         </Button>
       )}
       {!hideInternalWand && (

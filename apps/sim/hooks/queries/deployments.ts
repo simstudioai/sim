@@ -48,11 +48,6 @@ export const deploymentKeys = {
     [...deploymentKeys.chatStatuses(), workflowId ?? ''] as const,
   chatDetails: () => [...deploymentKeys.all, 'chatDetail'] as const,
   chatDetail: (chatId: string | null) => [...deploymentKeys.chatDetails(), chatId ?? ''] as const,
-  formStatuses: () => [...deploymentKeys.all, 'formStatus'] as const,
-  formStatus: (workflowId: string | null) =>
-    [...deploymentKeys.formStatuses(), workflowId ?? ''] as const,
-  formDetails: () => [...deploymentKeys.all, 'formDetail'] as const,
-  formDetail: (formId: string | null) => [...deploymentKeys.formDetails(), formId ?? ''] as const,
 }
 
 /**
@@ -65,7 +60,6 @@ export function invalidateDeploymentQueries(queryClient: QueryClient, workflowId
     queryClient.invalidateQueries({ queryKey: deploymentKeys.deployedState(workflowId) }),
     queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) }),
     queryClient.invalidateQueries({ queryKey: deploymentKeys.chatStatus(workflowId) }),
-    queryClient.invalidateQueries({ queryKey: deploymentKeys.formStatus(workflowId) }),
   ])
 }
 

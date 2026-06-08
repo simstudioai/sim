@@ -4,10 +4,7 @@ import { member, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  removeOrganizationMemberQuerySchema,
-  updateOrganizationMemberRoleContract,
-} from '@/lib/api/contracts/organization'
+import { updateOrganizationMemberRoleContract } from '@/lib/api/contracts/organization'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
@@ -16,8 +13,9 @@ import { getUserUsageData } from '@/lib/billing/core/usage'
 import {
   removeExternalUserFromOrganizationWorkspaces,
   removeUserFromOrganization,
+  WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR,
 } from '@/lib/billing/organizations/membership'
-import { reduceOrganizationSeatsByOne } from '@/lib/billing/organizations/seats'
+import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMemberAPI')
@@ -292,12 +290,6 @@ export const DELETE = withRouteHandler(
       }
 
       const { id: organizationId, memberId: targetUserId } = await params
-      const queryResult = removeOrganizationMemberQuerySchema.safeParse(
-        Object.fromEntries(request.nextUrl.searchParams.entries())
-      )
-      const shouldReduceSeats = queryResult.success
-        ? queryResult.data.shouldReduceSeats === true
-        : false
 
       const userMember = await db
         .select()
@@ -349,7 +341,9 @@ export const DELETE = withRouteHandler(
               ? 404
               : error === 'User is an organization member'
                 ? 409
-                : 500
+                : error === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR
+                  ? 400
+                  : 500
 
           return NextResponse.json({ error }, { status })
         }
@@ -415,28 +409,28 @@ export const DELETE = withRouteHandler(
         if (result.error === 'Member not found') {
           return NextResponse.json({ error: result.error }, { status: 404 })
         }
+        if (result.error === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR) {
+          return NextResponse.json({ error: result.error }, { status: 400 })
+        }
         return NextResponse.json({ error: result.error }, { status: 500 })
       }
 
-      let seatReduction: Awaited<ReturnType<typeof reduceOrganizationSeatsByOne>> | null = null
-      if (shouldReduceSeats && session.user.id !== targetUserId) {
-        try {
-          seatReduction = await reduceOrganizationSeatsByOne({
-            organizationId,
-            actorUserId: session.user.id,
-            removedUserId: targetUserId,
-          })
-        } catch (seatError) {
-          logger.error('Failed to reduce seats after member removal', {
-            organizationId,
-            removedMemberId: targetUserId,
-            removedBy: session.user.id,
-            error: seatError,
-          })
-          seatReduction = {
-            reduced: false,
-            reason: 'Failed to reduce seats after member removal',
-          }
+      let seatReduction: Awaited<ReturnType<typeof reconcileOrganizationSeats>> | null = null
+      try {
+        seatReduction = await reconcileOrganizationSeats({
+          organizationId,
+          reason: 'member-removed',
+        })
+      } catch (seatError) {
+        logger.error('Failed to reduce seats after member removal', {
+          organizationId,
+          removedMemberId: targetUserId,
+          removedBy: session.user.id,
+          error: seatError,
+        })
+        seatReduction = {
+          changed: false,
+          reason: 'Failed to reduce seats after member removal',
         }
       }
 

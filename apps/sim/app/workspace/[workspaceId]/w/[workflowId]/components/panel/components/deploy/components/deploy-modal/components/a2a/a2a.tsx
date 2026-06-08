@@ -10,6 +10,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Checkbox,
+  ChipInput,
   Code,
   Input,
   Label,
@@ -672,7 +673,7 @@ console.log(data);`
         >
           Agent name <span className='text-[var(--text-error)]'>*</span>
         </Label>
-        <Input
+        <ChipInput
           id='a2a-name'
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -755,7 +756,6 @@ console.log(data);`
           }}
           placeholder='Add tags'
           placeholderWithTags='Add another'
-          tagVariant='secondary'
           triggerKeys={['Enter', ',']}
         />
       </div>

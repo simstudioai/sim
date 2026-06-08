@@ -1,5 +1,5 @@
 import { TypeformIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { TypeformResponse } from '@/tools/typeform/types'
 import { getTrigger } from '@/triggers'
@@ -14,7 +14,6 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
   docsLink: 'https://docs.sim.ai/tools/typeform',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  tags: ['forms', 'data-analytics'],
   bgColor: '#262627', // Typeform brand color
   icon: TypeformIcon,
   subBlocks: [
@@ -456,3 +455,78 @@ Do not include any explanations, markdown formatting, or other text outside the 
     available: ['typeform_webhook'],
   },
 }
+
+export const TypeformBlockMeta = {
+  tags: ['forms', 'data-analytics'],
+  templates: [
+    {
+      icon: TypeformIcon,
+      title: 'Survey response analyzer',
+      prompt:
+        'Create a workflow that pulls new Typeform responses daily, categorizes feedback by theme and sentiment, logs structured results to a table, and sends a Slack digest when a new batch of responses comes in with the key takeaways.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['product', 'analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TypeformIcon,
+      title: 'Typeform NPS pipeline',
+      prompt:
+        'Build a workflow that collects Typeform NPS responses, classifies each as promoter/passive/detractor, writes the rolled-up score to a tracking table, and pings Slack on detractor spikes.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TypeformIcon,
+      title: 'Typeform lead enricher',
+      prompt:
+        'Create a workflow that watches Typeform lead-gen submissions, enriches each lead with company size and tech stack via Apollo, and pushes the enriched lead into Salesforce.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['apollo', 'salesforce'],
+    },
+    {
+      icon: TypeformIcon,
+      title: 'Typeform candidate screener',
+      prompt:
+        'Build a workflow that captures Typeform applicant responses, scores them against the role rubric with an agent, and creates a Greenhouse candidate with the score attached.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'analysis'],
+      alsoIntegrations: ['greenhouse'],
+    },
+    {
+      icon: TypeformIcon,
+      title: 'Typeform event survey analyzer',
+      prompt:
+        'Create a workflow that processes Typeform event survey responses, summarizes feedback themes, writes structured insights to a feedback table, and emails the organizer the digest.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: TypeformIcon,
+      title: 'Typeform onboarding follow-up',
+      prompt:
+        'Build a workflow that collects Typeform onboarding-flow responses, segments responders by job-to-be-done, and triggers tailored Loops email sequences for each segment.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'communication'],
+      alsoIntegrations: ['loops'],
+    },
+    {
+      icon: TypeformIcon,
+      title: 'Typeform research analyzer',
+      prompt:
+        'Create a workflow that pulls Typeform research responses, clusters answers by theme, and writes a tables-based research insight log for the product team.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['product', 'research'],
+    },
+  ],
+} as const satisfies BlockMeta

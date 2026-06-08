@@ -4,7 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { listCreatorOrganizationsContract } from '@/lib/api/contracts/creator-profile'
+import { listCreatorOrganizationsContract } from '@/lib/api/contracts/organizations'
 import { subscriptionTransferContract } from '@/lib/api/contracts/user'
 import { client, useSession, useSubscription } from '@/lib/auth/auth-client'
 import { buildPlanName, getDisplayPlanName, isPaid } from '@/lib/billing/plan-helpers'
@@ -23,7 +23,6 @@ const CONSTANTS = {
 interface UpgradeOptions {
   creditTier?: number
   annual?: boolean
-  seats?: number
 }
 
 export function useSubscriptionUpgrade() {
@@ -147,7 +146,7 @@ export function useSubscriptionUpgrade() {
           referenceId,
           successUrl,
           cancelUrl: currentUrl,
-          ...(targetPlan === 'team' && { seats: options?.seats ?? CONSTANTS.INITIAL_TEAM_SEATS }),
+          ...(targetPlan === 'team' && { seats: CONSTANTS.INITIAL_TEAM_SEATS }),
           ...(annual && { annual: true }),
         } as const
 

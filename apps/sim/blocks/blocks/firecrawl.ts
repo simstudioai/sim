@@ -1,5 +1,5 @@
 import { FirecrawlIcon } from '@/components/icons'
-import type { BlockConfig, SubBlockType } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, SubBlockType } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { FirecrawlResponse } from '@/tools/firecrawl/types'
@@ -14,7 +14,6 @@ export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   docsLink: 'https://docs.sim.ai/tools/firecrawl',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  tags: ['web-scraping', 'automation'],
   bgColor: '#181C1E',
   icon: FirecrawlIcon,
   subBlocks: [
@@ -658,3 +657,76 @@ Example 2 - Product Data:
     screenshot: { type: 'string', description: 'Screenshot URL or base64 (when requested)' },
   },
 }
+
+export const FirecrawlBlockMeta = {
+  tags: ['web-scraping', 'automation'],
+  templates: [
+    {
+      icon: FirecrawlIcon,
+      title: 'SEO content brief generator',
+      prompt:
+        'Build a workflow that takes a target keyword, uses Firecrawl to scrape the top 10 ranking pages, analyzes their content structure and subtopics, then generates a detailed content brief with outline, word count target, questions to answer, and internal linking suggestions.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content', 'research'],
+    },
+    {
+      icon: FirecrawlIcon,
+      title: 'Competitive intel monitor',
+      prompt:
+        'Build a scheduled workflow that scrapes competitor websites, pricing pages, and changelog pages weekly using Firecrawl, compares against previous snapshots, summarizes any changes, logs them to a tracking table, and sends a Slack alert for major updates.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['founder', 'product', 'monitoring', 'research'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: FirecrawlIcon,
+      title: 'Firecrawl competitor site monitor',
+      prompt:
+        'Build a scheduled workflow that uses Firecrawl to scrape competitor pricing, product, and changelog pages weekly, diffs against the prior snapshot, and posts changes to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: FirecrawlIcon,
+      title: 'Firecrawl SEO content brief',
+      prompt:
+        'Create a workflow that takes a target keyword, scrapes the top-10 ranking pages with Firecrawl, analyzes structure and subtopics, and writes a content brief file.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: FirecrawlIcon,
+      title: 'Firecrawl knowledge-base builder',
+      prompt:
+        'Build a workflow that crawls a documentation site with Firecrawl, chunks and embeds the pages, and upserts them into a knowledge base for an answering agent.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: FirecrawlIcon,
+      title: 'Firecrawl + Exa research stack',
+      prompt:
+        'Create an agent that uses Exa to find authoritative URLs on a topic, scrapes each with Firecrawl, and produces a structured research brief with citations.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'productivity',
+      tags: ['research'],
+      alsoIntegrations: ['exa'],
+    },
+    {
+      icon: FirecrawlIcon,
+      title: 'Firecrawl product-launch detector',
+      prompt:
+        'Build a scheduled workflow that crawls competitor blogs and product pages with Firecrawl daily, classifies posts as product launches, and posts notable launches to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

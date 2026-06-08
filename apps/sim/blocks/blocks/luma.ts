@@ -1,5 +1,5 @@
 import { LumaIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
 export const LumaBlock: BlockConfig = {
   type: 'luma',
@@ -10,7 +10,6 @@ export const LumaBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/luma',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['events', 'calendar', 'scheduling'],
   bgColor: '#FFFFFF',
   icon: LumaIcon,
   authMode: AuthMode.ApiKey,
@@ -395,3 +394,78 @@ Return ONLY the ISO 8601 timestamp - no explanations, no quotes, no extra text.`
     nextCursor: { type: 'string', description: 'Pagination cursor for next page' },
   },
 }
+
+export const LumaBlockMeta = {
+  tags: ['events', 'calendar', 'scheduling'],
+  templates: [
+    {
+      icon: LumaIcon,
+      title: 'Luma event reminder cadence',
+      prompt:
+        'Create a workflow that sends scheduled reminders to Luma event registrants — 7 days, 24 hours, 1 hour out — with personalized content based on RSVP type.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: LumaIcon,
+      title: 'Luma registrant enricher',
+      prompt:
+        'Build a scheduled workflow that pulls the Luma event guest list, enriches each registrant with company data via Apollo, and pushes high-value attendees into HubSpot as leads.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm'],
+      alsoIntegrations: ['apollo', 'hubspot'],
+    },
+    {
+      icon: LumaIcon,
+      title: 'Luma post-event followup',
+      prompt:
+        'Create a scheduled workflow that runs the day after a Luma event, pulls the guest list, segments attendees from no-shows, sends each segment a tailored followup, and writes attendance to the CRM.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm'],
+      alsoIntegrations: ['gmail', 'hubspot'],
+    },
+    {
+      icon: LumaIcon,
+      title: 'Luma calendar import',
+      prompt:
+        'Build a scheduled workflow that pulls the Luma event guest list and creates a personalized Google Calendar invite for each new registrant with the event details, location, and prep links.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'automation'],
+      alsoIntegrations: ['google_calendar'],
+    },
+    {
+      icon: LumaIcon,
+      title: 'Luma + Discord community sync',
+      prompt:
+        'Create a scheduled workflow that pulls the Luma event guest list and adds each new registrant to the matching Discord community channel with the right role for event access.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['community', 'communication'],
+      alsoIntegrations: ['discord'],
+    },
+    {
+      icon: LumaIcon,
+      title: 'Luma event-series analytics',
+      prompt:
+        'Build a scheduled workflow that pulls Luma event-series data, calculates conversion from registration to attendance to next action, and writes the analytics to a report file.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+    {
+      icon: LumaIcon,
+      title: 'Luma new-registrant welcome',
+      prompt:
+        'Create a scheduled workflow that pulls the Luma event guest list, finds registrants added since the last run, and sends each a personalized welcome email with what to expect and how to prepare.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+  ],
+} as const satisfies BlockMeta

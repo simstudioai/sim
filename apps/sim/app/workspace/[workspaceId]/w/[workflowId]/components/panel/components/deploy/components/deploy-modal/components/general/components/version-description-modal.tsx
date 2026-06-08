@@ -2,14 +2,13 @@
 
 import { useRef, useState } from 'react'
 import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
+  Chip,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
 } from '@/components/emcn'
 import {
   useGenerateVersionDescription,
@@ -89,83 +88,91 @@ export function VersionDescriptionModal({
 
   return (
     <>
-      <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
-        <ModalContent size='lg'>
-          <ModalHeader>
-            <span>Version Description</span>
-          </ModalHeader>
-          <ModalBody className='space-y-2.5'>
-            <div className='flex items-center justify-between'>
-              <ModalDescription className='text-[var(--text-secondary)]'>
-                {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
-              </ModalDescription>
-              <Button
-                variant='active'
-                className='-my-1 h-5 px-2 py-0 text-xs'
-                onClick={handleGenerateDescription}
-                disabled={isGenerating || updateMutation.isPending}
-              >
-                {isGenerating ? 'Generating...' : 'Generate'}
-              </Button>
+      <ChipModal
+        open={open}
+        onOpenChange={(openState) => !openState && handleCloseAttempt()}
+        srTitle='Version Description'
+      >
+        <ChipModalHeader onClose={() => handleCloseAttempt()}>Version Description</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='custom'
+            title={
+              <div className='flex items-center justify-between'>
+                <span>
+                  {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
+                  <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
+                </span>
+                <Chip
+                  variant='filled'
+                  flush
+                  onClick={handleGenerateDescription}
+                  disabled={isGenerating || updateMutation.isPending}
+                >
+                  {isGenerating ? 'Generating...' : 'Generate'}
+                </Chip>
+              </div>
+            }
+            flush
+          >
+            <div className='flex flex-col gap-1.5'>
+              <textarea
+                placeholder='Describe the changes in this deployment version...'
+                className='min-h-[120px] w-full resize-none rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-2 font-medium font-sans text-[var(--text-primary)] text-sm outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={2000}
+                disabled={isGenerating}
+              />
+              <p className='text-right text-[var(--text-tertiary)] text-xs'>
+                {description.length}/2000
+              </p>
             </div>
-            <Textarea
-              placeholder='Describe the changes in this deployment version...'
-              className='min-h-[120px] resize-none'
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={2000}
-              disabled={isGenerating}
-            />
-            <div className='flex items-center justify-between'>
-              {(updateMutation.error || generateMutation.error) && (
-                <p className='text-[var(--text-error)] text-caption'>
-                  {updateMutation.error?.message || generateMutation.error?.message}
-                </p>
-              )}
-              {!updateMutation.error && !generateMutation.error && <div />}
-              <p className='text-[var(--text-tertiary)] text-xs'>{description.length}/2000</p>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={handleCloseAttempt}
-              disabled={updateMutation.isPending || isGenerating}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='tertiary'
-              onClick={handleSave}
-              disabled={updateMutation.isPending || isGenerating || !hasChanges}
-            >
-              {updateMutation.isPending ? 'Saving...' : 'Save'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </ChipModalField>
+          <ChipModalError>
+            {updateMutation.error?.message || generateMutation.error?.message}
+          </ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip
+            variant='filled'
+            flush
+            onClick={handleCloseAttempt}
+            disabled={updateMutation.isPending || isGenerating}
+          >
+            Cancel
+          </Chip>
+          <Chip
+            variant='primary'
+            flush
+            onClick={handleSave}
+            disabled={updateMutation.isPending || isGenerating || !hasChanges}
+          >
+            {updateMutation.isPending ? 'Saving...' : 'Save'}
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
 
-      <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent size='sm'>
-          <ModalHeader>
-            <span>Unsaved Changes</span>
-          </ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)] text-sm'>
-              You have unsaved changes. Are you sure you want to discard them?
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-              Keep Editing
-            </Button>
-            <Button variant='destructive' onClick={handleDiscardChanges}>
-              Discard Changes
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={showUnsavedChangesAlert}
+        onOpenChange={setShowUnsavedChangesAlert}
+        srTitle='Unsaved Changes'
+      >
+        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            You have unsaved changes. Are you sure you want to discard them?
+          </p>
+        </ChipModalBody>
+        <ChipModalFooter>
+          <Chip variant='filled' flush onClick={() => setShowUnsavedChangesAlert(false)}>
+            Keep Editing
+          </Chip>
+          <Chip variant='destructive' flush onClick={handleDiscardChanges}>
+            Discard Changes
+          </Chip>
+        </ChipModalFooter>
+      </ChipModal>
     </>
   )
 }

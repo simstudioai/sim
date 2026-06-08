@@ -22,7 +22,6 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/chat') ||
     pathname.startsWith('/blog') ||
     pathname.startsWith('/resume') ||
-    pathname.startsWith('/form') ||
     pathname.startsWith('/oauth')
 
   const isDarkModePage = pathname.startsWith('/academy')

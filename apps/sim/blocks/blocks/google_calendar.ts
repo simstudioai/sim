@@ -1,6 +1,6 @@
-import { GoogleCalendarIcon } from '@/components/icons'
+import { GoogleCalendarIcon, TwilioIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
@@ -16,8 +16,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   docsLink: 'https://docs.sim.ai/tools/google_calendar',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  tags: ['calendar', 'scheduling', 'google-workspace'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleCalendarIcon,
   hideFromToolbar: true,
   subBlocks: [
@@ -658,7 +657,6 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
   name: 'Google Calendar',
   hideFromToolbar: false,
   integrationType: IntegrationType.Productivity,
-  tags: ['calendar', 'scheduling', 'google-workspace'],
   tools: {
     ...GoogleCalendarBlock.tools,
     access: [
@@ -710,3 +708,82 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
     timeZone: { type: 'string', description: 'Calendar time zone' },
   },
 }
+
+export const GoogleCalendarBlockMeta = {
+  tags: ['calendar', 'scheduling', 'google-workspace'],
+  templates: [
+    {
+      icon: GoogleCalendarIcon,
+      title: 'Meeting prep agent',
+      prompt:
+        'Create an agent that checks my Google Calendar each morning, researches every attendee and topic on the web, and prepares a brief for each meeting so I walk in fully prepared. Schedule it to run every weekday morning.',
+      image: '/templates/meeting-prep-dark.png',
+      modules: ['agent', 'scheduled', 'workflows'],
+      category: 'popular',
+      tags: ['founder', 'sales', 'research', 'automation'],
+      featured: true,
+    },
+    {
+      icon: TwilioIcon,
+      title: 'SMS appointment reminders',
+      prompt:
+        'Create a scheduled workflow that checks Google Calendar each morning for appointments in the next 24 hours, and sends an SMS reminder to each attendee via Twilio with the meeting time, location, and any prep notes.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication', 'automation'],
+      alsoIntegrations: ['twilio_sms'],
+    },
+    {
+      icon: GoogleCalendarIcon,
+      title: 'Booking-to-calendar scheduler',
+      prompt:
+        'Build a workflow that on a new Calendly booking creates the matching Google Calendar event, invites the attendees, attaches the meeting agenda, and writes the event link back so both systems stay in sync.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'scheduling', 'automation'],
+      alsoIntegrations: ['calendly'],
+    },
+    {
+      icon: GoogleCalendarIcon,
+      title: 'Daily agenda digest',
+      prompt:
+        'Create a scheduled weekday workflow that lists my Google Calendar events for the day, summarizes them with attendee context and prep notes, and posts a clean morning agenda to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'reporting', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GoogleCalendarIcon,
+      title: 'Interview scheduling coordinator',
+      prompt:
+        "Build a workflow that when a candidate reaches the interview stage finds open slots across the panel's Google Calendars, creates the interview event with the video link, invites everyone, and emails the candidate the confirmation.",
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'scheduling', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: GoogleCalendarIcon,
+      title: 'Meeting-load weekly report',
+      prompt:
+        'Create a scheduled weekly workflow that lists Google Calendar events for the team, computes total meeting hours and recurring-meeting load per person, writes the breakdown to a table, and flags anyone over the focus-time threshold.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['team', 'reporting', 'analysis'],
+    },
+    {
+      icon: GoogleCalendarIcon,
+      title: 'Calendar event note-taker prep',
+      prompt:
+        'Build a workflow that scans upcoming Google Calendar events for external meetings, researches each company and attendee, drafts talking points, and updates the event description so the notes travel with the invite.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const GoogleCalendarV2BlockMeta = {
+  tags: ['calendar', 'scheduling', 'google-workspace'],
+} as const satisfies BlockMeta

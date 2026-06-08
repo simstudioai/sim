@@ -1,6 +1,12 @@
 import { toError } from '@sim/utils/errors'
 import { MistralIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
+import {
+  AuthMode,
+  type BlockConfig,
+  type BlockMeta,
+  IntegrationType,
+  type SubBlockType,
+} from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 
@@ -14,7 +20,6 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   docsLink: 'https://docs.sim.ai/tools/mistral_parse',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  tags: ['document-processing', 'ocr'],
   bgColor: '#000000',
   icon: MistralIcon,
   subBlocks: [
@@ -398,3 +403,74 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
     document_annotation: { type: 'string', description: 'Structured annotation data' },
   },
 }
+
+export const MistralParseBlockMeta = {
+  tags: ['document-processing', 'ocr'],
+  templates: [
+    {
+      icon: MistralIcon,
+      title: 'Mistral Parser for complex PDFs',
+      prompt:
+        'Create a workflow that uses Mistral Parser to convert dense research PDFs into clean Markdown, saves the Markdown to files, and indexes them into a knowledge base for downstream agents.',
+      modules: ['knowledge-base', 'files', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['research', 'automation'],
+    },
+    {
+      icon: MistralIcon,
+      title: 'Mistral Parser bank statement reader',
+      prompt:
+        'Create a workflow that uses Mistral Parser to extract structured transactions from uploaded bank statement PDFs, writes each transaction to a finance table, and classifies expense category.',
+      modules: ['tables', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+    },
+    {
+      icon: MistralIcon,
+      title: 'Mistral Parser research-paper digester',
+      prompt:
+        'Build a scheduled workflow that watches a research-paper folder, parses each PDF with Mistral Parser, and writes clean Markdown summaries for the knowledge base.',
+      modules: ['knowledge-base', 'files', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['research', 'sync'],
+    },
+    {
+      icon: MistralIcon,
+      title: 'Mistral Parser legal-doc summarizer',
+      prompt:
+        'Create a workflow that processes legal documents with Mistral Parser, extracts the key clauses and obligations into a table, and writes a one-pager summary file.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'analysis'],
+    },
+    {
+      icon: MistralIcon,
+      title: 'Mistral Parser invoice intake',
+      prompt:
+        'Build a workflow that runs each incoming invoice PDF through Mistral Parser, extracts vendor, line items, totals, and due date into an accounts-payable table, and flags any invoice missing a PO number for the finance team in Slack.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: MistralIcon,
+      title: 'Mistral Parser scanned-contract indexer',
+      prompt:
+        'Create a workflow that parses scanned, image-only contracts with Mistral Parser OCR, converts them to searchable Markdown, and indexes the result into a knowledge base so legal can search obligations across every signed agreement.',
+      modules: ['knowledge-base', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'ocr', 'research'],
+    },
+    {
+      icon: MistralIcon,
+      title: 'Mistral Parser resume screener',
+      prompt:
+        'Build a workflow that parses uploaded resume PDFs with Mistral Parser, extracts candidate skills, experience, and contact details into a hiring table, and posts a shortlist summary to the recruiting channel in Slack.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hiring', 'automation', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+} as const satisfies BlockMeta

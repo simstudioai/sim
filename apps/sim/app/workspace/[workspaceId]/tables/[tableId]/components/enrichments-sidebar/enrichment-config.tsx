@@ -6,8 +6,8 @@ import { generateId } from '@sim/utils/id'
 import {
   Badge,
   Button,
+  ChipCombobox,
   CollapsibleCard,
-  Combobox,
   FieldDivider,
   Input,
   Label,
@@ -266,11 +266,10 @@ export function EnrichmentConfig({
                   }
                 >
                   <Label className='text-small'>Column</Label>
-                  <Combobox
+                  <ChipCombobox
                     searchable
                     searchPlaceholder='Search columns…'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                     dropdownWidth='trigger'
                     maxHeight={240}
                     disabled={columnOptions.length === 0}

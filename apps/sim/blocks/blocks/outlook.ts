@@ -1,6 +1,6 @@
 import { OutlookIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { OutlookResponse } from '@/tools/outlook/types'
@@ -16,9 +16,8 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   docsLink: 'https://docs.sim.ai/tools/outlook',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['microsoft-365', 'messaging', 'automation'],
   triggerAllowed: true,
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: OutlookIcon,
   subBlocks: [
     {
@@ -457,3 +456,85 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     available: ['outlook_poller'],
   },
 }
+
+export const OutlookBlockMeta = {
+  tags: ['microsoft-365', 'messaging', 'automation'],
+  templates: [
+    {
+      icon: OutlookIcon,
+      title: 'Outlook auto-responder',
+      prompt:
+        'Build a workflow that monitors my Outlook inbox, drafts a contextual reply for every email that needs a response using my recent threads as tone reference, and saves each reply as an Outlook draft for me to review and send.',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'communication', 'automation'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook customer escalation to Zendesk',
+      prompt:
+        'Create a workflow that reads new Outlook emails from customers, classifies whether each one is a support issue, and when it is, creates a Zendesk ticket with the email body, attachments, and contact details, then replies from Outlook with the ticket number.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication', 'automation'],
+      alsoIntegrations: ['zendesk'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook executive triage',
+      prompt:
+        'Build a scheduled workflow that scans Outlook every hour, ranks new emails by urgency, summarizes the top items, and posts a prioritized digest to a Slack channel so executives can act without opening the inbox.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['founder', 'communication', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook invoice extractor',
+      prompt:
+        'Build a workflow that monitors Outlook for invoice attachments, extracts vendor, amount, due date, and line items from each PDF, and logs the results to a tracking table while moving the original email to an Invoices folder.',
+      modules: ['files', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'automation'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook follow-up reminder',
+      prompt:
+        'Create a workflow that scans Outlook for sent emails awaiting a reply older than three business days, drafts a polite follow-up email per thread, and saves each one as a draft in Outlook ready to send.',
+      modules: ['agent', 'scheduled', 'workflows'],
+      category: 'productivity',
+      tags: ['sales', 'communication', 'automation'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook to JSM ticket router',
+      prompt:
+        'Build a workflow that reads support requests arriving in a shared Outlook mailbox, classifies the request type, and creates a Jira Service Management request in the correct service desk with the right request type, then replies from Outlook with the JSM portal link.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation', 'enterprise'],
+      alsoIntegrations: ['jira_service_management'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook newsletter clipper',
+      prompt:
+        'Create a workflow that reads newsletters arriving in Outlook, summarizes each one into key takeaways, and appends the digest to a daily Notion page so the inbox stays clean and the insights stay searchable.',
+      modules: ['agent', 'scheduled', 'workflows'],
+      category: 'productivity',
+      tags: ['individual', 'research', 'content'],
+      alsoIntegrations: ['notion'],
+    },
+    {
+      icon: OutlookIcon,
+      title: 'Outlook contract clause flagger',
+      prompt:
+        'Build a workflow that scans Outlook for inbound contracts and amendments, extracts key clauses (payment terms, liability, termination, renewal), flags deviations from my standard terms, and replies internally with a summary and red-flag list.',
+      modules: ['files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['legal', 'analysis', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

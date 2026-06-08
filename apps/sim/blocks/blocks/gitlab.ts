@@ -1,5 +1,5 @@
 import { GitLabIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GitLabResponse } from '@/tools/gitlab/types'
 
@@ -13,10 +13,9 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
     'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.',
   docsLink: 'https://docs.sim.ai/tools/gitlab',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['version-control', 'ci-cd'],
+  integrationType: IntegrationType.DevOps,
   icon: GitLabIcon,
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   subBlocks: [
     {
       id: 'operation',
@@ -748,3 +747,76 @@ Return ONLY the commit message - no explanations, no extra text.`,
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }
+
+export const GitLabBlockMeta = {
+  tags: ['version-control', 'ci-cd'],
+  templates: [
+    {
+      icon: GitLabIcon,
+      title: 'GitLab merge request reviewer',
+      prompt:
+        'Create a knowledge base from my coding standards and architecture docs. Build a scheduled workflow that lists open GitLab merge requests, fetches each diff, runs an agent that checks the code against the knowledge base and flags security issues, performance concerns, and style violations, then posts a structured review as an MR comment.',
+      modules: ['scheduled', 'knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops', 'automation'],
+    },
+    {
+      icon: GitLabIcon,
+      title: 'GitLab pipeline failure responder',
+      prompt:
+        'Build a scheduled workflow that lists recent GitLab pipelines on the main branch, finds newly failed runs, summarizes the root cause from the job logs, identifies the most likely owner from recent commits, opens a GitLab issue with the diagnosis, and posts an alert to Slack with a link to the failing pipeline.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GitLabIcon,
+      title: 'GitLab issue triager',
+      prompt:
+        'Create a scheduled workflow that runs every hour, pulls new GitLab issues, classifies each by component, severity, and effort, applies labels and assigns the right owner, and posts a daily Slack digest of unassigned and stale issues so nothing slips through.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GitLabIcon,
+      title: 'GitLab release publisher',
+      prompt:
+        'Build a scheduled workflow that detects new GitLab release tags, gathers merged merge requests since the previous tag, groups changes by component, drafts release notes as a file, and posts the formatted summary back as a comment on the release.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops', 'content'],
+    },
+    {
+      icon: GitLabIcon,
+      title: 'GitLab project health digest',
+      prompt:
+        'Create a scheduled weekly workflow that pulls open issues, stale merge requests, recent pipeline failures, and contributor activity for every GitLab project, logs metrics to a tracking table, and sends a Slack health digest to engineering leadership.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GitLabIcon,
+      title: 'GitLab merge request unblocker',
+      prompt:
+        'Build a scheduled daily workflow that lists open GitLab merge requests, identifies those blocked on review for more than two days, sends targeted Slack DMs to the assigned reviewers with the MR link, and updates a table tracking unblock actions.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'devops', 'team'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GitLabIcon,
+      title: 'GitLab repository knowledge base',
+      prompt:
+        'Create a knowledge base that ingests GitLab project files, merge request descriptions, and issue threads, then build an agent I can ask things like "how does the billing module handle proration?" or "which MR introduced the rate limiter?" and get answers with GitLab citations.',
+      modules: ['knowledge-base', 'agent'],
+      category: 'engineering',
+      tags: ['engineering', 'research', 'devops'],
+    },
+  ],
+} as const satisfies BlockMeta

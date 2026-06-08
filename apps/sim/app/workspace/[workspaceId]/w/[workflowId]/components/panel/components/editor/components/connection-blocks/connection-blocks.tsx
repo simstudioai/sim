@@ -168,7 +168,7 @@ function ConnectionItem({
         {hasFields && (
           <ChevronDown
             className={clsx(
-              'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+              'size-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
               !isExpanded && '-rotate-90'
             )}
           />

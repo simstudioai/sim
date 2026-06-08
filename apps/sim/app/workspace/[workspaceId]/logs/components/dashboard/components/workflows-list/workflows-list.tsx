@@ -1,13 +1,9 @@
 import { memo } from 'react'
-import { useParams } from 'next/navigation'
+import { Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
-import {
-  DELETED_WORKFLOW_COLOR,
-  DELETED_WORKFLOW_LABEL,
-} from '@/app/workspace/[workspaceId]/logs/utils'
-import { useWorkflowMap } from '@/hooks/queries/workflows'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { StatusBar, type StatusBarSegment } from '..'
 
 export interface WorkflowExecutionItem {
@@ -39,9 +35,6 @@ function WorkflowsListInner({
   searchQuery: string
   segmentDurationMs: number
 }) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { data: workflows = {} } = useWorkflowMap(workspaceId)
-
   return (
     <div className='flex h-full flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
       {/* Table header */}
@@ -70,9 +63,6 @@ function WorkflowsListInner({
             {filteredExecutions.map((workflow, idx) => {
               const isSelected = expandedWorkflowId === workflow.workflowId
               const isDeletedWorkflow = workflow.workflowName === DELETED_WORKFLOW_LABEL
-              const workflowColor = isDeletedWorkflow
-                ? DELETED_WORKFLOW_COLOR
-                : workflows[workflow.workflowId]?.color || '#64748b'
               const canToggle = !isDeletedWorkflow
 
               return (
@@ -96,19 +86,13 @@ function WorkflowsListInner({
                     handleKeyboardActivation(event, () => onToggleWorkflow(workflow.workflowId))
                   }}
                 >
-                  {/* Workflow name with color */}
+                  {/* Workflow name with icon */}
                   <div className='flex w-[160px] flex-shrink-0 items-center gap-2 pr-2'>
-                    <div
-                      className='size-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
-                      style={{
-                        backgroundColor: workflowColor,
-                        borderColor: workflowBorderColor(workflowColor),
-                        backgroundClip: 'padding-box',
-                      }}
+                    <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                    <FloatingOverflowText
+                      label={workflow.workflowName}
+                      className='block truncate font-medium text-[var(--text-primary)] text-caption'
                     />
-                    <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
-                      {workflow.workflowName}
-                    </span>
                   </div>
 
                   {/* Status bar - takes most of the space */}

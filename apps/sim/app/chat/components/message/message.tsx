@@ -1,15 +1,15 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
+import { Check, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
+import { Duplicate, Tooltip } from '@/components/emcn'
 import {
   ChatFileDownload,
   ChatFileDownloadAll,
 } from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
 
-interface ChatAttachment {
+export interface ChatAttachment {
   id: string
   name: string
   type: string
@@ -126,35 +126,58 @@ export const ClientChatMessage = memo(
                       return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
                     }
 
+                    const isInteractive =
+                      !!attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
+
+                    const openAttachmentPreview = () => {
+                      const validDataUrl = attachment.dataUrl?.trim()
+                      if (!validDataUrl?.startsWith('data:')) return
+                      const newWindow = window.open('', '_blank')
+                      if (newWindow) {
+                        newWindow.document.write(`
+                          <!DOCTYPE html>
+                          <html>
+                            <head>
+                              <title>${attachment.name}</title>
+                              <style>
+                                body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+                                img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+                              </style>
+                            </head>
+                            <body>
+                              <img src="${validDataUrl}" alt="${attachment.name}" />
+                            </body>
+                          </html>
+                        `)
+                        newWindow.document.close()
+                      }
+                    }
+
                     return (
                       <div
                         key={attachment.id}
-                        role='button'
-                        aria-disabled={!attachment.dataUrl?.trim().startsWith('data:')}
-                        tabIndex={attachment.dataUrl?.trim().startsWith('data:') ? 0 : undefined}
+                        role={isInteractive ? 'button' : undefined}
+                        aria-disabled={!isInteractive}
+                        tabIndex={isInteractive ? 0 : undefined}
                         className={`relative overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] ${
-                          attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
-                            ? 'cursor-pointer'
-                            : ''
+                          isInteractive ? 'cursor-pointer' : ''
                         } ${
                           isImage
                             ? 'h-16 w-16 md:h-20 md:w-20'
                             : 'flex h-16 min-w-[140px] max-w-[220px] items-center gap-2 px-3 md:h-20 md:min-w-[160px] md:max-w-[240px]'
                         }`}
                         onClick={(e) => {
-                          const validDataUrl = attachment.dataUrl?.trim()
-                          if (validDataUrl?.startsWith('data:')) {
+                          if (!isInteractive) return
+                          e.preventDefault()
+                          e.stopPropagation()
+                          openAttachmentPreview()
+                        }}
+                        onKeyDown={(e) => {
+                          if (!isInteractive) return
+                          if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
                             e.stopPropagation()
-                            openAttachmentPreview(attachment.name, validDataUrl)
-                          }
-                        }}
-                        onKeyDown={(event) => {
-                          const validDataUrl = attachment.dataUrl?.trim()
-                          if (!validDataUrl?.startsWith('data:')) return
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            openAttachmentPreview(attachment.name, validDataUrl)
+                            openAttachmentPreview()
                           }
                         }}
                       >
@@ -209,7 +232,7 @@ export const ClientChatMessage = memo(
       ) : (
         <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
           <div className='mx-auto max-w-3xl'>
-            <div className='flex flex-col gap-y-3'>
+            <div className='flex flex-col space-y-3'>
               {/* Direct content rendering - tool calls are now handled via SSE events */}
               <div>
                 <div className='break-words text-base'>
@@ -230,7 +253,7 @@ export const ClientChatMessage = memo(
                 </div>
               )}
               {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
-                <div className='flex items-center justify-start gap-x-2'>
+                <div className='flex items-center justify-start space-x-2'>
                   {/* Copy Button - Only show when not streaming */}
                   {!message.isStreaming && (
                     <Tooltip.Root delayDuration={300}>
@@ -248,9 +271,9 @@ export const ClientChatMessage = memo(
                           }}
                         >
                           {isCopied ? (
-                            <Check className='size-3' strokeWidth={2} />
+                            <Check className='h-3 w-3' strokeWidth={2} />
                           ) : (
-                            <Copy className='size-3' strokeWidth={2} />
+                            <Duplicate className='h-3 w-3' />
                           )}
                         </button>
                       </Tooltip.Trigger>

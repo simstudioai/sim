@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { Neo4jIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { Neo4jIntrospectResponse, Neo4jResponse } from '@/tools/neo4j/types'
 
@@ -13,7 +13,6 @@ export const Neo4jBlock: BlockConfig<Neo4jResponse | Neo4jIntrospectResponse> = 
   docsLink: 'https://docs.sim.ai/tools/neo4j',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#FFFFFF',
   icon: Neo4jIcon,
   subBlocks: [
@@ -701,3 +700,74 @@ Return ONLY valid JSON.`,
     },
   },
 }
+
+export const Neo4jBlockMeta = {
+  tags: ['data-warehouse', 'data-analytics'],
+  templates: [
+    {
+      icon: Neo4jIcon,
+      title: 'Neo4j relationship exporter',
+      prompt:
+        'Build a workflow that queries Neo4j for a chosen entity graph, writes the nodes and edges to a structured JSON adjacency file, and shares the file link for a downstream tool to visualize.',
+      modules: ['agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'research'],
+    },
+    {
+      icon: Neo4jIcon,
+      title: 'Neo4j fraud-ring detector',
+      prompt:
+        'Create a scheduled workflow that queries Neo4j for suspicious connection patterns — shared devices, overlapping addresses — writes risk-scored clusters to a fraud table, and pings Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: Neo4jIcon,
+      title: 'Neo4j org-chart sync',
+      prompt:
+        'Build a workflow that pulls Workday or Rippling worker data, upserts employees and reporting relationships into Neo4j, and exposes a queryable org graph for downstream tools.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['hr', 'sync'],
+      alsoIntegrations: ['workday', 'rippling'],
+    },
+    {
+      icon: Neo4jIcon,
+      title: 'Neo4j knowledge-graph builder',
+      prompt:
+        'Create a workflow that processes documents from a knowledge base, extracts entities and relationships with an agent, and writes the graph into Neo4j for cross-document insights.',
+      modules: ['knowledge-base', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['research', 'enterprise'],
+    },
+    {
+      icon: Neo4jIcon,
+      title: 'Neo4j recommendation engine',
+      prompt:
+        'Build a workflow that runs Neo4j graph algorithms — collaborative filtering, PageRank — on product-purchase data and writes per-user recommendations to a personalization table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis'],
+    },
+    {
+      icon: Neo4jIcon,
+      title: 'Neo4j data lineage tracker',
+      prompt:
+        'Create a workflow that ingests dbt manifest metadata into Neo4j, tracks lineage across tables and pipelines, and queries impact when a source schema changes.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+    },
+    {
+      icon: Neo4jIcon,
+      title: 'Neo4j natural-language graph explorer',
+      prompt:
+        'Build a chat agent that introspects the Neo4j schema, translates plain-English questions like “which customers share a support agent with churned accounts?” into Cypher queries, runs them, and returns a readable answer with the matching nodes.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'research', 'automation'],
+    },
+  ],
+} as const satisfies BlockMeta

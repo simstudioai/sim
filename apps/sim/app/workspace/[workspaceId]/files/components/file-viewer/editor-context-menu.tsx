@@ -9,7 +9,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Clipboard, Copy, Search, SelectAll } from '@/components/emcn/icons'
+import { Clipboard, Duplicate, Search, SelectAll } from '@/components/emcn/icons'
 
 interface EditorContextMenuProps {
   isOpen: boolean
@@ -68,12 +68,12 @@ export function EditorContextMenu({
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={!hasSelection} onSelect={onCopy}>
-          <Copy />
+          <Duplicate />
           Copy
           <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onCopyAll}>
-          <Copy />
+          <Duplicate />
           Copy all
         </DropdownMenuItem>
         {canEdit && (

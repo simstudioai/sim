@@ -11,9 +11,8 @@ export const SmtpBlock: BlockConfig<SmtpSendMailResult> = {
   longDescription:
     'Send emails using any SMTP server (Gmail, Outlook, custom servers, etc.). Configure SMTP connection settings and send emails with full control over content, recipients, and attachments.',
   docsLink: 'https://docs.sim.ai/tools/smtp',
-  category: 'tools',
+  category: 'blocks',
   integrationType: IntegrationType.Email,
-  tags: ['email-marketing', 'messaging'],
   bgColor: '#2D3748',
   icon: SmtpIcon,
   authMode: AuthMode.ApiKey,

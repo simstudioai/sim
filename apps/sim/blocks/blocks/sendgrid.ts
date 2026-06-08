@@ -1,5 +1,5 @@
 import { SendgridIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SendMailResult } from '@/tools/sendgrid/types'
@@ -13,7 +13,6 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
   docsLink: 'https://docs.sim.ai/tools/sendgrid',
   category: 'tools',
   integrationType: IntegrationType.Email,
-  tags: ['email-marketing', 'messaging'],
   bgColor: '#1A82E2',
   icon: SendgridIcon,
 
@@ -685,3 +684,76 @@ Return ONLY the HTML content.`,
     plainContent: { type: 'string', description: 'Plain text content' },
   },
 }
+
+export const SendGridBlockMeta = {
+  tags: ['email-marketing', 'messaging'],
+  templates: [
+    {
+      icon: SendgridIcon,
+      title: 'SendGrid transactional pipeline',
+      prompt:
+        'Build a workflow that listens for product events from my tables — signup, password reset, receipt — picks the matching SendGrid dynamic template, populates the variables, sends the email, and writes the message ID back to the table for audit.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'communication'],
+    },
+    {
+      icon: SendgridIcon,
+      title: 'SendGrid send-failure monitor',
+      prompt:
+        'Create a workflow that sends emails through SendGrid, logs each send result and any error to a delivery table, and posts a Slack alert summarizing failure patterns by recipient domain and template when the failure rate crosses a threshold.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: SendgridIcon,
+      title: 'SendGrid + Resend failover',
+      prompt:
+        'Build a workflow that sends transactional emails through SendGrid by default and automatically falls back to Resend when the primary send fails or rate limits, logging every send and the provider used to a delivery table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'monitoring', 'enterprise'],
+      alsoIntegrations: ['resend'],
+    },
+    {
+      icon: SendgridIcon,
+      title: 'SendGrid contact list cleaner',
+      prompt:
+        'Create a scheduled workflow that searches SendGrid marketing contacts for invalid or duplicate entries, removes the bad addresses, merges duplicates, and writes a cleanup report to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation', 'analysis'],
+    },
+    {
+      icon: SendgridIcon,
+      title: 'SendGrid + SES enterprise sender',
+      prompt:
+        'Build a workflow that splits transactional traffic between SendGrid and AWS SES based on message category and recipient region, balances volume to stay under per-provider limits, and writes provider, status, and latency to a delivery table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enterprise', 'automation', 'monitoring'],
+      alsoIntegrations: ['ses'],
+    },
+    {
+      icon: SendgridIcon,
+      title: 'SendGrid + Mailgun send scorecard',
+      prompt:
+        'Create a scheduled weekly workflow that sends categorized test messages through both SendGrid and Mailgun, records each provider response, latency, and error to a delivery table, and generates a scorecard file recommending which provider to use per send category.',
+      modules: ['scheduled', 'tables', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'reporting', 'enterprise'],
+      alsoIntegrations: ['mailgun'],
+    },
+    {
+      icon: SendgridIcon,
+      title: 'SendGrid segmented list builder',
+      prompt:
+        'Build a workflow that reads a freshly scored audience from a table, creates a new SendGrid marketing list, adds each matching contact to the list, and removes anyone who no longer qualifies so the segment is ready for the next campaign send.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation', 'sync'],
+    },
+  ],
+} as const satisfies BlockMeta

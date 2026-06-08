@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Badge, CollapsibleCard, Combobox, Label } from '@/components/emcn'
+import { Badge, ChipCombobox, CollapsibleCard, Label } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -62,11 +62,10 @@ export function InputMappingSection({
               onToggleCollapse={() => toggle(field.name)}
             >
               <Label className='text-small'>Column</Label>
-              <Combobox
+              <ChipCombobox
                 searchable
                 searchPlaceholder='Search columns…'
-                size='sm'
-                className='h-[32px] w-full rounded-md'
+                className='w-full'
                 dropdownWidth='trigger'
                 maxHeight={240}
                 disabled={columns.length === 0}

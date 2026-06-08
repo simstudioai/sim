@@ -512,6 +512,39 @@ export const listTableRowsContract = defineRouteContract({
   },
 })
 
+export const findTableRowsQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  q: z.string().min(1, 'Search query is required'),
+  filter: domainObjectSchema<Filter>().optional(),
+  sort: domainObjectSchema<Sort>().optional(),
+})
+
+/** One matching cell: its 0-based ordinal in the filtered+sorted view, its row id, and the column name. */
+export const tableFindMatchSchema = z.object({
+  ordinal: z.number().int(),
+  rowId: z.string(),
+  column: z.string(),
+})
+
+export const findTableRowsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/rows/find',
+  params: tableIdParamsSchema,
+  query: findTableRowsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        matches: z.array(tableFindMatchSchema),
+        truncated: z.boolean(),
+      })
+    ),
+  },
+})
+export type FindTableRowsQuery = z.input<typeof findTableRowsQuerySchema>
+export type FindTableRowsResponse = ContractJsonResponse<typeof findTableRowsContract>
+export type TableFindMatch = z.output<typeof tableFindMatchSchema>
+
 export const createTableRowContract = defineRouteContract({
   method: 'POST',
   path: '/api/table/[tableId]/rows',

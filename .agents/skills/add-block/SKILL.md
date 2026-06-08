@@ -627,18 +627,77 @@ export const ServiceV2Block: BlockConfig = {
 }
 ```
 
+## Block Metadata (BlockMeta)
+
+Every integration block **must** export a `{Service}BlockMeta` object at the bottom of the block file. This metadata drives the integration catalog, tag filters, and workflow template suggestions shown to users.
+
+### Structure
+
+```typescript
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
+
+// ... block definition above ...
+
+export const {Service}BlockMeta = {
+  tags: ['messaging', 'automation'],   // Same tags as the block's tags field
+  templates: [                          // Optional but strongly encouraged
+    {
+      icon: {Service}Icon,
+      title: '{Service} use-case title',
+      prompt: 'Build a workflow that ...',
+      modules: ['agent', 'workflows'],  // Modules the template uses
+      category: 'productivity',         // Template category
+      tags: ['automation'],             // Template-level tags
+      alsoIntegrations: ['slack'],      // Other blocks referenced in the prompt (optional)
+    },
+  ],
+} as const satisfies BlockMeta
+```
+
+### Rules
+
+- **Import `BlockMeta`** from `@/blocks/types` alongside `BlockConfig`
+- **`tags`** must match the `tags` array on the block config exactly
+- **Templates are optional** but should be added for any integration that has a recognizable use case — aim for 2–4 templates per block
+- **Template `prompt`** should start with "Build a workflow that..." or "Create a workflow that..." and be concrete enough to generate a real workflow in Mothership
+- **Template `modules`** lists the Sim modules the template relies on: `'knowledge-base' | 'tables' | 'files' | 'workflows' | 'scheduled' | 'agent'`
+- **Template `category`** is one of: `'popular' | 'sales' | 'support' | 'engineering' | 'marketing' | 'productivity' | 'operations'`
+- **`alsoIntegrations`** names other block types (e.g. `'slack'`, `'linear'`) referenced in the template prompt — helps the catalog surface this template when those blocks are selected
+- Place the export **after** the main `{Service}Block` export, at the very bottom of the file
+
+### Register in the blocksMeta object
+
+After adding `{Service}BlockMeta` to the block file, register it in `apps/sim/blocks/registry.ts`:
+
+```typescript
+// Add import (alongside the block import, alphabetically)
+import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
+
+// Add to blocksMeta object (alphabetically)
+export const blocksMeta = {
+  // ... existing entries ...
+  service: ServiceBlockMeta,
+}
+```
+
 ## Registering Blocks
 
 After creating the block, remind the user to:
-1. Import in `apps/sim/blocks/registry.ts`
+1. Import `{Service}Block` and `{Service}BlockMeta` in `apps/sim/blocks/registry.ts`
 2. Add to the `registry` object (alphabetically):
+3. Add to the `blocksMeta` object (alphabetically):
 
 ```typescript
-import { ServiceBlock } from '@/blocks/blocks/service'
+import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
 
 export const registry: Record<string, BlockConfig> = {
   // ... existing blocks ...
   service: ServiceBlock,
+}
+
+export const blocksMeta = {
+  // ... existing entries ...
+  service: ServiceBlockMeta,
 }
 ```
 
@@ -827,7 +886,10 @@ All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MU
 - [ ] Tools.access lists all tool IDs (snake_case)
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
-- [ ] Block registered in registry.ts
+- [ ] Block registered in `registry.ts` blocks object (alphabetically)
+- [ ] `{Service}BlockMeta` exported at bottom of block file with `tags` and `templates`
+- [ ] `BlockMeta` imported from `@/blocks/types` alongside `BlockConfig`
+- [ ] Block meta registered in `registry.ts` blocksMeta object (alphabetically)
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`

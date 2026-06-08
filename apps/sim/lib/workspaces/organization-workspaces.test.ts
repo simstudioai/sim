@@ -178,6 +178,48 @@ describe('organization workspace helpers', () => {
     expect(mockDbUpdate).not.toHaveBeenCalled()
   })
 
+  it('keeps cross-org members external and still attaches when policy is keep-external', async () => {
+    mockDbResults.value = [
+      [{ id: 'ws-1' }],
+      [{ userId: 'owner-1' }],
+      [{ userId: 'owner-1' }, { userId: 'member-2' }],
+      [{ userId: 'member-2', organizationId: 'org-2' }],
+    ]
+    mockEnsureUserInOrganization.mockResolvedValueOnce({
+      success: true,
+      alreadyMember: true,
+      billingActions: {
+        proUsageSnapshotted: false,
+        proCancelledAtPeriodEnd: false,
+      },
+    })
+
+    const result = await attachOwnedWorkspacesToOrganization({
+      ownerUserId: 'user-1',
+      organizationId: 'org-1',
+      externalMemberPolicy: 'keep-external',
+    })
+
+    expect(result.attachedWorkspaceIds).toEqual(['ws-1'])
+    expect(result.skippedMembers).toEqual([
+      {
+        userId: 'member-2',
+        reason: 'Already a member of another organization; kept as external workspace member',
+      },
+    ])
+    expect(mockEnsureUserInOrganization).toHaveBeenCalledTimes(1)
+    expect(mockEnsureUserInOrganization).toHaveBeenCalledWith({
+      userId: 'owner-1',
+      organizationId: 'org-1',
+      role: 'owner',
+      skipSeatValidation: true,
+    })
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'member-2' })
+    )
+    expect(mockDbUpdate).toHaveBeenCalled()
+  })
+
   it('detaches organization workspaces into grandfathered shared mode', async () => {
     mockDbResults.value = [[{ userId: 'owner-1' }], [{ id: 'ws-1', ownerId: 'creator-1' }]]
 

@@ -1,5 +1,5 @@
 import { KalshiIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 
@@ -13,9 +13,9 @@ export const KalshiBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['prediction-markets', 'data-analytics'],
   hideFromToolbar: true,
   bgColor: '#09C285',
+  iconColor: '#09C285',
   icon: KalshiIcon,
   subBlocks: [
     {
@@ -710,7 +710,6 @@ export const KalshiV2Block: BlockConfig = {
   longDescription:
     'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
   integrationType: IntegrationType.Analytics,
-  tags: ['prediction-markets', 'data-analytics'],
   hideFromToolbar: false,
   tools: {
     ...KalshiBlock.tools,
@@ -843,3 +842,81 @@ export const KalshiV2Block: BlockConfig = {
     cursor: { type: 'string', description: 'Pagination cursor for fetching more results' },
   },
 }
+
+export const KalshiBlockMeta = {
+  tags: ['prediction-markets', 'data-analytics'],
+  templates: [
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi event-contract tracker',
+      prompt:
+        'Create a scheduled workflow that polls Kalshi for prices on tracked event contracts, writes the price history to a tables-based portfolio, and posts large-move alerts to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi macroeconomic dashboard',
+      prompt:
+        'Build a scheduled workflow that pulls Kalshi probability markets for selected macroeconomic events, writes the implied probabilities to a tables-based dashboard, and emails a weekly summary.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi + Polymarket arbitrage scanner',
+      prompt:
+        'Create a scheduled workflow that fetches comparable contracts on Kalshi and Polymarket, computes implied-probability spreads, writes the top arbitrage candidates to a table, and pings Slack on significant gaps.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis'],
+      alsoIntegrations: ['polymarket', 'slack'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi + Profound macro signal',
+      prompt:
+        'Build a scheduled workflow that combines Kalshi event-contract prices with Profound AI signal to forecast macro events and writes a thesis file weekly.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'research'],
+      alsoIntegrations: ['profound'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi position rebalancer',
+      prompt:
+        'Build a workflow that monitors Kalshi position weights against a target allocation, captures drift, and pings Slack with proposed rebalancing trades.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi earnings event tracker',
+      prompt:
+        'Create a workflow that pulls Kalshi earnings-event contracts, captures implied probabilities the day before each event, and writes a per-ticker table for review.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'research'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi election-market dashboard',
+      prompt:
+        'Build a scheduled workflow that pulls Kalshi election market prices, captures movement over time, and writes a per-race tracking table for political analysts.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis'],
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const KalshiV2BlockMeta = {
+  tags: ['prediction-markets', 'data-analytics'],
+} as const satisfies BlockMeta
