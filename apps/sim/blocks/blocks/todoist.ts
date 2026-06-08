@@ -97,12 +97,13 @@ export const TodoistBlock: BlockConfig<TodoistResponse> = {
       title: 'Priority',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '0' },
         { label: 'Priority 1 (Normal)', id: '1' },
         { label: 'Priority 2', id: '2' },
         { label: 'Priority 3', id: '3' },
         { label: 'Priority 4 (Urgent)', id: '4' },
       ],
-      value: () => '1',
+      value: () => '0',
       condition: {
         field: 'operation',
         value: ['todoist_create_task', 'todoist_update_task'],
@@ -200,7 +201,8 @@ Return ONLY the description string.`,
               content: params.content,
               description: params.description || undefined,
               projectId: params.projectId || undefined,
-              priority: params.priority ? Number(params.priority) : undefined,
+              priority:
+                params.priority && params.priority !== '0' ? Number(params.priority) : undefined,
               dueString: params.dueString || undefined,
               labels: labelsArray,
             }
@@ -223,7 +225,7 @@ Return ONLY the description string.`,
               content: params.content || undefined,
               description: params.description || undefined,
               priority:
-                params.priority && params.priority !== '1' ? Number(params.priority) : undefined,
+                params.priority && params.priority !== '0' ? Number(params.priority) : undefined,
               dueString: params.dueString || undefined,
               labels: labelsArray,
             }
