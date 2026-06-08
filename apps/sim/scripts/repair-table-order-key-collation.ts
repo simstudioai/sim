@@ -93,6 +93,20 @@ export async function runRepair(): Promise<void> {
     for (const { table_id: tableId } of pending) {
       stats.tables += 1
       try {
+        if (dryRun) {
+          // Sizing only — count outside any transaction/lock so we never serialize
+          // live inserts on the table (taking the advisory lock just to count would
+          // make the dry run the opposite of safe).
+          const [row] = await db
+            .select({ rowCount: sql<number>`count(*)`.mapWith(Number) })
+            .from(userTableRows)
+            .where(eq(userTableRows.tableId, tableId))
+          stats.tablesKeyed += 1
+          stats.rowsKeyed += row.rowCount
+          console.log(`  ${tableId}: would re-key ${row.rowCount} rows`)
+          continue
+        }
+
         const keyed = await db.transaction(async (trx) => {
           // Serialize with concurrent inserts on this table (same lock the app uses).
           await trx.execute(
@@ -106,7 +120,6 @@ export async function runRepair(): Promise<void> {
 
           if (rows.length === 0) return 0
           const keys = nKeysBetween(null, null, rows.length)
-          if (dryRun) return rows.length
 
           // Chunked UPDATE … FROM (VALUES …) mapping id → key (see WRITE_CHUNK_SIZE).
           for (let start = 0; start < rows.length; start += WRITE_CHUNK_SIZE) {
@@ -133,11 +146,12 @@ export async function runRepair(): Promise<void> {
       }
     }
 
-    console.log('Repair complete.')
-    console.log(`  tables scanned:  ${stats.tables}`)
-    console.log(`  tables re-keyed: ${stats.tablesKeyed}`)
-    console.log(`  rows re-keyed:   ${stats.rowsKeyed}`)
-    console.log(`  failed:          ${stats.failed}`)
+    const verb = dryRun ? 'to re-key' : 're-keyed'
+    console.log(`Repair complete.${dryRun ? ' [DRY RUN — no rows written]' : ''}`)
+    console.log(`  tables scanned: ${stats.tables}`)
+    console.log(`  tables ${verb}: ${stats.tablesKeyed}`)
+    console.log(`  rows ${verb}: ${stats.rowsKeyed}`)
+    console.log(`  failed: ${stats.failed}`)
     if (stats.failed > 0) process.exitCode = 1
   } finally {
     await client.end({ timeout: 5 }).catch(() => {})
