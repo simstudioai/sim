@@ -96,6 +96,24 @@ describe('fetchAppConfigProfile', () => {
     expect(mockSend.mock.calls.length).toBe(callsAfterFirst)
   })
 
+  it('keeps the session on a parse error (no re-StartConfigurationSession, no throw)', async () => {
+    mockSend.mockImplementation((command: { __type: string }) => {
+      if (command.__type === 'start') return Promise.resolve({ InitialConfigurationToken: 'tok-1' })
+      return Promise.resolve({
+        Configuration: new TextEncoder().encode('not json{'),
+        NextPollConfigurationToken: 'tok-2',
+        NextPollIntervalInSeconds: 60,
+      })
+    })
+
+    const ids = uniqueIds()
+    expect(await fetchAppConfigProfile(ids, (json) => json)).toBeNull()
+
+    // Network round trip succeeded, so exactly one session was started despite the
+    // parse failure — the rotated token was preserved, not discarded.
+    expect(mockSend.mock.calls.filter(([c]) => c.__type === 'start')).toHaveLength(1)
+  })
+
   it('dedupes concurrent cold fetches into a single poll', async () => {
     mockSend.mockImplementation((command: { __type: string }) => {
       if (command.__type === 'start') return Promise.resolve({ InitialConfigurationToken: 'tok-1' })

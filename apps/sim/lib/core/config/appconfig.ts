@@ -1,6 +1,7 @@
 import {
   AppConfigDataClient,
   GetLatestConfigurationCommand,
+  type GetLatestConfigurationCommandOutput,
   StartConfigurationSessionCommand,
 } from '@aws-sdk/client-appconfigdata'
 import { createLogger } from '@sim/logger'
@@ -66,6 +67,7 @@ async function poll<T>(
   parse: (json: unknown) => T,
   entry: CacheEntry<T>
 ): Promise<T | null> {
+  let response: GetLatestConfigurationCommandOutput
   try {
     const dataClient = getClient()
 
@@ -80,24 +82,15 @@ async function poll<T>(
       entry.nextToken = session.InitialConfigurationToken
     }
 
-    const response = await dataClient.send(
+    response = await dataClient.send(
       new GetLatestConfigurationCommand({ ConfigurationToken: entry.nextToken })
     )
     entry.nextToken = response.NextPollConfigurationToken ?? entry.nextToken
-
-    if (response.Configuration && response.Configuration.length > 0) {
-      const text = new TextDecoder().decode(response.Configuration)
-      entry.value = parse(JSON.parse(text))
-    }
-
-    const intervalMs = (response.NextPollIntervalInSeconds ?? 60) * 1000
-    entry.expiresAt = Date.now() + Math.max(DEFAULT_TTL_MS, intervalMs)
-    entry.loaded = true
-    return entry.value
   } catch (error) {
-    // Drop the token so the next attempt starts a fresh session (handles expired
-    // or invalid tokens). Mark loaded + back off so we serve the fallback and
-    // retry in the background rather than blocking every request during an outage.
+    // Network/session failure: drop the token so the next attempt starts a fresh
+    // session (handles expired or invalid tokens). Mark loaded + back off so we
+    // serve the fallback and retry in the background rather than blocking every
+    // request during an outage.
     entry.nextToken = undefined
     entry.expiresAt = Date.now() + DEFAULT_TTL_MS
     entry.loaded = true
@@ -107,6 +100,26 @@ async function poll<T>(
     })
     return entry.value
   }
+
+  // Parse outside the network try: a decode/parse error must NOT discard the
+  // already-rotated session token — the round trip succeeded, so the next poll
+  // can reuse it instead of opening a new session. Keep the last good value.
+  try {
+    if (response.Configuration && response.Configuration.length > 0) {
+      const text = new TextDecoder().decode(response.Configuration)
+      entry.value = parse(JSON.parse(text))
+    }
+  } catch (error) {
+    logger.error('AppConfig response parse failed; serving last known value', {
+      profile: cacheKey(ids),
+      error: getErrorMessage(error),
+    })
+  }
+
+  const intervalMs = (response.NextPollIntervalInSeconds ?? 60) * 1000
+  entry.expiresAt = Date.now() + Math.max(DEFAULT_TTL_MS, intervalMs)
+  entry.loaded = true
+  return entry.value
 }
 
 /**
