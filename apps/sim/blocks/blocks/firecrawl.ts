@@ -729,4 +729,34 @@ export const FirecrawlBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'scrape-page-to-markdown',
+      description:
+        'Scrape a single URL with Firecrawl and return clean main-content markdown for an agent to read.',
+      content:
+        '# Scrape Page to Markdown\n\nUse Firecrawl to fetch a web page as clean, LLM-ready markdown.\n\n## Steps\n1. Use the Scrape operation on the target URL.\n2. Enable Only Main Content to strip navigation, ads, and footers; set a Wait For delay if the page renders content with JavaScript.\n3. Return the markdown output and capture page metadata (title, description).\n\n## Output\nReturn the page markdown plus key metadata. If the page failed to load or returned empty content, report that instead of fabricating text.',
+    },
+    {
+      name: 'extract-structured-data',
+      description:
+        'Pull structured fields from one or more URLs using Firecrawl Extract with a prompt or schema.',
+      content:
+        '# Extract Structured Data\n\nUse Firecrawl to extract specific fields from web pages.\n\n## Steps\n1. Use the Extract operation with the list of target URLs.\n2. Provide a clear extraction prompt describing exactly what to pull (for example product name, price, and description).\n3. Run the extraction and read the structured data from the response.\n\n## Output\nReturn the extracted records as structured JSON. List the source URLs and flag any URL that yielded no data.',
+    },
+    {
+      name: 'crawl-site',
+      description:
+        'Crawl an entire site or section with Firecrawl and return the page content for indexing or analysis.',
+      content:
+        '# Crawl Site\n\nUse Firecrawl to traverse a site and collect its pages.\n\n## Steps\n1. Use the Crawl operation on the root URL, setting a sensible page Limit to control cost.\n2. Enable Only Main Content so each page comes back as clean markdown.\n3. Collect the crawled pages and their URLs from the response.\n\n## Output\nReturn the list of crawled pages with their URL and markdown content, plus the total page count. This output is ready to chunk and embed into a knowledge base.',
+    },
+    {
+      name: 'research-with-search',
+      description:
+        'Run a web search with Firecrawl, then scrape the top results into a cited research brief.',
+      content:
+        '# Research With Search\n\nUse Firecrawl to gather and synthesize web sources on a topic.\n\n## Steps\n1. Use the Search operation with the research query and a result Limit.\n2. For the most relevant results, use Scrape to pull the full page markdown.\n3. Synthesize the findings into a brief, attributing each claim to its source URL.\n\n## Output\nReturn a structured research brief with key findings and a Sources list of the URLs used. Keep claims grounded in the scraped content.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -340,4 +340,27 @@ export const OnePasswordBlockMeta = {
       tags: ['legal', 'enterprise'],
     },
   ],
+  skills: [
+    {
+      name: 'fetch-secret-for-runtime',
+      description:
+        'Retrieve a secret (API key, token, or credential) from a 1Password vault to pass into a downstream step.',
+      content:
+        '# Fetch Secret for Runtime\n\nSecurely read a credential from 1Password so a later step can authenticate without hardcoding it.\n\n## Steps\n1. Identify the vault and item that holds the needed secret.\n2. Read the specific field (password, token, or key) from that item.\n3. Pass the value to the downstream tool or request that needs it.\n\n## Output\nConfirm the secret was retrieved without printing its value. Never echo, log, or include the raw secret in any summary or message.',
+    },
+    {
+      name: 'audit-vault-items',
+      description:
+        'List items in a 1Password vault and report metadata like titles, categories, and last-updated dates.',
+      content:
+        '# Audit Vault Items\n\nProduce an inventory of items in a 1Password vault for review.\n\n## Steps\n1. List the items in the specified vault.\n2. For each item collect non-sensitive metadata: title, category, tags, and last-updated date.\n3. Flag items that look stale or duplicated based on titles and dates.\n\n## Output\nA table of items with metadata only. Do not retrieve or display any secret values, just the item references.',
+    },
+    {
+      name: 'create-credential-item',
+      description:
+        'Store a new credential (login, API key, or token) as an item in a 1Password vault.',
+      content:
+        '# Create Credential Item\n\nSave a new secret into 1Password so it is centrally managed.\n\n## Steps\n1. Determine the target vault and the item category (login, API credential, secure note).\n2. Set the title and the secret fields from the provided values.\n3. Create the item in the vault.\n\n## Output\nConfirm the item was created with its title and vault. Do not repeat the secret value back in the response.',
+    },
+  ],
 } as const satisfies BlockMeta

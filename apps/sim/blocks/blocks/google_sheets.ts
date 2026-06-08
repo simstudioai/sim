@@ -1176,6 +1176,32 @@ export const GoogleSheetsBlockMeta = {
       alsoIntegrations: ['notion'],
     },
   ],
+  skills: [
+    {
+      name: 'read-sheet-data',
+      description: 'Read rows from a Google Sheet, optionally filtering by a column value.',
+      content:
+        '# Read Sheet Data\n\nPull data out of a spreadsheet tab.\n\n## Steps\n1. Select the spreadsheet and the Sheet (tab) to read.\n2. Optionally set a Cell Range (e.g., A1:D100); leave blank to read the used range.\n3. To narrow rows, set Filter Column (a header name), Filter Value, and Match Type (contains, exact, gt, etc.).\n4. Run the Read Data operation and treat the first row as headers if present.\n\n## Output\nReturn the rows (as a 2D array or labeled objects keyed by header), the range read, and a filter summary if a filter was applied. Note the row count.',
+    },
+    {
+      name: 'append-rows-to-sheet',
+      description: 'Add new rows to the end of a Google Sheet without overwriting existing data.',
+      content:
+        '# Append Rows to a Sheet\n\nAdd records to the bottom of a tab.\n\n## Steps\n1. Select the spreadsheet and Sheet (tab).\n2. Build the Values as a JSON array of arrays (each inner array is a row) or array of objects keyed by column.\n3. Set Insert Data Option to Insert Rows so existing data is not overwritten.\n4. Choose Value Input Option: User Entered (parses formulas/dates) or Raw.\n5. Run the Append Data operation.\n\n## Output\nConfirm the append: updated range, rows added, and the table range. Ensure column order matches the sheet headers.',
+    },
+    {
+      name: 'update-cells',
+      description: 'Write or update values in a specific range of a Google Sheet.',
+      content:
+        '# Update Cells\n\nWrite values into a targeted range.\n\n## Steps\n1. Select the spreadsheet and Sheet (tab) and set the Cell Range to write (e.g., B2:D2).\n2. Build the Values JSON so its dimensions match the range.\n3. Pick Value Input Option: User Entered to evaluate formulas, or Raw to store literal text.\n4. Run the Update Data operation (use Write Data to set a fresh block).\n\n## Output\nConfirm updated range and the count of updated cells/rows/columns. If writing formulas, confirm User Entered was used so they evaluate.',
+    },
+    {
+      name: 'create-spreadsheet',
+      description: 'Create a new Google Sheets spreadsheet with named tabs and return its link.',
+      content:
+        '# Create a Spreadsheet\n\nStand up a new spreadsheet.\n\n## Steps\n1. Set the Spreadsheet Title.\n2. Optionally provide Sheet Names as a comma-separated list (e.g., "Data, Summary").\n3. Run the Create Spreadsheet operation and capture the spreadsheet ID and URL.\n4. Follow up with Write or Append operations to populate the tabs.\n\n## Output\nReturn the new spreadsheet title, ID, URL, and the list of sheets created. Hand back the ID so subsequent steps can write to it.',
+    },
+  ],
 } as const satisfies BlockMeta
 
 export const GoogleSheetsV2BlockMeta = {

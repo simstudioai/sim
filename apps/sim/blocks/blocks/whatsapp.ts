@@ -249,4 +249,27 @@ export const WhatsAppBlockMeta = {
       alsoIntegrations: ['zoom'],
     },
   ],
+  skills: [
+    {
+      name: 'send-appointment-reminder',
+      description:
+        'Send a WhatsApp message reminding a contact of an upcoming appointment or booking.',
+      content:
+        '# Send a WhatsApp Appointment Reminder\n\nNotify a contact about an upcoming appointment over WhatsApp.\n\n## Steps\n1. Gather the recipient phone number in full international format (country code, no plus sign or spaces as the API expects).\n2. Compose a short, clear message with the date, time, location or link, and any action the contact should take.\n3. Send the message with the WhatsApp send operation.\n4. Capture the returned message ID and delivery state.\n\n## Output\nConfirm the recipient, the message sent, and the message ID. If the send was rejected, report the reason rather than retrying blindly.',
+    },
+    {
+      name: 'send-order-update',
+      description:
+        'Notify a customer over WhatsApp about an order status change such as shipment or delivery.',
+      content:
+        '# Send a WhatsApp Order Update\n\nKeep a customer informed about their order via WhatsApp.\n\n## Steps\n1. Collect the customer phone number in full international format and the order details (number, status, tracking, ETA).\n2. Write a concise update that states what changed and includes the tracking link if available.\n3. Send the message and record the message ID and delivery state.\n\n## Output\nReport which customer was notified, the order referenced, and the message ID. Flag any number that could not be reached.',
+    },
+    {
+      name: 'broadcast-to-segment',
+      description:
+        'Send a personalized WhatsApp message to each contact in an audience list, one at a time.',
+      content:
+        '# Broadcast a WhatsApp Message to a Segment\n\nDeliver a personalized message to every contact in a list.\n\n## Steps\n1. Read the audience list, each row holding a phone number and any personalization fields.\n2. For each contact, build the message by filling in their name and relevant details.\n3. Send messages one per contact, pacing them to stay within WhatsApp rate and template limits.\n4. Track which sends succeeded and which failed.\n\n## Output\nReturn counts of messages sent and failed, plus a short list of failed recipients with the failure reason.',
+    },
+  ],
 } as const satisfies BlockMeta

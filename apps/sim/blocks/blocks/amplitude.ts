@@ -819,4 +819,34 @@ export const AmplitudeBlockMeta = {
       alsoIntegrations: ['hex', 'slack'],
     },
   ],
+  skills: [
+    {
+      name: 'track-product-event',
+      description:
+        'Send a behavioral event to Amplitude with user and event properties for analytics.',
+      content:
+        '# Track Product Event\n\nLog a user action to Amplitude so it shows up in analytics.\n\n## Steps\n1. Determine the event name and the user identifier (user ID or device ID).\n2. Attach relevant event properties (plan, source, value) and user properties.\n3. Send the event to Amplitude.\n\n## Output\nConfirm the event was sent with its name and the user it was attributed to. Note any required field that was missing.',
+    },
+    {
+      name: 'segment-event-counts',
+      description:
+        'Run Amplitude event segmentation over a date range and report unique and total counts, optionally grouped by a property.',
+      content:
+        '# Segment Event Counts\n\nMeasure how often an event fires in Amplitude over a time window.\n\n## Steps\n1. Identify the event type and the start and end dates (YYYYMMDD) to analyze.\n2. Pick the measurement (uniques, totals, or average) and the interval (daily, weekly, monthly).\n3. Optionally group by a user or event property to break the counts down by segment.\n4. Run the event segmentation query and read the resulting time series.\n\n## Output\nThe series of counts per interval, the segment breakdown if grouped, and a callout of the largest movement versus the start of the range.',
+    },
+    {
+      name: 'summarize-engagement-metrics',
+      description:
+        'Pull Amplitude active users, top events, and revenue and summarize product engagement for a period.',
+      content:
+        '# Summarize Engagement Metrics\n\nProduce a short product engagement summary from Amplitude data.\n\n## Steps\n1. Query active and new users for the target period.\n2. Pull the most-triggered events with event segmentation to see what users do most.\n3. Pull revenue metrics for the same period.\n4. Compare each against the prior period to spot trends.\n\n## Output\nA concise summary: active users, top events, revenue, and notable trends versus the prior period.',
+    },
+    {
+      name: 'lookup-user-activity',
+      description:
+        'Find a user in Amplitude by ID and pull their recent event activity and profile properties.',
+      content:
+        '# Lookup User Activity\n\nInvestigate a single user in Amplitude for support or debugging.\n\n## Steps\n1. Search for the user by user ID, device ID, or Amplitude ID to resolve their Amplitude ID.\n2. Pull the user activity stream for that Amplitude ID, ordered latest first.\n3. Optionally fetch the user profile to see their current properties.\n\n## Output\nA timeline of the user recent events plus key profile properties. Note the time range covered.',
+    },
+  ],
 } as const satisfies BlockMeta

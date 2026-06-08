@@ -553,4 +553,31 @@ export const MicrosoftTeamsBlockMeta = {
       alsoIntegrations: ['zendesk'],
     },
   ],
+  skills: [
+    {
+      name: 'post-channel-announcement',
+      description: 'Write a formatted message to a specific Microsoft Teams channel.',
+      content:
+        '# Post Channel Announcement\n\nSend an announcement or update to a Microsoft Teams channel.\n\n## Steps\n1. Identify the team and channel to post to, selecting the channel id.\n2. Compose the message body, using clear headings and bullets so it reads well in Teams.\n3. Run Write Channel Message with the channel id and the formatted content.\n4. If a thread already exists for the topic, use Reply to Channel Message instead to keep context together.\n\n## Output\nConfirm the posted message id and channel. Quote the first line of what was posted.',
+    },
+    {
+      name: 'summarize-channel-activity',
+      description:
+        'Read recent Microsoft Teams channel messages and produce a concise digest of decisions and action items.',
+      content:
+        '# Summarize Channel Activity\n\nTurn a busy Microsoft Teams channel into a short readable digest.\n\n## Steps\n1. Run Read Channel Messages for the target channel.\n2. Group messages by topic or thread and drop noise such as greetings and reactions.\n3. Extract decisions made, open questions, and any explicit action items with owners.\n4. Optionally post the digest back to the channel as a new message.\n\n## Output\nThree short sections: Decisions, Open Questions, Action Items. Each item one line with the person responsible when known.',
+    },
+    {
+      name: 'acknowledge-with-reaction',
+      description: 'React to a specific Microsoft Teams message to acknowledge it.',
+      content:
+        '# Acknowledge with Reaction\n\nAdd or remove an emoji reaction on a Microsoft Teams message.\n\n## Steps\n1. Locate the message using Get Message or the known message id and channel/chat id.\n2. Run Add Reaction with the desired reactionType to acknowledge or signal status.\n3. Use Remove Reaction when the acknowledgment should be cleared.\n\n## Output\nConfirm the reaction applied and on which message. Keep the response to one line.',
+    },
+    {
+      name: 'list-team-members',
+      description: 'List the members of a Microsoft Teams team or channel for routing or auditing.',
+      content:
+        '# List Team Members\n\nRetrieve who belongs to a Microsoft Teams team or channel.\n\n## Steps\n1. Decide whether you need team-wide membership or a single channel and pick List Team Members or List Channel Members.\n2. Run the operation with the team id (and channel id when needed).\n3. Normalize the result into a clean roster of names and roles.\n\n## Output\nA roster list with display name and role. Note the total count at the top.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -736,4 +736,27 @@ export const MicrosoftPlannerBlockMeta = {
       alsoIntegrations: ['microsoft_teams'],
     },
   ],
+  skills: [
+    {
+      name: 'create-task-in-bucket',
+      description:
+        'Create a Microsoft Planner task in a specific plan and bucket with title, due date, and assignee.',
+      content:
+        '# Create Planner Task\n\nCreate a new task in a Microsoft Planner plan, placing it in the right bucket and setting a due date and owner.\n\n## Steps\n1. Use List Plans to find the target plan, then List Buckets for that plan to locate the bucket id.\n2. Run Create Task with the plan id, a clear title, and the bucket id so it lands in the right column.\n3. If a due date was described in natural language, convert it to ISO 8601 (YYYY-MM-DDTHH:MM:SSZ) before passing dueDateTime.\n4. Set assigneeUserId when an owner is known.\n\n## Output\nConfirm the created task id and report title, bucket, due date, and assignee. Surface the etag for any follow-up updates.',
+    },
+    {
+      name: 'set-up-plan-buckets',
+      description:
+        'Create a set of stage or phase buckets in a Planner plan to organize tasks by workflow column.',
+      content:
+        '# Set Up Plan Buckets\n\nStructure a Microsoft Planner plan into the workflow columns a team needs, such as To Do, In Progress, Review, and Done, or project phases.\n\n## Steps\n1. Use List Plans to find the target plan, then List Buckets to see which buckets already exist and avoid duplicates.\n2. Run Create Bucket once per desired column, passing the plan id and a clear bucket name.\n3. Keep names short and ordered so the board reads left to right as work progresses.\n\n## Output\nList every bucket id and name that now exists in the plan, marking which were newly created. Suggest the next bucket only if a stage is clearly missing.',
+    },
+    {
+      name: 'add-task-checklist',
+      description:
+        'Add a step-by-step checklist to a Planner task so each subtask can be tracked and checked off.',
+      content:
+        '# Add Task Checklist\n\nBreak a Microsoft Planner task into trackable subtasks using its checklist.\n\n## Steps\n1. Identify the target task id, using Read Task to confirm the title if needed.\n2. Use Get Task Details to read the current checklist and capture the etag required for updates.\n3. Run Update Task Details with the checklist items to add, passing the etag from the previous step.\n4. Set percentComplete on the task with Update Task when progress should reflect the checklist state.\n\n## Output\nConfirm the task id and list the checklist items now present. Note the refreshed etag for any further edits.',
+    },
+  ],
 } as const satisfies BlockMeta

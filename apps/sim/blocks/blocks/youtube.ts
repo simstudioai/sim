@@ -630,4 +630,27 @@ export const YouTubeBlockMeta = {
       alsoIntegrations: ['notion'],
     },
   ],
+  skills: [
+    {
+      name: 'find-videos-on-topic',
+      description:
+        'Search YouTube for videos on a topic with filters for duration, recency, and quality.',
+      content:
+        '# Find YouTube Videos on a Topic\n\nSurface the most relevant videos for a subject.\n\n## Steps\n1. Build a search query and choose filters: order (relevance, date, view count), duration, and definition.\n2. Call the search operation with a result limit.\n3. For promising results, get video details to read title, channel, view count, and publish date.\n4. Rank the results by relevance and signal.\n\n## Output\nReturn a ranked list of videos with title, channel, URL, view count, and publish date. Note the query and filters applied.',
+    },
+    {
+      name: 'analyze-channel',
+      description:
+        'Pull a YouTube channel profile and recent uploads to summarize its content and cadence.',
+      content:
+        '# Analyze a YouTube Channel\n\nProfile a channel and its recent output.\n\n## Steps\n1. Get channel info to retrieve subscriber count, total views, and description.\n2. Get channel videos to list recent uploads.\n3. Summarize the content themes, upload cadence, and the best-performing recent videos.\n\n## Output\nReturn a channel summary with key stats, dominant content themes, posting frequency, and the top recent videos by views. Cite the channel and video IDs used.',
+    },
+    {
+      name: 'summarize-video-comments',
+      description:
+        'Fetch comments on a YouTube video and summarize sentiment, questions, and recurring feedback.',
+      content:
+        '# Summarize YouTube Video Comments\n\nUnderstand audience reaction to a video.\n\n## Steps\n1. Identify the video ID, searching or using video details if only a title is known.\n2. Call the comments operation to fetch top or recent comments.\n3. Group comments into sentiment, recurring questions, and feature or content requests.\n\n## Output\nReturn a summary with sentiment breakdown, the most common questions, and notable feedback themes. Quote a few representative comments and cite the video ID.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -301,7 +301,13 @@ import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
 import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
-import type { BlockCategory, BlockConfig, BlockMeta, BlockTemplate } from '@/blocks/types'
+import type {
+  BlockCategory,
+  BlockConfig,
+  BlockMeta,
+  BlockTemplate,
+  SuggestedSkill,
+} from '@/blocks/types'
 
 /** All block configs keyed by block type. The execution source of truth. */
 const BLOCK_REGISTRY: Record<string, BlockConfig> = {
@@ -946,6 +952,20 @@ export function getTemplatesForBlock(type: string): ScopedBlockTemplate[] {
     }
   }
   return collected
+}
+
+/**
+ * Popular, ready-to-add skills for a block type. Curated skills live on the
+ * base integration's meta, but a versioned catalog type (e.g. `notion_v2`) has
+ * its own meta entry that {@link getBlockMeta} resolves first and which may omit
+ * skills — so fall back to the stripped base meta. Returns an empty array when
+ * the integration has no curated skills.
+ */
+export function getSuggestedSkillsForBlock(type: string): readonly SuggestedSkill[] {
+  const direct = getBlockMeta(type)?.skills
+  if (direct && direct.length > 0) return direct
+  const base = stripVersionSuffix(normalizeType(type))
+  return BLOCK_META_REGISTRY[base]?.skills ?? []
 }
 
 /**

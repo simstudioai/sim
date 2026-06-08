@@ -543,4 +543,25 @@ export const GoogleFormsBlockMeta = {
       alsoIntegrations: ['gmail'],
     },
   ],
+  skills: [
+    {
+      name: 'collect-form-responses',
+      description: 'Retrieve and structure responses from a Google Form for analysis or routing.',
+      content:
+        '# Collect Form Responses\n\nPull submissions from a Google Form.\n\n## Steps\n1. Select the form (or pass its form ID).\n2. Run the Get Responses operation; set Page Size to cover the expected volume. Leave Response ID empty to fetch all, or set it to fetch one specific submission.\n3. To map answers to questions, run Get Form once and use the item titles to label each answer.\n4. Normalize each response into clean rows keyed by question.\n\n## Output\nA structured list of responses with respondent answers labeled by question. Include the total count and the time range covered.',
+    },
+    {
+      name: 'analyze-survey-results',
+      description:
+        'Read Google Form responses and summarize trends, sentiment, and notable findings.',
+      content:
+        '# Analyze Survey Results\n\nTurn raw form responses into insight.\n\n## Steps\n1. Run Get Form to learn the questions and their types (choice, scale, text).\n2. Run Get Responses to pull all submissions.\n3. For choice/scale questions, compute distributions and averages. For free-text, cluster into themes and gauge sentiment.\n4. Surface the strongest signals and any outliers or recurring complaints.\n\n## Output\nA digest: response count, per-question breakdown (top choices, averages), 3-5 key themes from free text, and notable verbatim quotes. Keep numbers accurate to the data.',
+    },
+    {
+      name: 'create-form',
+      description: 'Create a new Google Form and add questions via batch update.',
+      content:
+        '# Create a Form\n\nBuild a new Google Form with questions.\n\n## Steps\n1. Run Create Form with the form title (and optional document title). Capture the returned form ID.\n2. Build a Batch Update requests array to add questions. Use `createItem` with `choiceQuestion` (RADIO/CHECKBOX/DROP_DOWN), `textQuestion`, or `scaleQuestion`, each at a `location.index`.\n3. Run Batch Update on the form ID with that requests array.\n4. If the form should accept submissions, run Set Publish Settings with Published on.\n\n## Output\nConfirm the form was created, list the questions added, and return the responder URL and form ID.',
+    },
+  ],
 } as const satisfies BlockMeta

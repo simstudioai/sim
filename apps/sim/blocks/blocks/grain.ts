@@ -534,4 +534,26 @@ export const GrainBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'summarize-recent-calls',
+      description:
+        'Pull recent Grain recordings and produce a digest of key takeaways and action items per call.',
+      content:
+        '# Summarize Recent Calls\n\nTurn recent meeting recordings into a readable digest.\n\n## Steps\n1. List recordings, optionally filtered by a before/after datetime window, and paginate with the cursor if needed.\n2. For each recording, get the recording details and the transcript.\n3. From each transcript, extract the main topic, key takeaways, decisions, and action items with owners.\n4. Keep the per-call summary concise and consistent in structure.\n\n## Output\nReturn a digest with one section per call: title, date, participants, takeaways, and action items. Suitable for a daily or weekly recap.',
+    },
+    {
+      name: 'extract-deal-signals',
+      description:
+        'Scan Grain sales-call transcripts for buying signals, objections, and competitor mentions.',
+      content:
+        '# Extract Deal Signals\n\nMine sales transcripts for signals that move a deal forward.\n\n## Steps\n1. List recordings for the target time window, or filter by a view that holds sales calls.\n2. Get the transcript for each recording.\n3. Classify mentions into buying signals, objections/risks, competitor mentions, and next steps, capturing the verbatim quote and context.\n4. Apply a framework (e.g. MEDDIC or SPICED) if one is specified to tag each insight.\n\n## Output\nReturn a structured list of signals grouped by category, each with the quote, the call it came from, and a suggested follow-up. Useful for CRM notes or a deal review.',
+    },
+    {
+      name: 'pull-transcript',
+      description: 'Retrieve a specific Grain recording and its full transcript by ID.',
+      content:
+        '# Pull Transcript\n\nFetch a single recording and its transcript for downstream use.\n\n## Steps\n1. If only a title or date is known, list recordings and match to find the recording ID.\n2. Get the recording details for metadata (title, participants, duration, date).\n3. Get the transcript for the recording.\n4. Clean the transcript into readable speaker-labeled turns.\n\n## Output\nReturn the recording metadata plus the formatted transcript. This is the building block for summaries, follow-up emails, or knowledge base ingestion.',
+    },
+  ],
 } as const satisfies BlockMeta

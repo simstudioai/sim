@@ -169,4 +169,27 @@ export const BrandfetchBlockMeta = {
       alsoIntegrations: ['docusign'],
     },
   ],
+  skills: [
+    {
+      name: 'enrich-company-by-domain',
+      description:
+        'Look up a company by domain and return its brand assets and firmographics. Use to enrich a CRM record, lead, or account with logo, colors, and company data.',
+      content:
+        '# Enrich Company By Domain\n\nFetch brand and company data for a known domain.\n\n## Steps\n1. Use Get Brand with the company domain as the identifier (e.g. nike.com). A stock ticker, ISIN, or crypto symbol also works.\n2. Read the returned logos, colors, fonts, links, description, and company firmographics.\n3. Pick the best logo for the use case (prefer a transparent or themed variant) and the primary brand color.\n\n## Output\nReturn a tidy record: company name, domain, description, primary logo URL, primary brand color hex, social links, and key firmographics. If the quality score is low or the brand is unclaimed, note that the data may be incomplete.',
+    },
+    {
+      name: 'resolve-brand-by-name',
+      description:
+        'Search for a brand by name to find its domain and logo when you only have the company name. Use to disambiguate or resolve a domain before deeper enrichment.',
+      content:
+        '# Resolve Brand By Name\n\nFind a brand when you only know its name.\n\n## Steps\n1. Use Search Brands with the company name (e.g. "Nike").\n2. Review the results array; each entry has a brand name, domain, and icon.\n3. Choose the best match by exact name and most likely official domain.\n4. Optionally follow up with Get Brand on the chosen domain for full assets and firmographics.\n\n## Output\nReturn the resolved brand name, domain, and icon URL. If several plausible matches exist, list the top candidates with their domains so the user can confirm.',
+    },
+    {
+      name: 'collect-brand-assets-for-personalization',
+      description:
+        'Gather a prospect or customer brand kit (logo, colors, fonts) for personalizing decks, emails, or portals. Use ahead of personalized outreach or design work.',
+      content:
+        '# Collect Brand Assets For Personalization\n\nBuild a usable brand kit for a target company.\n\n## Steps\n1. Resolve the company domain (use Search Brands first if you only have a name).\n2. Use Get Brand to retrieve logos, colors, and fonts.\n3. Select assets fit for purpose: a high-contrast logo for a deck cover, the primary and secondary colors, and the brand font names.\n\n## Output\nReturn a brand kit object: logo URLs by theme (light/dark), an ordered color palette with hex values, and font names. Note any missing asset so the design step can fall back to a neutral default.',
+    },
+  ],
 } as const satisfies BlockMeta

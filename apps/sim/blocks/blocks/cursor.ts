@@ -351,4 +351,27 @@ export const CursorBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'launch-coding-agent',
+      description:
+        'Launch a Cursor cloud agent on a GitHub repository with a clear task prompt and report the agent id and starting status.',
+      content:
+        '# Launch a Cursor Coding Agent\n\nKick off an autonomous Cursor agent to work on a repo.\n\n## Steps\n1. Confirm the target repository and the task to perform.\n2. Write a precise prompt: what to change, constraints, and acceptance criteria.\n3. Launch the agent with the chosen model and repository.\n4. Capture the agent id and initial status.\n\n## Output\nA confirmation with the agent id, repository, and the task prompt it was given.',
+    },
+    {
+      name: 'track-agent-progress',
+      description:
+        'Poll a Cursor agent for status and conversation updates and summarize what it has done so far.',
+      content:
+        '# Track Cursor Agent Progress\n\nMonitor a running Cursor agent.\n\n## Steps\n1. Get the agent status for the given agent id.\n2. Pull the conversation to see the latest actions and reasoning.\n3. If the agent is finished, list its artifacts; if blocked, identify why.\n\n## Output\nA status summary describing progress, current state, and any blockers or produced artifacts.',
+    },
+    {
+      name: 'send-agent-followup',
+      description:
+        'Send a follow-up instruction to an in-progress Cursor agent to refine or redirect its work.',
+      content:
+        '# Send a Cursor Agent Follow-up\n\nGuide an active agent with additional instructions.\n\n## Steps\n1. Confirm the agent id and review its recent conversation.\n2. Compose a clear follow-up message addressing what to change or add.\n3. Add the follow-up to the agent.\n4. Note that the agent has resumed work.\n\n## Output\nA confirmation that the follow-up was delivered, with the instruction sent.',
+    },
+  ],
 } as const satisfies BlockMeta
