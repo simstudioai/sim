@@ -317,6 +317,10 @@ interface PrintOnlyBoundaryPolicyMetric {
   current: number
 }
 
+function getRelativePath(filePath: string): string {
+  return path.relative(ROOT, filePath).replace(/\\/g, '/')
+}
+
 async function walk(
   dir: string,
   shouldIncludeFile: (fileName: string) => boolean,
@@ -454,7 +458,7 @@ function findRawFetchFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = getRelativePath(filePath)
   const lines = content.split('\n')
   const findings: RawFetchFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -492,7 +496,7 @@ function findDoubleCastFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = getRelativePath(filePath)
   const lines = content.split('\n')
   const findings: DoubleCastFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -543,7 +547,7 @@ function findRawJsonFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = getRelativePath(filePath)
   const lines = content.split('\n')
   const findings: RawJsonFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -594,7 +598,7 @@ function findUntypedResponseFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = getRelativePath(filePath)
   const lines = content.split('\n')
   const findings: UntypedResponseFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -664,7 +668,7 @@ function findSameOriginApiFetchFindings(
   exemptions: number
   missingReasons: AnnotationMissingReasonFinding[]
 } {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = getRelativePath(filePath)
   const lines = content.split('\n')
   const findings: SameOriginApiFetchFinding[] = []
   const missingReasons: AnnotationMissingReasonFinding[] = []
@@ -741,7 +745,7 @@ function hasZodUsage(relativePath: string, content: string): boolean {
 }
 
 function auditRoute(filePath: string, content: string): RouteAudit {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = getRelativePath(filePath)
   const schemaConstructorCount = [...content.matchAll(ZOD_SCHEMA_CONSTRUCTOR_PATTERN)].length
 
   return {
@@ -759,7 +763,7 @@ function auditRoute(filePath: string, content: string): RouteAudit {
 
 function findAdHocWireTypes(filePath: string, content: string): WireTypeFinding[] {
   const findings: WireTypeFinding[] = []
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = getRelativePath(filePath)
 
   for (const match of content.matchAll(WIRE_TYPE_DECLARATION_PATTERN)) {
     const kind = match[1]
@@ -788,7 +792,7 @@ function findAdHocWireTypes(filePath: string, content: string): WireTypeFinding[
 }
 
 function auditQueryHook(filePath: string, content: string): QueryHookAudit {
-  const relativePath = path.relative(ROOT, filePath)
+  const relativePath = getRelativePath(filePath)
   const schemaConstructorCount = [...content.matchAll(ZOD_SCHEMA_CONSTRUCTOR_PATTERN)].length
 
   return {
