@@ -5,7 +5,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
   ChevronDown,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
@@ -371,20 +370,20 @@ export function SettingsSidebar({
         onOpenChange={(open) => !open && handleCancelDiscard()}
         srTitle='Unsaved changes'
       >
-        <ChipModalHeader showDivider={false}>Unsaved changes</ChipModalHeader>
+        <ChipModalHeader onClose={handleCancelDiscard}>Unsaved changes</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             You have unsaved changes. Are you sure you want to discard them?
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleCancelDiscard}>
-            Keep editing
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleConfirmDiscard}>
-            Discard changes
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={handleCancelDiscard}
+          primaryAction={{
+            label: 'Discard changes',
+            onClick: handleConfirmDiscard,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

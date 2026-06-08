@@ -192,7 +192,9 @@ export function CustomTools() {
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Custom Tool'
       >
-        <ChipModalHeader showDivider={false}>Delete Custom Tool</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteDialog(false)}>
+          Delete Custom Tool
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -200,14 +202,10 @@ export function CustomTools() {
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowDeleteDialog(false)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDeleteTool}>
-            Delete
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteDialog(false)}
+          primaryAction={{ label: 'Delete', onClick: handleDeleteTool, variant: 'destructive' }}
+        />
       </ChipModal>
     </>
   )

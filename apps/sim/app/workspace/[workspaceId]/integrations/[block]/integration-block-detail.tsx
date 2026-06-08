@@ -5,7 +5,6 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
-import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
 import {
   blockTypeToIconMap,
@@ -21,6 +20,7 @@ import {
   CONNECT_MODE,
   CONNECT_QUERY_PARAM,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import { getTemplatesForBlock, type ScopedBlockTemplate } from '@/blocks/registry'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
@@ -111,7 +111,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   }
 
   const handleAddInChat = () => {
-    LandingPromptStorage.store(`Explore ${integration.name}. What can I do?`)
+    storeCuratedPrompt(`Explore ${integration.name}. What can I do?`)
     router.push(`/workspace/${workspaceId}/home`)
   }
 
@@ -233,7 +233,7 @@ function TemplatesSection({ integration, templates, workspaceId }: TemplatesSect
   const router = useRouter()
 
   const handleSelect = (prompt: string) => {
-    LandingPromptStorage.store(prompt)
+    storeCuratedPrompt(prompt)
     router.push(`/workspace/${workspaceId}/home`)
   }
 

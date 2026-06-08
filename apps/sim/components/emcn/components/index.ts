@@ -41,6 +41,8 @@ export {
   ChipModalField,
   type ChipModalFieldProps,
   ChipModalFooter,
+  type ChipModalFooterAction,
+  type ChipModalFooterProps,
   ChipModalHeader,
   type ChipModalHeaderProps,
   type ChipModalProps,

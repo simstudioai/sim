@@ -1,6 +1,5 @@
 import {
   Button,
-  Chip,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -164,24 +163,14 @@ export function NoOrganizationView({
             />
             <ChipModalError>{error}</ChipModalError>
           </ChipModalBody>
-          <ChipModalFooter>
-            <Chip
-              variant='filled'
-              flush
-              onClick={() => setCreateOrgDialogOpen(false)}
-              disabled={isCreatingOrg}
-            >
-              Cancel
-            </Chip>
-            <Chip
-              variant='primary'
-              flush
-              onClick={onCreateOrganization}
-              disabled={isCreatingOrg || !orgName.trim()}
-            >
-              {isCreatingOrg ? 'Creating...' : 'Create Organization'}
-            </Chip>
-          </ChipModalFooter>
+          <ChipModalFooter
+            onCancel={() => setCreateOrgDialogOpen(false)}
+            primaryAction={{
+              label: isCreatingOrg ? 'Creating...' : 'Create Organization',
+              onClick: onCreateOrganization,
+              disabled: isCreatingOrg || !orgName.trim(),
+            }}
+          />
         </ChipModal>
       </div>
     )

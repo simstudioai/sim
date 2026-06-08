@@ -4,11 +4,10 @@ import type { ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Plus, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import {
   Badge,
   Button,
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -506,6 +505,16 @@ export const NotificationSettings = memo(function NotificationSettings({
       const message = getErrorMessage(error, 'Failed to save notification')
       setFormErrors({ general: message })
     }
+  }
+
+  const handleBackToList = () => {
+    resetForm()
+    setShowForm(false)
+  }
+
+  const handleAddNew = () => {
+    resetForm()
+    setShowForm(true)
   }
 
   const handleEdit = (subscription: NotificationSubscription) => {
@@ -1229,51 +1238,33 @@ export const NotificationSettings = memo(function NotificationSettings({
         </ChipModalBody>
 
         <ChipModalFooter
-          leading={
-            displayForm && hasSubscriptions ? (
-              <Chip
-                variant='filled'
-                flush
-                onClick={() => {
-                  resetForm()
-                  setShowForm(false)
-                }}
-              >
-                Back
-              </Chip>
-            ) : undefined
+          onCancel={handleClose}
+          secondaryAction={
+            displayForm && hasSubscriptions
+              ? { label: 'Back', onClick: handleBackToList }
+              : undefined
           }
-        >
-          {displayForm ? (
-            <Chip
-              variant='primary'
-              flush
-              onClick={handleSave}
-              disabled={createNotification.isPending || updateNotification.isPending}
-            >
-              {createNotification.isPending || updateNotification.isPending
-                ? editingId
-                  ? 'Updating...'
-                  : 'Creating...'
-                : editingId
-                  ? 'Update'
-                  : 'Create'}
-            </Chip>
-          ) : (
-            <Chip
-              variant='primary'
-              flush
-              leftIcon={Plus}
-              onClick={() => {
-                resetForm()
-                setShowForm(true)
-              }}
-              disabled={isLoading}
-            >
-              Add
-            </Chip>
-          )}
-        </ChipModalFooter>
+          primaryAction={
+            displayForm
+              ? {
+                  label:
+                    createNotification.isPending || updateNotification.isPending
+                      ? editingId
+                        ? 'Updating...'
+                        : 'Creating...'
+                      : editingId
+                        ? 'Update'
+                        : 'Create',
+                  onClick: handleSave,
+                  disabled: createNotification.isPending || updateNotification.isPending,
+                }
+              : {
+                  label: 'Add',
+                  onClick: handleAddNew,
+                  disabled: isLoading,
+                }
+          }
+        />
       </ChipModal>
 
       <ChipModal
@@ -1281,7 +1272,9 @@ export const NotificationSettings = memo(function NotificationSettings({
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Notification'
       >
-        <ChipModalHeader showDivider={false}>Delete Notification</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteDialog(false)}>
+          Delete Notification
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             <span className='text-[var(--text-error)]'>
@@ -1290,24 +1283,15 @@ export const NotificationSettings = memo(function NotificationSettings({
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            disabled={deleteNotification.isPending}
-            onClick={() => setShowDeleteDialog(false)}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDelete}
-            disabled={deleteNotification.isPending}
-          >
-            {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteDialog(false)}
+          primaryAction={{
+            label: deleteNotification.isPending ? 'Deleting...' : 'Delete',
+            onClick: handleDelete,
+            disabled: deleteNotification.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

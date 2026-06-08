@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import {
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -129,19 +128,14 @@ export function CreateWorkflowMcpServerModal({
         </ChipModalField>
         <ChipModalError>{createServerMutation.error?.message}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleCreateServer}
-          disabled={!isFormValid || createServerMutation.isPending}
-        >
-          {createServerMutation.isPending ? 'Adding...' : 'Add Server'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        primaryAction={{
+          label: createServerMutation.isPending ? 'Adding...' : 'Add Server',
+          onClick: handleCreateServer,
+          disabled: !isFormValid || createServerMutation.isPending,
+        }}
+      />
     </ChipModal>
   )
 }

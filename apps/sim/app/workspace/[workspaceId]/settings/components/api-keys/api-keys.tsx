@@ -344,7 +344,7 @@ export function ApiKeys() {
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete API key'
       >
-        <ChipModalHeader showDivider={false}>Delete API key</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteDialog(false)}>Delete API key</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Deleting{' '}
@@ -355,27 +355,18 @@ export function ApiKeys() {
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setShowDeleteDialog(false)
-              setDeleteKey(null)
-            }}
-            disabled={deleteApiKeyMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDeleteKey}
-            disabled={deleteApiKeyMutation.isPending}
-          >
-            {deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => {
+            setShowDeleteDialog(false)
+            setDeleteKey(null)
+          }}
+          primaryAction={{
+            label: deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete',
+            onClick: handleDeleteKey,
+            disabled: deleteApiKeyMutation.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </div>
   )

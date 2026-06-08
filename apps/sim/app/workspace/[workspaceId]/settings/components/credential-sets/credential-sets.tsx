@@ -781,19 +781,14 @@ export function CredentialSets() {
           </ChipModalField>
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleCloseCreateModal}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleCreateCredentialSet}
-            disabled={!newSetName.trim() || createCredentialSet.isPending}
-          >
-            {createCredentialSet.isPending ? 'Creating...' : 'Create'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={handleCloseCreateModal}
+          primaryAction={{
+            label: createCredentialSet.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreateCredentialSet,
+            disabled: !newSetName.trim() || createCredentialSet.isPending,
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -801,7 +796,9 @@ export function CredentialSets() {
         onOpenChange={() => setLeavingMembership(null)}
         srTitle='Leave Polling Group'
       >
-        <ChipModalHeader showDivider={false}>Leave Polling Group</ChipModalHeader>
+        <ChipModalHeader onClose={() => setLeavingMembership(null)}>
+          Leave Polling Group
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to leave{' '}
@@ -811,19 +808,15 @@ export function CredentialSets() {
             ? Your email account will no longer be polled in workflows using this group.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setLeavingMembership(null)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmLeave}
-            disabled={leaveCredentialSet.isPending}
-          >
-            {leaveCredentialSet.isPending ? 'Leaving...' : 'Leave'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setLeavingMembership(null)}
+          primaryAction={{
+            label: leaveCredentialSet.isPending ? 'Leaving...' : 'Leave',
+            onClick: confirmLeave,
+            disabled: leaveCredentialSet.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -831,7 +824,7 @@ export function CredentialSets() {
         onOpenChange={() => setDeletingSet(null)}
         srTitle='Delete Polling Group'
       >
-        <ChipModalHeader showDivider={false}>Delete Polling Group</ChipModalHeader>
+        <ChipModalHeader onClose={() => setDeletingSet(null)}>Delete Polling Group</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -839,19 +832,15 @@ export function CredentialSets() {
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setDeletingSet(null)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmDelete}
-            disabled={deleteCredentialSet.isPending}
-          >
-            {deleteCredentialSet.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setDeletingSet(null)}
+          primaryAction={{
+            label: deleteCredentialSet.isPending ? 'Deleting...' : 'Delete',
+            onClick: confirmDelete,
+            disabled: deleteCredentialSet.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

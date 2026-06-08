@@ -6,7 +6,6 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
@@ -1144,54 +1143,42 @@ try {
 
         {activeSection === 'schema' && (
           <ChipModalFooter
-            leading={
-              isEditing ? (
-                <Chip variant='destructive' flush onClick={() => setShowDeleteConfirm(true)}>
-                  Delete
-                </Chip>
-              ) : undefined
+            onCancel={handleClose}
+            secondaryAction={
+              isEditing
+                ? {
+                    label: 'Delete',
+                    onClick: () => setShowDeleteConfirm(true),
+                    variant: 'destructive',
+                  }
+                : undefined
             }
-          >
-            <Chip variant='filled' flush onClick={handleClose}>
-              Cancel
-            </Chip>
-            <Chip
-              variant='primary'
-              flush
-              onClick={() => setActiveSection('code')}
-              disabled={!isSchemaValid || !!schemaError}
-            >
-              Next
-            </Chip>
-          </ChipModalFooter>
+            primaryAction={{
+              label: 'Next',
+              onClick: () => setActiveSection('code'),
+              disabled: !isSchemaValid || !!schemaError,
+            }}
+          />
         )}
 
         {activeSection === 'code' && (
           <ChipModalFooter
-            leading={
-              isEditing ? (
-                <Chip variant='destructive' flush onClick={() => setShowDeleteConfirm(true)}>
-                  Delete
-                </Chip>
-              ) : (
-                <Chip variant='filled' flush onClick={() => setActiveSection('schema')}>
-                  Back
-                </Chip>
-              )
+            onCancel={handleClose}
+            secondaryAction={
+              isEditing
+                ? {
+                    label: 'Delete',
+                    onClick: () => setShowDeleteConfirm(true),
+                    variant: 'destructive',
+                  }
+                : { label: 'Back', onClick: () => setActiveSection('schema') }
             }
-          >
-            <Chip variant='filled' flush onClick={handleClose}>
-              Cancel
-            </Chip>
-            <Chip
-              variant='primary'
-              flush
-              onClick={handleSave}
-              disabled={!isSchemaValid || !!schemaError || !hasChanges}
-            >
-              {isEditing ? 'Update Tool' : 'Save Tool'}
-            </Chip>
-          </ChipModalFooter>
+            primaryAction={{
+              label: isEditing ? 'Update Tool' : 'Save Tool',
+              onClick: handleSave,
+              disabled: !isSchemaValid || !!schemaError || !hasChanges,
+            }}
+          />
         )}
       </ChipModal>
 
@@ -1200,7 +1187,9 @@ try {
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Custom Tool'
       >
-        <ChipModalHeader showDivider={false}>Delete Custom Tool</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteConfirm(false)}>
+          Delete Custom Tool
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             <span className='text-[var(--text-error)]'>
@@ -1210,24 +1199,15 @@ try {
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteConfirm(false)}
-            disabled={deleteToolMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDelete}
-            disabled={deleteToolMutation.isPending}
-          >
-            {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteConfirm(false)}
+          primaryAction={{
+            label: deleteToolMutation.isPending ? 'Deleting...' : 'Delete',
+            onClick: handleDelete,
+            disabled: deleteToolMutation.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -1235,20 +1215,22 @@ try {
         onOpenChange={setShowDiscardAlert}
         srTitle='Unsaved Changes'
       >
-        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDiscardAlert(false)}>
+          Unsaved Changes
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             You have unsaved changes. Are you sure you want to discard them?
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowDiscardAlert(false)}>
-            Keep Editing
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleConfirmDiscard}>
-            Discard Changes
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDiscardAlert(false)}
+          primaryAction={{
+            label: 'Discard Changes',
+            onClick: handleConfirmDiscard,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

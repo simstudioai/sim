@@ -8,7 +8,6 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -419,7 +418,9 @@ export function ChatDeploy({
         onOpenChange={setShowDeleteConfirmation}
         srTitle='Delete Chat'
       >
-        <ChipModalHeader showDivider={false}>Delete Chat</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteConfirmation(false)}>
+          Delete Chat
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -434,24 +435,15 @@ export function ChatDeploy({
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteConfirmation(false)}
-            disabled={deleteChatMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDelete}
-            disabled={deleteChatMutation.isPending}
-          >
-            {deleteChatMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteConfirmation(false)}
+          primaryAction={{
+            label: deleteChatMutation.isPending ? 'Deleting...' : 'Delete',
+            onClick: handleDelete,
+            disabled: deleteChatMutation.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

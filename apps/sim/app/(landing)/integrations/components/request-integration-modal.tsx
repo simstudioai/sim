@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from 'react'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -138,32 +137,21 @@ export function RequestIntegrationModal() {
           )}
         </ChipModalBody>
 
-        <ChipModalFooter>
-          {status === 'success' ? (
-            <Chip variant='primary' flush onClick={() => handleOpenChange(false)}>
-              Done
-            </Chip>
-          ) : (
-            <>
-              <Chip
-                variant='filled'
-                flush
-                onClick={() => setOpen(false)}
-                disabled={status === 'submitting'}
-              >
-                Cancel
-              </Chip>
-              <Chip
-                variant='primary'
-                flush
-                onClick={handleSubmit}
-                disabled={!canSubmit && status !== 'error'}
-              >
-                {status === 'submitting' ? 'Submitting...' : 'Submit request'}
-              </Chip>
-            </>
-          )}
-        </ChipModalFooter>
+        {status === 'success' ? (
+          <ChipModalFooter
+            onCancel={() => handleOpenChange(false)}
+            primaryAction={{ label: 'Done', onClick: () => handleOpenChange(false) }}
+          />
+        ) : (
+          <ChipModalFooter
+            onCancel={() => setOpen(false)}
+            primaryAction={{
+              label: status === 'submitting' ? 'Submitting...' : 'Submit request',
+              onClick: handleSubmit,
+              disabled: !canSubmit && status !== 'error',
+            }}
+          />
+        )}
       </ChipModal>
     </>
   )

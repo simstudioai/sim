@@ -211,7 +211,7 @@ export function Skills() {
       />
 
       <ChipModal open={showDeleteDialog} onOpenChange={setShowDeleteDialog} srTitle='Delete Skill'>
-        <ChipModalHeader showDivider={false}>Delete Skill</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteDialog(false)}>Delete Skill</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -219,14 +219,14 @@ export function Skills() {
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowDeleteDialog(false)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDeleteSkill}>
-            Delete
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteDialog(false)}
+          primaryAction={{
+            label: 'Delete',
+            onClick: handleDeleteSkill,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </div>
   )

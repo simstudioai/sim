@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
 import {
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -596,7 +595,14 @@ export function Tables() {
         onOpenChange={setIsDeleteDialogOpen}
         srTitle='Delete Table'
       >
-        <ChipModalHeader showDivider={false}>Delete Table</ChipModalHeader>
+        <ChipModalHeader
+          onClose={() => {
+            setIsDeleteDialogOpen(false)
+            setActiveTable(null)
+          }}
+        >
+          Delete Table
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -607,22 +613,18 @@ export function Tables() {
             You can restore it from Recently Deleted in Settings.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setIsDeleteDialogOpen(false)
-              setActiveTable(null)
-            }}
-            disabled={deleteTable.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDelete} disabled={deleteTable.isPending}>
-            {deleteTable.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => {
+            setIsDeleteDialogOpen(false)
+            setActiveTable(null)
+          }}
+          primaryAction={{
+            label: deleteTable.isPending ? 'Deleting...' : 'Delete',
+            onClick: handleDelete,
+            disabled: deleteTable.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

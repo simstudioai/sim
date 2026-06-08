@@ -7,7 +7,6 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -1878,20 +1877,22 @@ export function Files() {
             onOpenChange={setShowUnsavedChangesAlert}
             srTitle='Unsaved Changes'
           >
-            <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+            <ChipModalHeader onClose={() => setShowUnsavedChangesAlert(false)}>
+              Unsaved Changes
+            </ChipModalHeader>
             <ChipModalBody>
               <p className='px-2 text-[var(--text-secondary)] text-sm'>
                 You have unsaved changes. Are you sure you want to discard them?
               </p>
             </ChipModalBody>
-            <ChipModalFooter>
-              <Chip variant='filled' flush onClick={() => setShowUnsavedChangesAlert(false)}>
-                Keep Editing
-              </Chip>
-              <Chip variant='destructive' flush onClick={handleDiscardChanges}>
-                Discard Changes
-              </Chip>
-            </ChipModalFooter>
+            <ChipModalFooter
+              onCancel={() => setShowUnsavedChangesAlert(false)}
+              primaryAction={{
+                label: 'Discard Changes',
+                onClick: handleDiscardChanges,
+                variant: 'destructive',
+              }}
+            />
           </ChipModal>
         </div>
 

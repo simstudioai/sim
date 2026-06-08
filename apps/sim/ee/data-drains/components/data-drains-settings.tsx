@@ -331,7 +331,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Drain'
       >
-        <ChipModalHeader showDivider={false}>Delete Drain</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteConfirm(false)}>Delete Drain</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -339,24 +339,15 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
             action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteConfirm(false)}
-            disabled={deleteMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleConfirmDelete}
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteConfirm(false)}
+          primaryAction={{
+            label: deleteMutation.isPending ? 'Deleting...' : 'Delete',
+            onClick: handleConfirmDelete,
+            disabled: deleteMutation.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )
@@ -501,19 +492,14 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
           <spec.FormFields state={destState} setState={setDestState} />
         </section>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={onClose} disabled={createMutation.isPending}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleSubmit}
-          disabled={!canSubmit || createMutation.isPending}
-        >
-          {createMutation.isPending ? 'Creating...' : 'Create drain'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={onClose}
+        primaryAction={{
+          label: createMutation.isPending ? 'Creating...' : 'Create drain',
+          onClick: handleSubmit,
+          disabled: !canSubmit || createMutation.isPending,
+        }}
+      />
     </ChipModal>
   )
 }

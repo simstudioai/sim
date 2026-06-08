@@ -19,7 +19,6 @@ import {
   Badge,
   Button,
   Checkbox,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
@@ -183,6 +182,24 @@ export function ConnectorsSection({
     [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
   )
 
+  const handleDeleteConnector = () => {
+    if (!deleteTarget) return
+    deleteConnector(
+      { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
+      {
+        onSuccess: () => {
+          setError(null)
+          closeDeleteModal()
+        },
+        onError: (err) => {
+          logger.error('Delete connector failed', { error: err.message })
+          setError(err.message)
+          closeDeleteModal()
+        },
+      }
+    )
+  }
+
   if (connectors.length === 0 && !canEdit && !isLoading) return null
 
   return (
@@ -245,7 +262,7 @@ export function ConnectorsSection({
         onOpenChange={closeDeleteModal}
         srTitle='Remove Connector'
       >
-        <ChipModalHeader showDivider={false}>Remove Connector</ChipModalHeader>
+        <ChipModalHeader onClose={closeDeleteModal}>Remove Connector</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             This will disconnect the source and stop future syncs. Documents already synced will
@@ -265,36 +282,15 @@ export function ConnectorsSection({
             </label>
           </div>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={closeDeleteModal} disabled={isDeleting}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            disabled={isDeleting}
-            onClick={() => {
-              if (deleteTarget) {
-                deleteConnector(
-                  { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
-                  {
-                    onSuccess: () => {
-                      setError(null)
-                      closeDeleteModal()
-                    },
-                    onError: (err) => {
-                      logger.error('Delete connector failed', { error: err.message })
-                      setError(err.message)
-                      closeDeleteModal()
-                    },
-                  }
-                )
-              }
-            }}
-          >
-            {isDeleting ? 'Removing...' : 'Remove'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={closeDeleteModal}
+          primaryAction={{
+            label: isDeleting ? 'Removing...' : 'Remove',
+            onClick: handleDeleteConnector,
+            disabled: isDeleting,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </div>
   )

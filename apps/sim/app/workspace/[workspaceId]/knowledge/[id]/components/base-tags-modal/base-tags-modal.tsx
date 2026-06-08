@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
-  Chip,
   ChipCombobox,
   ChipInput,
   ChipModal,
@@ -397,11 +396,10 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           </div>
         </ChipModalBody>
 
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => handleClose(false)}>
-            Close
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => handleClose(false)}
+          primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
+        />
       </ChipModal>
 
       {/* Delete Tag Confirmation Dialog */}
@@ -410,7 +408,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         onOpenChange={setDeleteTagDialogOpen}
         srTitle='Delete Tag'
       >
-        <ChipModalHeader showDivider={false}>Delete Tag</ChipModalHeader>
+        <ChipModalHeader onClose={() => setDeleteTagDialogOpen(false)}>Delete Tag</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete the &ldquo;
@@ -432,24 +430,15 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             </div>
           )}
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            disabled={deleteTagMutation.isPending}
-            onClick={() => setDeleteTagDialogOpen(false)}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmDeleteTag}
-            disabled={deleteTagMutation.isPending}
-          >
-            {deleteTagMutation.isPending ? 'Deleting...' : 'Delete Tag'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setDeleteTagDialogOpen(false)}
+          primaryAction={{
+            label: deleteTagMutation.isPending ? 'Deleting...' : 'Delete Tag',
+            onClick: confirmDeleteTag,
+            disabled: deleteTagMutation.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       {/* View Documents Dialog */}
@@ -485,11 +474,10 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             )}
           </div>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setViewDocumentsDialogOpen(false)}>
-            Close
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setViewDocumentsDialogOpen(false)}
+          primaryAction={{ label: 'Close', onClick: () => setViewDocumentsDialogOpen(false) }}
+        />
       </ChipModal>
     </>
   )

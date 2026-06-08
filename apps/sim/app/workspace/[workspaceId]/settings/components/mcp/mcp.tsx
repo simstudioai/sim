@@ -697,7 +697,9 @@ export function MCP({ initialServerId }: MCPProps) {
         }}
         srTitle='Delete MCP Server'
       >
-        <ChipModalHeader showDivider={false}>Delete MCP Server</ChipModalHeader>
+        <ChipModalHeader onClose={() => setServerToDeleteId(null)}>
+          Delete MCP Server
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -707,14 +709,10 @@ export function MCP({ initialServerId }: MCPProps) {
             ? This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setServerToDeleteId(null)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={confirmDeleteServer}>
-            Delete
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setServerToDeleteId(null)}
+          primaryAction={{ label: 'Delete', onClick: confirmDeleteServer, variant: 'destructive' }}
+        />
       </ChipModal>
     </>
   )

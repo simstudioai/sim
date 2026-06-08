@@ -63,6 +63,7 @@ import {
   SKILL_CHIP_TRIGGER,
   stripMentionTrigger,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
@@ -138,9 +139,11 @@ interface UserInputProps {
 
 export interface UserInputHandle {
   loadQueuedMessage: (msg: QueuedMessage) => void
-  /** Populates the textarea with `text` (running it through auto-mention
-   * chipification), focuses the input, and places the caret at the end.
-   * Does NOT submit. Safe to call with the same text twice in a row. */
+  /** Populates the textarea with a CURATED prompt (suggested action, template,
+   * etc. — never free-form user prose), running it through `mentionifyIntegrations`
+   * (bare `Slack` → `@Slack`) and then auto-mention chipification so integration
+   * names chip with brand icons. Focuses the input and places the caret at the
+   * end. Does NOT submit. Safe to call with the same text twice in a row. */
   populatePrompt: (text: string) => void
 }
 
@@ -377,6 +380,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
    * mounted. Mirrors the previously inline render-phase derivation but
    * now runs the prompt through `applyToText` so integration `@`-mentions
    * get chipified consistently with paste / draft restore flows.
+   *
+   * Deliberately does NOT run `mentionifyIntegrations` here: `defaultValue` is
+   * seeded from `LandingPromptStorage`, whose producers include the free-form
+   * landing prompt panel as well as curated CTAs. Curated producers opt their
+   * bare names in at the store seam (`storeCuratedPrompt`), so prose seeded here
+   * is never bare-chipped (the scunthorpe constraint).
    */
   useEffect(() => {
     if (defaultValue === prevDefaultValueRef.current) return
@@ -465,7 +474,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         focusTextareaAtEnd()
       },
       populatePrompt: (text: string) => {
-        setValue(applyAutoMentions(text))
+        // `text` is a curated prompt, so opt its bare integration names into
+        // `@`-mention form before chipification (the auto-mention pipeline only
+        // chips already-`@`-prefixed names). Curated prompts arriving via the
+        // `defaultValue` seed are mentionified at their producer instead, since
+        // that path is also reused for free-form landing prose.
+        setValue(applyAutoMentions(mentionifyIntegrations(text)))
         focusTextareaAtEnd()
       },
     }),

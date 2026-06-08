@@ -10,7 +10,6 @@ import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -348,31 +347,20 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
           </div>
         </ChipModalBody>
 
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => onOpenChange(false)}
-            type='button'
-            disabled={helpMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            type='submit'
-            variant='primary'
-            flush
-            disabled={helpMutation.isPending || isProcessing}
-          >
-            {helpMutation.isPending
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          primaryAction={{
+            label: helpMutation.isPending
               ? 'Submitting...'
               : submitStatus === 'error'
                 ? 'Error'
                 : submitStatus === 'success'
                   ? 'Success'
-                  : 'Submit'}
-          </Chip>
-        </ChipModalFooter>
+                  : 'Submit',
+            onClick: () => void handleSubmit(onSubmit)(),
+            disabled: helpMutation.isPending || isProcessing,
+          }}
+        />
       </form>
     </ChipModal>
   )

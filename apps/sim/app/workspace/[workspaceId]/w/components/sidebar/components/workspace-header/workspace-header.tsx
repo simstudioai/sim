@@ -689,7 +689,9 @@ function WorkspaceHeaderImpl({
         onOpenChange={() => setIsLeaveModalOpen(false)}
         srTitle='Leave workspace'
       >
-        <ChipModalHeader showDivider={false}>Leave workspace</ChipModalHeader>
+        <ChipModalHeader onClose={() => setIsLeaveModalOpen(false)}>
+          Leave workspace
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to leave{' '}
@@ -698,24 +700,15 @@ function WorkspaceHeaderImpl({
             undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setIsLeaveModalOpen(false)}
-            disabled={isLeavingWorkspace}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleLeaveWorkspace}
-            disabled={isLeavingWorkspace}
-          >
-            {isLeavingWorkspace ? 'Leaving...' : 'Leave workspace'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setIsLeaveModalOpen(false)}
+          primaryAction={{
+            label: isLeavingWorkspace ? 'Leaving...' : 'Leave workspace',
+            onClick: handleLeaveWorkspace,
+            disabled: isLeavingWorkspace,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </div>
   )

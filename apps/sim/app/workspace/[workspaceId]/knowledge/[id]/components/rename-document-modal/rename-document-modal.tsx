@@ -4,7 +4,6 @@ import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -102,19 +101,14 @@ export function RenameDocumentModal({
         />
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={() => void handleSubmit()}
-          disabled={isSubmitting || !name?.trim() || name.trim() === initialName}
-        >
-          {isSubmitting ? 'Renaming...' : 'Rename'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        primaryAction={{
+          label: isSubmitting ? 'Renaming...' : 'Rename',
+          onClick: () => void handleSubmit(),
+          disabled: isSubmitting || !name?.trim() || name.trim() === initialName,
+        }}
+      />
     </ChipModal>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
+import { ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { useDeleteChunk } from '@/hooks/queries/kb/knowledge'
 
@@ -31,22 +31,21 @@ export function DeleteChunkModal({
 
   return (
     <ChipModal open={isOpen} onOpenChange={onClose} srTitle='Delete Chunk'>
-      <ChipModalHeader onClose={onClose} showDivider={false}>
-        Delete Chunk
-      </ChipModalHeader>
+      <ChipModalHeader onClose={onClose}>Delete Chunk</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
           Are you sure you want to delete this chunk? This action cannot be undone.
         </p>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush disabled={isDeleting} onClick={onClose}>
-          Cancel
-        </Chip>
-        <Chip variant='destructive' flush onClick={handleDeleteChunk} disabled={isDeleting}>
-          {isDeleting ? <>Deleting…</> : <>Delete</>}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={onClose}
+        primaryAction={{
+          label: isDeleting ? 'Deleting…' : 'Delete',
+          onClick: handleDeleteChunk,
+          disabled: isDeleting,
+          variant: 'destructive',
+        }}
+      />
     </ChipModal>
   )
 }

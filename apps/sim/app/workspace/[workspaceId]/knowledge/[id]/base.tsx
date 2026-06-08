@@ -11,7 +11,6 @@ import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
-  Chip,
   ChipDatePicker,
   ChipDropdown,
   type ChipDropdownOption,
@@ -1197,7 +1196,9 @@ export function KnowledgeBase({
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Knowledge Base'
       >
-        <ChipModalHeader showDivider={false}>Delete Knowledge Base</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteDialog(false)}>
+          Delete Knowledge Base
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -1209,24 +1210,15 @@ export function KnowledgeBase({
             You can restore it from Recently Deleted in Settings.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteDialog(false)}
-            disabled={isDeleting}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDeleteKnowledgeBase}
-            disabled={isDeleting}
-          >
-            {isDeleting ? 'Deleting...' : 'Delete Knowledge Base'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteDialog(false)}
+          primaryAction={{
+            label: isDeleting ? 'Deleting...' : 'Delete Knowledge Base',
+            onClick: handleDeleteKnowledgeBase,
+            disabled: isDeleting,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -1234,7 +1226,14 @@ export function KnowledgeBase({
         onOpenChange={setShowDeleteDocumentModal}
         srTitle='Delete Document'
       >
-        <ChipModalHeader showDivider={false}>Delete Document</ChipModalHeader>
+        <ChipModalHeader
+          onClose={() => {
+            setShowDeleteDocumentModal(false)
+            setDocumentToDelete(null)
+          }}
+        >
+          Delete Document
+        </ChipModalHeader>
         <ChipModalBody>
           {(() => {
             const docToDelete = documents.find((doc) => doc.id === documentToDelete)
@@ -1262,21 +1261,17 @@ export function KnowledgeBase({
             )
           })()}
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setShowDeleteDocumentModal(false)
-              setDocumentToDelete(null)
-            }}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={confirmDeleteDocument}>
-            Delete Document
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => {
+            setShowDeleteDocumentModal(false)
+            setDocumentToDelete(null)
+          }}
+          primaryAction={{
+            label: 'Delete Document',
+            onClick: confirmDeleteDocument,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -1284,7 +1279,9 @@ export function KnowledgeBase({
         onOpenChange={setShowBulkDeleteModal}
         srTitle='Delete Documents'
       >
-        <ChipModalHeader showDivider={false}>Delete Documents</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowBulkDeleteModal(false)}>
+          Delete Documents
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete {selectedDocuments.size} document
@@ -1296,16 +1293,17 @@ export function KnowledgeBase({
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowBulkDeleteModal(false)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={confirmBulkDelete} disabled={isBulkOperating}>
-            {isBulkOperating
+        <ChipModalFooter
+          onCancel={() => setShowBulkDeleteModal(false)}
+          primaryAction={{
+            label: isBulkOperating
               ? 'Deleting...'
-              : `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`}
-          </Chip>
-        </ChipModalFooter>
+              : `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`,
+            onClick: confirmBulkDelete,
+            disabled: isBulkOperating,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <AddDocumentsModal

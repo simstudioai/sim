@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import {
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -217,6 +216,11 @@ export function ScheduledTasks() {
     } catch (err) {
       logger.error('Failed to delete scheduled task:', err)
     }
+  }
+
+  const handleCancelDelete = () => {
+    setIsDeleteDialogOpen(false)
+    setActiveTask(null)
   }
 
   const handlePause = async () => {
@@ -448,7 +452,9 @@ export function ScheduledTasks() {
         onOpenChange={setIsDeleteDialogOpen}
         srTitle='Delete Scheduled Task'
       >
-        <ChipModalHeader showDivider={false}>Delete Scheduled Task</ChipModalHeader>
+        <ChipModalHeader onClose={() => setIsDeleteDialogOpen(false)}>
+          Delete Scheduled Task
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -458,27 +464,15 @@ export function ScheduledTasks() {
             ? This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setIsDeleteDialogOpen(false)
-              setActiveTask(null)
-            }}
-            disabled={deleteSchedule.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDelete}
-            disabled={deleteSchedule.isPending}
-          >
-            {deleteSchedule.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={handleCancelDelete}
+          primaryAction={{
+            label: deleteSchedule.isPending ? 'Deleting...' : 'Delete',
+            onClick: handleDelete,
+            disabled: deleteSchedule.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

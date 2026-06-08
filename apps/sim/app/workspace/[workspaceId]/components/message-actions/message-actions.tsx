@@ -5,7 +5,6 @@ import { GitBranch } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Check,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -279,14 +278,13 @@ export const MessageActions = memo(function MessageActions({
             }
           />
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => handleModalClose(false)}>
-            Cancel
-          </Chip>
-          <Chip variant='primary' flush onClick={handleSubmitFeedback}>
-            Submit
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => handleModalClose(false)}
+          primaryAction={{
+            label: 'Submit',
+            onClick: handleSubmitFeedback,
+          }}
+        />
       </ChipModal>
     </>
   )

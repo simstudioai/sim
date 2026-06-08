@@ -7,7 +7,6 @@ import {
   AvatarImage,
   Badge,
   Banner,
-  Chip,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -87,7 +86,7 @@ export function TransferOwnershipDialog({
 
   return (
     <ChipModal open={open} onOpenChange={handleClose} srTitle='Leave organization'>
-      <ChipModalHeader showDivider={false}>Leave organization</ChipModalHeader>
+      <ChipModalHeader onClose={() => handleClose(false)}>Leave organization</ChipModalHeader>
       <ChipModalBody>
         {isLoadingMembers ? (
           <div className='space-y-3'>
@@ -204,19 +203,15 @@ export function TransferOwnershipDialog({
           </p>
         )}
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => handleClose(false)} disabled={isSubmitting}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='destructive'
-          flush
-          onClick={handleConfirm}
-          disabled={!selectedUserId || isSubmitting || !hasCandidates || isLoadingMembers}
-        >
-          {isSubmitting ? 'Transferring...' : 'Transfer & leave'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => handleClose(false)}
+        primaryAction={{
+          label: isSubmitting ? 'Transferring...' : 'Transfer & leave',
+          onClick: handleConfirm,
+          disabled: !selectedUserId || isSubmitting || !hasCandidates || isLoadingMembers,
+          variant: 'destructive',
+        }}
+      />
     </ChipModal>
   )
 }

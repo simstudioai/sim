@@ -1,5 +1,4 @@
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -38,9 +37,7 @@ export function RemoveMemberDialog({
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
-      <ChipModalHeader onClose={() => onOpenChange(false)} showDivider={false}>
-        {title}
-      </ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{title}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
           {isSelfRemoval ? (
@@ -66,14 +63,15 @@ export function RemoveMemberDialog({
           {error instanceof Error && error.message ? error.message : error ? String(error) : null}
         </ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush disabled={isSubmitting} onClick={onCancel}>
-          Cancel
-        </Chip>
-        <Chip variant='destructive' flush disabled={isSubmitting} onClick={() => onConfirmRemove()}>
-          {isSelfRemoval ? 'Leave Organization' : 'Remove'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={onCancel}
+        primaryAction={{
+          label: isSelfRemoval ? 'Leave Organization' : 'Remove',
+          onClick: () => onConfirmRemove(),
+          disabled: isSubmitting,
+          variant: 'destructive',
+        }}
+      />
     </ChipModal>
   )
 }

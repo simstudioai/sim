@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Checkbox,
-  Chip,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -103,8 +102,8 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     deleteRowMutation.isPending ||
     deleteRowsMutation.isPending
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleFormSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
     setError(null)
 
     try {
@@ -158,7 +157,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         onOpenChange={handleClose}
         srTitle={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
       >
-        <ChipModalHeader showDivider={false}>
+        <ChipModalHeader onClose={handleClose}>
           Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}
         </ChipModalHeader>
         <ChipModalBody>
@@ -176,14 +175,15 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleClose} disabled={isSubmitting}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDelete} disabled={isSubmitting}>
-            {isSubmitting ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={handleClose}
+          primaryAction={{
+            label: isSubmitting ? 'Deleting...' : 'Delete',
+            onClick: handleDelete,
+            disabled: isSubmitting,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     )
   }
@@ -219,20 +219,20 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           ))}
         </form>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={handleClose} disabled={isSubmitting}>
-          Cancel
-        </Chip>
-        <Chip variant='primary' flush onClick={handleFormSubmit} disabled={isSubmitting}>
-          {isSubmitting
+      <ChipModalFooter
+        onCancel={handleClose}
+        primaryAction={{
+          label: isSubmitting
             ? isAddMode
               ? 'Adding...'
               : 'Updating...'
             : isAddMode
               ? 'Add Row'
-              : 'Update Row'}
-        </Chip>
-      </ChipModalFooter>
+              : 'Update Row',
+          onClick: handleFormSubmit,
+          disabled: isSubmitting,
+        }}
+      />
     </ChipModal>
   )
 }
@@ -285,7 +285,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           onChange={(e) => onChange(e.target.value)}
           placeholder='{"key": "value"}'
           rows={4}
-          className='font-mono text-caption'
+          className='font-mono'
           required={column.required}
         />
       ) : column.type === 'date' ? (

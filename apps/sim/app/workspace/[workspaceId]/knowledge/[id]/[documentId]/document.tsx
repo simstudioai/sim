@@ -6,7 +6,6 @@ import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Badge,
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -76,20 +75,20 @@ function UnsavedChangesModal({
 }: UnsavedChangesModalProps) {
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Unsaved Changes'>
-      <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Unsaved Changes</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
           You have unsaved changes. Are you sure you want to discard them?
         </p>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={onKeepEditing}>
-          Keep Editing
-        </Chip>
-        <Chip variant='destructive' flush onClick={onDiscard}>
-          Discard Changes
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={onKeepEditing}
+        primaryAction={{
+          label: 'Discard Changes',
+          onClick: onDiscard,
+          variant: 'destructive',
+        }}
+      />
     </ChipModal>
   )
 }
@@ -1206,7 +1205,9 @@ export function Document({
         onOpenChange={setShowDeleteDocumentDialog}
         srTitle='Delete Document'
       >
-        <ChipModalHeader showDivider={false}>Delete Document</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteDocumentDialog(false)}>
+          Delete Document
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -1226,24 +1227,15 @@ export function Document({
             )}
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteDocumentDialog(false)}
-            disabled={isDeletingDocument}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDeleteDocument}
-            disabled={isDeletingDocument}
-          >
-            {isDeletingDocument ? 'Deleting...' : 'Delete Document'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteDocumentDialog(false)}
+          primaryAction={{
+            label: isDeletingDocument ? 'Deleting...' : 'Delete Document',
+            onClick: handleDeleteDocument,
+            disabled: isDeletingDocument,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <ChunkContextMenu

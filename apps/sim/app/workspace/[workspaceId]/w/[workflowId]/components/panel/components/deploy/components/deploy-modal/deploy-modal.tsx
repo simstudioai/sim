@@ -8,7 +8,6 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
@@ -840,7 +839,9 @@ export function DeployModal({
         }}
         srTitle='Undeploy API'
       >
-        <ChipModalHeader showDivider={false}>Undeploy API</ChipModalHeader>
+        <ChipModalHeader onClose={() => setUndeployTargetWorkflowId(null)}>
+          Undeploy API
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to undeploy this workflow?{' '}
@@ -849,19 +850,15 @@ export function DeployModal({
             </span>
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setUndeployTargetWorkflowId(null)}
-            disabled={isUndeploying}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleUndeploy} disabled={isUndeploying}>
-            {isUndeploying ? 'Undeploying...' : 'Undeploy'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setUndeployTargetWorkflowId(null)}
+          primaryAction={{
+            label: isUndeploying ? 'Undeploying...' : 'Undeploy',
+            onClick: handleUndeploy,
+            disabled: isUndeploying,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -869,7 +866,9 @@ export function DeployModal({
         onOpenChange={setShowA2aDeleteConfirm}
         srTitle='Delete A2A Agent'
       >
-        <ChipModalHeader showDivider={false}>Delete A2A Agent</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowA2aDeleteConfirm(false)}>
+          Delete A2A Agent
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -883,19 +882,15 @@ export function DeployModal({
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowA2aDeleteConfirm(false)}
-            disabled={a2aSubmitting}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleA2aDelete} disabled={a2aSubmitting}>
-            {a2aSubmitting ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowA2aDeleteConfirm(false)}
+          primaryAction={{
+            label: a2aSubmitting ? 'Deleting...' : 'Delete',
+            onClick: handleA2aDelete,
+            disabled: a2aSubmitting,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <CreateApiKeyModal

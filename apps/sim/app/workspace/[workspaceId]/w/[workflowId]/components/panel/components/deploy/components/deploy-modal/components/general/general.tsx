@@ -6,7 +6,6 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
@@ -279,7 +278,7 @@ export function GeneralDeploy({
       </div>
 
       <ChipModal open={showLoadDialog} onOpenChange={setShowLoadDialog} srTitle='Load Deployment'>
-        <ChipModalHeader showDivider={false}>Load Deployment</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowLoadDialog(false)}>Load Deployment</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to load{' '}
@@ -292,19 +291,15 @@ export function GeneralDeploy({
             </span>
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowLoadDialog(false)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmLoadDeployment}
-            disabled={revertMutation.isPending}
-          >
-            Load deployment
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowLoadDialog(false)}
+          primaryAction={{
+            label: 'Load deployment',
+            onClick: confirmLoadDeployment,
+            disabled: revertMutation.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -312,7 +307,9 @@ export function GeneralDeploy({
         onOpenChange={setShowPromoteDialog}
         srTitle='Promote to live'
       >
-        <ChipModalHeader showDivider={false}>Promote to live</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowPromoteDialog(false)}>
+          Promote to live
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to promote{' '}
@@ -325,19 +322,14 @@ export function GeneralDeploy({
             </span>
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowPromoteDialog(false)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={confirmPromoteToLive}
-            disabled={isPromotingVersion}
-          >
-            Promote to live
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowPromoteDialog(false)}
+          primaryAction={{
+            label: 'Promote to live',
+            onClick: confirmPromoteToLive,
+            disabled: isPromotingVersion,
+          }}
+        />
       </ChipModal>
 
       {workflowToShow && (

@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -253,7 +252,7 @@ export function DeleteModal({
 
   return (
     <ChipModal open={isOpen} onOpenChange={handleClose} srTitle={title}>
-      <ChipModalHeader showDivider={false}>{title}</ChipModalHeader>
+      <ChipModalHeader onClose={handleClose}>{title}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
           {renderDescription()}{' '}
@@ -276,14 +275,15 @@ export function DeleteModal({
           />
         )}
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={handleClose} disabled={isDeleting}>
-          Cancel
-        </Chip>
-        <Chip variant='destructive' flush onClick={onConfirm} disabled={isDeleting || !isConfirmed}>
-          {isDeleting ? 'Deleting...' : 'Delete'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={handleClose}
+        primaryAction={{
+          label: isDeleting ? 'Deleting...' : 'Delete',
+          onClick: onConfirm,
+          disabled: isDeleting || !isConfirmed,
+          variant: 'destructive',
+        }}
+      />
     </ChipModal>
   )
 }

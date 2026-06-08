@@ -297,7 +297,9 @@ export function ConnectedCredentialDetail({
         onOpenChange={setShowDeleteConfirmDialog}
         srTitle='Disconnect Integration'
       >
-        <ChipModalHeader showDivider={false}>Disconnect Integration</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowDeleteConfirmDialog(false)}>
+          Disconnect Integration
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to disconnect{' '}
@@ -305,21 +307,18 @@ export function ConnectedCredentialDetail({
             ? This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowDeleteConfirmDialog(false)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleConfirmDelete}
-            disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
-          >
-            {disconnectOAuthService.isPending || deleteCredential.isPending
-              ? 'Disconnecting...'
-              : 'Disconnect'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowDeleteConfirmDialog(false)}
+          primaryAction={{
+            label:
+              disconnectOAuthService.isPending || deleteCredential.isPending
+                ? 'Disconnecting...'
+                : 'Disconnect',
+            onClick: handleConfirmDelete,
+            disabled: disconnectOAuthService.isPending || deleteCredential.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       <AddPeopleModal

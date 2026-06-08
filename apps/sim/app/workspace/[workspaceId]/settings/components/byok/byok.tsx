@@ -493,29 +493,19 @@ export function BYOK() {
           </ChipModalField>
           <ChipModalError>{error}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setEditingProvider(null)
-              setApiKeyInput('')
-              setShowApiKey(false)
-              setError(null)
-            }}
-            disabled={upsertKey.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleSave}
-            disabled={!apiKeyInput.trim() || upsertKey.isPending}
-          >
-            {upsertKey.isPending ? 'Saving...' : 'Save'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => {
+            setEditingProvider(null)
+            setApiKeyInput('')
+            setShowApiKey(false)
+            setError(null)
+          }}
+          primaryAction={{
+            label: upsertKey.isPending ? 'Saving...' : 'Save',
+            onClick: handleSave,
+            disabled: !apiKeyInput.trim() || upsertKey.isPending,
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -523,7 +513,9 @@ export function BYOK() {
         onOpenChange={() => setDeleteConfirmProvider(null)}
         srTitle='Delete API Key'
       >
-        <ChipModalHeader showDivider={false}>Delete API Key</ChipModalHeader>
+        <ChipModalHeader onClose={() => setDeleteConfirmProvider(null)}>
+          Delete API Key
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete the{' '}
@@ -537,14 +529,15 @@ export function BYOK() {
             This action cannot be undone.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setDeleteConfirmProvider(null)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDelete} disabled={deleteKey.isPending}>
-            {deleteKey.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setDeleteConfirmProvider(null)}
+          primaryAction={{
+            label: deleteKey.isPending ? 'Deleting...' : 'Delete',
+            onClick: handleDelete,
+            disabled: deleteKey.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </div>
   )

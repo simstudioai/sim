@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
+import { ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
 
 interface DeleteConfirmModalProps {
   open: boolean
@@ -35,9 +35,7 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
-      <ChipModalHeader onClose={() => onOpenChange(false)} showDivider={false}>
-        {title}
-      </ChipModalHeader>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{title}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
           Are you sure you want to delete{' '}
@@ -49,14 +47,15 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
           ? {consequence}
         </p>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isPending}>
-          Cancel
-        </Chip>
-        <Chip variant='destructive' flush onClick={onDelete} disabled={isPending}>
-          {isPending ? 'Deleting...' : 'Delete'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        primaryAction={{
+          label: isPending ? 'Deleting...' : 'Delete',
+          onClick: onDelete,
+          disabled: isPending,
+          variant: 'destructive',
+        }}
+      />
     </ChipModal>
   )
 })

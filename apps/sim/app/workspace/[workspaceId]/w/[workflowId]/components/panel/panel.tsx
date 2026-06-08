@@ -12,7 +12,6 @@ import {
   BubbleChatClose,
   BubbleChatPreview,
   Button,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
@@ -936,7 +935,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         onOpenChange={setIsDeleteModalOpen}
         srTitle='Delete Workflow'
       >
-        <ChipModalHeader showDivider={false}>Delete Workflow</ChipModalHeader>
+        <ChipModalHeader onClose={() => setIsDeleteModalOpen(false)}>
+          Delete Workflow
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to delete{' '}
@@ -950,19 +951,15 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
             You can restore it from Recently Deleted in Settings.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setIsDeleteModalOpen(false)}
-            disabled={isDeleting}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDeleteWorkflow} disabled={isDeleting}>
-            {isDeleting ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setIsDeleteModalOpen(false)}
+          primaryAction={{
+            label: isDeleting ? 'Deleting...' : 'Delete',
+            onClick: handleDeleteWorkflow,
+            disabled: isDeleting,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
 
       {/* Floating Variables Modal */}

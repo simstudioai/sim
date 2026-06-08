@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
+import { ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
 
 interface DeleteKnowledgeBaseModalProps {
   /**
@@ -39,9 +39,7 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
 }: DeleteKnowledgeBaseModalProps) {
   return (
     <ChipModal open={isOpen} onOpenChange={onClose} srTitle='Delete Knowledge Base'>
-      <ChipModalHeader onClose={onClose} showDivider={false}>
-        Delete Knowledge Base
-      </ChipModalHeader>
+      <ChipModalHeader onClose={onClose}>Delete Knowledge Base</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-secondary)] text-sm'>
           {knowledgeBaseName ? (
@@ -63,14 +61,15 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
           You can restore it from Recently Deleted in Settings.
         </p>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={onClose} disabled={isDeleting}>
-          Cancel
-        </Chip>
-        <Chip variant='destructive' flush onClick={onConfirm} disabled={isDeleting}>
-          {isDeleting ? 'Deleting...' : 'Delete'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={onClose}
+        primaryAction={{
+          label: isDeleting ? 'Deleting...' : 'Delete',
+          onClick: onConfirm,
+          disabled: isDeleting,
+          variant: 'destructive',
+        }}
+      />
     </ChipModal>
   )
 })

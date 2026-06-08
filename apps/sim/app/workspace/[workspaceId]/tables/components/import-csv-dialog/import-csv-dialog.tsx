@@ -7,7 +7,6 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -478,30 +477,21 @@ export function ImportCsvDialog({
           </div>
         )}
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip
-          variant='filled'
-          flush
-          onClick={() => onOpenChange(false)}
-          disabled={importMutation.isPending}
-        >
-          Cancel
-        </Chip>
-        <Chip
-          variant={mode === 'replace' ? 'destructive' : 'primary'}
-          flush
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-        >
-          {importMutation.isPending
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        primaryAction={{
+          label: importMutation.isPending
             ? mode === 'replace'
               ? 'Replacing...'
               : 'Importing...'
             : mode === 'replace'
               ? 'Replace rows'
-              : 'Append rows'}
-        </Chip>
-      </ChipModalFooter>
+              : 'Append rows',
+          onClick: handleSubmit,
+          disabled: !canSubmit,
+          variant: mode === 'replace' ? 'destructive' : 'primary',
+        }}
+      />
     </ChipModal>
   )
 }

@@ -28,9 +28,10 @@
  *       <TagInput items={items} onAdd={add} onRemove={remove} variant='block' />
  *     </ChipModalField>
  *   </ChipModalBody>
- *   <ChipModalFooter>
- *     <Chip variant='primary' onClick={send}>Send invites</Chip>
- *   </ChipModalFooter>
+ *   <ChipModalFooter
+ *     onCancel={() => setOpen(false)}
+ *     primaryAction={{ label: 'Send invites', onClick: send }}
+ *   />
  * </ChipModal>
  * ```
  */
@@ -40,6 +41,7 @@
 import * as React from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
+import { Chip, type ChipProps } from '@/components/emcn/components/chip/chip'
 import {
   ChipDropdown,
   type ChipDropdownOption,
@@ -124,34 +126,19 @@ ChipModal.displayName = 'ChipModal'
 export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Optional leading icon. Pass `null`/omit for a title-only header. */
   icon?: React.ComponentType<{ className?: string }> | null
-  /** When provided, renders a trailing close button. */
-  onClose?: () => void
+  /** Invoked when the trailing close button is activated. Always rendered. */
+  onClose: () => void
   /** Accessible label for the close button. */
   closeAriaLabel?: string
-  /**
-   * Whether to render the divider line below the header title.
-   * Set to `false` for compact confirmations (destructive / disconnect flows)
-   * where the body is plain prose rather than labeled fields.
-   * @default true
-   */
-  showDivider?: boolean
 }
 
 /**
- * Header row with optional leading icon, title, and optional trailing close.
- * Renders an inset divider below the title to match the panel's rhythm.
+ * Header row with optional leading icon, title, and a trailing close button.
+ * Always renders an inset divider below the title to match the panel's rhythm.
  */
 const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
   (
-    {
-      className,
-      children,
-      icon: Icon = null,
-      onClose,
-      closeAriaLabel = 'Close',
-      showDivider = true,
-      ...props
-    },
+    { className, children, icon: Icon = null, onClose, closeAriaLabel = 'Close', ...props },
     ref
   ) => (
     <div ref={ref} className={cn('flex flex-col', className)} {...props}>
@@ -160,19 +147,17 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
           {Icon ? <Icon className='size-[12px] flex-shrink-0 text-[var(--text-icon)]' /> : null}
           <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{children}</span>
         </div>
-        {onClose ? (
-          <Button
-            type='button'
-            variant='ghost'
-            onClick={onClose}
-            className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
-          >
-            <X className='size-[14px] text-[var(--text-icon)]' />
-            <span className='sr-only'>{closeAriaLabel}</span>
-          </Button>
-        ) : null}
+        <Button
+          type='button'
+          variant='ghost'
+          onClick={onClose}
+          className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+        >
+          <X className='size-[14px] text-[var(--text-icon)]' />
+          <span className='sr-only'>{closeAriaLabel}</span>
+        </Button>
       </div>
-      {showDivider && <ChipModalSeparator className='mt-3' />}
+      <ChipModalSeparator className='mt-3' />
     </div>
   )
 )
@@ -751,39 +736,86 @@ function ChipModalFileControl({
   )
 }
 
-export interface ChipModalFooterProps extends React.HTMLAttributes<HTMLDivElement> {
+/**
+ * A single footer action button. Rendered internally as a {@link Chip} so every
+ * modal footer stays visually identical — callers describe intent (label,
+ * handler, optional variant), never JSX or chrome. Encode pending state in the
+ * `label` and `disabled` (e.g. `saving ? 'Saving…' : 'Save'`).
+ */
+export interface ChipModalFooterAction {
+  /** Button label. */
+  label: React.ReactNode
+  /** Click handler. */
+  onClick: () => void
+  /** Disables the button. */
+  disabled?: boolean
   /**
-   * Optional leading slot rendered on the left side of the footer — use for
-   * a destructive secondary action (e.g. a Delete button in an edit flow).
-   * When provided, the footer switches to `justify-between` automatically.
+   * Chip variant, restricted to the three footer-appropriate options so a
+   * footer can never drift from the design system.
+   * @default 'primary' for `primaryAction`, 'filled' for `secondaryAction`
    */
-  leading?: React.ReactNode
+  variant?: Extract<ChipProps['variant'], 'primary' | 'destructive' | 'filled'>
+}
+
+export interface ChipModalFooterProps {
+  /**
+   * Dismiss handler for the always-present Cancel button. Like the header's
+   * close (X), Cancel is structural — it always reads "Cancel" and there is no
+   * prop to relabel, remove, or disable it.
+   */
+  onCancel: () => void
+  /** Primary action, anchored bottom-right (e.g. Save, Create, Delete). */
+  primaryAction: ChipModalFooterAction
+  /**
+   * Optional auxiliary action docked to the far-left, opposite the
+   * Cancel/primary cluster — e.g. Delete in an edit flow or Back in a wizard.
+   */
+  secondaryAction?: ChipModalFooterAction
 }
 
 /**
- * Footer row. Renders the leading inset separator and a tinted action bar.
- * Pass `leading` to left-dock a secondary action (e.g. Delete in edit mode);
- * primary actions always go in `children` and are right-aligned.
+ * Footer row with a fixed, declarative shape: an optional far-left
+ * `secondaryAction`, then the always-present Cancel and the right-anchored
+ * `primaryAction`. Buttons are described via {@link ChipModalFooterAction} and
+ * rendered as {@link Chip}s, so no footer can drift from the canonical layout.
  */
-const ChipModalFooter = React.forwardRef<HTMLDivElement, ChipModalFooterProps>(
-  ({ className, leading, children, ...props }, ref) => (
+function ChipModalFooter({ onCancel, primaryAction, secondaryAction }: ChipModalFooterProps) {
+  return (
     <div className='flex flex-col'>
       <ChipModalSeparator />
       <div
-        ref={ref}
         className={cn(
           'flex items-center gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
-          leading ? 'justify-between' : 'justify-end',
-          className
+          secondaryAction ? 'justify-between' : 'justify-end'
         )}
-        {...props}
       >
-        {leading && <div>{leading}</div>}
-        <div className='flex gap-2'>{children}</div>
+        {secondaryAction ? (
+          <Chip
+            variant={secondaryAction.variant ?? 'filled'}
+            flush
+            onClick={secondaryAction.onClick}
+            disabled={secondaryAction.disabled}
+          >
+            {secondaryAction.label}
+          </Chip>
+        ) : null}
+        <div className='flex gap-2'>
+          <Chip variant='filled' flush onClick={onCancel}>
+            Cancel
+          </Chip>
+          <Chip
+            variant={primaryAction.variant ?? 'primary'}
+            flush
+            onClick={primaryAction.onClick}
+            disabled={primaryAction.disabled}
+          >
+            {primaryAction.label}
+          </Chip>
+        </div>
       </div>
     </div>
   )
-)
+}
 
 ChipModalFooter.displayName = 'ChipModalFooter'
 

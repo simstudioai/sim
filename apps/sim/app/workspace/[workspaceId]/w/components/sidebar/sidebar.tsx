@@ -91,7 +91,6 @@ import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
-  useCreateTask,
   useDeleteTask,
   useDeleteTasks,
   useMarkTaskRead,
@@ -109,7 +108,6 @@ import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -589,7 +587,6 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
-  const createTaskMutation = useCreateTask(workspaceId)
   const deleteTaskMutation = useDeleteTask(workspaceId)
   const deleteTasksMutation = useDeleteTasks(workspaceId)
   const markTaskReadMutation = useMarkTaskRead(workspaceId)
@@ -608,7 +605,6 @@ export const Sidebar = memo(function Sidebar() {
     preventDismiss: preventTaskDismiss,
   } = useContextMenu()
 
-  const isCreatingTaskRef = useRef(false)
   const contextMenuSelectionRef = useRef<{ taskIds: string[]; names: string[] }>({
     taskIds: [],
     names: [],
@@ -1134,25 +1130,6 @@ export const Sidebar = memo(function Sidebar() {
     onSelect: handleCreateWorkflow,
   }
 
-  const handleNewTask = useCallback(async () => {
-    if (!workspaceId || isCreatingTaskRef.current) return
-    isCreatingTaskRef.current = true
-    try {
-      const { id } = await createTaskMutation.mutateAsync()
-      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
-      navigateToPage(`/workspace/${workspaceId}/task/${id}`)
-    } catch {
-      navigateToPage(`/workspace/${workspaceId}/home`)
-    } finally {
-      isCreatingTaskRef.current = false
-    }
-  }, [workspaceId, navigateToPage])
-
-  const tasksPrimaryAction = {
-    label: 'New chat',
-    onSelect: handleNewTask,
-  }
-
   const handleSeeMoreTasks = useCallback(() => setVisibleTaskCount((prev) => prev + 5), [])
   const handleSeeLessTasks = useCallback(() => setVisibleTaskCount(5), [])
 
@@ -1239,12 +1216,6 @@ export const Sidebar = memo(function Sidebar() {
         handler: () => {
           if (!canEdit || isCreatingWorkflow) return
           handleCreateWorkflow()
-        },
-      },
-      {
-        id: 'add-task',
-        handler: () => {
-          handleNewTask()
         },
       },
     ])
@@ -1341,27 +1312,6 @@ export const Sidebar = memo(function Sidebar() {
                     <div className='tasks-section flex flex-shrink-0 flex-col'>
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                         <div className='text-[var(--text-muted)] text-small'>Chats</div>
-                        {!isCollapsed && (
-                          <div className='flex items-center justify-center gap-2'>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='quiet'
-                                  className='h-[18px] w-[18px] rounded-sm p-0'
-                                  onClick={handleNewTask}
-                                  disabled={createTaskMutation.isPending}
-                                >
-                                  <Plus className='h-[16px] w-[16px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                <Tooltip.Shortcut keys={isMac ? '⌘⇧K' : 'Ctrl+Shift+K'}>
-                                  New chat
-                                </Tooltip.Shortcut>
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          </div>
-                        )}
                       </div>
                       {isCollapsed ? (
                         <CollapsedSidebarMenu
@@ -1369,7 +1319,6 @@ export const Sidebar = memo(function Sidebar() {
                           hover={tasksHover}
                           ariaLabel='Chats'
                           className='mt-2'
-                          primaryAction={tasksPrimaryAction}
                         >
                           {tasksLoading ? (
                             <DropdownMenuItem disabled>

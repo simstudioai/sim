@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -95,18 +94,20 @@ export function InboxEnableToggle() {
             Leave blank for an auto-generated address.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setIsEnableOpen(false)}>
-            Cancel
-          </Chip>
-          <Chip variant='primary' flush onClick={handleEnable} disabled={toggleInbox.isPending}>
-            Enable
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setIsEnableOpen(false)}
+          primaryAction={{
+            label: 'Enable',
+            onClick: handleEnable,
+            disabled: toggleInbox.isPending,
+          }}
+        />
       </ChipModal>
 
       <ChipModal open={isDisableOpen} onOpenChange={setIsDisableOpen} srTitle='Disable email inbox'>
-        <ChipModalHeader showDivider={false}>Disable email inbox</ChipModalHeader>
+        <ChipModalHeader onClose={() => setIsDisableOpen(false)}>
+          Disable email inbox
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Are you sure you want to disable the inbox
@@ -123,24 +124,15 @@ export function InboxEnableToggle() {
             Your existing conversations and task history will be preserved.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            disabled={toggleInbox.isPending}
-            onClick={() => setIsDisableOpen(false)}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            disabled={toggleInbox.isPending}
-            onClick={handleDisable}
-          >
-            {toggleInbox.isPending ? 'Disabling...' : 'Disable inbox'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setIsDisableOpen(false)}
+          primaryAction={{
+            label: toggleInbox.isPending ? 'Disabling...' : 'Disable inbox',
+            onClick: handleDisable,
+            disabled: toggleInbox.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

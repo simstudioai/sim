@@ -11,7 +11,6 @@ import { z } from 'zod'
 import {
   Button,
   Checkbox,
-  Chip,
   ChipCombobox,
   ChipInput,
   ChipModal,
@@ -578,18 +577,10 @@ export const CreateBaseModal = memo(function CreateBaseModal({
           <ChipModalError>{uploadError?.message || submitStatus?.message}</ChipModalError>
         </ChipModalBody>
 
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => handleClose(false)}
-            type='button'
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='primary' flush type='submit' disabled={isSubmitting || !nameValue?.trim()}>
-            {isSubmitting
+        <ChipModalFooter
+          onCancel={() => handleClose(false)}
+          primaryAction={{
+            label: isSubmitting
               ? isUploading
                 ? uploadProgress.stage === 'uploading'
                   ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
@@ -597,9 +588,11 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                     ? 'Processing...'
                     : 'Creating...'
                 : 'Creating...'
-              : 'Create'}
-          </Chip>
-        </ChipModalFooter>
+              : 'Create',
+            onClick: handleSubmit(onSubmit),
+            disabled: isSubmitting || !nameValue?.trim(),
+          }}
+        />
       </form>
     </ChipModal>
   )

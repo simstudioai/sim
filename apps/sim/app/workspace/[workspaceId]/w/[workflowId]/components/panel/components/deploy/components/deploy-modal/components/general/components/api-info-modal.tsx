@@ -7,7 +7,6 @@ import {
   Badge,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -273,14 +272,14 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
           <ChipModalError>{saveError}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleCloseAttempt} disabled={isSaving}>
-            Cancel
-          </Chip>
-          <Chip variant='primary' flush onClick={handleSave} disabled={!hasChanges || isSaving}>
-            Save
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={handleCloseAttempt}
+          primaryAction={{
+            label: 'Save',
+            onClick: handleSave,
+            disabled: !hasChanges || isSaving,
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -288,20 +287,22 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
         onOpenChange={setShowUnsavedChangesAlert}
         srTitle='Unsaved Changes'
       >
-        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+        <ChipModalHeader onClose={() => setShowUnsavedChangesAlert(false)}>
+          Unsaved Changes
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             You have unsaved changes. Are you sure you want to discard them?
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowUnsavedChangesAlert(false)}>
-            Keep Editing
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDiscardChanges}>
-            Discard Changes
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowUnsavedChangesAlert(false)}
+          primaryAction={{
+            label: 'Discard Changes',
+            onClick: handleDiscardChanges,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

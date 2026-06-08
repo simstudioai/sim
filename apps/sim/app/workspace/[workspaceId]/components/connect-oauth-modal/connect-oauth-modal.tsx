@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   Badge,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -442,14 +441,14 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
         <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='ghost' onClick={handleClose} disabled={isPending}>
-          Cancel
-        </Chip>
-        <Chip variant='primary' onClick={handleConnect} disabled={isDisabled}>
-          {isPending ? 'Connecting...' : 'Connect'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={handleClose}
+        primaryAction={{
+          label: isPending ? 'Connecting...' : 'Connect',
+          onClick: handleConnect,
+          disabled: isDisabled,
+        }}
+      />
     </ChipModal>
   )
 }
