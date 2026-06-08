@@ -164,7 +164,7 @@ Use `url` for direct downloads or `base64` for inline processing.
 
 1. **Use file objects directly** - Pass the full file object rather than extracting individual properties. Blocks handle the conversion automatically.
 
-2. **Check file types** - Ensure the file type matches what the receiving block expects. The Vision block needs images, the File block handles documents.
+2. **Check file types** - Ensure the file type matches what the receiving block expects. An Agent using a vision-capable model can read images, while the File block handles documents.
 
 3. **Consider file size** - Large files increase run time. For very large files, consider using storage blocks (S3, Supabase) for intermediate storage.
 
