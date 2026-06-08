@@ -27,6 +27,7 @@ import {
   gte,
   inArray,
   isNull,
+  lt,
   ne,
   or,
   type SQL,
@@ -1268,38 +1269,42 @@ async function resolveInsertByNeighbor(
   }
 
   if (afterRowId) {
-    // hi = the smallest key strictly after the anchor.
-    const [next] = await trx
-      .select({ orderKey: userTableRows.orderKey })
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.tableId, tableId),
-          sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${anchorKey}, ${afterRowId})`
-        )
-      )
-      .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
-      .limit(1)
+    // hi = the smallest key strictly GREATER than the anchor key. Comparing keys
+    // (not the `(order_key, id)` row tuple) skips past any sibling that shares the
+    // anchor's key, so `keyBetween` always gets strictly-ordered bounds and can't
+    // throw on a stray duplicate. Identical to the row tuple when keys are distinct.
+    // A null anchorKey (flag off, un-backfilled) has no key to compare — leave the
+    // upper bound open, matching the prior best-effort behavior.
+    let nextKey: string | null = null
+    if (anchorKey !== null) {
+      const [next] = await trx
+        .select({ orderKey: userTableRows.orderKey })
+        .from(userTableRows)
+        .where(and(eq(userTableRows.tableId, tableId), gt(userTableRows.orderKey, anchorKey)))
+        .orderBy(asc(userTableRows.orderKey))
+        .limit(1)
+      nextKey = next?.orderKey ?? null
+    }
     return {
-      orderKey: keyBetween(anchorKey, next?.orderKey ?? null),
+      orderKey: keyBetween(anchorKey, nextKey),
       position: anchor.position + 1,
     }
   }
 
-  // beforeRowId: lo = the largest key strictly before the anchor.
-  const [prev] = await trx
-    .select({ orderKey: userTableRows.orderKey })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, tableId),
-        sql`(${userTableRows.orderKey}, ${userTableRows.id}) < (${anchorKey}, ${beforeRowId})`
-      )
-    )
-    .orderBy(desc(userTableRows.orderKey), desc(userTableRows.id))
-    .limit(1)
+  // beforeRowId: lo = the largest key strictly LESS than the anchor key (distinct,
+  // same rationale as the afterRowId branch above).
+  let prevKey: string | null = null
+  if (anchorKey !== null) {
+    const [prev] = await trx
+      .select({ orderKey: userTableRows.orderKey })
+      .from(userTableRows)
+      .where(and(eq(userTableRows.tableId, tableId), lt(userTableRows.orderKey, anchorKey)))
+      .orderBy(desc(userTableRows.orderKey))
+      .limit(1)
+    prevKey = prev?.orderKey ?? null
+  }
   return {
-    orderKey: keyBetween(prev?.orderKey ?? null, anchorKey),
+    orderKey: keyBetween(prevKey, anchorKey),
     position: anchor.position,
   }
 }
