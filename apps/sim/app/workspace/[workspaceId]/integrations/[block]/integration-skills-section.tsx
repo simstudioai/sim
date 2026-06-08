@@ -19,10 +19,11 @@ interface SkillRowProps {
   skill: SuggestedSkill
   added: boolean
   pending: boolean
+  disabled: boolean
   onAdd: () => void
 }
 
-function SkillRow({ skill, added, pending, onAdd }: SkillRowProps) {
+function SkillRow({ skill, added, pending, disabled, onAdd }: SkillRowProps) {
   return (
     <div className='flex items-center gap-2.5 rounded-lg p-2'>
       <SkillTile />
@@ -35,7 +36,7 @@ function SkillRow({ skill, added, pending, onAdd }: SkillRowProps) {
           Added
         </Chip>
       ) : (
-        <Chip variant='primary' leftIcon={Plus} onClick={onAdd} disabled={pending} flush>
+        <Chip variant='primary' leftIcon={Plus} onClick={onAdd} disabled={disabled} flush>
           {pending ? 'Adding...' : 'Add'}
         </Chip>
       )}
@@ -55,8 +56,10 @@ export function IntegrationSkillsSection({
   integrationType,
 }: IntegrationSkillsSectionProps) {
   const posthog = usePostHog()
-  const { data: existingSkills = [] } = useSkills(workspaceId)
+  const { data: existingSkills = [], isPending, isPlaceholderData } = useSkills(workspaceId)
   const createSkill = useCreateSkill()
+  /** List is authoritative for this workspace only once loaded and not `keepPreviousData` placeholder from a prior one. */
+  const skillsReady = !isPending && !isPlaceholderData
   const [pendingNames, setPendingNames] = useState<ReadonlySet<string>>(new Set())
   /** Synchronous in-flight guard — `pendingNames` state updates async, so two rapid clicks could both pass the `disabled` check before a re-render. */
   const inFlightRef = useRef<Set<string>>(new Set())
@@ -97,8 +100,9 @@ export function IntegrationSkillsSection({
           <SkillRow
             key={skill.name}
             skill={skill}
-            added={existingNames.has(skill.name)}
+            added={skillsReady && existingNames.has(skill.name)}
             pending={pendingNames.has(skill.name)}
+            disabled={pendingNames.has(skill.name) || !skillsReady}
             onAdd={() => handleAdd(skill, index)}
           />
         ))}
