@@ -1038,8 +1038,24 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     ]
   )
 
-  /** Last selection reported by the DOM; tells which edge of a range moved, and which way. */
-  const lastSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
+  // Selection one change ago, used to infer which edge of a range moved. Kept
+  // current by the `selectionchange` listener below — which fires on EVERY
+  // caret/selection change (typing, arrows, clicks, programmatic), unlike
+  // `select`/`mouseup` — so the inference is never fed a stale `prev`.
+  const prevSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    let last = { start: 0, end: 0 }
+    const onSelectionChange = () => {
+      if (document.activeElement !== textarea) return
+      prevSelectionRef.current = last
+      last = { start: textarea.selectionStart ?? 0, end: textarea.selectionEnd ?? 0 }
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => document.removeEventListener('selectionchange', onSelectionChange)
+  }, [textareaRef])
 
   /**
    * Keeps mention chips atomic under every selection gesture. A collapsed
@@ -1052,10 +1068,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     if (!textarea) return
     const start = textarea.selectionStart ?? 0
     const end = textarea.selectionEnd ?? 0
-    const prev = lastSelectionRef.current
-    // Always track the raw observed selection — never an intended write that
-    // may get superseded — so edge-movement inference stays true to the DOM.
-    lastSelectionRef.current = { start, end }
+    // `selectionchange` fires before this `select` handler, so prevSelectionRef
+    // already holds the selection from just before this change.
+    const prev = prevSelectionRef.current
 
     // Adopt value changes that bypassed React's change tracking (browser
     // autofill, password managers, grammar extensions — see facebook/react#2125)

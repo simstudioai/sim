@@ -126,14 +126,26 @@ export function useMentionTokens({
       const before = message.slice(0, range.start)
       const after = message.slice(range.end)
       // Collapse only the space seam the removal creates (a leading + trailing
-      // space meeting), never unrelated double-spaces elsewhere in the message.
-      const next =
+      // space meeting), never unrelated double-spaces elsewhere in the message —
+      // by extending the deleted range over those leading spaces so the whole
+      // removal is a single edit.
+      const deleteEnd =
         before.endsWith(' ') && after.startsWith(' ')
-          ? `${before}${after.replace(/^ +/, '')}`
-          : `${before}${after}`
-      setMessage(next)
+          ? range.end + (after.length - after.replace(/^ +/, '').length)
+          : range.end
 
-      // Set cursor position immediately after state update
+      // Delete via `execCommand` (not `setMessage`/`setRangeText`) so the
+      // removal lands on the browser's native undo stack and Cmd+Z restores the
+      // chip — empirically the only primitive that preserves undo in Chromium.
+      // `execCommand` is deprecated but remains the sole API wired to undo.
+      textarea.focus()
+      textarea.setSelectionRange(range.start, deleteEnd)
+      document.execCommand('delete')
+
+      // `execCommand` fires `input`, but sync state explicitly so this hook
+      // doesn't depend on the consumer's onChange wiring.
+      setMessage(textarea.value)
+
       setTimeout(() => {
         textarea.setSelectionRange(range.start, range.start)
         textarea.focus()
