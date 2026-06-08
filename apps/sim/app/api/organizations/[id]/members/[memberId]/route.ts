@@ -13,6 +13,7 @@ import { getUserUsageData } from '@/lib/billing/core/usage'
 import {
   removeExternalUserFromOrganizationWorkspaces,
   removeUserFromOrganization,
+  WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR,
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -340,7 +341,9 @@ export const DELETE = withRouteHandler(
               ? 404
               : error === 'User is an organization member'
                 ? 409
-                : 500
+                : error === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR
+                  ? 400
+                  : 500
 
           return NextResponse.json({ error }, { status })
         }
@@ -405,6 +408,9 @@ export const DELETE = withRouteHandler(
         }
         if (result.error === 'Member not found') {
           return NextResponse.json({ error: result.error }, { status: 404 })
+        }
+        if (result.error === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR) {
+          return NextResponse.json({ error: result.error }, { status: 400 })
         }
         return NextResponse.json({ error: result.error }, { status: 500 })
       }
