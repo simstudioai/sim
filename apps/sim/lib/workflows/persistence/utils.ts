@@ -501,6 +501,8 @@ export async function deployWorkflow(params: {
   workflowId: string
   deployedBy: string
   workflowName?: string
+  /** Optional human-readable summary of what changed, stored on the deployment version. */
+  description?: string | null
   workflowState?: WorkflowState
   validateWorkflowState?: (
     workflowState: WorkflowState
@@ -585,6 +587,7 @@ export async function deployWorkflow(params: {
         isActive: true,
         createdBy: deployedBy,
         createdAt: now,
+        description: params.description?.trim() || null,
       })
 
       const updateData: Record<string, unknown> = {

@@ -169,7 +169,18 @@ export async function runCopilotLifecycle(
     return result
   } catch (error) {
     const err = toError(error)
-    logger.error('Copilot orchestration failed', { error: err.message })
+    // A CopilotBackendError carries the upstream HTTP status + body (e.g. a 5xx
+    // from /api/tools/resume when an oversized tool result — a rendered-doc
+    // image — is posted back). Log those so a client-side "Stream error" that
+    // originates from a thrown backend leg (vs an `error` SSE event) is
+    // explained, not just reduced to a message string.
+    logger.error('Copilot orchestration failed', {
+      error: err.message,
+      name: err.name,
+      ...(error instanceof CopilotBackendError
+        ? { backendStatus: error.status, backendBody: error.body?.slice(0, 2000) }
+        : {}),
+    })
     // If the abort signal fired, this throw is a consequence of the
     // cancel (publisher.publish fails once the client disconnects, a
     // downstream Go read throws on ctx cancel, etc.) — NOT a real

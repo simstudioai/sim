@@ -54,6 +54,12 @@ export interface PerformFullDeployParams {
   workflowId: string
   userId: string
   workflowName?: string
+  /**
+   * Optional summary of what changed, stored on the created deployment version.
+   * The copilot deploy tools require this; the UI deploy route sets it
+   * separately via the version metadata endpoint, so it stays optional here.
+   */
+  versionDescription?: string
   requestId?: string
   /**
    * Optional NextRequest for external webhook subscriptions.
@@ -107,6 +113,7 @@ export async function performFullDeploy(
     workflowId,
     deployedBy: actorId,
     workflowName: workflowName || workflowRecord.name || undefined,
+    description: params.versionDescription,
     validateWorkflowState: async (workflowState) => {
       const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
       if (!scheduleValidation.isValid) {

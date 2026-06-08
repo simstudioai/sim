@@ -618,7 +618,11 @@ export class WorkspaceVFS {
       content: buildMessage(pageCount),
       totalLines: 1,
       attachment: {
-        type: 'file',
+        // The rendered contact sheet is a JPEG, so it must be an image block.
+        // Tagging it 'file' routes it to a provider document block, which only
+        // accepts application/pdf — Anthropic rejects image/jpeg there with a
+        // 400 that surfaces to the client as a "Stream error".
+        type: 'image',
         name: `${record.name}.render.jpg`,
         source: { type: 'base64', media_type: 'image/jpeg', data: grid.toString('base64') },
       },

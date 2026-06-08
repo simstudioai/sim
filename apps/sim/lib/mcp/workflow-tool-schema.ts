@@ -188,6 +188,24 @@ export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToo
 }
 
 /**
+ * Generate an MCP tool parameter schema from an input format, overlaying
+ * caller-supplied per-parameter descriptions (keyed by field name) before
+ * generating the JSON Schema. This is the single source of truth shared by the
+ * deploy modal UI and the copilot `deploy_mcp` tool so both produce identical
+ * schemas for the same inputs.
+ */
+export function generateParameterSchema(
+  inputFormat: InputFormatField[],
+  descriptions: Record<string, string>
+): Record<string, unknown> {
+  const fieldsWithDescriptions = inputFormat.map((field) => ({
+    ...field,
+    description: field.name ? descriptions[field.name]?.trim() || undefined : undefined,
+  }))
+  return { ...generateToolInputSchema(fieldsWithDescriptions) }
+}
+
+/**
  * Generate a complete MCP tool definition from workflow metadata and input format.
  */
 export function generateToolDefinition(

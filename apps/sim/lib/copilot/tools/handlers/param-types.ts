@@ -130,6 +130,8 @@ export interface SetBlockEnabledParams {
 export interface DeployApiParams {
   workflowId?: string
   action?: 'deploy' | 'undeploy'
+  /** Description of what changed in this deployment version. Required when action is 'deploy'. */
+  versionDescription?: string
 }
 
 export interface DeployChatParams {
@@ -138,6 +140,8 @@ export interface DeployChatParams {
   identifier?: string
   title?: string
   description?: string
+  /** Description of what changed in this deployment version (distinct from the chat-facing `description`). Required when action is 'deploy'. */
+  versionDescription?: string
   welcomeMessage?: string
   customizations?: {
     primaryColor?: string
@@ -160,7 +164,13 @@ export interface DeployMcpParams {
   toolName?: string
   toolDescription?: string
   serverId?: string
-  parameterSchema?: Record<string, unknown>
+  /**
+   * Per-parameter descriptions as `[{ name, description }]`. Overlaid onto the
+   * workflow's input format before generating the tool schema — the same path
+   * the deploy modal uses. Parameter names/types/required come from the
+   * workflow's input trigger, not from this tool.
+   */
+  parameterDescriptions?: Array<{ name: string; description: string }>
 }
 
 export interface CheckDeploymentStatusParams {

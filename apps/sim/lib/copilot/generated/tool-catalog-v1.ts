@@ -633,6 +633,11 @@ export const DeployApi: ToolCatalogEntry = {
         enum: ['deploy', 'undeploy'],
         default: 'deploy',
       },
+      versionDescription: {
+        type: 'string',
+        description:
+          'REQUIRED when action is "deploy": a concise (1-3 sentence) description of what changed in this deployment version, e.g. "Adds Slack failure alert and retries on the HTTP block". If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first. Ignored for undeploy.',
+      },
       workflowId: {
         type: 'string',
         description: 'Workflow ID to deploy (required in workspace context)',
@@ -715,7 +720,10 @@ export const DeployChat: ToolCatalogEntry = {
         enum: ['public', 'password', 'email', 'sso'],
         default: 'public',
       },
-      description: { type: 'string', description: 'Optional description for the chat' },
+      description: {
+        type: 'string',
+        description: 'Optional chat-facing description shown on the chat page',
+      },
       identifier: {
         type: 'string',
         description: 'URL slug for the chat (lowercase letters, numbers, hyphens only)',
@@ -738,6 +746,11 @@ export const DeployChat: ToolCatalogEntry = {
       },
       password: { type: 'string', description: 'Password for password-protected chats' },
       title: { type: 'string', description: 'Display title for the chat interface' },
+      versionDescription: {
+        type: 'string',
+        description:
+          'REQUIRED when action is "deploy": a concise (1-3 sentence) description of what changed in this deployment version (distinct from the chat-facing description). If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first. Ignored for undeploy.',
+      },
       welcomeMessage: { type: 'string', description: 'Welcome message shown to users' },
       workflowId: {
         type: 'string',
@@ -3028,11 +3041,17 @@ export const Redeploy: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      versionDescription: {
+        type: 'string',
+        description:
+          'REQUIRED: a concise (1-3 sentence) description of what changed in this deployment version. If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first.',
+      },
       workflowId: {
         type: 'string',
         description: 'Workflow ID to redeploy (required in workspace context)',
       },
     },
+    required: ['versionDescription'],
   },
   resultSchema: {
     type: 'object',
