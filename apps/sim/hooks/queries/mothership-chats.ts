@@ -261,8 +261,7 @@ export async function fetchMothershipChatHistory(
 export function useMothershipChatHistory(chatId: string | undefined) {
   return useQuery({
     queryKey: mothershipChatKeys.detail(chatId),
-    queryFn: ({ signal }) => fetchMothershipChatHistory(chatId!, signal),
-    enabled: Boolean(chatId),
+    queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
     staleTime: 30 * 1000,
   })
 }
