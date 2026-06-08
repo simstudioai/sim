@@ -50,11 +50,20 @@ export const PptxPreview = memo(function PptxPreview({
   workspaceId: string
   streamingContent?: string
 }) {
+  // Generated decks are 0 bytes until the tool commits the compiled source at the
+  // end of the run; only fetch the compiled artifact once content exists so we
+  // don't 409-poll the serve route throughout generation. Uploaded decks always
+  // have size > 0, so they fetch immediately as before.
   const {
     data: fileData,
     error: fetchError,
     dataUpdatedAt,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
+    enabled: (file.size ?? 0) > 0,
+    // edit_content updates in place (same storage key); version on updatedAt so an
+    // open preview refetches the new binary instead of showing the stale one.
+    version: Number(new Date(file.updatedAt)) || file.size,
+  })
 
   const cacheKey = pptxCacheKey(file.id, dataUpdatedAt, fileData?.byteLength ?? 0)
 

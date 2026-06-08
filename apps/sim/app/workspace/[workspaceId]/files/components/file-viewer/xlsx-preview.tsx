@@ -54,11 +54,20 @@ export const XlsxPreview = memo(function XlsxPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  // Generated spreadsheets are 0 bytes until the tool commits the compiled source
+  // at the end of the run; only fetch the compiled artifact once content exists so
+  // we don't 409-poll the serve route throughout generation. Uploaded sheets
+  // always have size > 0, so they fetch immediately as before.
   const {
     data: fileData,
     isLoading,
     error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
+    enabled: (file.size ?? 0) > 0,
+    // edit_content updates in place (same storage key); version on updatedAt so an
+    // open preview refetches the new binary instead of showing the stale one.
+    version: Number(new Date(file.updatedAt)) || file.size,
+  })
 
   const [sheetNames, setSheetNames] = useState<string[]>([])
   const [activeSheet, setActiveSheet] = useState(0)

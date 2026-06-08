@@ -150,9 +150,9 @@ describe('slackHandler extractIdempotencyId', () => {
     expect(
       slackHandler.extractIdempotencyId!({ type: 'block_actions', trigger_id: 'trigger-1' })
     ).toBe('trigger-1')
-    expect(slackHandler.extractIdempotencyId!({ command: '/deploy', trigger_id: 'trigger-2' })).toBe(
-      'trigger-2'
-    )
+    expect(
+      slackHandler.extractIdempotencyId!({ command: '/deploy', trigger_id: 'trigger-2' })
+    ).toBe('trigger-2')
   })
 
   it('returns null when no identifier is present', () => {

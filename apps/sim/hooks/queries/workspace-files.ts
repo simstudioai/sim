@@ -177,12 +177,31 @@ async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Prom
  * Hook to fetch workspace file content as binary (ArrayBuffer).
  * `key` (the storage object key) is forwarded into the query key factory so that a new
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
+ *
+ * `options.version` is a content version (the record's `updatedAt`) folded into the
+ * query key. Generated docs are edited IN PLACE — `edit_content` keeps the SAME
+ * storage key — so without a version the cache is never busted and the open
+ * preview keeps showing the stale binary after a regenerate. Versioning the key
+ * makes the preview refetch whenever the file's content changes (and on first
+ * open, keyed to the current content rather than a stale cached entry).
  */
-export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key: string) {
+export function useWorkspaceFileBinary(
+  workspaceId: string,
+  fileId: string,
+  key: string,
+  options?: { enabled?: boolean; version?: string | number }
+) {
   return useQuery({
-    queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
+    queryKey:
+      options?.version != null
+        ? [...workspaceFilesKeys.content(workspaceId, fileId, 'binary', key), options.version]
+        : workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
     queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
-    enabled: !!workspaceId && !!fileId && !!key,
+    // Callers gate this on a readiness signal (e.g. the file has committed
+    // content) so we don't 409-poll the serve route for a generated doc whose
+    // compiled artifact hasn't been written yet — the doc is fetched once, when
+    // it's actually ready, instead of hammering the serve URL through generation.
+    enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
     staleTime: 30 * 1000,
     refetchOnWindowFocus: 'always',
     // While a generated doc is still compiling, serve returns 409. Poll (stay in

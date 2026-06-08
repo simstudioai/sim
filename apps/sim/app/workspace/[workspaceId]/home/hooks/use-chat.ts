@@ -2981,6 +2981,50 @@ export function useChat(
           invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
         }
 
+        // edit_content / workspace_file recompile and SAVE the file's content IN
+        // PLACE (same storage key) at WRITE time. The viewer otherwise only swaps
+        // from the synthetic streaming-file to the real file resource when the whole
+        // file subagent SPAN ENDS (see span end handler), so the doc appears to only
+        // update "when the stream is done." Do the hand-off + content refetch HERE,
+        // the moment the write tool finishes, so the freshly compiled doc shows up
+        // as soon as the tool is done.
+        if (
+          (tc.name === 'edit_content' || tc.name === WorkspaceFile.id) &&
+          tc.status === 'success'
+        ) {
+          const editOutput = tc.result?.output as Record<string, unknown> | undefined
+          const editData =
+            editOutput && typeof editOutput.data === 'object' && editOutput.data !== null
+              ? (editOutput.data as Record<string, unknown>)
+              : undefined
+          const editedFileId =
+            (typeof editData?.id === 'string' ? editData.id : undefined) ??
+            previewSessionRef.current?.fileId
+          if (editedFileId) {
+            const editedFileName =
+              (typeof editData?.name === 'string' ? editData.name : undefined) ??
+              previewSessionRef.current?.fileName ??
+              'File'
+            // Promote the real file resource (replacing the empty streaming-file),
+            // and activate it if the user is currently looking at the streaming
+            // placeholder / this file / nothing — don't yank them off another tab.
+            setResources((rs) => {
+              const without = rs.filter((r) => r.id !== 'streaming-file')
+              return without.some((r) => r.type === 'file' && r.id === editedFileId)
+                ? without
+                : [...without, { type: 'file' as const, id: editedFileId, title: editedFileName }]
+            })
+            if (
+              activeResourceIdRef.current === null ||
+              activeResourceIdRef.current === 'streaming-file' ||
+              activeResourceIdRef.current === editedFileId
+            ) {
+              setActiveResourceId(editedFileId)
+            }
+            invalidateResourceQueries(queryClient, workspaceId, 'file', editedFileId)
+          }
+        }
+
         onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
 
         const workspaceFileOperation =
@@ -3357,9 +3401,22 @@ export function useChat(
                       }
                       return [...without, fileResource]
                     })
+                    // Compiled docs (docx/pptx/pdf/xlsx) stream un-renderable SOURCE as
+                    // preview text, so wasRenderableBeforeComplete is true even though the
+                    // synthetic streaming-file can never display them. Without forcing the
+                    // hand-off, the view stays stuck on the empty streaming-file and never
+                    // shows the compiled binary. Activate the real file resource on
+                    // completion so the viewer fetches + renders the real doc.
+                    const completedExt = fileName.includes('.')
+                      ? (fileName.split('.').pop()?.toLowerCase() ?? '')
+                      : ''
+                    const isCompiledDocPreview = ['docx', 'pptx', 'pdf', 'xlsx'].includes(
+                      completedExt
+                    )
                     const shouldActivateOnComplete =
-                      !wasRenderableBeforeComplete &&
-                      hasRenderableFilePreviewContent(nextSession) &&
+                      (isCompiledDocPreview ||
+                        (!wasRenderableBeforeComplete &&
+                          hasRenderableFilePreviewContent(nextSession))) &&
                       shouldAutoActivatePreviewSession(nextSession)
                     if (shouldActivateOnComplete) {
                       setActiveResourceId(fileId)

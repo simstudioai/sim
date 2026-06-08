@@ -117,13 +117,24 @@ export const ResourceContent = memo(function ResourceContent({
 
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
   const rawPreviewText = previewSession?.previewText
+  // Compiled docs (docx/pptx/pdf/xlsx) stream un-renderable source while the tool
+  // runs; their viewer renders the COMPILED binary, not the source. Once the tool
+  // completes, stop treating the session as live streaming — otherwise the viewer
+  // sits on its skeleton forever instead of rendering the committed artifact.
+  // Text/markdown intentionally keep their streamed content after completion (it
+  // IS the rendered content), so this narrows only the compiled-doc case.
+  const previewSessionExt = getFileExtension(previewSession?.fileName ?? '')
+  const isCompiledDocPreview = ['docx', 'pptx', 'pdf', 'xlsx'].includes(previewSessionExt)
+  const compiledDocSessionDone = isCompiledDocPreview && previewSession?.status === 'complete'
   const streamingPreviewText =
     previewSession &&
+    !compiledDocSessionDone &&
     typeof rawPreviewText === 'string' &&
     hasRenderableFilePreviewContent(previewSession)
       ? rawPreviewText
       : undefined
   const pendingOrStreamingFilePreviewText =
+    !compiledDocSessionDone &&
     previewSession?.fileId === resource.id &&
     typeof rawPreviewText === 'string' &&
     hasRenderableFilePreviewContent(previewSession)

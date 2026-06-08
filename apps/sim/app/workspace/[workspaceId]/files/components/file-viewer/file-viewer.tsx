@@ -148,16 +148,22 @@ const IframePreview = memo(function IframePreview({
   workspaceId: string
   streamingContent?: string
 }) {
-  // Fetch via the shared binary hook (same as pptx/docx/xlsx): it polls the serve
-  // 409 "not ready" while the PDF is still compiling, and re-fetches when the file
-  // record is invalidated — so the preview holds its loading state during
-  // generation and renders once the artifact lands, with no static-URL cache bug.
+  // Generated PDFs are 0 bytes until the tool commits the compiled source at the
+  // end of the run; only fetch the compiled artifact once content exists so we
+  // don't 409-poll the serve route throughout generation. Uploaded PDFs always
+  // have size > 0, so they fetch immediately as before. Re-fetches when the file
+  // record is invalidated, so the preview renders once the artifact lands.
   const {
     data: fileData,
     isLoading,
     error: fetchError,
     dataUpdatedAt,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
+    enabled: (file.size ?? 0) > 0,
+    // edit_content updates in place (same storage key); version on updatedAt so an
+    // open preview refetches the new binary instead of showing the stale one.
+    version: Number(new Date(file.updatedAt)) || file.size,
+  })
 
   const bufferSource = useMemo<PdfDocumentSource | null>(
     () => (fileData ? { kind: 'buffer', buffer: fileData } : null),

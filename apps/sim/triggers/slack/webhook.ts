@@ -135,7 +135,8 @@ export const slackWebhookTrigger: TriggerConfig = {
         },
         command: {
           type: 'string',
-          description: 'Slash command name including the leading slash (e.g., /deploy). Present for slash commands',
+          description:
+            'Slash command name including the leading slash (e.g., /deploy). Present for slash commands',
         },
         action_id: {
           type: 'string',
@@ -164,7 +165,8 @@ export const slackWebhookTrigger: TriggerConfig = {
         },
         callback_id: {
           type: 'string',
-          description: 'Callback ID of the shortcut or view. Present for shortcuts and modal submissions',
+          description:
+            'Callback ID of the shortcut or view. Present for shortcuts and modal submissions',
         },
         api_app_id: {
           type: 'string',
@@ -172,7 +174,8 @@ export const slackWebhookTrigger: TriggerConfig = {
         },
         message_ts: {
           type: 'string',
-          description: 'Timestamp of the message the interaction originated from. Present for block_actions',
+          description:
+            'Timestamp of the message the interaction originated from. Present for block_actions',
         },
         hasFiles: {
           type: 'boolean',

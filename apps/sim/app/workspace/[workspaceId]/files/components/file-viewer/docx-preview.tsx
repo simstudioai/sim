@@ -71,11 +71,21 @@ export const DocxPreview = memo(function DocxPreview({
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const zoomPercentRef = useRef(100)
+  // Generated docs are 0 bytes until the tool commits the compiled source at the
+  // end of the run; only fetch the compiled artifact once content exists so we
+  // don't 409-poll the serve route throughout generation. Uploaded docs always
+  // have size > 0, so they fetch immediately as before.
+  const hasCommittedContent = (file.size ?? 0) > 0
   const {
     data: fileData,
     isLoading,
     error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key, {
+    enabled: hasCommittedContent,
+    // edit_content updates in place (same storage key); version on updatedAt so an
+    // open preview refetches the new binary instead of showing the stale one.
+    version: Number(new Date(file.updatedAt)) || file.size,
+  })
   const [renderError, setRenderError] = useState<string | null>(null)
   const [rendering, setRendering] = useState(false)
   const [hasRenderedPreview, setHasRenderedPreview] = useState(false)
@@ -229,7 +239,8 @@ export const DocxPreview = memo(function DocxPreview({
   if (error) return <PreviewError label='document' error={error} />
 
   const showSkeleton =
-    !hasRenderedPreview && (streamingContent !== undefined || isLoading || rendering)
+    !hasRenderedPreview &&
+    (streamingContent !== undefined || isLoading || rendering || !hasCommittedContent)
 
   const scrollToPage = (page: number) => {
     const scrollContainer = scrollContainerRef.current
