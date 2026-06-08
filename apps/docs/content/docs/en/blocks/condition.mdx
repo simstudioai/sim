@@ -4,20 +4,12 @@ title: Condition
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Image } from '@/components/ui/image'
+import { BlockPreview } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The Condition block branches workflow execution based on boolean expressions. Evaluate conditions using previous block outputs and route to different paths without requiring an LLM.
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/condition.png"
-    alt="Condition Block"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div>
+<BlockPreview type="condition" />
 
 ## Configuration Options
 

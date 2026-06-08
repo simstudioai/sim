@@ -3,20 +3,12 @@ title: Router
 ---
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Image } from '@/components/ui/image'
+import { BlockPreview } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The Router block uses AI to intelligently route workflows based on content analysis. Unlike Condition blocks that use simple rules, Routers understand context and intent. Each route you define creates a separate output port, allowing you to connect different paths to different downstream blocks.
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/router.png"
-    alt="Router Block with Multiple Route Ports"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div>
+<BlockPreview type="router" />
 
 ## Router vs Condition
 

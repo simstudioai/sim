@@ -4,20 +4,12 @@ title: Agent
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Image } from '@/components/ui/image'
+import { BlockPreview } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The Agent block connects your workflow to Large Language Models (LLMs). It processes natural language inputs, calls external tools, and generates structured or unstructured outputs.
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/agent.png"
-    alt="Agent Block Configuration"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div> 
+<BlockPreview type="agent" /> 
 
 ## Configuration Options
 

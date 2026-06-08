@@ -4,7 +4,7 @@ title: Webhooks
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Image } from '@/components/ui/image'
+import { BlockPreview } from '@/components/workflow-preview'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -14,15 +14,7 @@ Webhooks allow external services to trigger workflow runs by sending HTTP reques
 
 The Generic Webhook block creates a flexible endpoint that can receive any payload and trigger your workflow:
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/webhook-trigger.png"
-    alt="Generic Webhook Configuration"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div>
+<BlockPreview type="webhook_trigger" />
 
 ### How It Works
 

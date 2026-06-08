@@ -3,20 +3,12 @@ title: Webhook
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Image } from '@/components/ui/image'
+import { BlockPreview } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The Webhook block sends HTTP POST requests to external webhook endpoints with automatic webhook headers and optional HMAC signing.
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/webhook.png"
-    alt="Webhook Block"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div>
+<BlockPreview type="webhook" />
 
 ## Configuration
 

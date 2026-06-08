@@ -1,3 +1,4 @@
+export { BlockPreview } from '@/components/workflow-preview/block-preview'
 export {
   CLASSIFY_REPLY_WORKFLOW,
   CLASSIFY_WORKFLOW,

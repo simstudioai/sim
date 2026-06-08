@@ -4,20 +4,12 @@ title: Variables
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
+import { BlockPreview } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The Variables block updates workflow variables during execution. Variables must first be initialized in your workflow's Variables section, then you can use this block to update their values as your workflow runs.
 
-<div className="flex justify-center">
-  <Image
-    src="/static/blocks/variables.png"
-    alt="Variables Block"
-    width={500}
-    height={400}
-    className="my-6"
-  />
-</div>
+<BlockPreview type="variables" />
 
 <Callout>
   Access variables anywhere in your workflow using `<variable.variableName>` syntax.

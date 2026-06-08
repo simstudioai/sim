@@ -5,18 +5,11 @@ description: Run another workflow inside the current flow
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { BlockPreview } from '@/components/workflow-preview'
 
 ## What It Does
 
-<div className='flex justify-center my-6'>
-  <Image
-    src='/static/blocks/workflow.png'
-    alt='Workflow block configuration'
-    width={500}
-    height={400}
-    className='rounded-xl border border-border shadow-sm'
-  />
-</div>
+<BlockPreview type="workflow" />
 
 Drop a Workflow block when you want to call a child workflow as part of a larger flow. The block runs the latest deployed version of that workflow, waits for it to finish, and then continues with the parent.
 

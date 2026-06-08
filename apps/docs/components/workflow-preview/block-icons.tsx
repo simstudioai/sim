@@ -1,14 +1,22 @@
 import type { SVGProps } from 'react'
+import { Database, Repeat, Table } from 'lucide-react'
 import {
-  Code2,
-  CornerDownRight,
-  Database,
-  GitBranch,
-  Globe,
-  Repeat,
-  Split,
-  Table,
-} from 'lucide-react'
+  ApiIcon,
+  ChartBarIcon,
+  CodeIcon,
+  ConditionalIcon,
+  ConnectIcon,
+  CredentialIcon,
+  HumanInTheLoopIcon,
+  ResponseIcon,
+  RssIcon,
+  ScheduleIcon,
+  ShieldCheckIcon,
+  VariableIcon,
+  WaitIcon,
+  WebhookIcon,
+  WorkflowIcon,
+} from '@/components/icons'
 
 /**
  * The two Sim-specific block glyphs we need, ported verbatim from
@@ -68,17 +76,27 @@ export function AgentIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-/** Block type → glyph. Sim glyphs where it matters; lucide stand-ins elsewhere. */
+/** Block type → glyph. Brand glyphs from the app for core blocks; lucide stand-ins for the rest. */
 export const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   starter: StartIcon,
   start_trigger: StartIcon,
   agent: AgentIcon,
-  response: CornerDownRight,
-  function: Code2,
-  condition: Split,
-  router: GitBranch,
+  api: ApiIcon,
+  condition: ConditionalIcon,
+  credential: CredentialIcon,
+  evaluator: ChartBarIcon,
+  function: CodeIcon,
+  guardrails: ShieldCheckIcon,
+  human_in_the_loop: HumanInTheLoopIcon,
+  response: ResponseIcon,
+  router: ConnectIcon,
+  variables: VariableIcon,
+  wait: WaitIcon,
+  webhook: WebhookIcon,
+  workflow: WorkflowIcon,
+  schedule: ScheduleIcon,
+  rss: RssIcon,
   loop: Repeat,
-  api: Globe,
   knowledge_base: Database,
   knowledge: Database,
   table: Table,
