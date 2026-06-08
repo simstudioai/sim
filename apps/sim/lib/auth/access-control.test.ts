@@ -4,16 +4,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccessControlConfig } from '@/lib/auth/access-control'
 
-const { mockFetch, envRef } = vi.hoisted(() => ({
+const { mockFetch, envRef, flagRef } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   envRef: {
-    APPCONFIG_APPLICATION: undefined as string | undefined,
-    APPCONFIG_ENVIRONMENT: undefined as string | undefined,
+    APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
+    APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     BLOCKED_SIGNUP_DOMAINS: undefined as string | undefined,
     ALLOWED_LOGIN_EMAILS: undefined as string | undefined,
     ALLOWED_LOGIN_DOMAINS: undefined as string | undefined,
     BLOCKED_EMAIL_MX_HOSTS: undefined as string | undefined,
   },
+  flagRef: { isAppConfigEnabled: false },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
@@ -26,6 +27,12 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  get isAppConfigEnabled() {
+    return flagRef.isAppConfigEnabled
+  },
+}))
+
 import { getAccessControlConfig } from '@/lib/auth/access-control'
 
 const empty: AccessControlConfig = {
@@ -33,15 +40,13 @@ const empty: AccessControlConfig = {
   allowedLoginEmails: [],
   allowedLoginDomains: [],
   blockedEmailMxHosts: [],
-  bannedEmails: [],
 }
 
 describe('getAccessControlConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    flagRef.isAppConfigEnabled = false
     Object.assign(envRef, {
-      APPCONFIG_APPLICATION: undefined,
-      APPCONFIG_ENVIRONMENT: undefined,
       BLOCKED_SIGNUP_DOMAINS: undefined,
       ALLOWED_LOGIN_EMAILS: undefined,
       ALLOWED_LOGIN_DOMAINS: undefined,
@@ -49,7 +54,7 @@ describe('getAccessControlConfig', () => {
     })
   })
 
-  describe('env fallback (AppConfig not configured)', () => {
+  describe('env fallback (AppConfig disabled)', () => {
     it('returns empty lists when nothing is set', async () => {
       expect(await getAccessControlConfig()).toEqual(empty)
       expect(mockFetch).not.toHaveBeenCalled()
@@ -61,15 +66,13 @@ describe('getAccessControlConfig', () => {
       const result = await getAccessControlConfig()
       expect(result.blockedSignupDomains).toEqual(['gmail.com', 'yahoo.com'])
       expect(result.allowedLoginDomains).toEqual(['sim.ai'])
-      expect(result.bannedEmails).toEqual([])
       expect(mockFetch).not.toHaveBeenCalled()
     })
   })
 
-  describe('AppConfig source', () => {
+  describe('AppConfig source (enabled)', () => {
     beforeEach(() => {
-      envRef.APPCONFIG_APPLICATION = 'sim-staging'
-      envRef.APPCONFIG_ENVIRONMENT = 'staging'
+      flagRef.isAppConfigEnabled = true
     })
 
     it('reads the access-control profile and normalizes the payload', async () => {
@@ -78,7 +81,6 @@ describe('getAccessControlConfig', () => {
           parse({
             blockedSignupDomains: ['X.com'],
             allowedLoginDomains: ['sim.ai'],
-            bannedEmails: ['A@B.com', 'a@b.com', ' '],
             blockedEmailMxHosts: 'not-an-array',
           })
         )
@@ -87,7 +89,6 @@ describe('getAccessControlConfig', () => {
       const result = await getAccessControlConfig()
       expect(result.blockedSignupDomains).toEqual(['x.com'])
       expect(result.allowedLoginDomains).toEqual(['sim.ai'])
-      expect(result.bannedEmails).toEqual(['a@b.com'])
       expect(result.blockedEmailMxHosts).toEqual([])
       expect(mockFetch).toHaveBeenCalledWith(
         { application: 'sim-staging', environment: 'staging', profile: 'access-control' },

@@ -234,10 +234,6 @@ export const auth = betterAuth({
       create: {
         before: async (user) => {
           const accessControl = await getAccessControlConfig()
-          const email = user.email?.toLowerCase()
-          if (email && accessControl.bannedEmails.includes(email)) {
-            throw new Error('Sign-ups from this email domain are not allowed.')
-          }
           if (isEmailInDenylist(user.email, accessControl.blockedSignupDomains)) {
             throw new Error('Sign-ups from this email domain are not allowed.')
           }
@@ -812,10 +808,9 @@ export const auth = betterAuth({
         const accessControl = await getAccessControlConfig()
         const requestEmail = ctx.body?.email?.toLowerCase()
 
-        // Note: banning an existing account is owned by better-auth's admin plugin
-        // (a `session.create.before` hook that blocks banned users at sign-in across
-        // all providers). `bannedEmails` here is a signup-only denylist enforced in
-        // `databaseHooks.user.create.before`, so it is not checked on sign-in.
+        // Banning an existing account is owned by better-auth's admin plugin (a
+        // `session.create.before` hook that blocks banned users at sign-in across
+        // all providers), so it is not re-checked here.
         const hasAllowlist =
           accessControl.allowedLoginEmails.length > 0 ||
           accessControl.allowedLoginDomains.length > 0
