@@ -115,10 +115,12 @@
     "microsoft_excel",
     "microsoft_planner",
     "microsoft_teams",
+    "millionverifier",
     "mistral_parse",
     "monday",
     "mongodb",
     "neo4j",
+    "neverbounce",
     "new_relic",
     "notion",
     "obsidian",
@@ -192,6 +194,7 @@
     "youtube",
     "zendesk",
     "zep",
+    "zerobounce",
     "zoom",
     "zoominfo"
   ]
