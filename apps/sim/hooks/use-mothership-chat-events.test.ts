@@ -4,10 +4,10 @@
 
 import type { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { taskKeys } from '@/hooks/queries/tasks'
-import { handleTaskStatusEvent } from '@/hooks/use-task-events'
+import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { handleMothershipChatStatusEvent } from '@/hooks/use-mothership-chat-events'
 
-describe('handleTaskStatusEvent', () => {
+describe('handleMothershipChatStatusEvent', () => {
   const queryClient = {
     getQueryData: vi.fn(),
     invalidateQueries: vi.fn().mockResolvedValue(undefined),
@@ -20,7 +20,7 @@ describe('handleTaskStatusEvent', () => {
   })
 
   it('invalidates the task list and detail for completed task events', () => {
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -32,10 +32,10 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.detail('chat-1'),
+      queryKey: mothershipChatKeys.detail('chat-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -49,7 +49,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -61,7 +61,7 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -75,7 +75,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -88,7 +88,7 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -102,7 +102,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -115,7 +115,7 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -129,7 +129,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -142,10 +142,10 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.detail('chat-1'),
+      queryKey: mothershipChatKeys.detail('chat-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -159,7 +159,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -172,10 +172,10 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.detail('chat-1'),
+      queryKey: mothershipChatKeys.detail('chat-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -189,7 +189,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -202,16 +202,16 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.detail('chat-1'),
+      queryKey: mothershipChatKeys.detail('chat-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
 
   it('invalidates the task list and detail for metadata-changing task events', () => {
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -223,16 +223,16 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.detail('chat-1'),
+      queryKey: mothershipChatKeys.detail('chat-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
 
   it('invalidates the task list and removes detail cache for deleted task events', () => {
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -244,16 +244,16 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.removeQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.removeQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.detail('chat-1'),
+      queryKey: mothershipChatKeys.detail('chat-1'),
     })
   })
 
   it('invalidates the task list and detail for started task events', () => {
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -265,10 +265,10 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.detail('chat-1'),
+      queryKey: mothershipChatKeys.detail('chat-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -282,7 +282,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -294,7 +294,7 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -308,7 +308,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -321,7 +321,7 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -335,7 +335,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -348,7 +348,7 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
@@ -362,7 +362,7 @@ describe('handleTaskStatusEvent', () => {
       resources: [],
     })
 
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -375,16 +375,16 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.detail('chat-1'),
+      queryKey: mothershipChatKeys.detail('chat-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
 
   it('keeps list invalidation only for unknown task event types', () => {
-    handleTaskStatusEvent(
+    handleMothershipChatStatusEvent(
       queryClient,
       'ws-1',
       JSON.stringify({
@@ -396,13 +396,13 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.list('ws-1'),
+      queryKey: mothershipChatKeys.list('ws-1'),
     })
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
 
   it('does not invalidate when task event payload is invalid', () => {
-    handleTaskStatusEvent(queryClient, 'ws-1', '{')
+    handleMothershipChatStatusEvent(queryClient, 'ws-1', '{')
 
     expect(queryClient.invalidateQueries).not.toHaveBeenCalled()
     expect(queryClient.removeQueries).not.toHaveBeenCalled()

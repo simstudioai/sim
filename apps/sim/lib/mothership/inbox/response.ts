@@ -32,7 +32,7 @@ export async function sendInboxResponse(
   }
 
   const chatUrl = inboxTask.chatId
-    ? `${getBaseUrl()}/workspace/${ctx.workspaceId}/task/${inboxTask.chatId}`
+    ? `${getBaseUrl()}/workspace/${ctx.workspaceId}/chat/${inboxTask.chatId}`
     : `${getBaseUrl()}/workspace/${ctx.workspaceId}/home`
 
   const text = result.success

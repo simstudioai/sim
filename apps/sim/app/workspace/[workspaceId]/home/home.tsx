@@ -19,7 +19,10 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
+import {
+  useMarkMothershipChatRead,
+  useMothershipChatHistory,
+} from '@/hooks/queries/mothership-chats'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -113,8 +116,8 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
 
   const wasSendingRef = useRef(false)
 
-  const { isPending: isChatHistoryPending } = useChatHistory(chatId)
-  const { mutate: markRead } = useMarkTaskRead(workspaceId)
+  const { isPending: isChatHistoryPending } = useMothershipChatHistory(chatId)
+  const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
 

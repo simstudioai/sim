@@ -3,7 +3,7 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { markMothershipChatReadContract } from '@/lib/api/contracts/mothership-tasks'
+import { markMothershipChatReadContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import {
   authenticateCopilotRequestSessionOnly,

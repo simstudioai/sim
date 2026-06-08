@@ -14,11 +14,11 @@ import {
   forkMothershipChatContract,
   getMothershipChatContract,
   listMothershipChatsContract,
-  type MothershipTask,
+  type MothershipChat,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
   updateMothershipChatContract,
-} from '@/lib/api/contracts/mothership-tasks'
+} from '@/lib/api/contracts/mothership-chats'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -29,7 +29,7 @@ import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
-export interface TaskMetadata {
+export interface MothershipChatMetadata {
   id: string
   name: string
   updatedAt: Date
@@ -38,7 +38,7 @@ export interface TaskMetadata {
   isPinned: boolean
 }
 
-export interface TaskChatHistory {
+export interface MothershipChatHistory {
   id: string
   title: string | null
   messages: PersistedMessage[]
@@ -51,12 +51,13 @@ export interface TaskChatHistory {
   } | null
 }
 
-export const taskKeys = {
-  all: ['tasks'] as const,
-  lists: () => [...taskKeys.all, 'list'] as const,
-  list: (workspaceId: string | undefined) => [...taskKeys.lists(), workspaceId ?? ''] as const,
-  details: () => [...taskKeys.all, 'detail'] as const,
-  detail: (chatId: string | undefined) => [...taskKeys.details(), chatId ?? ''] as const,
+export const mothershipChatKeys = {
+  all: ['mothership-chats'] as const,
+  lists: () => [...mothershipChatKeys.all, 'list'] as const,
+  list: (workspaceId: string | undefined) =>
+    [...mothershipChatKeys.lists(), workspaceId ?? ''] as const,
+  details: () => [...mothershipChatKeys.all, 'detail'] as const,
+  detail: (chatId: string | undefined) => [...mothershipChatKeys.details(), chatId ?? ''] as const,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,7 +81,7 @@ function isResourceType(value: unknown): value is MothershipResource['type'] {
   )
 }
 
-function parseStreamSnapshot(value: unknown): TaskChatHistory['streamSnapshot'] {
+function parseStreamSnapshot(value: unknown): MothershipChatHistory['streamSnapshot'] {
   if (!isRecord(value)) {
     return null
   }
@@ -140,7 +141,7 @@ function parseResources(value: unknown, context: string): MothershipResource[] {
 function parseStrictStreamSnapshot(
   value: unknown,
   context: string
-): TaskChatHistory['streamSnapshot'] {
+): MothershipChatHistory['streamSnapshot'] {
   if (value === undefined || value === null) {
     return null
   }
@@ -150,7 +151,7 @@ function parseStrictStreamSnapshot(
   return snapshot
 }
 
-function parseChatHistory(value: unknown): TaskChatHistory {
+function parseChatHistory(value: unknown): MothershipChatHistory {
   const responseContext = 'Invalid chat response'
   const chatContext = `${responseContext}: chat`
 
@@ -185,7 +186,7 @@ function parseChatResourcesResponse(value: unknown): { resources: MothershipReso
   }
 }
 
-function mapTask(chat: MothershipTask): TaskMetadata {
+function mapChat(chat: MothershipChat): MothershipChatMetadata {
   const updatedAt = new Date(chat.updatedAt)
   return {
     id: chat.id,
@@ -199,34 +200,34 @@ function mapTask(chat: MothershipTask): TaskMetadata {
   }
 }
 
-export async function fetchTasks(
+export async function fetchMothershipChats(
   workspaceId: string,
   signal?: AbortSignal
-): Promise<TaskMetadata[]> {
+): Promise<MothershipChatMetadata[]> {
   const data = await requestJson(listMothershipChatsContract, {
     query: { workspaceId },
     signal,
   })
-  return data.data.map(mapTask)
+  return data.data.map(mapChat)
 }
 
 /**
- * Fetches mothership chat tasks for a workspace.
+ * Fetches mothership chat chats for a workspace.
  * These are workspace-scoped conversations from the Home page.
  */
-export function useTasks(workspaceId?: string) {
+export function useMothershipChats(workspaceId?: string) {
   return useQuery({
-    queryKey: taskKeys.list(workspaceId),
-    queryFn: workspaceId ? ({ signal }) => fetchTasks(workspaceId, signal) : skipToken,
+    queryKey: mothershipChatKeys.list(workspaceId),
+    queryFn: workspaceId ? ({ signal }) => fetchMothershipChats(workspaceId, signal) : skipToken,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   })
 }
 
-export async function fetchChatHistory(
+export async function fetchMothershipChatHistory(
   chatId: string,
   signal?: AbortSignal
-): Promise<TaskChatHistory> {
+): Promise<MothershipChatHistory> {
   try {
     const data = await requestJson(getMothershipChatContract, {
       params: { chatId },
@@ -254,60 +255,60 @@ export async function fetchChatHistory(
 }
 
 /**
- * Fetches chat history for a single task (mothership chat).
- * Used by the task page to load an existing conversation.
+ * Fetches chat history for a single chat (mothership chat).
+ * Used by the chat page to load an existing conversation.
  */
-export function useChatHistory(chatId: string | undefined) {
+export function useMothershipChatHistory(chatId: string | undefined) {
   return useQuery({
-    queryKey: taskKeys.detail(chatId),
-    queryFn: ({ signal }) => fetchChatHistory(chatId!, signal),
+    queryKey: mothershipChatKeys.detail(chatId),
+    queryFn: ({ signal }) => fetchMothershipChatHistory(chatId!, signal),
     enabled: Boolean(chatId),
     staleTime: 30 * 1000,
   })
 }
 
-async function deleteTask(chatId: string): Promise<void> {
+async function deleteChat(chatId: string): Promise<void> {
   await requestJson(deleteMothershipChatContract, {
     params: { chatId },
   })
 }
 
 /**
- * Deletes a mothership chat task and invalidates the task list.
+ * Deletes a mothership chat chat and invalidates the chat list.
  */
-export function useDeleteTask(workspaceId?: string) {
+export function useDeleteMothershipChat(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: deleteTask,
+    mutationFn: deleteChat,
     onSettled: (_data, _error, chatId) => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
-      queryClient.removeQueries({ queryKey: taskKeys.detail(chatId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+      queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
       useMothershipQueueStore.getState().clearChat(chatId)
     },
   })
 }
 
 /**
- * Deletes multiple mothership chat tasks and invalidates the task list.
+ * Deletes multiple mothership chat chats and invalidates the chat list.
  */
-export function useDeleteTasks(workspaceId?: string) {
+export function useDeleteMothershipChats(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (chatIds: string[]) => {
-      await Promise.all(chatIds.map(deleteTask))
+      await Promise.all(chatIds.map(deleteChat))
     },
     onSettled: (_data, _error, chatIds) => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
       const queueStore = useMothershipQueueStore.getState()
       for (const chatId of chatIds) {
-        queryClient.removeQueries({ queryKey: taskKeys.detail(chatId) })
+        queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(chatId) })
         queueStore.clearChat(chatId)
       }
     },
   })
 }
 
-async function renameTask({ chatId, title }: { chatId: string; title: string }): Promise<void> {
+async function renameChat({ chatId, title }: { chatId: string; title: string }): Promise<void> {
   await requestJson(updateMothershipChatContract, {
     params: { chatId },
     body: { title },
@@ -315,31 +316,34 @@ async function renameTask({ chatId, title }: { chatId: string; title: string }):
 }
 
 /**
- * Renames a mothership chat task with optimistic update.
+ * Renames a mothership chat chat with optimistic update.
  */
-export function useRenameTask(workspaceId?: string) {
+export function useRenameMothershipChat(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: renameTask,
+    mutationFn: renameChat,
     onMutate: async ({ chatId, title }) => {
-      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
 
-      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
-
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
-        old?.map((task) => (task.id === chatId ? { ...task, name: title } : task))
+      const previousChats = queryClient.getQueryData<MothershipChatMetadata[]>(
+        mothershipChatKeys.list(workspaceId)
       )
 
-      return { previousTasks }
+      queryClient.setQueryData<MothershipChatMetadata[]>(
+        mothershipChatKeys.list(workspaceId),
+        (old) => old?.map((chat) => (chat.id === chatId ? { ...chat, name: title } : chat))
+      )
+
+      return { previousChats }
     },
     onError: (_err, _variables, context) => {
-      if (context?.previousTasks) {
-        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      if (context?.previousChats) {
+        queryClient.setQueryData(mothershipChatKeys.list(workspaceId), context.previousChats)
       }
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
-      queryClient.invalidateQueries({ queryKey: taskKeys.detail(variables.chatId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(variables.chatId) })
     },
   })
 }
@@ -360,14 +364,16 @@ export function useAddChatResource(chatId?: string) {
     mutationFn: addChatResource,
     onMutate: async ({ resource }) => {
       if (!chatId) return
-      await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
-      const previous = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      const previous = queryClient.getQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId)
+      )
       if (previous) {
         const exists = previous.resources.some(
           (r) => r.type === resource.type && r.id === resource.id
         )
         if (!exists) {
-          queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), {
+          queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), {
             ...previous,
             resources: [...previous.resources, resource],
           })
@@ -377,12 +383,12 @@ export function useAddChatResource(chatId?: string) {
     },
     onError: (_err, _variables, context) => {
       if (context?.previous && chatId) {
-        queryClient.setQueryData(taskKeys.detail(chatId), context.previous)
+        queryClient.setQueryData(mothershipChatKeys.detail(chatId), context.previous)
       }
     },
     onSettled: () => {
       if (chatId) {
-        queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatId) })
+        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
       }
     },
   })
@@ -404,10 +410,12 @@ export function useReorderChatResources(chatId?: string) {
     mutationFn: reorderChatResources,
     onMutate: async ({ resources }) => {
       if (!chatId) return
-      await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
-      const previous = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      const previous = queryClient.getQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId)
+      )
       if (previous) {
-        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), {
+        queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), {
           ...previous,
           resources,
         })
@@ -416,12 +424,12 @@ export function useReorderChatResources(chatId?: string) {
     },
     onError: (_err, _variables, context) => {
       if (context?.previous && chatId) {
-        queryClient.setQueryData(taskKeys.detail(chatId), context.previous)
+        queryClient.setQueryData(mothershipChatKeys.detail(chatId), context.previous)
       }
     },
     onSettled: () => {
       if (chatId) {
-        queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatId) })
+        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
       }
     },
   })
@@ -444,11 +452,11 @@ export function useRemoveChatResource(chatId?: string) {
     mutationFn: removeChatResource,
     onMutate: async ({ resourceType, resourceId }) => {
       if (!chatId) return
-      await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
-      const removed: TaskChatHistory['resources'] = []
-      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), (prev) => {
+      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      const removed: MothershipChatHistory['resources'] = []
+      queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), (prev) => {
         if (!prev) return prev
-        const next: TaskChatHistory['resources'] = []
+        const next: MothershipChatHistory['resources'] = []
         for (const r of prev.resources) {
           if (r.type === resourceType && r.id === resourceId) removed.push(r)
           else next.push(r)
@@ -459,26 +467,26 @@ export function useRemoveChatResource(chatId?: string) {
     },
     onError: (_err, _variables, context) => {
       if (!chatId || !context?.removed.length) return
-      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), (prev) =>
+      queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), (prev) =>
         prev ? { ...prev, resources: [...prev.resources, ...context.removed] } : prev
       )
     },
     onSettled: () => {
       if (chatId) {
-        queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatId) })
+        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
       }
     },
   })
 }
 
-async function markTaskRead(chatId: string): Promise<void> {
+async function markChatRead(chatId: string): Promise<void> {
   await requestJson(updateMothershipChatContract, {
     params: { chatId },
     body: { isUnread: false },
   })
 }
 
-async function markTaskUnread(chatId: string): Promise<void> {
+async function markChatUnread(chatId: string): Promise<void> {
   await requestJson(updateMothershipChatContract, {
     params: { chatId },
     body: { isUnread: true },
@@ -491,81 +499,87 @@ function applyUnreadFlag(
   chatId: string,
   isUnread: boolean
 ): void {
-  const current = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+  const current = queryClient.getQueryData<MothershipChatMetadata[]>(
+    mothershipChatKeys.list(workspaceId)
+  )
   if (!current) return
-  queryClient.setQueryData<TaskMetadata[]>(
-    taskKeys.list(workspaceId),
-    current.map((task) => (task.id === chatId ? { ...task, isUnread } : task))
+  queryClient.setQueryData<MothershipChatMetadata[]>(
+    mothershipChatKeys.list(workspaceId),
+    current.map((chat) => (chat.id === chatId ? { ...chat, isUnread } : chat))
   )
 }
 
 /**
- * Marks a task as read with optimistic update.
+ * Marks a chat as read with optimistic update.
  *
  * The server only updates `lastSeenAt`, never `updatedAt`, so we deliberately
  * do not invalidate the list cache — that would trigger a refetch that can
  * reorder the sidebar if any unrelated server-side update landed in between.
  *
  * If there is no cached list yet (initial fetch still in flight, e.g. on
- * task-page refresh), we skip cancellation entirely so the in-flight fetch
+ * chat-page refresh), we skip cancellation entirely so the in-flight fetch
  * can resolve normally — otherwise it would be orphaned and never refetched.
  * `onSuccess` then reconciles whichever state the fetch produced.
  */
-export function useMarkTaskRead(workspaceId?: string) {
+export function useMarkMothershipChatRead(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: markTaskRead,
+    mutationFn: markChatRead,
     onMutate: async (chatId) => {
-      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
-      if (!previousTasks) return { previousTasks }
+      const previousChats = queryClient.getQueryData<MothershipChatMetadata[]>(
+        mothershipChatKeys.list(workspaceId)
+      )
+      if (!previousChats) return { previousChats }
 
-      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
       applyUnreadFlag(queryClient, workspaceId, chatId, false)
 
-      return { previousTasks }
+      return { previousChats }
     },
     onSuccess: (_data, chatId) => {
       applyUnreadFlag(queryClient, workspaceId, chatId, false)
     },
     onError: (_err, _variables, context) => {
-      if (context?.previousTasks) {
-        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      if (context?.previousChats) {
+        queryClient.setQueryData(mothershipChatKeys.list(workspaceId), context.previousChats)
       }
     },
   })
 }
 
 /**
- * Marks a task as unread with optimistic update.
+ * Marks a chat as unread with optimistic update.
  *
- * Same rationale as `useMarkTaskRead` — no list invalidation, since the server
+ * Same rationale as `useMarkMothershipChatRead` — no list invalidation, since the server
  * only flips `lastSeenAt` and the optimistic update fully reflects the change.
  */
-export function useMarkTaskUnread(workspaceId?: string) {
+export function useMarkMothershipChatUnread(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: markTaskUnread,
+    mutationFn: markChatUnread,
     onMutate: async (chatId) => {
-      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
-      if (!previousTasks) return { previousTasks }
+      const previousChats = queryClient.getQueryData<MothershipChatMetadata[]>(
+        mothershipChatKeys.list(workspaceId)
+      )
+      if (!previousChats) return { previousChats }
 
-      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
       applyUnreadFlag(queryClient, workspaceId, chatId, true)
 
-      return { previousTasks }
+      return { previousChats }
     },
     onSuccess: (_data, chatId) => {
       applyUnreadFlag(queryClient, workspaceId, chatId, true)
     },
     onError: (_err, _variables, context) => {
-      if (context?.previousTasks) {
-        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      if (context?.previousChats) {
+        queryClient.setQueryData(mothershipChatKeys.list(workspaceId), context.previousChats)
       }
     },
   })
 }
 
-async function setTaskPinned({
+async function setChatPinned({
   chatId,
   pinned,
 }: {
@@ -579,39 +593,41 @@ async function setTaskPinned({
 }
 
 /**
- * Pins or unpins a task with optimistic update. Pinned tasks are sorted to
+ * Pins or unpins a chat with optimistic update. Pinned chats are sorted to
  * the top of the list by the server; the optimistic reducer preserves that
- * ordering by partitioning pinned and unpinned tasks while keeping each
+ * ordering by partitioning pinned and unpinned chats while keeping each
  * partition in its existing order (server returns desc(updatedAt) within).
  */
-export function useSetTaskPinned(workspaceId?: string) {
+export function useSetMothershipChatPinned(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: setTaskPinned,
+    mutationFn: setChatPinned,
     onMutate: async ({ chatId, pinned }) => {
-      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
-      if (!previousTasks) return { previousTasks: undefined }
-
-      const updated = previousTasks.map((task) =>
-        task.id === chatId ? { ...task, isPinned: pinned } : task
+      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+      const previousChats = queryClient.getQueryData<MothershipChatMetadata[]>(
+        mothershipChatKeys.list(workspaceId)
       )
-      const pinnedTasks = updated.filter((task) => task.isPinned)
-      const unpinnedTasks = updated.filter((task) => !task.isPinned)
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
-        ...pinnedTasks,
-        ...unpinnedTasks,
+      if (!previousChats) return { previousChats: undefined }
+
+      const updated = previousChats.map((chat) =>
+        chat.id === chatId ? { ...chat, isPinned: pinned } : chat
+      )
+      const pinnedChats = updated.filter((chat) => chat.isPinned)
+      const unpinnedChats = updated.filter((chat) => !chat.isPinned)
+      queryClient.setQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId), [
+        ...pinnedChats,
+        ...unpinnedChats,
       ])
 
-      return { previousTasks }
+      return { previousChats }
     },
     onError: (_err, _variables, context) => {
-      if (context?.previousTasks) {
-        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      if (context?.previousChats) {
+        queryClient.setQueryData(mothershipChatKeys.list(workspaceId), context.previousChats)
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
     },
   })
 }
@@ -621,7 +637,7 @@ async function createChat(workspaceId: string): Promise<{ id: string }> {
   return { id }
 }
 
-export function useCreateTask(workspaceId?: string) {
+export function useCreateMothershipChat(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => {
@@ -630,8 +646,10 @@ export function useCreateTask(workspaceId?: string) {
     },
     onSuccess: (data) => {
       if (!workspaceId) return
-      const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId)) ?? []
-      const newTask: TaskMetadata = {
+      const existing =
+        queryClient.getQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId)) ??
+        []
+      const newChat: MothershipChatMetadata = {
         id: data.id,
         name: 'New chat',
         updatedAt: new Date(),
@@ -639,17 +657,17 @@ export function useCreateTask(workspaceId?: string) {
         isUnread: false,
         isPinned: false,
       }
-      const pinnedCount = existing.findIndex((task) => !task.isPinned)
+      const pinnedCount = existing.findIndex((chat) => !chat.isPinned)
       const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+      queryClient.setQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId), [
         ...existing.slice(0, insertAt),
-        newTask,
+        newChat,
         ...existing.slice(insertAt),
       ])
     },
     onSettled: () => {
       if (!workspaceId) return
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
     },
   })
 }
@@ -665,18 +683,20 @@ async function forkChat(params: {
   return { id: data.id }
 }
 
-export function useForkTask(workspaceId?: string) {
+export function useForkMothershipChat(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: forkChat,
     onSuccess: async (data, variables) => {
       if (!workspaceId) return
-      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
-      const existing = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+      await queryClient.cancelQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+      const existing = queryClient.getQueryData<MothershipChatMetadata[]>(
+        mothershipChatKeys.list(workspaceId)
+      )
       if (existing) {
-        const sourceTask = existing.find((t) => t.id === variables.chatId)
-        const baseName = (sourceTask?.name ?? 'New chat').replace(/^Fork \| /, '')
-        const optimisticTask: TaskMetadata = {
+        const sourceChat = existing.find((t) => t.id === variables.chatId)
+        const baseName = (sourceChat?.name ?? 'New chat').replace(/^Fork \| /, '')
+        const optimisticChat: MothershipChatMetadata = {
           id: data.id,
           name: `Fork | ${baseName}`,
           updatedAt: new Date(),
@@ -684,18 +704,18 @@ export function useForkTask(workspaceId?: string) {
           isUnread: false,
           isPinned: false,
         }
-        const pinnedCount = existing.findIndex((task) => !task.isPinned)
+        const pinnedCount = existing.findIndex((chat) => !chat.isPinned)
         const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
-        queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+        queryClient.setQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId), [
           ...existing.slice(0, insertAt),
-          optimisticTask,
+          optimisticChat,
           ...existing.slice(insertAt),
         ])
       }
     },
     onSettled: () => {
       if (!workspaceId) return
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
     },
   })
 }

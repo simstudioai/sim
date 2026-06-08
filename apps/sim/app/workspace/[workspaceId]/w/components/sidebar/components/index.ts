@@ -1,8 +1,8 @@
 export {
+  CollapsedChatFlyoutItem,
   CollapsedFileFolderItems,
   CollapsedFolderItems,
   CollapsedSidebarMenu,
-  CollapsedTaskFlyoutItem,
   CollapsedWorkflowFlyoutItem,
 } from './collapsed-sidebar-menu'
 export { FileList } from './file-list'

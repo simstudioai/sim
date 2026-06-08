@@ -58,7 +58,7 @@ export function InboxTaskList() {
   const handleTaskClick = useCallback(
     (task: InboxTaskItem) => {
       if (task.chatId && (task.status === 'completed' || task.status === 'failed')) {
-        router.push(`/workspace/${workspaceId}/task/${task.chatId}`)
+        router.push(`/workspace/${workspaceId}/chat/${task.chatId}`)
       }
     },
     [workspaceId, router]
