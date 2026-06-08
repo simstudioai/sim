@@ -9516,6 +9516,33 @@
     "tags": ["messaging", "microsoft-365"]
   },
   {
+    "type": "millionverifier",
+    "slug": "millionverifier",
+    "name": "MillionVerifier",
+    "description": "Verify email deliverability and check account credits",
+    "longDescription": "Integrate MillionVerifier to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.",
+    "bgColor": "#00B67A",
+    "iconName": "MillionVerifierIcon",
+    "docsUrl": "https://docs.sim.ai/tools/millionverifier",
+    "operations": [
+      {
+        "name": "Verify Email",
+        "description": "Verify the deliverability of an email address. Uses one verification credit."
+      },
+      {
+        "name": "Get Remaining Credits",
+        "description": "Retrieve the remaining verification credits for the authenticated account."
+      }
+    ],
+    "operationCount": 2,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment", "sales-engagement"]
+  },
+  {
     "type": "mistral_parse_v3",
     "slug": "mistral-parser",
     "name": "Mistral Parser",
@@ -9739,6 +9766,33 @@
     "category": "tools",
     "integrationType": "databases",
     "tags": ["data-warehouse", "data-analytics"]
+  },
+  {
+    "type": "neverbounce",
+    "slug": "neverbounce",
+    "name": "NeverBounce",
+    "description": "Verify email deliverability and check account credits",
+    "longDescription": "Integrate NeverBounce to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.",
+    "bgColor": "#1A6DF0",
+    "iconName": "NeverBounceIcon",
+    "docsUrl": "https://docs.sim.ai/tools/neverbounce",
+    "operations": [
+      {
+        "name": "Verify Email",
+        "description": "Verify the deliverability of an email address. Uses one verification credit."
+      },
+      {
+        "name": "Get Remaining Credits",
+        "description": "Retrieve the remaining paid and free verification credits for the account."
+      }
+    ],
+    "operationCount": 2,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment", "sales-engagement"]
   },
   {
     "type": "new_relic",
@@ -15101,6 +15155,33 @@
     "category": "tools",
     "integrationType": "ai",
     "tags": ["llm", "knowledge-base", "agentic"]
+  },
+  {
+    "type": "zerobounce",
+    "slug": "zerobounce",
+    "name": "ZeroBounce",
+    "description": "Validate email deliverability and check account credits",
+    "longDescription": "Integrate ZeroBounce to validate email deliverability in real time — detect invalid, catch-all, spamtrap, abuse, and do-not-mail addresses — and check your remaining validation credits.",
+    "bgColor": "#00B894",
+    "iconName": "ZeroBounceIcon",
+    "docsUrl": "https://docs.sim.ai/tools/zerobounce",
+    "operations": [
+      {
+        "name": "Verify Email",
+        "description": "Validate an email address deliverability in real time. Uses one validation credit."
+      },
+      {
+        "name": "Get Remaining Credits",
+        "description": "Retrieve the remaining validation credits for the authenticated account."
+      }
+    ],
+    "operationCount": 2,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment", "sales-engagement"]
   },
   {
     "type": "zoom",

@@ -31,7 +31,9 @@ import {
   HunterIOIcon,
   JinaAIIcon,
   LinkupIcon,
+  MillionVerifierIcon,
   MistralIcon,
+  NeverBounceIcon,
   OllamaIcon,
   OpenAIIcon,
   ParallelIcon,
@@ -41,6 +43,7 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  ZeroBounceIcon,
 } from '@/components/icons'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -221,6 +224,27 @@ const PROVIDERS: {
     description: 'Prospect search, individual reveal, and company enrichment',
     placeholder: 'Enter your Wiza API key',
   },
+  {
+    id: 'zerobounce',
+    name: 'ZeroBounce',
+    icon: ZeroBounceIcon,
+    description: 'Real-time email validation and deliverability checks',
+    placeholder: 'Enter your ZeroBounce API key',
+  },
+  {
+    id: 'neverbounce',
+    name: 'NeverBounce',
+    icon: NeverBounceIcon,
+    description: 'Real-time email verification and list cleaning',
+    placeholder: 'Enter your NeverBounce API key',
+  },
+  {
+    id: 'millionverifier',
+    name: 'MillionVerifier',
+    icon: MillionVerifierIcon,
+    description: 'Real-time email verification and deliverability checks',
+    placeholder: 'Enter your MillionVerifier API key',
+  },
 ]
 
 /**
@@ -258,7 +282,17 @@ const PROVIDER_SECTIONS: { label: string; ids: BYOKProviderId[] }[] = [
   },
   {
     label: 'Enrichment',
-    ids: ['brandfetch', 'hunter', 'peopledatalabs', 'findymail', 'prospeo', 'wiza'],
+    ids: [
+      'brandfetch',
+      'hunter',
+      'peopledatalabs',
+      'findymail',
+      'prospeo',
+      'wiza',
+      'zerobounce',
+      'neverbounce',
+      'millionverifier',
+    ],
   },
 ]
 
