@@ -58,10 +58,8 @@ export function IntegrationSkillsSection({
   const posthog = usePostHog()
   const { data: existingSkills = [], isPending, isPlaceholderData } = useSkills(workspaceId)
   const createSkill = useCreateSkill()
-  /** List is authoritative for this workspace only once loaded and not `keepPreviousData` placeholder from a prior one. */
   const skillsReady = !isPending && !isPlaceholderData
   const [pendingNames, setPendingNames] = useState<ReadonlySet<string>>(new Set())
-  /** Synchronous in-flight guard — `pendingNames` state updates async, so two rapid clicks could both pass the `disabled` check before a re-render. */
   const inFlightRef = useRef<Set<string>>(new Set())
 
   const existingNames = useMemo(() => new Set(existingSkills.map((s) => s.name)), [existingSkills])
