@@ -317,4 +317,24 @@ export const QdrantBlockMeta = {
       alsoIntegrations: ['openai', 'zendesk'],
     },
   ],
+  skills: [
+    {
+      name: 'upsert-points',
+      description: 'Insert or update vector points with payload metadata into a Qdrant collection.',
+      content:
+        '# Upsert Points\n\nLoad vectors into a Qdrant collection.\n\n## Steps\n1. Use the Upsert operation with the Qdrant URL, Collection name, and API Key.\n2. Provide Points as a JSON array, each with an id, a vector matching the collection dimension, and an optional payload of metadata for later filtering.\n3. Confirm the upserted count from the response.\n\n## Output\nReport how many points were upserted into which collection and surface any payload validation issues.',
+    },
+    {
+      name: 'search-vectors',
+      description: 'Run a vector similarity search in Qdrant with optional payload filters.',
+      content:
+        '# Search Vectors\n\nFind the nearest points to a query vector.\n\n## Steps\n1. Use the Search operation with the Qdrant URL, Collection, and the Query Vector.\n2. Set the Limit for how many matches to return and choose what Return Data you need (payload only, vector only, both, or none).\n3. Optionally pass a Filter JSON object using must, should, or must_not conditions to scope the search by payload fields.\n\n## Output\nThe top matches with their scores and requested payload or vector data, ordered by similarity.',
+    },
+    {
+      name: 'fetch-points-by-id',
+      description: 'Retrieve specific Qdrant points and their payloads by ID.',
+      content:
+        '# Fetch Points By ID\n\nLook up known points directly.\n\n## Steps\n1. Use the Fetch operation with the Qdrant URL, Collection, and API Key.\n2. Provide the IDs as a JSON array of the points to retrieve.\n3. Choose the Return Data option to control whether payloads and vectors are included.\n\n## Output\nThe requested points with their payloads (and vectors if requested), plus a note on any IDs that were not found.',
+    },
+  ],
 } as const satisfies BlockMeta

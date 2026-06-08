@@ -713,4 +713,37 @@ export const RailwayBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'monitor-failed-deployments',
+      description: 'List recent Railway deployments, detect failures, and alert with a summary.',
+      content:
+        '# Monitor Failed Deployments\n\nWatch Railway deployments and surface failures fast.\n\n## Steps\n1. Run list_deployments for the target project, service, and environment.\n2. Identify deployments with a failed or crashed status from the returned list.\n3. Summarize each failure: service, environment, commit, and likely cause.\n4. Post an actionable alert (for example to Slack) with a link to the affected service.\n\n## Output\nReturn the count of failed deployments and a concise summary of each. If all healthy, report a clean status.',
+    },
+    {
+      name: 'deploy-service',
+      description: 'Trigger a Railway service deployment for a given environment and commit.',
+      content:
+        '# Deploy Service\n\nTrigger a deployment of a Railway service.\n\n## Steps\n1. Identify the service id and environment id to deploy (use get_project to look them up if needed).\n2. Run deploy_service, optionally pinning a specific commitSha.\n3. Capture the returned deploymentId.\n4. Optionally poll list_deployments to confirm the deployment reaches a success state.\n\n## Output\nReport the deploymentId, target environment, and final status.',
+    },
+    {
+      name: 'sync-environment-variables',
+      description:
+        'Upsert Railway environment variables from a reference source and report changes.',
+      content:
+        '# Sync Environment Variables\n\nKeep Railway environment variables aligned with a reference list.\n\n## Steps\n1. Read the desired variable set (for example from a table) for each service.\n2. Run list_variables to capture the current state for the project, environment, and service.\n3. For each variable that is missing or differs, run upsert_variable. Use skipDeploys when batching multiple changes.\n4. Trigger a single deploy at the end if needed.\n\n## Output\nReturn a summary of every variable created or changed, grouped by service.',
+    },
+    {
+      name: 'provision-preview-environment',
+      description: 'Create an ephemeral Railway environment, seed variables, and deploy it.',
+      content:
+        '# Provision Preview Environment\n\nSpin up a fresh Railway environment for a branch or pull request.\n\n## Steps\n1. Run create_environment for the project, optionally cloning from a source environment and marking it ephemeral.\n2. Upsert the required environment variables for the new environment.\n3. Run deploy_service to bring the preview online.\n4. Capture the deployment status and the preview URL.\n\n## Output\nReturn the new environment id and the live preview URL so it can be shared on the PR.',
+    },
+    {
+      name: 'audit-project-inventory',
+      description: 'List every Railway project with services and environments for tracking.',
+      content:
+        '# Audit Project Inventory\n\nBuild a current inventory of Railway resources.\n\n## Steps\n1. Run list_projects, paginating with first and after until complete.\n2. For each project, run get_project to capture its services and environments.\n3. Optionally run list_project_members to record access.\n4. Compare against a prior snapshot to detect added or removed resources.\n\n## Output\nReturn the full inventory and a diff of any changes since the last run.',
+    },
+  ],
 } as const satisfies BlockMeta

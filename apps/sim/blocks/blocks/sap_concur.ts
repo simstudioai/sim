@@ -1970,4 +1970,33 @@ export const SapConcurBlockMeta = {
       alsoIntegrations: ['microsoft_teams'],
     },
   ],
+  skills: [
+    {
+      name: 'review-expense-reports',
+      description:
+        'List submitted SAP Concur expense reports, inspect line items, and flag policy exceptions.',
+      content:
+        '# Review Expense Reports\n\nSurface expense reports that need attention and check them against policy.\n\n## Steps\n1. Run List Expense Reports to pull recently submitted reports, or List Reports To Approve for items awaiting the current approver.\n2. For each report of interest, run Get Expense Report and List Expenses to read the individual line items, then List Exceptions to see Concur policy flags.\n3. Summarize totals, flagged line items, and any missing receipts.\n\n## Output\nReturn a per-report summary with the report ID, owner, total amount, and a list of policy exceptions or anomalies that warrant follow-up.',
+    },
+    {
+      name: 'route-report-approval',
+      description: 'Approve or send back a submitted SAP Concur expense report after review.',
+      content:
+        '# Route Report Approval\n\nAct on an expense report once a review decision is made.\n\n## Steps\n1. Confirm the report ID and the decision.\n2. To approve, run Approve Expense Report. To return it for correction, run Send Back Expense Report with a clear comment explaining what must change.\n3. Optionally run Create Report Comment first to leave context for the submitter.\n\n## Output\nConfirm the report ID, the action taken (approved or sent back), and the comment provided so the decision is auditable.',
+    },
+    {
+      name: 'capture-quick-expense',
+      description:
+        'Create a quick expense in SAP Concur from a receipt, attaching the receipt image.',
+      content:
+        '# Capture Quick Expense\n\nLog an out-of-pocket expense quickly, with the receipt attached.\n\n## Steps\n1. If you have a receipt image, run Upload Receipt Image and keep the returned receipt ID, or use Create Quick Expense (With Image) to do both in one step.\n2. Run Create Quick Expense with the vendor, amount, currency, and transaction date.\n3. Verify the entry with Get Expense.\n\n## Output\nReport the created quick expense ID, the captured vendor and amount, and confirm the receipt image is attached.',
+    },
+    {
+      name: 'manage-travel-requests',
+      description:
+        'List and act on SAP Concur travel requests, moving them through the approval workflow.',
+      content:
+        '# Manage Travel Requests\n\nHandle pre-trip travel requests through their approval lifecycle.\n\n## Steps\n1. Run List Travel Requests to find pending requests, then Get Travel Request for full detail on a specific one.\n2. Review the expected expenses and any linked cash advance via Get Request Cash Advance.\n3. Run Move Travel Request (Workflow Action) to advance, approve, or send back the request based on the decision.\n\n## Output\nReturn the travel request ID, destination, estimated cost, and the workflow action applied so the trip approval state is clear.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -651,6 +651,14 @@ export const {Service}BlockMeta = {
       alsoIntegrations: ['slack'],      // Other blocks referenced in the prompt (optional)
     },
   ],
+  skills: [                             // Optional but strongly encouraged
+    {
+      name: 'summarize-thread',         // kebab-case, becomes the created skill's name
+      description: 'One line: what it does and when to use it.',
+      content:
+        '# Summarize Thread\n\n...\n\n## Steps\n1. ...\n\n## Output\n...',  // markdown
+    },
+  ],
 } as const satisfies BlockMeta
 ```
 
@@ -664,6 +672,16 @@ export const {Service}BlockMeta = {
 - **Template `category`** is one of: `'popular' | 'sales' | 'support' | 'engineering' | 'marketing' | 'productivity' | 'operations'`
 - **`alsoIntegrations`** names other block types (e.g. `'slack'`, `'linear'`) referenced in the template prompt — helps the catalog surface this template when those blocks are selected
 - Place the export **after** the main `{Service}Block` export, at the very bottom of the file
+
+#### `skills` — curated, ready-to-add agent skills
+
+`skills` is an optional array of `SuggestedSkill` (`{ name, description, content }`) shown on the integration's detail page; users click **Add** to create the skill in their workspace. Aim for 3–5 skills for mainstream services, 2–3 for niche/low-level ones.
+
+- **`name`** — kebab-case, lowercase letters/numbers/hyphens, ≤ 64 chars, unique within the integration, verb-led (e.g. `summarize-thread`).
+- **`description`** — one line, ≤ 1024 chars: what it does and when to use it.
+- **`content`** — markdown instructions for the agent (literal `\n` for newlines): a `# Title`, then `## Steps` and an output/guidance section. Keep ~600–2000 chars.
+- **Ground every skill in operations the block actually exposes.** Cross-check each skill's steps against the block's `tools.access` list — never describe an action the integration cannot perform (e.g. "receive messages" when the block only sends).
+- **Skills MUST be derived from real, popular use cases found online — never invented.** Before adding a skill, web-search the service's documented use cases (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles). If you cannot source a use case as something people genuinely do with the service, do not add it. Do not hallucinate skills.
 
 ### Register in the blocksMeta object
 
@@ -888,6 +906,7 @@ All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MU
 - [ ] Outputs match tool outputs
 - [ ] Block registered in `registry.ts` blocks object (alphabetically)
 - [ ] `{Service}BlockMeta` exported at bottom of block file with `tags` and `templates`
+- [ ] `skills` added to `{Service}BlockMeta`, each grounded in the block's `tools.access` and derived from a real online-sourced use case (not invented)
 - [ ] `BlockMeta` imported from `@/blocks/types` alongside `BlockConfig`
 - [ ] Block meta registered in `registry.ts` blocksMeta object (alphabetically)
 - [ ] If icon missing: asked user to provide SVG

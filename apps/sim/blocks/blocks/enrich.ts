@@ -697,4 +697,34 @@ export const EnrichBlockMeta = {
       alsoIntegrations: ['hubspot'],
     },
   ],
+  skills: [
+    {
+      name: 'enrich-contact-from-email',
+      description:
+        'Enrich a person from their email address — name, role, company, social profiles, and more.',
+      content:
+        '# Enrich Contact from Email\n\nTurn an email address into a full contact profile using Enrich.so.\n\n## Steps\n1. Take the email address. Choose Email to Profile for a full enrichment, or Email to Person (Lite) for a fast, cheaper lookup.\n2. Enable fresh-data fetch when up-to-date info matters more than speed.\n3. Read back name, current title, company, location, and any LinkedIn or social URLs.\n\n## Output\nReturn the enriched fields in a clean object. Note which fields could not be resolved so downstream steps know what is missing, and report remaining credits if relevant.',
+    },
+    {
+      name: 'find-and-verify-work-email',
+      description:
+        'Find a prospect work email from a name and company or LinkedIn URL, then verify deliverability.',
+      content:
+        '# Find and Verify Work Email\n\nLocate a reliable work email for a prospect and confirm it is safe to send to.\n\n## Steps\n1. If you have a name and company domain, use Find Email. If you have a LinkedIn profile URL, use LinkedIn to Work Email instead.\n2. Run Verify Email on the returned address to check deliverability, and Disposable Email Check to rule out throwaway domains.\n3. If the work email cannot be found, optionally fall back to LinkedIn to Personal Email when appropriate.\n\n## Output\nReturn the discovered email, its verification status (valid, risky, invalid), and whether it is disposable. Recommend whether the address is safe to add to outreach.',
+    },
+    {
+      name: 'enrich-company-firmographics',
+      description:
+        'Look up firmographic data for a company — size, industry, funding, revenue, and traffic.',
+      content:
+        '# Enrich Company Firmographics\n\nBuild a firmographic profile for a target account using Enrich.so.\n\n## Steps\n1. Identify the company by name or domain. Use Company Lookup for core firmographics.\n2. Add Company Funding & Traffic and Company Revenue for deeper financial signals when account scoring needs them.\n3. If you only have a visitor IP, use IP to Company first to resolve the organization.\n\n## Output\nReturn a consolidated account brief: company name, domain, industry, employee count, funding, revenue, and traffic. Flag any data points that could not be resolved.',
+    },
+    {
+      name: 'search-prospects',
+      description:
+        'Search Enrich.so for people or companies matching an ideal-customer-profile filter.',
+      content:
+        '# Search Prospects\n\nFind people or companies that match a target profile.\n\n## Steps\n1. For people, use Search People with filters like job title, industry, location, and skills. For companies, use Search Company with industry, location, and employee-size bounds.\n2. To pull contacts at known accounts, use Search Company Employees with the company IDs and target job titles.\n3. Page through results using the page and page-size parameters until you have enough matches.\n\n## Output\nReturn the matching people or companies with their key identifying fields and any profile URLs, plus a count of total matches. Suggest tighter filters if too many or too few results come back.',
+    },
+  ],
 } as const satisfies BlockMeta

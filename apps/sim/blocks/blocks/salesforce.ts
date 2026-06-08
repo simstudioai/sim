@@ -739,4 +739,37 @@ export const SalesforceBlockMeta = {
       tags: ['sales', 'crm', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'capture-inbound-lead',
+      description:
+        'Create or update a Salesforce lead from an inbound signal and assign follow-up.',
+      content:
+        '# Capture Inbound Lead\n\nGet an inbound lead into Salesforce cleanly.\n\n## Steps\n1. Run get_leads to check for an existing lead with the same email.\n2. If new, run create_lead with name, company, email, and source; otherwise run update_lead to enrich it.\n3. Run create_task to assign a follow-up to the owner.\n\n## Output\nReturn the lead id, whether it was created or updated, and the follow-up task id.',
+    },
+    {
+      name: 'log-opportunity-update',
+      description: 'Advance a Salesforce opportunity stage and record the change for the account.',
+      content:
+        '# Log Opportunity Update\n\nKeep a deal current in Salesforce.\n\n## Steps\n1. Run get_opportunities to locate the deal.\n2. Run update_opportunity to set the new stage, amount, or close date.\n3. Run create_task to capture the next action.\n\n## Output\nReturn the opportunity id, its new stage, and the next-step task. Note if the stage moved to closed-won or closed-lost.',
+    },
+    {
+      name: 'sync-account-contacts',
+      description: 'Pull a Salesforce account with its contacts for a 360 view.',
+      content:
+        '# Sync Account Contacts\n\nAssemble a full picture of an account.\n\n## Steps\n1. Run get_accounts to resolve the target account.\n2. Run get_contacts filtered to the account to list its people.\n3. Optionally run get_opportunities and get_cases for active deals and support context.\n\n## Output\nReturn the account, its contacts with roles, and a summary of open opportunities and cases.',
+    },
+    {
+      name: 'create-support-case',
+      description: 'Open a Salesforce case for a customer issue and assign the owner.',
+      content:
+        '# Create Support Case\n\nFile a support case in Salesforce.\n\n## Steps\n1. Run get_contacts or get_accounts to link the case to the right record.\n2. Run create_case with subject, description, priority, and origin.\n3. Run create_task for the assigned owner if a follow-up is required.\n\n## Output\nReturn the case id, priority, and linked account or contact.',
+    },
+    {
+      name: 'run-sales-report',
+      description: 'Run a Salesforce report and summarize the results for a stakeholder.',
+      content:
+        '# Run Sales Report\n\nPull live numbers from a Salesforce report.\n\n## Steps\n1. Run list_reports to find the report, or use a known report id.\n2. Run run_report to execute it and capture the result set.\n3. Summarize the key metrics and notable changes.\n\n## Output\nReturn the headline metrics and a short narrative of what the report shows.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -401,4 +401,27 @@ export const CalendlyBlockMeta = {
       alsoIntegrations: ['gmail'],
     },
   ],
+  skills: [
+    {
+      name: 'list-upcoming-meetings',
+      description:
+        'Pull upcoming Calendly scheduled events for a date range and summarize them. Use to brief a host on their schedule or build a daily agenda.',
+      content:
+        '# List Upcoming Meetings\n\nSummarize upcoming Calendly events.\n\n## Steps\n1. Use List Scheduled Events. Filter to status active and set Min Start Time and Max Start Time (ISO 8601 UTC) for the window.\n2. Filter by user or organization URI when scoping to a specific host (Get Current User returns your URI if needed).\n3. For each event, read name, start_time, end_time, location, and scheduling_url; page with the page token if there are many.\n\n## Output\nReturn an ordered agenda: each meeting with time, name, location/join link, and the invitee. Add a one-line headline (count and first start time) for a quick read.',
+    },
+    {
+      name: 'get-event-attendees',
+      description:
+        'Retrieve the invitees for a Calendly scheduled event, including answers and contact info. Use to prep for a meeting or sync attendees to a CRM.',
+      content:
+        '# Get Event Attendees\n\nList who is attending a Calendly event.\n\n## Steps\n1. Identify the scheduled event by its UUID or URI (use List Scheduled Events to locate it).\n2. Use List Event Invitees for that event; optionally filter by email or status.\n3. Read each invitee record: name, email, status, and any questions and answers captured at booking.\n\n## Output\nReturn the invitees with name, email, status, and their intake answers. Flag canceled or no-show invitees so they can be handled differently from confirmed attendees.',
+    },
+    {
+      name: 'cancel-scheduled-event',
+      description:
+        'Cancel a Calendly scheduled event with an optional reason. Use to call off a meeting and notify the invitee through Calendly.',
+      content:
+        '# Cancel Scheduled Event\n\nCall off a Calendly meeting.\n\n## Steps\n1. Find the scheduled event UUID or URI (use List Scheduled Events filtered by invitee email or time if you only have those details).\n2. Use Cancel Event with the event UUID and a clear cancellation reason.\n3. Calendly notifies the invitee automatically.\n\n## Output\nReturn the event UUID and confirmation that it was canceled. Echo the reason. If the event is already canceled or cannot be found, report that instead of retrying.',
+    },
+  ],
 } as const satisfies BlockMeta

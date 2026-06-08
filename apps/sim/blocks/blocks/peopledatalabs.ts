@@ -703,4 +703,34 @@ export const PeopleDataLabsBlockMeta = {
       alsoIntegrations: ['emailbison'],
     },
   ],
+  skills: [
+    {
+      name: 'enrich-person',
+      description:
+        'Enrich a single person from an email, LinkedIn URL, or name plus company using People Data Labs.',
+      content:
+        '# Enrich Person\n\nFill in a full profile for one contact.\n\n## Steps\n1. Use the Person Enrich operation and provide the strongest identifier available: Email or LinkedIn URL first, otherwise First and Last Name plus Company.\n2. Set a Min Likelihood (for example 6) to avoid weak matches.\n3. Read the matched person record for job title, seniority, company, location, and contact fields, and check the likelihood score.\n\n## Output\nThe enriched profile (title, seniority, company, location, emails) plus the match likelihood; if not matched, say so and list which identifiers were tried.',
+    },
+    {
+      name: 'search-people-by-criteria',
+      description:
+        'Search the People Data Labs person dataset by role, location, or company using SQL or Elasticsearch DSL.',
+      content:
+        '# Search People By Criteria\n\nFind people matching a target profile.\n\n## Steps\n1. Use the Person Search operation and write a SQL query (for example filter on job_title and location_country) or an Elasticsearch DSL query for finer control.\n2. Set Result Size for the page, and optionally a Dataset filter (such as email or mobile_phone) to require certain coverage.\n3. To page through more results, pass the returned scroll token on the next call.\n\n## Output\nThe list of matched people with key fields, the total dataset match count, and the scroll token to fetch the next page.',
+    },
+    {
+      name: 'enrich-company',
+      description:
+        'Enrich a company from a name, website, or LinkedIn URL to get firmographics with People Data Labs.',
+      content:
+        '# Enrich Company\n\nBuild a firmographic profile for one company.\n\n## Steps\n1. Use the Company Enrich operation and provide a Website (most reliable), Company Name, ticker, or LinkedIn URL.\n2. Optionally add a Location or PDL Company ID to disambiguate common names, and set Min Likelihood.\n3. Read the matched company record for industry, employee count, headquarters, and tech-related signals.\n\n## Output\nThe company firmographics (industry, size, location, founded, website) with the match confidence noted.',
+    },
+    {
+      name: 'bulk-enrich-contacts',
+      description:
+        'Enrich many people or companies in one call with People Data Labs bulk enrichment.',
+      content:
+        '# Bulk Enrich Contacts\n\nEnrich a batch of records efficiently.\n\n## Steps\n1. Use Bulk Person Enrich (or Bulk Company Enrich) and pass a JSON array of request objects, each with its own params such as a LinkedIn URL, email, or website.\n2. Optionally set a Required Fields expression (for example emails AND job_title) so only records with that coverage are returned.\n3. Iterate the results array in order, matching each result back to its input record.\n\n## Output\nA per-record summary listing which inputs matched, the enriched fields returned, and which inputs had no match for follow-up.',
+    },
+  ],
 } as const satisfies BlockMeta

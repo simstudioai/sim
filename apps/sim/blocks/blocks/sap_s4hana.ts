@@ -1278,4 +1278,34 @@ export const SapS4HanaBlockMeta = {
       tags: ['finance', 'enterprise', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'look-up-business-partner',
+      description:
+        'Find a customer, supplier, or business partner in SAP S4HANA and return their master data.',
+      content:
+        '# Look Up Business Partner\n\nRetrieve master data for a customer, supplier, or general business partner.\n\n## Steps\n1. Run List Business Partners (or List Customers / List Suppliers for the typed view) with a filter on name, ID, or other criteria.\n2. Once the right record is identified, run Get Business Partner, Get Customer, or Get Supplier to pull full detail.\n3. Note key fields such as the partner ID, addresses, roles, and payment terms.\n\n## Output\nReturn the matched partner ID and the relevant master-data fields, and call out if no match or multiple matches were found.',
+    },
+    {
+      name: 'check-sales-order-status',
+      description:
+        'Look up a SAP S4HANA sales order and trace its related deliveries and billing documents.',
+      content:
+        '# Check Sales Order Status\n\nTrace a sales order from creation through delivery and billing.\n\n## Steps\n1. Run List Sales Orders to find the order, or Get Sales Order if you already have the order number.\n2. Run List Outbound Deliveries and List Billing Documents to find the delivery and invoice tied to that order.\n3. Get any specific delivery or billing document for line-level detail.\n\n## Output\nReturn the sales order number, its status, the linked delivery numbers, and billing document numbers so the order-to-cash state is clear.',
+    },
+    {
+      name: 'create-purchase-requisition',
+      description:
+        'Create a purchase requisition in SAP S4HANA via OData from supplied line-item details.',
+      content:
+        '# Create Purchase Requisition\n\nRaise a purchase requisition for procurement.\n\n## Steps\n1. Gather the requisition header and line items: material or product, quantity, plant, and delivery date.\n2. Optionally run List Products and Get Product to confirm material numbers before submitting.\n3. Run Create Purchase Requisition with the assembled payload.\n4. Confirm by running Get Purchase Requisition on the returned number.\n\n## Output\nReport the created purchase requisition number and a summary of its line items, and surface any OData validation error verbatim.',
+    },
+    {
+      name: 'check-material-stock',
+      description:
+        'Read current material stock and recent material documents for an item in SAP S4HANA.',
+      content:
+        '# Check Material Stock\n\nReport on-hand stock and recent inventory movements for a material.\n\n## Steps\n1. Run List Material Stock filtered by the material and plant to read current quantities.\n2. Run List Material Documents to see recent goods movements for that material, and Get Material Document for line detail on a specific posting.\n3. Compare on-hand stock against expected levels.\n\n## Output\nReturn the material number, plant, current stock quantity, and a short list of recent material movements with their document numbers.',
+    },
+  ],
 } as const satisfies BlockMeta
