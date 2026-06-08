@@ -1376,8 +1376,10 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
       const lower = columnName.toLowerCase()
       const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
       if (previousDetail) {
+        // The grid deletes by stable id; legacy callers may pass a name. Match
+        // on either so the column is dropped from the optimistic schema cache.
         const nextColumns = previousDetail.schema.columns.filter(
-          (c) => c.name.toLowerCase() !== lower
+          (c) => getColumnId(c) !== columnName && c.name.toLowerCase() !== lower
         )
         const prevWidths = previousDetail.metadata?.columnWidths
         const nextMetadata = prevWidths
