@@ -182,7 +182,7 @@ export const WorkflowsGroup = memo(function WorkflowsGroup({
   )
 })
 
-export const TasksGroup = memo(function TasksGroup({
+export const ChatsGroup = memo(function ChatsGroup({
   items,
   onSelect,
 }: {
