@@ -186,6 +186,7 @@ For **each tool** in `tools.access`:
 - [ ] `icon` references the correct icon component from `@/components/icons`
 - [ ] `authMode` is set correctly (`AuthMode.OAuth` or `AuthMode.ApiKey`)
 - [ ] Block is registered in `blocks/registry.ts` alphabetically
+- [ ] `{Service}BlockMeta.skills` present (3–5 mainstream, 2–3 niche), each grounded in `tools.access` and confirmed via web search to be a real, popular use case (not hallucinated) — rewrite/remove any you cannot source
 
 ### Block Inputs
 - [ ] `inputs` section lists all subBlock params that the block accepts

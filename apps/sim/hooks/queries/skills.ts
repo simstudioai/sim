@@ -74,7 +74,18 @@ export function useCreateSkill() {
       logger.info(`Created skill: ${s.name}`)
       return data
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
+      // Merge the created skill into the list cache so consumers (e.g. the
+      // integration detail page's "Added" state) reflect it immediately,
+      // rather than waiting for the invalidation refetch to land.
+      queryClient.setQueryData<SkillDefinition[]>(
+        skillsKeys.list(variables.workspaceId),
+        (prev) => {
+          const byId = new Map((prev ?? []).map((skill) => [skill.id, skill]))
+          for (const skill of data) byId.set(skill.id, skill)
+          return Array.from(byId.values())
+        }
+      )
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
     },
   })

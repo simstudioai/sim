@@ -3,9 +3,9 @@
 import { useMemo, useState } from 'react'
 import { Check, Plus } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
-import { Chip } from '@/components/emcn'
-import { AgentSkillsIcon } from '@/components/icons'
+import { Chip, toast } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
+import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import type { SuggestedSkill } from '@/blocks/types'
 import { useCreateSkill, useSkills } from '@/hooks/queries/skills'
 
@@ -13,16 +13,6 @@ interface IntegrationSkillsSectionProps {
   skills: readonly SuggestedSkill[]
   workspaceId: string
   integrationType: string
-}
-
-function SkillTile() {
-  return (
-    <div className='size-9 flex-shrink-0'>
-      <div className='flex size-full items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]'>
-        <AgentSkillsIcon className='size-5 text-[var(--text-icon)]' />
-      </div>
-    </div>
-  )
 }
 
 interface SkillRowProps {
@@ -56,8 +46,8 @@ function SkillRow({ skill, added, pending, onAdd }: SkillRowProps) {
 /**
  * Curated, research-backed skills for an integration. Each row adds the skill
  * to the workspace via the same `useCreateSkill` mutation the Skills page uses;
- * a skill already present in the workspace (matched by name) renders as
- * "Added" instead of an add button.
+ * `useSkills` is the single source of truth for the "Added" state, so a skill
+ * removed elsewhere correctly reverts to "Add".
  */
 export function IntegrationSkillsSection({
   skills,
@@ -67,18 +57,16 @@ export function IntegrationSkillsSection({
   const posthog = usePostHog()
   const { data: existingSkills = [] } = useSkills(workspaceId)
   const createSkill = useCreateSkill()
-  const [pendingName, setPendingName] = useState<string | null>(null)
-  const [optimisticAdded, setOptimisticAdded] = useState<ReadonlySet<string>>(new Set())
+  const [pendingNames, setPendingNames] = useState<ReadonlySet<string>>(new Set())
 
   const existingNames = useMemo(() => new Set(existingSkills.map((s) => s.name)), [existingSkills])
 
   const handleAdd = async (skill: SuggestedSkill, position: number) => {
-    setPendingName(skill.name)
+    // Track each in-flight add independently so concurrent adds keep their own
+    // "Adding..." state and cannot be double-submitted.
+    setPendingNames((prev) => new Set(prev).add(skill.name))
     try {
       await createSkill.mutateAsync({ workspaceId, skill })
-      // Mark added locally so the row flips to "Added" immediately — the list
-      // refetch that backs `existingNames` lands after this mutation resolves.
-      setOptimisticAdded((prev) => new Set(prev).add(skill.name))
       captureEvent(posthog, 'integration_skill_added', {
         workspace_id: workspaceId,
         integration_type: integrationType,
@@ -86,8 +74,14 @@ export function IntegrationSkillsSection({
         position,
         skill_count: skills.length,
       })
+    } catch {
+      toast.error(`Failed to add "${skill.name}" — please try again`)
     } finally {
-      setPendingName(null)
+      setPendingNames((prev) => {
+        const next = new Set(prev)
+        next.delete(skill.name)
+        return next
+      })
     }
   }
 
@@ -100,8 +94,8 @@ export function IntegrationSkillsSection({
           <SkillRow
             key={skill.name}
             skill={skill}
-            added={existingNames.has(skill.name) || optimisticAdded.has(skill.name)}
-            pending={pendingName === skill.name}
+            added={existingNames.has(skill.name)}
+            pending={pendingNames.has(skill.name)}
             onAdd={() => handleAdd(skill, index)}
           />
         ))}
