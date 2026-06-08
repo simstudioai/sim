@@ -819,4 +819,27 @@ export const GitLabBlockMeta = {
       tags: ['engineering', 'research', 'devops'],
     },
   ],
+  skills: [
+    {
+      name: 'review-merge-request',
+      description:
+        'Fetch a GitLab merge request and post a structured review comment with actionable feedback.',
+      content:
+        '# Review Merge Request\n\nUse GitLab to read a merge request and leave a useful review.\n\n## Steps\n1. Get the merge request by project ID and MR IID to read its title, description, and changes.\n2. Assess the change for correctness, missing tests, and risky edits.\n3. Post a review note on the MR with Add MR Comment, summarizing the feedback.\n\n## Output\nConfirm the comment was posted and return a short summary: what looks good, what needs changes, and any blocking concerns.',
+    },
+    {
+      name: 'triage-gitlab-issue',
+      description:
+        'Read a GitLab issue, classify it, and post a triage comment or update its fields.',
+      content:
+        '# Triage GitLab Issue\n\nUse GitLab to triage an incoming issue.\n\n## Steps\n1. Get the issue by project ID and issue IID to read its title and description.\n2. Classify it (bug, feature, question) and judge severity.\n3. Update the issue with the right labels and assignee using Update Issue, and add a triage note with Add Issue Comment.\n\n## Output\nReturn the classification, applied labels, assignee, and a one-line triage summary. Note any missing reproduction details.',
+    },
+    {
+      name: 'monitor-pipeline-status',
+      description:
+        'Check GitLab pipeline status for a project and report failures, optionally retrying a failed pipeline.',
+      content:
+        '# Monitor Pipeline Status\n\nUse GitLab to keep an eye on CI pipelines.\n\n## Steps\n1. List pipelines for the project and identify the most recent runs.\n2. Get the pipeline details for any that failed to read the status and reason.\n3. If a failure looks transient, use Retry Pipeline to re-run it.\n\n## Output\nReturn a summary of recent pipeline runs (ref, status, when) and call out any failures. If a retry was triggered, include the retried pipeline ID.',
+    },
+  ],
 } as const satisfies BlockMeta

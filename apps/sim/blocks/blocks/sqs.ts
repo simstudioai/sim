@@ -225,4 +225,20 @@ export const SQSBlockMeta = {
       tags: ['devops', 'automation', 'infrastructure'],
     },
   ],
+  skills: [
+    {
+      name: 'enqueue-job-message',
+      description:
+        'Send a structured job message to an Amazon SQS queue to hand off background work.',
+      content:
+        '# Enqueue Job Message\n\nPublish a task onto an SQS queue for a worker to process asynchronously.\n\n## Steps\n1. Identify the target queue URL.\n2. Build the message body as JSON describing the job (type, payload, identifiers).\n3. For a FIFO queue, set the message group and deduplication IDs.\n4. Send the message.\n\n## Output\nConfirm the message was sent with its message ID and the queue it was placed on.',
+    },
+    {
+      name: 'send-ordered-fifo-message',
+      description:
+        'Send a message to an Amazon SQS FIFO queue with a message group ID and deduplication ID for ordered, exactly-once delivery.',
+      content:
+        '# Send Ordered FIFO Message\n\nDispatch a message to a FIFO queue when ordering within a stream and de-duplication matter.\n\n## Steps\n1. Identify the FIFO queue URL.\n2. Build the JSON message body.\n3. Set the message group ID so messages in the same group stay ordered, and set a deduplication ID to prevent duplicate sends.\n4. Send the message.\n\n## Output\nConfirm the message was sent with its message ID, group ID, and the queue it was placed on.',
+    },
+  ],
 } as const satisfies BlockMeta

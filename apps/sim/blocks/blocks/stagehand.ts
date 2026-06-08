@@ -490,4 +490,27 @@ export const StagehandBlockMeta = {
       tags: ['automation', 'research', 'agentic'],
     },
   ],
+  skills: [
+    {
+      name: 'extract-structured-data',
+      description:
+        'Use Stagehand to extract structured fields from a web page into a typed result.',
+      content:
+        '# Extract Structured Data\n\nPull clean, structured data off a single web page.\n\n## Steps\n1. Run the Extract Data operation with the target URL.\n2. Describe exactly what to extract and the shape you want (for example product name, price, and availability), so Stagehand returns typed fields rather than raw HTML.\n3. Choose the LLM provider for the extraction.\n\n## Output\nReturn the extracted fields as a structured object, and note any field the page did not contain so downstream steps can handle gaps.',
+    },
+    {
+      name: 'run-browser-agent-task',
+      description:
+        'Hand Stagehand a natural-language goal and let its agent navigate and act on a site autonomously.',
+      content:
+        '# Run Browser Agent Task\n\nDelegate a multi-step web task to the Stagehand agent.\n\n## Steps\n1. Run the Run Agent operation with a clear natural-language goal (for example find the latest pricing on a vendor site and capture it).\n2. Provide the starting URL and pick the execution mode (DOM, hybrid, or CUA) and the LLM provider appropriate to the task.\n3. Let the agent navigate, click, and read pages to complete the goal.\n\n## Output\nReturn the agent result, the key data it captured, and any screenshots, plus a short note if the goal could not be fully completed.',
+    },
+    {
+      name: 'monitor-page-for-changes',
+      description:
+        'Periodically extract a value from a web page with Stagehand and report when it changes.',
+      content:
+        '# Monitor Page for Changes\n\nWatch a specific value on a web page over time.\n\n## Steps\n1. Run the Extract Data operation against the target URL, extracting just the value to watch (price, stock status, headline).\n2. Compare the extracted value against the last known value stored from a previous run.\n3. Decide whether the value changed beyond a meaningful threshold.\n\n## Output\nReport the current extracted value, whether it changed since the last check, and the old and new values when a change is detected.',
+    },
+  ],
 } as const satisfies BlockMeta

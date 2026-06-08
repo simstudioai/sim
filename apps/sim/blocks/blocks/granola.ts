@@ -249,4 +249,26 @@ export const GranolaBlockMeta = {
       tags: ['team', 'reporting'],
     },
   ],
+  skills: [
+    {
+      name: 'digest-meeting-notes',
+      description:
+        'List recent Granola notes and produce a structured digest of takeaways and action items.',
+      content:
+        '# Digest Meeting Notes\n\nTurn recent Granola meeting notes into a concise digest.\n\n## Steps\n1. List notes, optionally limited to a recent time window.\n2. For each note, get the full note content.\n3. Extract the meeting title, key decisions, takeaways, and action items with owners and due dates if present.\n4. Keep each meeting summary short and uniformly structured.\n\n## Output\nReturn a digest with one section per meeting: title, date, decisions, takeaways, and action items. Suitable for a team recap or daily summary.',
+    },
+    {
+      name: 'extract-action-items',
+      description: 'Read a Granola note and pull out a clean list of action items with owners.',
+      content:
+        '# Extract Action Items\n\nIsolate the follow-ups from a single meeting note.\n\n## Steps\n1. If only a title or date is known, list notes and match to find the note ID.\n2. Get the note content.\n3. Identify every action item, normalizing each into a clear task with an owner and due date when stated.\n4. Drop duplicates and merge near-identical items.\n\n## Output\nReturn a list of action items, each with the task, owner, and due date. Ready to push into a task manager or tracking table.',
+    },
+    {
+      name: 'log-decisions',
+      description:
+        'Scan Granola notes for decisions made and compile them into a dated decision log.',
+      content:
+        '# Log Decisions\n\nBuild an auditable record of decisions captured in meetings.\n\n## Steps\n1. List notes across the target window.\n2. Get each note and identify explicit decisions, the rationale, and who made them.\n3. Normalize each into a row with date, decision, owner, and context.\n\n## Output\nReturn a chronological decision log, each entry with date, decision, owner, and supporting context. Useful for writing to a decision-tracking table.',
+    },
+  ],
 } as const satisfies BlockMeta

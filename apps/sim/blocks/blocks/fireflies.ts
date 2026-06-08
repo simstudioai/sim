@@ -732,6 +732,29 @@ export const FirefliesBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'summarize-meeting-transcript',
+      description:
+        'Fetch a Fireflies transcript and produce a structured recap with decisions, action items, and owners.',
+      content:
+        '# Summarize Meeting Transcript\n\nUse Fireflies to turn a recorded meeting into a clean recap.\n\n## Steps\n1. Get the transcript for the given transcript ID (or pick the latest from List Transcripts).\n2. Read the sentences and any provided summary to identify the main topics discussed.\n3. Extract key decisions, action items with owners, and notable questions or risks.\n\n## Output\nReturn a structured recap: a short overview, a bulleted list of decisions, and an action-item table (task, owner, due date). Keep it grounded in the transcript content.',
+    },
+    {
+      name: 'extract-action-items',
+      description:
+        'Pull a Fireflies transcript and extract a clean list of action items with owners and due dates.',
+      content:
+        '# Extract Action Items\n\nUse Fireflies to capture follow-ups from a meeting.\n\n## Steps\n1. Get the transcript for the meeting by its transcript ID.\n2. Scan the sentences for commitments, assignments, and next steps.\n3. Attribute each item to the speaker who owns it and capture any stated deadline.\n\n## Output\nReturn a list of action items, each with the task, owner, and due date (or null). Add a one-line meeting summary at the top for context.',
+    },
+    {
+      name: 'create-meeting-soundbite',
+      description:
+        'Create a Fireflies soundbite (bite) clipping a key moment from a transcript for sharing.',
+      content:
+        '# Create Meeting Soundbite\n\nUse Fireflies to clip and share a highlight from a recorded meeting.\n\n## Steps\n1. Get the transcript and find the start and end timestamps of the moment to clip.\n2. Use Create Bite with the transcript ID and the chosen time range.\n3. Confirm the bite was created and capture its identifier or link.\n\n## Output\nReturn the soundbite identifier or shareable link plus a short caption describing the clipped moment.',
+    },
+  ],
 } as const satisfies BlockMeta
 
 export const FirefliesV2BlockMeta = {

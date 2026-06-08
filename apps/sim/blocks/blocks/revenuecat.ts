@@ -561,4 +561,30 @@ export const RevenueCatBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'check-subscription-status',
+      description: 'Look up a customer in RevenueCat and report their active entitlements.',
+      content:
+        '# Check Subscription Status\n\nDetermine what a customer is entitled to right now.\n\n## Steps\n1. Run get_customer with the app user id.\n2. Inspect the returned entitlements for active grants and expiration dates.\n3. Determine whether the customer has the entitlement you are gating on.\n4. Return a clear allow or deny decision.\n\n## Output\nReturn the active entitlements, their expiration dates, and whether the gated feature should be unlocked.',
+    },
+    {
+      name: 'grant-promotional-access',
+      description: 'Grant a promotional entitlement to a customer for support or a campaign.',
+      content:
+        '# Grant Promotional Access\n\nGive a customer temporary access via a promotional entitlement.\n\n## Steps\n1. Confirm the target app user id with get_customer.\n2. Run grant_entitlement with the entitlement identifier and duration.\n3. Verify the grant by re-checking get_customer.\n4. To reverse a grant later, run revoke_entitlement.\n\n## Output\nConfirm the granted entitlement, its duration, and the customer it was applied to.',
+    },
+    {
+      name: 'process-subscription-refund',
+      description: 'Refund and revoke a Google Play subscription for a customer support request.',
+      content:
+        '# Process Subscription Refund\n\nHandle a refund request for a store subscription.\n\n## Steps\n1. Look up the customer with get_customer to find the relevant subscription.\n2. For Google Play, run refund_google_subscription with the store transaction id.\n3. If access should end immediately, run revoke_google_subscription.\n4. Log the action for the support record.\n\n## Output\nConfirm the refund and revocation status, and the affected customer and product.',
+    },
+    {
+      name: 'sync-subscriber-attributes',
+      description: 'Update RevenueCat subscriber attributes to power targeting and analytics.',
+      content:
+        '# Sync Subscriber Attributes\n\nKeep RevenueCat subscriber attributes current.\n\n## Steps\n1. Gather the attributes to set (for example email, plan tier, or campaign source).\n2. Run update_subscriber_attributes for the app user id with the attribute map.\n3. Confirm the update with get_customer.\n\n## Output\nReturn the updated attributes and confirm they were applied to the subscriber.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -1545,4 +1545,37 @@ export const RipplingBlockMeta = {
       tags: ['hr', 'reporting', 'enterprise'],
     },
   ],
+  skills: [
+    {
+      name: 'lookup-employee-profile',
+      description: 'Find a Rippling worker and return their role, department, and team details.',
+      content:
+        '# Lookup Employee Profile\n\nRetrieve a complete profile for an employee.\n\n## Steps\n1. Run list_workers filtered by name or attributes to find the worker, or list_users if you have a user id.\n2. Run get_worker for the full record once identified.\n3. Enrich with get_department, get_team, and get_title as needed for context.\n4. Assemble the profile.\n\n## Output\nReturn the worker name, title, department, team, and employment type. Note any field that is unavailable.',
+    },
+    {
+      name: 'department-headcount-report',
+      description: 'Group Rippling workers by department and employment type to report headcount.',
+      content:
+        '# Department Headcount Report\n\nBuild a headcount snapshot across the org.\n\n## Steps\n1. Run list_departments to enumerate departments.\n2. Run list_workers and group by department and employment type.\n3. Compute headcount per group and compare against a prior snapshot for growth.\n4. Write a narrative summary of the changes.\n\n## Output\nReturn headcount per department and employment type, plus week-over-week change where available.',
+    },
+    {
+      name: 'manage-department',
+      description: 'Create or update a department record in Rippling for an org change.',
+      content:
+        '# Manage Department\n\nKeep the Rippling org structure current.\n\n## Steps\n1. Run list_departments to check whether the department already exists.\n2. If new, run create_department with the name and parent details.\n3. If it exists, run update_department to adjust the record.\n4. Confirm with get_department.\n\n## Output\nReturn the department id and whether it was created or updated.',
+    },
+    {
+      name: 'sync-custom-object-records',
+      description:
+        'Push external data (training, licenses, assets) onto Rippling custom object records.',
+      content:
+        '# Sync Custom Object Records\n\nWrite product data onto Rippling profiles via custom objects.\n\n## Steps\n1. Run list_custom_objects to find the target object, then list_custom_object_fields to confirm its schema.\n2. Build the records to write (for example training completion dates, license assignments, or asset ids).\n3. Use create_custom_object_record or update_custom_object_record for single writes, or bulk_create_custom_object_records and bulk_update_custom_object_records for batches.\n4. Verify with query_custom_object_records or get_custom_object_record_by_external_id.\n\n## Output\nReturn the count of records created or updated and flag any that failed validation.',
+    },
+    {
+      name: 'run-rippling-report',
+      description: 'Trigger a Rippling report run and retrieve the completed results.',
+      content:
+        '# Run Rippling Report\n\nGenerate and collect a Rippling report for downstream analysis.\n\n## Steps\n1. Run trigger_report_run for the target report id to start a run.\n2. Capture the returned run id.\n3. Poll get_report_run until the run completes.\n4. Pass the results downstream to a table or summary.\n\n## Output\nReturn the report run id, completion status, and a summary of the returned rows.',
+    },
+  ],
 } as const satisfies BlockMeta

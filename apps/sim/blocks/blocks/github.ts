@@ -2157,6 +2157,36 @@ export const GitHubBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'review-pull-request',
+      description:
+        'Fetch a GitHub PR, its changed files, and diff, then post a structured review comment.',
+      content:
+        '# Review Pull Request\n\nUse GitHub to read a pull request and leave a useful review.\n\n## Steps\n1. Get PR details for the given owner, repo, and PR number to read the title, description, and status.\n2. Get the PR files to see the changed paths and diffs.\n3. Assess the changes for correctness, missing tests, and risky edits.\n4. Post a PR comment summarizing the review with specific, actionable feedback.\n\n## Output\nConfirm the comment was posted and return a short summary of the findings: what looks good, what needs changes, and any blocking concerns.',
+    },
+    {
+      name: 'triage-new-issue',
+      description:
+        'Read a GitHub issue, classify it, apply labels, and assign it to the right owner.',
+      content:
+        '# Triage New Issue\n\nUse GitHub to triage an incoming issue.\n\n## Steps\n1. Get the issue by owner, repo, and issue number to read its title and body.\n2. Classify it (bug, feature, question, docs) and judge its severity.\n3. Add the appropriate labels with Add issue labels.\n4. Assign the issue to the relevant owner with Add issue assignees.\n\n## Output\nReturn the applied labels, the assignee, and a one-line triage summary. If the issue lacks reproduction details, note what information is missing.',
+    },
+    {
+      name: 'summarize-repo-activity',
+      description:
+        'Pull recent GitHub PRs, commits, and issues for a repo and produce a concise activity digest.',
+      content:
+        '# Summarize Repo Activity\n\nUse GitHub to build a status digest for a repository.\n\n## Steps\n1. List open pull requests and recent issues for the owner and repo.\n2. Get the latest commit to anchor the digest in time.\n3. Group activity into in-progress work, newly opened items, and anything stalled or awaiting review.\n\n## Output\nReturn a digest with three sections: open PRs (title, author, status), notable issues, and the latest commit. Keep it short enough to drop into a standup or Slack channel.',
+    },
+    {
+      name: 'open-pull-request-with-changes',
+      description:
+        'Create a branch, commit a file change, and open a GitHub pull request for review.',
+      content:
+        '# Open Pull Request With Changes\n\nUse GitHub to land a change as a reviewable PR.\n\n## Steps\n1. Create a new branch off the default branch with Create branch.\n2. Create or update the target file on that branch with Create file or Update file, including a clear commit message.\n3. Open a pull request from the new branch with Create pull request, writing a descriptive title and body.\n4. Optionally request reviewers with Request PR reviewers.\n\n## Output\nReturn the new PR number and URL, the branch name, and the files changed so the requester can track it to merge.',
+    },
+  ],
 } as const satisfies BlockMeta
 
 export const GitHubV2BlockMeta = {

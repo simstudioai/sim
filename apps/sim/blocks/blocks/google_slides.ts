@@ -3567,6 +3567,36 @@ export const GoogleSlidesBlockMeta = {
       alsoIntegrations: ['salesforce', 'gmail'],
     },
   ],
+  skills: [
+    {
+      name: 'generate-deck-from-template',
+      description:
+        'Copy a Google Slides template and replace placeholder text and images with data to produce a finished deck.',
+      content:
+        '# Generate Deck From Template\n\nProduce a finished presentation by copying a template deck and filling in dynamic values.\n\n## Steps\n1. Create a copy of the template presentation, or create a new presentation, and capture its presentationId.\n2. For each placeholder token (e.g. {{company}}, {{date}}, {{metric}}), call replace all text to substitute the real value across every slide.\n3. Replace placeholder images by adding images to the relevant slides, sizing and positioning them on the page.\n4. Add or duplicate slides for repeating sections (one per item) so the deck length matches the data.\n5. Read the presentation back to confirm every placeholder was resolved.\n\n## Output\nReturn the presentationId and the shareable link. Note any placeholders that had no matching data so they can be reviewed.',
+    },
+    {
+      name: 'build-metrics-slide',
+      description:
+        'Add a slide with a table and shapes that summarizes KPIs or metrics into a Google Slides deck.',
+      content:
+        '# Build Metrics Slide\n\nInsert a clean, data-driven metrics slide into an existing presentation.\n\n## Steps\n1. Add a new slide to the target presentation and capture the new slide objectId.\n2. Create a table on the slide sized to the number of metrics (rows) and columns needed.\n3. Insert text into each cell with the metric name, current value, and change vs prior period.\n4. Optionally create shape callouts for headline numbers and apply text and paragraph styles for emphasis.\n5. Get a thumbnail to verify layout and readability.\n\n## Output\nReturn the slide objectId and a thumbnail link. Summarize which metrics were added.',
+    },
+    {
+      name: 'extract-deck-content',
+      description:
+        'Read a Google Slides presentation and extract all slide text into a structured outline.',
+      content:
+        '# Extract Deck Content\n\nPull the full text of a presentation into a structured outline for summarization or repurposing.\n\n## Steps\n1. Read the presentation by ID to get all slides and page elements.\n2. For each slide, collect title text, body text, table cell text, and speaker notes if present.\n3. Preserve slide order and group text under each slide number.\n4. Skip purely decorative elements with no text.\n\n## Output\nReturn a numbered outline (one section per slide) with the extracted text. Useful as input for a summary, recap email, or knowledge base entry.',
+    },
+    {
+      name: 'rebrand-deck',
+      description:
+        'Roll out a brand or naming change across an entire deck by swapping text and logo images everywhere.',
+      content:
+        '# Rebrand Deck\n\nApply a consistent brand or naming change across every slide in one pass.\n\n## Steps\n1. Read the presentation by ID to confirm which terms and logo placeholders appear.\n2. For each old-to-new term (product name, tagline, company name), call replace all text so it updates across every slide at once.\n3. Replace the old logo by calling replace all shapes with image, or replace image on each logo element, with the new asset URL.\n4. Optionally update shape or page properties to match new brand colors.\n5. Read the presentation back to confirm no stale terms or logos remain.\n\n## Output\nReturn the presentationId and a list of the terms and images that were replaced, flagging any old references that still appear.',
+    },
+  ],
 } as const satisfies BlockMeta
 
 export const GoogleSlidesV2BlockMeta = {

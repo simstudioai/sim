@@ -350,4 +350,27 @@ export const ServiceNowBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'create-incident',
+      description:
+        'Create a new ServiceNow incident record with the right category, priority, and description.',
+      content:
+        '# Create Incident\n\nFile a new ServiceNow incident from a reported issue.\n\n## Steps\n1. Use the Create Record operation against the incident table.\n2. Populate the field values: a clear short description, the longer description, category, and priority or impact and urgency.\n3. Set caller or assignment group fields when known.\n\n## Output\nReturn the created record sys_id and incident number so the reporter can track it, and echo the category and priority that were set.',
+    },
+    {
+      name: 'search-records',
+      description:
+        'Query a ServiceNow table for records matching a condition and return the matching rows.',
+      content:
+        '# Search Records\n\nFind records in any ServiceNow table that match a condition.\n\n## Steps\n1. Use the Read Records operation against the target table (for example incident, change_request, or sc_task).\n2. Provide an encoded query to filter (for example active incidents in a category) and limit the number of rows returned.\n3. Choose the display-value setting so returned fields are human-readable rather than raw sys_ids when needed.\n\n## Output\nReturn the matched records with their key fields and sys_ids, and report how many matched the query.',
+    },
+    {
+      name: 'update-record-status',
+      description:
+        'Update fields on an existing ServiceNow record, such as state, assignment, or work notes.',
+      content:
+        '# Update Record Status\n\nModify an existing ServiceNow record once a decision or action is taken.\n\n## Steps\n1. Identify the record by its sys_id (from a search step or a notification).\n2. Use the Update Record operation against the correct table, supplying only the fields to change such as state, assigned_to, or work_notes.\n3. Confirm the change by reading the record back.\n\n## Output\nConfirm the record number, the fields that changed, and their new values so the update is auditable.',
+    },
+  ],
 } as const satisfies BlockMeta

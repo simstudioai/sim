@@ -1121,4 +1121,30 @@ export const VercelBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'monitor-deployments',
+      description: 'List recent Vercel deployments, surface failed builds, and pull their logs.',
+      content:
+        '# Monitor Vercel Deployments\n\nKeep an eye on builds so failures are caught fast.\n\n## Steps\n1. Use the List Deployments operation with your access token, optionally filtering by Project ID, Target (production), and State (ERROR).\n2. For any failed or stuck deployment, use Get Deployment Logs with the Deployment ID to pull the build events.\n3. Summarize the failure cause from the log events.\n4. Use Get Deployment for full detail including the deployment URL and state.\n\n## Output\nReturn the list of deployments with their state, plus a short summary of any failed build and a link to investigate.',
+    },
+    {
+      name: 'rollback-deployment',
+      description: 'Redeploy the last known good Vercel deployment to recover from a bad release.',
+      content:
+        '# Roll Back a Vercel Deployment\n\nRecover production by redeploying a previous good build.\n\n## Steps\n1. Use List Deployments filtered to the project, Target production, and State READY to find the last good deployment.\n2. Use the Create Deployment operation with Redeploy From set to that good deployment ID and Target set to production.\n3. Optionally use Cancel Deployment on the broken build that is still running.\n\n## Output\nReturn the new deployment ID, URL, and state so the rollback can be confirmed and announced.',
+    },
+    {
+      name: 'manage-env-vars',
+      description: 'Read, create, or update environment variables on a Vercel project.',
+      content:
+        '# Manage Vercel Environment Variables\n\nKeep a project configuration correct across environments.\n\n## Steps\n1. Use Get Environment Variables with the Project ID to read the current variables.\n2. To add one, use Create Environment Variable with the Key, Value, Target Environments (for example production,preview), and Variable Type.\n3. To change one, use Update Environment Variable with the Env Variable ID and the new value.\n4. Use Delete Environment Variable with the Env Variable ID to remove a stale key.\n\n## Output\nReturn the resulting variable list or confirmation of the create, update, or delete so configuration changes are auditable.',
+    },
+    {
+      name: 'audit-domains-and-dns',
+      description: 'Inventory Vercel domains and DNS records and manage records for a domain.',
+      content:
+        '# Audit Vercel Domains and DNS\n\nTrack domains and DNS so changes never go unnoticed.\n\n## Steps\n1. Use List Domains for the account inventory, and List DNS Records with a Domain to see its records.\n2. To add a record, use Create DNS Record with the Domain, Record Name, Record Type (A, CNAME, TXT, etc.), and Value.\n3. To remove one, use Delete DNS Record with the Domain and Record ID.\n4. Use Get Domain Config to verify a domain is correctly configured.\n\n## Output\nReturn the domain and DNS record inventory, or confirmation of any record change, for the tracking log.',
+    },
+  ],
 } as const satisfies BlockMeta

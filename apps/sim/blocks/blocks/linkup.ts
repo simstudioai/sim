@@ -225,4 +225,27 @@ export const LinkupBlockMeta = {
       tags: ['sales', 'research'],
     },
   ],
+  skills: [
+    {
+      name: 'answer-with-citations',
+      description:
+        'Answer a question with Linkup using a sourced answer and surface the supporting source URLs.',
+      content:
+        '# Answer with Citations\n\nGround an answer in live web facts using Linkup.\n\n## Steps\n1. Set the search query to the user question, phrased clearly.\n2. Choose the Answer output type and include sources so the response carries verifiable URLs.\n3. Use Deep search depth for complex or multi-part questions, otherwise Standard.\n4. Present the answer and attach the source links.\n\n## Output\nA concise answer followed by a list of the source URLs that support it.',
+    },
+    {
+      name: 'gather-research-sources',
+      description:
+        'Run a Linkup search and return a ranked list of relevant sources with snippets for a topic.',
+      content:
+        '# Gather Research Sources\n\nCollect authoritative sources on a topic for downstream research.\n\n## Steps\n1. Set the search query to the research topic, narrowing with key terms.\n2. Choose the Search output type to get raw results with sources.\n3. Optionally restrict or exclude domains, and set a from and to date to bound recency.\n4. Review the returned sources and order them by relevance.\n\n## Output\nA ranked list of sources with titles, URLs, and snippets, ready to feed a summarizer or knowledge base.',
+    },
+    {
+      name: 'monitor-topic-mentions',
+      description:
+        'Search Linkup for recent mentions of a topic, competitor, or brand within a date window.',
+      content:
+        '# Monitor Topic Mentions\n\nTrack fresh mentions of a topic or competitor.\n\n## Steps\n1. Set the search query to the brand, competitor, or topic to monitor.\n2. Use the Search output type and set the from date to the start of the window you want to cover.\n3. Optionally restrict to news or specific domains.\n4. Filter the results to genuinely new or relevant mentions and summarize each.\n\n## Output\nA list of new mentions with source URL, date, and a one-line summary of each.',
+    },
+  ],
 } as const satisfies BlockMeta
