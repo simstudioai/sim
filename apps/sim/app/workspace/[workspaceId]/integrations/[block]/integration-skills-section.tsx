@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Check, Plus } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
 import { Chip, toast } from '@/components/emcn'
@@ -58,12 +58,14 @@ export function IntegrationSkillsSection({
   const { data: existingSkills = [] } = useSkills(workspaceId)
   const createSkill = useCreateSkill()
   const [pendingNames, setPendingNames] = useState<ReadonlySet<string>>(new Set())
+  /** Synchronous in-flight guard — `pendingNames` state updates async, so two rapid clicks could both pass the `disabled` check before a re-render. */
+  const inFlightRef = useRef<Set<string>>(new Set())
 
   const existingNames = useMemo(() => new Set(existingSkills.map((s) => s.name)), [existingSkills])
 
   const handleAdd = async (skill: SuggestedSkill, position: number) => {
-    // Track each in-flight add independently so concurrent adds keep their own
-    // "Adding..." state and cannot be double-submitted.
+    if (inFlightRef.current.has(skill.name)) return
+    inFlightRef.current.add(skill.name)
     setPendingNames((prev) => new Set(prev).add(skill.name))
     try {
       await createSkill.mutateAsync({ workspaceId, skill })
@@ -77,6 +79,7 @@ export function IntegrationSkillsSection({
     } catch {
       toast.error(`Failed to add "${skill.name}" — please try again`)
     } finally {
+      inFlightRef.current.delete(skill.name)
       setPendingNames((prev) => {
         const next = new Set(prev)
         next.delete(skill.name)
