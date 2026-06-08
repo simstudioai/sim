@@ -8,9 +8,9 @@
  */
 
 import type { NextRequest } from 'next/server'
-import { mothershipEventsQuerySchema } from '@/lib/api/contracts/mothership-tasks'
+import { mothershipEventsQuerySchema } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
-import { taskPubSub } from '@/lib/copilot/tasks'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createWorkspaceSSE } from '@/lib/events/sse-endpoint'
 
@@ -21,8 +21,8 @@ const mothershipEventsHandler = createWorkspaceSSE({
   subscriptions: [
     {
       subscribe: (workspaceId, send) => {
-        if (!taskPubSub) return () => {}
-        return taskPubSub.onStatusChanged((event) => {
+        if (!chatPubSub) return () => {}
+        return chatPubSub.onStatusChanged((event) => {
           if (event.workspaceId !== workspaceId) return
           send('task_status', {
             chatId: event.chatId,

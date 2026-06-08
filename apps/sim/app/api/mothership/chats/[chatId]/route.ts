@@ -8,7 +8,7 @@ import {
   deleteMothershipChatContract,
   getMothershipChatContract,
   updateMothershipChatContract,
-} from '@/lib/api/contracts/mothership-tasks'
+} from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
@@ -18,6 +18,7 @@ import {
 } from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -27,7 +28,6 @@ import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
 import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -185,7 +185,7 @@ export const PATCH = withRouteHandler(
 
       if (updatedChat.workspaceId) {
         if (title !== undefined) {
-          taskPubSub?.publishStatusChanged({
+          chatPubSub?.publishStatusChanged({
             workspaceId: updatedChat.workspaceId,
             chatId,
             type: 'renamed',
@@ -264,7 +264,7 @@ export const DELETE = withRouteHandler(
       }
 
       if (deletedChat.workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId: deletedChat.workspaceId,
           chatId,
           type: 'deleted',

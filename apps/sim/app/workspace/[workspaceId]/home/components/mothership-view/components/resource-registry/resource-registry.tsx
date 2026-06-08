@@ -22,8 +22,8 @@ import type {
 import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { logKeys } from '@/hooks/queries/logs'
+import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { tableKeys } from '@/hooks/queries/tables'
-import { taskKeys } from '@/hooks/queries/tasks'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
@@ -239,7 +239,7 @@ const RESOURCE_INVALIDATORS: Record<
     qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
   },
   task: (qc, wId) => {
-    qc.invalidateQueries({ queryKey: taskKeys.list(wId) })
+    qc.invalidateQueries({ queryKey: mothershipChatKeys.list(wId) })
   },
   log: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: logKeys.details() })

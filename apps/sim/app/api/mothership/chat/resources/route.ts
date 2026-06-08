@@ -1,5 +1,5 @@
 import type { NextRequest, NextResponse } from 'next/server'
-import { mothershipChatResourceEnvelopeSchema } from '@/lib/api/contracts/mothership-tasks'
+import { mothershipChatResourceEnvelopeSchema } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {

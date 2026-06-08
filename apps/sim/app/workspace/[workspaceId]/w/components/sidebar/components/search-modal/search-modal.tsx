@@ -35,6 +35,7 @@ import type {
 } from '@/stores/modals/search/types'
 import {
   BlocksGroup,
+  ChatsGroup,
   ConnectedAccountsGroup,
   DocsGroup,
   FilesGroup,
@@ -42,7 +43,6 @@ import {
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,
-  TasksGroup,
   ToolOpsGroup,
   ToolsGroup,
   TriggersGroup,
@@ -67,7 +67,7 @@ export function SearchModal({
   onOpenChange,
   workflows = [],
   workspaces = [],
-  tasks = [],
+  chats = [],
   tables = [],
   files = [],
   knowledgeBases = [],
@@ -298,9 +298,9 @@ export function SearchModal({
     [workspaceId]
   )
 
-  const handleTaskSelect = useCallback(
-    (task: TaskItem) => {
-      routerRef.current.push(task.href)
+  const handleChatSelect = useCallback(
+    (chat: TaskItem) => {
+      routerRef.current.push(chat.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'task',
         query_length: deferredSearchRef.current.length,
@@ -481,9 +481,9 @@ export function SearchModal({
     () => filterAndSort(workflows, (w) => `${w.name} workflow-${w.id}`, deferredSearch),
     [workflows, deferredSearch]
   )
-  const filteredTasks = useMemo(
-    () => filterAndSort(tasks, (t) => `${t.name} task-${t.id}`, deferredSearch),
-    [tasks, deferredSearch]
+  const filteredChats = useMemo(
+    () => filterAndSort(chats, (t) => `${t.name} task-${t.id}`, deferredSearch),
+    [chats, deferredSearch]
   )
   const filteredWorkspaces = useMemo(
     () => filterAndSort(workspaces, (w) => `${w.name} workspace-${w.id}`, deferredSearch),
@@ -569,7 +569,7 @@ export function SearchModal({
               <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
               <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
               <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
-              <TasksGroup items={filteredTasks} onSelect={handleTaskSelect} />
+              <ChatsGroup items={filteredChats} onSelect={handleChatSelect} />
               <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
               <TablesGroup items={filteredTables} onSelect={handleTableSelect} />
               <FilesGroup items={filteredFiles} onSelect={handleFileSelect} />
