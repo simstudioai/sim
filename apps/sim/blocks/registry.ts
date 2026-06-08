@@ -216,6 +216,7 @@ import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { TextractBlock, TextractV2Block } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TinybirdBlock } from '@/blocks/blocks/tinybird'
+import { TodoistBlock } from '@/blocks/blocks/todoist'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock } from '@/blocks/blocks/trello'
 import { TtsBlock } from '@/blocks/blocks/tts'
@@ -492,6 +493,7 @@ export const registry: Record<string, BlockConfig> = {
   textract_v2: TextractV2Block,
   thinking: ThinkingBlock,
   tinybird: TinybirdBlock,
+  todoist: TodoistBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
   tts: TtsBlock,

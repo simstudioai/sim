@@ -248,9 +248,6 @@ export async function proxy(request: NextRequest) {
   if (redirect) return track(request, redirect)
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
-    if (hasActiveSession) {
-      return track(request, NextResponse.redirect(new URL('/workspace', request.url)))
-    }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')

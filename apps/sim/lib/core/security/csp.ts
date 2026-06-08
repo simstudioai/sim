@@ -48,6 +48,7 @@ export interface CSPDirectives {
 const STATIC_SCRIPT_SRC = [
   "'self'",
   "'unsafe-inline'",
+  ...(isDev ? ["'unsafe-eval'"] : []),
   'https://*.google.com',
   'https://apis.google.com',
   'https://challenges.cloudflare.com',

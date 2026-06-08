@@ -46,7 +46,8 @@ interface BundleSpec {
   entry: string
 }
 
-const POLYFILLS_PATH = join(HERE, '_polyfills.ts')
+const POLYFILLS_PATH = join(HERE, '_polyfills.ts').replace(/\\/g, '/')
+
 const POLYFILL_PRELUDE = `
 // Isolate-side polyfills must execute BEFORE any other import (process/browser
 // captures setTimeout at module-init time). Keep this as the first import.
@@ -99,16 +100,26 @@ async function main(): Promise<void> {
     const entryPath = join(ENTRIES_DIR, `${spec.name}.entry.ts`)
     writeFileSync(entryPath, spec.entry, 'utf-8')
 
-    const result = await Bun.build({
-      entrypoints: [entryPath],
-      target: 'browser',
-      format: 'iife',
-      minify: true,
-      sourcemap: 'none',
-      root: APP_SIM_ROOT,
-    })
+    let result
+    try {
+      result = await Bun.build({
+        entrypoints: [entryPath],
+        target: 'browser',
+        format: 'iife',
+        minify: true,
+        sourcemap: 'none',
+        root: APP_SIM_ROOT,
+      })
+    } catch (e: any) {
+      console.error('BUN BUILD THREW ERROR:', e)
+      if (e.errors) {
+        console.error('BUN BUILD DETAILS:', e.errors)
+      }
+      throw e
+    }
 
     if (!result.success) {
+      console.error('BUN BUILD LOGS:', result.logs)
       for (const log of result.logs) {
         logger.error(String(log))
       }
