@@ -6,24 +6,24 @@ export const metadata: Metadata = {
   title: 'Chat',
 }
 
-interface TaskPageProps {
+interface ChatPageProps {
   params: Promise<{
     workspaceId: string
-    taskId: string
+    chatId: string
   }>
   searchParams: Promise<{ resource?: string }>
 }
 
-export default async function TaskPage({ params, searchParams }: TaskPageProps) {
-  const [{ taskId }, { resource }, session] = await Promise.all([
+export default async function ChatPage({ params, searchParams }: ChatPageProps) {
+  const [{ chatId }, { resource }, session] = await Promise.all([
     params,
     searchParams,
     getSession(),
   ])
   return (
     <Home
-      key={taskId}
-      chatId={taskId}
+      key={chatId}
+      chatId={chatId}
       userName={session?.user?.name}
       userId={session?.user?.id}
       initialResourceId={resource ?? null}

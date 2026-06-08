@@ -315,6 +315,15 @@ const nextConfig: NextConfig = {
       }
     )
 
+    // Legacy chat URL support: the workspace chat route was renamed from
+    // `/workspace/:workspaceId/task/:chatId` to `/workspace/:workspaceId/chat/:chatId`.
+    // Preserve existing bookmarks and deeplinks.
+    redirects.push({
+      source: '/workspace/:workspaceId/task/:chatId',
+      destination: '/workspace/:workspaceId/chat/:chatId',
+      permanent: true,
+    })
+
     return redirects
   },
   async rewrites() {

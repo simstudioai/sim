@@ -19,7 +19,7 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
-import { useForkTask } from '@/hooks/queries/tasks'
+import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
 
 const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
@@ -72,7 +72,7 @@ export const MessageActions = memo(function MessageActions({
   const resetTimeoutRef = useRef<number | null>(null)
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
-  const forkTask = useForkTask(params.workspaceId)
+  const forkChat = useForkMothershipChat(params.workspaceId)
 
   useEffect(() => {
     return () => {
@@ -151,11 +151,11 @@ export const MessageActions = memo(function MessageActions({
   }
 
   const handleFork = async () => {
-    if (!chatId || !messageId || forkTask.isPending) return
+    if (!chatId || !messageId || forkChat.isPending) return
     try {
-      const result = await forkTask.mutateAsync({ chatId, upToMessageId: messageId })
-      useFolderStore.getState().clearTaskSelection()
-      router.push(`/workspace/${params.workspaceId}/task/${result.id}`)
+      const result = await forkChat.mutateAsync({ chatId, upToMessageId: messageId })
+      useFolderStore.getState().clearChatSelection()
+      router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
     } catch {
       toast.error('Failed to fork chat')
     }
@@ -223,8 +223,8 @@ export const MessageActions = memo(function MessageActions({
                 type='button'
                 aria-label='Fork from here'
                 onClick={handleFork}
-                disabled={forkTask.isPending}
-                className={cn(BUTTON_CLASS, forkTask.isPending && 'cursor-not-allowed opacity-50')}
+                disabled={forkChat.isPending}
+                className={cn(BUTTON_CLASS, forkChat.isPending && 'cursor-not-allowed opacity-50')}
               >
                 <GitBranch className={ICON_CLASS} />
               </button>

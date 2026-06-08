@@ -130,8 +130,8 @@ interface CollapsedSidebarMenuProps {
   }
 }
 
-interface CollapsedTaskFlyoutItemProps {
-  task: { id: string; href: string; name: string; isActive?: boolean; isUnread?: boolean }
+interface CollapsedChatFlyoutItemProps {
+  chat: { id: string; href: string; name: string; isActive?: boolean; isUnread?: boolean }
   isCurrentRoute: boolean
   isMenuOpen?: boolean
   isEditing?: boolean
@@ -141,9 +141,9 @@ interface CollapsedTaskFlyoutItemProps {
   onEditValueChange?: (value: string) => void
   onEditKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onEditBlur?: () => void
-  onContextMenu?: (e: ReactMouseEvent, taskId: string) => void
+  onContextMenu?: (e: ReactMouseEvent, chatId: string) => void
   onMorePointerDown?: () => void
-  onMoreClick?: (e: ReactMouseEvent<HTMLButtonElement>, taskId: string) => void
+  onMoreClick?: (e: ReactMouseEvent<HTMLButtonElement>, chatId: string) => void
 }
 
 interface CollapsedWorkflowFlyoutItemProps {
@@ -213,8 +213,8 @@ export function CollapsedSidebarMenu({
   )
 }
 
-export function CollapsedTaskFlyoutItem({
-  task,
+export function CollapsedChatFlyoutItem({
+  chat,
   isCurrentRoute,
   isMenuOpen = false,
   isEditing = false,
@@ -227,16 +227,16 @@ export function CollapsedTaskFlyoutItem({
   onContextMenu,
   onMorePointerDown,
   onMoreClick,
-}: CollapsedTaskFlyoutItemProps) {
-  const showActions = task.id !== 'new' && onMoreClick
+}: CollapsedChatFlyoutItemProps) {
+  const showActions = chat.id !== 'new' && onMoreClick
 
   if (isEditing) {
     return (
       <div className={EDIT_ROW_CLASS}>
         <input
-          aria-label={`Rename chat ${task.name}`}
+          aria-label={`Rename chat ${chat.name}`}
           ref={inputRef}
-          value={editValue ?? task.name}
+          value={editValue ?? chat.name}
           onChange={(e) => onEditValueChange?.(e.target.value)}
           onKeyDown={onEditKeyDown}
           onBlur={onEditBlur}
@@ -265,7 +265,7 @@ export function CollapsedTaskFlyoutItem({
           <DropdownMenuItemAction
             aria-label='Chat options'
             onPointerDown={onMorePointerDown}
-            onClick={(e) => onMoreClick?.(e, task.id)}
+            onClick={(e) => onMoreClick?.(e, chat.id)}
             className={cn(isMenuOpen && 'opacity-100')}
           >
             <MoreHorizontal />
@@ -274,15 +274,15 @@ export function CollapsedTaskFlyoutItem({
       }
     >
       <Link
-        href={task.href}
+        href={chat.href}
         onContextMenu={
-          task.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, task.id) : undefined
+          chat.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, chat.id) : undefined
         }
       >
         <ConversationListItem
-          title={task.name}
-          isActive={!!task.isActive}
-          isUnread={!!task.isUnread}
+          title={chat.name}
+          isActive={!!chat.isActive}
+          isUnread={!!chat.isUnread}
         />
       </Link>
     </DropdownMenuItem>
