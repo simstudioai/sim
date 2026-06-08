@@ -222,6 +222,10 @@ export const env = createEnv({
     S3_ENDPOINT:                           z.string().optional(),                  // Custom endpoint for S3-compatible storage (Cloudflare R2, MinIO, Backblaze B2). Leave unset for AWS S3
     S3_FORCE_PATH_STYLE:                   z.string().optional(),                  // Force path-style addressing (MinIO/Ceph RGW). Defaults to false (AWS S3, R2). Coerced via envBoolean at the consumption site
 
+    // Dynamic config - AWS AppConfig (hosted source of truth for signup/login gating lists; unset => env-var fallback)
+    APPCONFIG_APPLICATION:                 z.string().optional(),                  // AppConfig application id/name. When set with APPCONFIG_ENVIRONMENT, gating lists come from AppConfig instead of env vars
+    APPCONFIG_ENVIRONMENT:                 z.string().optional(),                  // AppConfig environment id/name. Profile name is an app-side constant ('access-control'), not an env var
+
     // Cloud Storage - Azure Blob
     AZURE_ACCOUNT_NAME:                    z.string().optional(),                  // Azure storage account name
     AZURE_ACCOUNT_KEY:                     z.string().optional(),                  // Azure storage account key

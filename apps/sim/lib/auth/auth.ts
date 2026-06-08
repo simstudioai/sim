@@ -30,6 +30,7 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { getAccessControlConfig } from '@/lib/auth/access-control'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import {
@@ -137,16 +138,6 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
   }
 }
 
-const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
-  ? Array.from(
-      new Set(
-        env.BLOCKED_SIGNUP_DOMAINS.split(',')
-          .map((d) => d.trim().toLowerCase())
-          .filter(Boolean)
-      )
-    )
-  : null
-
 export function isEmailInDenylist(
   email: string | undefined | null,
   denylist: readonly string[] | null
@@ -155,10 +146,6 @@ export function isEmailInDenylist(
   const domain = email.split('@')[1]?.toLowerCase()
   if (!domain) return false
   return denylist.some((entry) => domain === entry || domain.endsWith(`.${entry}`))
-}
-
-function isSignupEmailBlocked(email: string | undefined | null): boolean {
-  return isEmailInDenylist(email, blockedSignupDomains)
 }
 
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
@@ -246,7 +233,12 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (user) => {
-          if (isSignupEmailBlocked(user.email)) {
+          const accessControl = await getAccessControlConfig()
+          const email = user.email?.toLowerCase()
+          if (email && accessControl.bannedEmails.includes(email)) {
+            throw new Error('Sign-ups from this email domain are not allowed.')
+          }
+          if (isEmailInDenylist(user.email, accessControl.blockedSignupDomains)) {
             throw new Error('Sign-ups from this email domain are not allowed.')
           }
           return { data: user }
@@ -813,50 +805,54 @@ export const auth = betterAuth({
           })
       }
 
-      if (
-        (ctx.path.startsWith('/sign-in') || ctx.path.startsWith('/sign-up')) &&
-        (env.ALLOWED_LOGIN_EMAILS || env.ALLOWED_LOGIN_DOMAINS)
-      ) {
+      const isSignIn = ctx.path.startsWith('/sign-in')
+      const isSignUp = ctx.path.startsWith('/sign-up')
+
+      if (isSignIn || isSignUp) {
+        const accessControl = await getAccessControlConfig()
         const requestEmail = ctx.body?.email?.toLowerCase()
 
-        if (requestEmail) {
-          let isAllowed = false
+        if (requestEmail && accessControl.bannedEmails.includes(requestEmail)) {
+          throw new APIError('FORBIDDEN', {
+            message: 'Access restricted. Please contact your administrator.',
+          })
+        }
 
-          if (env.ALLOWED_LOGIN_EMAILS) {
-            const allowedEmails = env.ALLOWED_LOGIN_EMAILS.split(',').map((email) =>
-              email.trim().toLowerCase()
-            )
-            isAllowed = allowedEmails.includes(requestEmail)
-          }
-
-          if (!isAllowed && env.ALLOWED_LOGIN_DOMAINS) {
-            const allowedDomains = env.ALLOWED_LOGIN_DOMAINS.split(',').map((domain) =>
-              domain.trim().toLowerCase()
-            )
-            const emailDomain = requestEmail.split('@')[1]
-            isAllowed = emailDomain && allowedDomains.includes(emailDomain)
-          }
-
+        const hasAllowlist =
+          accessControl.allowedLoginEmails.length > 0 ||
+          accessControl.allowedLoginDomains.length > 0
+        if (hasAllowlist && requestEmail) {
+          const emailDomain = requestEmail.split('@')[1]
+          const isAllowed =
+            accessControl.allowedLoginEmails.includes(requestEmail) ||
+            (!!emailDomain && accessControl.allowedLoginDomains.includes(emailDomain))
           if (!isAllowed) {
             throw new APIError('FORBIDDEN', {
               message: 'Access restricted. Please contact your administrator.',
             })
           }
         }
-      }
 
-      if (ctx.path.startsWith('/sign-up') && isSignupEmailBlocked(ctx.body?.email)) {
-        throw new APIError('FORBIDDEN', {
-          message: 'Sign-ups from this email domain are not allowed.',
-        })
-      }
-
-      if (isSignupMxValidationEnabled && ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
-        const mxCheck = await validateSignupEmailMx(ctx.body.email)
-        if (!mxCheck.allowed) {
+        if (isSignUp && isEmailInDenylist(ctx.body?.email, accessControl.blockedSignupDomains)) {
           throw new APIError('FORBIDDEN', {
             message: 'Sign-ups from this email domain are not allowed.',
           })
+        }
+
+        if (
+          isSignupMxValidationEnabled &&
+          ctx.path.startsWith('/sign-up/email') &&
+          ctx.body?.email
+        ) {
+          const mxCheck = await validateSignupEmailMx(
+            ctx.body.email,
+            accessControl.blockedEmailMxHosts
+          )
+          if (!mxCheck.allowed) {
+            throw new APIError('FORBIDDEN', {
+              message: 'Sign-ups from this email domain are not allowed.',
+            })
+          }
         }
       }
 
