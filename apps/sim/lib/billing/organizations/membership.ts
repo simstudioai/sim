@@ -31,6 +31,12 @@ import { validateSeatAvailability } from '@/lib/billing/validation/seat-manageme
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
+import {
+  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
+  WorkspaceBillingAccountRemovalError,
+} from '@/lib/workspaces/utils'
+
+export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
 
 const logger = createLogger('OrganizationMembership')
 
@@ -343,6 +349,8 @@ async function reassignOwnedOrganizationWorkspacesTx({
   organizationId: string
   workspaceIds: string[]
 }) {
+  if (workspaceIds.length === 0) return 0
+
   const [ownerMembership] = await tx
     .select({ userId: member.userId })
     .from(member)
@@ -350,7 +358,7 @@ async function reassignOwnedOrganizationWorkspacesTx({
     .limit(1)
 
   const ownerId = ownerMembership?.userId
-  if (!ownerId || ownerId === userId || workspaceIds.length === 0) return 0
+  if (!ownerId || ownerId === userId) return 0
 
   const reassignedWorkspaces = await tx
     .update(workspace)
@@ -362,25 +370,15 @@ async function reassignOwnedOrganizationWorkspacesTx({
         inArray(workspace.id, workspaceIds)
       )
     )
-    .returning({ id: workspace.id })
+    .returning({
+      id: workspace.id,
+    })
 
-  if (reassignedWorkspaces.length === 0) return 0
+  if (reassignedWorkspaces.length === 0) {
+    return 0
+  }
 
   const now = new Date()
-  await tx
-    .update(permissions)
-    .set({ permissionType: 'admin', updatedAt: now })
-    .where(
-      and(
-        eq(permissions.userId, ownerId),
-        eq(permissions.entityType, 'workspace'),
-        inArray(
-          permissions.entityId,
-          reassignedWorkspaces.map((row) => row.id)
-        )
-      )
-    )
-
   await tx
     .insert(permissions)
     .values(
@@ -394,7 +392,10 @@ async function reassignOwnedOrganizationWorkspacesTx({
         updatedAt: now,
       }))
     )
-    .onConflictDoNothing()
+    .onConflictDoUpdate({
+      target: [permissions.userId, permissions.entityType, permissions.entityId],
+      set: { permissionType: 'admin', updatedAt: now },
+    })
 
   return reassignedWorkspaces.length
 }
@@ -1075,6 +1076,16 @@ export async function removeUserFromOrganization(
         workspaceIds,
       })
 
+      const workflowOwnershipReassignment =
+        await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+          tx,
+          workspaceIds,
+          departingUserId: userId,
+        })
+      if (workflowOwnershipReassignment.unresolved.length > 0) {
+        throw new WorkspaceBillingAccountRemovalError()
+      }
+
       const deletedPerms = await tx
         .delete(permissions)
         .where(
@@ -1182,6 +1193,10 @@ export async function removeUserFromOrganization(
 
     return { success: true, removed: true, billingActions }
   } catch (error) {
+    if (error instanceof WorkspaceBillingAccountRemovalError) {
+      return { success: false, error: error.message, billingActions }
+    }
+
     logger.error('Failed to remove user from organization', {
       userId,
       organizationId,
@@ -1253,6 +1268,16 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
         organizationId,
         workspaceIds,
       })
+
+      const workflowOwnershipReassignment =
+        await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+          tx,
+          workspaceIds,
+          departingUserId: userId,
+        })
+      if (workflowOwnershipReassignment.unresolved.length > 0) {
+        throw new WorkspaceBillingAccountRemovalError()
+      }
 
       const deletedPermissions = await tx
         .delete(permissions)
@@ -1337,6 +1362,17 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
       pendingInvitationsCancelled,
     }
   } catch (error) {
+    if (error instanceof WorkspaceBillingAccountRemovalError) {
+      return {
+        success: false,
+        error: error.message,
+        workspaceAccessRevoked: 0,
+        permissionGroupsRevoked: 0,
+        credentialMembershipsRevoked: 0,
+        pendingInvitationsCancelled: 0,
+      }
+    }
+
     logger.error('Failed to remove external workspace member from organization workspaces', {
       organizationId,
       userId,

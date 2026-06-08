@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -15,6 +16,7 @@ import {
   MoreHorizontal,
   Plus,
   Search,
+  toast,
 } from '@/components/emcn'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
 import {
@@ -284,7 +286,19 @@ export function Teammates() {
                           className='text-[var(--text-error)]'
                           onSelect={() => {
                             if (teammate.userId) {
-                              removeMember.mutate({ userId: teammate.userId, workspaceId })
+                              removeMember.mutate(
+                                { userId: teammate.userId, workspaceId },
+                                {
+                                  onError: (error) => {
+                                    toast.error("Couldn't remove teammate", {
+                                      description: getErrorMessage(
+                                        error,
+                                        'Please try again in a moment.'
+                                      ),
+                                    })
+                                  },
+                                }
+                              )
                             }
                           }}
                         >
