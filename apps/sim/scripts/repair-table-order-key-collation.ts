@@ -1,33 +1,33 @@
 #!/usr/bin/env bun
 
 /**
- * One-off repair for `user_table_rows.order_key` rows mis-ordered by the
- * collation bug fixed in migration 0228.
+ * One-off repair for DUPLICATE `user_table_rows.order_key` values.
  *
- * Fractional `order_key`s are base-62 strings the fractional-indexing library
- * compares BYTEWISE (ASCII: `0-9 < A-Z < a-z`). Before migration 0228 the column
- * compared under the database's `en_US.UTF-8` locale, where lowercase interleaves
- * with/precedes uppercase ("a0" < "Zz", the opposite of bytewise). Keys minted in
- * that window were anchored to the wrong neighbors, so a table's keys can be
- * out of order — or duplicated — under bytewise comparison. That makes inserts
- * throw `generateKeyBetween`'s `a >= b` assertion and rows display out of order.
+ * Fractional `order_key`s must be unique within a table: they're the authoritative
+ * row order under `TABLES_FRACTIONAL_ORDERING`, and `generateKeyBetween` throws
+ * `a >= b` if a neighbor lookup ever returns a key equal to the anchor. Some tables
+ * accumulated duplicate keys — e.g. a batch insert that minted the same key for many
+ * rows, or keys written before the collation fix in migration 0228. This script
+ * finds every table with duplicate keys and re-keys it, minting a fresh DISTINCT run
+ * with `nKeysBetween` while preserving the current display order.
  *
- * This script finds every table whose `order_key`s are mis-assigned: walking rows
- * in their authoritative `position, id` order, a row's key is `>=` the next row's
- * under bytewise (`COLLATE "C"`) comparison. That covers swapped keys (a low
- * position holding a bytewise-larger key than a higher one) and duplicates. Each
- * flagged table is re-keyed from `position` order — the legacy authoritative order
- * the original backfill also used — minting a fresh, evenly-spaced, distinct run
- * with `nKeysBetween`.
+ * Ordering matters. Rows are re-keyed in `(order_key, id)` order — exactly how the
+ * app sorts them under the flag (`order_key` authoritative, `id` as the tiebreak
+ * duplicates currently fall back to). We deliberately do NOT re-key by `position`:
+ * with the fractional flag on, `position` is only an append counter (a row inserted
+ * in the middle gets a mid-range key but the largest `position`), so re-keying by
+ * `position` would scramble the real order. Run AFTER migration 0228 so `order_key`
+ * sorts bytewise (`COLLATE "C"`), matching the library and the app.
  *
- * Distinct from `backfill-table-order-keys.ts`, which keys tables with NULL keys;
- * this one repairs tables that are fully keyed but bytewise-disordered. Run it
- * AFTER migration 0228 so the re-key writes and sorts under `COLLATE "C"`.
+ * Distinct from `backfill-table-order-keys.ts`, which keys rows with NULL keys. This
+ * one only touches tables that have actual duplicates — a table whose keys merely
+ * disagree with `position` (normal for flag-on middle-inserts) is left alone.
  *
- * Per-table-atomic: each table is re-keyed inside one transaction holding the
- * same per-table advisory lock the app uses for inserts, so a concurrent insert
- * can't interleave. Idempotent: a table whose keys are already distinct and
- * ordered is never selected, so a re-run after a partial failure is safe.
+ * Per-table-atomic: each table is re-keyed inside one transaction holding the same
+ * per-table advisory lock the app uses for inserts, so a concurrent insert can't
+ * interleave. Idempotent: a table with no duplicate keys is never selected, so a
+ * re-run after a partial failure is safe. `--dry-run` sizes without locking or
+ * writing.
  *
  * Usage:
  *   DATABASE_URL=... bun run apps/sim/scripts/repair-table-order-key-collation.ts
@@ -64,30 +64,21 @@ export async function runRepair(): Promise<void> {
   const stats = { tables: 0, tablesKeyed: 0, rowsKeyed: 0, failed: 0 }
 
   try {
-    // Tables with a bytewise (`COLLATE "C"`) inversion or duplicate among their
-    // non-null keys. Walking rows in their authoritative `position, id` order (the
-    // order the re-key writes), a healthy table has strictly INCREASING keys; flag
-    // any table where a row's key is `>=` the next row's. Ordering by `position`
-    // (not by `order_key`) is what makes this detect actual mis-assignment — e.g.
-    // pos 0 holding "a0" while pos 1 holds "Zz" (bytewise "Zz" < "a0") — and not
-    // just adjacent duplicates. The explicit `COLLATE "C"` keeps the comparison
-    // bytewise whether or not migration 0228 has been applied yet.
+    // Tables that have at least one duplicate `order_key`. This is the only genuine
+    // corruption: distinct keys that merely disagree with `position` are normal
+    // under the flag and must NOT be touched.
     const pending = await db.execute<{ table_id: string }>(sql`
       SELECT DISTINCT table_id FROM (
-        SELECT
-          table_id,
-          order_key,
-          LEAD(order_key) OVER (
-            PARTITION BY table_id ORDER BY position, id
-          ) AS next_key
+        SELECT table_id
         FROM user_table_rows
         WHERE order_key IS NOT NULL
-      ) t
-      WHERE next_key IS NOT NULL AND order_key COLLATE "C" >= next_key COLLATE "C"
+        GROUP BY table_id, order_key
+        HAVING count(*) > 1
+      ) d
     `)
 
     console.log(
-      `Repair starting — ${pending.length} table(s) with mis-ordered keys${dryRun ? ' [DRY RUN]' : ''}`
+      `Repair starting — ${pending.length} table(s) with duplicate keys${dryRun ? ' [DRY RUN]' : ''}`
     )
 
     for (const { table_id: tableId } of pending) {
@@ -95,8 +86,7 @@ export async function runRepair(): Promise<void> {
       try {
         if (dryRun) {
           // Sizing only — count outside any transaction/lock so we never serialize
-          // live inserts on the table (taking the advisory lock just to count would
-          // make the dry run the opposite of safe).
+          // live inserts on the table.
           const [row] = await db
             .select({ rowCount: sql<number>`count(*)`.mapWith(Number) })
             .from(userTableRows)
@@ -112,11 +102,14 @@ export async function runRepair(): Promise<void> {
           await trx.execute(
             sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_rows_pos:${tableId}`}, 0))`
           )
+          // Read in the app's display order — `order_key` (bytewise via COLLATE "C"
+          // after migration 0228), `id` as the duplicate tiebreak — so the fresh run
+          // preserves exactly what users currently see, minus the duplication.
           const rows = await trx
             .select({ id: userTableRows.id })
             .from(userTableRows)
             .where(eq(userTableRows.tableId, tableId))
-            .orderBy(asc(userTableRows.position), asc(userTableRows.id))
+            .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
 
           if (rows.length === 0) return 0
           const keys = nKeysBetween(null, null, rows.length)
