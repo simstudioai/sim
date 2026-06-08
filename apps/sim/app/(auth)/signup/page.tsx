@@ -12,13 +12,13 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function SignupPage() {
-  if (isRegistrationDisabled) {
-    return <div>Registration is disabled, please contact your admin.</div>
-  }
-
   const session = await getSession()
   if (session?.user || isAuthDisabled) {
     redirect('/workspace')
+  }
+
+  if (isRegistrationDisabled) {
+    return <div>Registration is disabled, please contact your admin.</div>
   }
 
   const { githubAvailable, googleAvailable, isProduction } = await getOAuthProviderStatus()

@@ -79,6 +79,13 @@ export const todoistUpdateTaskTool: ToolConfig<TodoistUpdateTaskParams, TodoistU
         if (params.priority !== undefined) body.priority = params.priority
         if (params.dueString !== undefined) body.due_string = params.dueString
         if (params.labels !== undefined) body.labels = params.labels
+
+        if (Object.keys(body).length === 0) {
+          throw new Error(
+            'No fields to update. Provide at least one of: content, description, priority, dueString, or labels.'
+          )
+        }
+
         return body
       },
     },
