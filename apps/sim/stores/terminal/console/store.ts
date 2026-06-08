@@ -244,6 +244,15 @@ interface NotifyBlockErrorParams {
   logContext: Record<string, unknown>
 }
 
+/**
+ * A single block failure surfaces through both `addConsole` (initial entry)
+ * and `updateConsole` (streaming/finalize), so the same logical error asks to
+ * toast twice within the same tick. Collapse identical (block + message)
+ * notifications inside a short window so the user sees one toast per error.
+ */
+const NOTIFY_DEDUP_WINDOW_MS = 1500
+const recentErrorNotifications = new Map<string, number>()
+
 const notifyBlockError = ({ error, blockName, logContext }: NotifyBlockErrorParams) => {
   const settings = getQueryClient().getQueryData<GeneralSettings>(generalSettingsKeys.settings())
   const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
@@ -253,10 +262,20 @@ const notifyBlockError = ({ error, blockName, logContext }: NotifyBlockErrorPara
   try {
     const errorMessage = String(error)
     const displayName = blockName || 'Unknown Block'
-    const displayMessage = `${displayName}: ${errorMessage}`
     const copilotMessage = `${errorMessage}\n\nError in ${displayName}.\n\nPlease fix this.`
 
-    toast.error(displayMessage, {
+    const now = Date.now()
+    for (const [key, shownAt] of recentErrorNotifications) {
+      if (now - shownAt >= NOTIFY_DEDUP_WINDOW_MS) recentErrorNotifications.delete(key)
+    }
+    const dedupKey = `${displayName}: ${errorMessage}`
+    const lastShownAt = recentErrorNotifications.get(dedupKey)
+    if (lastShownAt !== undefined && now - lastShownAt < NOTIFY_DEDUP_WINDOW_MS) return
+    recentErrorNotifications.set(dedupKey, now)
+
+    // Block name is the title (what failed); the error is the subtext (why).
+    toast.error(displayName, {
+      description: errorMessage,
       action: {
         label: 'Fix in Copilot',
         onClick: () => sendMothershipMessage(copilotMessage),
