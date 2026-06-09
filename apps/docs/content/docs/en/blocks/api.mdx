@@ -1,149 +1,71 @@
 ---
 title: API
+description: The API block makes an HTTP request to an external service and returns the response.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { BlockPreview } from '@/components/workflow-preview'
+import { BlockPreview, WorkflowPreview, API_FETCH_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The API block connects your workflow to external services through HTTP requests. Supports GET, POST, PUT, DELETE, and PATCH methods for interacting with REST APIs.
+The **API block** makes an HTTP request to a URL and returns the response. Use it to call any REST API: fetch data, create a record, or trigger an external endpoint.
 
 <BlockPreview type="api" />
 
-## Configuration Options
+## Configuration
 
 ### URL
 
-The endpoint URL for the API request. This can be:
-
-- A static URL entered directly in the block
-- A dynamic URL connected from another block's output
-- A URL with path parameters
+The endpoint to call. Type a static URL, or insert a [connection tag](/workflows/connections) to build it from an earlier output, like `https://api.example.com/users/<start.userId>`.
 
 ### Method
 
-Select the HTTP method for your request:
+The HTTP method: **GET**, **POST**, **PUT**, **DELETE**, or **PATCH**. Defaults to GET.
 
-- **GET**: Retrieve data from the server
-- **POST**: Send data to the server to create a resource
-- **PUT**: Update an existing resource on the server
-- **DELETE**: Remove a resource from the server
-- **PATCH**: Partially update an existing resource
+### Query Params
 
-### Query Parameters
-
-Define key-value pairs that will be appended to the URL as query parameters. For example:
-
-```
-Key: apiKey
-Value: your_api_key_here
-
-Key: limit
-Value: 10
-```
-
-These would be added to the URL as `?apiKey=your_api_key_here&limit=10`.
+Key-value pairs appended to the URL as a query string. `apiKey` and `limit` become `?apiKey=…&limit=10`.
 
 ### Headers
 
-Configure HTTP headers for your request. Common headers include:
+Key-value request headers, such as `Content-Type: application/json` or `Authorization: Bearer <secret>`. Standard headers like `User-Agent` and `Accept` are added automatically, and your values override them.
 
-```
-Key: Content-Type
-Value: application/json
+### Body
 
-Key: Authorization
-Value: Bearer your_token_here
-```
+The request payload for POST, PUT, and PATCH, sent as JSON. Type it directly, or pull it from an earlier output with a connection tag.
 
-### Request Body
+### Advanced
 
-For methods that support a request body (POST, PUT, PATCH), you can define the data to send. The body can be:
-
-- JSON data entered directly in the block
-- Data connected from another block's output
-- Dynamically generated during workflow execution
-
-### Accessing Results
-
-After an API request completes, you can access its outputs:
-
-- **`<api.data>`**: The response body data from the API
-- **`<api.status>`**: HTTP status code (200, 404, 500, etc.)
-- **`<api.headers>`**: Response headers from the server
-
-## Advanced Features
-
-### Dynamic URL Construction
-
-Build URLs dynamically using variables from previous blocks:
-
-```javascript
-// In a Function block before the API
-const userId = <start.userId>;
-const apiUrl = `https://api.example.com/users/${userId}/profile`;
-```
-
-### Request Retries
-
-The API block supports **configurable retries** (see the block’s **Advanced** settings):
-
-- **Retries**: Number of retry attempts (additional tries after the first request)
-- **Retry delay (ms)**: Initial delay before retrying (uses exponential backoff)
-- **Max retry delay (ms)**: Maximum delay between retries
-- **Retry non-idempotent methods**: Allow retries for **POST/PATCH** (may create duplicate requests)
-
-Retries are attempted for:
-
-- Network/connection failures and timeouts (with exponential backoff)
-- Rate limits (**429**) and server errors (**5xx**)
-
-### Response Validation
-
-Validate API responses before processing:
-
-```javascript
-// In a Function block after the API
-if (<api.status> === 200) {
-  const data = <api.data>;
-  // Process successful response
-} else {
-  // Handle error response
-  console.error(`API Error: ${<api.status>}`);
-}
-```
+- **Timeout (ms).** How long to wait before giving up. Defaults to 300000 (5 minutes), up to 600000 (10 minutes).
+- **Retries.** Number of retry attempts on timeouts, `429` responses, and `5xx` errors. Defaults to 0.
+- **Retry delay / Max retry delay (ms).** The exponential-backoff bounds used between retries.
+- **Retry non-idempotent methods.** Off by default, so POST and PATCH are not retried, which avoids duplicate writes. Turn it on only when a repeated request is safe.
 
 ## Outputs
 
-- **`<api.data>`**: Response body data from the API
-- **`<api.status>`**: HTTP status code
-- **`<api.headers>`**: Response headers
+After the request completes, later blocks read its result by name:
 
-## Example Use Cases
+| Output | What it is |
+| --- | --- |
+| `<api.data>` | The response body, parsed as an object for JSON or returned as text otherwise |
+| `<api.status>` | The HTTP status code, like `200` or `404` |
+| `<api.headers>` | The response headers, as an object |
 
-**Fetch User Profile Data** - Retrieve user information from external service
-```
-Function (Build ID) → API (GET /users/{id}) → Function (Format) → Response
-```
+Branch on the result by reading `<api.status>` in a [Condition](/blocks/condition) block.
 
-**Payment Processing** - Process payment through Stripe API
-```
-Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Update)
-```
+## Example
 
-## Best Practices
+A workflow that calls an HTTP endpoint and summarizes the response:
 
-- **Use environment variables for sensitive data**: Don't hardcode API keys or credentials
-- **Handle errors gracefully**: Connect error handling logic for failed requests
-- **Validate responses**: Check status codes and response formats before processing data
-- **Respect rate limits**: Be mindful of API rate limits and implement appropriate throttling
+<WorkflowPreview workflow={API_FETCH_WORKFLOW} />
+
+The API block builds its URL from the Start input, fetches the data, and the Agent reads the response as `<api.data>`.
 
 <FAQ items={[
   { question: "What is the default request timeout?", answer: "The default timeout is 300,000 milliseconds (5 minutes). You can configure it up to a maximum of 600,000 milliseconds (10 minutes) in the block's Advanced settings." },
-  { question: "Which HTTP errors trigger automatic retries?", answer: "Retries are attempted for network/connection failures, timeouts, rate limit responses (HTTP 429), and server errors (5xx). Client errors like 400 or 404 are not retried." },
+  { question: "Which HTTP errors trigger automatic retries?", answer: "Retries are attempted for network and connection failures, timeouts, rate-limit responses (HTTP 429), and server errors (5xx). Client errors like 400 or 404 are not retried." },
   { question: "How does retry backoff work?", answer: "Retries use exponential backoff starting from the configured retry delay (default 500ms). Each subsequent retry doubles the delay, up to the maximum retry delay (default 30,000ms)." },
-  { question: "Are POST and PATCH requests retried by default?", answer: "No. POST and PATCH are non-idempotent methods, so retries are disabled for them by default to avoid creating duplicate resources. You can enable retries for these methods with the 'Retry non-idempotent methods' toggle in Advanced settings, but be aware this may cause duplicate requests." },
-  { question: "What headers are included automatically?", answer: "Standard headers such as User-Agent, Accept, and Cache-Control are added automatically. Any custom headers you configure will be merged with these defaults, and your custom values will override automatic headers with the same name." },
-  { question: "Can I send form data or file uploads?", answer: "The API block primarily sends JSON request bodies through the UI. The underlying HTTP tool also supports form data natively — if you pass form data parameters, it will construct a proper multipart/form-data request automatically. For most use cases, the JSON body field in the block UI is sufficient." },
+  { question: "Are POST and PATCH requests retried by default?", answer: "No. POST and PATCH are non-idempotent, so retries are disabled for them by default to avoid creating duplicate resources. You can enable retries with the 'Retry non-idempotent methods' toggle in Advanced settings, but be aware this may cause duplicate requests." },
+  { question: "What headers are included automatically?", answer: "Standard headers such as User-Agent, Accept, and Cache-Control are added automatically. Any custom headers you configure are merged with these defaults, and your values override automatic headers with the same name." },
+  { question: "Can I send form data or file uploads?", answer: "The block sends JSON request bodies through the UI. The underlying HTTP tool also supports form data: if you pass form-data parameters, it constructs a multipart/form-data request automatically. For most cases the JSON body field is sufficient." },
 ]} />

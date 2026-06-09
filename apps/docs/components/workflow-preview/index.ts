@@ -1,5 +1,6 @@
 export { BlockPreview } from '@/components/workflow-preview/block-preview'
 export {
+  API_FETCH_WORKFLOW,
   CLASSIFY_REPLY_WORKFLOW,
   CLASSIFY_WORKFLOW,
   SUPPORT_KB_WORKFLOW,

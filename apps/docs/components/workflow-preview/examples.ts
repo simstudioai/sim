@@ -180,3 +180,50 @@ export const TABLE_ENRICH_WORKFLOW: PreviewWorkflow = {
     { id: 'classify-table2', source: 'classify', target: 'table2' },
   ],
 }
+
+/**
+ * The example on the API block page: fetch data over HTTP, then summarize the
+ * response with an Agent.
+ */
+export const API_FETCH_WORKFLOW: PreviewWorkflow = {
+  id: 'api-fetch',
+  name: 'Fetch and summarize',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'City' }],
+    },
+    {
+      id: 'api',
+      name: 'API',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 330, y: 0 },
+      rows: [
+        { title: 'Method', value: 'GET' },
+        { title: 'URL', value: 'api.weather.com/<start.input>' },
+      ],
+    },
+    {
+      id: 'agent',
+      name: 'Agent',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 660, y: 0 },
+      hideSourceHandle: true,
+      rows: [
+        { title: 'Model', value: 'claude-sonnet-4-6' },
+        { title: 'Messages', value: 'Summarize <api.data>' },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'start-api', source: 'start', target: 'api' },
+    { id: 'api-agent', source: 'api', target: 'agent' },
+  ],
+}
