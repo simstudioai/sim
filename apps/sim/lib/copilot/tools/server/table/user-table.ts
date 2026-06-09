@@ -19,6 +19,14 @@ import {
   parseFileRows,
   validateMapping,
 } from '@/lib/table'
+import {
+  buildIdByName,
+  buildNameById,
+  filterNamesToIds,
+  rowDataIdToName,
+  rowDataNameToId,
+  sortNamesToIds,
+} from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
   addTableColumn,
@@ -319,10 +327,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          // The LLM authors row data by column name; storage keys by id.
+          const idByName = buildIdByName(table.schema)
+          const nameById = buildNameById(table.schema)
           const row = await insertRow(
             {
               tableId: args.tableId,
-              data: args.data,
+              data: rowDataNameToId(args.data, idByName),
               workspaceId,
               userId: context.userId,
               position: args.position as number | undefined,
@@ -334,7 +345,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Inserted row ${row.id}`,
-            data: { row },
+            data: { row: { ...row, data: rowDataIdToName(row.data, nameById) } },
           }
         }
 
@@ -370,10 +381,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const idByName = buildIdByName(table.schema)
+          const nameById = buildNameById(table.schema)
           const rows = await batchInsertRows(
             {
               tableId: args.tableId,
-              rows: args.rows,
+              rows: args.rows.map((r: RowData) => rowDataNameToId(r, idByName)),
               workspaceId,
               userId: context.userId,
               positions,
@@ -385,7 +398,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Inserted ${rows.length} rows`,
-            data: { rows, insertedCount: rows.length },
+            data: {
+              rows: rows.map((r) => ({ ...r, data: rowDataIdToName(r.data, nameById) })),
+              insertedCount: rows.length,
+            },
           }
         }
 
@@ -400,15 +416,22 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
+          const rowTable = await getTableById(args.tableId)
+          if (!rowTable || rowTable.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
           const row = await getRowById(args.tableId, args.rowId, workspaceId)
           if (!row) {
             return { success: false, message: `Row not found: ${args.rowId}` }
           }
 
+          const nameById = buildNameById(rowTable.schema)
           return {
             success: true,
             message: `Row ${row.id}`,
-            data: { row },
+            data: {
+              row: { ...row, data: rowDataIdToName(row.data, nameById) },
+            },
           }
         }
 
@@ -426,11 +449,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = generateId().slice(0, 8)
+          const idByName = buildIdByName(table.schema)
+          const nameById = buildNameById(table.schema)
           const result = await queryRows(
             table,
             {
-              filter: args.filter,
-              sort: args.sort,
+              filter: args.filter ? filterNamesToIds(args.filter, idByName) : undefined,
+              sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
               limit: args.limit,
               offset: args.offset,
             },
@@ -440,7 +465,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Returned ${result.rows.length} of ${result.totalCount} rows`,
-            data: result,
+            data: {
+              ...result,
+              rows: result.rows.map((r) => ({ ...r, data: rowDataIdToName(r.data, nameById) })),
+            },
           }
         }
 
@@ -465,11 +493,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const idByName = buildIdByName(table.schema)
+          const nameById = buildNameById(table.schema)
           const updatedRow = await updateRow(
             {
               tableId: args.tableId,
               rowId: args.rowId,
-              data: args.data,
+              data: rowDataNameToId(args.data, idByName),
               workspaceId,
               actorUserId: context.userId,
             },
@@ -490,7 +520,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return {
             success: true,
             message: `Updated row ${updatedRow.id}`,
-            data: { row: updatedRow },
+            data: { row: { ...updatedRow, data: rowDataIdToName(updatedRow.data, nameById) } },
           }
         }
 
@@ -536,11 +566,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const idByName = buildIdByName(table.schema)
           const result = await updateRowsByFilter(
             table,
             {
-              filter: args.filter,
-              data: args.data,
+              filter: filterNamesToIds(args.filter, idByName),
+              data: rowDataNameToId(args.data, idByName),
               limit: args.limit,
               actorUserId: context.userId,
             },
@@ -572,10 +603,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const idByName = buildIdByName(table.schema)
           const result = await deleteRowsByFilter(
             table,
             {
-              filter: args.filter,
+              filter: filterNamesToIds(args.filter, idByName),
               limit: args.limit,
             },
             requestId
@@ -634,10 +666,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          const idByName = buildIdByName(table.schema)
           const result = await batchUpdateRows(
             {
               tableId: args.tableId,
-              updates: updates as Array<{ rowId: string; data: RowData }>,
+              updates: (updates as Array<{ rowId: string; data: RowData }>).map((u) => ({
+                rowId: u.rowId,
+                data: rowDataNameToId(u.data, idByName),
+              })),
               workspaceId,
               actorUserId: context.userId,
             },
@@ -732,7 +768,9 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             requestId
           )
 
-          const coerced = coerceRowsForTable(rowsToImport, { columns }, headerToColumn)
+          // Coerce against the created table's schema so rows key by the ids
+          // `createTable` assigned (not the inferred, id-less columns).
+          const coerced = coerceRowsForTable(rowsToImport, table.schema, headerToColumn)
           let inserted: number
           try {
             inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)

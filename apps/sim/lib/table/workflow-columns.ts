@@ -26,6 +26,7 @@ import type {
 
 const logger = createLogger('WorkflowGroupScheduler')
 
+import { getColumnId } from './column-keys'
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
 import type { DispatchLimit, DispatchMode } from './dispatcher'
 
@@ -751,18 +752,19 @@ export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string
  */
 export function validateSchema(schema: TableSchema, columnOrder: string[] | undefined): string[] {
   const errors: string[] = []
-  const columnsByName = new Map(schema.columns.map((c) => [c.name, c]))
+  // Group refs and columnOrder hold stable column ids (not display names).
+  const columnsById = new Map(schema.columns.map((c) => [getColumnId(c), c]))
   const groups = schema.workflowGroups ?? []
   const groupsById = new Map(groups.map((g) => [g.id, g]))
 
   // Reference integrity for group outputs.
-  const claimedColumns = new Map<string, string>() // columnName → groupId
+  const claimedColumns = new Map<string, string>() // columnId → groupId
   for (const group of groups) {
     if (group.outputs.length === 0) {
       errors.push(`Workflow group "${group.name ?? group.id}" has no outputs.`)
     }
     for (const out of group.outputs) {
-      const col = columnsByName.get(out.columnName)
+      const col = columnsById.get(out.columnName)
       if (!col) {
         errors.push(
           `Workflow group "${group.name ?? group.id}" references missing column "${out.columnName}".`
@@ -794,7 +796,7 @@ export function validateSchema(schema: TableSchema, columnOrder: string[] | unde
       )
       continue
     }
-    if (claimedColumns.get(col.name) !== col.workflowGroupId) {
+    if (claimedColumns.get(getColumnId(col)) !== col.workflowGroupId) {
       errors.push(
         `Column "${col.name}" has workflowGroupId "${col.workflowGroupId}" but isn't in that group's outputs.`
       )
@@ -813,7 +815,7 @@ export function validateSchema(schema: TableSchema, columnOrder: string[] | unde
   for (const group of groups) {
     const ownOutputs = new Set(group.outputs.map((o) => o.columnName))
     for (const depCol of group.dependencies?.columns ?? []) {
-      const col = columnsByName.get(depCol)
+      const col = columnsById.get(depCol)
       if (!col) {
         errors.push(`Group "${group.name ?? group.id}" depends on missing column "${depCol}".`)
         continue

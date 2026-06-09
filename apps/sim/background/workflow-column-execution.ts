@@ -13,6 +13,7 @@ import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
+import { getColumnId } from '@/lib/table/column-keys'
 import { isExecCancelled } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
 import type {
@@ -621,26 +622,30 @@ async function runWorkflowAndWriteTerminal(
       // populated by the run we're starting. Other group's outputs ARE
       // included (they're plain primitives in `row.data` thanks to the
       // flattened schema).
-      const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
+      // `inputRow` is name-keyed: the workflow author references columns by name
+      // in the Start block and downstream blocks, while stored `row.data` is
+      // id-keyed. Translate, skipping this group's own output columns.
+      const ownOutputColumnIds = new Set(group.outputs.map((o) => o.columnName))
       const inputRow: Record<string, unknown> = {}
-      for (const key of Object.keys(row.data)) {
-        if (ownOutputColumns.has(key)) continue
-        inputRow[key] = row.data[key]
+      for (const col of table.schema.columns) {
+        const id = getColumnId(col)
+        if (ownOutputColumnIds.has(id)) continue
+        inputRow[col.name] = row.data[id]
       }
 
       const headers = table.schema.columns
-        .filter((c) => !ownOutputColumns.has(c.name))
+        .filter((c) => !ownOutputColumnIds.has(getColumnId(c)))
         .map((c) => c.name)
 
       // When the group has explicit input mappings, feed the workflow's
-      // Start-block fields from the mapped columns (`inputName ← row[columnName]`).
+      // Start-block fields from the mapped columns (`inputName ← row[columnId]`).
       // Otherwise fall back to spreading every non-output column by name, so a
       // Start field still resolves when it matches a column name. `row`/`rawRow`
-      // always carry the full row for downstream reference.
+      // always carry the full (name-keyed) row for downstream reference.
       const inputMappings = group.inputMappings ?? []
       const mappedInputs: Record<string, unknown> = {}
       for (const m of inputMappings) {
-        mappedInputs[m.inputName] = inputRow[m.columnName]
+        mappedInputs[m.inputName] = row.data[m.columnName]
       }
 
       const input = {

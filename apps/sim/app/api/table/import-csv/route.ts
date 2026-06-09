@@ -137,7 +137,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
         requestId
       )
-      return { table, schema, headerToColumn: inferred.headerToColumn }
+      // Coerce against the *created* schema so rows key by the ids `createTable`
+      // assigned (the local `schema` is the id-less inferred one).
+      return { table, schema: table.schema, headerToColumn: inferred.headerToColumn }
     }
 
     let state: ImportState | null = null

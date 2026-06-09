@@ -153,7 +153,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       }
       didDragRef.current = true
       e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('text/plain', column.name)
+      e.dataTransfer.setData('text/plain', column.key)
 
       // Workflow-output columns drag as a whole group, so the ghost shows
       // the group's name (falling back to the workflow's name, then the
@@ -168,9 +168,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
       requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
 
-      onDragStart?.(column.name)
+      onDragStart?.(column.key)
     },
-    [column.name, ownGroup, configuredWorkflow, readOnly, isRenaming, onDragStart]
+    [column.key, column.name, ownGroup, configuredWorkflow, readOnly, isRenaming, onDragStart]
   )
 
   const handleDragOver = useCallback(
@@ -180,9 +180,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
       const midX = rect.left + rect.width / 2
       const side = e.clientX < midX ? 'left' : 'right'
-      onDragOver?.(column.name, side)
+      onDragOver?.(column.key, side)
     },
-    [column.name, onDragOver]
+    [column.key, onDragOver]
   )
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -217,7 +217,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     if (isRenaming) return
     onColumnSelect(colIndex, e.shiftKey)
     if (!e.shiftKey) {
-      onOpenConfig(column.name)
+      onOpenConfig(column.key)
     }
   }
 

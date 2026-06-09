@@ -5,6 +5,7 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
 import { queryRows } from '@/lib/table/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -45,6 +46,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   const { table } = access
 
   const columns = table.schema.columns
+  // Stored row data is id-keyed; CSV headers and JSON keys are display names, so
+  // translate id → name on the way out (export is a name-friendly boundary).
+  const nameById = buildNameById(table.schema)
   const safeName = sanitizeFilename(table.name)
   const filename = `${safeName}.${format}`
 
@@ -71,12 +75,14 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
 
           for (const row of result.rows) {
             if (format === 'csv') {
-              const values = columns.map((c) => formatCsvValue(row.data[c.name]))
+              const values = columns.map((c) => formatCsvValue(row.data[getColumnId(c)]))
               controller.enqueue(encoder.encode(`${toCsvRow(values)}\n`))
             } else {
               const prefix = firstJsonRow ? '' : ','
               firstJsonRow = false
-              controller.enqueue(encoder.encode(prefix + JSON.stringify({ ...row.data })))
+              controller.enqueue(
+                encoder.encode(prefix + JSON.stringify(rowDataIdToName(row.data, nameById)))
+              )
             }
           }
 
