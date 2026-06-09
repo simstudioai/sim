@@ -875,6 +875,69 @@
     "tags": ["enrichment", "sales-engagement"]
   },
   {
+    "type": "appconfig",
+    "slug": "aws-appconfig",
+    "name": "AWS AppConfig",
+    "description": "Manage configuration versions and deployments in AWS AppConfig",
+    "longDescription": "Integrate AWS AppConfig into workflows. Create hosted configuration versions, start, stop, and inspect deployments, and discover applications, environments, configuration profiles, and deployment strategies.",
+    "bgColor": "#E7157B",
+    "iconName": "AppConfigIcon",
+    "docsUrl": "https://docs.sim.ai/tools/appconfig",
+    "operations": [
+      {
+        "name": "Create Configuration Version",
+        "description": "Create a new immutable hosted configuration version for an AppConfig profile"
+      },
+      {
+        "name": "Get Configuration Version",
+        "description": "Retrieve the content of a specific hosted configuration version"
+      },
+      {
+        "name": "List Configuration Versions",
+        "description": "List hosted configuration versions for an AppConfig configuration profile"
+      },
+      {
+        "name": "Start Deployment",
+        "description": "Deploy a configuration version to an AppConfig environment"
+      },
+      {
+        "name": "Get Deployment",
+        "description": "Get the status and details of an AppConfig deployment"
+      },
+      {
+        "name": "Stop Deployment",
+        "description": "Stop a running AppConfig deployment"
+      },
+      {
+        "name": "List Deployments",
+        "description": "List deployments for an AppConfig environment"
+      },
+      {
+        "name": "List Applications",
+        "description": "List AppConfig applications in the account"
+      },
+      {
+        "name": "List Environments",
+        "description": "List environments for an AppConfig application"
+      },
+      {
+        "name": "List Configuration Profiles",
+        "description": "List configuration profiles for an AppConfig application"
+      },
+      {
+        "name": "List Deployment Strategies",
+        "description": "List AppConfig deployment strategies in the account"
+      }
+    ],
+    "operationCount": 11,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["cloud", "feature-flags"]
+  },
+  {
     "type": "arxiv",
     "slug": "arxiv",
     "name": "ArXiv",

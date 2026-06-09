@@ -155,6 +155,19 @@ import {
   apolloTaskCreateTool,
   apolloTaskSearchTool,
 } from '@/tools/apollo'
+import {
+  appconfigCreateHostedConfigurationVersionTool,
+  appconfigGetDeploymentTool,
+  appconfigGetHostedConfigurationVersionTool,
+  appconfigListApplicationsTool,
+  appconfigListConfigurationProfilesTool,
+  appconfigListDeploymentStrategiesTool,
+  appconfigListDeploymentsTool,
+  appconfigListEnvironmentsTool,
+  appconfigListHostedConfigurationVersionsTool,
+  appconfigStartDeploymentTool,
+  appconfigStopDeploymentTool,
+} from '@/tools/appconfig'
 import { arxivGetAuthorPapersTool, arxivGetPaperTool, arxivSearchTool } from '@/tools/arxiv'
 import {
   asanaAddCommentTool,
@@ -3381,6 +3394,17 @@ export const tools: Record<string, ToolConfig> = {
   amplitude_realtime_active_users: amplitudeRealtimeActiveUsersTool,
   amplitude_list_events: amplitudeListEventsTool,
   amplitude_get_revenue: amplitudeGetRevenueTool,
+  appconfig_create_hosted_configuration_version: appconfigCreateHostedConfigurationVersionTool,
+  appconfig_get_hosted_configuration_version: appconfigGetHostedConfigurationVersionTool,
+  appconfig_list_hosted_configuration_versions: appconfigListHostedConfigurationVersionsTool,
+  appconfig_start_deployment: appconfigStartDeploymentTool,
+  appconfig_get_deployment: appconfigGetDeploymentTool,
+  appconfig_stop_deployment: appconfigStopDeploymentTool,
+  appconfig_list_deployments: appconfigListDeploymentsTool,
+  appconfig_list_applications: appconfigListApplicationsTool,
+  appconfig_list_environments: appconfigListEnvironmentsTool,
+  appconfig_list_configuration_profiles: appconfigListConfigurationProfilesTool,
+  appconfig_list_deployment_strategies: appconfigListDeploymentStrategiesTool,
   arxiv_get_author_papers: arxivGetAuthorPapersTool,
   arxiv_get_paper: arxivGetPaperTool,
   arxiv_search: arxivSearchTool,

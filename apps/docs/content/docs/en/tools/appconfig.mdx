@@ -1,0 +1,351 @@
+---
+title: AWS AppConfig
+description: Manage configuration versions and deployments in AWS AppConfig
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="appconfig"
+  color="#E7157B"
+/>
+
+## Usage Instructions
+
+Integrate AWS AppConfig into workflows. Create hosted configuration versions, start, stop, and inspect deployments, and discover applications, environments, configuration profiles, and deployment strategies.
+
+
+
+## Tools
+
+### `appconfig_create_hosted_configuration_version`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_get_hosted_configuration_version`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_list_hosted_configuration_versions`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_start_deployment`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_get_deployment`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_stop_deployment`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_list_deployments`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_list_applications`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_list_environments`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_list_configuration_profiles`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+### `appconfig_list_deployment_strategies`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `applicationId` | string | The application ID |
+| `configurationProfileId` | string | The configuration profile ID |
+| `environmentId` | string | The environment ID |
+| `versionNumber` | number | The hosted configuration version number |
+| `content` | string | The configuration content |
+| `contentType` | string | The content MIME type |
+| `versionLabel` | string | The version label |
+| `deploymentNumber` | number | The deployment sequence number |
+| `deploymentStrategyId` | string | The deployment strategy ID |
+| `configurationVersion` | string | The deployed configuration version |
+| `description` | string | Description of the version or deployment |
+| `state` | string | The deployment state |
+| `percentageComplete` | number | Percentage of targets deployed |
+| `startedAt` | string | When the deployment started \(ISO\) |
+| `completedAt` | string | When the deployment completed \(ISO\) |
+| `items` | array | List of results for list operations |
+| `nextToken` | string | Pagination token for the next page |
+
+
