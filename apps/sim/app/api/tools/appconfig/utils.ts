@@ -11,6 +11,7 @@ import {
   ListDeploymentStrategiesCommand,
   ListDeploymentsCommand,
   ListEnvironmentsCommand,
+  ListHostedConfigurationVersionsCommand,
   StartDeploymentCommand,
   StopDeploymentCommand,
 } from '@aws-sdk/client-appconfig'
@@ -261,6 +262,38 @@ export async function getHostedConfigurationVersion(
     content: decodeContent(response.Content),
     contentType: response.ContentType ?? null,
     versionLabel: response.VersionLabel ?? null,
+  }
+}
+
+export async function listHostedConfigurationVersions(
+  client: AppConfigClient,
+  applicationId: string,
+  configurationProfileId: string,
+  maxResults?: number | null,
+  nextToken?: string | null
+) {
+  const response = await client.send(
+    new ListHostedConfigurationVersionsCommand({
+      ApplicationId: applicationId,
+      ConfigurationProfileId: configurationProfileId,
+      ...(maxResults ? { MaxResults: maxResults } : {}),
+      ...(nextToken ? { NextToken: nextToken } : {}),
+    })
+  )
+
+  const versions = (response.Items ?? []).map((item) => ({
+    applicationId: item.ApplicationId ?? null,
+    configurationProfileId: item.ConfigurationProfileId ?? null,
+    versionNumber: item.VersionNumber ?? null,
+    description: item.Description ?? null,
+    contentType: item.ContentType ?? null,
+    versionLabel: item.VersionLabel ?? null,
+  }))
+
+  return {
+    versions,
+    nextToken: response.NextToken ?? null,
+    count: versions.length,
   }
 }
 

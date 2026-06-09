@@ -38,6 +38,10 @@ export const AppConfigBlock: BlockConfig<
           id: 'create_hosted_configuration_version',
         },
         { label: 'Get Hosted Configuration Version', id: 'get_hosted_configuration_version' },
+        {
+          label: 'List Hosted Configuration Versions',
+          id: 'list_hosted_configuration_versions',
+        },
         { label: 'List Deployment Strategies', id: 'list_deployment_strategies' },
         { label: 'Start Deployment', id: 'start_deployment' },
         { label: 'Get Deployment', id: 'get_deployment' },
@@ -83,6 +87,7 @@ export const AppConfigBlock: BlockConfig<
           'create_configuration_profile',
           'create_hosted_configuration_version',
           'get_hosted_configuration_version',
+          'list_hosted_configuration_versions',
           'start_deployment',
           'get_deployment',
           'list_deployments',
@@ -99,6 +104,7 @@ export const AppConfigBlock: BlockConfig<
           'create_configuration_profile',
           'create_hosted_configuration_version',
           'get_hosted_configuration_version',
+          'list_hosted_configuration_versions',
           'start_deployment',
           'get_deployment',
           'list_deployments',
@@ -143,6 +149,7 @@ export const AppConfigBlock: BlockConfig<
         value: [
           'create_hosted_configuration_version',
           'get_hosted_configuration_version',
+          'list_hosted_configuration_versions',
           'start_deployment',
           'get_configuration',
         ],
@@ -152,6 +159,7 @@ export const AppConfigBlock: BlockConfig<
         value: [
           'create_hosted_configuration_version',
           'get_hosted_configuration_version',
+          'list_hosted_configuration_versions',
           'start_deployment',
           'get_configuration',
         ],
@@ -298,6 +306,7 @@ export const AppConfigBlock: BlockConfig<
           'list_configuration_profiles',
           'list_deployment_strategies',
           'list_deployments',
+          'list_hosted_configuration_versions',
         ],
       },
       required: false,
@@ -316,6 +325,7 @@ export const AppConfigBlock: BlockConfig<
           'list_configuration_profiles',
           'list_deployment_strategies',
           'list_deployments',
+          'list_hosted_configuration_versions',
         ],
       },
       required: false,
@@ -333,6 +343,7 @@ export const AppConfigBlock: BlockConfig<
       'appconfig_create_configuration_profile',
       'appconfig_create_hosted_configuration_version',
       'appconfig_get_hosted_configuration_version',
+      'appconfig_list_hosted_configuration_versions',
       'appconfig_list_deployment_strategies',
       'appconfig_start_deployment',
       'appconfig_get_deployment',
@@ -360,6 +371,8 @@ export const AppConfigBlock: BlockConfig<
             return 'appconfig_create_hosted_configuration_version'
           case 'get_hosted_configuration_version':
             return 'appconfig_get_hosted_configuration_version'
+          case 'list_hosted_configuration_versions':
+            return 'appconfig_list_hosted_configuration_versions'
           case 'list_deployment_strategies':
             return 'appconfig_list_deployment_strategies'
           case 'start_deployment':
@@ -461,6 +474,7 @@ export const AppConfigBlock: BlockConfig<
     configurationProfiles: { type: 'json', description: 'List of configuration profiles' },
     deploymentStrategies: { type: 'json', description: 'List of deployment strategies' },
     deployments: { type: 'json', description: 'List of deployments' },
+    versions: { type: 'json', description: 'List of hosted configuration versions' },
     nextToken: { type: 'string', description: 'Pagination token for the next page' },
     count: { type: 'number', description: 'Number of items returned' },
   },

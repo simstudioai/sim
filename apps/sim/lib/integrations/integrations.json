@@ -1502,6 +1502,10 @@
         "description": "Retrieve a specific hosted configuration version from an AppConfig profile"
       },
       {
+        "name": "List Hosted Configuration Versions",
+        "description": "List hosted configuration versions for an AWS AppConfig configuration profile"
+      },
+      {
         "name": "List Deployment Strategies",
         "description": "List deployment strategies available in AWS AppConfig"
       },
@@ -1522,13 +1526,13 @@
         "description": "Stop an in-progress AWS AppConfig deployment"
       }
     ],
-    "operationCount": 14,
+    "operationCount": 15,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "devops",
-    "tags": ["cloud", "configuration", "feature-flags"]
+    "tags": ["cloud", "feature-flags", "automation"]
   },
   {
     "type": "iam",

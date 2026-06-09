@@ -168,6 +168,7 @@ import {
   appConfigListDeploymentStrategiesTool,
   appConfigListDeploymentsTool,
   appConfigListEnvironmentsTool,
+  appConfigListHostedConfigurationVersionsTool,
   appConfigStartDeploymentTool,
   appConfigStopDeploymentTool,
 } from '@/tools/appconfig'
@@ -5260,6 +5261,7 @@ export const tools: Record<string, ToolConfig> = {
   appconfig_create_configuration_profile: appConfigCreateConfigurationProfileTool,
   appconfig_create_hosted_configuration_version: appConfigCreateHostedConfigurationVersionTool,
   appconfig_get_hosted_configuration_version: appConfigGetHostedConfigurationVersionTool,
+  appconfig_list_hosted_configuration_versions: appConfigListHostedConfigurationVersionsTool,
   appconfig_list_deployment_strategies: appConfigListDeploymentStrategiesTool,
   appconfig_start_deployment: appConfigStartDeploymentTool,
   appconfig_get_deployment: appConfigGetDeploymentTool,

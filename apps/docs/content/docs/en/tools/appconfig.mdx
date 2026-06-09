@@ -27,6 +27,7 @@ In Sim, the AppConfig integration lets your agents read live configuration to br
 Authentication uses an AWS access key ID and secret access key. The associated IAM principal needs the relevant `appconfig:*` permissions (for example `appconfig:GetLatestConfiguration` and `appconfig:StartConfigurationSession` for retrieval, and `appconfig:StartDeployment` for rollouts).
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Integrate AWS AppConfig into workflows. Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.
@@ -273,6 +274,36 @@ Retrieve a specific hosted configuration version from an AppConfig profile
 | `content` | string | The configuration content |
 | `contentType` | string | Content type of the configuration |
 | `versionLabel` | string | Label of the configuration version |
+
+### `appconfig_list_hosted_configuration_versions`
+
+List hosted configuration versions for an AWS AppConfig configuration profile
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `applicationId` | string | Yes | The application ID that owns the configuration profile |
+| `configurationProfileId` | string | Yes | The configuration profile ID to list versions for |
+| `maxResults` | number | No | Maximum number of versions to return \(1-50\) |
+| `nextToken` | string | No | Pagination token from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `versions` | array | List of hosted configuration versions |
+|   ↳ `applicationId` | string | Owning application ID |
+|   ↳ `configurationProfileId` | string | Owning configuration profile ID |
+|   ↳ `versionNumber` | number | Version number |
+|   ↳ `description` | string | Description of the version |
+|   ↳ `contentType` | string | Content type of the configuration |
+|   ↳ `versionLabel` | string | Label of the configuration version |
+| `nextToken` | string | Pagination token for the next page |
+| `count` | number | Number of versions returned |
 
 ### `appconfig_list_deployment_strategies`
 

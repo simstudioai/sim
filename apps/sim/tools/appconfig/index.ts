@@ -10,6 +10,7 @@ import { listConfigurationProfilesTool } from './list_configuration_profiles'
 import { listDeploymentStrategiesTool } from './list_deployment_strategies'
 import { listDeploymentsTool } from './list_deployments'
 import { listEnvironmentsTool } from './list_environments'
+import { listHostedConfigurationVersionsTool } from './list_hosted_configuration_versions'
 import { startDeploymentTool } from './start_deployment'
 import { stopDeploymentTool } from './stop_deployment'
 
@@ -21,6 +22,7 @@ export const appConfigListConfigurationProfilesTool = listConfigurationProfilesT
 export const appConfigCreateConfigurationProfileTool = createConfigurationProfileTool
 export const appConfigCreateHostedConfigurationVersionTool = createHostedConfigurationVersionTool
 export const appConfigGetHostedConfigurationVersionTool = getHostedConfigurationVersionTool
+export const appConfigListHostedConfigurationVersionsTool = listHostedConfigurationVersionsTool
 export const appConfigListDeploymentStrategiesTool = listDeploymentStrategiesTool
 export const appConfigStartDeploymentTool = startDeploymentTool
 export const appConfigGetDeploymentTool = getDeploymentTool

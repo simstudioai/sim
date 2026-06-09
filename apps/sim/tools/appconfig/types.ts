@@ -72,6 +72,15 @@ export interface AppConfigDeploymentStrategy {
   replicateTo: string | null
 }
 
+export interface AppConfigHostedConfigurationVersionSummary {
+  applicationId: string | null
+  configurationProfileId: string | null
+  versionNumber: number | null
+  description: string | null
+  contentType: string | null
+  versionLabel: string | null
+}
+
 export interface AppConfigListApplicationsParams extends AppConfigConnectionConfig {
   maxResults?: number | null
   nextToken?: string | null
@@ -123,6 +132,13 @@ export interface AppConfigGetHostedConfigurationVersionParams extends AppConfigC
   applicationId: string
   configurationProfileId: string
   versionNumber: number
+}
+
+export interface AppConfigListHostedConfigurationVersionsParams extends AppConfigConnectionConfig {
+  applicationId: string
+  configurationProfileId: string
+  maxResults?: number | null
+  nextToken?: string | null
 }
 
 export interface AppConfigListDeploymentStrategiesParams extends AppConfigConnectionConfig {
@@ -252,6 +268,15 @@ export interface AppConfigGetHostedConfigurationVersionResponse extends ToolResp
 export interface AppConfigListDeploymentStrategiesResponse extends ToolResponse {
   output: {
     deploymentStrategies: AppConfigDeploymentStrategy[]
+    nextToken: string | null
+    count: number
+  }
+  error?: string
+}
+
+export interface AppConfigListHostedConfigurationVersionsResponse extends ToolResponse {
+  output: {
+    versions: AppConfigHostedConfigurationVersionSummary[]
     nextToken: string | null
     count: number
   }
