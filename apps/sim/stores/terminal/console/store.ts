@@ -260,7 +260,7 @@ const notifyBlockError = ({ error, blockName, logContext }: NotifyBlockErrorPara
   if (!isErrorNotificationsEnabled) return
 
   try {
-    const errorMessage = String(error)
+    const errorMessage = normalizeConsoleError(error) ?? String(error)
     const displayName = blockName || 'Unknown Block'
     const copilotMessage = `${errorMessage}\n\nError in ${displayName}.\n\nPlease fix this.`
 
