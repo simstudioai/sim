@@ -309,6 +309,79 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
+  it('persists partial responses when the server lifecycle throws (onError)', async () => {
+    await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Hello',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+        }),
+      })
+    )
+
+    const streamArgs = createSSEStream.mock.calls[0]?.[0]
+    const onError = streamArgs?.orchestrateOptions?.onError
+    expect(onError).toBeTypeOf('function')
+
+    await onError(new Error('bedrock overloaded'), {
+      success: false,
+      cancelled: false,
+      content: 'partial answer',
+      contentBlocks: [],
+      toolCalls: [],
+      chatId: 'chat-1',
+      requestId: 'request-1',
+    })
+
+    expect(finalizeAssistantTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'chat-1',
+        userMessageId: expect.any(String),
+        streamMarkerPolicy: 'active-or-cleared',
+        assistantMessage: expect.objectContaining({
+          role: 'assistant',
+          content: 'partial answer',
+        }),
+      })
+    )
+  })
+
+  it('clears the stream marker without an assistant message when nothing streamed before the throw', async () => {
+    await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Hello',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+        }),
+      })
+    )
+
+    const streamArgs = createSSEStream.mock.calls[0]?.[0]
+    const onError = streamArgs?.orchestrateOptions?.onError
+    expect(onError).toBeTypeOf('function')
+
+    await onError(new Error('immediate failure'), {
+      success: false,
+      cancelled: false,
+      content: '',
+      contentBlocks: [],
+      toolCalls: [],
+      chatId: 'chat-1',
+      requestId: 'request-1',
+    })
+
+    const lastCall = finalizeAssistantTurn.mock.calls.at(-1)?.[0]
+    expect(lastCall).toMatchObject({
+      chatId: 'chat-1',
+      streamMarkerPolicy: 'active-or-cleared',
+    })
+    expect(lastCall?.assistantMessage).toBeUndefined()
+  })
+
   it('republishes completed status when cancelled lifecycle persistence already ran', async () => {
     await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {

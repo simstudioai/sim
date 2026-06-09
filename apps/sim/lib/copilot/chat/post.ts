@@ -509,11 +509,25 @@ function buildOnError(params: {
 }) {
   const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus } = params
 
-  return async () => {
+  return async (_error: Error, result?: OrchestratorResult) => {
     if (!chatId) return
 
     try {
-      await finalizeAssistantTurn({ chatId, userMessageId })
+      // Persist whatever streamed before a thrown backend error, mirroring the
+      // cancelled / non-success completion path, so the partial assistant turn
+      // (text + tool calls + subagent work) survives the refetch instead of the
+      // chat collapsing to an empty assistant row.
+      const assistantMessage = result
+        ? buildPersistedAssistantMessage(result, requestId)
+        : undefined
+      const hasPartial =
+        !!assistantMessage?.content?.trim() || (assistantMessage?.contentBlocks?.length ?? 0) > 0
+      await finalizeAssistantTurn({
+        chatId,
+        userMessageId,
+        ...(hasPartial ? { assistantMessage } : {}),
+        streamMarkerPolicy: 'active-or-cleared',
+      })
 
       if (notifyWorkspaceStatus && workspaceId) {
         taskPubSub?.publishStatusChanged({

@@ -511,4 +511,76 @@ describe('runCopilotLifecycle', () => {
       })
     )
   })
+
+  it('marks resume legs willRetryOnStreamError except the final attempt', async () => {
+    const bodies: Record<string, unknown>[] = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    // Initial leg pauses on a resolved async tool checkpoint → enters resume.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        bodies.push(JSON.parse(String(fetchOptions.body)))
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    // Three resume attempts, all failing with a retryable 5xx so the loop
+    // exhausts MAX_RESUME_ATTEMPTS (= 3) and gives up.
+    for (let i = 0; i < 3; i++) {
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.errors.push('Copilot backend stream ended before a terminal event')
+          throw new CopilotBackendError('backend stream ended before a terminal event', {
+            status: 503,
+          })
+        }
+      )
+    }
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    // Initial + 3 resume attempts.
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(4)
+    // Initial leg is never retried by this loop → no flag.
+    expect(bodies[0].willRetryOnStreamError).toBeUndefined()
+    // Resume attempts 0 and 1 will be retried on a stream error → flagged.
+    expect(bodies[1].willRetryOnStreamError).toBe(true)
+    expect(bodies[2].willRetryOnStreamError).toBe(true)
+    // Final attempt (2) is terminal → not flagged, so Go bills + surfaces it.
+    expect(bodies[3].willRetryOnStreamError).toBeUndefined()
+  })
 })

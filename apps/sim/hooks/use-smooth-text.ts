@@ -80,6 +80,11 @@ export function useSmoothText(
   // trips React's max-update-depth guard. The running tick reads the latest content
   // from `contentRef`, so new chunks are absorbed without per-chunk teardown;
   // `hasBacklog` only flips when the reveal falls behind or catches up.
+  if (!isStreaming && effectiveRevealed !== content.length) {
+    effectiveRevealed = content.length
+    revealedRef.current = content.length
+  }
+
   const hasBacklog = effectiveRevealed < content.length
 
   useEffect(() => {

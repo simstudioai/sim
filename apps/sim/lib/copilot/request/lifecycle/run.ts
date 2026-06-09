@@ -192,12 +192,18 @@ export async function runCopilotLifecycle(
     // Return `cancelled: true` so upstream classification stays
     // consistent with the success-path cancel result.
     const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
+    // Preserve whatever streamed before the throw for both terminals. A thrown
+    // backend error (as opposed to an `error` SSE event that lets the loop finish
+    // normally) must still carry the partial assistant turn so onError can
+    // persist it — otherwise the post-error refetch replaces the rich live turn
+    // with an empty assistant row and the UI appears to wipe the message +
+    // subagent work.
     const result: OrchestratorResult = {
       success: false,
       cancelled: wasCancelled,
-      content: wasCancelled ? context.accumulatedContent : '',
-      contentBlocks: wasCancelled ? context.contentBlocks : [],
-      toolCalls: wasCancelled ? buildToolCallSummaries(context) : [],
+      content: context.accumulatedContent,
+      contentBlocks: context.contentBlocks,
+      toolCalls: buildToolCallSummaries(context),
       chatId: context.chatId,
       requestId: context.requestId,
       error: err.message,
@@ -207,7 +213,7 @@ export async function runCopilotLifecycle(
     }
 
     if (!wasCancelled) {
-      await lifecycleOptions.onError?.(err)
+      await lifecycleOptions.onError?.(err, result)
     } else if (!onCompleteStarted && lifecycleOptions.onComplete) {
       try {
         await lifecycleOptions.onComplete(result)
@@ -311,6 +317,19 @@ async function runCheckpointLoop(
     // mis-finalized as `error`.
     const errorsBeforeAttempt = context.errors.length
 
+    // A resume leg that is not the last allowed attempt will be retried below
+    // on a retryable stream error. Tell Go so it treats a mid-flight provider
+    // error as non-terminal for the UI and suppresses the user-facing error tag
+    // that a recovered retry should not show. Billing is still flushed for
+    // every leg; /api/billing/update-cost records cumulative cost as a
+    // monotonic top-up, so the partial retry leg and the recovered terminal leg
+    // reconcile to the maximum cumulative total. Recomputed per attempt because
+    // the same payload is reused across retries.
+    const willRetryOnStreamError = isResume && resumeAttempt < MAX_RESUME_ATTEMPTS - 1
+    const legPayload = willRetryOnStreamError
+      ? { ...payload, willRetryOnStreamError: true }
+      : payload
+
     try {
       await runStreamLoop(
         `${mothershipBaseURL}${route}`,
@@ -322,7 +341,7 @@ async function runCheckpointLoop(
             ...getMothershipSourceEnvHeaders(),
             'X-Client-Version': SIM_AGENT_VERSION,
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(legPayload),
         },
         context,
         execContext,

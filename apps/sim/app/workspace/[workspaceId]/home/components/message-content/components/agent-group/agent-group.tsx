@@ -60,7 +60,10 @@ export function AgentGroup({
     (item): item is Extract<AgentGroupItem, { type: 'tool' }> => item.type === 'tool'
   )
   const allDone = toolItems.length > 0 && toolItems.every((t) => isToolDone(t.data.status))
-  const showDelegatingSpinner = isDelegating && !allDone
+  // Only a live turn can be delegating. Once the turn is terminal (complete,
+  // errored, or stopped) no subagent should spin — even one aborted before its
+  // first tool call, where `allDone` is false because there are no tools yet.
+  const showDelegatingSpinner = isStreaming && isDelegating && !allDone
 
   // Expand only while the turn is live and the group is still open or working.
   // Once the turn ends (isStreaming false) — or a subagent closes mid-turn — the

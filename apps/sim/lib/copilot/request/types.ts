@@ -146,7 +146,7 @@ export interface OrchestratorOptions {
   timeout?: number
   onEvent?: (event: StreamEvent) => void | Promise<void>
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
-  onError?: (error: Error) => void | Promise<void>
+  onError?: (error: Error, result?: OrchestratorResult) => void | Promise<void>
   abortSignal?: AbortSignal
   onAbortObserved?: (reason: string) => void
   interactive?: boolean

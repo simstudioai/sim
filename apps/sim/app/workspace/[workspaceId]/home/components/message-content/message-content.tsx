@@ -659,6 +659,18 @@ export function assistantMessageHasRenderableContent(
   return segments.length > 0
 }
 
+export function shouldSmoothTextSegment({
+  isStreaming,
+  segmentIndex,
+  segmentCount,
+}: {
+  isStreaming: boolean
+  segmentIndex: number
+  segmentCount: number
+}): boolean {
+  return isStreaming && segmentIndex === segmentCount - 1
+}
+
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
@@ -719,7 +731,11 @@ function MessageContentInner({
               <ChatContent
                 key={`text-${i}`}
                 content={segment.content}
-                isStreaming={isStreaming}
+                isStreaming={shouldSmoothTextSegment({
+                  isStreaming,
+                  segmentIndex: i,
+                  segmentCount: segments.length,
+                })}
                 onOptionSelect={onOptionSelect}
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
               />

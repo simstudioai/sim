@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ContentBlock } from '../../types'
-import { parseBlocks } from './message-content'
+import { parseBlocks, shouldSmoothTextSegment } from './message-content'
 
 function subagentStart(name: string, spanId: string, parentSpanId: string): ContentBlock {
   return { type: 'subagent', content: name, spanId, parentSpanId, timestamp: 1 }
@@ -180,5 +180,22 @@ describe('parseBlocks span-identity tree', () => {
     expect(groups).toHaveLength(1)
     if (groups[0].type !== 'agent_group') throw new Error('expected group')
     expect(groups[0].agentName).toBe('workflow')
+  })
+})
+
+describe('shouldSmoothTextSegment', () => {
+  it('only smooths the trailing text segment of a live stream', () => {
+    expect(shouldSmoothTextSegment({ isStreaming: true, segmentIndex: 0, segmentCount: 2 })).toBe(
+      false
+    )
+    expect(shouldSmoothTextSegment({ isStreaming: true, segmentIndex: 1, segmentCount: 2 })).toBe(
+      true
+    )
+  })
+
+  it('never smooths completed messages', () => {
+    expect(shouldSmoothTextSegment({ isStreaming: false, segmentIndex: 0, segmentCount: 1 })).toBe(
+      false
+    )
   })
 })
