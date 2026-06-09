@@ -1,44 +1,32 @@
 ---
 title: Table
-description: Available Table triggers for automating workflows
+description: The Table trigger runs a workflow when a row is inserted or updated in a Sim table.
+pageType: reference
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockPreview } from '@/components/workflow-preview'
 
-<BlockInfoCard
-  type="table"
-  color="#10B981"
-/>
+The **Table trigger** runs a workflow when a row is inserted or updated in a [Sim table](/tables). Use it to react to data changes — enrich a row when it's added, or send a follow-up when a status column flips.
 
-Table provides 1 trigger for automating workflows based on events.
+<BlockPreview type="table" />
 
-## Triggers
+## Configuration
 
-### Table Trigger
+- **Table** — the table to watch.
+- **Event type** — what to fire on: a row insert, a row update, or either.
+- **Watch columns** — fire only when these columns change. Leave empty to fire on any update.
+- **Include headers** — return each row as a key-value object keyed by column name.
 
-Triggers when rows are inserted or updated in a table
+## Outputs
 
-#### Configuration
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `tableSelector` | table-selector | Yes | The table to monitor. |
-| `manualTableId` | string | Yes | The table to monitor. |
-| `eventType` | string | Yes | The type of event to trigger on. |
-| `watchColumns` | string | No | Only fire when these columns change. Leave empty to fire on any update. |
-| `includeHeaders` | boolean | No | When enabled, each row is returned as a key-value object mapped to column names. |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `row` | json | Row data mapped to column names \(when header mapping is enabled\) |
-| `rawRow` | json | Raw row data object |
-| `previousRow` | json | Previous row data before the update \(null for inserts\) |
-| `changedColumns` | json | List of column names that changed \(empty for inserts\) |
-| `rowId` | string | The unique row ID |
-| `headers` | json | Column names from the table schema |
-| `tableId` | string | The table ID |
-| `tableName` | string | The table name |
-| `timestamp` | string | Event timestamp in ISO format |
-
+| Output | What it is |
+| --- | --- |
+| `<table.row>` | The row mapped to column names (when Include headers is on) |
+| `<table.rawRow>` | The raw row object |
+| `<table.previousRow>` | The row before the update (`null` for inserts) |
+| `<table.changedColumns>` | The columns that changed (empty for inserts) |
+| `<table.rowId>` | The row's unique id |
+| `<table.headers>` | The table's column names |
+| `<table.tableId>` | The table id |
+| `<table.tableName>` | The table name |
+| `<table.timestamp>` | The event time, in ISO format |

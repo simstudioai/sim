@@ -206,4 +206,15 @@ export const BLOCK_DISPLAY_SPECS: Record<string, BlockDisplaySpec> = {
       { title: 'Input Format', value: '-' },
     ],
   },
+  table: {
+    name: 'Table',
+    type: 'table',
+    bgColor: '#10B981',
+    hideTargetHandle: true,
+    rows: [
+      { title: 'Table', value: '-' },
+      { title: 'Event type', value: 'Row updated' },
+      { title: 'Watch columns', value: '-' },
+    ],
+  },
 }
