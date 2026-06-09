@@ -8,6 +8,7 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('CleanupStaleExecutions')
 
@@ -137,7 +138,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
 
       const terminalRetention = new Date(Date.now() - TABLE_JOB_RETENTION_HOURS * 60 * 60 * 1000)
-      await db
+      const pruned = await db
         .delete(tableJobs)
         .where(
           and(
@@ -145,6 +146,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             lt(tableJobs.updatedAt, terminalRetention)
           )
         )
+        .returning({ type: tableJobs.type, payload: tableJobs.payload })
+
+      // Pruned export jobs carry the generated file's storage key — delete the file with the job
+      // so the exports prefix doesn't accumulate. Best-effort: a miss just orphans one object.
+      for (const job of pruned) {
+        if (job.type !== 'export') continue
+        const resultKey = (job.payload as { resultKey?: string } | null)?.resultKey
+        if (!resultKey) continue
+        await deleteFile({ key: resultKey, context: 'workspace' }).catch((err) => {
+          logger.warn('Failed to delete pruned export file', {
+            resultKey,
+            error: toError(err).message,
+          })
+        })
+      }
     } catch (error) {
       logger.error('Failed to clean up stale table jobs:', {
         error: toError(error).message,

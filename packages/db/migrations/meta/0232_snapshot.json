@@ -1,6 +1,6 @@
 {
-  "id": "dee39880-f6fb-4a47-9cb4-ff6f5c859f6d",
-  "prevId": "f009b302-a53f-40ae-82c3-5fd6a874f7ad",
+  "id": "105c705c-7543-48cd-ad88-9e1a8dc34396",
+  "prevId": "7f141a50-68f9-4a6d-864f-4d21daafdb59",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -10631,7 +10631,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"table_jobs\".\"status\" = 'running'",
+          "where": "\"table_jobs\".\"status\" = 'running' AND \"table_jobs\".\"type\" <> 'export'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -12016,6 +12016,27 @@
             },
             {
               "expression": "order_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_table_rows_table_id_id_idx": {
+          "name": "user_table_rows_table_id_id_idx",
+          "columns": [
+            {
+              "expression": "table_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

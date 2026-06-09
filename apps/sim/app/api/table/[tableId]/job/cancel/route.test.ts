@@ -6,18 +6,18 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockCheckAccess, mockMarkJobCanceled, mockGetTableById, mockAppendTableEvent } = vi.hoisted(
+const { mockCheckAccess, mockMarkJobCanceled, mockGetTableJob, mockAppendTableEvent } = vi.hoisted(
   () => ({
     mockCheckAccess: vi.fn(),
     mockMarkJobCanceled: vi.fn(),
-    mockGetTableById: vi.fn(),
+    mockGetTableJob: vi.fn(),
     mockAppendTableEvent: vi.fn(),
   })
 )
 
 vi.mock('@/lib/table/service', () => ({
   markJobCanceled: mockMarkJobCanceled,
-  getTableById: mockGetTableById,
+  getTableJob: mockGetTableJob,
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
 vi.mock('@/app/api/table/utils', async () => {
@@ -70,7 +70,12 @@ describe('POST /api/table/[tableId]/job/cancel', () => {
     })
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
     mockMarkJobCanceled.mockResolvedValue(true)
-    mockGetTableById.mockResolvedValue(buildTable({ jobType: 'delete' }))
+    mockGetTableJob.mockResolvedValue({
+      id: 'job_1',
+      type: 'delete',
+      status: 'running',
+      payload: null,
+    })
   })
 
   it('cancels the job and emits a typed cancel event', async () => {

@@ -6,13 +6,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockCheckAccess, mockMarkTableJobRunning, mockRunTableDelete, mockTableFilterError } =
-  vi.hoisted(() => ({
-    mockCheckAccess: vi.fn(),
-    mockMarkTableJobRunning: vi.fn(),
-    mockRunTableDelete: vi.fn(),
-    mockTableFilterError: vi.fn(),
-  }))
+const {
+  mockCheckAccess,
+  mockMarkTableJobRunning,
+  mockRunTableDelete,
+  mockTableFilterError,
+  mockTasksTrigger,
+  flags,
+} = vi.hoisted(() => ({
+  mockCheckAccess: vi.fn(),
+  mockMarkTableJobRunning: vi.fn(),
+  mockRunTableDelete: vi.fn(),
+  mockTableFilterError: vi.fn(),
+  mockTasksTrigger: vi.fn(),
+  flags: { triggerDev: false },
+}))
 
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('job-id-xyz'),
@@ -20,6 +28,16 @@ vi.mock('@sim/utils/id', () => ({
 }))
 vi.mock('@/lib/table/service', () => ({ markTableJobRunning: mockMarkTableJobRunning }))
 vi.mock('@/lib/table/delete-runner', () => ({ runTableDelete: mockRunTableDelete }))
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  get isTriggerDevEnabled() {
+    return flags.triggerDev
+  },
+}))
+vi.mock('@/background/table-delete', () => ({ tableDeleteTask: { id: 'table-delete' } }))
+vi.mock('@trigger.dev/sdk', () => ({
+  tasks: { trigger: mockTasksTrigger },
+  task: (config: unknown) => config,
+}))
 vi.mock('@/lib/core/utils/background', () => ({
   runDetached: (_label: string, work: () => Promise<unknown>) => {
     void work()
@@ -82,6 +100,8 @@ describe('POST /api/table/[tableId]/delete-async', () => {
     mockMarkTableJobRunning.mockResolvedValue(true)
     mockRunTableDelete.mockResolvedValue(undefined)
     mockTableFilterError.mockReturnValue(null)
+    mockTasksTrigger.mockResolvedValue({ id: 'run_1' })
+    flags.triggerDev = false
   })
 
   it('claims the job slot and kicks off the delete worker with filter + exclusions', async () => {
@@ -154,5 +174,24 @@ describe('POST /api/table/[tableId]/delete-async', () => {
   it('returns 400 on workspace mismatch', async () => {
     const response = await makeRequest({ ...validBody, workspaceId: 'other-ws' })
     expect(response.status).toBe(400)
+  })
+
+  it('routes through trigger.dev (ISO cutoff, tagged) when the flag is on', async () => {
+    flags.triggerDev = true
+    const response = await makeRequest(validBody)
+
+    expect(response.status).toBe(200)
+    expect(mockRunTableDelete).not.toHaveBeenCalled()
+    expect(mockTasksTrigger).toHaveBeenCalledWith(
+      'table-delete',
+      expect.objectContaining({
+        jobId: 'job-id-xyz',
+        tableId: 'tbl_1',
+        filter: { status: 'archived' },
+        excludeRowIds: ['row_keep'],
+        cutoff: expect.any(String),
+      }),
+      { tags: ['tableId:tbl_1', 'jobId:job-id-xyz'] }
+    )
   })
 })

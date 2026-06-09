@@ -4,10 +4,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { importIntoTableAsyncContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { runTableImport } from '@/lib/table/import-runner'
+import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning } from '@/lib/table/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -67,20 +68,30 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     )
   }
 
-  runDetached('table-import', () =>
-    runTableImport({
-      importId,
-      tableId,
-      workspaceId,
-      userId,
-      fileKey,
-      fileName,
-      delimiter,
-      mode,
-      mapping,
-      createColumns,
+  const importPayload: TableImportPayload = {
+    importId,
+    tableId,
+    workspaceId,
+    userId,
+    fileKey,
+    fileName,
+    delimiter,
+    mode,
+    mapping,
+    createColumns,
+  }
+  if (isTriggerDevEnabled) {
+    // Trigger.dev runs the import outside the web container, so it survives app deploys.
+    const [{ tableImportTask }, { tasks }] = await Promise.all([
+      import('@/background/table-import'),
+      import('@trigger.dev/sdk'),
+    ])
+    await tasks.trigger<typeof tableImportTask>('table-import', importPayload, {
+      tags: [`tableId:${tableId}`, `jobId:${importId}`],
     })
-  )
+  } else {
+    runDetached('table-import', () => runTableImport(importPayload))
+  }
 
   logger.info(`[${requestId}] Async CSV import into existing table started`, {
     tableId,

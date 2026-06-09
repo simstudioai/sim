@@ -3228,9 +3228,11 @@ export const tableJobs = pgTable(
     completedAt: timestamp('completed_at'),
   },
   (table) => ({
+    /** One running write-job (import/delete/backfill) per table. Exports are read-only and
+     *  excluded, so they can run alongside any other job. */
     oneActivePerTable: uniqueIndex('table_jobs_one_active_per_table')
       .on(table.tableId)
-      .where(sql`${table.status} = 'running'`),
+      .where(sql`${table.status} = 'running' AND ${table.type} <> 'export'`),
     watchdogIdx: index('table_jobs_watchdog_idx').on(table.status, table.updatedAt),
     tableStartedIdx: index('table_jobs_table_started_idx').on(table.tableId, table.startedAt),
   })

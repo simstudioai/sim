@@ -3,11 +3,18 @@
 import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/components/emcn'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions, TableDefinition } from '@/lib/table'
 import { isExecInFlight } from '@/lib/table/deps'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
-import { snapshotAndMutateRows, type TableRunState, tableKeys } from '@/hooks/queries/tables'
+import {
+  consumeInitiatedExport,
+  downloadExportResult,
+  snapshotAndMutateRows,
+  type TableRunState,
+  tableKeys,
+} from '@/hooks/queries/tables'
 
 const logger = createLogger('useTableEventStream')
 
@@ -228,6 +235,24 @@ export function useTableEventStream({
       const { type, status, progress, error, jobId } = event
       const isTerminal = status === 'ready' || status === 'failed' || status === 'canceled'
 
+      // Exports run concurrently with other jobs and never touch the detail-cache job fields
+      // (those derive from the latest *non-export* job). Their only client effect: download the
+      // file when an export this session kicked off completes. The initiated-set guard is what
+      // keeps replayed `ready` events (SSE re-delivers up to 1h on reconnect) from re-downloading.
+      if (type === 'export') {
+        if (status === 'ready' && jobId && consumeInitiatedExport(jobId)) {
+          void downloadExportResult(workspaceId, tableId, jobId)
+            .then(() => toast.success('Export ready — downloading'))
+            .catch((err) => {
+              logger.error('Export download failed', { tableId, jobId, err })
+              toast.error('Export finished but the download failed — try again from the table menu')
+            })
+        } else if (status === 'failed' && jobId && consumeInitiatedExport(jobId)) {
+          toast.error(error || 'Export failed')
+        }
+        return
+      }
+
       // The SSE buffer replays on (re)connect and can hold a *prior* job's events for this table.
       // Ignore anything from a superseded run, and don't trust a replayed terminal before we know
       // the active run's id.
@@ -250,14 +275,14 @@ export function useTableEventStream({
       )
       // The header tray + completion toast are owned by the tray poll. Here we keep the detail
       // cache + grid in sync. On terminal, refetch rows + the definition (import may have rewritten
-      // the schema; delete failure/cancel restores optimistically-hidden rows). While running, an
-      // import live-fills rows per batch; a delete has already optimistically removed its rows, so
-      // we don't refetch mid-run (that would flicker not-yet-deleted rows back in).
+      // the schema; delete failure/cancel restores optimistically-hidden rows). While running,
+      // imports and backfills live-fill rows per batch; a delete has already optimistically removed
+      // its rows, so we don't refetch mid-run (that would flicker not-yet-deleted rows back in).
       if (isTerminal) {
         if (jobInvalidateTimer !== null) clearTimeout(jobInvalidateTimer)
         void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
-      } else if (type === 'import') {
+      } else if (type === 'import' || type === 'backfill') {
         scheduleRowsInvalidate()
       }
     }

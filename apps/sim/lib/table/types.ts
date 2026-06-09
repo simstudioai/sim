@@ -194,8 +194,12 @@ export interface TableMetadata {
 /** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */
 export type TableJobStatus = 'running' | 'ready' | 'failed' | 'canceled'
 
-/** Which kind of background job occupies the table's single job slot. */
-export type TableJobType = 'import' | 'delete'
+/**
+ * Which kind of background job a `table_jobs` row tracks. `import`, `delete`, and `backfill`
+ * mutate row data and share the single-running-job gate; `export` is read-only and bypasses it
+ * (the partial-unique index excludes it), so an export can run alongside any other job.
+ */
+export type TableJobType = 'import' | 'delete' | 'export' | 'backfill'
 
 /**
  * Persisted scope of a running delete job (`table_jobs.payload`). Defines the doomed row set —
@@ -208,6 +212,24 @@ export interface TableDeleteJobPayload {
   excludeRowIds?: string[]
   /** ISO timestamp; rows created after it are spared. */
   cutoff: string
+}
+
+/**
+ * Persisted scope of an export job (`table_jobs.payload`). `resultKey` is merged in by the worker
+ * on completion — the storage key of the generated file, served to the client via a presigned URL
+ * and deleted by the janitor when the terminal job is pruned.
+ */
+export interface TableExportJobPayload {
+  format: 'csv' | 'json'
+  resultKey?: string
+}
+
+/** Persisted scope of an output-column backfill job (`table_jobs.payload`). */
+export interface TableBackfillJobPayload {
+  groupId: string
+  outputs: WorkflowGroupOutput[]
+  /** Remaps overwrite existing cell values; added columns never clobber hand-edits. */
+  overwrite: boolean
 }
 
 export interface TableDefinition {

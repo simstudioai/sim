@@ -6,7 +6,8 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { appendTableEvent } from '@/lib/table/events'
-import { getTableById, markJobCanceled } from '@/lib/table/service'
+import { getTableJob, markJobCanceled } from '@/lib/table/service'
+import type { TableJobType } from '@/lib/table/types'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableJobCancelAPI')
@@ -44,9 +45,10 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
 
-  // Resolve the job type before flipping status so the cancel event carries the right `type`.
-  const table = await getTableById(tableId, { includeArchived: true })
-  const type = table?.jobType === 'delete' ? 'delete' : 'import'
+  // Resolve the job's actual type (from its own row — the table-level derivation excludes
+  // exports) so the cancel event carries the right `type`.
+  const job = await getTableJob(tableId, jobId)
+  const type = (job?.type ?? 'import') as TableJobType
 
   const canceled = await markJobCanceled(tableId, jobId)
   if (canceled) {

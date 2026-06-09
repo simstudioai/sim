@@ -40,6 +40,8 @@ import {
   deleteTableRowsAsyncContract,
   deleteTableRowsContract,
   deleteWorkflowGroupContract,
+  exportDownloadContract,
+  exportTableAsyncContract,
   findTableRowsContract,
   getTableContract,
   type InsertTableRowBodyInput,
@@ -1532,6 +1534,57 @@ export async function cancelTableJob(
     params: { tableId },
     body: { workspaceId, jobId },
   })
+}
+
+/**
+ * Export jobs this session kicked off. The SSE buffer replays up to an hour of events on every
+ * (re)connect, so the job stream consumer must only auto-download `ready` events for exports the
+ * user just initiated — not replayed ones from a previous visit.
+ */
+const initiatedExportJobIds = new Set<string>()
+
+/** Consumes (one-shot) whether this session initiated the export job. */
+export function consumeInitiatedExport(jobId: string): boolean {
+  return initiatedExportJobIds.delete(jobId)
+}
+
+/**
+ * Kicks off a background export job for large tables (small ones stream synchronously via
+ * {@link downloadTableExport}). The SSE job stream auto-downloads the file when the job is ready.
+ */
+export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext) {
+  return useMutation({
+    mutationFn: async ({ format }: { format: 'csv' | 'json' }) => {
+      const response = await requestJson(exportTableAsyncContract, {
+        params: { tableId },
+        body: { workspaceId, format },
+      })
+      initiatedExportJobIds.add(response.data.jobId)
+      return response.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+  })
+}
+
+/** Resolves a ready export job to its presigned URL and triggers the browser download. */
+export async function downloadExportResult(
+  workspaceId: string,
+  tableId: string,
+  jobId: string
+): Promise<void> {
+  const response = await requestJson(exportDownloadContract, {
+    params: { tableId },
+    query: { workspaceId, jobId },
+  })
+  const a = document.createElement('a')
+  a.href = response.data.url
+  a.download = response.data.fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 
 export async function downloadTableExport(

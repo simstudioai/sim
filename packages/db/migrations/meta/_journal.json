@@ -1618,6 +1618,13 @@
       "when": 1781026179182,
       "tag": "0231_table_rows_id_keyset",
       "breakpoints": true
+    },
+    {
+      "idx": 232,
+      "version": "7",
+      "when": 1781036837982,
+      "tag": "0232_table_jobs_export_gate",
+      "breakpoints": true
     }
   ]
 }

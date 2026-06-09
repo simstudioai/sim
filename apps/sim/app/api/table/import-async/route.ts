@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { importTableAsyncContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,7 +17,7 @@ import {
   TABLE_LIMITS,
   TableConflictError,
 } from '@/lib/table'
-import { runTableImport } from '@/lib/table/import-runner'
+import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableImportAsync')
@@ -99,18 +100,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     throw error
   }
 
-  runDetached('table-import', () =>
-    runTableImport({
-      importId,
-      tableId: table.id,
-      workspaceId,
-      userId,
-      fileKey,
-      fileName,
-      delimiter,
-      mode: 'create',
+  const importPayload: TableImportPayload = {
+    importId,
+    tableId: table.id,
+    workspaceId,
+    userId,
+    fileKey,
+    fileName,
+    delimiter,
+    mode: 'create',
+  }
+  if (isTriggerDevEnabled) {
+    // Trigger.dev runs the import outside the web container, so it survives app deploys.
+    const [{ tableImportTask }, { tasks }] = await Promise.all([
+      import('@/background/table-import'),
+      import('@trigger.dev/sdk'),
+    ])
+    await tasks.trigger<typeof tableImportTask>('table-import', importPayload, {
+      tags: [`tableId:${table.id}`, `jobId:${importId}`],
     })
-  )
+  } else {
+    runDetached('table-import', () => runTableImport(importPayload))
+  }
 
   captureServerEvent(
     userId,

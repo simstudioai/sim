@@ -724,6 +724,46 @@ export const tableExportFormatSchema = z
   )
   .default('csv')
 
+export const exportTableAsyncBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  format: z.enum(['csv', 'json']).default('csv'),
+})
+
+export type ExportTableAsyncBody = z.input<typeof exportTableAsyncBodySchema>
+
+/**
+ * Kickoff for a background export (large tables — small ones use the synchronous streaming
+ * `/export` route). The worker generates the file, uploads it to workspace storage, and the
+ * client fetches a presigned URL from the download contract once the job is `ready`.
+ */
+export const exportTableAsyncContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/export-async',
+  params: tableIdParamsSchema,
+  body: exportTableAsyncBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ tableId: z.string(), jobId: z.string() })),
+  },
+})
+
+export const exportDownloadQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  jobId: z.string().min(1, 'Job ID is required'),
+})
+
+/** Resolves a completed export job to a short-lived presigned download URL. */
+export const exportDownloadContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/export/download',
+  params: tableIdParamsSchema,
+  query: exportDownloadQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ url: z.string().min(1), fileName: z.string() })),
+  },
+})
+
 /**
  * `mapping` form field — a JSON-encoded `CsvHeaderMapping` (CSV header →
  * column name, or `null` to skip the header).

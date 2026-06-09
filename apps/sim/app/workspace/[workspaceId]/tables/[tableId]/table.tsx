@@ -10,6 +10,7 @@ import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   type ColumnOption,
   ResourceHeader,
@@ -26,6 +27,7 @@ import {
   useCancelTableRuns,
   useDeleteTable,
   useDeleteTableRowsAsync,
+  useExportTableAsync,
   useRenameTable,
   useRunColumn,
 } from '@/hooks/queries/tables'
@@ -387,7 +389,14 @@ export function Table({
   const handleExportCsv = useCallback(async () => {
     if (!tableData) return
     try {
-      await downloadTableExport(tableData.id, tableData.name)
+      // Big tables export as a background job (the file downloads when the job completes via the
+      // SSE stream); small ones keep the instant synchronous stream.
+      if (tableData.rowCount > TABLE_LIMITS.EXPORT_ASYNC_THRESHOLD_ROWS) {
+        await exportTableAsync.mutateAsync({ format: 'csv' })
+        toast.success('Export started — the download will begin when it finishes')
+      } else {
+        await downloadTableExport(tableData.id, tableData.name)
+      }
       captureEvent(posthogRef.current, 'table_exported', {
         table_id: tableData.id,
         workspace_id: workspaceId,
@@ -516,6 +525,7 @@ export function Table({
 
   const deleteTableMutation = useDeleteTable(workspaceId)
   const deleteRowsAsyncMutation = useDeleteTableRowsAsync({ workspaceId, tableId })
+  const exportTableAsync = useExportTableAsync({ workspaceId, tableId })
   const handleDeleteTable = async () => {
     try {
       await deleteTableMutation.mutateAsync(tableId)

@@ -50,21 +50,25 @@ export function useWorkspaceImports(
       const before = prevStatus.current.get(table.id)
       const now = table.jobStatus ?? 'none'
       if (before === 'running' && now === 'ready') {
-        // Deletes are reflected instantly in the grid — no tray row, no success toast.
-        if (table.jobType !== 'delete') {
+        // Success toast only for imports — deletes reflect instantly in the grid and backfills
+        // live-fill cells; announcing them would be noise.
+        if (table.jobType === 'import') {
           const rows = (table.jobRowsProcessed ?? 0).toLocaleString()
           toast.success(`Imported ${rows} rows into "${table.name}"`)
           store.notify(table.id)
           setTimeout(() => useImportTrayStore.getState().dismiss(table.id), READY_AUTO_CLEAR_MS)
         }
       } else if (before === 'running' && now === 'failed') {
-        // Surface failures for both — a failed delete restores the optimistically-removed rows.
+        // Surface every failure — e.g. a failed delete restores the optimistically-removed rows,
+        // and a failed backfill leaves cells unfilled; the user should know why.
         const fallback =
           table.jobType === 'delete'
             ? `Delete failed for "${table.name}"`
-            : `Import failed for "${table.name}"`
+            : table.jobType === 'backfill'
+              ? `Column backfill failed for "${table.name}"`
+              : `Import failed for "${table.name}"`
         toast.error(table.jobError || fallback)
-        if (table.jobType !== 'delete') store.notify(table.id)
+        if (table.jobType === 'import') store.notify(table.id)
       }
       if (now !== 'running' && store.isCanceled(table.id)) store.consumeCanceled(table.id)
       prevStatus.current.set(table.id, now)
@@ -81,8 +85,9 @@ export function useWorkspaceImports(
 
     for (const table of tables ?? []) {
       if (scopeTableId && table.id !== scopeTableId) continue
-      // Delete jobs are reflected optimistically in the grid — they never render in the tray.
-      if (table.jobType === 'delete') continue
+      // Only imports render in the tray: deletes reflect optimistically in the grid, backfills
+      // live-fill cells via SSE, and exports surface through their own download toast.
+      if (table.jobType !== 'import') continue
       if (table.jobStatus === 'running') {
         if (canceledIds[table.id]) continue
         rows.push({

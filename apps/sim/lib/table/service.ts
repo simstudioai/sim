@@ -8,13 +8,7 @@
  */
 
 import { db } from '@sim/db'
-import {
-  tableJobs,
-  tableRowExecutions,
-  userTableDefinitions,
-  userTableRows,
-  workflowExecutionLogs,
-} from '@sim/db/schema'
+import { tableJobs, tableRowExecutions, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -30,15 +24,14 @@ import {
   isNull,
   lt,
   lte,
+  ne,
   notInArray,
   type SQL,
   sql,
 } from 'drizzle-orm'
 import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/feature-flags'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import {
   columnMatchesRef,
   generateColumnId,
@@ -296,7 +289,12 @@ const JOB_PROJECTION = {
   error: tableJobs.error,
 } as const
 
-/** The latest job for one table (the running one if present, else the most recent terminal). */
+/**
+ * The latest job for one table (the running one if present, else the most recent terminal).
+ * Exports are excluded: they're read-only, run concurrently with other jobs, and have their own
+ * client surface — surfacing one here would clobber the import/delete/backfill status the tray
+ * and SSE consumer derive from these fields.
+ */
 async function latestJobForTable(
   tableId: string,
   executor: DbOrTx = db
@@ -304,20 +302,20 @@ async function latestJobForTable(
   const [row] = await executor
     .select(JOB_PROJECTION)
     .from(tableJobs)
-    .where(eq(tableJobs.tableId, tableId))
+    .where(and(eq(tableJobs.tableId, tableId), ne(tableJobs.type, 'export')))
     .orderBy(desc(tableJobs.startedAt))
     .limit(1)
   return mapJobRow(row)
 }
 
-/** Latest job per table for a batch of ids, via `DISTINCT ON (table_id) … ORDER BY started_at DESC`. */
+/** Latest non-export job per table for a batch of ids, via `DISTINCT ON (table_id)`. */
 async function latestJobsForTables(tableIds: string[]): Promise<Map<string, DerivedJobFields>> {
   const map = new Map<string, DerivedJobFields>()
   if (tableIds.length === 0) return map
   const rows = await db
     .selectDistinctOn([tableJobs.tableId], { tableId: tableJobs.tableId, ...JOB_PROJECTION })
     .from(tableJobs)
-    .where(inArray(tableJobs.tableId, tableIds))
+    .where(and(inArray(tableJobs.tableId, tableIds), ne(tableJobs.type, 'export')))
     .orderBy(tableJobs.tableId, desc(tableJobs.startedAt))
   for (const row of rows) map.set(row.tableId, mapJobRow(row))
   return map
@@ -2045,6 +2043,43 @@ export async function updateJobProgress(
     .where(ownsActiveJob(tableId, jobId))
     .returning({ id: tableJobs.id })
   return updated.length > 0
+}
+
+/** Reads one job row (type/status/payload) scoped to its table. Null when absent. */
+export async function getTableJob(
+  tableId: string,
+  jobId: string
+): Promise<{ id: string; type: string; status: string; payload: unknown } | null> {
+  const [job] = await db
+    .select({
+      id: tableJobs.id,
+      type: tableJobs.type,
+      status: tableJobs.status,
+      payload: tableJobs.payload,
+    })
+    .from(tableJobs)
+    .where(and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId)))
+    .limit(1)
+  return job ?? null
+}
+
+/**
+ * Stamps an export job's generated-file storage key onto its payload (`{ resultKey }` merge).
+ * Scoped to the still-running job so a superseded attempt can't clobber a newer run's result.
+ * The download route reads it; the janitor deletes the file when the terminal job is pruned.
+ */
+export async function setJobResultKey(
+  tableId: string,
+  jobId: string,
+  resultKey: string
+): Promise<void> {
+  await db
+    .update(tableJobs)
+    .set({
+      payload: sql`coalesce(${tableJobs.payload}, '{}'::jsonb) || jsonb_build_object('resultKey', ${resultKey}::text)`,
+      updatedAt: new Date(),
+    })
+    .where(ownsActiveJob(tableId, jobId))
 }
 
 /** Shared WHERE for terminal transitions: this job run, and still in-flight (write-once). */
@@ -4583,12 +4618,14 @@ export async function updateWorkflowGroup(
   //   - remapped outputs (existing column re-pointed): overwrite, since the
   //     new mapping is the source of truth and the user expects the cell to
   //     refresh to the new output's value.
-  // Awaited so the response only returns once row data is consistent. A
-  // failed backfill is logged but doesn't fail the request — the schema
-  // change has already committed.
+  // Small tables backfill inline-awaited (response returns with consistent
+  // data); large ones run as a background job. A failed backfill is logged
+  // but doesn't fail the request — the schema change has already committed.
+  // Lazy import: backfill-runner closes a cycle back to this module.
+  const { maybeBackfillGroupOutputs } = await import('./backfill-runner')
   if (added.length > 0) {
     try {
-      await backfillGroupOutputsFromLogs({
+      await maybeBackfillGroupOutputs({
         table: updatedTable,
         groupId: data.groupId,
         outputs: added,
@@ -4605,7 +4642,7 @@ export async function updateWorkflowGroup(
   if (remappedColumnIds.size > 0) {
     const remappedOutputs = newOutputs.filter((o) => remappedColumnIds.has(o.columnName))
     try {
-      await backfillGroupOutputsFromLogs({
+      await maybeBackfillGroupOutputs({
         table: updatedTable,
         groupId: data.groupId,
         outputs: remappedOutputs,
@@ -4859,8 +4896,11 @@ export async function addWorkflowGroupOutput(
   // Cheap compared to re-running the workflow on every row, which is what
   // an earlier version of this code did — that mistakenly fanned out N
   // workflow-group-cell jobs and burned compute the user didn't ask for.
+  // Small tables backfill inline; large ones run as a background job.
+  // Lazy import: backfill-runner closes a cycle back to this module.
   try {
-    await backfillGroupOutputsFromLogs({
+    const { maybeBackfillGroupOutputs } = await import('./backfill-runner')
+    await maybeBackfillGroupOutputs({
       table: updatedTable,
       groupId: data.groupId,
       outputs: [newOutput],
@@ -5008,150 +5048,6 @@ export async function deleteWorkflowGroup(
       updatedAt: now,
     }
   })
-}
-
-/** Minimal shape of a trace span we care about for backfill. */
-interface BackfillTraceSpan {
-  blockId?: string
-  output?: Record<string, unknown>
-  children?: BackfillTraceSpan[]
-}
-
-/** DFS the trace tree for the first span matching `blockId`. */
-function findSpanByBlockId(
-  spans: BackfillTraceSpan[] | undefined,
-  blockId: string
-): BackfillTraceSpan | undefined {
-  if (!spans) return undefined
-  for (const span of spans) {
-    if (span.blockId === blockId) return span
-    const child = findSpanByBlockId(span.children, blockId)
-    if (child) return child
-  }
-  return undefined
-}
-
-/**
- * Walks completed group executions and pulls each target output's value out of
- * the workflow's saved trace spans, writing it back into row data. Used in two
- * spots:
- *
- *   - **added** outputs (new columns added to an existing group): `overwrite`
- *     is false, so rows with a hand-edited value already in the column are
- *     left alone.
- *   - **remapped** outputs (existing column re-pointed at a different
- *     `(blockId, path)`): `overwrite` is true — the new mapping is the source
- *     of truth, and the user expects the column to refresh to the new
- *     output's value rather than retain the stale old one.
- */
-async function backfillGroupOutputsFromLogs(opts: {
-  table: TableDefinition
-  groupId: string
-  outputs: WorkflowGroupOutput[]
-  overwrite: boolean
-  requestId: string
-}): Promise<void> {
-  const { table, groupId, outputs, overwrite, requestId } = opts
-  if (outputs.length === 0) return
-
-  const { pluckByPath } = await import('./pluck')
-
-  // Find rows whose group execution completed and grab their executionId
-  // directly from the sidecar — hits the (table_id, group_id) index, no
-  // table scan over rowdata.
-  const completedExecs = await db
-    .select({
-      rowId: tableRowExecutions.rowId,
-      executionId: tableRowExecutions.executionId,
-    })
-    .from(tableRowExecutions)
-    .where(
-      and(
-        eq(tableRowExecutions.tableId, table.id),
-        eq(tableRowExecutions.groupId, groupId),
-        eq(tableRowExecutions.status, 'completed')
-      )
-    )
-
-  const executionIdsByRow = new Map<string, string>()
-  for (const e of completedExecs) {
-    if (!e.executionId) continue
-    executionIdsByRow.set(e.rowId, e.executionId)
-  }
-  if (executionIdsByRow.size === 0) return
-
-  const rowRecords = await db
-    .select({ id: userTableRows.id, data: userTableRows.data })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, table.id),
-        inArray(userTableRows.id, Array.from(executionIdsByRow.keys()))
-      )
-    )
-
-  const executionIds = Array.from(new Set(executionIdsByRow.values()))
-  const logs = await db
-    .select({
-      executionId: workflowExecutionLogs.executionId,
-      workflowId: workflowExecutionLogs.workflowId,
-      workspaceId: workflowExecutionLogs.workspaceId,
-      executionData: workflowExecutionLogs.executionData,
-    })
-    .from(workflowExecutionLogs)
-    .where(inArray(workflowExecutionLogs.executionId, executionIds))
-
-  const logByExecutionId = new Map<string, { traceSpans?: BackfillTraceSpan[] }>()
-  // Heavy execution data may live in object storage; resolve pointers (bounded
-  // concurrency) so trace spans are available for table-column enrichment.
-  await mapWithConcurrency(logs, MATERIALIZE_CONCURRENCY, async (log) => {
-    const executionData = await materializeExecutionData(
-      log.executionData as Record<string, unknown> | null,
-      { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
-    )
-    logByExecutionId.set(
-      log.executionId,
-      (executionData as { traceSpans?: BackfillTraceSpan[] }) ?? {}
-    )
-  })
-
-  const updates: Array<{ rowId: string; data: RowData }> = []
-  for (const r of rowRecords) {
-    const execId = executionIdsByRow.get(r.id)
-    if (!execId) continue
-    const log = logByExecutionId.get(execId)
-    if (!log) continue
-
-    const dataPatch: RowData = {}
-    let mutated = false
-    for (const out of outputs) {
-      if (!overwrite && (r.data as RowData)[out.columnName] !== undefined) continue
-      const span = findSpanByBlockId(log.traceSpans, out.blockId)
-      if (!span?.output) continue
-      const picked = pluckByPath(span.output, out.path)
-      if (picked === undefined) continue
-      dataPatch[out.columnName] = picked as RowData[string]
-      mutated = true
-    }
-    if (!mutated) continue
-    updates.push({ rowId: r.id, data: dataPatch })
-  }
-
-  if (updates.length === 0) return
-
-  await batchUpdateRows(
-    {
-      tableId: table.id,
-      updates,
-      workspaceId: table.workspaceId,
-    },
-    table,
-    requestId
-  )
-
-  logger.info(
-    `[${requestId}] Backfilled ${updates.length} row(s) for group "${groupId}" in table ${table.id} (${overwrite ? 'remapped' : 'added'})`
-  )
 }
 
 /**
