@@ -8,6 +8,7 @@ export const MothershipResourceType = {
   task: 'task',
   log: 'log',
   integration: 'integration',
+  page: 'page',
   generic: 'generic',
 } as const
 export type MothershipResourceType =
@@ -21,6 +22,22 @@ export interface MothershipResource {
 
 export function isEphemeralResource(resource: MothershipResource): boolean {
   return resource.type === 'generic' || resource.id === 'streaming-file'
+}
+
+/**
+ * Workspace area pages that can be opened as chat resource tabs.
+ * Keys double as the page's route segment under `/workspace/[workspaceId]/`.
+ */
+export const MOTHERSHIP_PAGES = {
+  tables: 'Tables',
+  knowledge: 'Knowledge Base',
+  logs: 'Logs',
+  'scheduled-tasks': 'Scheduled Tasks',
+} as const
+export type MothershipPageId = keyof typeof MOTHERSHIP_PAGES
+
+export function isMothershipPageId(id: string): id is MothershipPageId {
+  return id in MOTHERSHIP_PAGES
 }
 
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {

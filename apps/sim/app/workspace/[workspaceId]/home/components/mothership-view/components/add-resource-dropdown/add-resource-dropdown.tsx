@@ -14,6 +14,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Folder, Plus, Workflow } from '@/components/emcn/icons'
+import { MOTHERSHIP_PAGES, type MothershipPageId } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
@@ -83,6 +84,14 @@ export function useAvailableResources(
   return useMemo(() => {
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
     const groups: AvailableItemsByType[] = [
+      {
+        type: 'page' as const,
+        items: (Object.keys(MOTHERSHIP_PAGES) as MothershipPageId[]).map((id) => ({
+          id,
+          name: MOTHERSHIP_PAGES[id],
+          isOpen: existingKeys.has(`page:${id}`),
+        })),
+      },
       {
         type: 'workflow' as const,
         items: workflows.map((w) => ({
@@ -379,7 +388,10 @@ export function AddResourceDropdown({
   const [activeIndex, setActiveIndex] = useState(0)
   const available = useAvailableResources(workspaceId, existingKeys, [
     ...(excludeTypes ?? []),
+    // Never offered as tabs: integrations attach via @-mention and chats have
+    // no embedded tab view — ResourceContent cannot render either type.
     'integration',
+    'task',
   ])
   const handleOpenChange = (next: boolean) => {
     setOpen(next)

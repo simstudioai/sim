@@ -2,9 +2,11 @@
 
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { stripVersionSuffix } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import {
+  Connections,
   Download,
   FileX,
   Folder as FolderIcon,
@@ -14,6 +16,7 @@ import {
   Workflow as WorkflowIcon,
   WorkflowX,
 } from '@/components/emcn/icons'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import {
@@ -21,6 +24,7 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
+import { INTEGRATIONS, type Integration } from '@/lib/integrations'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {
@@ -28,6 +32,7 @@ import {
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -50,12 +55,44 @@ import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
 import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
+
+const Tables = lazy(() =>
+  import('@/app/workspace/[workspaceId]/tables/tables').then((m) => ({ default: m.Tables }))
+)
+const Knowledge = lazy(() =>
+  import('@/app/workspace/[workspaceId]/knowledge/knowledge').then((m) => ({
+    default: m.Knowledge,
+  }))
+)
+const Logs = lazy(() => import('@/app/workspace/[workspaceId]/logs/logs'))
+const ScheduledTasks = lazy(() =>
+  import('@/app/workspace/[workspaceId]/scheduled-tasks/scheduled-tasks').then((m) => ({
+    default: m.ScheduledTasks,
+  }))
+)
+const IntegrationBlockDetail = lazy(() =>
+  import('@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail').then(
+    (m) => ({ default: m.IntegrationBlockDetail })
+  )
+)
+
+/**
+ * Resolves an integration catalog entry from a resource tab id (the block's
+ * registry type). Catalog types may carry version suffixes (`gmail_v2`) while
+ * tab ids may use base types, so both forms are matched.
+ */
+function findIntegrationByBlockType(blockType: string): Integration | undefined {
+  return INTEGRATIONS.find(
+    (i) => i.type === blockType || stripVersionSuffix(i.type) === stripVersionSuffix(blockType)
+  )
+}
 
 const LOADING_SKELETON = (
   <div className='flex h-full flex-col gap-2 p-6'>
@@ -73,12 +110,15 @@ interface ResourceContentProps {
   genericResourceData?: GenericResourceData
   previewContextKey?: string
   onNotFound?: (resourceId: string) => void
+  /** Opens another resource as a tab (used by embedded pages to open details in-panel). */
+  onAddResource?: (resource: MothershipResource) => void
 }
 
 /**
  * Renders the content for the currently active mothership resource.
- * Handles table, file, and workflow resource types with appropriate
- * embedded rendering for each.
+ * Each persistable resource type gets an embedded view (table, file,
+ * workflow, knowledge base, folder, file folder, log, integration, page);
+ * types without one fall back to an explanatory placeholder panel.
  */
 const STREAMING_EPOCH = new Date(0)
 
@@ -90,6 +130,7 @@ export const ResourceContent = memo(function ResourceContent({
   genericResourceData,
   previewContextKey,
   onNotFound,
+  onAddResource,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
@@ -188,6 +229,21 @@ export const ResourceContent = memo(function ResourceContent({
     case 'folder':
       return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
 
+    case 'filefolder':
+      return (
+        <EmbeddedFileFolder
+          key={resource.id}
+          workspaceId={workspaceId}
+          folderId={resource.id}
+          onAddResource={onAddResource}
+        />
+      )
+
+    case 'integration':
+      return (
+        <EmbeddedIntegration key={resource.id} workspaceId={workspaceId} blockType={resource.id} />
+      )
+
     case 'log':
       return (
         <EmbeddedLog
@@ -198,15 +254,94 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'page':
+      return <EmbeddedPage key={resource.id} pageId={resource.id} onAddResource={onAddResource} />
+
     case 'generic':
       return (
         <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
       )
 
     default:
-      return null
+      return <UnsupportedResourceContent key={resource.id} resource={resource} />
   }
 })
+
+interface UnsupportedResourceContentProps {
+  resource: MothershipResource
+}
+
+/**
+ * Fallback for persisted tabs whose type has no embedded view (e.g. legacy
+ * `task` tabs). Shown instead of a blank panel so the tab stays explainable
+ * and removable.
+ */
+function UnsupportedResourceContent({ resource }: UnsupportedResourceContentProps) {
+  const Icon = getResourceConfig(resource.type).icon
+  return (
+    <div className='flex h-full flex-col items-center justify-center gap-3'>
+      <Icon className='size-[32px] text-[var(--text-icon)]' />
+      <div className='flex flex-col items-center gap-1'>
+        <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{resource.title}</h2>
+        <p className='text-[var(--text-body)] text-small'>
+          This resource doesn't have an embedded view
+        </p>
+      </div>
+    </div>
+  )
+}
+
+interface EmbeddedPageProps {
+  pageId: string
+  onAddResource?: (resource: MothershipResource) => void
+}
+
+/**
+ * Renders a workspace area page (Tables, Knowledge Base, Logs, Scheduled
+ * Tasks) inside the chat's resource panel. Detail navigation is intercepted
+ * where the standalone page would route away: opening a table or knowledge
+ * base adds it as a sibling resource tab instead.
+ */
+function EmbeddedPage({ pageId, onAddResource }: EmbeddedPageProps) {
+  const content = (() => {
+    switch (pageId) {
+      case 'tables':
+        return (
+          <Tables
+            onOpenTable={(tableId, tableName) =>
+              onAddResource?.({ type: 'table', id: tableId, title: tableName })
+            }
+          />
+        )
+      case 'knowledge':
+        return (
+          <Knowledge
+            onOpenKnowledgeBase={(knowledgeBaseId, knowledgeBaseName) =>
+              onAddResource?.({
+                type: 'knowledgebase',
+                id: knowledgeBaseId,
+                title: knowledgeBaseName,
+              })
+            }
+          />
+        )
+      case 'logs':
+        return <Logs />
+      case 'scheduled-tasks':
+        return <ScheduledTasks />
+      default:
+        return null
+    }
+  })()
+
+  if (!content) return null
+
+  return (
+    <div className='flex h-full flex-col overflow-hidden'>
+      <Suspense fallback={LOADING_SKELETON}>{content}</Suspense>
+    </div>
+  )
+}
 
 interface ResourceActionsProps {
   workspaceId: string
@@ -233,12 +368,114 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       )
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
+    case 'page':
+      return <EmbeddedPageActions workspaceId={workspaceId} pageId={resource.id} />
+    case 'filefolder':
+      return <EmbeddedFileFolderActions workspaceId={workspaceId} folderId={resource.id} />
+    case 'integration':
+      return <EmbeddedIntegrationActions workspaceId={workspaceId} blockType={resource.id} />
     case 'folder':
     case 'generic':
       return null
     default:
       return null
   }
+}
+
+interface EmbeddedFileFolderActionsProps {
+  workspaceId: string
+  folderId: string
+}
+
+function EmbeddedFileFolderActions({ workspaceId, folderId }: EmbeddedFileFolderActionsProps) {
+  const router = useRouter()
+
+  const handleOpenInFiles = () => {
+    router.push(`/workspace/${workspaceId}/files?folderId=${encodeURIComponent(folderId)}`)
+  }
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={handleOpenInFiles}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label='Open in files'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open in files</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+interface EmbeddedIntegrationActionsProps {
+  workspaceId: string
+  blockType: string
+}
+
+function EmbeddedIntegrationActions({ workspaceId, blockType }: EmbeddedIntegrationActionsProps) {
+  const router = useRouter()
+  const integration = useMemo(() => findIntegrationByBlockType(blockType), [blockType])
+
+  if (!integration) return null
+
+  const handleOpenIntegration = () => {
+    router.push(`/workspace/${workspaceId}/integrations/${integration.slug}`)
+  }
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={handleOpenIntegration}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label='Open integration'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open integration</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+interface EmbeddedPageActionsProps {
+  workspaceId: string
+  pageId: string
+}
+
+function EmbeddedPageActions({ workspaceId, pageId }: EmbeddedPageActionsProps) {
+  const router = useRouter()
+
+  const handleOpenPage = () => {
+    router.push(`/workspace/${workspaceId}/${pageId}`)
+  }
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={handleOpenPage}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label='Open full page'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open full page</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
 }
 
 interface EmbeddedWorkflowActionsProps {
@@ -623,6 +860,114 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
         </div>
       )}
     </div>
+  )
+}
+
+interface EmbeddedFileFolderProps {
+  workspaceId: string
+  folderId: string
+  onAddResource?: (resource: MothershipResource) => void
+}
+
+/**
+ * Lists a workspace file folder's subfolders and files inside the resource
+ * panel. Selecting an entry opens it as a sibling resource tab rather than
+ * navigating away from the chat.
+ */
+function EmbeddedFileFolder({ workspaceId, folderId, onAddResource }: EmbeddedFileFolderProps) {
+  const { data: folderList, isPending: isFoldersPending } = useWorkspaceFileFolders(workspaceId)
+  const { data: files = [] } = useWorkspaceFiles(workspaceId)
+
+  const folder = (folderList ?? []).find((f) => f.id === folderId)
+  const subfolders = (folderList ?? []).filter((f) => f.parentId === folderId)
+  const folderFiles = files.filter((f) => f.folderId === folderId)
+
+  if (isFoldersPending) return LOADING_SKELETON
+
+  if (!folder) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
+        <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
+        <div className='flex flex-col items-center gap-1'>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
+          <p className='text-[var(--text-body)] text-small'>
+            This folder may have been deleted or moved
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex h-full flex-col overflow-y-auto p-6'>
+      <h2 className='mb-4 font-medium text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
+      {subfolders.length === 0 && folderFiles.length === 0 ? (
+        <p className='text-[13px] text-[var(--text-muted)]'>This folder is empty</p>
+      ) : (
+        <div className='flex flex-col gap-1'>
+          {subfolders.map((sub) => (
+            <button
+              key={sub.id}
+              type='button'
+              onClick={() => onAddResource?.({ type: 'filefolder', id: sub.id, title: sub.name })}
+              className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
+            >
+              <FolderIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <span className='truncate text-[13px] text-[var(--text-primary)]'>{sub.name}</span>
+            </button>
+          ))}
+          {folderFiles.map((file) => {
+            const DocIcon = getDocumentIcon('', file.name)
+            return (
+              <button
+                key={file.id}
+                type='button'
+                onClick={() => onAddResource?.({ type: 'file', id: file.id, title: file.name })}
+                className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
+              >
+                <DocIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <span className='truncate text-[13px] text-[var(--text-primary)]'>{file.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface EmbeddedIntegrationProps {
+  workspaceId: string
+  blockType: string
+}
+
+/**
+ * Renders the integration catalog detail page for an integration resource tab,
+ * minus the full-page back-link chrome.
+ */
+function EmbeddedIntegration({ workspaceId, blockType }: EmbeddedIntegrationProps) {
+  const integration = useMemo(() => findIntegrationByBlockType(blockType), [blockType])
+
+  if (!integration) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
+        <Connections className='size-[32px] text-[var(--text-icon)]' />
+        <div className='flex flex-col items-center gap-1'>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>
+            Integration not found
+          </h2>
+          <p className='text-[var(--text-body)] text-small'>
+            This integration may no longer be available
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Suspense fallback={LOADING_SKELETON}>
+      <IntegrationBlockDetail integration={integration} workspaceId={workspaceId} embedded />
+    </Suspense>
   )
 }
 

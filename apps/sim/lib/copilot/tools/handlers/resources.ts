@@ -1,5 +1,10 @@
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
+import {
+  isMothershipPageId,
+  MOTHERSHIP_PAGES,
+  type MothershipResource,
+  MothershipResourceType,
+} from '@/lib/copilot/resources/types'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
@@ -48,6 +53,14 @@ async function resolveResource(
       return { error: `Knowledge base not found in the current workspace.` }
     resourceId = kb.id
     title = kb.name
+  }
+  if (resourceType === 'page') {
+    if (!isMothershipPageId(item.id)) {
+      return {
+        error: `Unknown page "${item.id}". Valid pages: ${Object.keys(MOTHERSHIP_PAGES).join(', ')}.`,
+      }
+    }
+    title = MOTHERSHIP_PAGES[item.id]
   }
   if (resourceType === 'log') {
     const logRecord = await getLogById(item.id)

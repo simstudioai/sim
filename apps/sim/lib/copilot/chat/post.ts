@@ -75,6 +75,8 @@ const ResourceAttachmentSchema = z.object({
     'filefolder',
     'task',
     'log',
+    'integration',
+    'page',
     'generic',
   ]),
   id: z.string().min(1),
@@ -91,6 +93,8 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
+  integration: 'Integration',
+  page: 'Page',
   generic: 'Resource',
 }
 

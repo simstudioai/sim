@@ -94,6 +94,11 @@ const RESOURCE_TO_CONTEXT: Record<
   task: (r) => ({ kind: 'past_chat', chatId: r.id, label: r.title }),
   log: (r) => ({ kind: 'logs', executionId: r.id, label: r.title }),
   integration: (r) => ({ kind: 'integration', blockType: r.id, label: r.title }),
+  page: (r) => {
+    if (r.id === 'logs') return { kind: 'logs', label: r.title }
+    if (r.id === 'knowledge') return { kind: 'knowledge', label: r.title }
+    return { kind: 'docs', label: r.title }
+  },
   generic: (r) => ({ kind: 'docs', label: r.title }),
 }
 

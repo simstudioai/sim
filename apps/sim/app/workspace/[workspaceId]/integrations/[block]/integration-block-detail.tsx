@@ -37,9 +37,15 @@ const TEMPLATE_TILE_Z = ['z-30', 'z-20', 'z-10'] as const
 interface IntegrationBlockDetailProps {
   integration: Integration
   workspaceId: string
+  /** Hides full-page chrome (the back link) when rendered inside the chat resource panel. */
+  embedded?: boolean
 }
 
-export function IntegrationBlockDetail({ integration, workspaceId }: IntegrationBlockDetailProps) {
+export function IntegrationBlockDetail({
+  integration,
+  workspaceId,
+  embedded = false,
+}: IntegrationBlockDetailProps) {
   useOAuthReturnRouter()
   const router = useRouter()
   const pathname = usePathname()
@@ -118,9 +124,11 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
-          Integrations
-        </ChipLink>
+        {!embedded && (
+          <ChipLink href={`/workspace/${workspaceId}/integrations`} leftIcon={ArrowLeft}>
+            Integrations
+          </ChipLink>
+        )}
         <div className='ml-auto flex items-center'>
           {oauthService ? (
             hasServiceAccount ? (

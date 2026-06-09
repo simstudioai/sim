@@ -109,7 +109,10 @@ const copilotResourceTypeSchema = z.enum([
   'workflow',
   'knowledgebase',
   'folder',
+  'filefolder',
   'log',
+  'integration',
+  'page',
 ])
 
 export const addCopilotChatResourceBodySchema = z.object({
