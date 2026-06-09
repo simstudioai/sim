@@ -77,6 +77,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   areGroupDepsSatisfied,
@@ -1050,38 +1051,30 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
       await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
       const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
       if (previousDetail) {
+        // `columnName` is the column id (first-party) or name (legacy); match
+        // either. A rename is metadata-only and never moves id-keyed row data,
+        // so we only patch the schema column's name — never `row.data` keys.
+        // Stamp the current storage id so `getColumnId` stays stable as the
+        // display name changes (mirrors the server's metadata-only rename).
         const lower = columnName.toLowerCase()
-        const nextColumns = previousDetail.schema.columns.map((c) =>
-          c.name.toLowerCase() === lower ? { ...c, ...updates } : c
-        )
+        const isRename = typeof (updates as { name?: string }).name === 'string'
+        const nextColumns = previousDetail.schema.columns.map((c) => {
+          if (getColumnId(c) !== columnName && c.name.toLowerCase() !== lower) return c
+          const next = { ...c, ...updates }
+          if (isRename && next.id === undefined) next.id = getColumnId(c)
+          return next
+        })
         queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
           ...previousDetail,
           schema: { ...previousDetail.schema, columns: nextColumns },
         })
       }
 
-      const newName = (updates as { name?: string }).name
-      const rowSnapshots =
-        typeof newName === 'string' && newName.length > 0 && newName !== columnName
-          ? await snapshotAndMutateRows(queryClient, tableId, (row) => {
-              const lower = columnName.toLowerCase()
-              const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
-              if (!matchKey) return null
-              const { [matchKey]: value, ...rest } = row.data
-              return { ...row, data: { ...rest, [newName]: value } }
-            })
-          : []
-
-      return { previousDetail, rowSnapshots }
+      return { previousDetail }
     },
     onError: (error, _vars, context) => {
       if (context?.previousDetail) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
-      }
-      if (context?.rowSnapshots) {
-        for (const [key, data] of context.rowSnapshots) {
-          queryClient.setQueryData(key, data)
-        }
       }
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
@@ -1503,16 +1496,23 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
 
       const lower = columnName.toLowerCase()
       const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      // The grid deletes by stable id; legacy callers may pass a name. Resolve
+      // the column's storage id once from either form, then strip schema,
+      // widths, and row data by that single id — all three are id-keyed, so a
+      // name arg with a distinct id must never be used as the strip key directly.
+      const target = previousDetail?.schema.columns.find(
+        (c) => getColumnId(c) === columnName || c.name.toLowerCase() === lower
+      )
+      const stripKey = target ? getColumnId(target) : columnName
+
       if (previousDetail) {
-        const nextColumns = previousDetail.schema.columns.filter(
-          (c) => c.name.toLowerCase() !== lower
-        )
+        const nextColumns = previousDetail.schema.columns.filter((c) => getColumnId(c) !== stripKey)
         const prevWidths = previousDetail.metadata?.columnWidths
         const nextMetadata = prevWidths
           ? {
               ...previousDetail.metadata,
               columnWidths: Object.fromEntries(
-                Object.entries(prevWidths).filter(([k]) => k.toLowerCase() !== lower)
+                Object.entries(prevWidths).filter(([k]) => k !== stripKey)
               ),
             }
           : previousDetail.metadata
@@ -1524,9 +1524,8 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
       }
 
       const rowSnapshots = await snapshotAndMutateRows(queryClient, tableId, (row) => {
-        const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
-        if (!matchKey) return null
-        const { [matchKey]: _removed, ...rest } = row.data
+        if (!(stripKey in row.data)) return null
+        const { [stripKey]: _removed, ...rest } = row.data
         return { ...row, data: rest }
       })
 

@@ -418,13 +418,14 @@ describe('mutation paths — SET LOCAL timeouts', () => {
     expect(findExecutedRawSql("SET LOCAL statement_timeout = '120000ms'")).toBeDefined()
   })
 
-  it('renameColumn scales statement_timeout with table.rowCount', async () => {
+  it('renameColumn is metadata-only — no per-row JSONB rewrite regardless of row count', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ ...TABLE, rowCount: 500_000 }])
 
     await renameColumn({ tableId: 'tbl-1', oldName: 'name', newName: 'full_name' }, 'req-1')
 
-    // 500_000 × 2ms = 1_000_000 → capped at 600_000
-    expect(findExecutedRawSql("SET LOCAL statement_timeout = '600000ms'")).toBeDefined()
+    // Row data is keyed by the column's stable id (unchanged by a rename), so no
+    // `user_table_rows` key rewrite is executed — and thus no scaled timeout.
+    expect(findExecutedSqlContaining('jsonb_build_object')).toBe(false)
   })
 
   it('deleteColumn uses the 60s floor on small tables', async () => {
