@@ -16,6 +16,8 @@ export {
   ROUTER_TRIAGE_WORKFLOW,
   SUPPORT_KB_WORKFLOW,
   TABLE_ENRICH_WORKFLOW,
+  VARIABLES_CONFIG_WORKFLOW,
+  VARIABLES_RETRY_WORKFLOW,
 } from '@/components/workflow-preview/examples'
 export { OutputBundle } from '@/components/workflow-preview/output-bundle'
 export type {

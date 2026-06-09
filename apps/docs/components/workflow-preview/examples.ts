@@ -749,3 +749,79 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
     { id: 'condition-bad', source: 'condition', target: 'bad' },
   ],
 }
+
+/** Variables example: count retries across attempts. */
+export const VARIABLES_RETRY_WORKFLOW: PreviewWorkflow = {
+  id: 'variables-retry',
+  name: 'Count retries',
+  blocks: [
+    {
+      id: 'api',
+      name: 'API',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Method', value: 'GET' }],
+    },
+    {
+      id: 'vars',
+      name: 'Variables',
+      type: 'variables',
+      bgColor: '#8B5CF6',
+      position: { x: 320, y: 0 },
+      rows: [{ title: 'Set', value: 'retryCount + 1' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'If', value: '<variable.retryCount> < 3' }],
+    },
+  ],
+  edges: [
+    { id: 'api-vars', source: 'api', target: 'vars' },
+    { id: 'vars-condition', source: 'vars', target: 'condition' },
+  ],
+}
+
+/** Variables example: hold fetched config for the rest of the run. */
+export const VARIABLES_CONFIG_WORKFLOW: PreviewWorkflow = {
+  id: 'variables-config',
+  name: 'Hold config',
+  blocks: [
+    {
+      id: 'api',
+      name: 'API',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'URL', value: 'api.example.com/profile' }],
+    },
+    {
+      id: 'vars',
+      name: 'Variables',
+      type: 'variables',
+      bgColor: '#8B5CF6',
+      position: { x: 320, y: 0 },
+      rows: [{ title: 'Set', value: 'userId, userTier' }],
+    },
+    {
+      id: 'agent',
+      name: 'Agent',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Personalize for <variable.userTier>' }],
+    },
+  ],
+  edges: [
+    { id: 'api-vars', source: 'api', target: 'vars' },
+    { id: 'vars-agent', source: 'vars', target: 'agent' },
+  ],
+}
