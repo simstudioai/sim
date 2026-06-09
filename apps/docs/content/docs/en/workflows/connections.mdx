@@ -21,6 +21,8 @@ A connection tag references a value from an earlier block's output:
 - `blockName` is the name of the source block. Block names are normalized before matching, so they're lowercased and spaces are removed. `<My Agent.content>` and `<myagent.content>` resolve to the same block.
 - `path.to.data` is the path to the value inside that block's output. The field path is case-sensitive.
 
+The same angle-bracket syntax also reads [workflow variables](/workflows/variables) (`<variable.name>`) and loop or parallel context (`<loop.index>`); a connection tag is specifically the block-output case.
+
 You rarely type a tag by hand. In any input field, type `<` to open a dropdown of the values available from earlier blocks and pick one, or drag a value from a connected block straight into the field.
 
 ## Nested and array fields

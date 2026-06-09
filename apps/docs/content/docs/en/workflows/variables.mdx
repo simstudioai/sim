@@ -10,20 +10,20 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
 A **variable** is a value you set yourself and reuse across a workflow. Sim has two kinds. **Workflow variables** hold data during a run, like a counter or a config object, and you reference them with `<variable.name>`. **Environment variables** hold secrets and configuration, like API keys, and you reference them with `{{KEY}}`.
 
-A variable is different from a **connection tag**. A variable is a value you define; a connection tag like `<agent.content>` reads the output a block produced earlier in the run. See [how blocks pass data](/workflows/data-flow) for connection tags.
+## One syntax, named sources
 
-## Syntax at a glance
+Everything in angle brackets is the same mechanism: `<name.path>` reads a value by name at run time. The first segment says where the value comes from. **`variable` is literal** — every workflow variable is read through it. A [connection tag](/workflows/connections) starts with the block's own name instead, and inside a container, `loop` and `parallel` are reserved for its context. `{{KEY}}` is the one different syntax, for environment variables.
 
-| Syntax | References | Example |
-|--------|-----------|---------|
+| Syntax | Reads | Example |
+|--------|-------|---------|
+| `<loop.index>`, `<parallel.index>` | The current [Loop](/blocks/loop) iteration or [Parallel](/blocks/parallel) instance, inside that container | `<loop.currentItem>` |
 | `<variable.name>` | A workflow variable | `<variable.counter>` |
-| `<variable.obj.prop>` | A nested property of an object variable | `<variable.config.retryCount>` |
 | `{{KEY}}` | An environment variable | `{{OPENAI_API_KEY}}` |
-| `<blockname.field>` | A block output (connection tag) | `<agent.content>` |
-| `<loop.index>` / `<loop.currentItem>` | The current iteration, inside a [Loop](/blocks/loop) container | `<loop.currentItem>` |
-| `<parallel.index>` / `<parallel.currentItem>` | The current instance, inside a [Parallel](/blocks/parallel) container | `<parallel.index>` |
+| `<blockname.field>` | A block's output — a connection tag, not a variable | `<agent.content>` |
 
-Type `<` in any block text field to open the picker and browse the variables and outputs you can reference.
+The table is in resolution order: when a reference could match more than one thing, loop and parallel context win, then workflow variables, then environment variables, then block outputs. If nothing matches, the raw reference is left in place unsubstituted, which usually breaks the block that reads it — so give variables and blocks distinct names.
+
+Type `<` in any block text field to open the picker and browse everything you can reference.
 
 ## Workflow variables
 
@@ -76,7 +76,7 @@ Each run starts fresh from the values defined in the panel. A change made during
 
 Environment variables store sensitive values like API keys, tokens, and configuration that should never appear in logs or on the canvas. Create them under **Settings → Secrets** by adding a key-value pair.
 
-Reference them with double curly braces in any block field, including Agent system prompts and Function block code. The value is substituted before the block runs, so the secret never appears in logs or outputs.
+Reference them with double curly braces in any block field, including Agent system prompts and Function block code. The value is substituted before the block runs, and API keys are redacted in logs.
 
 ```
 {{API_KEY}}
@@ -95,13 +95,7 @@ Reference them with double curly braces in any block field, including Agent syst
 
 When a workspace and a personal variable share a key, the workspace value wins.
 
-### Versus credentials
-
-Environment variables hold raw string values you reference with `{{KEY}}`. [Credentials](/credentials) hold OAuth tokens and managed connections for services like Slack, GitHub, and Google, selected from a dropdown in a block's config. Use an environment variable for a raw API key or config value; use a credential when a service needs OAuth or managed token refresh.
-
-## Name conflicts
-
-When a reference could match more than one thing, Sim resolves it in a fixed order: loop and parallel context first, then workflow variables, then environment variables, then block outputs. If nothing matches, the raw reference is left in place unsubstituted, which usually breaks the block that reads it. Use distinct names for variables and blocks to avoid ambiguity.
+Use an environment variable for a raw API key or config value. When a service needs OAuth or managed token refresh (Slack, GitHub, Google), use a [credential](/credentials) instead, selected from a dropdown in the block's config.
 
 ## Next
 

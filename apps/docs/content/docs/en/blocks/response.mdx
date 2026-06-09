@@ -30,7 +30,7 @@ A Response block is an **exit point**. When one runs, the workflow ends and the 
 
 ### Response Data
 
-The body sent back, as JSON. Reference any earlier output with a [connection tag](/workflows/connections) — a block output like `<agent.content>`, or a workflow variable like `<variable.userId>` — and nest objects and arrays freely.
+The body sent back, as JSON. Reference any earlier value: a block output like `<agent.content>` with a [connection tag](/workflows/connections), or a [workflow variable](/workflows/variables) like `<variable.userId>`. Nest objects and arrays freely.
 
 ```json
 {
