@@ -81,7 +81,10 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   const parsed = await parseRequest(listCopilotByokKeysContract, req, {})
   if (!parsed.success) return parsed.response
 
-  return forwardToCopilot('GET', new URLSearchParams({ workspaceId: parsed.data.query.workspaceId }))
+  return forwardToCopilot(
+    'GET',
+    new URLSearchParams({ workspaceId: parsed.data.query.workspaceId })
+  )
 })
 
 export const POST = withRouteHandler(async (req: NextRequest) => {

@@ -43,6 +43,7 @@ async function main() {
   // pre-existing `request` listeners and forwards only non-`/socket.io/`
   // requests to them, making it the single dispatcher for the shared port.
   // The handler itself is assigned after the room manager exists, before listen().
+  // biome-ignore lint/style/useConst: must be declared before the request listener closure; assigned only after the room manager exists
   let httpHandler: ReturnType<typeof createHttpHandler> | undefined
   httpServer.on('request', (req, res) => httpHandler?.(req, res))
 
