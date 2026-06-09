@@ -51,6 +51,51 @@ const config: NextConfig = {
       { source: '/execution/chat', destination: '/deployment/chat', permanent: true },
       { source: '/execution/form', destination: '/deployment/form', permanent: true },
       { source: '/mcp/deploy-workflows', destination: '/deployment/mcp', permanent: true },
+      // tools/ + triggers/<service> unified into per-service integrations/ pages.
+      // Specific moves first (Next applies the first matching redirect):
+      {
+        source: '/tools/custom-tools',
+        destination: '/building-agents/custom-tools',
+        permanent: true,
+      },
+      { source: '/tools', destination: '/integrations', permanent: true },
+      { source: '/tools/:slug', destination: '/integrations/:slug', permanent: true },
+      // Old blocks/triggers index pages were folded into the workflows overview.
+      // Native trigger pages (/triggers/start|schedule|webhook|rss|table) still exist.
+      { source: '/blocks', destination: '/workflows#blocks', permanent: true },
+      { source: '/triggers', destination: '/workflows#triggers', permanent: true },
+      // Integration trigger pages: provider slug differs from the block type for a few.
+      {
+        source: '/triggers/jsm',
+        destination: '/integrations/jira_service_management',
+        permanent: true,
+      },
+      {
+        source: '/triggers/google-calendar',
+        destination: '/integrations/google_calendar',
+        permanent: true,
+      },
+      {
+        source: '/triggers/google-drive',
+        destination: '/integrations/google_drive',
+        permanent: true,
+      },
+      {
+        source: '/triggers/google-sheets',
+        destination: '/integrations/google_sheets',
+        permanent: true,
+      },
+      {
+        source: '/triggers/microsoft-teams',
+        destination: '/integrations/microsoft_teams',
+        permanent: true,
+      },
+      {
+        source:
+          '/triggers/:slug(airtable|ashby|attio|azure_devops|calcom|calendly|circleback|confluence|emailbison|fathom|fireflies|github|gmail|gong|google_forms|grain|greenhouse|hubspot|imap|intercom|jira|lemlist|linear|monday|notion|outlook|resend|salesforce|sendblue|servicenow|slack|stripe|telegram|twilio_voice|typeform|vercel|webflow|whatsapp|zoom)',
+        destination: '/integrations/:slug',
+        permanent: true,
+      },
     ]
   },
   async rewrites() {
