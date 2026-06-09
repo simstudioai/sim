@@ -169,7 +169,6 @@ export {
 } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker, timePickerVariants } from './time-picker/time-picker'
-export { CountdownRing } from './toast/countdown-ring'
 export { ToastProvider, toast, useToast } from './toast/toast'
 export {
   clamp,
