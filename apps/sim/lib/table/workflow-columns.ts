@@ -15,6 +15,7 @@ import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
 import type {
+  Filter,
   RowData,
   RowExecutionMetadata,
   RowExecutions,
@@ -583,6 +584,9 @@ export async function runWorkflowColumn(opts: {
   requestId: string
   groupIds?: string[]
   rowIds?: string[]
+  /** "Select all under a filter" — run every row matching this filter (mutually exclusive with
+   *  `rowIds`). Threaded into the dispatch scope so the dispatcher walks only matching rows. */
+  filter?: Filter
   /** Optional cap on work before the dispatch completes (e.g. run only the
    *  first N eligible rows). Null/omitted = process every row in scope. */
   limit?: DispatchLimit | null
@@ -591,7 +595,7 @@ export async function runWorkflowColumn(opts: {
    *  schema changes. Defaults to true (user-initiated "Run column"). */
   isManualRun?: boolean
 }): Promise<{ dispatchId: string | null }> {
-  const { tableId, workspaceId, mode, requestId, groupIds, rowIds, limit } = opts
+  const { tableId, workspaceId, mode, requestId, groupIds, rowIds, filter, limit } = opts
   const isManualRun = opts.isManualRun ?? true
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
   // (CSV import on zero matches, etc.) end up here. Skip the dispatch entirely
@@ -651,7 +655,10 @@ export async function runWorkflowColumn(opts: {
   // rows in scope would blank far more than we re-run. `mode: 'all'` re-runs
   // completed cells without the clear anyway — the clear is only for instant
   // feedback, which the capped rows still get via the dispatcher's pre-stamp.
-  if (!limit) {
+  // Skip the eager clear for a filtered run: `bulkClearWorkflowGroupCells` keys by `rowIds`, and a
+  // filtered scope has none — clearing table-wide would blank rows that don't match the filter. The
+  // dispatcher's per-row pre-stamp still provides instant Pending feedback as it walks.
+  if (!limit && !filter) {
     await bulkClearWorkflowGroupCells({
       tableId,
       groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
@@ -672,6 +679,7 @@ export async function runWorkflowColumn(opts: {
     scope: {
       groupIds: targetGroupIds,
       ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+      ...(filter ? { filter } : {}),
     },
     limit,
     isManualRun,

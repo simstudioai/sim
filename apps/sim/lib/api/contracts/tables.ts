@@ -1109,6 +1109,9 @@ export const runColumnBodySchema = z.object({
   groupIds: z.array(z.string().min(1)).min(1),
   runMode: z.enum(['all', 'incomplete']).default('all'),
   rowIds: z.array(z.string().min(1)).min(1).optional(),
+  /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
+   *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
+  filter: nonEmptyFilterSchema.optional(),
   /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
   limit: runLimitSchema.optional(),
 })

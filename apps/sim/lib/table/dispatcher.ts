@@ -6,9 +6,11 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, inArray, isNotNull, ne, or, type SQL, sql } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
+import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
-import type { RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
+import { buildFilterClause } from '@/lib/table/sql'
+import type { Filter, RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
 import {
   buildEnqueueItems,
   buildPendingRuns,
@@ -32,6 +34,9 @@ export type DispatchMode = 'all' | 'incomplete' | 'new'
 export interface DispatchScope {
   groupIds: string[]
   rowIds?: string[]
+  /** "Select all matching a filter" — run every row matching this filter (mutually exclusive with
+   *  `rowIds`). Lets the action-bar Play/Refresh target a filtered view without materializing ids. */
+  filter?: Filter
 }
 
 /**
@@ -390,6 +395,15 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   ]
   if (dispatch.scope.rowIds && dispatch.scope.rowIds.length > 0) {
     filters.push(inArray(userTableRows.id, dispatch.scope.rowIds))
+  } else if (dispatch.scope.filter) {
+    // "Select all under a filter": walk only the matching rows. Same cursor/window mechanism —
+    // non-matching rows are simply never selected, like mode eligibility.
+    const filterClause = buildFilterClause(
+      dispatch.scope.filter,
+      USER_TABLE_ROWS_SQL_NAME,
+      table.schema.columns
+    )
+    if (filterClause) filters.push(filterClause)
   }
   // `'new'` mode targets only rows whose targeted groups haven't been
   // attempted. Exclude a row only when EVERY targeted group already has a

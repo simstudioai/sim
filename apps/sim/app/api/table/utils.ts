@@ -6,9 +6,31 @@ import {
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
 import type { MultipartError } from '@/lib/core/utils/multipart'
-import type { ColumnDefinition, TableDefinition } from '@/lib/table'
-import { getTableById } from '@/lib/table'
+import type { ColumnDefinition, Filter, TableDefinition } from '@/lib/table'
+import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
+import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+
+/**
+ * Validates a `filter` against the table's column schema, returning a 400 response on a bad field
+ * (or `null` when the filter is valid or absent). Shared by the routes that accept a filter
+ * (`delete-async`, `columns/run`) so a bad field fails fast with a clear message.
+ */
+export function tableFilterError(
+  filter: Filter | undefined,
+  columns: ColumnDefinition[]
+): NextResponse | null {
+  if (!filter) return null
+  try {
+    buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, columns)
+    return null
+  } catch (error) {
+    if (error instanceof TableQueryValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    throw error
+  }
+}
 
 const logger = createLogger('TableUtils')
 

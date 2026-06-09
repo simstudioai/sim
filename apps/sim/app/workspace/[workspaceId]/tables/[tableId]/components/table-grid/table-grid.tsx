@@ -11,7 +11,7 @@ import { Loader, TableX } from '@/components/emcn/icons'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -114,6 +114,8 @@ export interface SelectionSnapshot {
     rowIds: string[]
     allRows: boolean
     rowCount: number
+    /** Active filter when `allRows` is set — lets a filtered "select all" run only matching rows. */
+    filter?: Filter
   } | null
   /** Drives Play (`hasIncompleteOrFailed`) / Refresh (`hasCompleted`) /
    *  Stop (`hasInFlight`) visibility on the action bar. */
@@ -3360,13 +3362,15 @@ export function TableGrid({
     if (!rowSelectionIsEmpty(rowSelection)) {
       if (rowSelection.kind === 'all') {
         // `rowIds` is the loaded window (virtualized); the label total comes from the filter-scoped
-        // row count minus any deselected rows.
+        // row count minus any deselected rows. `filter` lets the run target the matching rows
+        // server-side (the dispatcher walks them) rather than the loaded window.
         const excluded = rowSelection.excluded?.size ?? 0
         return {
           groupIds: tableWorkflowGroupIds,
           rowIds: rows.map((r) => r.id),
           allRows: true,
           rowCount: Math.max(0, selectAllTotalRef.current - excluded),
+          filter: queryOptions.filter ?? undefined,
         }
       }
       const rowIds = rows.filter((r) => rowSelectionIncludes(rowSelection, r.id)).map((r) => r.id)

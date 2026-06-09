@@ -2,23 +2,17 @@
  * @vitest-environment node
  */
 import { hybridAuthMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const {
-  mockCheckAccess,
-  mockMarkTableJobRunning,
-  mockRunTableDelete,
-  mockBuildFilterClause,
-  TableQueryValidationError,
-} = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
-  mockMarkTableJobRunning: vi.fn(),
-  mockRunTableDelete: vi.fn(),
-  mockBuildFilterClause: vi.fn(),
-  TableQueryValidationError: class extends Error {},
-}))
+const { mockCheckAccess, mockMarkTableJobRunning, mockRunTableDelete, mockTableFilterError } =
+  vi.hoisted(() => ({
+    mockCheckAccess: vi.fn(),
+    mockMarkTableJobRunning: vi.fn(),
+    mockRunTableDelete: vi.fn(),
+    mockTableFilterError: vi.fn(),
+  }))
 
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('job-id-xyz'),
@@ -26,10 +20,6 @@ vi.mock('@sim/utils/id', () => ({
 }))
 vi.mock('@/lib/table/service', () => ({ markTableJobRunning: mockMarkTableJobRunning }))
 vi.mock('@/lib/table/delete-runner', () => ({ runTableDelete: mockRunTableDelete }))
-vi.mock('@/lib/table/sql', () => ({
-  buildFilterClause: mockBuildFilterClause,
-  TableQueryValidationError,
-}))
 vi.mock('@/lib/core/utils/background', () => ({
   runDetached: (_label: string, work: () => Promise<unknown>) => {
     void work()
@@ -41,6 +31,7 @@ vi.mock('@/app/api/table/utils', async () => {
     checkAccess: mockCheckAccess,
     accessError: (result: { status: number }) =>
       NextResponse.json({ error: 'denied' }, { status: result.status }),
+    tableFilterError: mockTableFilterError,
   }
 })
 
@@ -90,7 +81,7 @@ describe('POST /api/table/[tableId]/delete-async', () => {
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
     mockMarkTableJobRunning.mockResolvedValue(true)
     mockRunTableDelete.mockResolvedValue(undefined)
-    mockBuildFilterClause.mockReturnValue({})
+    mockTableFilterError.mockReturnValue(null)
   })
 
   it('claims the job slot and kicks off the delete worker with filter + exclusions', async () => {
@@ -99,7 +90,11 @@ describe('POST /api/table/[tableId]/delete-async', () => {
 
     expect(response.status).toBe(200)
     expect(data.data).toEqual({ tableId: 'tbl_1', jobId: 'job-id-xyz' })
-    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', 'job-id-xyz', 'delete')
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', 'job-id-xyz', 'delete', {
+      filter: { status: 'archived' },
+      excludeRowIds: ['row_keep'],
+      cutoff: expect.any(String),
+    })
     expect(mockRunTableDelete).toHaveBeenCalledWith(
       expect.objectContaining({
         jobId: 'job-id-xyz',
@@ -128,9 +123,7 @@ describe('POST /api/table/[tableId]/delete-async', () => {
   })
 
   it('returns 400 on an invalid filter without claiming the slot', async () => {
-    mockBuildFilterClause.mockImplementation(() => {
-      throw new TableQueryValidationError('bad field')
-    })
+    mockTableFilterError.mockReturnValue(NextResponse.json({ error: 'bad field' }, { status: 400 }))
     const response = await makeRequest(validBody)
     expect(response.status).toBe(400)
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()

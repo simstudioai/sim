@@ -7,12 +7,10 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { runTableDelete } from '@/lib/table/delete-runner'
 import { markTableJobRunning } from '@/lib/table/service'
-import { buildFilterClause, TableQueryValidationError } from '@/lib/table/sql'
-import type { Filter } from '@/lib/table/types'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import type { TableDeleteJobPayload } from '@/lib/table/types'
+import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
 const logger = createLogger('TableDeleteAsync')
 
@@ -57,24 +55,18 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   }
 
   // Validate the filter up front so the caller gets immediate feedback (the worker reuses it).
-  if (filter) {
-    try {
-      buildFilterClause(filter as Filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
-    } catch (error) {
-      if (error instanceof TableQueryValidationError) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-      throw error
-    }
-  }
+  const filterError = tableFilterError(filter, table.schema.columns)
+  if (filterError) return filterError
 
   // Rows inserted after this instant are spared (created_at <= cutoff in the worker).
   const cutoff = new Date()
 
   // Atomically claim the job slot — one background job per table, so this also blocks while an
-  // import is in flight (and vice versa).
+  // import is in flight (and vice versa). The scope is persisted to the job's payload so read
+  // paths can mask the doomed rows while the job runs (see `pendingDeleteMask`).
   const jobId = generateId()
-  const claimed = await markTableJobRunning(tableId, jobId, 'delete')
+  const payload: TableDeleteJobPayload = { filter, excludeRowIds, cutoff: cutoff.toISOString() }
+  const claimed = await markTableJobRunning(tableId, jobId, 'delete', payload)
   if (!claimed) {
     return NextResponse.json(
       { error: 'A job is already in progress for this table' },
@@ -87,7 +79,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       jobId,
       tableId,
       workspaceId,
-      filter: filter as Filter | undefined,
+      filter,
       excludeRowIds,
       cutoff,
     })

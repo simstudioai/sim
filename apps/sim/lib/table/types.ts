@@ -197,6 +197,19 @@ export type TableJobStatus = 'running' | 'ready' | 'failed' | 'canceled'
 /** Which kind of background job occupies the table's single job slot. */
 export type TableJobType = 'import' | 'delete'
 
+/**
+ * Persisted scope of a running delete job (`table_jobs.payload`). Defines the doomed row set —
+ * `matches(filter) AND created_at <= cutoff AND id NOT IN excludeRowIds` — so the rows read-path
+ * can mask those rows out while the job runs, making mid-job reads (refresh, other clients)
+ * consistent with the eventual result.
+ */
+export interface TableDeleteJobPayload {
+  filter?: Filter
+  excludeRowIds?: string[]
+  /** ISO timestamp; rows created after it are spared. */
+  cutoff: string
+}
+
 export interface TableDefinition {
   id: string
   name: string

@@ -16,7 +16,7 @@ import {
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   and,
@@ -30,6 +30,7 @@ import {
   isNull,
   lt,
   lte,
+  notInArray,
   type SQL,
   sql,
 } from 'drizzle-orm'
@@ -76,6 +77,7 @@ import type {
   RowExecutions,
   Sort,
   TableDefinition,
+  TableDeleteJobPayload,
   TableJobType,
   TableMetadata,
   TableRow,
@@ -1983,7 +1985,10 @@ export async function setTableSchemaForImport(tableId: string, schema: TableSche
 export async function markTableJobRunning(
   tableId: string,
   jobId: string,
-  type: TableJobType
+  type: TableJobType,
+  /** Type-specific scope persisted to `table_jobs.payload` (e.g. {@link TableDeleteJobPayload})
+   *  so read paths can mask the job's effect while it runs. */
+  payload?: unknown
 ): Promise<boolean> {
   // workspace_id is immutable; the atomic gate is the INSERT's conflict, not this read.
   const [def] = await db
@@ -1994,7 +1999,14 @@ export async function markTableJobRunning(
   if (!def) return false
   const inserted = await db
     .insert(tableJobs)
-    .values({ id: jobId, tableId, workspaceId: def.workspaceId, type, status: 'running' })
+    .values({
+      id: jobId,
+      tableId,
+      workspaceId: def.workspaceId,
+      type,
+      status: 'running',
+      payload: payload ?? null,
+    })
     .onConflictDoNothing()
     .returning({ id: tableJobs.id })
   return inserted.length > 0
@@ -2567,9 +2579,13 @@ export async function findRowMatches(
   const columnIds = columns.map(getColumnId)
   if (columnIds.length === 0) return { matches: [], truncated: false }
 
+  // Same visibility rule as queryRows: don't surface rows a running delete job will remove.
+  const deleteMask = await pendingDeleteMask(table)
+
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),
-    eq(userTableRows.workspaceId, table.workspaceId)
+    eq(userTableRows.workspaceId, table.workspaceId),
+    deleteMask
   )
   let whereClause: SQL | undefined = baseConditions
   if (options.filter && Object.keys(options.filter).length > 0) {
@@ -2631,6 +2647,54 @@ export async function findRowMatches(
  * @param requestId - Request ID for logging
  * @returns Query result with rows and pagination info
  */
+/**
+ * Visibility mask for a running delete job: returns a clause keeping only rows the job will NOT
+ * delete, or `undefined` when no delete job is running. The job's persisted scope
+ * ({@link TableDeleteJobPayload}) defines the doomed set — `matches(filter) AND created_at <=
+ * cutoff AND id NOT IN excludeRowIds` — exactly what the worker's `selectRowIdPage` selects, so
+ * mid-job reads (refresh, other clients, exports) are consistent with the eventual result. The
+ * mask lifts automatically when the job leaves `running` (done, failed, or canceled).
+ *
+ * `(doomed) IS NOT TRUE` rather than `NOT (doomed)`: JSONB predicates evaluate to NULL on missing
+ * cells, and those rows are NOT selected for deletion (NULL ≠ TRUE) — they must stay visible.
+ */
+async function pendingDeleteMask(table: TableDefinition): Promise<SQL | undefined> {
+  const [job] = await db
+    .select({ payload: tableJobs.payload })
+    .from(tableJobs)
+    .where(
+      and(
+        eq(tableJobs.tableId, table.id),
+        eq(tableJobs.status, 'running'),
+        eq(tableJobs.type, 'delete')
+      )
+    )
+    .limit(1)
+  if (!job?.payload) return undefined
+  const scope = job.payload as TableDeleteJobPayload
+
+  const doomedParts: SQL[] = []
+  if (scope.filter && Object.keys(scope.filter).length > 0) {
+    try {
+      const clause = buildFilterClause(scope.filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
+      if (clause) doomedParts.push(clause)
+    } catch (error) {
+      // Schema drifted mid-job (column renamed/deleted). Showing doomed rows briefly beats
+      // failing every read; the worker resolves the same way on its next page.
+      logger.warn(`Skipping delete-job mask for table ${table.id}: stale filter`, {
+        error: toError(error).message,
+      })
+      return undefined
+    }
+  }
+  if (scope.cutoff) doomedParts.push(lte(userTableRows.createdAt, new Date(scope.cutoff)))
+  if (scope.excludeRowIds && scope.excludeRowIds.length > 0) {
+    doomedParts.push(notInArray(userTableRows.id, scope.excludeRowIds))
+  }
+  if (doomedParts.length === 0) return undefined
+  return sql`(${and(...doomedParts)}) IS NOT TRUE`
+}
+
 export async function queryRows(
   table: TableDefinition,
   options: QueryOptions,
@@ -2648,9 +2712,14 @@ export async function queryRows(
   const tableName = USER_TABLE_ROWS_SQL_NAME
   const columns = table.schema.columns
 
+  // Hide rows a running delete job is about to remove — both the page and the count below share
+  // this clause, so totals stay consistent with the visible rows.
+  const deleteMask = await pendingDeleteMask(table)
+
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),
-    eq(userTableRows.workspaceId, table.workspaceId)
+    eq(userTableRows.workspaceId, table.workspaceId),
+    deleteMask
   )
 
   let whereClause = baseConditions

@@ -1633,6 +1633,10 @@ interface RunColumnVariables {
   runMode?: RunMode
   /** Restrict to these rows. Server applies the same eligibility predicate. */
   rowIds?: string[]
+  /** "Select all under a filter" — run every row matching this filter (mutually exclusive with
+   *  `rowIds`). Optimistic stamping is skipped (like `limit`) since the matching set isn't known
+   *  client-side; the dispatcher's real pending stamps drive the UI. */
+  filter?: Filter
   /** Cap the run to the first `max` eligible rows. Omit for an unbounded run.
    *  Optimistic stamping is skipped when set — the dispatcher's real pending
    *  stamps drive the UI for the actual capped rows. */
@@ -1758,7 +1762,13 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupIds, runMode = 'all', rowIds, limit }: RunColumnVariables) => {
+    mutationFn: async ({
+      groupIds,
+      runMode = 'all',
+      rowIds,
+      filter,
+      limit,
+    }: RunColumnVariables) => {
       return requestJson(runColumnContract, {
         params: { tableId },
         body: {
@@ -1766,16 +1776,17 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
           groupIds,
           runMode,
           ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+          ...(filter ? { filter } : {}),
           ...(limit ? { limit } : {}),
         },
       })
     },
-    onMutate: async ({ groupIds, runMode = 'all', rowIds, limit }) => {
-      // Capped runs touch only the first N eligible rows, chosen server-side by
-      // position. We can't predict that set client-side, so optimistic stamping
-      // is skipped — the dispatcher's real pending stamps (cell SSE) drive the
-      // UI within the first window.
-      if (limit)
+    onMutate: async ({ groupIds, runMode = 'all', rowIds, filter, limit }) => {
+      // Capped and filtered runs target a set we can't predict client-side (capped picks the first
+      // N by position; filtered matches a server-evaluated predicate), so optimistic stamping is
+      // skipped — the dispatcher's real pending stamps (cell SSE) drive the UI within the first
+      // window.
+      if (limit || filter)
         return { snapshots: undefined, runStateSnapshot: undefined, didBumpRunState: false }
       const targetRowIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
       const targetGroupIds = new Set(groupIds)

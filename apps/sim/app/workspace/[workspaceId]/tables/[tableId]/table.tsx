@@ -251,6 +251,7 @@ export function Table({
     (args: {
       groupIds: string[]
       rowIds?: string[]
+      filter?: Filter
       runMode: RunMode
       limit?: RunLimit
       source: 'row' | 'rows' | 'column'
@@ -631,6 +632,8 @@ export function Table({
             runScope({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
+              // `filter` is only populated on select-all, so it's already undefined otherwise.
+              filter: scope.filter,
               runMode: 'incomplete',
               source: 'rows',
             })
@@ -641,6 +644,7 @@ export function Table({
             runScope({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
+              filter: scope.filter,
               runMode: 'all',
               source: 'rows',
             })
