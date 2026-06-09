@@ -67,14 +67,23 @@ export function toReactFlowElements(
   const hasHighlight = Boolean(highlightBlock || highlightEdge)
   const blockIndexMap = new Map(workflow.blocks.map((b, i) => [b.id, i]))
 
+  const blocksById = new Map(workflow.blocks.map((b) => [b.id, b]))
+
   const nodes: Node[] = workflow.blocks.map((block, index) => {
     const isContainer = Boolean(block.size)
+    // Nested blocks are authored relative to their container; render them at
+    // absolute coordinates (not React Flow parentNode children) so the edges
+    // between a container and its nested blocks render reliably and on top.
+    const parent = block.parentId ? blocksById.get(block.parentId) : undefined
+    const position = parent
+      ? { x: parent.position.x + block.position.x, y: parent.position.y + block.position.y }
+      : block.position
     return {
       id: block.id,
       type: isContainer ? 'previewContainer' : 'previewBlock',
-      position: block.position,
+      position,
+      zIndex: isContainer ? 0 : 1,
       ...(block.size ? { style: { width: block.size.width, height: block.size.height } } : {}),
-      ...(block.parentId ? { parentNode: block.parentId, extent: 'parent' as const } : {}),
       data: {
         name: block.name,
         blockType: block.type,
@@ -95,9 +104,6 @@ export function toReactFlowElements(
       targetPosition: Position.Left,
     }
   })
-
-  // React Flow requires a parent node to appear before its children in the array.
-  nodes.sort((a, b) => (a.parentNode ? 1 : 0) - (b.parentNode ? 1 : 0))
 
   const edges: Edge[] = workflow.edges.map((e) => {
     const sourceIndex = blockIndexMap.get(e.source) ?? 0

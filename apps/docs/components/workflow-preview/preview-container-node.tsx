@@ -42,7 +42,7 @@ export const PreviewContainerNode = memo(function PreviewContainerNode({
   const Icon = BLOCK_ICONS[blockType]
 
   return (
-    <div className='relative h-full w-full select-none rounded-[8px] border border-[#3d3d3d] bg-[#171717]/70'>
+    <div className='relative h-full w-full select-none rounded-[8px] border border-[#3d3d3d] bg-white/[0.02]'>
       {!hideTargetHandle && (
         <Handle
           type='target'
