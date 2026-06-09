@@ -16,7 +16,6 @@ export interface WorkflowMetadata {
   lastModified: Date
   createdAt: Date
   description?: string
-  color: string
   workspaceId?: string
   folderId?: string | null
   sortOrder: number

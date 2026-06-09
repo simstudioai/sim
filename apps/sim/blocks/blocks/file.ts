@@ -73,9 +73,8 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   - You should always use the File URL input method and enter the file URL if the user gives it to you or clarify if they have one.
   `,
   docsLink: 'https://docs.sim.ai/tools/file',
-  category: 'tools',
-  integrationType: IntegrationType.FileStorage,
-  tags: ['document-processing'],
+  category: 'blocks',
+  integrationType: IntegrationType.Documents,
   bgColor: '#40916C',
   icon: DocumentIcon,
   hideFromToolbar: true,
@@ -274,9 +273,8 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   longDescription:
     'Read and parse files from uploads or URLs, write new workspace files, or append content to existing files.',
   docsLink: 'https://docs.sim.ai/tools/file',
-  category: 'tools',
-  integrationType: IntegrationType.FileStorage,
-  tags: ['document-processing'],
+  category: 'blocks',
+  integrationType: IntegrationType.Documents,
   bgColor: '#40916C',
   icon: DocumentIcon,
   hideFromToolbar: true,

@@ -6,15 +6,14 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Button,
-  Input as EmcnInput,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  type ChipModalFooterAction,
+  ChipModalHeader,
+  ChipTextarea,
   SecretInput,
-  Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
@@ -151,14 +150,14 @@ function FormattedInput({
 
   return (
     <div className={cn('relative', className)}>
-      <EmcnInput
+      <ChipInput
         ref={ref}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
         onScroll={handleScroll}
         onInput={handleScroll}
-        className='h-9 text-transparent caret-[var(--text-primary)] placeholder:text-[var(--text-muted)]'
+        inputClassName='text-transparent caret-[var(--text-primary)]'
       />
       <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-medium font-sans text-sm'>
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
@@ -613,221 +612,202 @@ export function McpServerFormModal({
   const title = mode === 'add' ? 'Add New MCP Server' : 'Edit MCP Server'
   const submitLabel = mode === 'add' ? 'Add MCP' : 'Save'
 
+  const handleToggleJsonMode = () => {
+    if (testResult) clearTestResult()
+    setFormMode(formMode === 'form' ? 'json' : 'form')
+    setJsonError(null)
+    setSubmitError(null)
+  }
+
+  const secondaryAction: ChipModalFooterAction | undefined =
+    mode === 'add'
+      ? {
+          label: formMode === 'form' ? 'Edit JSON' : 'Edit Form',
+          onClick: handleToggleJsonMode,
+        }
+      : formMode === 'form'
+        ? {
+            label: testButtonLabel,
+            onClick: handleTestConnection,
+            disabled: isTestingConnection || !isFormValid || isDomainBlocked,
+          }
+        : undefined
+
+  const primaryAction: ChipModalFooterAction =
+    formMode === 'json'
+      ? {
+          label: isSubmitting ? 'Adding...' : submitLabel,
+          onClick: handleSubmitJson,
+          disabled: isSubmitting || !jsonInput.trim(),
+        }
+      : {
+          label: isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel,
+          onClick: handleSubmitForm,
+          disabled: isSubmitDisabled,
+        }
+
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='lg' className='max-h-[82vh]'>
-        <ModalHeader className='border-[var(--border)] border-b pb-3'>{title}</ModalHeader>
-        <ModalBody className='min-h-0 px-4 pt-4 pb-4'>
-          <ModalDescription className='sr-only'>
-            Configure an MCP server by entering the server URL and optional headers, or paste a JSON
-            configuration.
-          </ModalDescription>
-          {formMode === 'json' ? (
-            <div className='flex flex-col gap-2'>
-              <Textarea
-                placeholder={`{\n  "mcpServers": {\n    "server-name": {\n      "url": "https://...",\n      "headers": {\n        "X-API-Key": "..."\n      }\n    }\n  }\n}`}
-                value={jsonInput}
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title} size='lg'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>{title}</ChipModalHeader>
+      <ChipModalBody className='max-h-[82vh] min-h-0 overflow-y-auto'>
+        {formMode === 'json' ? (
+          <div className='flex flex-col gap-2'>
+            <ChipTextarea
+              placeholder={`{\n  "mcpServers": {\n    "server-name": {\n      "url": "https://...",\n      "headers": {\n        "X-API-Key": "..."\n      }\n    }\n  }\n}`}
+              value={jsonInput}
+              onChange={(e) => {
+                setJsonInput(e.target.value)
+                if (jsonError) setJsonError(null)
+                if (testResult) clearTestResult()
+                if (submitError) setSubmitError(null)
+              }}
+              className='min-h-[280px] font-mono text-small leading-5'
+            />
+            {jsonError && <p className='text-[var(--text-error)] text-caption'>{jsonError}</p>}
+          </div>
+        ) : (
+          <div className='flex flex-col gap-3'>
+            <input
+              type='text'
+              name='fakeusernameremembered'
+              autoComplete='username'
+              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              tabIndex={-1}
+              readOnly
+            />
+            <input
+              type='password'
+              name='fakepasswordremembered'
+              autoComplete='current-password'
+              style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+              tabIndex={-1}
+              readOnly
+            />
+            <FormField label='Server Name'>
+              <ChipInput
+                placeholder='e.g., My MCP Server'
+                value={formData.name}
                 onChange={(e) => {
-                  setJsonInput(e.target.value)
-                  if (jsonError) setJsonError(null)
                   if (testResult) clearTestResult()
                   if (submitError) setSubmitError(null)
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }}
-                className='min-h-[280px] font-mono text-small leading-5'
               />
-              {jsonError && <p className='text-[var(--text-error)] text-caption'>{jsonError}</p>}
-            </div>
-          ) : (
-            <div className='flex flex-col gap-3'>
-              <input
-                type='text'
-                name='fakeusernameremembered'
-                autoComplete='username'
-                style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-                tabIndex={-1}
-                readOnly
+            </FormField>
+
+            <FormField label='Server URL'>
+              <FormattedInput
+                ref={urlInputRef}
+                placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
+                value={formData.url || ''}
+                scrollLeft={urlScrollLeft}
+                showEnvVars={showEnvVars && activeInputField === 'url'}
+                envVarProps={{
+                  searchTerm: envSearchTerm,
+                  cursorPosition,
+                  workspaceId,
+                  onSelect: handleEnvVarSelect,
+                  onClose: resetEnvVarState,
+                }}
+                availableEnvVars={availableEnvVars}
+                onChange={(e) => handleInputChange('url', e.target.value)}
+                onScroll={setUrlScrollLeft}
               />
-              <input
-                type='password'
-                name='fakepasswordremembered'
-                autoComplete='current-password'
-                style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
-                tabIndex={-1}
-                readOnly
-              />
-              <FormField label='Server Name'>
-                <EmcnInput
-                  placeholder='e.g., My MCP Server'
-                  value={formData.name}
-                  onChange={(e) => {
-                    if (testResult) clearTestResult()
-                    if (submitError) setSubmitError(null)
-                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                  }}
-                  className='h-9'
-                />
-              </FormField>
-
-              <FormField label='Server URL'>
-                <FormattedInput
-                  ref={urlInputRef}
-                  placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
-                  value={formData.url || ''}
-                  scrollLeft={urlScrollLeft}
-                  showEnvVars={showEnvVars && activeInputField === 'url'}
-                  envVarProps={{
-                    searchTerm: envSearchTerm,
-                    cursorPosition,
-                    workspaceId,
-                    onSelect: handleEnvVarSelect,
-                    onClose: resetEnvVarState,
-                  }}
-                  availableEnvVars={availableEnvVars}
-                  onChange={(e) => handleInputChange('url', e.target.value)}
-                  onScroll={setUrlScrollLeft}
-                />
-                {isDomainBlocked && (
-                  <p className='mt-1 text-[var(--text-error)] text-caption'>
-                    Domain not permitted by server policy
-                  </p>
-                )}
-              </FormField>
-
-              <FormField label='Headers'>
-                <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
-                  {(formData.headers || []).map((header, index) => (
-                    <HeaderRow
-                      key={index}
-                      header={header}
-                      index={index}
-                      headerScrollLeft={headerScrollLeft}
-                      showEnvVars={showEnvVars}
-                      activeInputField={activeInputField}
-                      activeHeaderIndex={activeHeaderIndex}
-                      envSearchTerm={envSearchTerm}
-                      cursorPosition={cursorPosition}
-                      workspaceId={workspaceId}
-                      availableEnvVars={availableEnvVars}
-                      onInputChange={handleInputChange}
-                      onHeaderScroll={handleHeaderScroll}
-                      onEnvVarSelect={handleEnvVarSelect}
-                      onEnvVarClose={resetEnvVarState}
-                    />
-                  ))}
-                </div>
-              </FormField>
-
-              <Button
-                type='button'
-                variant='ghost'
-                onClick={() => setShowAdvanced((v) => !v)}
-                className='mt-1 gap-1 self-start px-0 py-0 text-small'
-              >
-                {showAdvanced ? (
-                  <ChevronDown className='size-[14px]' />
-                ) : (
-                  <ChevronRight className='size-[14px]' />
-                )}
-                Advanced settings
-              </Button>
-              {showAdvanced && (
-                <div className='flex flex-col gap-2'>
-                  <FormField label='Client ID'>
-                    <EmcnInput
-                      placeholder='OAuth Client ID (optional)'
-                      value={formData.oauthClientId || ''}
-                      name='mcp_oauth_client_id'
-                      autoComplete='off'
-                      autoCorrect='off'
-                      autoCapitalize='off'
-                      data-lpignore='true'
-                      data-form-type='other'
-                      onChange={(e) => {
-                        if (testResult) clearTestResult()
-                        if (submitError) setSubmitError(null)
-                        setFormData((prev) => ({ ...prev, oauthClientId: e.target.value }))
-                      }}
-                      className='h-9'
-                    />
-                  </FormField>
-                  <FormField label='Client Secret'>
-                    <SecretInput
-                      placeholder='OAuth Client Secret (optional)'
-                      value={formData.oauthClientSecret || ''}
-                      name='mcp_oauth_client_secret'
-                      autoComplete='new-password'
-                      autoCorrect='off'
-                      autoCapitalize='off'
-                      data-lpignore='true'
-                      data-form-type='other'
-                      onChange={(value) => {
-                        if (testResult) clearTestResult()
-                        if (submitError) setSubmitError(null)
-                        setOauthClientSecretTouched(value.length > 0)
-                        setFormData((prev) => ({ ...prev, oauthClientSecret: value }))
-                      }}
-                      className='h-9'
-                    />
-                  </FormField>
-                  <p className='text-[var(--text-tertiary)] text-caption'>
-                    Only needed for servers that don't support automatic client registration.
-                  </p>
-                </div>
+              {isDomainBlocked && (
+                <p className='mt-1 text-[var(--text-error)] text-caption'>
+                  Domain not permitted by server policy
+                </p>
               )}
-            </div>
-          )}
-        </ModalBody>
-        <ModalFooter className='flex-col items-stretch gap-2'>
-          {submitError && (
-            <p className='w-full text-[var(--text-error)] text-small'>{submitError}</p>
-          )}
-          <div className='flex w-full items-center justify-between'>
-            <div className='flex items-center gap-2'>
-              {mode === 'add' && (
-                <Button
-                  type='button'
-                  variant='ghost'
-                  onClick={() => {
-                    if (testResult) clearTestResult()
-                    setFormMode(formMode === 'form' ? 'json' : 'form')
-                    setJsonError(null)
-                    setSubmitError(null)
-                  }}
-                >
-                  {formMode === 'form' ? 'Edit JSON' : 'Edit Form'}
-                </Button>
-              )}
-              {mode === 'edit' && formMode === 'form' && (
-                <Button
-                  variant='default'
-                  onClick={handleTestConnection}
-                  disabled={isTestingConnection || !isFormValid || isDomainBlocked}
-                >
-                  {testButtonLabel}
-                </Button>
-              )}
-            </div>
-            <div className='flex items-center gap-2'>
-              <Button variant='default' onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              {formMode === 'json' ? (
-                <Button
-                  onClick={handleSubmitJson}
-                  disabled={isSubmitting || !jsonInput.trim()}
-                  variant='primary'
-                >
-                  {isSubmitting ? 'Adding...' : submitLabel}
-                </Button>
+            </FormField>
+
+            <FormField label='Headers'>
+              <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
+                {(formData.headers || []).map((header, index) => (
+                  <HeaderRow
+                    key={index}
+                    header={header}
+                    index={index}
+                    headerScrollLeft={headerScrollLeft}
+                    showEnvVars={showEnvVars}
+                    activeInputField={activeInputField}
+                    activeHeaderIndex={activeHeaderIndex}
+                    envSearchTerm={envSearchTerm}
+                    cursorPosition={cursorPosition}
+                    workspaceId={workspaceId}
+                    availableEnvVars={availableEnvVars}
+                    onInputChange={handleInputChange}
+                    onHeaderScroll={handleHeaderScroll}
+                    onEnvVarSelect={handleEnvVarSelect}
+                    onEnvVarClose={resetEnvVarState}
+                  />
+                ))}
+              </div>
+            </FormField>
+
+            <Button
+              type='button'
+              variant='ghost'
+              onClick={() => setShowAdvanced((v) => !v)}
+              className='mt-1 gap-1 self-start px-0 py-0 text-small'
+            >
+              {showAdvanced ? (
+                <ChevronDown className='size-[14px]' />
               ) : (
-                <Button onClick={handleSubmitForm} disabled={isSubmitDisabled} variant='primary'>
-                  {isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel}
-                </Button>
+                <ChevronRight className='size-[14px]' />
               )}
-            </div>
+              Advanced settings
+            </Button>
+            {showAdvanced && (
+              <div className='flex flex-col gap-2'>
+                <FormField label='Client ID'>
+                  <ChipInput
+                    placeholder='OAuth Client ID (optional)'
+                    value={formData.oauthClientId || ''}
+                    name='mcp_oauth_client_id'
+                    autoComplete='off'
+                    autoCorrect='off'
+                    autoCapitalize='off'
+                    data-lpignore='true'
+                    data-form-type='other'
+                    onChange={(e) => {
+                      if (testResult) clearTestResult()
+                      if (submitError) setSubmitError(null)
+                      setFormData((prev) => ({ ...prev, oauthClientId: e.target.value }))
+                    }}
+                  />
+                </FormField>
+                <FormField label='Client Secret'>
+                  <SecretInput
+                    placeholder='OAuth Client Secret (optional)'
+                    value={formData.oauthClientSecret || ''}
+                    name='mcp_oauth_client_secret'
+                    autoComplete='new-password'
+                    autoCorrect='off'
+                    autoCapitalize='off'
+                    data-lpignore='true'
+                    data-form-type='other'
+                    onChange={(value) => {
+                      if (testResult) clearTestResult()
+                      if (submitError) setSubmitError(null)
+                      setOauthClientSecretTouched(value.length > 0)
+                      setFormData((prev) => ({ ...prev, oauthClientSecret: value }))
+                    }}
+                  />
+                </FormField>
+                <p className='text-[var(--text-tertiary)] text-caption'>
+                  Only needed for servers that don't support automatic client registration.
+                </p>
+              </div>
+            )}
           </div>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        )}
+        {submitError && <p className='w-full text-[var(--text-error)] text-small'>{submitError}</p>}
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        secondaryAction={secondaryAction}
+        primaryAction={primaryAction}
+      />
+    </ChipModal>
   )
 }

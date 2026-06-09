@@ -182,7 +182,6 @@ export interface AdminWorkflow {
   id: string
   name: string
   description: string | null
-  color: string
   workspaceId: string | null
   folderId: string | null
   isDeployed: boolean
@@ -203,7 +202,6 @@ export type AdminWorkflowSource = Pick<
   | 'id'
   | 'name'
   | 'description'
-  | 'color'
   | 'workspaceId'
   | 'folderId'
   | 'isDeployed'
@@ -219,7 +217,6 @@ export function toAdminWorkflow(dbWorkflow: AdminWorkflowSource): AdminWorkflow 
     id: dbWorkflow.id,
     name: dbWorkflow.name,
     description: dbWorkflow.description,
-    color: dbWorkflow.color,
     workspaceId: dbWorkflow.workspaceId,
     folderId: dbWorkflow.folderId,
     isDeployed: dbWorkflow.isDeployed,
@@ -256,7 +253,6 @@ export interface WorkflowExportState {
   metadata?: {
     name?: string
     description?: string
-    color?: string
     exportedAt?: string
   }
   variables?: Record<string, WorkflowVariable>
@@ -269,7 +265,6 @@ export interface WorkflowExportPayload {
     id: string
     name: string
     description: string | null
-    color: string
     workspaceId: string | null
     folderId: string | null
   }
@@ -386,10 +381,9 @@ export function parseWorkflowVariables(
 export function extractWorkflowMetadata(
   workflowJson: unknown,
   overrideName?: string
-): { name: string; color: string; description: string } {
+): { name: string; description: string } {
   const defaults = {
     name: overrideName || 'Imported Workflow',
-    color: '#3972F6',
     description: 'Imported via Admin API',
   }
 
@@ -406,19 +400,13 @@ export function extractWorkflowMetadata(
     getNestedString(parsed, 'metadata.name') ||
     defaults.name
 
-  const color =
-    getNestedString(parsed, 'workflow.color') ||
-    getNestedString(parsed, 'state.metadata.color') ||
-    getNestedString(parsed, 'metadata.color') ||
-    defaults.color
-
   const description =
     getNestedString(parsed, 'workflow.description') ||
     getNestedString(parsed, 'state.metadata.description') ||
     getNestedString(parsed, 'metadata.description') ||
     defaults.description
 
-  return { name, color, description }
+  return { name, description }
 }
 
 /**

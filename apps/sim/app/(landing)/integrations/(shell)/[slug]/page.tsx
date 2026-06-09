@@ -3,16 +3,20 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import {
+  type AuthType,
+  blockTypeToIconMap,
+  type FAQItem,
+  INTEGRATIONS,
+  type Integration,
+} from '@/lib/integrations'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-cta-button'
 import { IntegrationFAQ } from '@/app/(landing)/integrations/(shell)/[slug]/components/integration-faq'
 import { TemplateCardButton } from '@/app/(landing)/integrations/(shell)/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
-import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
-import integrations from '@/app/(landing)/integrations/data/integrations.json'
-import type { AuthType, FAQItem, Integration } from '@/app/(landing)/integrations/data/types'
-import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/template-prompts/consts'
+import { getTemplatesForBlock } from '@/blocks/registry'
 
-const allIntegrations = integrations as Integration[]
+const allIntegrations = INTEGRATIONS
 const INTEGRATION_COUNT = allIntegrations.length
 const baseUrl = SITE_URL
 
@@ -81,6 +85,37 @@ const AUTH_STEP: Record<AuthType, string> = {
 function sentenceWithTerminalPunctuation(value: string): string {
   const trimmedValue = value.trim()
   return /[.!?]$/.test(trimmedValue) ? trimmedValue : `${trimmedValue}.`
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Server-side rewrite of bare integration names in a curated template prompt
+ * to `@`-mention form (`Slack` → `@Slack`) so the prompt chips with brand
+ * icons once it is populated into the Mothership home input after signup —
+ * the home auto-mention pipeline only chips token-starting `@` mentions, so
+ * curated prompts must opt in.
+ *
+ * Unlike the workspace surface, which calls `mentionifyIntegrations` from
+ * `@/blocks/integration-matcher`, this runs only over the handful of names a
+ * template actually references (its owner + `otherBlockTypes`) and lives in a
+ * Server Component, so it never pulls the full block/tool/icon registry into
+ * the landing client bundle. Whole-token, longest-first matching with
+ * lookarounds mirrors the canonical matcher; idempotent on already-prefixed
+ * names.
+ */
+function mentionifyPromptForNames(prompt: string, names: readonly string[]): string {
+  const unique = [...new Set(names.filter((n) => n.trim().length >= 2))].sort(
+    (a, b) => b.length - a.length
+  )
+  if (unique.length === 0) return prompt
+  const regex = new RegExp(
+    `(?<![A-Za-z0-9_@])(${unique.map(escapeRegex).join('|')})(?![A-Za-z0-9_])`,
+    'gi'
+  )
+  return prompt.replace(regex, (match) => `@${match}`)
 }
 
 /**
@@ -225,12 +260,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   const relatedIntegrations = relatedSlugs
     .map((s) => bySlug.get(s))
     .filter((i): i is Integration => i !== undefined)
-  const baseType = integration.type.replace(/_v\d+$/, '')
-  const matchingTemplates = TEMPLATES.filter(
-    (t) =>
-      t.integrationBlockTypes.includes(integration.type) ||
-      t.integrationBlockTypes.includes(baseType)
-  )
+  const matchingTemplates = getTemplatesForBlock(integration.type)
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -650,8 +680,34 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
               const resolveTypes = (template: (typeof matchingTemplates)[number]) => [
                 integration.type,
-                ...template.integrationBlockTypes.filter((bt) => bt !== integration.type),
+                ...template.otherBlockTypes,
               ]
+
+              const resolveDisplayName = (bt: string): string | null => {
+                const resolvedBt = byType.get(bt)
+                  ? bt
+                  : byType.get(`${bt}_v2`)
+                    ? `${bt}_v2`
+                    : byType.get(`${bt}_v3`)
+                      ? `${bt}_v3`
+                      : bt
+                return byType.get(resolvedBt)?.name ?? null
+              }
+
+              /**
+               * The curated template prompt rewritten so the integrations it
+               * references chip in the home input after signup. Computed
+               * server-side from the template's own integration set — never the
+               * full registry — so the visible card text stays raw while the
+               * stored prompt opts into mention treatment.
+               */
+              const storedPrompt = (template: (typeof matchingTemplates)[number]) =>
+                mentionifyPromptForNames(
+                  template.prompt,
+                  resolveTypes(template)
+                    .map(resolveDisplayName)
+                    .filter((n): n is string => n !== null)
+                )
 
               const renderIcons = (allTypes: string[]) =>
                 allTypes.map((bt, idx) => {
@@ -699,7 +755,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                           {row.map((template) => (
                             <TemplateCardButton
                               key={template.title}
-                              prompt={template.prompt}
+                              prompt={storedPrompt(template)}
                               className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
                             >
                               <div className='flex items-center gap-1.5'>
@@ -725,7 +781,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   {lastTemplate && (
                     <>
                       <TemplateCardButton
-                        prompt={lastTemplate.prompt}
+                        prompt={storedPrompt(lastTemplate)}
                         className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--landing-bg-elevated)]'
                       >
                         <div className='flex items-center gap-1.5'>

@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteWorkspaceBodySchema, updateWorkspaceContract } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -12,7 +12,7 @@ import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 const logger = createLogger('WorkspaceByIdAPI')
 
 import { db } from '@sim/db'
-import { permissions, templates, workspace } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -26,53 +26,11 @@ export const GET = withRouteHandler(
     }
 
     const workspaceId = id
-    const url = new URL(request.url)
-    const checkTemplates = url.searchParams.get('check-templates') === 'true'
 
     // Check if user has any access to this workspace
     const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
     if (!userPermission) {
       return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
-    }
-
-    // If checking for published templates before deletion
-    if (checkTemplates) {
-      try {
-        // Get all workflows in this workspace
-        const workspaceWorkflows = await db
-          .select({ id: workflow.id })
-          .from(workflow)
-          .where(eq(workflow.workspaceId, workspaceId))
-
-        if (workspaceWorkflows.length === 0) {
-          return NextResponse.json({
-            hasPublishedTemplates: false,
-            publishedTemplates: [],
-            count: 0,
-          })
-        }
-
-        const workflowIds = workspaceWorkflows.map((w) => w.id)
-
-        // Check for published templates that reference these workflows
-        const publishedTemplates = await db
-          .select({
-            id: templates.id,
-            name: templates.name,
-            workflowId: templates.workflowId,
-          })
-          .from(templates)
-          .where(inArray(templates.workflowId, workflowIds))
-
-        return NextResponse.json({
-          hasPublishedTemplates: publishedTemplates.length > 0,
-          publishedTemplates,
-          count: publishedTemplates.length,
-        })
-      } catch (error) {
-        logger.error(`Error checking published templates for workspace ${workspaceId}:`, error)
-        return NextResponse.json({ error: 'Failed to check published templates' }, { status: 500 })
-      }
     }
 
     // Get workspace details
@@ -287,7 +245,6 @@ export const DELETE = withRouteHandler(
     const rawBody = await request.json().catch(() => ({}))
     const bodyValidation = deleteWorkspaceBodySchema.safeParse(rawBody)
     if (!bodyValidation.success) return validationErrorResponse(bodyValidation.error)
-    const { deleteTemplates } = bodyValidation.data // User's choice: false = keep templates (recommended), true = delete templates
 
     // Check if user has admin permissions to delete workspace
     const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
@@ -320,9 +277,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Cannot delete the only workspace' }, { status: 400 })
       }
 
-      logger.info(
-        `Deleting workspace ${workspaceId} for user ${session.user.id}, deleteTemplates: ${deleteTemplates}`
-      )
+      logger.info(`Deleting workspace ${workspaceId} for user ${session.user.id}`)
 
       const workspaceWorkflows = await db
         .select({ id: workflow.id })
@@ -330,17 +285,6 @@ export const DELETE = withRouteHandler(
         .where(eq(workflow.workspaceId, workspaceId))
 
       const workflowIds = workspaceWorkflows.map((entry) => entry.id)
-
-      if (workflowIds.length > 0) {
-        if (deleteTemplates) {
-          await db.delete(templates).where(inArray(templates.workflowId, workflowIds))
-        } else {
-          await db
-            .update(templates)
-            .set({ workflowId: null })
-            .where(inArray(templates.workflowId, workflowIds))
-        }
-      }
 
       const archiveResult = await archiveWorkspace(workspaceId, {
         requestId: `workspace-${workspaceId}`,
@@ -365,7 +309,6 @@ export const DELETE = withRouteHandler(
             workflows: workflowIds.length,
           },
           archived: archiveResult.archived,
-          deleteTemplates,
         },
         request,
       })

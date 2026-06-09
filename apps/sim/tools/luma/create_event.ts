@@ -1,5 +1,9 @@
 import type { LumaCreateEventParams, LumaCreateEventResponse } from '@/tools/luma/types'
-import { LUMA_EVENT_OUTPUT_PROPERTIES, LUMA_HOST_OUTPUT_PROPERTIES } from '@/tools/luma/types'
+import {
+  LUMA_EVENT_OUTPUT_PROPERTIES,
+  LUMA_HOST_OUTPUT_PROPERTIES,
+  lumaEventStub,
+} from '@/tools/luma/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventTool: ToolConfig<LumaCreateEventParams, LumaCreateEventResponse> = {
@@ -104,41 +108,29 @@ export const createEventTool: ToolConfig<LumaCreateEventParams, LumaCreateEventR
       throw new Error(data.message || data.error || 'Failed to create event')
     }
 
-    const event = data.event
-    const hosts = (data.hosts ?? []).map((h: Record<string, unknown>) => ({
-      id: (h.id as string) ?? null,
-      name: (h.name as string) ?? null,
-      firstName: (h.first_name as string) ?? null,
-      lastName: (h.last_name as string) ?? null,
-      email: (h.email as string) ?? null,
-      avatarUrl: (h.avatar_url as string) ?? null,
-    }))
+    const eventId: string | null = data.id ?? data.api_id ?? null
 
     return {
       success: true,
       output: {
-        event: {
-          id: event.id ?? null,
-          name: event.name ?? null,
-          startAt: event.start_at ?? null,
-          endAt: event.end_at ?? null,
-          timezone: event.timezone ?? null,
-          durationInterval: event.duration_interval ?? null,
-          createdAt: event.created_at ?? null,
-          description: event.description ?? null,
-          descriptionMd: event.description_md ?? null,
-          coverUrl: event.cover_url ?? null,
-          url: event.url ?? null,
-          visibility: event.visibility ?? null,
-          meetingUrl: event.meeting_url ?? null,
-          geoAddressJson: event.geo_address_json ?? null,
-          geoLatitude: event.geo_latitude ?? null,
-          geoLongitude: event.geo_longitude ?? null,
-          calendarId: event.calendar_id ?? null,
-        },
-        hosts,
+        event: lumaEventStub(eventId),
+        hosts: [],
       },
     }
+  },
+
+  postProcess: async (result, params, executeTool) => {
+    const eventId = result.success ? result.output.event.id : null
+    if (!eventId) return result
+
+    const full = await executeTool('luma_get_event', {
+      apiKey: params.apiKey,
+      eventId,
+    })
+    if (full.success && full.output?.event) {
+      return full as LumaCreateEventResponse
+    }
+    return result
   },
 
   outputs: {

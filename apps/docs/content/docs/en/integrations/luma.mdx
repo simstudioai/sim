@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="luma"
-  color="#FFFFFF"
+  color="#000000"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -30,7 +30,7 @@ Whether you're running community meetups, conferences, or internal team events, 
 
 ## Usage Instructions
 
-Integrate Luma into the workflow. Can create events, update events, get event details, list calendar events, get guest lists, and add guests to events.
+Integrate Luma into the workflow. Can create, update, look up, and cancel events, list calendar events, manage guest lists (get one or many, add guests, send invites, and update approval status).
 
 
 
@@ -217,6 +217,47 @@ List events from your Luma calendar with optional date range filtering, sorting,
 | `hasMore` | boolean | Whether more results are available for pagination |
 | `nextCursor` | string | Cursor to pass as paginationCursor to fetch the next page |
 
+### `luma_lookup_event`
+
+Look up an event by its public URL or event ID to resolve its canonical ID, API ID, and approval status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `url` | string | No | Public event URL on lu.ma \(provide this or an event ID\) |
+| `eventId` | string | No | Event ID to look up \(starts with evt-\). Provide this or a URL. |
+| `platform` | string | No | Event platform to look up: luma or external \(defaults to luma\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `found` | boolean | Whether a matching event was found |
+| `eventId` | string | Resolved event ID |
+| `apiId` | string | Resolved event API ID \(deprecated identifier\) |
+| `status` | string | Event approval status \(approved, pending, rejected\) |
+
+### `luma_cancel_event`
+
+Cancel a Luma event. This is irreversible and notifies all registered guests. Requires a cancellation token obtained from the Request Event Cancellation endpoint.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `eventId` | string | Yes | Event ID to cancel \(starts with evt-\) |
+| `cancellationToken` | string | Yes | Cancellation token from the Request Event Cancellation endpoint \(POST /v1/event/cancel/request\) |
+| `shouldRefund` | boolean | No | Whether to refund paid guests. Required if the event has paid registrations. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cancelled` | boolean | Whether the event was successfully cancelled |
+
 ### `luma_get_guests`
 
 Retrieve the guest list for a Luma event with optional filtering by approval status, sorting, and pagination.
@@ -247,10 +288,39 @@ Retrieve the guest list for a Luma event with optional filtering by approval sta
 |   ↳ `registeredAt` | string | Registration timestamp \(ISO 8601\) |
 |   ↳ `invitedAt` | string | Invitation timestamp \(ISO 8601\) |
 |   ↳ `joinedAt` | string | Join timestamp \(ISO 8601\) |
-|   ↳ `checkedInAt` | string | Check-in timestamp \(ISO 8601\) |
+|   ↳ `checkedInAt` | string | Check-in timestamp from the first checked-in ticket \(ISO 8601\) |
 |   ↳ `phoneNumber` | string | Guest phone number |
 | `hasMore` | boolean | Whether more results are available for pagination |
 | `nextCursor` | string | Cursor to pass as paginationCursor to fetch the next page |
+
+### `luma_get_guest`
+
+Retrieve a single guest
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `eventId` | string | Yes | Event ID the guest belongs to \(starts with evt-\) |
+| `guestIdentifier` | string | Yes | Guest ID \(gst-...\), guest key \(g-...\), ticket key, or the guest's email address |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `guest` | object | Guest details |
+|   ↳ `id` | string | Guest ID |
+|   ↳ `email` | string | Guest email address |
+|   ↳ `name` | string | Guest full name |
+|   ↳ `firstName` | string | Guest first name |
+|   ↳ `lastName` | string | Guest last name |
+|   ↳ `approvalStatus` | string | Guest approval status \(approved, session, pending_approval, invited, declined, waitlist\) |
+|   ↳ `registeredAt` | string | Registration timestamp \(ISO 8601\) |
+|   ↳ `invitedAt` | string | Invitation timestamp \(ISO 8601\) |
+|   ↳ `joinedAt` | string | Join timestamp \(ISO 8601\) |
+|   ↳ `checkedInAt` | string | Check-in timestamp from the first checked-in ticket \(ISO 8601\) |
+|   ↳ `phoneNumber` | string | Guest phone number |
 
 ### `luma_add_guests`
 
@@ -268,17 +338,47 @@ Add guests to a Luma event by email. Guests are added with Going (approved) stat
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `guests` | array | List of added guests with their assigned status and ticket info |
-|   ↳ `id` | string | Guest ID |
-|   ↳ `email` | string | Guest email address |
-|   ↳ `name` | string | Guest full name |
-|   ↳ `firstName` | string | Guest first name |
-|   ↳ `lastName` | string | Guest last name |
-|   ↳ `approvalStatus` | string | Guest approval status \(approved, session, pending_approval, invited, declined, waitlist\) |
-|   ↳ `registeredAt` | string | Registration timestamp \(ISO 8601\) |
-|   ↳ `invitedAt` | string | Invitation timestamp \(ISO 8601\) |
-|   ↳ `joinedAt` | string | Join timestamp \(ISO 8601\) |
-|   ↳ `checkedInAt` | string | Check-in timestamp \(ISO 8601\) |
-|   ↳ `phoneNumber` | string | Guest phone number |
+| `added` | number | Number of guests submitted to the event \(added with Going/approved status\) |
+
+### `luma_send_invites`
+
+Send email invitations to guests for a Luma event. Unlike Add Guests (which registers guests directly), this emails an invite that recipients can accept.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `eventId` | string | Yes | Event ID to invite guests to \(starts with evt-\) |
+| `guests` | string | Yes | JSON array of guest objects. Each guest requires an "email" field and optionally "name". Example: \[\{"email": "user@example.com", "name": "John Doe"\}\] |
+| `message` | string | No | Optional custom message included in the invite email \(max 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invited` | number | Number of guests invited to the event |
+
+### `luma_update_guest_status`
+
+Update a guest
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Luma API key |
+| `eventId` | string | No | Event ID the guest belongs to \(starts with evt-\) |
+| `guestIdentifier` | string | Yes | Guest email address or guest ID \(gst-...\). Values containing '@' are treated as emails; otherwise as a guest ID. |
+| `status` | string | Yes | New approval status: approved, declined, pending_approval, or waitlist |
+| `shouldRefund` | boolean | No | Refund a paid guest when moving them out of an approved state \(defaults to false\) |
+| `sendEmail` | boolean | No | Whether to email the guest about the status change \(defaults to true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | The approval status applied to the guest |
+| `guest` | string | The guest identifier \(email or ID\) that was updated |
 
 

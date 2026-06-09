@@ -4,17 +4,13 @@ import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Button,
-  Input,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 
 const logger = createLogger('RenameDocumentModal')
 
@@ -51,9 +47,7 @@ export function RenameDocumentModal({
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const handleSubmit = async () => {
     const trimmedName = name.trim()
 
     if (!trimmedName) {
@@ -80,66 +74,42 @@ export function RenameDocumentModal({
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void handleSubmit()
+    }
+  }
+
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='sm'>
-        <ModalHeader>Rename Document</ModalHeader>
-        <ModalDescription className='sr-only'>Enter a new name for this document</ModalDescription>
-        <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody className='!pb-4'>
-            <div className='space-y-3'>
-              <div className='flex flex-col gap-2'>
-                <Label htmlFor='document-name'>Name</Label>
-                <Input
-                  id='document-name'
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value)
-                    setError(null)
-                  }}
-                  placeholder='Enter document name'
-                  className={cn(error && 'border-[var(--text-error)]')}
-                  disabled={isSubmitting}
-                  maxLength={255}
-                  autoComplete='off'
-                  autoCorrect='off'
-                  autoCapitalize='off'
-                  data-lpignore='true'
-                  data-form-type='other'
-                />
-              </div>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <div className='flex w-full items-center justify-between gap-3'>
-              {error ? (
-                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
-                  {error}
-                </p>
-              ) : (
-                <div />
-              )}
-              <div className='flex flex-shrink-0 gap-2'>
-                <Button
-                  variant='default'
-                  onClick={() => onOpenChange(false)}
-                  type='button'
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant='primary'
-                  type='submit'
-                  disabled={isSubmitting || !name?.trim() || name.trim() === initialName}
-                >
-                  {isSubmitting ? 'Renaming...' : 'Rename'}
-                </Button>
-              </div>
-            </div>
-          </ModalFooter>
-        </form>
-      </ModalContent>
-    </Modal>
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Rename Document'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Rename Document</ChipModalHeader>
+      <ChipModalBody onKeyDown={handleKeyDown}>
+        <ChipModalField
+          type='input'
+          title='Name'
+          value={name}
+          onChange={(value) => {
+            setName(value)
+            setError(null)
+          }}
+          placeholder='Enter document name'
+          maxLength={255}
+          autoComplete='off'
+          disabled={isSubmitting}
+          required
+        />
+        <ChipModalError>{error}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        cancelDisabled={isSubmitting}
+        primaryAction={{
+          label: isSubmitting ? 'Renaming...' : 'Rename',
+          onClick: () => void handleSubmit(),
+          disabled: isSubmitting || !name?.trim() || name.trim() === initialName,
+        }}
+      />
+    </ChipModal>
   )
 }

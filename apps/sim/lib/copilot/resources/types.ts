@@ -7,6 +7,7 @@ export const MothershipResourceType = {
   filefolder: 'filefolder',
   task: 'task',
   log: 'log',
+  integration: 'integration',
   generic: 'generic',
 } as const
 export type MothershipResourceType =

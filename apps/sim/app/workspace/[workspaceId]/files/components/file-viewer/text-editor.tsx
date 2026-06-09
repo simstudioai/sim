@@ -392,6 +392,7 @@ interface TextEditorProps {
   workspaceId: string
   canEdit: boolean
   previewMode: PreviewMode
+  autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
@@ -406,6 +407,7 @@ export const TextEditor = memo(function TextEditor({
   workspaceId,
   canEdit,
   previewMode,
+  autoFocus,
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
@@ -417,6 +419,7 @@ export const TextEditor = memo(function TextEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const lastSyncedContentRef = useRef('')
+  const hasAutoFocusedRef = useRef(false)
   const contentRef = useRef('')
   const textareaStuckRef = useRef(false)
   const suppressScrollListenerRef = useRef(false)
@@ -631,6 +634,11 @@ export const TextEditor = memo(function TextEditor({
     if (model && currentContent && model.getValue() !== currentContent) {
       model.setValue(currentContent)
       lastSyncedContentRef.current = currentContent
+    }
+
+    if (autoFocus && !hasAutoFocusedRef.current) {
+      hasAutoFocusedRef.current = true
+      editor.focus()
     }
 
     const contextMenuDisposable = editor.onContextMenu((e) => {

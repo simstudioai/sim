@@ -299,6 +299,35 @@ export const KALSHI_BALANCE_OUTPUT: OutputProperty = {
 }
 
 /**
+ * Output definition for settlement objects.
+ * @see https://docs.kalshi.com/api-reference/portfolio/get-settlements
+ */
+export const KALSHI_SETTLEMENT_OUTPUT_PROPERTIES = {
+  ticker: { type: 'string', description: 'Market ticker' },
+  event_ticker: { type: 'string', description: 'Event ticker' },
+  market_result: { type: 'string', description: 'Settlement outcome (yes, no, scalar)' },
+  yes_count_fp: { type: 'string', description: 'Yes contracts owned (fixed-point)' },
+  yes_total_cost_dollars: { type: 'string', description: 'Yes cost basis in dollars' },
+  no_count_fp: { type: 'string', description: 'No contracts owned (fixed-point)' },
+  no_total_cost_dollars: { type: 'string', description: 'No cost basis in dollars' },
+  revenue: { type: 'number', description: 'Payout in cents' },
+  settled_time: { type: 'string', description: 'Settlement timestamp (ISO 8601)' },
+  fee_cost: { type: 'string', description: 'Fees in fixed-point dollars' },
+  value: { type: 'number', description: 'Single yes contract payout in cents', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output definition for exchange announcement objects.
+ * @see https://docs.kalshi.com/api-reference/exchange/get-exchange-announcements
+ */
+export const KALSHI_ANNOUNCEMENT_OUTPUT_PROPERTIES = {
+  type: { type: 'string', description: 'Announcement severity (info, warning, error)' },
+  message: { type: 'string', description: 'Announcement message' },
+  delivery_time: { type: 'string', description: 'Delivery time (ISO 8601)' },
+  status: { type: 'string', description: 'Announcement status (active, inactive)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
  * Pagination output properties
  */
 export const KALSHI_PAGING_OUTPUT_PROPERTIES = {

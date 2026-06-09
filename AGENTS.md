@@ -5,10 +5,19 @@ You are a professional software engineer. All code must follow best practices: a
 ## Global Standards
 
 - **Linting / Audit**: `bun run check:api-validation` must pass on PRs. Do not introduce route-local boundary Zod schemas, direct route Zod imports, or ad-hoc client wire types — see "API Contracts" and "API Route Pattern" below
-- **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`
+- **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID — no manual `withMetadata({ requestId })` needed
+- **API Route Handlers**: All API route handlers (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`) must be wrapped with `withRouteHandler` from `@/lib/core/utils/with-route-handler`. This provides request ID tracking, automatic error logging for 4xx/5xx responses, and unhandled error catching. See "API Route Pattern" section below
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
 - **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@sim/utils/id`
+- **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations:
+  - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
+  - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`
+  - `getErrorMessage(e, fallback?)` from `@sim/utils/errors` — extract message string from unknown caught value; never write `e instanceof Error ? e.message : 'fallback'`
+  - `structuredClone(value)` — built-in deep clone; never `JSON.parse(JSON.stringify(...))`
+  - `omit(obj, keys)` / `filterUndefined(obj)` from `@sim/utils/object` — object trimming; never `Object.fromEntries(Object.entries(...).filter(...))`
+  - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
+  - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 
 ## Architecture
@@ -137,7 +146,7 @@ Domain validators that are not HTTP boundaries — tools, blocks, triggers, conn
 
 A small number of legitimate exceptions to the boundary rules are tolerated when annotated. The audit script recognizes four annotation forms:
 
-- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**`. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests
+- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call inside `apps/sim/hooks/queries/**`, `apps/sim/hooks/selectors/**`, or any other client/UI source under `apps/sim/**` that targets a same-origin `/api/...` URL outside an API route handler. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests
 - `// double-cast-allowed: <reason>` — placed on the line directly above an `as unknown as X` cast outside test files
 - `// boundary-raw-json: <reason>` — placed on the line directly above a raw `await request.json()` / `await req.json()` read in a route handler. Use only when the body is a JSON-RPC envelope, a tolerant `.catch(() => ({}))` parse, or otherwise cannot go through `parseRequest`
 - `// untyped-response: <reason>` — placed on the line directly above a `schema: z.unknown()` response declaration in a contract file. Use only when the response body is genuinely opaque (user-supplied data, third-party passthrough)
@@ -159,6 +168,8 @@ const provider = config as unknown as LegacyProvider
 ```
 
 ## API Route Pattern
+
+Every API route handler must be wrapped with `withRouteHandler`. This sets up `AsyncLocalStorage`-based request context so all loggers in the request lifecycle automatically include the request ID. Never export a bare `async function GET/POST/...` — always use `export const METHOD = withRouteHandler(...)`.
 
 Routes never `import { z } from 'zod'` and never define route-local boundary schemas. They consume the contract from `@/lib/api/contracts/**` and validate with canonical helpers from `@/lib/api/server`:
 
@@ -186,6 +197,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   logger.info('Creating folder', { workspaceId: body.workspaceId })
   return NextResponse.json({ ok: true })
 })
+```
+
+### Composing with other middleware
+
+```typescript
+export const POST = withRouteHandler(withAdminAuth(async (request) => {
+  return NextResponse.json({ ok: true })
+}))
 ```
 
 Routes under `apps/sim/app/api/v1/**` use the shared middleware in `apps/sim/app/api/v1/middleware.ts` for auth, rate-limit, and workspace access. Compose contract validation inside that middleware — never reimplement auth/rate-limit per-route.
@@ -351,7 +370,7 @@ export function useUpdateEntity() {
 
 ## Styling
 
-Use Tailwind only, no inline styles. Use `cn()` from `@/lib/utils` for conditional classes.
+Use Tailwind only, no inline styles. Use `cn()` from `@/lib/core/utils/cn` for conditional classes.
 
 ```typescript
 <div className={cn('base-classes', isActive && 'active-classes')} />
@@ -363,9 +382,25 @@ For equal height and width, use the `size-*` shorthand — never `h-[Npx] w-[Npx
 <Icon className='size-[14px] text-[var(--text-icon)]' />
 ```
 
+On chip components (see "EMCN Components"), drive chrome through PROPS, not `className`: `error` for the error state, `icon`/`endAdornment` for adornments, `inputClassName` for the inner field. `className` carries ONLY layout/sizing — never re-specify canonical chrome (border, fill, radius, height, text/icon color) or add focus rings. Full consumer rules in `.claude/rules/sim-styling.md`.
+
 ## EMCN Components
 
-Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA when 2+ variants exist.
+Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA only when 2+ genuine variants exist; otherwise plain `cn()`.
+
+The chip pill is the canonical UI chrome and is progressively replacing the legacy EMCN primitives — prefer the chip equivalents (`ChipInput`/`ChipTextarea` over `Input`/`Textarea`, plus `Chip`/`ChipLink`, `ChipDropdown`, `ChipSelect`/`ChipCombobox`, `ChipModal`, `ChipSwitch`, `ChipTag`, `ChipDatePicker`). Components OWN their chrome (single source of truth) — consumers pass props, not class overrides. Authoring rules in `.claude/rules/emcn-components.md`; consumer rules in `.claude/rules/sim-styling.md`.
+
+## Design-System Consolidation
+
+Principles when building or migrating shared UI:
+
+- One canonical source of truth for shared chrome — compose it, never re-derive it per consumer.
+- Props-driven API over `className` overrides — reaching for `className` to change chrome is a smell; expose a prop instead.
+- Discriminated-union props for modes (e.g. `ChipDropdown multiple`) over near-duplicate components.
+- Delete legacy variants/components after migration — no parallel paths left behind.
+- Plain `cn()` for a single error/state toggle; CVA only for genuinely multiple variants.
+- Align consumers to the canonical defaults — normal weight, `--text-body` text, `--text-icon` icons.
+- Verify referenced CSS vars exist — an undefined var silently falls back to `currentColor` (black-bug).
 
 ## Testing
 

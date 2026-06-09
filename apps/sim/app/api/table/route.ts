@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createTableContract, listTablesQuerySchema } from '@/lib/api/contracts/tables'
@@ -101,6 +102,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         setOnce: { first_table_created_at: new Date().toISOString() },
       }
     )
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: authResult.userId,
+      actorName: authResult.userName ?? undefined,
+      actorEmail: authResult.userEmail ?? undefined,
+      action: AuditAction.TABLE_CREATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: table.id,
+      resourceName: table.name,
+      description: `Created table "${table.name}"`,
+      request,
+    })
 
     return NextResponse.json({
       success: true,

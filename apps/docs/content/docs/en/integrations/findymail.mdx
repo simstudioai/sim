@@ -86,7 +86,6 @@ Find verified contacts at a given domain matching one or more target roles (max 
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Company domain \(e.g., stripe.com\) |
 | `roles` | array | Yes | Target roles at the company \(max 3, e.g., \["CEO", "Founder"\]\) |
-| `items` | string | No | No description |
 | `apiKey` | string | Yes | Findymail API Key |
 
 #### Output
@@ -188,7 +187,6 @@ Find employees at a company by website and target job titles. Uses 1 credit per 
 | --------- | ---- | -------- | ----------- |
 | `website` | string | Yes | Company website or domain \(e.g., google.com\) |
 | `job_titles` | array | Yes | Target job titles to search for \(max 10, e.g., \["Software Engineer", "CEO"\]\) |
-| `items` | string | No | No description |
 | `count` | number | No | Number of contacts to return \(max 5, default 1\) |
 | `apiKey` | string | Yes | Findymail API Key |
 
@@ -252,7 +250,6 @@ Get the technology stack for a company by domain. Optionally filter by technolog
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Company domain to look up \(e.g., stripe.com\) |
 | `technologies` | array | No | Filter by technology names, case-insensitive \(e.g., \["React", "TypeScript"\]\) |
-| `items` | string | No | No description |
 | `apiKey` | string | Yes | Findymail API Key |
 
 #### Output

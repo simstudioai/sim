@@ -102,7 +102,6 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
             variables: {},
           },
         ],
@@ -144,7 +143,6 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
             variables: {},
           },
         ],
@@ -186,7 +184,7 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
+
             variables: {
               'old-var-id': {
                 id: 'old-var-id',
@@ -289,7 +287,7 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'first copy',
-            color: '#000000',
+
             variables: {
               'first-copy-var-id': {
                 id: 'first-copy-var-id',
@@ -393,7 +391,6 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
             variables: {},
           },
         ],
@@ -509,7 +506,6 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
             variables: {},
           },
         ],
@@ -619,7 +615,7 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
+
             variables: {
               'live-var-id': {
                 id: 'live-var-id',

@@ -66,6 +66,12 @@ List all secrets in a project environment. Returns secret keys, values, comments
 |   ↳ `version` | number | Secret version |
 |   ↳ `type` | string | Secret type \(shared or personal\) |
 |   ↳ `environment` | string | Environment slug |
+|   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+|   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+|   ↳ `rotationId` | string | Secret rotation ID |
+|   ↳ `secretReminderNote` | string | Rotation reminder note |
+|   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+|   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
 |   ↳ `tags` | array | Tags attached to the secret |
 |     ↳ `id` | string | Tag ID |
 |     ↳ `slug` | string | Tag slug |
@@ -74,6 +80,13 @@ List all secrets in a project environment. Returns secret keys, values, comments
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
 |     ↳ `key` | string | Metadata key |
 |     ↳ `value` | string | Metadata value |
+|     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+|   ↳ `actor` | object | Identity that last modified the secret |
+|     ↳ `actorId` | string | Actor ID |
+|     ↳ `actorType` | string | Actor type |
+|     ↳ `name` | string | Actor name |
+|     ↳ `membershipId` | string | Membership ID |
+|     ↳ `groupId` | string | Group ID |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `count` | number | Total number of secrets returned |
@@ -111,6 +124,12 @@ Retrieve a single secret by name from a project environment.
 |   ↳ `version` | number | Secret version |
 |   ↳ `type` | string | Secret type \(shared or personal\) |
 |   ↳ `environment` | string | Environment slug |
+|   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+|   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+|   ↳ `rotationId` | string | Secret rotation ID |
+|   ↳ `secretReminderNote` | string | Rotation reminder note |
+|   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+|   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
 |   ↳ `tags` | array | Tags attached to the secret |
 |     ↳ `id` | string | Tag ID |
 |     ↳ `slug` | string | Tag slug |
@@ -119,6 +138,13 @@ Retrieve a single secret by name from a project environment.
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
 |     ↳ `key` | string | Metadata key |
 |     ↳ `value` | string | Metadata value |
+|     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+|   ↳ `actor` | object | Identity that last modified the secret |
+|     ↳ `actorId` | string | Actor ID |
+|     ↳ `actorType` | string | Actor type |
+|     ↳ `name` | string | Actor name |
+|     ↳ `membershipId` | string | Membership ID |
+|     ↳ `groupId` | string | Group ID |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
@@ -155,6 +181,12 @@ Create a new secret in a project environment.
 |   ↳ `version` | number | Secret version |
 |   ↳ `type` | string | Secret type \(shared or personal\) |
 |   ↳ `environment` | string | Environment slug |
+|   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+|   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+|   ↳ `rotationId` | string | Secret rotation ID |
+|   ↳ `secretReminderNote` | string | Rotation reminder note |
+|   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+|   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
 |   ↳ `tags` | array | Tags attached to the secret |
 |     ↳ `id` | string | Tag ID |
 |     ↳ `slug` | string | Tag slug |
@@ -163,6 +195,13 @@ Create a new secret in a project environment.
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
 |     ↳ `key` | string | Metadata key |
 |     ↳ `value` | string | Metadata value |
+|     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+|   ↳ `actor` | object | Identity that last modified the secret |
+|     ↳ `actorId` | string | Actor ID |
+|     ↳ `actorType` | string | Actor type |
+|     ↳ `name` | string | Actor name |
+|     ↳ `membershipId` | string | Membership ID |
+|     ↳ `groupId` | string | Group ID |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
@@ -200,6 +239,12 @@ Update an existing secret in a project environment.
 |   ↳ `version` | number | Secret version |
 |   ↳ `type` | string | Secret type \(shared or personal\) |
 |   ↳ `environment` | string | Environment slug |
+|   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+|   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+|   ↳ `rotationId` | string | Secret rotation ID |
+|   ↳ `secretReminderNote` | string | Rotation reminder note |
+|   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+|   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
 |   ↳ `tags` | array | Tags attached to the secret |
 |     ↳ `id` | string | Tag ID |
 |     ↳ `slug` | string | Tag slug |
@@ -208,6 +253,13 @@ Update an existing secret in a project environment.
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
 |     ↳ `key` | string | Metadata key |
 |     ↳ `value` | string | Metadata value |
+|     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+|   ↳ `actor` | object | Identity that last modified the secret |
+|     ↳ `actorId` | string | Actor ID |
+|     ↳ `actorType` | string | Actor type |
+|     ↳ `name` | string | Actor name |
+|     ↳ `membershipId` | string | Membership ID |
+|     ↳ `groupId` | string | Group ID |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 
@@ -241,6 +293,12 @@ Delete a secret from a project environment.
 |   ↳ `version` | number | Secret version |
 |   ↳ `type` | string | Secret type \(shared or personal\) |
 |   ↳ `environment` | string | Environment slug |
+|   ↳ `secretValueHidden` | boolean | Whether the secret value was hidden in the response |
+|   ↳ `isRotatedSecret` | boolean | Whether the secret is managed by secret rotation |
+|   ↳ `rotationId` | string | Secret rotation ID |
+|   ↳ `secretReminderNote` | string | Rotation reminder note |
+|   ↳ `secretReminderRepeatDays` | number | Rotation reminder interval in days |
+|   ↳ `skipMultilineEncoding` | boolean | Whether multiline encoding is skipped for this secret |
 |   ↳ `tags` | array | Tags attached to the secret |
 |     ↳ `id` | string | Tag ID |
 |     ↳ `slug` | string | Tag slug |
@@ -249,6 +307,13 @@ Delete a secret from a project environment.
 |   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
 |     ↳ `key` | string | Metadata key |
 |     ↳ `value` | string | Metadata value |
+|     ↳ `isEncrypted` | boolean | Whether the metadata value is encrypted |
+|   ↳ `actor` | object | Identity that last modified the secret |
+|     ↳ `actorId` | string | Actor ID |
+|     ↳ `actorType` | string | Actor type |
+|     ↳ `name` | string | Actor name |
+|     ↳ `membershipId` | string | Membership ID |
+|     ↳ `groupId` | string | Group ID |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `updatedAt` | string | Last update timestamp |
 

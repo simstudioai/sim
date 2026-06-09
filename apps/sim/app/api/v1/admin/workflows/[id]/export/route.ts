@@ -66,7 +66,6 @@ export const GET = withRouteHandler(
         metadata: {
           name: workflowData.name,
           description: workflowData.description ?? undefined,
-          color: workflowData.color,
           exportedAt: new Date().toISOString(),
         },
         variables,
@@ -79,7 +78,6 @@ export const GET = withRouteHandler(
           id: workflowData.id,
           name: workflowData.name,
           description: workflowData.description,
-          color: workflowData.color,
           workspaceId: workflowData.workspaceId,
           folderId: workflowData.folderId,
         },

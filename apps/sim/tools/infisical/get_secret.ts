@@ -115,6 +115,21 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
           version: s.version ?? null,
           type: s.type ?? null,
           environment: s.environment ?? null,
+          secretValueHidden: s.secretValueHidden ?? null,
+          isRotatedSecret: s.isRotatedSecret ?? null,
+          rotationId: s.rotationId ?? null,
+          secretReminderNote: s.secretReminderNote ?? null,
+          secretReminderRepeatDays: s.secretReminderRepeatDays ?? null,
+          skipMultilineEncoding: s.skipMultilineEncoding ?? null,
+          actor: s.actor
+            ? {
+                actorId: s.actor.actorId ?? null,
+                actorType: s.actor.actorType ?? null,
+                name: s.actor.name ?? null,
+                membershipId: s.actor.membershipId ?? null,
+                groupId: s.actor.groupId ?? null,
+              }
+            : null,
           tags:
             (s.tags as Array<Record<string, unknown>> | undefined)?.map(
               (t: Record<string, unknown>) => ({
@@ -129,6 +144,7 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
               (m: Record<string, unknown>) => ({
                 key: (m.key as string) ?? null,
                 value: (m.value as string) ?? null,
+                isEncrypted: (m.isEncrypted as boolean) ?? null,
               })
             ) ?? [],
           createdAt: s.createdAt ?? null,
@@ -152,6 +168,32 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
         version: { type: 'number', description: 'Secret version' },
         type: { type: 'string', description: 'Secret type (shared or personal)' },
         environment: { type: 'string', description: 'Environment slug' },
+        secretValueHidden: {
+          type: 'boolean',
+          description: 'Whether the secret value was hidden in the response',
+          optional: true,
+        },
+        isRotatedSecret: {
+          type: 'boolean',
+          description: 'Whether the secret is managed by secret rotation',
+          optional: true,
+        },
+        rotationId: { type: 'string', description: 'Secret rotation ID', optional: true },
+        secretReminderNote: {
+          type: 'string',
+          description: 'Rotation reminder note',
+          optional: true,
+        },
+        secretReminderRepeatDays: {
+          type: 'number',
+          description: 'Rotation reminder interval in days',
+          optional: true,
+        },
+        skipMultilineEncoding: {
+          type: 'boolean',
+          description: 'Whether multiline encoding is skipped for this secret',
+          optional: true,
+        },
         tags: {
           type: 'array',
           description: 'Tags attached to the secret',
@@ -175,7 +217,24 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
             properties: {
               key: { type: 'string', description: 'Metadata key' },
               value: { type: 'string', description: 'Metadata value' },
+              isEncrypted: {
+                type: 'boolean',
+                description: 'Whether the metadata value is encrypted',
+                optional: true,
+              },
             },
+          },
+        },
+        actor: {
+          type: 'object',
+          description: 'Identity that last modified the secret',
+          optional: true,
+          properties: {
+            actorId: { type: 'string', description: 'Actor ID', optional: true },
+            actorType: { type: 'string', description: 'Actor type', optional: true },
+            name: { type: 'string', description: 'Actor name', optional: true },
+            membershipId: { type: 'string', description: 'Membership ID', optional: true },
+            groupId: { type: 'string', description: 'Group ID', optional: true },
           },
         },
         createdAt: { type: 'string', description: 'Creation timestamp' },

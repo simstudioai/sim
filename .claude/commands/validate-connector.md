@@ -153,7 +153,7 @@ This is the most common connector bug class — verify it explicitly against `sy
 - [ ] `title` is extracted from the correct field and has a sensible fallback (e.g., `'Untitled'`)
 - [ ] `content` is plain text — HTML content is stripped using `htmlToPlainText` from `@/connectors/utils`
 - [ ] `mimeType` is `'text/plain'`
-- [ ] `contentHash` is computed using `computeContentHash` from `@/connectors/utils`
+- [ ] `contentHash` is metadata-based for contentDeferred connectors (a string template like `service:${id}:${changeIndicator}`, identical between the `listDocuments` stub and `getDocument`); content-based via `computeContentHash` from `@/connectors/utils` ONLY when `listDocuments` returns full content inline
 - [ ] `sourceUrl` is a valid, complete URL back to the original resource (not relative)
 - [ ] `metadata` contains all fields referenced by `mapTags` and `tagDefinitions`
 
@@ -270,6 +270,7 @@ Group findings by severity:
 - Invalid scope names that the API doesn't recognize (even if silently ignored)
 - Private resources excluded from name-based lookup despite scopes being available
 - Silent data truncation without logging
+- `contentHash` uses the wrong basis: a content-based `computeContentHash` on a contentDeferred connector (breaks the stub/getDocument-identical invariant), or a metadata template when `listDocuments` returns full content inline
 - Size checks using `text.length` (character count) instead of `Buffer.byteLength` (byte count) for byte-based limits
 - URL-type config fields not normalized (protocol prefix, trailing slashes cause API failures)
 - `VALIDATE_RETRY_OPTIONS` not threaded through helper functions called by `validateConfig`

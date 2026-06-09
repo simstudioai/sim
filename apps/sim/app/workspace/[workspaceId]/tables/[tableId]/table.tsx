@@ -4,20 +4,12 @@ import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  toast,
-} from '@/components/emcn'
+import { ChipConfirmModal, toast } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import {
   type ColumnOption,
   ResourceHeader,
@@ -136,7 +128,7 @@ export function Table({
   // depend on the identity), so a stable reference buys nothing here.
   const onUsageLimitReached = ({ message }: { dispatchId?: string; message: string }) => {
     toast.error(message, {
-      action: { label: 'Upgrade', onClick: () => navigateToSettings({ section: 'subscription' }) },
+      action: { label: 'Upgrade', onClick: () => navigateToSettings({ section: 'billing' }) },
     })
   }
   useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
@@ -253,6 +245,15 @@ export function Table({
       if (mutateArgs.groupIds.length === 0) return
       if (mutateArgs.rowIds && mutateArgs.rowIds.length === 0) return
       runColumnMutate(mutateArgs)
+      // Derive the run's deployment mode from the targeted groups (default 'live' when unset).
+      // 'mixed' when the targeted groups don't all agree.
+      const targetGroupIds = new Set(mutateArgs.groupIds)
+      const modes = new Set(
+        tableWorkflowGroups
+          .filter((g) => targetGroupIds.has(g.id))
+          .map((g) => g.deploymentMode ?? 'live')
+      )
+      const deploymentMode = modes.size === 1 ? [...modes][0] : 'mixed'
       captureEvent(posthogRef.current, 'table_workflow_run', {
         table_id: tableId,
         workspace_id: workspaceId,
@@ -261,9 +262,10 @@ export function Table({
         group_count: mutateArgs.groupIds.length,
         row_count: mutateArgs.rowIds?.length ?? null,
         has_limit: mutateArgs.limit != null,
+        deployment_mode: deploymentMode,
       })
     },
-    [runColumnMutate, tableId, workspaceId]
+    [runColumnMutate, tableId, workspaceId, tableWorkflowGroups]
   )
 
   const onRunColumn = useCallback(
@@ -371,16 +373,21 @@ export function Table({
     if (!tableData) return
     try {
       await downloadTableExport(tableData.id, tableData.name)
+      captureEvent(posthogRef.current, 'table_exported', {
+        table_id: tableData.id,
+        workspace_id: workspaceId,
+      })
     } catch (err) {
       logger.error('Failed to export table:', err)
       toast.error('Failed to export table')
     }
-  }, [tableData])
+  }, [tableData, workspaceId])
 
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
       columns.map((col) => ({
-        id: col.name,
+        // `id` is the filter/sort field key (column id); `label` is what the user sees.
+        id: getColumnId(col),
         label: col.name,
         type: col.type,
         icon: COLUMN_TYPE_ICONS[col.type],
@@ -501,6 +508,13 @@ export function Table({
     } catch {
       setShowDeleteTableConfirm(false)
     }
+  }
+
+  const handleConfirmDeleteColumns = () => {
+    if (!deletingColumns) return
+    const names = deletingColumns
+    setDeletingColumns(null)
+    confirmDeleteColumnsSinkRef.current?.(names)
   }
 
   const columnConfig = slideout.kind === 'column' ? slideout.config : null
@@ -636,7 +650,7 @@ export function Table({
         onClose={onCloseSlideout}
         existingColumn={
           columnConfig?.mode === 'edit'
-            ? (columns.find((c) => c.name === columnConfig.columnName) ?? null)
+            ? (columns.find((c) => getColumnId(c) === columnConfig.columnName) ?? null)
             : null
         }
         workspaceId={workspaceId}
@@ -697,94 +711,75 @@ export function Table({
           }}
         />
       )}
-      <Modal
+      <ChipConfirmModal
         open={deletingColumns !== null}
         onOpenChange={(open) => {
           if (!open) setDeletingColumns(null)
         }}
-      >
-        <ModalContent size='sm'>
-          <ModalHeader>
-            {deletingColumns && deletingColumns.length > 1
-              ? `Delete ${deletingColumns.length} Columns`
-              : 'Delete Column'}
-          </ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              {deletingColumns && deletingColumns.length > 1 ? (
-                <>
-                  Are you sure you want to delete{' '}
-                  <span className='font-medium text-[var(--text-primary)]'>
-                    {deletingColumns.length} columns
-                  </span>
-                  ?{' '}
-                </>
-              ) : (
-                <>
-                  Are you sure you want to delete{' '}
-                  <span className='font-medium text-[var(--text-primary)]'>
-                    {deletingColumns?.[0]}
-                  </span>
-                  ?{' '}
-                </>
-              )}
-              <span className='text-[var(--text-error)]'>
-                This will remove all data in{' '}
-                {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
-              </span>{' '}
-              You can undo this action.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setDeletingColumns(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={() => {
-                if (!deletingColumns) return
-                const names = deletingColumns
-                setDeletingColumns(null)
-                confirmDeleteColumnsSinkRef.current?.(names)
-              }}
-            >
-              Delete
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-      {!embedded && (
-        <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
-          <ModalContent size='sm'>
-            <ModalHeader>Delete Table</ModalHeader>
-            <ModalBody>
-              <ModalDescription className='text-[var(--text-secondary)]'>
+        srTitle={
+          deletingColumns && deletingColumns.length > 1
+            ? `Delete ${deletingColumns.length} Columns`
+            : 'Delete Column'
+        }
+        title={
+          deletingColumns && deletingColumns.length > 1
+            ? `Delete ${deletingColumns.length} Columns`
+            : 'Delete Column'
+        }
+        description={
+          <>
+            {deletingColumns && deletingColumns.length > 1 ? (
+              <>
                 Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
-                <span className='text-[var(--text-error)]'>
-                  All {tableData?.rowCount ?? 0} rows will be removed.
-                </span>{' '}
-                You can restore it from Recently Deleted in Settings.
-              </ModalDescription>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => setShowDeleteTableConfirm(false)}
-                disabled={deleteTableMutation.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant='destructive'
-                onClick={handleDeleteTable}
-                disabled={deleteTableMutation.isPending}
-              >
-                {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {deletingColumns.length} columns
+                </span>
+                ?{' '}
+              </>
+            ) : (
+              <>
+                Are you sure you want to delete{' '}
+                <span className='font-medium text-[var(--text-primary)]'>
+                  {deletingColumns?.[0]}
+                </span>
+                ?{' '}
+              </>
+            )}
+            <span className='text-[var(--text-error)]'>
+              This will remove all data in{' '}
+              {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
+            </span>{' '}
+            You can undo this action.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleConfirmDeleteColumns,
+        }}
+      />
+      {!embedded && (
+        <ChipConfirmModal
+          open={showDeleteTableConfirm}
+          onOpenChange={setShowDeleteTableConfirm}
+          srTitle='Delete Table'
+          title='Delete Table'
+          description={
+            <>
+              Are you sure you want to delete{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
+              <span className='text-[var(--text-error)]'>
+                All {tableData?.rowCount ?? 0} rows will be removed.
+              </span>{' '}
+              You can restore it from Recently Deleted in Settings.
+            </>
+          }
+          confirm={{
+            label: 'Delete',
+            onClick: handleDeleteTable,
+            pending: deleteTableMutation.isPending,
+            pendingLabel: 'Deleting...',
+          }}
+        />
       )}
     </div>
   )

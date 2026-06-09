@@ -88,6 +88,8 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
           errors: event.errors || [],
           dist: event.dist ?? null,
           fingerprints: event.fingerprints || [],
+          size: event.size ?? null,
+          release: event.release ?? null,
           sdk: event.sdk
             ? {
                 name: event.sdk.name,
@@ -180,6 +182,13 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
           description: 'Fingerprints used for grouping events',
           items: { type: 'string' },
         },
+        size: { type: 'number', description: 'Event size in bytes', optional: true },
+        release: {
+          type: 'object',
+          description: 'Release associated with the event (version, dateCreated)',
+          optional: true,
+        },
+
         sdk: {
           type: 'object',
           description: 'SDK information',

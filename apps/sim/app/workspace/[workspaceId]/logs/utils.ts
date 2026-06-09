@@ -17,7 +17,6 @@ export const LOG_COLUMNS = {
 } as const
 
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
-export const DELETED_WORKFLOW_COLOR = 'var(--text-tertiary)'
 
 export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled' | 'cancelling'
 

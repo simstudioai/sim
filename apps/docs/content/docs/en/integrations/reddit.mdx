@@ -275,17 +275,17 @@ Save a Reddit post or comment to your saved items
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `subreddit` | string | Subreddit name |
-| `posts` | json | Posts data |
-| `post` | json | Single post data |
-| `comments` | json | Comments data |
+| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
+| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
+| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
 | `success` | boolean | Operation success status |
 | `message` | string | Result message |
-| `data` | json | Response data |
+| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
 | `after` | string | Pagination cursor \(next page\) |
 | `before` | string | Pagination cursor \(previous page\) |
 | `id` | string | Entity ID |
 | `name` | string | Entity fullname |
-| `messages` | json | Messages data |
+| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
 | `display_name` | string | Subreddit display name |
 | `subscribers` | number | Subscriber count |
 | `description` | string | Description text |
@@ -293,6 +293,10 @@ Save a Reddit post or comment to your saved items
 | `comment_karma` | number | Comment karma |
 | `total_karma` | number | Total karma |
 | `icon_img` | string | Icon image URL |
+| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
+| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
+| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
+| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
 
 ### `reddit_reply`
 
@@ -508,5 +512,622 @@ Get metadata and information about a subreddit
 | `url` | string | Subreddit URL path \(e.g., /r/technology/\) |
 | `icon_img` | string | Subreddit icon URL |
 | `banner_img` | string | Subreddit banner URL |
+
+### `reddit_get_subreddit_rules`
+
+Get the rules and site-wide rules that apply to a subreddit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Yes | The subreddit to get rules for \(e.g., "technology", "programming", "news"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rules` | array | Array of subreddit-specific rules |
+|   ↳ `short_name` | string | Short name/title of the rule |
+|   ↳ `description` | string | Full description of the rule \(markdown\) |
+|   ↳ `description_html` | string | HTML-rendered rule description |
+|   ↳ `violation_reason` | string | Reason shown on the report menu when this rule is selected |
+|   ↳ `kind` | string | What the rule applies to: "link", "comment", or "all" |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `priority` | number | Display/order priority of the rule |
+| `site_rules` | array | Reddit site-wide rules that apply to the subreddit |
+| `site_rules_flow` | array | Structured site-wide rules flow used by the report menu |
+
+### `reddit_get_user_posts`
+
+Fetch submitted posts (t3) from a Reddit user profile
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Yes | Reddit username whose posts to fetch \(e.g., "spez", "example_user"\) |
+| `sort` | string | No | Sort method for posts: "hot", "new", "top", "controversial" \(default: "new"\) |
+| `time` | string | No | Time filter for "top"/"controversial" sorts: "hour", "day", "week", "month", "year", or "all" \(default: "all"\) |
+| `limit` | number | No | Maximum number of posts to return \(e.g., 25\). Default: 25, max: 100 |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+| `sr_detail` | boolean | No | Expand subreddit details in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `posts` | array | Array of submitted posts with title, author, URL, score, and metadata |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_user_comments`
+
+Fetch comments (t1) made by a Reddit user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Yes | Reddit username whose comments to fetch \(e.g., "spez", "example_user"\) |
+| `sort` | string | No | Sort method for comments: "hot", "new", "top", "controversial" \(default: "new"\) |
+| `time` | string | No | Time filter for "top"/"controversial" sorts: "hour", "day", "week", "month", "year", or "all" \(default: "all"\) |
+| `limit` | number | No | Maximum number of comments to return \(e.g., 25\). Default: 25, max: 100 |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+| `sr_detail` | boolean | No | Expand subreddit details in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | Array of comments with author, body, score, timestamp, and permalink |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `author` | string | Comment author |
+|   ↳ `body` | string | Comment text |
+|   ↳ `score` | number | Comment score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Comment permalink |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_saved`
+
+Fetch your own saved posts (t3) and comments (t1). You can only read your own saved items
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Yes | Your own Reddit username \(saved items can only be read for the authenticated user\) |
+| `limit` | number | No | Maximum number of items to return \(e.g., 25\). Default: 25, max: 100 |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+| `sr_detail` | boolean | No | Expand subreddit details in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `posts` | array | Array of saved posts \(t3\) with title, author, URL, score, and metadata |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `comments` | array | Array of saved comments \(t1\) with author, body, score, and permalink |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `author` | string | Comment author |
+|   ↳ `body` | string | Comment text |
+|   ↳ `score` | number | Comment score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Comment permalink |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_get_info`
+
+Fetch information about one or more Reddit things (posts, comments, or subreddits) by their fullnames
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Comma-separated list of thing fullnames to look up \(e.g., "t3_abc123,t1_xyz789,t5_2qh33"\). Prefixes: t1_ = comment, t3_ = post, t5_ = subreddit |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `posts` | array | Posts \(t3\) matched by the requested fullnames |
+|   ↳ `id` | string | Post ID |
+|   ↳ `name` | string | Thing fullname \(t3_xxxxx\) |
+|   ↳ `title` | string | Post title |
+|   ↳ `author` | string | Author username |
+|   ↳ `url` | string | Post URL |
+|   ↳ `permalink` | string | Reddit permalink |
+|   ↳ `score` | number | Post score \(upvotes - downvotes\) |
+|   ↳ `num_comments` | number | Number of comments |
+|   ↳ `created_utc` | number | Creation timestamp \(UTC\) |
+|   ↳ `is_self` | boolean | Whether this is a text post |
+|   ↳ `selftext` | string | Text content for self posts |
+|   ↳ `thumbnail` | string | Thumbnail URL |
+|   ↳ `subreddit` | string | Subreddit name |
+| `comments` | array | Comments \(t1\) matched by the requested fullnames |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `name` | string | Thing fullname \(t1_xxxxx\) |
+|   ↳ `author` | string | Comment author |
+|   ↳ `body` | string | Comment text |
+|   ↳ `score` | number | Comment score |
+|   ↳ `created_utc` | number | Creation timestamp |
+|   ↳ `permalink` | string | Comment permalink |
+| `subreddits` | array | Subreddits \(t5\) matched by the requested fullnames |
+|   ↳ `id` | string | Subreddit ID |
+|   ↳ `name` | string | Subreddit fullname \(t5_xxxxx\) |
+|   ↳ `display_name` | string | Subreddit name without prefix |
+|   ↳ `title` | string | Subreddit title |
+|   ↳ `public_description` | string | Short public description |
+|   ↳ `subscribers` | number | Number of subscribers |
+|   ↳ `over18` | boolean | Whether the subreddit is NSFW |
+|   ↳ `url` | string | Subreddit URL path \(e.g., /r/technology/\) |
+|   ↳ `subreddit_type` | string | Subreddit type: public, private, restricted, etc. |
+|   ↳ `icon_img` | string | Subreddit icon URL |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `accounts_active` | number | Number of currently active users |
+
+### `reddit_search_subreddits`
+
+Search for subreddits by name and description
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `q` | string | Yes | Search query to match against subreddit names and descriptions |
+| `sort` | string | No | Sort order for results: "relevance" or "activity". Default: "relevance" |
+| `limit` | number | No | Maximum number of subreddits to return \(e.g., 25\). Default: 25, max: 100 |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `show_users` | boolean | No | Whether to include matching user profiles in the results |
+| `sr_detail` | boolean | No | Expand subreddit details in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddits` | array | Array of matching subreddits with name, description, and subscriber metadata |
+|   ↳ `id` | string | Subreddit ID |
+|   ↳ `name` | string | Subreddit fullname \(t5_xxxxx\) |
+|   ↳ `display_name` | string | Subreddit name without prefix |
+|   ↳ `title` | string | Subreddit title |
+|   ↳ `public_description` | string | Short public description |
+|   ↳ `subscribers` | number | Number of subscribers |
+|   ↳ `over18` | boolean | Whether the subreddit is NSFW |
+|   ↳ `url` | string | Subreddit URL path \(e.g., /r/technology/\) |
+|   ↳ `subreddit_type` | string | Subreddit type: public, private, restricted, etc. |
+|   ↳ `icon_img` | string | Subreddit icon URL |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `accounts_active` | number | Number of currently active users |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_list_my_subreddits`
+
+List the subreddits the authenticated user is subscribed to
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Maximum number of subreddits to return \(e.g., 25\). Default: 25, max: 100 |
+| `after` | string | No | Fullname of a thing to fetch items after \(for pagination\) |
+| `before` | string | No | Fullname of a thing to fetch items before \(for pagination\) |
+| `count` | number | No | A count of items already seen in the listing \(used for numbering\) |
+| `show` | string | No | Show items that would normally be filtered \(e.g., "all"\) |
+| `sr_detail` | boolean | No | Expand subreddit details in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddits` | array | Array of subscribed subreddits with name, description, and subscriber metadata |
+|   ↳ `id` | string | Subreddit ID |
+|   ↳ `name` | string | Subreddit fullname \(t5_xxxxx\) |
+|   ↳ `display_name` | string | Subreddit name without prefix |
+|   ↳ `title` | string | Subreddit title |
+|   ↳ `public_description` | string | Short public description |
+|   ↳ `subscribers` | number | Number of subscribers |
+|   ↳ `over18` | boolean | Whether the subreddit is NSFW |
+|   ↳ `url` | string | Subreddit URL path \(e.g., /r/technology/\) |
+|   ↳ `subreddit_type` | string | Subreddit type: public, private, restricted, etc. |
+|   ↳ `icon_img` | string | Subreddit icon URL |
+|   ↳ `created_utc` | number | Creation time in UTC epoch seconds |
+|   ↳ `accounts_active` | number | Number of currently active users |
+| `after` | string | Fullname of the last item for forward pagination |
+| `before` | string | Fullname of the first item for backward pagination |
+
+### `reddit_report`
+
+Report a Reddit post or comment to subreddit moderators for a rules violation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `thing_id` | string | Yes | Thing fullname to report \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
+| `reason` | string | No | Reason for reporting \(max 100 characters\) |
+| `other_reason` | string | No | Free-form custom reason for reporting \(max 100 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the report was successful |
+| `message` | string | Success or error message |
+
+### `reddit_hide`
+
+Hide one or more Reddit posts from your listings
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Comma-separated list of post fullnames to hide \(e.g., "t3_abc123,t3_def456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the hide was successful |
+| `message` | string | Success or error message |
+
+### `reddit_unhide`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
+| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
+| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
+| `success` | boolean | Operation success status |
+| `message` | string | Result message |
+| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
+| `after` | string | Pagination cursor \(next page\) |
+| `before` | string | Pagination cursor \(previous page\) |
+| `id` | string | Entity ID |
+| `name` | string | Entity fullname |
+| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
+| `display_name` | string | Subreddit display name |
+| `subscribers` | number | Subscriber count |
+| `description` | string | Description text |
+| `link_karma` | number | Link karma |
+| `comment_karma` | number | Comment karma |
+| `total_karma` | number | Total karma |
+| `icon_img` | string | Icon image URL |
+| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
+| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
+| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
+| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+
+### `reddit_marknsfw`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
+| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
+| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
+| `success` | boolean | Operation success status |
+| `message` | string | Result message |
+| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
+| `after` | string | Pagination cursor \(next page\) |
+| `before` | string | Pagination cursor \(previous page\) |
+| `id` | string | Entity ID |
+| `name` | string | Entity fullname |
+| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
+| `display_name` | string | Subreddit display name |
+| `subscribers` | number | Subscriber count |
+| `description` | string | Description text |
+| `link_karma` | number | Link karma |
+| `comment_karma` | number | Comment karma |
+| `total_karma` | number | Total karma |
+| `icon_img` | string | Icon image URL |
+| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
+| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
+| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
+| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+
+### `reddit_unmarknsfw`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
+| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
+| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
+| `success` | boolean | Operation success status |
+| `message` | string | Result message |
+| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
+| `after` | string | Pagination cursor \(next page\) |
+| `before` | string | Pagination cursor \(previous page\) |
+| `id` | string | Entity ID |
+| `name` | string | Entity fullname |
+| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
+| `display_name` | string | Subreddit display name |
+| `subscribers` | number | Subscriber count |
+| `description` | string | Description text |
+| `link_karma` | number | Link karma |
+| `comment_karma` | number | Comment karma |
+| `total_karma` | number | Total karma |
+| `icon_img` | string | Icon image URL |
+| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
+| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
+| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
+| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+
+### `reddit_mark_read`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
+| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
+| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
+| `success` | boolean | Operation success status |
+| `message` | string | Result message |
+| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
+| `after` | string | Pagination cursor \(next page\) |
+| `before` | string | Pagination cursor \(previous page\) |
+| `id` | string | Entity ID |
+| `name` | string | Entity fullname |
+| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
+| `display_name` | string | Subreddit display name |
+| `subscribers` | number | Subscriber count |
+| `description` | string | Description text |
+| `link_karma` | number | Link karma |
+| `comment_karma` | number | Comment karma |
+| `total_karma` | number | Total karma |
+| `icon_img` | string | Icon image URL |
+| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
+| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
+| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
+| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+
+### `reddit_mark_all_read`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
+| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
+| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
+| `success` | boolean | Operation success status |
+| `message` | string | Result message |
+| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
+| `after` | string | Pagination cursor \(next page\) |
+| `before` | string | Pagination cursor \(previous page\) |
+| `id` | string | Entity ID |
+| `name` | string | Entity fullname |
+| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
+| `display_name` | string | Subreddit display name |
+| `subscribers` | number | Subscriber count |
+| `description` | string | Description text |
+| `link_karma` | number | Link karma |
+| `comment_karma` | number | Comment karma |
+| `total_karma` | number | Total karma |
+| `icon_img` | string | Icon image URL |
+| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
+| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
+| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
+| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+
+### `reddit_mod_approve`
+
+Approve a reported or removed Reddit post or comment as a moderator
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to approve \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the approval was successful |
+| `message` | string | Success or error message |
+
+### `reddit_mod_remove`
+
+Remove a Reddit post or comment as a moderator, optionally marking it as spam
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to remove \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
+| `spam` | boolean | No | Mark the item as spam to train the subreddit spam filter \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the removal was successful |
+| `message` | string | Success or error message |
+
+### `reddit_mod_distinguish`
+
+Distinguish or un-distinguish a Reddit post or comment as a moderator
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to distinguish \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
+| `how` | string | Yes | Distinguish type: "yes" \(moderator\), "no" \(remove distinction\), "admin", or "special" |
+| `sticky` | boolean | No | Sticky the comment to the top of the comment page \(comments only\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the distinguish action was successful |
+| `message` | string | Success or error message |
+
+### `reddit_lock`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
+| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
+| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
+| `success` | boolean | Operation success status |
+| `message` | string | Result message |
+| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
+| `after` | string | Pagination cursor \(next page\) |
+| `before` | string | Pagination cursor \(previous page\) |
+| `id` | string | Entity ID |
+| `name` | string | Entity fullname |
+| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
+| `display_name` | string | Subreddit display name |
+| `subscribers` | number | Subscriber count |
+| `description` | string | Description text |
+| `link_karma` | number | Link karma |
+| `comment_karma` | number | Comment karma |
+| `total_karma` | number | Total karma |
+| `icon_img` | string | Icon image URL |
+| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
+| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
+| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
+| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+
+### `reddit_unlock`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subreddit` | string | Subreddit name |
+| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
+| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
+| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
+| `success` | boolean | Operation success status |
+| `message` | string | Result message |
+| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
+| `after` | string | Pagination cursor \(next page\) |
+| `before` | string | Pagination cursor \(previous page\) |
+| `id` | string | Entity ID |
+| `name` | string | Entity fullname |
+| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
+| `display_name` | string | Subreddit display name |
+| `subscribers` | number | Subscriber count |
+| `description` | string | Description text |
+| `link_karma` | number | Link karma |
+| `comment_karma` | number | Comment karma |
+| `total_karma` | number | Total karma |
+| `icon_img` | string | Icon image URL |
+| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
+| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
+| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
+| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+
+### `reddit_mod_sticky`
+
+Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Post fullname to sticky/unsticky \(e.g., "t3_abc123"\) |
+| `state` | boolean | Yes | true to sticky the post, false to unsticky it |
+| `num` | number | No | Sticky slot to use, 1-4 \(1 is the top slot\). Only applies when stickying |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the sticky action was successful |
+| `message` | string | Success or error message |
 
 

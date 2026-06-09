@@ -12,7 +12,6 @@
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
-  --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
   --auth-primary-btn-bg: #ffffff;
@@ -119,6 +118,14 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
   transition: none;
 }
 
+/* Suppress width/transform transitions on the chrome wrappers during a
+   drag-resize so the outer overflow-hidden clip doesn't lag behind the inner
+   sidebar content, which is already at the correct width instantly. */
+html.sidebar-resizing .sidebar-shell-outer,
+html.sidebar-resizing .sidebar-shell-inner {
+  transition: none !important;
+}
+
 .panel-container {
   width: var(--panel-width);
 }
@@ -184,7 +191,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
   :root,
   .light {
     --bg: #fefefe; /* main canvas - neutral near-white */
-    --surface-1: #f9f9f9; /* sidebar, panels */
+    --surface-1: #fbfbfb; /* sidebar, panels */
     --surface-2: #ffffff; /* blocks, cards, modals - pure white */
     --surface-3: #f7f7f7; /* popovers, headers */
     --surface-4: #f5f5f5; /* buttons base */
@@ -205,7 +212,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --text-muted: #707070;
     --text-subtle: #8c8c8c;
     --text-body: #3b3b3b;
-    --text-icon: #5e5e5e;
+    --text-icon: #525252;
 
     --text-inverse: #ffffff;
     --text-muted-inverse: #a0a0a0;
@@ -362,7 +369,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --text-muted: #787878;
     --text-subtle: #7d7d7d;
     --text-body: #cdcdcd;
-    --text-icon: #939393;
+    --text-icon: #a0a0a0;
 
     --text-inverse: #1b1b1b;
     --text-muted-inverse: #b3b3b3;
@@ -834,59 +841,6 @@ input[type="search"]::-ms-clear {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-}
-
-@keyframes notification-enter {
-  from {
-    opacity: 0;
-    transform: translateX(calc(var(--stack-offset, 0px) - 8px)) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(var(--stack-offset, 0px)) scale(1);
-  }
-}
-
-@keyframes notification-countdown {
-  from {
-    stroke-dashoffset: 0;
-  }
-  to {
-    stroke-dashoffset: 34.56;
-  }
-}
-
-@keyframes notification-exit {
-  from {
-    opacity: 1;
-    transform: translateX(var(--stack-offset, 0px)) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(calc(var(--stack-offset, 0px) + 8px)) scale(0.97);
-  }
-}
-
-@keyframes toast-enter {
-  from {
-    opacity: 0;
-    transform: translateX(var(--stack-offset, 0px)) translateY(8px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(var(--stack-offset, 0px)) translateY(0) scale(1);
-  }
-}
-
-@keyframes toast-exit {
-  from {
-    opacity: 1;
-    transform: translateX(var(--stack-offset, 0px)) translateY(0) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(var(--stack-offset, 0px)) translateY(8px) scale(0.97);
   }
 }
 

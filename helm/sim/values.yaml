@@ -1183,6 +1183,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    reconcileBillingSeats:
+      enabled: true
+      name: reconcile-billing-seats
+      schedule: "0 * * * *"
+      path: "/api/cron/reconcile-billing-seats"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     inactivityAlertPoll:
       enabled: true
       name: inactivity-alert-poll

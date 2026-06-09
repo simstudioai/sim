@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, SquareArrowUpRight } from '@/components/emcn/icons'
+import { Duplicate, SquareArrowUpRight } from '@/components/emcn/icons'
 
 interface NavItemContextMenuProps {
   isOpen: boolean
@@ -61,7 +61,7 @@ export function NavItemContextMenu({
             onClose()
           }}
         >
-          <Copy />
+          <Duplicate />
           Copy link
         </DropdownMenuItem>
       </DropdownMenuContent>

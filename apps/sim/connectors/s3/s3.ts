@@ -2,7 +2,9 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { S3Icon } from '@/components/icons'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { isHosted } from '@/lib/core/config/feature-flags'
+import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate, readBodyWithLimit } from '@/connectors/utils'
 import { encodeS3PathComponent, getSignatureKey } from '@/tools/s3/utils'
@@ -112,9 +114,11 @@ function isSupportedKey(key: string, allowedExtensions: Set<string>): boolean {
 }
 
 /**
- * Returns true when the host is a loopback address for which plain `http://`
- * is tolerated (local MinIO development). Any other host must use `https://` so
- * that credentials are never transmitted over cleartext.
+ * Returns true when the host is a loopback address for which plain `http://` is
+ * tolerated (local MinIO development on a self-hosted deployment). Any other
+ * host must use `https://`. This is only an early check — the SSRF boundary is
+ * enforced at request time by {@link secureFetchWithRetry}, which blocks
+ * loopback/private targets on hosted Sim regardless of what this parser accepts.
  */
 function isLoopbackHost(host: string): boolean {
   const bare = host.replace(/^\[|\]$/g, '')
@@ -160,9 +164,9 @@ function parseEndpoint(raw: string): S3Endpoint {
 
   const host = url.hostname
   if (!host) throw new Error('Endpoint is missing a host')
-  if (scheme === 'http' && !isLoopbackHost(host)) {
+  if (scheme === 'http' && !(isLoopbackHost(host) && !isHosted)) {
     throw new Error(
-      'Plain http:// endpoints are only allowed for localhost — use https:// otherwise'
+      'Plain http:// endpoints are only allowed for localhost on self-hosted deployments — use https:// otherwise'
     )
   }
 
@@ -261,7 +265,7 @@ function buildUrl(ctx: S3Context, encodedPath: string, canonicalQueryString: str
  * Reuses {@link getSignatureKey} from the s3 tool utilities.
  *
  * The signed headers embed `x-amz-date` and are reused verbatim across
- * `fetchWithRetry` attempts. S3 allows a 15-minute clock-skew window; the
+ * `secureFetchWithRetry` attempts. S3 allows a 15-minute clock-skew window; the
  * retry helper's worst-case total backoff (~31s default, ~10s in validate) is
  * far inside that window, so a stale timestamp never triggers
  * RequestTimeTooSkewed.
@@ -449,7 +453,7 @@ async function listObjectsPage(
   ctx: S3Context,
   prefix: string,
   continuationToken: string | undefined,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2],
+  retryOptions?: Parameters<typeof secureFetchWithRetry>[2],
   maxKeys: number = LIST_MAX_KEYS
 ): Promise<{ objects: S3ObjectEntry[]; isTruncated: boolean; nextContinuationToken?: string }> {
   const queryParams: Record<string, string> = {
@@ -466,7 +470,7 @@ async function listObjectsPage(
 
   const url = buildUrl(ctx, bucketPath, canonicalQueryString)
 
-  const response = await fetchWithRetry(url, { method: 'GET', headers }, retryOptions)
+  const response = await secureFetchWithRetry(url, { method: 'GET', headers }, retryOptions)
 
   if (!response.ok) {
     const errorText = await response.text()
@@ -616,7 +620,7 @@ export const s3Connector: ConnectorConfig = {
       const headers = buildSignedHeaders(ctx, 'GET', encodedPath, '')
       const url = buildUrl(ctx, encodedPath, '')
 
-      const response = await fetchWithRetry(url, { method: 'GET', headers })
+      const response = await secureFetchWithRetry(url, { method: 'GET', headers })
 
       if (response.status === 404) return null
       if (!response.ok) {

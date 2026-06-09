@@ -177,10 +177,16 @@ Retrieve a list of events from Kalshi with optional filtering (V2 - exact API re
 |   ↳ `strike_date` | string | Strike/settlement date |
 |   ↳ `status` | string | Event status |
 | `milestones` | array | Array of milestone objects \(if requested\) |
-|   ↳ `event_ticker` | string | Event ticker |
-|   ↳ `milestone_type` | string | Milestone type |
-|   ↳ `milestone_date` | string | Milestone date |
-|   ↳ `milestone_title` | string | Milestone title |
+|   ↳ `id` | string | Milestone ID |
+|   ↳ `category` | string | Milestone category |
+|   ↳ `type` | string | Milestone type |
+|   ↳ `title` | string | Milestone title |
+|   ↳ `start_date` | string | Milestone start date \(ISO 8601\) |
+|   ↳ `end_date` | string | Milestone end date \(ISO 8601\) |
+|   ↳ `notification_message` | string | Notification message |
+|   ↳ `primary_event_tickers` | array | Primary event tickers |
+|   ↳ `related_event_tickers` | array | Related event tickers |
+|   ↳ `last_updated_ts` | string | Last updated time \(ISO 8601\) |
 | `cursor` | string | Pagination cursor for fetching more results |
 
 ### `kalshi_get_event`
@@ -229,7 +235,7 @@ Retrieve your account balance and portfolio value from Kalshi (V2 - exact API re
 | --------- | ---- | ----------- |
 | `balance` | number | Account balance in cents |
 | `portfolio_value` | number | Portfolio value in cents |
-| `updated_ts` | number | Unix timestamp of last update \(milliseconds\) |
+| `updated_ts` | number | Unix timestamp of last update \(seconds\) |
 
 ### `kalshi_get_positions`
 
@@ -243,7 +249,6 @@ Retrieve your open positions from Kalshi (V2 - exact API response)
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
-| `settlementStatus` | string | No | Filter by settlement status: "all", "unsettled", or "settled" \(default: "unsettled"\) |
 | `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -282,7 +287,7 @@ Retrieve your orders from Kalshi with optional filtering (V2 with full API respo
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
 | `status` | string | No | Filter by order status: "resting", "canceled", or "executed" |
-| `limit` | string | No | Number of results to return \(1-200, default: 100\) |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
 #### Output
@@ -429,6 +434,28 @@ Retrieve OHLC candlestick data for a specific market (V2 - full API response)
 | `ticker` | string | Market ticker |
 | `candlesticks` | array | Array of OHLC candlestick data with nested bid/ask/price objects |
 
+### `kalshi_get_event_candlesticks`
+
+Retrieve OHLC candlestick data aggregated across all markets in an event (V2 - full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | Yes | Series ticker identifier \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+| `eventTicker` | string | Yes | Event ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03"\) |
+| `startTs` | number | Yes | Start timestamp in Unix seconds \(e.g., 1704067200\) |
+| `endTs` | number | Yes | End timestamp in Unix seconds \(e.g., 1704153600\) |
+| `periodInterval` | number | Yes | Period interval: 1 \(1 minute\), 60 \(1 hour\), or 1440 \(1 day\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `market_tickers` | array | Market tickers included in the aggregated candlesticks |
+| `adjusted_end_ts` | number | Adjusted end timestamp used for the candlestick range \(Unix seconds\) |
+| `market_candlesticks` | array | Array of event-level aggregated OHLC candlestick data with nested bid/ask/price |
+
 ### `kalshi_get_fills`
 
 Retrieve your portfolio
@@ -441,8 +468,8 @@ Retrieve your portfolio
 | `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
 | `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
 | `orderId` | string | No | Filter by order ID \(e.g., "abc123-def456-ghi789"\) |
-| `minTs` | number | No | Minimum timestamp in Unix milliseconds \(e.g., 1704067200000\) |
-| `maxTs` | number | No | Maximum timestamp in Unix milliseconds \(e.g., 1704153600000\) |
+| `minTs` | number | No | Minimum timestamp in Unix seconds \(e.g., 1704067200\) |
+| `maxTs` | number | No | Maximum timestamp in Unix seconds \(e.g., 1704153600\) |
 | `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response for fetching next page |
 
@@ -461,6 +488,41 @@ Retrieve your portfolio
 |   ↳ `no_price` | number | No price in cents |
 |   ↳ `is_taker` | boolean | Whether this was a taker trade |
 |   ↳ `created_time` | string | Trade execution time \(ISO 8601\) |
+| `cursor` | string | Pagination cursor for fetching more results |
+
+### `kalshi_get_settlements`
+
+Retrieve your portfolio settlement history from Kalshi (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `eventTicker` | string | No | Filter by event ticker \(e.g., "KXBTC-24DEC31"\) |
+| `minTs` | number | No | Minimum settled timestamp in Unix seconds \(e.g., 1704067200\) |
+| `maxTs` | number | No | Maximum settled timestamp in Unix seconds \(e.g., 1704153600\) |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `settlements` | array | Array of settlement objects with all API fields |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `event_ticker` | string | Event ticker |
+|   ↳ `market_result` | string | Settlement outcome \(yes, no, scalar\) |
+|   ↳ `yes_count_fp` | string | Yes contracts owned \(fixed-point\) |
+|   ↳ `yes_total_cost_dollars` | string | Yes cost basis in dollars |
+|   ↳ `no_count_fp` | string | No contracts owned \(fixed-point\) |
+|   ↳ `no_total_cost_dollars` | string | No cost basis in dollars |
+|   ↳ `revenue` | number | Payout in cents |
+|   ↳ `settled_time` | string | Settlement timestamp \(ISO 8601\) |
+|   ↳ `fee_cost` | string | Fees in fixed-point dollars |
+|   ↳ `value` | number | Single yes contract payout in cents |
 | `cursor` | string | Pagination cursor for fetching more results |
 
 ### `kalshi_get_series_by_ticker`
@@ -493,6 +555,29 @@ Retrieve details of a specific market series by ticker (V2 - exact API response)
 |   ↳ `volume` | number | Series volume |
 |   ↳ `volume_fp` | number | Volume \(fixed-point\) |
 
+### `kalshi_get_series_list`
+
+Retrieve a list of market series from Kalshi with optional filtering (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `category` | string | No | Filter by category \(e.g., "Economics", "Politics", "Crypto"\) |
+| `tags` | string | No | Filter by comma-separated tags |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | array | Array of series objects with all API fields |
+|   ↳ `ticker` | string | Unique series ticker |
+|   ↳ `title` | string | Series title |
+|   ↳ `frequency` | string | Event frequency \(daily, weekly, etc.\) |
+|   ↳ `category` | string | Series category |
+|   ↳ `tags` | array | Series tags |
+|   ↳ `contract_url` | string | Contract rules URL |
+
 ### `kalshi_get_exchange_status`
 
 Retrieve the current status of the Kalshi exchange (V2 - exact API response)
@@ -509,6 +594,42 @@ Retrieve the current status of the Kalshi exchange (V2 - exact API response)
 | `exchange_active` | boolean | Whether the exchange is active |
 | `trading_active` | boolean | Whether trading is active |
 | `exchange_estimated_resume_time` | string | Estimated time when exchange will resume \(if inactive\) |
+
+### `kalshi_get_exchange_schedule`
+
+Retrieve the Kalshi exchange trading schedule and maintenance windows (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schedule` | object | Exchange schedule \(all times in ET\) |
+|   ↳ `standard_hours` | array | Weekly schedules with per-day open/close trading sessions |
+|   ↳ `maintenance_windows` | array | Scheduled maintenance windows with start_datetime and end_datetime |
+
+### `kalshi_get_exchange_announcements`
+
+Retrieve exchange-wide announcements from Kalshi (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `announcements` | array | Array of exchange announcement objects |
+|   ↳ `type` | string | Announcement severity \(info, warning, error\) |
+|   ↳ `message` | string | Announcement message |
+|   ↳ `delivery_time` | string | Delivery time \(ISO 8601\) |
+|   ↳ `status` | string | Announcement status \(active, inactive\) |
 
 ### `kalshi_create_order`
 
@@ -644,8 +765,8 @@ Modify the price or quantity of an existing order on Kalshi (V2 with full API re
 | `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
 | `side` | string | Yes | Side of the order: "yes" or "no" |
 | `action` | string | Yes | Action type: "buy" or "sell" |
-| `clientOrderId` | string | Yes | Original client-specified order ID |
-| `updatedClientOrderId` | string | Yes | New client-specified order ID after amendment |
+| `clientOrderId` | string | No | Original client-specified order ID |
+| `updatedClientOrderId` | string | No | New client-specified order ID after amendment |
 | `count` | string | No | Updated quantity for the order \(e.g., "10", "100"\) |
 | `yesPrice` | string | No | Updated yes price in cents \(1-99\) |
 | `noPrice` | string | No | Updated no price in cents \(1-99\) |

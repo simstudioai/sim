@@ -7,7 +7,7 @@ import { renameCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
-import { taskPubSub } from '@/lib/copilot/tasks'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('RenameChatAPI')
@@ -49,7 +49,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
     logger.info('Chat renamed', { chatId, title })
 
     if (updated.workspaceId) {
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: updated.workspaceId,
         chatId,
         type: 'renamed',

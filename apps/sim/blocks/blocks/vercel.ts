@@ -1,5 +1,5 @@
 import { VercelIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
@@ -11,8 +11,7 @@ export const VercelBlock: BlockConfig = {
     'Integrate with Vercel to manage deployments, projects, domains, DNS records, environment variables, aliases, edge configs, teams, and more.',
   docsLink: 'https://docs.sim.ai/tools/vercel',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['cloud', 'ci-cd'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#171717',
   icon: VercelIcon,
   authMode: AuthMode.ApiKey,
@@ -35,7 +34,6 @@ export const VercelBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Deployments
         { label: 'List Deployments', id: 'list_deployments' },
         { label: 'Get Deployment', id: 'get_deployment' },
         { label: 'Create Deployment', id: 'create_deployment' },
@@ -43,7 +41,7 @@ export const VercelBlock: BlockConfig = {
         { label: 'Delete Deployment', id: 'delete_deployment' },
         { label: 'Get Deployment Logs', id: 'get_deployment_events' },
         { label: 'List Deployment Files', id: 'list_deployment_files' },
-        // Projects
+        { label: 'Promote Deployment', id: 'promote_deployment' },
         { label: 'List Projects', id: 'list_projects' },
         { label: 'Get Project', id: 'get_project' },
         { label: 'Create Project', id: 'create_project' },
@@ -51,47 +49,43 @@ export const VercelBlock: BlockConfig = {
         { label: 'Delete Project', id: 'delete_project' },
         { label: 'Pause Project', id: 'pause_project' },
         { label: 'Unpause Project', id: 'unpause_project' },
-        // Project Domains
         { label: 'List Project Domains', id: 'list_project_domains' },
         { label: 'Add Project Domain', id: 'add_project_domain' },
+        { label: 'Update Project Domain', id: 'update_project_domain' },
+        { label: 'Verify Project Domain', id: 'verify_project_domain' },
         { label: 'Remove Project Domain', id: 'remove_project_domain' },
-        // Environment Variables
         { label: 'Get Environment Variables', id: 'get_env_vars' },
         { label: 'Create Environment Variable', id: 'create_env_var' },
         { label: 'Update Environment Variable', id: 'update_env_var' },
         { label: 'Delete Environment Variable', id: 'delete_env_var' },
-        // Domains
         { label: 'List Domains', id: 'list_domains' },
         { label: 'Get Domain', id: 'get_domain' },
         { label: 'Add Domain', id: 'add_domain' },
         { label: 'Delete Domain', id: 'delete_domain' },
         { label: 'Get Domain Config', id: 'get_domain_config' },
-        // DNS
         { label: 'List DNS Records', id: 'list_dns_records' },
         { label: 'Create DNS Record', id: 'create_dns_record' },
+        { label: 'Update DNS Record', id: 'update_dns_record' },
         { label: 'Delete DNS Record', id: 'delete_dns_record' },
-        // Aliases
         { label: 'List Aliases', id: 'list_aliases' },
         { label: 'Get Alias', id: 'get_alias' },
         { label: 'Create Alias', id: 'create_alias' },
         { label: 'Delete Alias', id: 'delete_alias' },
-        // Edge Config
         { label: 'List Edge Configs', id: 'list_edge_configs' },
         { label: 'Get Edge Config', id: 'get_edge_config' },
         { label: 'Create Edge Config', id: 'create_edge_config' },
         { label: 'Get Edge Config Items', id: 'get_edge_config_items' },
         { label: 'Update Edge Config Items', id: 'update_edge_config_items' },
-        // Webhooks
+        { label: 'Delete Edge Config', id: 'delete_edge_config' },
         { label: 'List Webhooks', id: 'list_webhooks' },
+        { label: 'Get Webhook', id: 'get_webhook' },
         { label: 'Create Webhook', id: 'create_webhook' },
         { label: 'Delete Webhook', id: 'delete_webhook' },
-        // Checks
         { label: 'List Checks', id: 'list_checks' },
         { label: 'Get Check', id: 'get_check' },
         { label: 'Create Check', id: 'create_check' },
         { label: 'Update Check', id: 'update_check' },
         { label: 'Rerequest Check', id: 'rerequest_check' },
-        // Teams & User
         { label: 'List Teams', id: 'list_teams' },
         { label: 'Get Team', id: 'get_team' },
         { label: 'List Team Members', id: 'list_team_members' },
@@ -108,7 +102,6 @@ export const VercelBlock: BlockConfig = {
       password: true,
     },
 
-    // === Deployment fields ===
     {
       id: 'projectId',
       title: 'Project ID',
@@ -157,6 +150,7 @@ export const VercelBlock: BlockConfig = {
           'delete_deployment',
           'get_deployment_events',
           'list_deployment_files',
+          'promote_deployment',
         ],
       },
       required: {
@@ -167,10 +161,10 @@ export const VercelBlock: BlockConfig = {
           'delete_deployment',
           'get_deployment_events',
           'list_deployment_files',
+          'promote_deployment',
         ],
       },
     },
-    // Create Deployment
     {
       id: 'name',
       title: 'Project Name',
@@ -208,7 +202,6 @@ export const VercelBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // === Project fields ===
     {
       id: 'search',
       title: 'Search',
@@ -233,6 +226,9 @@ export const VercelBlock: BlockConfig = {
           'list_project_domains',
           'add_project_domain',
           'remove_project_domain',
+          'update_project_domain',
+          'verify_project_domain',
+          'promote_deployment',
           'get_env_vars',
           'create_env_var',
           'update_env_var',
@@ -250,6 +246,9 @@ export const VercelBlock: BlockConfig = {
           'list_project_domains',
           'add_project_domain',
           'remove_project_domain',
+          'update_project_domain',
+          'verify_project_domain',
+          'promote_deployment',
           'get_env_vars',
           'create_env_var',
           'update_env_var',
@@ -257,7 +256,6 @@ export const VercelBlock: BlockConfig = {
         ],
       },
     },
-    // Create Project
     {
       id: 'projectName',
       title: 'Project Name',
@@ -309,7 +307,6 @@ export const VercelBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // === Project Domain fields ===
     {
       id: 'domainName',
       title: 'Domain',
@@ -320,6 +317,8 @@ export const VercelBlock: BlockConfig = {
         value: [
           'add_project_domain',
           'remove_project_domain',
+          'update_project_domain',
+          'verify_project_domain',
           'get_domain',
           'delete_domain',
           'get_domain_config',
@@ -334,6 +333,8 @@ export const VercelBlock: BlockConfig = {
         value: [
           'add_project_domain',
           'remove_project_domain',
+          'update_project_domain',
+          'verify_project_domain',
           'get_domain',
           'delete_domain',
           'get_domain_config',
@@ -345,7 +346,37 @@ export const VercelBlock: BlockConfig = {
       },
     },
 
-    // === Environment Variable fields ===
+    {
+      id: 'updateDomainRedirect',
+      title: 'Redirect To',
+      type: 'short-input',
+      placeholder: 'Target domain to redirect to (optional)',
+      condition: { field: 'operation', value: 'update_project_domain' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateDomainRedirectStatusCode',
+      title: 'Redirect Status Code',
+      type: 'dropdown',
+      options: [
+        { label: 'None', id: '' },
+        { label: '301 (Permanent)', id: '301' },
+        { label: '302 (Temporary)', id: '302' },
+        { label: '307 (Temporary)', id: '307' },
+        { label: '308 (Permanent)', id: '308' },
+      ],
+      condition: { field: 'operation', value: 'update_project_domain' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateDomainGitBranch',
+      title: 'Git Branch',
+      type: 'short-input',
+      placeholder: 'Git branch to link the domain to (optional)',
+      condition: { field: 'operation', value: 'update_project_domain' },
+      mode: 'advanced',
+    },
+
     {
       id: 'envId',
       title: 'Env Variable ID',
@@ -384,15 +415,14 @@ export const VercelBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Plain', id: 'plain' },
-        { label: 'Secret', id: 'secret' },
         { label: 'Encrypted', id: 'encrypted' },
         { label: 'Sensitive', id: 'sensitive' },
+        { label: 'System', id: 'system' },
       ],
       condition: { field: 'operation', value: ['create_env_var', 'update_env_var'] },
       mode: 'advanced',
     },
 
-    // === DNS fields ===
     {
       id: 'recordName',
       title: 'Record Name',
@@ -432,11 +462,67 @@ export const VercelBlock: BlockConfig = {
       title: 'Record ID',
       type: 'short-input',
       placeholder: 'DNS record ID',
-      condition: { field: 'operation', value: 'delete_dns_record' },
-      required: { field: 'operation', value: 'delete_dns_record' },
+      condition: { field: 'operation', value: ['delete_dns_record', 'update_dns_record'] },
+      required: { field: 'operation', value: ['delete_dns_record', 'update_dns_record'] },
+    },
+    {
+      id: 'updateRecordName',
+      title: 'Record Name',
+      type: 'short-input',
+      placeholder: 'New subdomain (e.g., www) — leave blank to keep',
+      condition: { field: 'operation', value: 'update_dns_record' },
+    },
+    {
+      id: 'updateRecordType',
+      title: 'Record Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Keep current', id: '' },
+        { label: 'A', id: 'A' },
+        { label: 'AAAA', id: 'AAAA' },
+        { label: 'CNAME', id: 'CNAME' },
+        { label: 'TXT', id: 'TXT' },
+        { label: 'MX', id: 'MX' },
+        { label: 'NS', id: 'NS' },
+        { label: 'ALIAS', id: 'ALIAS' },
+        { label: 'SRV', id: 'SRV' },
+        { label: 'CAA', id: 'CAA' },
+        { label: 'HTTPS', id: 'HTTPS' },
+      ],
+      condition: { field: 'operation', value: 'update_dns_record' },
+    },
+    {
+      id: 'updateRecordValue',
+      title: 'Value',
+      type: 'short-input',
+      placeholder: 'New record value — leave blank to keep',
+      condition: { field: 'operation', value: 'update_dns_record' },
+    },
+    {
+      id: 'updateRecordTtl',
+      title: 'TTL',
+      type: 'short-input',
+      placeholder: 'Time to live in seconds (60 to 2147483647)',
+      condition: { field: 'operation', value: 'update_dns_record' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateRecordMxPriority',
+      title: 'MX Priority',
+      type: 'short-input',
+      placeholder: 'Priority for MX records',
+      condition: { field: 'operation', value: 'update_dns_record' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateRecordComment',
+      title: 'Comment',
+      type: 'short-input',
+      placeholder: 'Context for this DNS record (max 500 chars)',
+      condition: { field: 'operation', value: 'update_dns_record' },
+      mode: 'advanced',
     },
 
-    // === Alias fields ===
     {
       id: 'aliasId',
       title: 'Alias ID',
@@ -462,7 +548,6 @@ export const VercelBlock: BlockConfig = {
       required: { field: 'operation', value: 'create_alias' },
     },
 
-    // === Edge Config fields ===
     {
       id: 'edgeConfigId',
       title: 'Edge Config ID',
@@ -470,11 +555,21 @@ export const VercelBlock: BlockConfig = {
       placeholder: 'Edge Config ID',
       condition: {
         field: 'operation',
-        value: ['get_edge_config', 'get_edge_config_items', 'update_edge_config_items'],
+        value: [
+          'get_edge_config',
+          'get_edge_config_items',
+          'update_edge_config_items',
+          'delete_edge_config',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['get_edge_config', 'get_edge_config_items', 'update_edge_config_items'],
+        value: [
+          'get_edge_config',
+          'get_edge_config_items',
+          'update_edge_config_items',
+          'delete_edge_config',
+        ],
       },
     },
     {
@@ -494,7 +589,6 @@ export const VercelBlock: BlockConfig = {
       required: { field: 'operation', value: 'update_edge_config_items' },
     },
 
-    // === Webhook fields ===
     {
       id: 'webhookUrl',
       title: 'Webhook URL',
@@ -524,11 +618,10 @@ export const VercelBlock: BlockConfig = {
       title: 'Webhook ID',
       type: 'short-input',
       placeholder: 'Webhook ID',
-      condition: { field: 'operation', value: 'delete_webhook' },
-      required: { field: 'operation', value: 'delete_webhook' },
+      condition: { field: 'operation', value: ['delete_webhook', 'get_webhook'] },
+      required: { field: 'operation', value: ['delete_webhook', 'get_webhook'] },
     },
 
-    // === Check fields ===
     {
       id: 'checkDeploymentId',
       title: 'Deployment ID',
@@ -616,7 +709,6 @@ export const VercelBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_check' },
     },
 
-    // === Team fields ===
     {
       id: 'teamIdParam',
       title: 'Team ID',
@@ -641,7 +733,6 @@ export const VercelBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // === Shared optional Team ID (for scoping requests) ===
     {
       id: 'teamId',
       title: 'Team ID (Scope)',
@@ -664,7 +755,6 @@ export const VercelBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // === Trigger subBlocks ===
     ...getTrigger('vercel_deployment_created').subBlocks,
     ...getTrigger('vercel_deployment_ready').subBlocks,
     ...getTrigger('vercel_deployment_error').subBlocks,
@@ -676,7 +766,6 @@ export const VercelBlock: BlockConfig = {
   ],
   tools: {
     access: [
-      // Deployments
       'vercel_list_deployments',
       'vercel_get_deployment',
       'vercel_create_deployment',
@@ -684,7 +773,7 @@ export const VercelBlock: BlockConfig = {
       'vercel_delete_deployment',
       'vercel_get_deployment_events',
       'vercel_list_deployment_files',
-      // Projects
+      'vercel_promote_deployment',
       'vercel_list_projects',
       'vercel_get_project',
       'vercel_create_project',
@@ -695,43 +784,40 @@ export const VercelBlock: BlockConfig = {
       'vercel_list_project_domains',
       'vercel_add_project_domain',
       'vercel_remove_project_domain',
-      // Environment Variables
+      'vercel_update_project_domain',
+      'vercel_verify_project_domain',
       'vercel_get_env_vars',
       'vercel_create_env_var',
       'vercel_update_env_var',
       'vercel_delete_env_var',
-      // Domains
       'vercel_list_domains',
       'vercel_get_domain',
       'vercel_add_domain',
       'vercel_delete_domain',
       'vercel_get_domain_config',
-      // DNS
       'vercel_list_dns_records',
       'vercel_create_dns_record',
+      'vercel_update_dns_record',
       'vercel_delete_dns_record',
-      // Aliases
       'vercel_list_aliases',
       'vercel_get_alias',
       'vercel_create_alias',
       'vercel_delete_alias',
-      // Edge Config
       'vercel_list_edge_configs',
       'vercel_get_edge_config',
       'vercel_create_edge_config',
       'vercel_get_edge_config_items',
       'vercel_update_edge_config_items',
-      // Webhooks
+      'vercel_delete_edge_config',
       'vercel_list_webhooks',
+      'vercel_get_webhook',
       'vercel_create_webhook',
       'vercel_delete_webhook',
-      // Checks
       'vercel_create_check',
       'vercel_get_check',
       'vercel_list_checks',
       'vercel_update_check',
       'vercel_rerequest_check',
-      // Teams & User
       'vercel_list_teams',
       'vercel_get_team',
       'vercel_list_team_members',
@@ -755,6 +841,15 @@ export const VercelBlock: BlockConfig = {
           recordType,
           recordValue,
           recordId,
+          updateRecordName,
+          updateRecordType,
+          updateRecordValue,
+          updateRecordTtl,
+          updateRecordMxPriority,
+          updateRecordComment,
+          updateDomainRedirect,
+          updateDomainRedirectStatusCode,
+          updateDomainGitBranch,
           aliasId,
           aliasDeploymentId,
           aliasName,
@@ -793,7 +888,18 @@ export const VercelBlock: BlockConfig = {
             return base
           case 'add_project_domain':
           case 'remove_project_domain':
+          case 'verify_project_domain':
             return { ...base, domain: domainName }
+          case 'update_project_domain':
+            return {
+              ...base,
+              domain: domainName,
+              ...(updateDomainRedirect ? { redirect: updateDomainRedirect } : {}),
+              ...(updateDomainRedirectStatusCode
+                ? { redirectStatusCode: updateDomainRedirectStatusCode }
+                : {}),
+              ...(updateDomainGitBranch ? { gitBranch: updateDomainGitBranch } : {}),
+            }
           case 'get_domain':
           case 'delete_domain':
           case 'get_domain_config':
@@ -806,6 +912,17 @@ export const VercelBlock: BlockConfig = {
             return { ...base, domain: domainName, recordName, recordType, value: recordValue }
           case 'delete_dns_record':
             return { ...base, domain: domainName, recordId }
+          case 'update_dns_record':
+            return {
+              ...base,
+              recordId,
+              ...(updateRecordName ? { name: updateRecordName } : {}),
+              ...(updateRecordType ? { type: updateRecordType } : {}),
+              ...(updateRecordValue ? { value: updateRecordValue } : {}),
+              ...(updateRecordTtl ? { ttl: updateRecordTtl } : {}),
+              ...(updateRecordMxPriority ? { mxPriority: updateRecordMxPriority } : {}),
+              ...(updateRecordComment ? { comment: updateRecordComment } : {}),
+            }
           case 'create_env_var':
             return { ...base, key: envKey, value: envValue, target: envTarget, type: envType }
           case 'update_env_var':
@@ -823,6 +940,7 @@ export const VercelBlock: BlockConfig = {
             return { ...base, deploymentId: aliasDeploymentId, alias: aliasName }
           case 'get_edge_config':
           case 'get_edge_config_items':
+          case 'delete_edge_config':
             return { ...base, edgeConfigId }
           case 'create_edge_config':
             return { ...base, slug: edgeConfigSlug }
@@ -836,6 +954,7 @@ export const VercelBlock: BlockConfig = {
               ...(webhookProjectIds ? { projectIds: webhookProjectIds } : {}),
             }
           case 'delete_webhook':
+          case 'get_webhook':
             return { ...base, webhookId }
           case 'create_check':
             return {
@@ -899,6 +1018,18 @@ export const VercelBlock: BlockConfig = {
     recordType: { type: 'string', description: 'DNS record type' },
     recordValue: { type: 'string', description: 'DNS record value' },
     recordId: { type: 'string', description: 'DNS record ID' },
+    updateRecordName: { type: 'string', description: 'Updated DNS record name' },
+    updateRecordType: { type: 'string', description: 'Updated DNS record type' },
+    updateRecordValue: { type: 'string', description: 'Updated DNS record value' },
+    updateRecordTtl: { type: 'string', description: 'Updated DNS record TTL' },
+    updateRecordMxPriority: { type: 'string', description: 'Updated MX record priority' },
+    updateRecordComment: { type: 'string', description: 'Updated DNS record comment' },
+    updateDomainRedirect: { type: 'string', description: 'Project domain redirect target' },
+    updateDomainRedirectStatusCode: {
+      type: 'string',
+      description: 'Project domain redirect status code',
+    },
+    updateDomainGitBranch: { type: 'string', description: 'Project domain git branch' },
     aliasId: { type: 'string', description: 'Alias ID' },
     aliasDeploymentId: { type: 'string', description: 'Deployment ID for alias' },
     aliasName: { type: 'string', description: 'Alias domain' },
@@ -922,7 +1053,6 @@ export const VercelBlock: BlockConfig = {
     checkConclusion: { type: 'string', description: 'Check conclusion' },
   },
   outputs: {
-    // List results
     deployments: {
       type: 'array',
       description: 'List of deployments',
@@ -996,7 +1126,6 @@ export const VercelBlock: BlockConfig = {
       description: 'List of deployment checks',
       condition: { field: 'operation', value: 'list_checks' },
     },
-    // Single resource outputs
     id: {
       type: 'string',
       description: 'Resource ID',
@@ -1035,8 +1164,22 @@ export const VercelBlock: BlockConfig = {
           'delete_alias',
           'delete_env_var',
           'delete_webhook',
+          'delete_edge_config',
         ],
       },
+    },
+    verified: {
+      type: 'boolean',
+      description: 'Whether the project domain is verified',
+      condition: {
+        field: 'operation',
+        value: ['add_project_domain', 'update_project_domain', 'verify_project_domain'],
+      },
+    },
+    promoted: {
+      type: 'boolean',
+      description: 'Whether the deployment was promoted to production',
+      condition: { field: 'operation', value: 'promote_deployment' },
     },
     count: {
       type: 'number',
@@ -1048,3 +1191,105 @@ export const VercelBlock: BlockConfig = {
     },
   },
 }
+
+export const VercelBlockMeta = {
+  tags: ['cloud', 'ci-cd'],
+  templates: [
+    {
+      icon: VercelIcon,
+      title: 'Vercel deployment monitor',
+      prompt:
+        'Build a scheduled workflow that polls Vercel for the latest deployments across my projects every five minutes, detects failed or stuck builds, fetches the build logs, summarizes the failure cause, and posts an actionable alert to Slack with a deep link to the deployment.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'engineering'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: VercelIcon,
+      title: 'Preview deployment reviewer',
+      prompt:
+        'Build a workflow that watches GitHub pull requests, finds the matching Vercel preview deployment, captures the preview URL, runs a smoke check against critical pages, and posts a status comment on the pull request with the preview link and any issues found.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'engineering', 'automation'],
+      alsoIntegrations: ['github'],
+    },
+    {
+      icon: VercelIcon,
+      title: 'Environment variable auditor',
+      prompt:
+        'Create a scheduled weekly workflow that pulls environment variables from every Vercel project, compares them to a reference list in a table, flags drift, missing keys, and stale values, and emails a remediation report to the platform team.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise', 'monitoring'],
+    },
+    {
+      icon: VercelIcon,
+      title: 'Domain and DNS inventory',
+      prompt:
+        'Build a scheduled workflow that lists every domain and DNS record across my Vercel account weekly, logs them into a tracking table, and sends a Slack diff of any added, removed, or modified records so DNS changes never go unnoticed.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: VercelIcon,
+      title: 'Project pause guard',
+      prompt:
+        'Build a scheduled workflow that scans Vercel projects daily for low-traffic or stale candidates flagged in a table, pauses projects that meet the criteria, and Slacks a digest of paused and unpaused projects to the platform team for review.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: VercelIcon,
+      title: 'Deploy log triage',
+      prompt:
+        'Create a workflow that fires after each Vercel deployment, fetches the build and runtime logs, classifies warnings and errors with an agent, groups recurring issues, and opens a Linear ticket per cluster so platform regressions get addressed early.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'engineering'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: VercelIcon,
+      title: 'Failed deployment recovery',
+      prompt:
+        'Build a workflow that watches Vercel for failed production deployments, identifies the last known good production deployment, promotes it back to production for an instant rollback, and posts a Slack incident summary with the failure cause and rollback confirmation.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'monitor-deployments',
+      description: 'List recent Vercel deployments, surface failed builds, and pull their logs.',
+      content:
+        '# Monitor Vercel Deployments\n\nKeep an eye on builds so failures are caught fast.\n\n## Steps\n1. Use the List Deployments operation with your access token, optionally filtering by Project ID, Target (production), and State (ERROR).\n2. For any failed or stuck deployment, use Get Deployment Logs with the Deployment ID to pull the build events.\n3. Summarize the failure cause from the log events.\n4. Use Get Deployment for full detail including the deployment URL and state.\n\n## Output\nReturn the list of deployments with their state, plus a short summary of any failed build and a link to investigate.',
+    },
+    {
+      name: 'rollback-deployment',
+      description:
+        'Promote the last known good Vercel deployment to instantly roll back a bad release.',
+      content:
+        '# Roll Back a Vercel Deployment\n\nRecover production by instantly promoting a previous good deployment back to production.\n\n## Steps\n1. Use List Deployments filtered to the project, Target production, and State READY to find the last good deployment.\n2. Use the Promote Deployment operation with the Project ID and that good deployment ID to restore it to production instantly, with no rebuild.\n3. Optionally use Cancel Deployment on the broken build that is still running.\n\n## Output\nReturn the promoted deployment ID and confirmation so the rollback can be announced.',
+    },
+    {
+      name: 'manage-env-vars',
+      description: 'Read, create, or update environment variables on a Vercel project.',
+      content:
+        '# Manage Vercel Environment Variables\n\nKeep a project configuration correct across environments.\n\n## Steps\n1. Use Get Environment Variables with the Project ID to read the current variables.\n2. To add one, use Create Environment Variable with the Key, Value, Target Environments (for example production,preview), and Variable Type.\n3. To change one, use Update Environment Variable with the Env Variable ID and the new value.\n4. Use Delete Environment Variable with the Env Variable ID to remove a stale key.\n\n## Output\nReturn the resulting variable list or confirmation of the create, update, or delete so configuration changes are auditable.',
+    },
+    {
+      name: 'audit-domains-and-dns',
+      description: 'Inventory Vercel domains and DNS records and manage records for a domain.',
+      content:
+        '# Audit Vercel Domains and DNS\n\nTrack domains and DNS so changes never go unnoticed.\n\n## Steps\n1. Use List Domains for the account inventory, and List DNS Records with a Domain to see its records.\n2. To add a record, use Create DNS Record with the Domain, Record Name, Record Type (A, CNAME, TXT, etc.), and Value.\n3. To remove one, use Delete DNS Record with the Domain and Record ID.\n4. Use Get Domain Config to verify a domain is correctly configured.\n\n## Output\nReturn the domain and DNS record inventory, or confirmation of any record change, for the tracking log.',
+    },
+  ],
+} as const satisfies BlockMeta

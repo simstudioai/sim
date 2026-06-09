@@ -86,17 +86,24 @@ export interface PerformMcpServerResult {
   authType?: McpAuthType
 }
 
-async function validateMcpServerUrl(url: string): Promise<PerformMcpServerResult | null> {
+type ValidateMcpServerUrlResult =
+  | { ok: true; resolvedIP: string | null }
+  | { ok: false; result: PerformMcpServerResult }
+
+async function validateMcpServerUrl(url: string): Promise<ValidateMcpServerUrlResult> {
   try {
     validateMcpDomain(url)
-    await validateMcpServerSsrf(url)
-    return null
+    const resolvedIP = await validateMcpServerSsrf(url)
+    return { ok: true, resolvedIP }
   } catch (error) {
     if (error instanceof McpDomainNotAllowedError || error instanceof McpSsrfError) {
-      return { success: false, error: error.message, errorCode: 'forbidden' }
+      return { ok: false, result: { success: false, error: error.message, errorCode: 'forbidden' } }
     }
     if (error instanceof McpDnsResolutionError) {
-      return { success: false, error: error.message, errorCode: 'bad_gateway' }
+      return {
+        ok: false,
+        result: { success: false, error: error.message, errorCode: 'bad_gateway' },
+      }
     }
     throw error
   }
@@ -106,7 +113,8 @@ export async function performCreateMcpServer(
   params: PerformCreateMcpServerParams
 ): Promise<PerformMcpServerResult> {
   const validation = await validateMcpServerUrl(params.url)
-  if (validation) return validation
+  if (!validation.ok) return validation.result
+  const validatedIP = validation.resolvedIP
 
   const transport = params.transport || 'streamable-http'
   const timeout = params.timeout || 30000
@@ -142,7 +150,7 @@ export async function performCreateMcpServer(
         resolvedAuthType = (existingServer.authType ?? 'headers') as McpAuthType
       } else if (params.url && !hasHeaders) {
         try {
-          resolvedAuthType = await detectMcpAuthType(params.url)
+          resolvedAuthType = await detectMcpAuthType(params.url, validatedIP)
         } catch (e) {
           logger.warn('Probe failed, defaulting to headers', { url: params.url, error: e })
           resolvedAuthType = 'headers'
@@ -281,7 +289,7 @@ export async function performUpdateMcpServer(
 ): Promise<PerformMcpServerResult> {
   if (params.url) {
     const validation = await validateMcpServerUrl(params.url)
-    if (validation) return validation
+    if (!validation.ok) return validation.result
   }
 
   const oauthClientSecretEncrypted =

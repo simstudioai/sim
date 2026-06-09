@@ -793,6 +793,47 @@ Use `wandConfig` for fields that are hard to fill out manually, such as timestam
 
 All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MUST use `snake_case` (e.g., `x_create_tweet`, `slack_send_message`). Never use camelCase or PascalCase.
 
+## BlockMeta (Required)
+
+Every block file must export a `{Service}BlockMeta` alongside the block — **minimum 7 templates**. Look at existing examples in `apps/sim/blocks/blocks/` (e.g. `browser_use.ts`, `google_sheets.ts`) for the pattern.
+
+```typescript
+import type { BlockMeta } from '@/blocks/types'
+
+export const {Service}BlockMeta = {
+  tags: ['tag1', 'tag2'],                  // IntegrationTag[]
+  templates: [
+    {
+      icon: {Service}Icon,
+      title: '{Service} <use-case>',        // 2–5 words
+      prompt: 'Build a workflow that...',   // specific use case, 1–3 sentences
+      modules: ['agent', 'workflows'],      // 'agent' | 'workflows' | 'tables' | 'files' | 'scheduled' | 'knowledge-base'
+      category: 'operations',              // 'operations' | 'marketing' | 'sales' | 'engineering' | 'productivity' | 'support' | 'popular'
+      tags: ['automation'],
+      alsoIntegrations: ['slack'],         // optional — other block IDs referenced in the prompt
+      featured: true,                      // optional
+    },
+    // ... at least 6 more
+  ],
+  skills: [                                // SuggestedSkill[] — 3–5 mainstream, 2–3 niche
+    {
+      name: 'summarize-thread',            // kebab-case, ≤64 chars, unique, verb-led
+      description: 'One line: what it does and when to use it.',  // ≤1024 chars
+      content:
+        '# Summarize Thread\n\n...\n\n## Steps\n1. ...\n\n## Output\n...',  // markdown
+    },
+    // ... more
+  ],
+} as const satisfies BlockMeta
+```
+
+Derive templates from the service's real use cases. Each prompt should name a concrete trigger, transformation, and output — not a generic description of what the service does.
+
+`skills` are curated, ready-to-add agent skills shown on the integration's detail page (users click **Add** to create them in their workspace). Two hard rules:
+
+- **Ground every skill in operations the block actually exposes** — cross-check each skill's steps against `tools.access`. Never describe an action the integration cannot perform.
+- **Derive skills from real, popular use cases found online — never invent them.** Web-search the service's documented use cases (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles) and only add a skill you can source as something people genuinely do with the service. Do not hallucinate skills.
+
 ## Checklist Before Finishing
 
 - [ ] `integrationType` is set to the correct `IntegrationType` enum value
@@ -811,6 +852,8 @@ All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MU
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`
 - [ ] Timestamps and complex inputs have `wandConfig` enabled
+- [ ] Exported `{Service}BlockMeta` with at least 7 templates
+- [ ] `skills` added to `{Service}BlockMeta`, each grounded in `tools.access` and sourced from a real online use case (not invented)
 
 ## Final Validation (Required)
 

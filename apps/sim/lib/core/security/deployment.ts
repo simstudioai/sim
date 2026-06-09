@@ -6,7 +6,7 @@ import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
 
 /**
- * Shared authentication utilities for deployed chat and form endpoints.
+ * Shared authentication utilities for deployed chat endpoints.
  * Handles token generation, validation, and auth cookies. CORS for these
  * endpoints lives in proxy.ts as the single source of truth.
  */
@@ -31,7 +31,7 @@ function generateAuthToken(
 }
 
 /**
- * Validates an HMAC-signed authentication token for a deployment (chat or form).
+ * Validates an HMAC-signed authentication token for a chat deployment.
  * Includes a password-derived slot so changing the deployment password immediately
  * invalidates existing sessions.
  */
@@ -77,7 +77,7 @@ export function validateAuthToken(
  */
 export function setDeploymentAuthCookie(
   response: NextResponse,
-  cookiePrefix: 'chat' | 'form',
+  cookiePrefix: 'chat',
   deploymentId: string,
   authType: string,
   encryptedPassword?: string | null

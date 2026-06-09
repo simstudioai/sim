@@ -173,7 +173,7 @@ export const POST = withRouteHandler(
 
       // Skip unauth connect when the server returns an RFC 9728 OAuth challenge.
       if (testConfig.url) {
-        const detectedAuthType = await detectMcpAuthType(testConfig.url)
+        const detectedAuthType = await detectMcpAuthType(testConfig.url, resolvedIP)
         if (detectedAuthType === 'oauth') {
           result.authRequired = true
           result.authType = 'oauth'
