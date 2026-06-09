@@ -27,6 +27,28 @@ Tables allow you to create and manage custom data tables directly within Sim. St
 - Batch operations for bulk inserts
 - Bulk updates and deletes by filter
 - Up to 10,000 rows per table, 100 tables per workspace
+
+## Creating Tables
+
+Tables are created from the **Tables** section in the sidebar. Each table requires:
+- **Name**: Alphanumeric with underscores (e.g., `customer_leads`)
+- **Description**: Optional description of the table's purpose
+- **Schema**: Define columns with name, type, and optional constraints
+
+### Column Types
+
+| Type | Description | Example Values |
+|------|-------------|----------------|
+| `string` | Text data | `"John Doe"`, `"active"` |
+| `number` | Numeric data | `42`, `99.99` |
+| `boolean` | True/false values | `true`, `false` |
+| `date` | Date/time values | `"2024-01-15T10:30:00Z"` |
+| `json` | Complex nested data | `{"address": {"city": "NYC"}}` |
+
+### Column Constraints
+
+- **Required**: Column must have a value (cannot be null)
+- **Unique**: Values must be unique across all rows (enables upsert matching)
 {/* MANUAL-CONTENT-END */}
 
 
@@ -240,4 +262,99 @@ Get the schema configuration of a table
 | `columns` | array | Column definitions |
 | `message` | string | Status message |
 
+{/* MANUAL-CONTENT-START:notes */}
+## Filter Operators
 
+Filters use MongoDB-style operators for flexible querying:
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `$eq` | Equals | `{"status": {"$eq": "active"}}` or `{"status": "active"}` |
+| `$ne` | Not equals | `{"status": {"$ne": "deleted"}}` |
+| `$gt` | Greater than | `{"age": {"$gt": 18}}` |
+| `$gte` | Greater than or equal | `{"score": {"$gte": 80}}` |
+| `$lt` | Less than | `{"price": {"$lt": 100}}` |
+| `$lte` | Less than or equal | `{"quantity": {"$lte": 10}}` |
+| `$in` | In array | `{"status": {"$in": ["active", "pending"]}}` |
+| `$nin` | Not in array | `{"type": {"$nin": ["spam", "blocked"]}}` |
+| `$contains` | String contains (case-insensitive) | `{"email": {"$contains": "@gmail.com"}}` |
+| `$ncontains` | Does not contain (case-insensitive; matches empty cells) | `{"email": {"$ncontains": "@spam.com"}}` |
+| `$startsWith` | Starts with (case-insensitive) | `{"name": {"$startsWith": "Dr."}}` |
+| `$endsWith` | Ends with (case-insensitive) | `{"file": {"$endsWith": ".pdf"}}` |
+| `$empty` | Cell is empty (`true`) or non-empty (`false`) | `{"phone": {"$empty": true}}` |
+
+### Combining Filters
+
+Multiple field conditions are combined with AND logic:
+
+```json
+{
+  "status": "active",
+  "age": {"$gte": 18}
+}
+```
+
+Use `$or` for OR logic:
+
+```json
+{
+  "$or": [
+    {"status": "active"},
+    {"status": "pending"}
+  ]
+}
+```
+
+## Sort Specification
+
+Specify sort order with column names and direction:
+
+```json
+{
+  "createdAt": "desc"
+}
+```
+
+Multi-column sorting:
+
+```json
+{
+  "priority": "desc",
+  "name": "asc"
+}
+```
+
+## Built-in Columns
+
+Every row automatically includes:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | string | Unique row identifier |
+| `createdAt` | date | When the row was created |
+| `updatedAt` | date | When the row was last modified |
+
+These can be used in filters and sorting.
+
+## Limits
+
+| Resource | Limit |
+|----------|-------|
+| Tables per workspace | 100 |
+| Rows per table | 10,000 |
+| Columns per table | 50 |
+| Max row size | 100KB |
+| String value length | 10,000 characters |
+| Query limit | 1,000 rows |
+| Batch insert size | 1,000 rows |
+| Bulk update/delete | 1,000 rows |
+
+## Notes
+
+- Category: `blocks`
+- Type: `table`
+- Tables are scoped to workspaces and accessible from any workflow within that workspace
+- Data persists across workflow executions
+- Use unique constraints to enable upsert functionality
+- The visual filter/sort builder provides an easy way to construct queries without writing JSON
+{/* MANUAL-CONTENT-END */}

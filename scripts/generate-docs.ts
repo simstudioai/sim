@@ -2561,20 +2561,17 @@ function mergeWithManualContent(
     }
 
     const insertionPoint = insertionPoints[sectionName]
+    const wrapped = `{/* MANUAL-CONTENT-START:${sectionName} */}\n${content}\n{/* MANUAL-CONTENT-END */}`
 
-    if (insertionPoint) {
-      const match = mergedContent.match(insertionPoint.regex)
-
-      if (match && match.index !== undefined) {
-        const insertPosition = match.index + match[0].length
-        mergedContent = `${mergedContent.slice(0, insertPosition)}\n\n{/* MANUAL-CONTENT-START:${sectionName} */}\n${content}\n{/* MANUAL-CONTENT-END */}\n${mergedContent.slice(insertPosition)}`
-      } else {
-        console.log(
-          `Could not find insertion point for ${sectionName}, regex pattern: ${insertionPoint.regex}`
-        )
-      }
+    const match = insertionPoint ? mergedContent.match(insertionPoint.regex) : null
+    if (match && match.index !== undefined) {
+      const insertPosition = match.index + match[0].length
+      mergedContent = `${mergedContent.slice(0, insertPosition)}\n\n${wrapped}\n${mergedContent.slice(insertPosition)}`
     } else {
-      console.log(`No insertion point defined for section ${sectionName}`)
+      // Never drop manual content: when the anchor is missing (e.g. a `notes`
+      // section with no generated "## Notes" heading), append at the end.
+      console.log(`No insertion anchor for manual section "${sectionName}" — appending at end`)
+      mergedContent = `${mergedContent.replace(/\s*$/, '')}\n\n${wrapped}\n`
     }
   })
 
