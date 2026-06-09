@@ -740,7 +740,9 @@ export function Table({
               <>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>
-                  {deletingColumns?.[0]}
+                  {(deletingColumns &&
+                    columns.find((c) => getColumnId(c) === deletingColumns[0])?.name) ??
+                    deletingColumns?.[0]}
                 </span>
                 ?{' '}
               </>
