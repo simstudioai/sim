@@ -568,10 +568,23 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     })
   }, [toasts])
 
-  /** Per-toast auto-dismiss timers for a lone toast; the stack countdown takes over at 2+ toasts, and hover holds them. */
+  /**
+   * A persistent toast (`duration <= 0`) pins the stack: the dismiss-all ring's
+   * auto-countdown is suppressed so the action can't be cleared from under the
+   * user. The ring still renders and dismisses on click.
+   */
+  const hasPersistentToast = toasts.some((t) => t.duration <= 0)
+
+  /**
+   * Per-toast auto-dismiss timers. The stack ring owns dismissal when it
+   * auto-fires (2+ toasts, none persistent); otherwise — a lone toast, or a
+   * stack pinned by a persistent toast — each timed toast runs its own timer so
+   * it still expires while the persistent one stays. Hover holds them.
+   */
   useEffect(() => {
     const timers = timersRef.current
-    if (toasts.length === 0 || expanded || toasts.length >= STACK_DISMISS_THRESHOLD) {
+    const stackAutoDismiss = toasts.length >= STACK_DISMISS_THRESHOLD && !hasPersistentToast
+    if (toasts.length === 0 || expanded || stackAutoDismiss) {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
       return
@@ -594,7 +607,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
         timers.delete(id)
       }
     }
-  }, [toasts, expanded, dismissToast])
+  }, [toasts, expanded, hasPersistentToast, dismissToast])
 
   useEffect(() => {
     const timers = timersRef.current
@@ -627,9 +640,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     () => ({ toast: toastFn.current, dismiss: dismissToast, dismissAll: dismissAllToasts }),
     [dismissToast, dismissAllToasts]
   )
-
-  /** A persistent toast pins the stack: the dismiss-all ring renders but its auto-countdown is suppressed. */
-  const hasPersistentToast = toasts.some((t) => t.duration <= 0)
 
   const ordered = [...toasts].reverse()
   const frontHeight = heights[ordered[0]?.id ?? ''] ?? ESTIMATED_TOAST_HEIGHT
