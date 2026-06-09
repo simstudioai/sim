@@ -467,7 +467,7 @@ export const AppConfigBlock: BlockConfig<
 }
 
 export const AppConfigBlockMeta = {
-  tags: ['cloud', 'configuration', 'feature-flags'],
+  tags: ['cloud', 'feature-flags', 'automation'],
   templates: [
     {
       icon: AppConfigIcon,
