@@ -157,6 +157,7 @@
     "sap_concur",
     "sap_s4hana",
     "secrets_manager",
+    "sendblue",
     "sendgrid",
     "sentry",
     "serper",

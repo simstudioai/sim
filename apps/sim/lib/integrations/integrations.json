@@ -12700,6 +12700,56 @@
     "tags": ["automation"]
   },
   {
+    "type": "sendblue",
+    "slug": "sendblue",
+    "name": "Sendblue",
+    "description": "Send and receive iMessage and SMS",
+    "longDescription": "Send iMessages and SMS to individuals or groups, check whether a number supports iMessage, show typing indicators, and look up message status with Sendblue. Trigger workflows on inbound messages and delivery status updates.",
+    "bgColor": "#008BFF",
+    "iconName": "SendblueIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sendblue",
+    "operations": [
+      {
+        "name": "Send Message",
+        "description": "Send an iMessage or SMS to a single recipient via Sendblue."
+      },
+      {
+        "name": "Send Group Message",
+        "description": "Send an iMessage or SMS to a group of recipients via Sendblue."
+      },
+      {
+        "name": "Evaluate Service",
+        "description": "Check whether a phone number can receive iMessage or only SMS."
+      },
+      {
+        "name": "Send Typing Indicator",
+        "description": "Display a typing indicator to a recipient (not supported in group chats)."
+      },
+      {
+        "name": "Get Message",
+        "description": "Retrieve a single message and its current status by message handle/ID."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [
+      {
+        "id": "sendblue_message_received",
+        "name": "Sendblue Message Received",
+        "description": "Trigger when an inbound iMessage or SMS is received in Sendblue"
+      },
+      {
+        "id": "sendblue_message_status_updated",
+        "name": "Sendblue Message Status Updated",
+        "description": "Trigger when an outbound message status changes (SENT, DELIVERED, ERROR) in Sendblue"
+      }
+    ],
+    "triggerCount": 2,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "communication",
+    "tags": ["messaging", "automation", "webhooks"]
+  },
+  {
     "type": "sendgrid",
     "slug": "sendgrid",
     "name": "SendGrid",
