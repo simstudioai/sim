@@ -27,6 +27,7 @@ import {
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
+import { useExportJobToasts } from '@/app/workspace/[workspaceId]/tables/hooks/use-export-job-toasts'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   downloadTableExport,
@@ -56,6 +57,7 @@ export function Tables() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
+  useExportJobToasts(workspaceId)
 
   const { config: permissionConfig } = usePermissionConfig()
   useEffect(() => {
