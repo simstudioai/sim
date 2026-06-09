@@ -1576,3 +1576,69 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     expect(result?.id).toBe('table_query_rows')
   })
 })
+
+describe('transformBlockTool knowledge-base multi-instance unique IDs', () => {
+  const knowledgeBlockDef = {
+    type: 'knowledge',
+    inputs: {},
+    subBlocks: [
+      { id: 'operation', type: 'dropdown' },
+      {
+        id: 'knowledgeBaseSelector',
+        type: 'knowledge-base-selector',
+        canonicalParamId: 'knowledgeBaseId',
+        mode: 'basic',
+      },
+      {
+        id: 'manualKnowledgeBaseId',
+        type: 'short-input',
+        canonicalParamId: 'knowledgeBaseId',
+        mode: 'advanced',
+      },
+    ],
+    tools: {
+      access: ['knowledge_search', 'knowledge_upload_chunk'],
+      config: { tool: () => 'knowledge_search' },
+    },
+  }
+
+  const getAllBlocks = () => [knowledgeBlockDef]
+  const getTool = (id: string) => ({
+    id,
+    name: 'Search',
+    description: 'Search the knowledge base',
+    params: {},
+  })
+
+  const transformKb = (
+    params: Record<string, unknown>,
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  ) =>
+    transformBlockTool(
+      { type: 'knowledge', operation: 'search', params },
+      { selectedOperation: 'search', getAllBlocks, getTool, canonicalModes }
+    )
+
+  it('appends the knowledge base id when stored under the basic selector subblock key', async () => {
+    const result = await transformKb({ knowledgeBaseSelector: 'kb_abc' })
+    expect(result?.id).toBe('knowledge_search_kb_abc')
+  })
+
+  it('appends the knowledge base id resolved from the advanced manual input', async () => {
+    const result = await transformKb(
+      { manualKnowledgeBaseId: 'kb_xyz' },
+      { 'knowledge:knowledgeBaseId': 'advanced' }
+    )
+    expect(result?.id).toBe('knowledge_search_kb_xyz')
+  })
+
+  it('appends the canonical knowledge base id when already present in params', async () => {
+    const result = await transformKb({ knowledgeBaseId: 'kb_direct' })
+    expect(result?.id).toBe('knowledge_search_kb_direct')
+  })
+
+  it('falls back to the base tool id when no knowledge base is selected', async () => {
+    const result = await transformKb({})
+    expect(result?.id).toBe('knowledge_search')
+  })
+})
