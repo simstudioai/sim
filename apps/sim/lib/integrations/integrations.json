@@ -9539,7 +9539,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationTypes": ["sales"],
+    "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]
   },
   {
@@ -9791,7 +9791,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationTypes": ["sales"],
+    "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]
   },
   {
@@ -15180,7 +15180,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationTypes": ["sales"],
+    "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]
   },
   {
