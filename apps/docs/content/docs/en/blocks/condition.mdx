@@ -5,7 +5,13 @@ pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { BlockPreview, WorkflowPreview, CONDITION_ROUTE_WORKFLOW } from '@/components/workflow-preview'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  CONDITION_MODERATE_WORKFLOW,
+  CONDITION_ONBOARD_WORKFLOW,
+  CONDITION_ROUTE_WORKFLOW,
+} from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The **Condition block** branches a workflow on boolean expressions. It checks each branch in order and runs the path of the first one that is true, with no model call. When you want a model to decide the route, use a [Router](/blocks/router) instead.
@@ -38,13 +44,32 @@ If an expression throws, for example because it reads a field that is not there,
 | `<condition.selectedOption>` | The id of the matched branch |
 | `<condition.selectedPath>` | The destination block the workflow routed to |
 
-## Example
+## Examples
 
-Route a ticket to a different agent based on its priority:
+### Route a support ticket by priority
 
 <WorkflowPreview workflow={CONDITION_ROUTE_WORKFLOW} />
 
-The Condition checks `<start.priority>` and runs one downstream path. The other does not run, so any reference to a block on the path that did not run comes back empty.
+The Condition checks `<start.priority>` and runs one downstream path. The other does not run, so a reference to a block on the path that did not run comes back empty.
+
+### Moderate content by score
+
+<WorkflowPreview workflow={CONDITION_MODERATE_WORKFLOW} />
+
+An Agent scores the content, and the Condition publishes it or blocks it on `<moderate.toxicity>`.
+
+### Branch onboarding by account tier
+
+<WorkflowPreview workflow={CONDITION_ONBOARD_WORKFLOW} />
+
+A Function reads the account, and the Condition sends enterprise accounts through guided setup and everyone else through the quick start.
+
+## Best Practices
+
+- **Order branches from specific to general.** The first true branch wins, so put narrow checks before catch-alls.
+- **Always give unmatched runs a path.** Connect the **else** branch, or make the last condition `true`, so nothing dead-ends silently.
+- **Keep expressions simple.** Short boolean checks are easy to read and debug. Do heavy logic in a [Function](/blocks/function) block first and branch on its result.
+- **Guard missing values.** Use optional chaining (`?.`) or a null check so an absent field does not throw.
 
 <FAQ items={[
   { question: "Does the Condition block use an LLM?", answer: "No. It evaluates boolean expressions using JavaScript syntax directly, with no model call. That makes it fast, deterministic, and free of API cost. For AI-powered routing, use the Router block instead." },

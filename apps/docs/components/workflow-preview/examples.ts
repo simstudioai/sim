@@ -278,3 +278,99 @@ export const CONDITION_ROUTE_WORKFLOW: PreviewWorkflow = {
     { id: 'condition-reply', source: 'condition', target: 'reply' },
   ],
 }
+
+/** Condition example: gate publishing on a moderation score. */
+export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
+  id: 'condition-moderate',
+  name: 'Moderate content',
+  blocks: [
+    {
+      id: 'moderate',
+      name: 'Moderate',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 0, y: 60 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Messages', value: 'Score toxicity of <start.input>' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 330, y: 60 },
+      rows: [{ title: 'If', value: '<moderate.toxicity> > 0.7' }],
+    },
+    {
+      id: 'block',
+      name: 'Block',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 700, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Code', value: "throw 'blocked'" }],
+    },
+    {
+      id: 'publish',
+      name: 'Publish',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 700, y: 130 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Method', value: 'POST' }],
+    },
+  ],
+  edges: [
+    { id: 'moderate-condition', source: 'moderate', target: 'condition' },
+    { id: 'condition-block', source: 'condition', target: 'block' },
+    { id: 'condition-publish', source: 'condition', target: 'publish' },
+  ],
+}
+
+/** Condition example: branch onboarding on the account tier. */
+export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
+  id: 'condition-onboard',
+  name: 'Branch onboarding',
+  blocks: [
+    {
+      id: 'plan',
+      name: 'Plan',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 0, y: 60 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Code', value: 'return <start.account>' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 330, y: 60 },
+      rows: [{ title: 'If', value: "<plan.result.tier> === 'enterprise'" }],
+    },
+    {
+      id: 'guided',
+      name: 'Guided setup',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 700, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Walk through SSO and SCIM' }],
+    },
+    {
+      id: 'quickstart',
+      name: 'Quick start',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 700, y: 130 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Send the 2-minute setup' }],
+    },
+  ],
+  edges: [
+    { id: 'plan-condition', source: 'plan', target: 'condition' },
+    { id: 'condition-guided', source: 'condition', target: 'guided' },
+    { id: 'condition-quickstart', source: 'condition', target: 'quickstart' },
+  ],
+}
