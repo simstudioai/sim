@@ -73,6 +73,15 @@ interface InfisicalTag {
 interface InfisicalSecretMetadata {
   key: string
   value: string
+  isEncrypted: boolean | null
+}
+
+interface InfisicalActor {
+  actorId: string | null
+  actorType: string | null
+  name: string | null
+  membershipId: string | null
+  groupId: string | null
 }
 
 interface InfisicalSecret {
@@ -85,6 +94,13 @@ interface InfisicalSecret {
   version: number
   type: string
   environment: string
+  secretValueHidden: boolean | null
+  isRotatedSecret: boolean | null
+  rotationId: string | null
+  secretReminderNote: string | null
+  secretReminderRepeatDays: number | null
+  skipMultilineEncoding: boolean | null
+  actor: InfisicalActor | null
   tags: InfisicalTag[]
   secretMetadata: InfisicalSecretMetadata[]
   createdAt: string

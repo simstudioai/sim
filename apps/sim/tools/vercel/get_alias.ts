@@ -56,6 +56,9 @@ export const vercelGetAliasTool: ToolConfig<VercelGetAliasParams, VercelGetAlias
         updatedAt: data.updatedAt ?? null,
         redirect: data.redirect ?? null,
         redirectStatusCode: data.redirectStatusCode ?? null,
+        deployment: data.deployment
+          ? { id: data.deployment.id ?? null, url: data.deployment.url ?? null }
+          : null,
       },
     }
   },
@@ -92,6 +95,15 @@ export const vercelGetAliasTool: ToolConfig<VercelGetAliasParams, VercelGetAlias
     redirectStatusCode: {
       type: 'number',
       description: 'HTTP status code for redirect (301, 302, 307, or 308)',
+    },
+    deployment: {
+      type: 'object',
+      description: 'Associated deployment (id, url)',
+      optional: true,
+      properties: {
+        id: { type: 'string', description: 'Deployment ID' },
+        url: { type: 'string', description: 'Deployment URL' },
+      },
     },
   },
 }

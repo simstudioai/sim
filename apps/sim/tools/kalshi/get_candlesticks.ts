@@ -68,7 +68,7 @@ export const kalshiGetCandlesticksTool: ToolConfig<
 
       const query = queryParams.toString()
       const url = buildKalshiUrl(
-        `/series/${params.seriesTicker}/markets/${params.ticker}/candlesticks`
+        `/series/${params.seriesTicker.trim()}/markets/${params.ticker.trim()}/candlesticks`
       )
       return `${url}?${query}`
     },
@@ -210,7 +210,7 @@ export const kalshiGetCandlesticksV2Tool: ToolConfig<
 
       const query = queryParams.toString()
       const url = buildKalshiUrl(
-        `/series/${params.seriesTicker}/markets/${params.ticker}/candlesticks`
+        `/series/${params.seriesTicker.trim()}/markets/${params.ticker.trim()}/candlesticks`
       )
       return `${url}?${query}`
     },

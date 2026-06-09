@@ -10,7 +10,7 @@ export const LaunchDarklyBlock: BlockConfig = {
     'Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/launchdarkly',
   category: 'tools',
-  integrationType: IntegrationType.Observability,
+  integrationType: IntegrationType.DevOps,
   bgColor: '#191919',
   iconColor: '#405BFF',
   icon: LaunchDarklyIcon,
@@ -46,7 +46,6 @@ export const LaunchDarklyBlock: BlockConfig = {
       required: true,
     },
 
-    // Project key — needed for all except list_projects, list_members, get_audit_log
     {
       id: 'projectKey',
       title: 'Project Key',
@@ -64,7 +63,6 @@ export const LaunchDarklyBlock: BlockConfig = {
       },
     },
 
-    // Flag key — needed for get_flag, toggle_flag, delete_flag, update_flag, get_flag_status
     {
       id: 'flagKey',
       title: 'Flag Key',
@@ -80,7 +78,6 @@ export const LaunchDarklyBlock: BlockConfig = {
       },
     },
 
-    // Environment key — optional for list_flags/get_flag, required for toggle_flag/get_flag_status/list_segments
     {
       id: 'environmentKey',
       title: 'Environment Key',
@@ -96,7 +93,6 @@ export const LaunchDarklyBlock: BlockConfig = {
       },
     },
 
-    // Enabled toggle — for toggle_flag only
     {
       id: 'enabled',
       title: 'Enable Flag',
@@ -109,7 +105,6 @@ export const LaunchDarklyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'toggle_flag' },
     },
 
-    // Create flag fields
     {
       id: 'flagName',
       title: 'Flag Name',
@@ -154,7 +149,6 @@ export const LaunchDarklyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // Update flag fields
     {
       id: 'updateName',
       title: 'New Name',
@@ -207,17 +201,28 @@ export const LaunchDarklyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // Audit log filter
     {
       id: 'spec',
       title: 'Filter',
       type: 'short-input',
-      placeholder: 'resourceType:flag',
+      placeholder: 'proj/*:env/*:flag/*',
       condition: { field: 'operation', value: 'get_audit_log' },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a LaunchDarkly audit log resource specifier filter based on the user's description.
+
+Resource specifier format: type/key:type/key:type/key, where each segment narrows the scope.
+- All flag changes account-wide: proj/*:env/*:flag/*
+- All changes in one project: proj/my-project
+- One flag in one environment: proj/my-project:env/production:flag/my-flag
+- All flags in an environment: proj/my-project:env/production:flag/*
+
+Return ONLY the resource specifier string - no explanations, no extra text.`,
+        placeholder: 'Describe what to filter (e.g. flag changes in production)',
+      },
     },
 
-    // Tag filter for list_flags
     {
       id: 'tag',
       title: 'Filter by Tag',
@@ -227,7 +232,6 @@ export const LaunchDarklyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // Limit — for list operations and audit log
     {
       id: 'limit',
       title: 'Limit',
@@ -331,6 +335,12 @@ export const LaunchDarklyBlock: BlockConfig = {
     description: { type: 'string', description: 'Flag description' },
     temporary: { type: 'boolean', description: 'Whether the flag is temporary' },
     archived: { type: 'boolean', description: 'Whether the flag is archived' },
+    deprecated: { type: 'boolean', description: 'Whether the flag is deprecated' },
+    creationDate: { type: 'number', description: 'Unix timestamp (ms) when the flag was created' },
+    tags: { type: 'json', description: 'Tags applied to the flag' },
+    variations: { type: 'json', description: 'Flag variations ([{value, name, description}])' },
+    maintainerId: { type: 'string', description: 'ID of the member who maintains the flag' },
+    maintainerEmail: { type: 'string', description: 'Email of the member who maintains the flag' },
     on: { type: 'boolean', description: 'Whether the flag is on in the environment' },
     deleted: { type: 'boolean', description: 'Whether the flag was deleted' },
     projects: { type: 'json', description: 'List of projects' },
@@ -339,6 +349,7 @@ export const LaunchDarklyBlock: BlockConfig = {
     members: { type: 'json', description: 'List of members' },
     entries: { type: 'json', description: 'List of audit log entries' },
     lastRequested: { type: 'string', description: 'Last time the flag was evaluated' },
+    defaultVal: { type: 'string', description: 'The default variation value from flag status' },
   },
 }
 
@@ -435,6 +446,19 @@ export const LaunchDarklyBlockMeta = {
         'Report on a flag state across environments and recent changes from the audit log.',
       content:
         '# Flag Rollout Audit\n\nUnderstand where a flag stands and who changed it recently.\n\n## Steps\n1. Get the flag and list environments for the project.\n2. For each environment, capture the flag on/off state and targeting.\n3. Pull the audit log entries for the flag to see recent changes and who made them.\n\n## Output\nReturn a per-environment state table for the flag and a short changelog of recent modifications with actor and timestamp.',
+    },
+    {
+      name: 'emergency-flag-kill-switch',
+      description:
+        'Instantly disable a feature flag in production during an incident and confirm it is off.',
+      content:
+        '# Emergency Flag Kill-Switch\n\nKill a misbehaving feature in production immediately.\n\n## Steps\n1. Identify the project, the production environment key, and the flag key to disable.\n2. Toggle the flag off in that environment.\n3. Get the flag status to confirm it is now off and no longer being served.\n\n## Output\nReturn the flag key, environment, and confirmation that the flag is off, with the timestamp of the change.',
+    },
+    {
+      name: 'stale-flag-cleanup',
+      description: 'Find temporary or long-untouched feature flags and surface them for removal.',
+      content:
+        '# Stale Flag Cleanup\n\nKeep flag debt under control by surfacing flags that have outlived their purpose.\n\n## Steps\n1. List the flags in the project, noting which are marked temporary and their creation dates.\n2. Cross-reference the audit log to find flags with no recent changes.\n3. Compile the candidates that are temporary and inactive into a cleanup list.\n\n## Output\nReturn a list of stale flag keys with their age, temporary status, and last-change date so an owner can decide whether to archive or delete them.',
     },
   ],
 } as const satisfies BlockMeta

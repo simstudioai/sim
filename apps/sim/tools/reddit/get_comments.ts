@@ -96,14 +96,12 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       const sort = params.sort || 'confidence'
       const limit = Math.min(Math.max(1, params.limit ?? 50), 100)
 
-      // Build URL with query parameters
       const urlParams = new URLSearchParams({
         sort: sort,
         limit: limit.toString(),
         raw_json: '1',
       })
 
-      // Add comment-specific parameters if provided
       if (params.depth !== undefined) urlParams.append('depth', Number(params.depth).toString())
       if (params.context !== undefined)
         urlParams.append('context', Number(params.context).toString())
@@ -115,14 +113,12 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
 
       if (params.comment) urlParams.append('comment', params.comment)
 
-      // Validate postId to prevent path traversal
       const postId = params.postId.trim()
       const postIdValidation = validatePathSegment(postId, { paramName: 'postId' })
       if (!postIdValidation.isValid) {
         throw new Error(postIdValidation.error)
       }
 
-      // Build URL using OAuth endpoint
       return `https://oauth.reddit.com/r/${subreddit}/comments/${postId}?${urlParams.toString()}`
     },
     method: 'GET',
@@ -142,24 +138,19 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
   transformResponse: async (response: Response, requestParams?: RedditCommentsParams) => {
     const data = await response.json()
 
-    // Extract post data (first element in the array)
     const postData = data[0]?.data?.children?.[0]?.data || {}
 
-    // Extract and transform comments (second element in the array)
     const commentsData = data[1]?.data?.children || []
 
-    // Recursive function to process nested comments
     const processComments = (comments: any[]): any[] => {
       return comments
         .map((comment) => {
           const commentData = comment.data
 
-          // Skip non-comment items like "more" items
           if (!commentData || comment.kind !== 't1') {
             return null
           }
 
-          // Process nested replies if they exist
           const replies = commentData.replies?.data?.children
             ? processComments(commentData.replies.data.children)
             : []

@@ -1,5 +1,5 @@
 import type { LumaGetGuestsParams, LumaGetGuestsResponse } from '@/tools/luma/types'
-import { LUMA_GUEST_OUTPUT_PROPERTIES } from '@/tools/luma/types'
+import { LUMA_GUEST_OUTPUT_PROPERTIES, resolveGuestCheckedInAt } from '@/tools/luma/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const getGuestsTool: ToolConfig<LumaGetGuestsParams, LumaGetGuestsResponse> = {
@@ -84,7 +84,7 @@ export const getGuestsTool: ToolConfig<LumaGetGuestsParams, LumaGetGuestsRespons
     }
 
     const guests = (data.entries ?? []).map((entry: Record<string, unknown>) => {
-      const guest = entry.guest as Record<string, unknown>
+      const guest = (entry.guest as Record<string, unknown>) ?? entry
       return {
         id: (guest.id as string) ?? null,
         email: (guest.user_email as string) ?? null,
@@ -95,7 +95,7 @@ export const getGuestsTool: ToolConfig<LumaGetGuestsParams, LumaGetGuestsRespons
         registeredAt: (guest.registered_at as string) ?? null,
         invitedAt: (guest.invited_at as string) ?? null,
         joinedAt: (guest.joined_at as string) ?? null,
-        checkedInAt: (guest.checked_in_at as string) ?? null,
+        checkedInAt: resolveGuestCheckedInAt(guest),
         phoneNumber: (guest.phone_number as string) ?? null,
       }
     })

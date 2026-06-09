@@ -94,9 +94,7 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
         if (params.commits && params.commits !== null && params.commits !== '') {
           try {
             body.commits = JSON.parse(params.commits)
-          } catch (e) {
-            // If JSON parsing fails, ignore commits parameter
-          }
+          } catch {}
         }
 
         return body
