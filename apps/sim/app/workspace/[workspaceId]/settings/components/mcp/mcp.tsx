@@ -9,11 +9,8 @@ import {
   Badge,
   Button,
   Chip,
+  ChipConfirmModal,
   ChipInput,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
   Search,
   Tooltip,
 } from '@/components/emcn'
@@ -690,32 +687,24 @@ export function MCP({ initialServerId }: MCPProps) {
         allowedMcpDomains={allowedMcpDomains}
       />
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteDialog}
         onOpenChange={(open) => {
           if (!open) setServerToDeleteId(null)
         }}
         srTitle='Delete MCP Server'
-      >
-        <ChipModalHeader showDivider={false}>Delete MCP Server</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete MCP Server'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {servers.find((s) => s.id === serverToDeleteId)?.name || 'this server'}
             </span>
             ? This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setServerToDeleteId(null)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={confirmDeleteServer}>
-            Delete
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{ label: 'Delete', onClick: confirmDeleteServer }}
+      />
     </>
   )
 }

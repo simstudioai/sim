@@ -1325,4 +1325,32 @@ export const InstantlyBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'add-leads-to-campaign',
+      description:
+        'Push a batch of prospects into an Instantly campaign as new leads with personalization fields.',
+      content:
+        '# Add Leads to a Campaign\n\nLoad a set of prospects into an Instantly cold-email campaign so they enter the sending sequence.\n\n## Steps\n1. List campaigns and identify the target campaign by name.\n2. For each prospect, create a lead with email, first name, last name, company, and any custom personalization variables.\n3. Attach each lead to the chosen campaign.\n\n## Output\nReturn how many leads were added, the campaign name, and any rows skipped for missing or invalid emails.',
+    },
+    {
+      name: 'launch-outreach-campaign',
+      description: 'Create a cold-email campaign, load a lead list, and activate it for sending.',
+      content:
+        '# Launch an Outreach Campaign\n\nStand up a new Instantly campaign end to end and start sending.\n\n## Steps\n1. Create a lead list and add the target prospects to it.\n2. Create the campaign with its sending sequence and schedule.\n3. Add the leads to the campaign.\n4. Activate the campaign so sending begins.\n\n## Output\nReturn the campaign name, lead count, and activation status. Confirm the campaign is live.',
+    },
+    {
+      name: 'triage-campaign-replies',
+      description: 'Review recent campaign email replies and update each lead interest status.',
+      content:
+        '# Triage Campaign Replies\n\nProcess inbound replies on a campaign and route each lead by interest.\n\n## Steps\n1. List recent emails for the campaign and identify replies from leads.\n2. Read each reply and classify intent (interested, not interested, out of office, wrong person).\n3. Update the matching lead interest status to reflect the classification.\n4. For interested leads, draft a reply to the email.\n\n## Output\nReturn a summary of replies by category, the leads marked interested, and any drafted responses for review.',
+    },
+    {
+      name: 'campaign-performance-snapshot',
+      description:
+        'Summarize active campaigns and their leads into a quick outreach performance snapshot.',
+      content:
+        '# Campaign Performance Snapshot\n\nGive a quick read on how outreach is going across campaigns.\n\n## Steps\n1. List campaigns and note which are active.\n2. For each active campaign, list leads and tally counts by interest status.\n3. Pull recent emails to gauge reply volume.\n\n## Output\nReturn a per-campaign snapshot: total leads, breakdown by interest status, and reply activity, highlighting the top-performing campaign.',
+    },
+  ],
 } as const satisfies BlockMeta

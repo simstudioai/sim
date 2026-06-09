@@ -10,7 +10,7 @@ import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
-} from '@/lib/api/contracts/mothership-tasks'
+} from '@/lib/api/contracts/mothership-chats'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
@@ -63,11 +63,11 @@ import {
   isRecord,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
 import {
-  fetchChatHistory,
-  type TaskChatHistory,
-  taskKeys,
-  useChatHistory,
-} from '@/hooks/queries/tasks'
+  fetchMothershipChatHistory,
+  type MothershipChatHistory,
+  mothershipChatKeys,
+  useMothershipChatHistory,
+} from '@/hooks/queries/mothership-chats'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
@@ -713,7 +713,7 @@ function markMessageStopped(message: PersistedMessage): PersistedMessage {
   })
 }
 
-function buildChatHistoryHydrationKey(chatHistory: TaskChatHistory): string {
+function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
   const resourceKey = chatHistory.resources
     .map((resource) => `${resource.type}:${resource.id}:${resource.title}`)
     .join('|')
@@ -1118,18 +1118,21 @@ export function useChat(
     activeResourceIdRef,
   })
 
-  const upsertTaskChatHistory = useCallback(
-    (chatId: string, updater: (current: TaskChatHistory) => TaskChatHistory) => {
-      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), (current) => {
-        const base: TaskChatHistory = current ?? {
-          id: chatId,
-          title: null,
-          messages: [],
-          activeStreamId: null,
-          resources: resourcesRef.current,
+  const upsertChatHistory = useCallback(
+    (chatId: string, updater: (current: MothershipChatHistory) => MothershipChatHistory) => {
+      queryClient.setQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId),
+        (current) => {
+          const base: MothershipChatHistory = current ?? {
+            id: chatId,
+            title: null,
+            messages: [],
+            activeStreamId: null,
+            resources: resourcesRef.current,
+          }
+          return updater(base)
         }
-        return updater(base)
-      })
+      )
     },
     [queryClient]
   )
@@ -1200,7 +1203,7 @@ export function useChat(
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
-  /** Panel/task selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
+  /** Panel/chat selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
   const appliedChatHistoryKeyRef = useRef<string | undefined>(undefined)
@@ -1272,12 +1275,14 @@ export function useChat(
       streamId: string,
       assistantId: string,
       afterCursor: string,
-      options?: { targetChatId?: string; chatHistory?: TaskChatHistory }
+      options?: { targetChatId?: string; chatHistory?: MothershipChatHistory }
     ): ReconnectReplaySelection => {
       const cachedHistory =
         options?.chatHistory ??
         (options?.targetChatId
-          ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(options.targetChatId))
+          ? queryClient.getQueryData<MothershipChatHistory>(
+              mothershipChatKeys.detail(options.targetChatId)
+            )
           : undefined)
       const cachedLiveAssistant = cachedHistory?.messages.find(
         (message) => message.id === assistantId
@@ -1414,17 +1419,17 @@ export function useChat(
         !workflowIdRef.current &&
         typeof window !== 'undefined'
       ) {
-        window.history.replaceState(null, '', `/workspace/${workspaceId}/task/${chatId}`)
+        window.history.replaceState(null, '', `/workspace/${workspaceId}/chat/${chatId}`)
       }
       if (options?.invalidateList) {
-        queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
       }
       flushPendingResources(chatId)
     },
     [flushPendingResources, queryClient, workspaceId]
   )
 
-  const { data: chatHistory } = useChatHistory(resolvedChatId)
+  const { data: chatHistory } = useMothershipChatHistory(resolvedChatId)
   const messages = useMemo(() => {
     const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
@@ -1639,7 +1644,7 @@ export function useChat(
         clearActiveTurn()
         setTransportIdle()
         if (abandonedChatId) {
-          queryClient.invalidateQueries({ queryKey: taskKeys.detail(abandonedChatId) })
+          queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(abandonedChatId) })
         }
       } else {
         setResolvedChatId(initialChatId)
@@ -2053,16 +2058,18 @@ export function useChat(
       chatId: string,
       signal?: AbortSignal
     ): Promise<{ loaded: boolean; streamId: string | null }> => {
-      const cached = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      const cached = queryClient.getQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId)
+      )
 
       try {
         const fetchSignal = combineAbortSignals(
           signal,
           createTimeoutSignal(CHAT_HISTORY_RECOVERY_TIMEOUT_MS)
         )
-        const history = await fetchChatHistory(chatId, fetchSignal)
+        const history = await fetchMothershipChatHistory(chatId, fetchSignal)
         if (signal?.aborted || fetchSignal?.aborted) return { loaded: false, streamId: null }
-        queryClient.setQueryData(taskKeys.detail(chatId), history)
+        queryClient.setQueryData(mothershipChatKeys.detail(chatId), history)
         return { loaded: true, streamId: history.activeStreamId ?? null }
       } catch (error) {
         logger.warn('Failed to load chat history while recovering stream', {
@@ -2581,7 +2588,9 @@ export function useChat(
           selectedChatIdRef.current === startingSelectedChatId &&
           !recoveryController.signal.aborted
 
-        const cached = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+        const cached = queryClient.getQueryData<MothershipChatHistory>(
+          mothershipChatKeys.detail(chatId)
+        )
         const fallbackStreamId =
           streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? cached?.activeStreamId
         const loadedStream = await getActiveStreamIdForChat(chatId, recoveryController.signal)
@@ -2824,10 +2833,10 @@ export function useChat(
       const activeChatId = options?.targetChatId ?? chatIdRef.current
       if (options?.includeDetail !== false && activeChatId) {
         queryClient.invalidateQueries({
-          queryKey: taskKeys.detail(activeChatId),
+          queryKey: mothershipChatKeys.detail(activeChatId),
         })
       }
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
     },
     [workspaceId, queryClient]
   )
@@ -2871,7 +2880,8 @@ export function useChat(
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
       const cachedActiveStreamId = handoffChatId
-        ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(handoffChatId))?.activeStreamId
+        ? queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(handoffChatId))
+            ?.activeStreamId
         : undefined
       const supersededStreamId =
         streamIdRef.current ||
@@ -3027,7 +3037,7 @@ export function useChat(
       }
 
       if (requestChatId) {
-        await queryClient.cancelQueries({ queryKey: taskKeys.detail(requestChatId) })
+        await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(requestChatId) })
       }
 
       const applyOptimisticSend = () => {
@@ -3037,7 +3047,7 @@ export function useChat(
           contentBlocks: [],
         })
         if (requestChatId) {
-          upsertTaskChatHistory(requestChatId, (current) => ({
+          upsertChatHistory(requestChatId, (current) => ({
             ...current,
             resources: current.resources.filter((resource) => resource.id !== 'streaming-file'),
             messages: [
@@ -3060,7 +3070,7 @@ export function useChat(
 
       const rollbackOptimisticSend = () => {
         if (requestChatId) {
-          upsertTaskChatHistory(requestChatId, (current) => ({
+          upsertChatHistory(requestChatId, (current) => ({
             ...current,
             messages: current.messages.filter(
               (persistedMessage) =>
@@ -3121,7 +3131,9 @@ export function useChat(
               throw new Error('Queued message was restored because the selected chat changed.')
             }
             if (requestChatId) {
-              await queryClient.cancelQueries({ queryKey: taskKeys.detail(requestChatId) })
+              await queryClient.cancelQueries({
+                queryKey: mothershipChatKeys.detail(requestChatId),
+              })
             }
             applyOptimisticSend()
           } catch (err) {
@@ -3317,7 +3329,7 @@ export function useChat(
     [
       workspaceId,
       queryClient,
-      upsertTaskChatHistory,
+      upsertChatHistory,
       processSSEStream,
       finalize,
       resumeOrFinalize,
@@ -3633,7 +3645,8 @@ export function useChat(
         streamIdRef.current ||
         activeTurnRef.current?.userMessageId ||
         (activeChatId
-          ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(activeChatId))?.activeStreamId
+          ? queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(activeChatId))
+              ?.activeStreamId
           : undefined) ||
         undefined
 
@@ -3679,8 +3692,8 @@ export function useChat(
 
       try {
         if (activeChatId) {
-          await queryClient.cancelQueries({ queryKey: taskKeys.detail(activeChatId) })
-          upsertTaskChatHistory(activeChatId, (current) => ({
+          await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(activeChatId) })
+          upsertChatHistory(activeChatId, (current) => ({
             ...current,
             messages: current.messages.map((message) =>
               activeAssistantMessageId && message.id === activeAssistantMessageId
@@ -3870,7 +3883,7 @@ export function useChat(
       queryClient,
       resolveChatIdForStream,
       resetEphemeralPreviewState,
-      upsertTaskChatHistory,
+      upsertChatHistory,
       adoptResolvedChatId,
       clearActiveTurn,
       setTransportIdle,
@@ -4041,8 +4054,9 @@ export function useChat(
           ? (() => {
               const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
               const cachedActiveStreamId = handoffChatId
-                ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(handoffChatId))
-                    ?.activeStreamId
+                ? queryClient.getQueryData<MothershipChatHistory>(
+                    mothershipChatKeys.detail(handoffChatId)
+                  )?.activeStreamId
                 : undefined
               return {
                 id: msg.id,

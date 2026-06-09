@@ -193,4 +193,27 @@ export const EnrichmentBlockMeta = {
       tags: ['sales', 'research', 'enrichment'],
     },
   ],
+  skills: [
+    {
+      name: 'find-work-email',
+      description:
+        'Find a verified work email for a contact given their full name and company domain using the Work Email enrichment.',
+      content:
+        '# Find a Work Email\n\nResolve a verified work email for a prospect.\n\n## Steps\n1. Confirm you have the contact full name and the company domain (resolve the domain first if only a company name is given).\n2. Run the Work Email enrichment with name and domain.\n3. Capture the email and its verification confidence.\n\n## Output\nThe verified work email with its confidence level, or a clear note that no match was found.',
+    },
+    {
+      name: 'enrich-company-profile',
+      description:
+        'Pull firmographics (industry, headcount, founded year, description) for a company domain using the Company Info enrichment.',
+      content:
+        '# Enrich a Company Profile\n\nBuild a firmographic profile for an account.\n\n## Steps\n1. Confirm the company domain (resolve it with the Company Domain enrichment if you only have a name).\n2. Run the Company Info enrichment on the domain.\n3. Capture industry, employee count, founded year, and description.\n\n## Output\nA structured company profile with the key firmographics, ready to write into an accounts record.',
+    },
+    {
+      name: 'build-full-contact',
+      description:
+        'Take a prospect name and company, resolve the domain, then find the work email and phone to assemble a complete contact.',
+      content:
+        '# Build a Full Contact\n\nGo from a name and company to a complete, enriched contact.\n\n## Steps\n1. Run the Company Domain enrichment to resolve the company website domain.\n2. Run the Work Email enrichment using the name and resolved domain.\n3. Run the Phone Number enrichment for a direct phone.\n4. Assemble the results into one contact record.\n\n## Output\nA complete contact with name, company, domain, verified email, and phone, plus confidence for each field.',
+    },
+  ],
 } as const satisfies BlockMeta

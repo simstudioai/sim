@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
-  Chip,
   ChipCombobox,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -397,22 +397,23 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           </div>
         </ChipModalBody>
 
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => handleClose(false)}>
-            Close
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => handleClose(false)}
+          primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
+        />
       </ChipModal>
 
       {/* Delete Tag Confirmation Dialog */}
-      <ChipModal
+      <ChipConfirmModal
         open={deleteTagDialogOpen}
-        onOpenChange={setDeleteTagDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteTagDialogOpen(open)
+          if (!open) setSelectedTag(null)
+        }}
         srTitle='Delete Tag'
-      >
-        <ChipModalHeader showDivider={false}>Delete Tag</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Tag'
+        description={
+          <>
             Are you sure you want to delete the &ldquo;
             <span className='text-[var(--text-primary)]'>{selectedTag?.displayName}</span>&rdquo;
             tag?{' '}
@@ -421,36 +422,25 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
               {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.
             </span>{' '}
             This action cannot be undone.
-          </p>
-          {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
-            <div className='flex flex-col gap-2 px-2'>
-              <Label>Affected documents:</Label>
-              <DocumentList
-                documents={selectedTagUsage.documents}
-                totalCount={selectedTagUsage.documentCount}
-              />
-            </div>
-          )}
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            disabled={deleteTagMutation.isPending}
-            onClick={() => setDeleteTagDialogOpen(false)}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmDeleteTag}
-            disabled={deleteTagMutation.isPending}
-          >
-            {deleteTagMutation.isPending ? 'Deleting...' : 'Delete Tag'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete Tag',
+          onClick: confirmDeleteTag,
+          pending: deleteTagMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      >
+        {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
+          <div className='flex flex-col gap-2 px-2'>
+            <Label>Affected documents:</Label>
+            <DocumentList
+              documents={selectedTagUsage.documents}
+              totalCount={selectedTagUsage.documentCount}
+            />
+          </div>
+        )}
+      </ChipConfirmModal>
 
       {/* View Documents Dialog */}
       <ChipModal
@@ -485,11 +475,10 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             )}
           </div>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setViewDocumentsDialogOpen(false)}>
-            Close
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setViewDocumentsDialogOpen(false)}
+          primaryAction={{ label: 'Close', onClick: () => setViewDocumentsDialogOpen(false) }}
+        />
       </ChipModal>
     </>
   )

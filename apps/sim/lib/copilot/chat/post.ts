@@ -23,6 +23,7 @@ import {
 } from '@/lib/copilot/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import {
   CopilotChatFinalizeOutcome,
@@ -41,7 +42,6 @@ import {
 } from '@/lib/copilot/request/session'
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
@@ -359,7 +359,7 @@ async function persistUserMessage(params: {
       )
 
       if (notifyWorkspaceStatus && updated && workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
           type: 'started',
@@ -458,7 +458,7 @@ function buildOnComplete(params: {
           finalization.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
 
         if (notifyWorkspaceStatus && workspaceId && shouldPublishCompletion) {
-          taskPubSub?.publishStatusChanged({
+          chatPubSub?.publishStatusChanged({
             workspaceId,
             chatId,
             type: 'completed',
@@ -484,7 +484,7 @@ function buildOnComplete(params: {
       })
 
       if (notifyWorkspaceStatus && workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
           type: 'completed',
@@ -530,7 +530,7 @@ function buildOnError(params: {
       })
 
       if (notifyWorkspaceStatus && workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
           type: 'completed',

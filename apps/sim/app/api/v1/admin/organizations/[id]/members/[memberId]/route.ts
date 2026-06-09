@@ -36,7 +36,10 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
-import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import {
+  removeUserFromOrganization,
+  WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR,
+} from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -260,6 +263,9 @@ export const DELETE = withRouteHandler(
         }
         if (result.error === 'Member not found') {
           return notFoundResponse('Member')
+        }
+        if (result.error === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR) {
+          return badRequestResponse(result.error)
         }
         return internalErrorResponse(result.error || 'Failed to remove member')
       }

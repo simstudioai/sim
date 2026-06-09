@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -223,31 +222,24 @@ export function SkillModal({
 
       {showFooter && (
         <ChipModalFooter
-          leading={
-            isEditing && onDelete ? (
-              <Chip
-                variant='destructive'
-                flush
-                onClick={() => onDelete(initialValues.id)}
-                disabled={readOnly}
-              >
-                Delete
-              </Chip>
-            ) : undefined
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={readOnly}
+          secondaryAction={
+            isEditing && onDelete
+              ? {
+                  label: 'Delete',
+                  onClick: () => onDelete(initialValues.id),
+                  variant: 'destructive',
+                  disabled: readOnly,
+                }
+              : undefined
           }
-        >
-          <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleSave}
-            disabled={readOnly || saving || !hasChanges}
-          >
-            {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
-          </Chip>
-        </ChipModalFooter>
+          primaryAction={{
+            label: saving ? 'Saving...' : isEditing ? 'Update' : 'Create',
+            onClick: handleSave,
+            disabled: readOnly || saving || !hasChanges,
+          }}
+        />
       )}
     </ChipModal>
   )

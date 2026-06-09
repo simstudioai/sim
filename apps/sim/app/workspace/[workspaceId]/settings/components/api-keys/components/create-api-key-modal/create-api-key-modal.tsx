@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -155,23 +154,17 @@ export function CreateApiKeyModal({
           />
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleClose}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleCreateKey}
-            disabled={
+        <ChipModalFooter
+          onCancel={handleClose}
+          primaryAction={{
+            label: createApiKeyMutation.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreateKey,
+            disabled:
               !keyName.trim() ||
               createApiKeyMutation.isPending ||
-              (keyType === 'workspace' && !canManageWorkspaceKeys)
-            }
-          >
-            {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
-          </Chip>
-        </ChipModalFooter>
+              (keyType === 'workspace' && !canManageWorkspaceKeys),
+          }}
+        />
       </ChipModal>
 
       {/* New API Key Dialog - shows the created key */}
@@ -193,11 +186,10 @@ export function CreateApiKeyModal({
             {newKey && <SecretReveal value={newKey.key} />}
           </ChipModalField>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='primary' flush onClick={() => setShowNewKeyDialog(false)}>
-            Done
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setShowNewKeyDialog(false)}
+          primaryAction={{ label: 'Done', onClick: () => setShowNewKeyDialog(false) }}
+        />
       </ChipModal>
     </>
   )

@@ -1334,4 +1334,25 @@ export const JiraServiceManagementBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'raise-service-request',
+      description:
+        'Create a customer request on the right service desk with the correct request type.',
+      content:
+        '# Raise a Service Request\n\nLog an inbound customer request into the correct Jira Service Management queue.\n\n## Steps\n1. Get service desks and identify the right one for the request.\n2. Get request types for that service desk and choose the matching type.\n3. Create the request with a clear summary, description, and any required request-type fields.\n4. Capture the request key and reporter.\n\n## Output\nReturn the request key, the service desk and request type used, and the reporter. Confirm required fields were filled.',
+    },
+    {
+      name: 'respond-and-update-request',
+      description: 'Add a public reply to a customer request and move it to the right status.',
+      content:
+        '# Respond and Update a Request\n\nReply to a customer on their request and advance it.\n\n## Steps\n1. Get the request and read its history and current status.\n2. Add a comment with the response (public to the customer).\n3. Get available transitions and move the request to the appropriate status.\n\n## Output\nReturn the request key, the comment added, and the new status.',
+    },
+    {
+      name: 'sla-breach-watch',
+      description: 'Scan open requests on a queue and flag ones at risk of breaching SLA.',
+      content:
+        '# SLA Breach Watch\n\nSurface requests that are about to miss their SLA so the team can act.\n\n## Steps\n1. Get the service desk and its queues, then get requests in the target queue.\n2. For each request, get its SLA information and time remaining.\n3. Flag requests that are breached or close to breaching their target.\n\n## Output\nReturn a prioritized list of at-risk requests with key, summary, SLA metric, and time remaining, worst first.',
+    },
+  ],
 } as const satisfies BlockMeta

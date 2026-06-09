@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -65,19 +64,15 @@ export function CreateWorkspaceModal({
         />
         <ChipModalError>{undefined}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isCreating}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={() => void handleSubmit()}
-          disabled={!name.trim() || isCreating}
-        >
-          {isCreating ? 'Creating...' : 'Create'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        cancelDisabled={isCreating}
+        primaryAction={{
+          label: isCreating ? 'Creating...' : 'Create',
+          onClick: () => void handleSubmit(),
+          disabled: !name.trim() || isCreating,
+        }}
+      />
     </ChipModal>
   )
 }

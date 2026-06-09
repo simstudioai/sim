@@ -11,10 +11,10 @@ import {
   buildPersistedUserMessage,
 } from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
@@ -117,7 +117,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
         .then(async (title) => {
           if (title && chatId) {
             await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
-            taskPubSub?.publishStatusChanged({
+            chatPubSub?.publishStatusChanged({
               workspaceId: ws.id,
               chatId,
               type: 'renamed',
@@ -128,7 +128,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
           logger.warn('Failed to generate chat title', { chatId, err })
         })
 
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'created',
@@ -138,7 +138,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     const userMessageId = generateId()
 
     if (chatId) {
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'started',
@@ -248,7 +248,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       .where(eq(mothershipInboxTask.id, taskId))
 
     if (chatId) {
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'completed',

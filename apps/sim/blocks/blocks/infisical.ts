@@ -304,4 +304,26 @@ export const InfisicalBlockMeta = {
       alsoIntegrations: ['s3'],
     },
   ],
+  skills: [
+    {
+      name: 'fetch-secret-for-run',
+      description:
+        'Retrieve a named secret from Infisical to use as a credential during a workflow run.',
+      content:
+        '# Fetch a Secret for a Run\n\nPull a single secret from Infisical so a downstream step can authenticate without hardcoding credentials.\n\n## Steps\n1. Identify the project, environment (e.g. dev, staging, prod), and secret path.\n2. Get the secret by name from that scope.\n3. Pass the value to the consuming step. Never echo the raw secret into logs or output.\n\n## Output\nConfirm the secret was retrieved (by name and environment) and that it was used. Do not print the secret value itself.',
+    },
+    {
+      name: 'rotate-secret',
+      description: 'Update an existing secret in Infisical with a new value as part of a rotation.',
+      content:
+        '# Rotate a Secret\n\nReplace a secret value in Infisical during a credential rotation.\n\n## Steps\n1. Confirm the project, environment, and secret name to rotate.\n2. Update the secret with the new value at that path.\n3. Optionally read the secret back by name to confirm it now exists (without printing the value).\n\n## Output\nConfirm the secret name and environment that was rotated and the timestamp. Never expose the old or new value.',
+    },
+    {
+      name: 'audit-environment-secrets',
+      description:
+        'List the secret names present in an Infisical environment for an inventory or audit.',
+      content:
+        '# Audit Environment Secrets\n\nProduce an inventory of which secrets exist in an Infisical environment without exposing their values.\n\n## Steps\n1. Choose the project, environment, and path to audit.\n2. List secrets at that scope and collect only the keys and metadata.\n3. Compare against the expected set if one is provided and flag missing or unexpected keys.\n\n## Output\nReturn a list of secret names (keys only) with count, and any discrepancies versus the expected set. Never include secret values.',
+    },
+  ],
 } as const satisfies BlockMeta

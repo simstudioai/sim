@@ -479,7 +479,7 @@ function buildComparisonClause(
 }
 
 /** Escapes LIKE/ILIKE wildcard characters so they match literally */
-function escapeLikePattern(value: string): string {
+export function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&')
 }
 

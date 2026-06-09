@@ -29,8 +29,8 @@ import { listIntegrations } from '@/blocks/integration-matcher'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
+import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useTasks } from '@/hooks/queries/tasks'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -76,7 +76,7 @@ export function useAvailableResources(
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
   const { data: fileFolders = [] } = useWorkspaceFileFolders(workspaceId)
-  const { data: tasks = [] } = useTasks(workspaceId)
+  const { data: tasks = [] } = useMothershipChats(workspaceId)
   const { data: logsData } = useLogsList(workspaceId, LOG_DROPDOWN_FILTERS)
   const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
 

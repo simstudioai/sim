@@ -822,4 +822,27 @@ export const AgentPhoneBlockMeta = {
       alsoIntegrations: ['zendesk'],
     },
   ],
+  skills: [
+    {
+      name: 'send-sms-notification',
+      description:
+        'Send an SMS or iMessage from an AgentPhone number to notify or remind a recipient.',
+      content:
+        '# Send SMS Notification\n\nSend a text message to a person from an AgentPhone number.\n\n## Steps\n1. Determine the sending number and the recipient phone number.\n2. Write a clear, concise message (reminder, alert, confirmation, or update).\n3. Send the SMS or iMessage.\n\n## Output\nConfirm the message was sent with the recipient number and a short preview of the text. Note any send failure.',
+    },
+    {
+      name: 'place-outbound-call',
+      description:
+        'Place a voice call from an AgentPhone number to deliver a message or run a short scripted interaction.',
+      content:
+        '# Place Outbound Call\n\nMake a voice call from an AgentPhone number for reminders, confirmations, or notifications.\n\n## Steps\n1. Determine the AgentPhone number to call from and the destination number.\n2. Prepare the spoken message or script to deliver.\n3. Place the call and deliver the message.\n\n## Output\nConfirm the call was placed with the destination number and the message delivered. Report call status or transcript if available.',
+    },
+    {
+      name: 'provision-and-respond',
+      description:
+        'Provision a phone number and handle inbound SMS by reading the message and sending an appropriate reply.',
+      content:
+        '# Provision and Respond\n\nSet up a phone number and respond to incoming texts.\n\n## Steps\n1. Provision a US or Canadian phone number if one is not already assigned.\n2. Read inbound SMS messages received on that number.\n3. For each message, determine intent and send a relevant reply.\n\n## Output\nReport the provisioned number, the inbound messages handled, and the replies sent.',
+    },
+  ],
 } as const satisfies BlockMeta

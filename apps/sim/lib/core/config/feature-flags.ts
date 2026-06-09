@@ -97,6 +97,15 @@ export const isSignupEmailValidationEnabled = isTruthy(env.SIGNUP_EMAIL_VALIDATI
 export const isSignupMxValidationEnabled = isTruthy(env.SIGNUP_MX_VALIDATION_ENABLED)
 
 /**
+ * Is AWS AppConfig the source of truth for the signup/login gating lists.
+ * Hosted-only and requires both AppConfig identifiers (injected by the infra
+ * stack). Self-hosted/OSS deployments always use the env-var fallback, so the
+ * AppConfig client is never reached off-hosted.
+ */
+export const isAppConfigEnabled =
+  isHosted && Boolean(env.APPCONFIG_APPLICATION && env.APPCONFIG_ENVIRONMENT)
+
+/**
  * Is Trigger.dev enabled for async job processing
  */
 export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)

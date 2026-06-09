@@ -54,6 +54,7 @@ const INTEGRATION_BY_LOWER_NAME: ReadonlyMap<string, Integration> = new Map(
 const ALL_CATEGORY_SECTIONS: readonly { label: string; integrations: Integration[] }[] = (() => {
   const grouped = new Map<string, Integration[]>()
   for (const integration of INTEGRATIONS) {
+    if (!integration.integrationType) continue
     const bucket = grouped.get(integration.integrationType)
     if (bucket) bucket.push(integration)
     else grouped.set(integration.integrationType, [integration])

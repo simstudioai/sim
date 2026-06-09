@@ -244,4 +244,27 @@ export const DSPyBlockMeta = {
       tags: ['research', 'llm', 'agentic'],
     },
   ],
+  skills: [
+    {
+      name: 'run-dspy-prediction',
+      description:
+        'Call a self-hosted DSPy Predict program to get a structured output from an input.',
+      content:
+        '# Run DSPy Prediction\n\nSend input to a self-hosted DSPy Predict program and return its structured answer.\n\n## Steps\n1. Confirm the DSPy server base URL and, if required, the API key.\n2. Choose the Predict operation and supply the input text. Set the input field name only if the program signature expects something other than the default.\n3. Pass any extra signature fields as an additional-inputs JSON object.\n\n## Output\nReturn the program answer and any structured fields it produced. If the server returns a non-success status, surface the status and the raw output for debugging.',
+    },
+    {
+      name: 'reason-with-chain-of-thought',
+      description:
+        'Use a DSPy Chain of Thought program to answer a question with explicit reasoning.',
+      content:
+        '# Reason with Chain of Thought\n\nAnswer a question through a self-hosted DSPy Chain of Thought program that exposes its reasoning.\n\n## Steps\n1. Confirm the DSPy server base URL and API key if needed.\n2. Choose the Chain of Thought operation and supply the question. Add any background as context.\n3. Run the program and capture both the answer and the reasoning trace.\n\n## Output\nReturn the final answer plus the reasoning rationale so the requester can audit how the conclusion was reached.',
+    },
+    {
+      name: 'run-dspy-react-agent',
+      description:
+        'Run a DSPy ReAct agent on a task that requires multi-step tool use, and capture its trajectory.',
+      content:
+        '# Run DSPy ReAct Agent\n\nExecute a task with a self-hosted DSPy ReAct agent that interleaves reasoning and actions.\n\n## Steps\n1. Confirm the DSPy server base URL and API key if needed.\n2. Choose the ReAct operation and describe the task clearly. Set a max-iterations cap to bound how many reasoning-action cycles run.\n3. Provide any needed context, then execute the agent.\n\n## Output\nReturn the final answer and the step-by-step trajectory (thoughts, actions, observations). If the agent hit the iteration cap without finishing, note that and summarize the last state.',
+    },
+  ],
 } as const satisfies BlockMeta

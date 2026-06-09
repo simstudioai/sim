@@ -3214,6 +3214,10 @@ export const userTableRows = pgTable(
      * Fractional order key (base-62 string). Authoritative row order when the
      * `TABLES_FRACTIONAL_ORDERING` flag is on; nullable during the backfill
      * window. Ordered with `id` as a deterministic tiebreaker.
+     *
+     * Stored with `COLLATE "C"` (migration 0228) so Postgres compares it bytewise,
+     * matching the fractional-indexing library's ASCII ordering. drizzle can't
+     * express column collation, so the collation lives only in the migration.
      */
     orderKey: text('order_key'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

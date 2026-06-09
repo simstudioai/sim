@@ -728,6 +728,33 @@ export const GmailBlockMeta = {
       alsoIntegrations: ['notion'],
     },
   ],
+  skills: [
+    {
+      name: 'triage-inbox',
+      description:
+        'Sort unread email by urgency and draft replies for the most important messages.',
+      content:
+        '# Triage Inbox\n\nReview unread Gmail messages and bring order to the inbox.\n\n## Steps\n1. Read unread messages from the relevant time window.\n2. Classify each as Urgent, Today, This week, or FYI based on sender, subject, and content.\n3. For Urgent and Today items, draft a concise reply.\n4. Flag anything that needs a meeting or a decision from someone else.\n\n## Output\nReturn a prioritized list: each message with its sender, a one-line summary, the assigned priority, and the draft reply where one was written. Do not send anything without confirmation.',
+    },
+    {
+      name: 'summarize-email-thread',
+      description: 'Condense a long email thread into the key points, decisions, and action items.',
+      content:
+        '# Summarize Email Thread\n\nGiven a Gmail thread, produce a tight summary.\n\n## Steps\n1. Read every message in the thread in order.\n2. Identify the core topic, what was decided, and what is still open.\n3. Pull out action items and who owns each.\n\n## Output\n- A one-sentence TL;DR.\n- Key decisions as bullets.\n- Action items with owners.\n- Open questions that still need an answer.',
+    },
+    {
+      name: 'draft-reply-from-context',
+      description: 'Draft a contextual reply to an email in the right tone, ready for review.',
+      content:
+        '# Draft Reply From Context\n\nWrite a reply to an incoming email that is ready to send after a quick review.\n\n## Steps\n1. Read the email and any prior thread context.\n2. Determine what the sender is asking for and the appropriate tone (formal, friendly, brief).\n3. Draft a reply that answers every question and proposes clear next steps.\n\n## Output\nA complete draft reply with subject and body. Keep it concise, match the sender style, and leave placeholders in brackets for any detail you cannot infer. Do not send without confirmation.',
+    },
+    {
+      name: 'find-and-extract-emails',
+      description: 'Search Gmail for messages matching a query and extract the details you need.',
+      content:
+        '# Find And Extract Emails\n\nLocate specific emails and pull structured information from them.\n\n## Steps\n1. Build a Gmail search query from the request (sender, subject keywords, date range, label, has attachment).\n2. Retrieve matching messages.\n3. Extract the requested fields from each, for example invoice amounts, order numbers, contact details, or attachment names.\n\n## Output\nA structured list of the matching emails with the extracted fields, plus a link or message id for each so the source can be opened.',
+    },
+  ],
 } as const satisfies BlockMeta
 
 export const GmailV2BlockMeta = {

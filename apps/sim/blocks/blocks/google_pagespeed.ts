@@ -150,4 +150,25 @@ export const GooglePagespeedBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'audit-page-performance',
+      description:
+        'Run a PageSpeed Insights analysis on a URL and report scores and Core Web Vitals.',
+      content:
+        '# Audit Page Performance\n\nMeasure a page with PageSpeed Insights (Lighthouse).\n\n## Steps\n1. Take the page URL.\n2. Choose the Strategy: mobile (recommended for ranking) or desktop. Run once per strategy if both are needed.\n3. Optionally set Categories (performance, accessibility, best-practices, seo) and Locale.\n4. Run the analysis and read the category scores plus Core Web Vitals (LCP, FCP, CLS, TBT, Speed Index, TTI).\n\n## Output\nA report: per-category scores (0-100), Core Web Vitals with their display values, and the final URL analyzed. Call out any metric in the poor range and the strategy used.',
+    },
+    {
+      name: 'compare-mobile-vs-desktop',
+      description: 'Analyze a page on both mobile and desktop and contrast the scores and vitals.',
+      content:
+        "# Compare Mobile vs Desktop\n\nContrast a page's performance across form factors.\n\n## Steps\n1. Run the analysis on the URL with Strategy = mobile.\n2. Run it again with Strategy = desktop.\n3. Line up the category scores and Core Web Vitals from each run.\n4. Identify the biggest gaps (typically LCP/TBT on mobile).\n\n## Output\nA side-by-side comparison table of mobile vs desktop scores and key vitals, plus a short note on where mobile lags and what likely causes it.",
+    },
+    {
+      name: 'track-core-web-vitals',
+      description: 'Capture Core Web Vitals for one or more pages to feed a monitoring history.',
+      content:
+        '# Track Core Web Vitals\n\nCapture CWV metrics for trend tracking.\n\n## Steps\n1. For each target URL, run the analysis (usually Strategy = mobile) limiting Categories to performance for speed.\n2. Extract LCP, CLS, TBT, FCP, Speed Index, and TTI numeric values plus the performance score.\n3. Stamp each row with the URL and analysis timestamp.\n4. Compare against any prior baseline to detect regressions.\n\n## Output\nOne row per URL with the performance score and CWV numeric values, ready to append to a history table. Flag any metric that regressed beyond a threshold versus the baseline.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -4,16 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
-import {
-  Chip,
-  ChipCombobox,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  toast,
-  Upload,
-} from '@/components/emcn'
+import { ChipCombobox, ChipConfirmModal, toast, Upload } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
@@ -24,7 +15,12 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  InlineRenameInput,
+  ownerCell,
+  Resource,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
@@ -36,11 +32,13 @@ import {
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
+  useRenameTable,
   useTablesList,
   useUploadCsvToTable,
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Tables')
@@ -75,8 +73,13 @@ export function Tables() {
     logger.error('Failed to load tables:', error)
   }
   const deleteTable = useDeleteTable(workspaceId)
+  const renameTable = useRenameTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
   const uploadCsv = useUploadCsvToTable()
+
+  const tableRename = useInlineRename({
+    onSave: (tableId, name) => renameTable.mutate({ tableId, name }),
+  })
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -162,6 +165,20 @@ export function Tables() {
           name: {
             icon: <TableIcon className='size-[14px]' />,
             label: table.name,
+            content:
+              tableRename.editingId === table.id ? (
+                <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
+                  <span className='flex-shrink-0 text-[var(--text-icon)]'>
+                    <TableIcon className='size-[14px]' />
+                  </span>
+                  <InlineRenameInput
+                    value={tableRename.editValue}
+                    onChange={tableRename.setEditValue}
+                    onSubmit={tableRename.submitRename}
+                    onCancel={tableRename.cancelRename}
+                  />
+                </span>
+              ) : undefined,
           },
           columns: {
             icon: <Columns3 className='size-[14px]' />,
@@ -176,7 +193,15 @@ export function Tables() {
           updated: timeCell(table.updatedAt),
         },
       })),
-    [processedTables, members]
+    [
+      processedTables,
+      members,
+      tableRename.editingId,
+      tableRename.editValue,
+      tableRename.setEditValue,
+      tableRename.submitRename,
+      tableRename.cancelRename,
+    ]
   )
 
   const searchConfig: SearchConfig = useMemo(
@@ -527,6 +552,9 @@ export function Tables() {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
+        onRename={() => {
+          if (activeTable) tableRename.startRename(activeTable.id, activeTable.name)
+        }}
         onImportCsv={() => setIsImportDialogOpen(true)}
         onExportCsv={async () => {
           if (!activeTable) return
@@ -554,39 +582,31 @@ export function Tables() {
         />
       )}
 
-      <ChipModal
+      <ChipConfirmModal
         open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open)
+          if (!open) setActiveTable(null)
+        }}
         srTitle='Delete Table'
-      >
-        <ChipModalHeader showDivider={false}>Delete Table</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Table'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
             <span className='text-[var(--text-error)]'>
               All {activeTable?.rowCount} rows will be removed.
             </span>{' '}
             You can restore it from Recently Deleted in Settings.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setIsDeleteDialogOpen(false)
-              setActiveTable(null)
-            }}
-            disabled={deleteTable.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDelete} disabled={deleteTable.isPending}>
-            {deleteTable.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteTable.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

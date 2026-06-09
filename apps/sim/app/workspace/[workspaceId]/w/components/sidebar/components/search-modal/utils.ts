@@ -51,7 +51,7 @@ export interface SearchModalProps {
   onOpenChange: (open: boolean) => void
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
-  tasks?: TaskItem[]
+  chats?: TaskItem[]
   tables?: TaskItem[]
   files?: FileItem[]
   knowledgeBases?: TaskItem[]

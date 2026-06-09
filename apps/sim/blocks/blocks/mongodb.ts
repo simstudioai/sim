@@ -1036,4 +1036,24 @@ export const MongoDBBlockMeta = {
       alsoIntegrations: ['tinybird'],
     },
   ],
+  skills: [
+    {
+      name: 'find-documents',
+      description: 'Query a MongoDB collection with a filter and return the matching documents.',
+      content:
+        '# Find Documents\n\nRetrieve documents from a MongoDB collection that match a filter.\n\n## Steps\n1. If the collection shape is unknown, run Introspect Database first to learn the fields.\n2. Build a MongoDB filter document for the requested condition, using operators like $gte, $in, and $regex as needed.\n3. Run Find Documents against the target collection with the filter, plus projection and limit when appropriate.\n\n## Output\nReturn the matching documents. State the filter used and the number of results. Suggest an index if a scan looks slow.',
+    },
+    {
+      name: 'aggregate-report',
+      description: 'Run a MongoDB aggregation pipeline to group and summarize collection data.',
+      content:
+        '# Aggregate Report\n\nProduce a summary from a MongoDB collection using an aggregation pipeline.\n\n## Steps\n1. Introspect the collection to confirm the fields to group and measure on.\n2. Compose a pipeline with stages such as $match, $group, $sort, and $limit to compute the requested metric.\n3. Run the Aggregate Pipeline operation and read back the grouped results.\n\n## Output\nA compact table of the grouped metrics. Include the pipeline used so the query can be rerun.',
+    },
+    {
+      name: 'upsert-document',
+      description: 'Insert a new MongoDB document or update an existing one matched by a key.',
+      content:
+        '# Upsert Document\n\nWrite a document to MongoDB, creating it or updating the existing match.\n\n## Steps\n1. Determine the key field that identifies the record uniquely.\n2. Run Find Documents on that key to see whether a record already exists.\n3. If it exists, run Update Documents with the new values; otherwise run Insert Documents.\n\n## Output\nReport whether a document was inserted or updated and echo the key value. Confirm the affected count.',
+    },
+  ],
 } as const satisfies BlockMeta
