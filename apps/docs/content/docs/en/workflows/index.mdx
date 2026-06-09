@@ -57,7 +57,7 @@ An **output** is what a block produces; later blocks read it through connection 
 
 On reuse, the consumer picks which outputs it wants by name: a [chat deployment](/deployment/chat), a [table column](/tables/workflow-columns), or an [API call](/deployment/api) each select block outputs individually. It's the same idea as connection tags, applied at the workflow's edge. (For precise HTTP control, add a [Response block](/blocks/response).)
 
-## Kinds of blocks
+## Kinds of blocks [#blocks]
 
 Core blocks come in three kinds: blocks that **do work** ([Agent](/blocks/agent), [Function](/blocks/function), [API](/blocks/api)), blocks that **direct the flow** ([Condition](/blocks/condition), [Router](/blocks/router), [Loop](/blocks/loop), [Parallel](/blocks/parallel)), and blocks that **shape the run** ([Response](/blocks/response), [Guardrails](/blocks/guardrails), [Wait](/blocks/wait), and more).
 
@@ -66,7 +66,7 @@ Two larger families do more specific jobs:
 - **[Integrations](/integrations)** connect to an external service — Gmail, Slack, Notion, a database — with hundreds available. An agent can also call them as tools.
 - **Triggers** are the blocks that start a workflow.
 
-## How a workflow starts
+## How a workflow starts [#triggers]
 
 A trigger decides what starts the run and what input it receives. **Native triggers** need no connected account: [Start](/triggers/start) (manual, API, or chat), [Schedule](/triggers/schedule) (a timer), [Webhook](/triggers/webhook) (any inbound HTTP request), [RSS](/triggers/rss) (a new feed item), and [Table](/triggers/table) (a row change in a Sim table). **Integration triggers** fire on an event in a connected service — a GitHub push, a new email — and hand it to the workflow.
 
