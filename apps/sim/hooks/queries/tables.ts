@@ -1425,18 +1425,23 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
 
       const lower = columnName.toLowerCase()
       const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      // The grid deletes by stable id; legacy callers may pass a name. Resolve
+      // the column's storage id once from either form, then strip schema,
+      // widths, and row data by that single id — all three are id-keyed, so a
+      // name arg with a distinct id must never be used as the strip key directly.
+      const target = previousDetail?.schema.columns.find(
+        (c) => getColumnId(c) === columnName || c.name.toLowerCase() === lower
+      )
+      const stripKey = target ? getColumnId(target) : columnName
+
       if (previousDetail) {
-        // The grid deletes by stable id; legacy callers may pass a name. Match
-        // on either so the column is dropped from the optimistic schema cache.
-        const nextColumns = previousDetail.schema.columns.filter(
-          (c) => getColumnId(c) !== columnName && c.name.toLowerCase() !== lower
-        )
+        const nextColumns = previousDetail.schema.columns.filter((c) => getColumnId(c) !== stripKey)
         const prevWidths = previousDetail.metadata?.columnWidths
         const nextMetadata = prevWidths
           ? {
               ...previousDetail.metadata,
               columnWidths: Object.fromEntries(
-                Object.entries(prevWidths).filter(([k]) => k.toLowerCase() !== lower)
+                Object.entries(prevWidths).filter(([k]) => k !== stripKey)
               ),
             }
           : previousDetail.metadata
@@ -1448,9 +1453,8 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
       }
 
       const rowSnapshots = await snapshotAndMutateRows(queryClient, tableId, (row) => {
-        const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
-        if (!matchKey) return null
-        const { [matchKey]: _removed, ...rest } = row.data
+        if (!(stripKey in row.data)) return null
+        const { [stripKey]: _removed, ...rest } = row.data
         return { ...row, data: rest }
       })
 
