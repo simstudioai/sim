@@ -1779,6 +1779,9 @@ function extractToolInfo(
         if (endPos !== -1) {
           const paramBlock = paramsContent.substring(startPos + 1, endPos - 1).trim()
           paramPositions.push({ name: paramName, start: startPos, content: paramBlock })
+          // Resume scanning after this param's block so nested descriptors
+          // (e.g. an array param's `items: {...}`) are not parsed as params.
+          paramBlocksRegex.lastIndex = endPos
         }
       }
 
