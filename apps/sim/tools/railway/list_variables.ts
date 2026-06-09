@@ -35,7 +35,8 @@ export const railwayListVariablesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Railway token type: account, workspace, project, or oauth',
+      description:
+        'Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens.',
     },
     projectId: {
       type: 'string',

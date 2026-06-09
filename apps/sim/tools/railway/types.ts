@@ -58,6 +58,8 @@ export interface RailwayDeploymentSummary {
   createdAt: string
   url: string | null
   staticUrl: string | null
+  canRollback: boolean
+  canRedeploy: boolean
 }
 
 export interface RailwayListProjectsParams extends RailwayAuthParams {
@@ -125,6 +127,42 @@ export interface RailwayDeployServiceParams extends RailwayAuthParams {
   serviceId: string
   environmentId: string
   commitSha?: string
+}
+
+export interface RailwayCreateServiceParams extends RailwayAuthParams {
+  projectId: string
+  name: string
+  repo?: string
+  image?: string
+  branch?: string
+}
+
+export interface RailwayDeleteServiceParams extends RailwayAuthParams {
+  serviceId: string
+}
+
+export interface RailwayGetDeploymentParams extends RailwayAuthParams {
+  deploymentId: string
+}
+
+export interface RailwayRestartDeploymentParams extends RailwayAuthParams {
+  deploymentId: string
+}
+
+export interface RailwayRollbackDeploymentParams extends RailwayAuthParams {
+  deploymentId: string
+}
+
+export interface RailwayGetDeploymentLogsParams extends RailwayAuthParams {
+  deploymentId: string
+  limit?: number
+}
+
+export interface RailwayDeleteVariableParams extends RailwayAuthParams {
+  projectId: string
+  environmentId: string
+  name: string
+  serviceId?: string
 }
 
 export interface RailwayListVariablesParams extends RailwayAuthParams {
@@ -216,6 +254,68 @@ export interface RailwayDeployServiceResponse extends ToolResponse {
   }
 }
 
+export interface RailwayCreateServiceResponse extends ToolResponse {
+  output: {
+    service: RailwayCreatedResource
+  }
+}
+
+export interface RailwayDeleteServiceResponse extends ToolResponse {
+  output: {
+    success: boolean
+  }
+}
+
+export interface RailwayDeploymentDetail {
+  id: string
+  status: string
+  createdAt: string
+  url: string | null
+  staticUrl: string | null
+  canRollback: boolean
+  canRedeploy: boolean
+}
+
+export interface RailwayGetDeploymentResponse extends ToolResponse {
+  output: {
+    deployment: RailwayDeploymentDetail
+  }
+}
+
+export interface RailwayRestartDeploymentResponse extends ToolResponse {
+  output: {
+    success: boolean
+  }
+}
+
+export interface RailwayRollbackDeploymentResponse extends ToolResponse {
+  output: {
+    deployment: {
+      id: string
+      status: string
+    }
+  }
+}
+
+export interface RailwayDeploymentLog {
+  timestamp: string
+  message: string
+  severity: string | null
+}
+
+export interface RailwayGetDeploymentLogsResponse extends ToolResponse {
+  output: {
+    logs: RailwayDeploymentLog[]
+    count: number
+  }
+}
+
+export interface RailwayDeleteVariableResponse extends ToolResponse {
+  output: {
+    success: boolean
+  }
+}
+
 export interface RailwayListVariablesResponse extends ToolResponse {
   output: {
     variables: Record<string, string>
@@ -241,5 +341,12 @@ export type RailwayResponse =
   | RailwayDeleteEnvironmentResponse
   | RailwayListDeploymentsResponse
   | RailwayDeployServiceResponse
+  | RailwayCreateServiceResponse
+  | RailwayDeleteServiceResponse
+  | RailwayGetDeploymentResponse
+  | RailwayRestartDeploymentResponse
+  | RailwayRollbackDeploymentResponse
+  | RailwayGetDeploymentLogsResponse
   | RailwayListVariablesResponse
   | RailwayUpsertVariableResponse
+  | RailwayDeleteVariableResponse

@@ -10,6 +10,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Tooltip,
 } from '@/components/emcn'
 import { Plus, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -392,15 +393,20 @@ export const PlusMenuDropdown = React.memo(
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
-        <button
-          ref={buttonRef}
-          type='button'
-          onClick={() => doOpen()}
-          className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-[var(--surface-hover)]'
-          title='Add attachments or resources'
-        >
-          <Plus className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-        </button>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              ref={buttonRef}
+              type='button'
+              onClick={() => doOpen()}
+              aria-label='Add resources'
+              className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-[var(--surface-hover)]'
+            >
+              <Plus className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>Add resources</Tooltip.Content>
+        </Tooltip.Root>
       </>
     )
   })

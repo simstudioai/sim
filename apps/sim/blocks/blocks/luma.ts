@@ -10,7 +10,7 @@ export const LumaBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/luma',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
-  bgColor: '#FFFFFF',
+  bgColor: '#000000',
   icon: LumaIcon,
   authMode: AuthMode.ApiKey,
 

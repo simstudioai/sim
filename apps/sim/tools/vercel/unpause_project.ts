@@ -46,12 +46,12 @@ export const vercelUnpauseProjectTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}))
     return {
       success: true,
       output: {
-        id: data.id,
-        name: data.name,
+        id: data.id ?? null,
+        name: data.name ?? null,
         paused: data.paused ?? false,
       },
     }

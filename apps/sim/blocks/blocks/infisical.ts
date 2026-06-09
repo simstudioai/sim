@@ -225,9 +225,17 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
     secretVersion: { type: 'string', description: 'Specific secret version to retrieve' },
   },
   outputs: {
-    secrets: { type: 'json', description: 'Array of secrets (list operation)' },
+    secrets: {
+      type: 'json',
+      description:
+        'Array of secrets from the list operation, each with [{id, secretKey, secretValue, secretComment, secretPath, version, type, environment, isRotatedSecret, rotationId, tags, secretMetadata, actor, createdAt, updatedAt}]',
+    },
     count: { type: 'number', description: 'Number of secrets returned' },
-    secret: { type: 'json', description: 'Secret object (get/create/update/delete operations)' },
+    secret: {
+      type: 'json',
+      description:
+        'Secret object from get/create/update/delete operations (id, secretKey, secretValue, secretComment, secretPath, version, type, environment, isRotatedSecret, rotationId, tags, secretMetadata, actor, createdAt, updatedAt)',
+    },
   },
 }
 

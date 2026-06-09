@@ -54,7 +54,7 @@ export const launchDarklyGetFlagTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: LaunchDarklyGetFlagParams) => {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: response.statusText }))
       return {
@@ -71,6 +71,7 @@ export const launchDarklyGetFlagTool: ToolConfig<
           tags: [],
           variations: [],
           maintainerId: null,
+          maintainerEmail: null,
           on: null,
         },
         error: error.message,
@@ -82,9 +83,14 @@ export const launchDarklyGetFlagTool: ToolConfig<
     const environments = data.environments as Record<string, Record<string, unknown>> | undefined
     let on: boolean | null = null
     if (environments) {
-      const envKeys = Object.keys(environments)
-      if (envKeys.length === 1) {
-        on = (environments[envKeys[0]].on as boolean) ?? null
+      const envKey = params?.environmentKey?.trim()
+      if (envKey && environments[envKey]) {
+        on = (environments[envKey].on as boolean) ?? null
+      } else if (!envKey) {
+        const envKeys = Object.keys(environments)
+        if (envKeys.length === 1) {
+          on = (environments[envKeys[0]].on as boolean) ?? null
+        }
       }
     }
 
@@ -102,6 +108,7 @@ export const launchDarklyGetFlagTool: ToolConfig<
         tags: data.tags ?? [],
         variations: data.variations ?? [],
         maintainerId: data.maintainerId ?? null,
+        maintainerEmail: data._maintainer?.email ?? null,
         on,
       },
     }
@@ -112,7 +119,7 @@ export const launchDarklyGetFlagTool: ToolConfig<
     on: {
       type: 'boolean',
       description:
-        'Whether the flag is on in the requested environment (null if no single environment was specified)',
+        'Whether the flag is on in the requested environment (null when the flag spans multiple environments and no environment key was provided)',
       optional: true,
     },
   },
