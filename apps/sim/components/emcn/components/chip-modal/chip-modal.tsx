@@ -7,10 +7,10 @@
  * / `ModalFooter` — drop your controls in as children.
  *
  * Body items are declared via the polymorphic `ChipModalField`. Each field
- * picks a `type` (`'input'`, `'email'`, `'textarea'`, `'dropdown'`, or
- * `'custom'`) and the field owns all chrome internally — consumers describe
- * intent, never styling. Custom is the escape hatch for arbitrary content
- * (e.g. an `InfoCard`, a `TagInput`).
+ * picks a `type` (`'input'`, `'email'`, `'textarea'`, `'dropdown'`, `'file'`,
+ * `'emails'`, or `'custom'`) and the field owns all chrome internally —
+ * consumers describe intent, never styling. Custom is the escape hatch for
+ * arbitrary content (e.g. an `InfoCard`, a `TagInput`).
  *
  * @example
  * ```tsx
@@ -782,10 +782,44 @@ export interface ChipModalFooterProps {
 }
 
 /**
+ * Shared footer chrome — the inset separator plus the tinted `--surface-3` bar
+ * with the standard gutter. Single source of truth so {@link ChipModalFooter}
+ * and {@link ChipConfirmModal} render an identical footer surface. `leftSlot`
+ * docks to the far-left (opposite the right-anchored button cluster); when
+ * omitted the cluster is right-justified.
+ */
+function ChipModalFooterShell({
+  leftSlot,
+  children,
+}: {
+  leftSlot?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div className='flex flex-col'>
+      <ChipModalSeparator />
+      <div
+        className={cn(
+          'flex items-center gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
+          leftSlot ? 'justify-between' : 'justify-end'
+        )}
+      >
+        {leftSlot ?? null}
+        <div className='flex gap-2'>{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Footer row with a fixed, declarative shape: an optional far-left
  * `secondaryAction`, then the always-present Cancel and the right-anchored
  * `primaryAction`. Buttons are described via {@link ChipModalFooterAction} and
  * rendered as {@link Chip}s, so no footer can drift from the canonical layout.
+ *
+ * For "are you sure?" confirmations, reach for {@link ChipConfirmModal} instead
+ * — a confirmation's dismiss button is a named decision ("Keep editing"), not
+ * the structural Cancel this footer guarantees.
  */
 function ChipModalFooter({
   onCancel,
@@ -794,15 +828,9 @@ function ChipModalFooter({
   secondaryAction,
 }: ChipModalFooterProps) {
   return (
-    <div className='flex flex-col'>
-      <ChipModalSeparator />
-      <div
-        className={cn(
-          'flex items-center gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
-          secondaryAction ? 'justify-between' : 'justify-end'
-        )}
-      >
-        {secondaryAction ? (
+    <ChipModalFooterShell
+      leftSlot={
+        secondaryAction ? (
           <Chip
             variant={secondaryAction.variant ?? 'filled'}
             flush
@@ -811,26 +839,170 @@ function ChipModalFooter({
           >
             {secondaryAction.label}
           </Chip>
-        ) : null}
-        <div className='flex gap-2'>
-          <Chip variant='filled' flush onClick={onCancel} disabled={cancelDisabled}>
-            Cancel
-          </Chip>
-          <Chip
-            variant={primaryAction.variant ?? 'primary'}
-            flush
-            onClick={primaryAction.onClick}
-            disabled={primaryAction.disabled}
-          >
-            {primaryAction.label}
-          </Chip>
-        </div>
-      </div>
-    </div>
+        ) : undefined
+      }
+    >
+      <Chip variant='filled' flush onClick={onCancel} disabled={cancelDisabled}>
+        Cancel
+      </Chip>
+      <Chip
+        variant={primaryAction.variant ?? 'primary'}
+        flush
+        onClick={primaryAction.onClick}
+        disabled={primaryAction.disabled}
+      >
+        {primaryAction.label}
+      </Chip>
+    </ChipModalFooterShell>
   )
 }
 
 ChipModalFooter.displayName = 'ChipModalFooter'
+
+/**
+ * The confirming action of a {@link ChipConfirmModal}. Unlike a
+ * {@link ChipModalFooterAction}, pending state is first-class: set `pending`
+ * while the async action runs and the primitive disables BOTH buttons (so the
+ * dismiss can't be clicked mid-mutation) and swaps in `pendingLabel`.
+ */
+export interface ChipConfirmAction {
+  /** Resting button label (e.g. `'Delete'`). */
+  label: string
+  /** Invoked when the user confirms. */
+  onClick: () => void
+  /**
+   * Chip variant. Confirmations are usually destructive, so this defaults to
+   * `'destructive'`; use `'primary'` for a non-destructive confirm (e.g.
+   * "Promote to live").
+   * @default 'destructive'
+   */
+  variant?: Extract<ChipProps['variant'], 'primary' | 'destructive' | 'filled'>
+  /**
+   * Marks the action in-flight: disables both the confirm and dismiss buttons
+   * and, when {@link ChipConfirmAction.pendingLabel} is set, shows it in place
+   * of `label`.
+   */
+  pending?: boolean
+  /** Label shown while `pending` (e.g. `'Deleting…'`). Falls back to `label`. */
+  pendingLabel?: string
+  /** Additional disable condition independent of `pending` (e.g. an unmet "type to confirm"). */
+  disabled?: boolean
+}
+
+export interface ChipConfirmModalProps {
+  /** Controlled open state. */
+  open: boolean
+  /**
+   * Open-state change handler and the SINGLE dismiss path — the header close
+   * (X), the dismiss button, Escape, and overlay click all route through
+   * `onOpenChange(false)`. Put any teardown (clearing the targeted row, etc.)
+   * here so no dismiss path can skip it.
+   */
+  onOpenChange: (open: boolean) => void
+  /** Title rendered in the header. */
+  title: React.ReactNode
+  /** Optional leading header icon. */
+  icon?: React.ComponentType<{ className?: string }> | null
+  /**
+   * Confirmation copy. Rendered with the standard secondary body styling, so
+   * pass a plain string or inline `<>…<span className='…text-primary…'>name</span>…</>`
+   * for emphasis — no wrapping `<p>` needed.
+   */
+  description?: React.ReactNode
+  /**
+   * Extra body content below `description` — e.g. a "type the name to confirm"
+   * {@link ChipModalField}. Most confirmations omit this.
+   */
+  children?: React.ReactNode
+  /** The confirming action (Delete / Discard / Remove …). */
+  confirm: ChipConfirmAction
+  /**
+   * Label for the dismiss button. In a confirmation the dismiss button is a
+   * named decision, so this is honest API (unlike a form footer's structural
+   * Cancel). Defaults to `'Cancel'`; pass `'Keep editing'` for unsaved-changes.
+   * @default 'Cancel'
+   */
+  dismissLabel?: string
+  /**
+   * Panel width. Confirmations are compact, so defaults to `'sm'`.
+   * @default 'sm'
+   */
+  size?: ChipModalProps['size']
+  /** Screen-reader title; defaults to the string form of `title` when omitted. */
+  srTitle?: string
+}
+
+/**
+ * Compact "are you sure?" confirmation dialog. Models the confirmation button
+ * grammar directly — a named dismiss decision plus a (usually destructive)
+ * confirm — instead of bending the form footer's structural Cancel to fit.
+ *
+ * The primitive owns the safety rails that every hand-rolled confirm modal had
+ * to remember: a single dismiss path shared by the header X / dismiss button /
+ * Escape (so teardown can't desync), and disabling dismiss while the confirm is
+ * in flight. Drop richer body content (a "type to confirm" field) in as
+ * `children`.
+ *
+ * @example
+ * ```tsx
+ * <ChipConfirmModal
+ *   open={open}
+ *   onOpenChange={(next) => { if (!next) setTarget(null); setOpen(next) }}
+ *   title='Delete API key'
+ *   description={<>Deleting <strong>{target?.name}</strong> revokes access immediately.</>}
+ *   confirm={{ label: 'Delete', onClick: handleDelete, pending: isDeleting, pendingLabel: 'Deleting…' }}
+ * />
+ * ```
+ */
+function ChipConfirmModal({
+  open,
+  onOpenChange,
+  title,
+  icon,
+  description,
+  children,
+  confirm,
+  dismissLabel = 'Cancel',
+  size = 'sm',
+  srTitle,
+}: ChipConfirmModalProps) {
+  const dismiss = React.useCallback(() => onOpenChange(false), [onOpenChange])
+  const confirmLabel = confirm.pending ? (confirm.pendingLabel ?? confirm.label) : confirm.label
+
+  return (
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      size={size}
+      srTitle={srTitle ?? (typeof title === 'string' ? title : 'Confirm')}
+    >
+      <ChipModalHeader icon={icon} onClose={dismiss}>
+        {title}
+      </ChipModalHeader>
+      <ChipModalBody>
+        {description ? (
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>{description}</p>
+        ) : null}
+        {children}
+      </ChipModalBody>
+      <ChipModalFooterShell>
+        <Chip variant='filled' flush onClick={dismiss} disabled={confirm.pending}>
+          {dismissLabel}
+        </Chip>
+        <Chip
+          variant={confirm.variant ?? 'destructive'}
+          flush
+          onClick={confirm.onClick}
+          disabled={confirm.disabled || confirm.pending}
+        >
+          {confirmLabel}
+        </Chip>
+      </ChipModalFooterShell>
+    </ChipModal>
+  )
+}
+
+ChipConfirmModal.displayName = 'ChipConfirmModal'
 
 export interface ChipModalErrorProps extends React.HTMLAttributes<HTMLParagraphElement> {
   /** Error message. When falsy the component renders nothing. */
@@ -869,6 +1041,7 @@ const ChipModalError = React.forwardRef<HTMLParagraphElement, ChipModalErrorProp
 ChipModalError.displayName = 'ChipModalError'
 
 export {
+  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalError,
