@@ -1,7 +1,12 @@
 {
-  "title": "Integration triggers",
+  "title": "Core Triggers",
   "pages": [
-    "index",
+    "start",
+    "schedule",
+    "webhook",
+    "rss",
+    "table",
+    "---Integration triggers (moving to integrations soon)---",
     "airtable",
     "ashby",
     "attio",

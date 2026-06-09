@@ -10,7 +10,7 @@ import { BlockPreview } from '@/components/workflow-preview'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
-The **Webhook trigger** runs a workflow whenever an inbound HTTP request reaches a URL Sim generates for it. Use it to start a workflow from any external service or custom app that can send an HTTP request — when no dedicated [integration trigger](/triggers) exists.
+The **Webhook trigger** runs a workflow whenever an inbound HTTP request reaches a URL Sim generates for it. Use it to start a workflow from any external service or custom app that can send an HTTP request — when no dedicated [integration trigger](/workflows#triggers) exists.
 
 <BlockPreview type="webhook_trigger" />
 
@@ -58,7 +58,7 @@ Many integrations can act as triggers too: toggle **Use as Trigger** on a servic
   <Video src="slack-trigger.mp4" width={700} height={450} />
 </div>
 
-See [Triggers](/triggers) for every service that supports this.
+See [Triggers](/workflows#triggers) for every service that supports this.
 
 <FAQ items={[
   { question: "What HTTP methods does the webhook endpoint accept?", answer: "POST triggers workflows. GET is used only for provider-specific verification challenges (such as Microsoft Graph or WhatsApp). Other methods return 405 Method Not Allowed." },

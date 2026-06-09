@@ -6,7 +6,9 @@ pageType: concept
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Video } from '@/components/ui/video'
 import { WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
 
 Your Sim workspace is where your AI systems live. A system is made of two things. **Workflows** are the procedures it runs. **Resources** are the data those procedures work with: tables, knowledge bases, and files.
 
@@ -56,6 +58,68 @@ An **output** is what a block produces; later blocks read it through connection 
 
 On reuse, the consumer picks which outputs it wants by name: a [chat deployment](/deployment/chat), a [table column](/tables/workflow-columns), or an [API call](/deployment/api) each select block outputs individually. It's the same idea as connection tags, applied at the workflow's edge. (For precise HTTP control, add a [Response block](/blocks/response).)
 
+## Blocks
+
+A block takes inputs (the fields you configure, including [references](/workflows/data-flow) to earlier outputs), does its work, and produces an output the blocks after it can read.
+
+<div className="w-full max-w-2xl mx-auto overflow-hidden rounded-lg my-6">
+  <Video src="connections.mp4" width={700} height={450} />
+</div>
+
+The general-purpose **core blocks** are what every workflow is built from:
+
+**Do work**
+
+- [Agent](/blocks/agent) reasons with a model, calls tools, and returns text or structured output.
+- [Function](/blocks/function) runs a snippet of JavaScript, TypeScript, or Python.
+- [API](/blocks/api) calls an external service over HTTP.
+- [Workflow](/blocks/workflow) runs another workflow as a single step.
+
+**Direct the flow**
+
+- [Condition](/blocks/condition) branches on an explicit rule.
+- [Router](/blocks/router) lets a model choose which path to take.
+- [Loop](/blocks/loop) repeats its inner blocks over a list or a count.
+- [Parallel](/blocks/parallel) runs its inner blocks for many items at once.
+
+**Shape the run**
+
+- [Response](/blocks/response) returns a result from a deployed API or chat.
+- [Variables](/blocks/variables) sets or updates a workflow [variable](/workflows/variables).
+- [Evaluator](/blocks/evaluator) scores an output with a model.
+- [Guardrails](/blocks/guardrails) checks an output against rules before it continues.
+- [Wait](/blocks/wait) pauses for a set time.
+- [Human in the loop](/blocks/human-in-the-loop) pauses for a person to approve or edit.
+
+Two larger families of blocks do more specific jobs:
+
+- **[Integrations](/tools)** connect to an external service, like Gmail, Slack, Notion, or a database, with hundreds available. An agent can also call them as tools.
+- **Triggers** are the blocks that start a workflow, like the Start trigger, a webhook, or a schedule.
+
+## Triggers
+
+A trigger is where a workflow begins, and it decides both what starts the run and what input it receives. **Native triggers** need no connected account:
+
+- **[Start](/triggers/start)** — the default entry point: a manual run, an API call, or chat.
+- **[Schedule](/triggers/schedule)** — a timer, on a cron expression or an interval.
+- **[Webhook](/triggers/webhook)** — any inbound HTTP request to a URL Sim gives you.
+- **[RSS](/triggers/rss)** — a new item published to any feed.
+- **[Table](/triggers/table)** — a row inserted or updated in a Sim table.
+
+**Integration triggers** fire on an event in a service you've connected — a GitHub push, a new email — and hand that event to the workflow. Sim has them for dozens of services; each fires on a specific event and passes the payload downstream.
+
+<Callout type="info">
+Every trigger runs the active [deployment](/deployment), so redeploy after changing a workflow for triggers to pick up the new version. The Start trigger always exposes `input`, `conversationId`, and `files`; add Input Format fields for more structured data.
+</Callout>
+
+### Choosing a trigger on a manual run
+
+A workflow can have more than one trigger. When you click **Run** in the editor, Sim picks by priority: the **Start** trigger first, then a **Schedule**, then external triggers (webhooks and integrations). So a workflow with both a Start and a Webhook runs from Start when you click Run. Running an external trigger by hand generates a mock payload from the trigger's expected shape, so downstream blocks can resolve their references while you test.
+
+### Email polling groups
+
+The Gmail and Outlook triggers can watch several team members' inboxes through a single trigger, an **email polling group** (Team and Enterprise plans). An admin creates one under **Settings → Email Polling**, picks Gmail or Outlook, and invites members by email; each invitee connects their own inbox through a link. Select the group from the credentials dropdown on an email trigger, and the trigger routes everyone's mail through the workflow. Inviting someone grants inbox access for that trigger only, separate from workspace membership.
+
 ## How it runs
 
 When a workflow runs, blocks execute in dependency order: a block runs as soon as the blocks it depends on have finished, so independent branches run in parallel. Conditions, loops, and parallel blocks change the path data takes.
@@ -77,7 +141,16 @@ A workflow is where the rest of the workspace becomes behavior. On their own, ta
 
 <Cards>
   <Card title="How blocks pass data" href="/workflows/data-flow" description="Outputs, references, and the data types you'll work with." />
-  <Card title="Blocks" href="/blocks" description="The full catalog of block types." />
-  <Card title="Triggers" href="/triggers" description="Start a workflow from chat, webhooks, schedules, or an API." />
+  <Card title="Agent" href="/blocks/agent" description="The most common block: reason with a model and call tools." />
+  <Card title="Start" href="/triggers/start" description="The default trigger — run from the editor, an API, or chat." />
   <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, concurrency, and control flow." />
 </Cards>
+
+<FAQ items={[
+  { question: "How many blocks are available in Sim?", answer: "Over 200, spanning the core workflow blocks (Agent, Function, Condition, Router, and so on), integration blocks for external services (Gmail, Slack, GitHub, Notion, and many more), and trigger blocks. Loop and Parallel are container regions in the builder rather than standalone blocks." },
+  { question: "What is the difference between work blocks and flow blocks?", answer: "Work blocks (Agent, Function, API) transform or generate data. Flow blocks (Condition, Router) decide which path the workflow takes based on the data, without changing it." },
+  { question: "What happens if a block in the middle of a workflow fails?", answer: "The run stops along that path. Blocks that support error handling, like the Router, can route to an error path so you handle the failure instead of halting the whole workflow. Independent paths keep running." },
+  { question: "Can one block's output connect to multiple blocks?", answer: "Yes. A single output can feed several blocks, so you can fan data out from one step to multiple paths without duplicating the block." },
+  { question: "Can I have multiple triggers on the same workflow?", answer: "Yes. When you click Run, Sim uses the highest-priority trigger — Start, then Schedule, then external triggers. Each trigger type can also fire independently when its event occurs." },
+  { question: "Do triggers use the draft or the deployed version?", answer: "All trigger-based runs (API, chat, schedule, webhook) use the active deployment snapshot, not your draft. Redeploy after changes for triggers to pick up the new version." },
+]} />
