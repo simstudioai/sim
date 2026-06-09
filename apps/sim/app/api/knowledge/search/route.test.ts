@@ -158,7 +158,9 @@ describe('Knowledge Search API Route', () => {
       parallelLimit: 15,
       singleQueryOptimized: true,
     })
-    mockGenerateSearchEmbedding.mockClear().mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5])
+    mockGenerateSearchEmbedding
+      .mockClear()
+      .mockResolvedValue({ embedding: [0.1, 0.2, 0.3, 0.4, 0.5], isBYOK: false })
     mockGetDocumentMetadataByIds.mockClear().mockResolvedValue({
       doc1: { filename: 'Document 1', sourceUrl: null },
       doc2: { filename: 'Document 2', sourceUrl: null },
@@ -997,7 +999,7 @@ describe('Knowledge Search API Route', () => {
         singleQueryOptimized: true,
       })
 
-      mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
+      mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2, 0.3], isBYOK: false })
       mockGetDocumentMetadataByIds.mockResolvedValue({
         'doc-active': {
           filename: 'Active Document.pdf',
@@ -1145,7 +1147,7 @@ describe('Knowledge Search API Route', () => {
         singleQueryOptimized: true,
       })
 
-      mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
+      mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2, 0.3], isBYOK: false })
       mockGetDocumentMetadataByIds.mockResolvedValue({
         'doc-active-combined': { filename: 'Active Combined Search.pdf', sourceUrl: null },
       })

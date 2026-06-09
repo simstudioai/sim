@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
+import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
@@ -246,8 +247,16 @@ export async function getWorkspaceFileFolderPath(
 
 export async function findWorkspaceFileFolderIdByPath(
   workspaceId: string,
-  pathSegments: string[]
+  pathSegments: string[],
+  options?: { includeReservedSystemFolders?: boolean }
 ): Promise<string | null> {
+  if (
+    !options?.includeReservedSystemFolders &&
+    isReservedWorkflowAliasBackingDisplayPath(pathSegments.join('/'))
+  ) {
+    return null
+  }
+
   let parentId: string | null = null
 
   for (const rawSegment of pathSegments) {
@@ -268,9 +277,9 @@ export async function findWorkspaceFileFolderIdByPath(
 
 export async function listWorkspaceFileFolders(
   workspaceId: string,
-  options?: { scope?: WorkspaceFileFolderScope }
+  options?: { scope?: WorkspaceFileFolderScope; includeReservedSystemFolders?: boolean }
 ): Promise<WorkspaceFileFolderRecord[]> {
-  const { scope = 'active' } = options ?? {}
+  const { scope = 'active', includeReservedSystemFolders = false } = options ?? {}
   const rows = await db
     .select()
     .from(workspaceFileFolder)
@@ -290,7 +299,12 @@ export async function listWorkspaceFileFolders(
     .orderBy(asc(workspaceFileFolder.sortOrder), asc(workspaceFileFolder.createdAt))
 
   const paths = buildWorkspaceFileFolderPathMap(rows)
-  return rows.map((row) => mapFolder(row, paths))
+  return rows
+    .map((row) => mapFolder(row, paths))
+    .filter(
+      (folder) =>
+        includeReservedSystemFolders || !isReservedWorkflowAliasBackingDisplayPath(folder.path)
+    )
 }
 
 export async function getWorkspaceFileFolder(

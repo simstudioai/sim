@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ChipInput, Info, toast } from '@/components/emcn'
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
+import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
@@ -55,26 +57,39 @@ export function UsageLimitField({
 
   useEffect(() => {
     if (currentLimit == null || syncedRef.current === currentLimit) return
-    const isClean = draft === '' || draft === String(syncedRef.current)
+    // Display in credits; the prop is dollars. Integer credits round-trip exactly
+    // through creditsToDollars/dollarsToCredits, so the value never drifts. The
+    // on-demand "uncapped" sentinel renders as a blank field (No Usage Limit
+    // placeholder) rather than a meaningless giant credit number.
+    const lastSyncedDraft =
+      syncedRef.current == null || syncedRef.current >= ON_DEMAND_UNLIMITED
+        ? ''
+        : String(dollarsToCredits(syncedRef.current))
+    const isClean = draft === '' || draft === lastSyncedDraft
     syncedRef.current = currentLimit
-    if (isClean) setDraft(String(currentLimit))
+    if (isClean) {
+      setDraft(currentLimit >= ON_DEMAND_UNLIMITED ? '' : String(dollarsToCredits(currentLimit)))
+    }
   }, [currentLimit, draft])
 
   useEffect(() => {
     if (!canEdit) return
     const currentLimit = currentLimitRef.current
     if (currentLimit == null || debouncedDraft.trim() === '') return
-    const parsed = Number.parseFloat(debouncedDraft)
-    if (Number.isNaN(parsed)) {
+    const parsedCredits = Number.parseFloat(debouncedDraft)
+    if (Number.isNaN(parsedCredits)) {
       toast.error('Usage limit must be a number')
       return
     }
-    if (parsed === currentLimit) return
-    if (parsed < minimumLimit) {
-      toast.error(`Usage limit must be at least ${minimumLimit}`)
+    if (parsedCredits === dollarsToCredits(currentLimit)) return
+    const minimumCredits = dollarsToCredits(minimumLimit)
+    if (parsedCredits < minimumCredits) {
+      toast.error(`Usage limit must be at least ${minimumCredits.toLocaleString()} credits`)
       return
     }
 
+    // Store dollars; the input is credits. Convert once at the boundary.
+    const limitDollars = creditsToDollars(parsedCredits)
     const onError = (error: unknown) => {
       toast.error("Couldn't update usage limit", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -88,11 +103,11 @@ export function UsageLimitField({
         })
         return
       }
-      saveOrgLimit({ organizationId, limit: parsed }, { onError })
+      saveOrgLimit({ organizationId, limit: limitDollars }, { onError })
       return
     }
 
-    saveUserLimit({ limit: parsed }, { onError })
+    saveUserLimit({ limit: limitDollars }, { onError })
   }, [debouncedDraft, minimumLimit, canEdit, context, organizationId, saveOrgLimit, saveUserLimit])
 
   return (
@@ -101,18 +116,24 @@ export function UsageLimitField({
       headerAccessory={
         <Info side='top' className='text-[var(--text-muted)]'>
           {
-            "Max usage to consume per month, in USD. By default, it's your plan's limit, but you can set it beyond."
+            "Max usage to consume per month, set in credits — Sim's usage unit (1,000 credits = $5). By default, it's your plan's included usage, but you can set it beyond."
           }
         </Info>
       }
     >
       <ChipInput
         type='number'
-        inputMode='decimal'
-        min={minimumLimit}
+        inputMode='numeric'
+        min={dollarsToCredits(minimumLimit)}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder={currentLimit != null ? String(currentLimit) : 'Enter monthly usage limit'}
+        placeholder={
+          currentLimit == null
+            ? 'Enter monthly usage limit'
+            : currentLimit >= ON_DEMAND_UNLIMITED
+              ? 'No Usage Limit'
+              : String(dollarsToCredits(currentLimit))
+        }
         disabled={!canEdit}
         inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       />

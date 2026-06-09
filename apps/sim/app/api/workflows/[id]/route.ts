@@ -108,6 +108,12 @@ export const GET = withRouteHandler(
           stampedVariables[variableId] = { ...variable, workflowId }
         }
       }
+      const workflowStateMetadata = {
+        name: responseWorkflowData.name,
+        ...(typeof responseWorkflowData.description === 'string'
+          ? { description: responseWorkflowData.description }
+          : {}),
+      }
 
       if (snapshot.normalizedData) {
         const finalWorkflowData = {
@@ -120,10 +126,7 @@ export const GET = withRouteHandler(
             lastSaved: Date.now(),
             isDeployed: responseWorkflowData.isDeployed || false,
             deployedAt: responseWorkflowData.deployedAt,
-            metadata: {
-              name: responseWorkflowData.name,
-              description: responseWorkflowData.description,
-            },
+            metadata: workflowStateMetadata,
           },
           variables: stampedVariables,
         }
@@ -145,10 +148,7 @@ export const GET = withRouteHandler(
           lastSaved: Date.now(),
           isDeployed: responseWorkflowData.isDeployed || false,
           deployedAt: responseWorkflowData.deployedAt,
-          metadata: {
-            name: responseWorkflowData.name,
-            description: responseWorkflowData.description,
-          },
+          metadata: workflowStateMetadata,
         },
         variables: stampedVariables,
       }

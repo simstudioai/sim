@@ -99,7 +99,7 @@ async function resolveWorkspaceFile(
   const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
   if (!record) {
     throw new Error(
-      `File not found: "${fileReference}". Use glob("files/by-id/*/meta.json") to list canonical file IDs.`
+      `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )
   }
   const buffer = await fetchWorkspaceFileBuffer(record)
@@ -501,6 +501,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               rowId: args.rowId,
               data: rowDataNameToId(args.data, idByName),
               workspaceId,
+              actorUserId: context.userId,
             },
             table,
             requestId
@@ -572,6 +573,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               filter: filterNamesToIds(args.filter, idByName),
               data: rowDataNameToId(args.data, idByName),
               limit: args.limit,
+              actorUserId: context.userId,
             },
             requestId
           )
@@ -673,6 +675,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 data: rowDataNameToId(u.data, idByName),
               })),
               workspaceId,
+              actorUserId: context.userId,
             },
             table,
             requestId
@@ -730,7 +733,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return {
               success: false,
               message:
-                'fileId is required for create_from_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file ID.',
+                'fileId or filePath is required for create_from_file. Use a canonical VFS path from glob("files/**") or a file ID from read("files/{path}/{name}").',
             }
           }
           if (!workspaceId) {
@@ -837,7 +840,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return {
               success: false,
               message:
-                'fileId is required for import_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file ID.',
+                'fileId or filePath is required for import_file. Use a canonical VFS path from glob("files/**") or a file ID from read("files/{path}/{name}").',
             }
           }
           if (!tableId) {
@@ -1256,7 +1259,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // can opt in by passing `autoRun: true`.
           const autoRun = args.autoRun === true
           const updated = await addWorkflowGroup(
-            { tableId: args.tableId, group, outputColumns, autoRun },
+            { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
             requestId
           )
           return {
@@ -1317,6 +1320,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             {
               tableId: args.tableId,
               groupId,
+              actorUserId: context.userId,
               workflowId: args.workflowId as string | undefined,
               name: args.name as string | undefined,
               dependencies: args.dependencies as WorkflowGroupDependencies | undefined,
@@ -1378,7 +1382,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updated = await addWorkflowGroupOutput(
-            { tableId: args.tableId, groupId, blockId, path, columnName },
+            {
+              tableId: args.tableId,
+              groupId,
+              blockId,
+              path,
+              columnName,
+              actorUserId: context.userId,
+            },
             requestId
           )
           return {
@@ -1462,6 +1473,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             mode: runMode,
             rowIds,
             requestId,
+            triggeredByUserId: context.userId,
           })
           const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
@@ -1618,7 +1630,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updated = await addWorkflowGroup(
-            { tableId: args.tableId, group, outputColumns, autoRun },
+            { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
             requestId
           )
           return {

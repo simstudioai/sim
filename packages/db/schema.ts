@@ -1179,6 +1179,43 @@ export const member = pgTable(
   })
 )
 
+/**
+ * Per-member usage limit (in dollars) scoped to a single organization.
+ *
+ * Keyed by `(organizationId, userId)` so it covers both organization members
+ * (rows in `member`) and external members (users with workspace permissions in
+ * org-owned workspaces but no `member` row). Independent of
+ * `user_stats.current_usage_limit`, which is the user's personal subscription
+ * cap and is nulled for org-scoped members. An absent row means "no per-member
+ * cap" (only the pooled org limit applies). Enforced for usage in org-owned
+ * workspaces; hosted-only.
+ */
+export const organizationMemberUsageLimit = pgTable(
+  'organization_member_usage_limit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    usageLimit: decimal('usage_limit').notNull(),
+    /** Admin who set the cap (audit only). Soft FK: nulled if that user is
+     *  deleted so the member's limit row survives — never cascade-deleted. */
+    setBy: text('set_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    orgUserUnique: uniqueIndex('org_member_usage_limit_org_user_unique').on(
+      table.organizationId,
+      table.userId
+    ),
+    organizationIdIdx: index('org_member_usage_limit_organization_id_idx').on(table.organizationId),
+  })
+)
+
 export const invitationKindEnum = pgEnum('invitation_kind', ['organization', 'workspace'])
 
 export type InvitationKind = (typeof invitationKindEnum.enumValues)[number]
@@ -1617,6 +1654,11 @@ export const document = pgTable(
     externalId: text('external_id'),
     contentHash: text('content_hash'),
     sourceUrl: text('source_url'),
+
+    /** User who uploaded the document, for usage attribution. Null for
+     *  connector/cron-synced docs (and pre-migration rows) → indexing billing
+     *  falls back to the workspace billed account. */
+    uploadedBy: text('uploaded_by').references(() => user.id, { onDelete: 'set null' }),
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
@@ -3282,6 +3324,12 @@ export const tableRunDispatches = pgTable(
      *  CSV import, addWorkflowGroup) set this to false so the dispatch
      *  honors the autoRun toggle. */
     isManualRun: boolean('is_manual_run').notNull().default(true),
+    /** User who triggered the run, for per-member usage attribution. Null for
+     *  auto-fire (row insert/update, CSV import) with no human initiator —
+     *  those fall back to the workspace billed account. */
+    triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),

@@ -5,12 +5,16 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateCopilotApiKeyContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkOrgMemberUsageLimit,
+  checkServerSideUsageLimits,
+} from '@/lib/billing/calculations/usage-monitor'
 import { CopilotValidateOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
@@ -71,7 +75,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
         )
         if (!parsed.success) return parsed.response
 
-        const { userId } = parsed.data.body
+        const { userId, workspaceId } = parsed.data.body
         span.setAttribute(TraceAttr.UserId, userId)
 
         const [existingUser] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
@@ -102,6 +106,28 @@ export const POST = withRouteHandler((req: NextRequest) =>
           span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.UsageExceeded)
           span.setAttribute(TraceAttr.HttpStatusCode, 402)
           return new NextResponse(null, { status: 402 })
+        }
+
+        // Per-member org-workspace cap (hosted-only). Blocks the mothership/copilot
+        // chat request itself when the user is over their personal credit limit for
+        // the org that owns this workspace, independent of the pooled org limit.
+        // workspaceId is contract-required, so the gate can't be silently skipped.
+        if (isHosted) {
+          const memberCheck = await checkOrgMemberUsageLimit(userId, workspaceId)
+          if (memberCheck.isExceeded) {
+            logger.info('[API VALIDATION] Per-member org usage limit exceeded', {
+              userId,
+              workspaceId,
+              currentUsage: memberCheck.currentUsage,
+              limit: memberCheck.limit,
+            })
+            span.setAttribute(
+              TraceAttr.CopilotValidateOutcome,
+              CopilotValidateOutcome.UsageExceeded
+            )
+            span.setAttribute(TraceAttr.HttpStatusCode, 402)
+            return new NextResponse(null, { status: 402 })
+          }
         }
 
         span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.Ok)

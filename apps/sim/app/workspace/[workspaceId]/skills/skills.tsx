@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
@@ -10,10 +10,6 @@ import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
-import {
-  getSampleSkills,
-  PREVIEW_SKILLS_WITH_SAMPLES,
-} from '@/app/workspace/[workspaceId]/skills/fixtures/sample-skills'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
 
@@ -76,12 +72,7 @@ export function Skills() {
   const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
-  const allSkills = useMemo(() => {
-    if (!PREVIEW_SKILLS_WITH_SAMPLES) return skills
-    return [...getSampleSkills(workspaceId), ...skills]
-  }, [skills, workspaceId])
-
-  const filteredSkills = allSkills.filter((s) => {
+  const filteredSkills = skills.filter((s) => {
     if (!searchTerm.trim()) return true
     const searchLower = searchTerm.toLowerCase()
     return (
@@ -91,7 +82,7 @@ export function Skills() {
   })
 
   const handleDeleteClick = (skillId: string) => {
-    const s = allSkills.find((sk) => sk.id === skillId)
+    const s = skills.find((sk) => sk.id === skillId)
     if (!s) return
 
     setSkillToDelete({ id: skillId, name: s.name })

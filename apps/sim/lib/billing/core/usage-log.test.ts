@@ -10,6 +10,8 @@ const {
   mockOnConflictDoNothing,
   mockReturning,
   mockValues,
+  mockTransaction,
+  mockUpdate,
 } = vi.hoisted(() => ({
   mockGetHighestPrioritySubscription: vi.fn(),
   mockInsert: vi.fn(),
@@ -17,11 +19,14 @@ const {
   mockOnConflictDoNothing: vi.fn(),
   mockReturning: vi.fn(),
   mockValues: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockUpdate: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
   db: {
     insert: mockInsert,
+    transaction: mockTransaction,
   },
 }))
 
@@ -58,7 +63,12 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isBillingEnabled: true,
 }))
 
-import { recordUsage } from '@/lib/billing/core/usage-log'
+import {
+  CUMULATIVE_COST_EPSILON,
+  recordCumulativeUsage,
+  recordUsage,
+  resolveCumulativeTopUp,
+} from '@/lib/billing/core/usage-log'
 
 describe('recordUsage', () => {
   beforeEach(() => {
@@ -127,5 +137,120 @@ describe('recordUsage', () => {
       billingEntityId: 'user-1',
       billingEntityType: 'user',
     })
+  })
+})
+
+describe('resolveCumulativeTopUp', () => {
+  it('bills the full amount on the first flush (nothing recorded yet)', () => {
+    expect(resolveCumulativeTopUp(0, 0.3474447)).toEqual({
+      shouldBill: true,
+      delta: 0.3474447,
+      newTotal: 0.3474447,
+    })
+  })
+
+  it('bills only the delta when the cumulative grows (recovered request)', () => {
+    const result = resolveCumulativeTopUp(0.3474447, 0.4662453)
+    expect(result.shouldBill).toBe(true)
+    expect(result.newTotal).toBe(0.4662453)
+    expect(result.delta).toBeCloseTo(0.1188006, 9)
+  })
+
+  it('is a no-op when the cumulative is unchanged (abort-race duplicate)', () => {
+    expect(resolveCumulativeTopUp(0.4662453, 0.4662453)).toEqual({
+      shouldBill: false,
+      delta: 0,
+      newTotal: 0.4662453,
+    })
+  })
+
+  it('is a no-op when an out-of-order flush carries a lower cumulative', () => {
+    expect(resolveCumulativeTopUp(0.4662453, 0.3)).toMatchObject({ shouldBill: false, delta: 0 })
+  })
+
+  it('ignores sub-epsilon increases from decimal round-trips', () => {
+    expect(
+      resolveCumulativeTopUp(0.4662453, 0.4662453 + CUMULATIVE_COST_EPSILON / 2)
+    ).toMatchObject({ shouldBill: false })
+  })
+})
+
+describe('recordCumulativeUsage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockReturning.mockResolvedValue([{ cost: '0.3474447' }])
+    mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
+    mockValues.mockReturnValue({ onConflictDoNothing: mockOnConflictDoNothing })
+    mockInsert.mockReturnValue({ values: mockValues })
+    mockGetHighestPrioritySubscription.mockResolvedValue({
+      periodEnd: new Date('2026-06-01T00:00:00.000Z'),
+      periodStart: new Date('2026-05-01T00:00:00.000Z'),
+      referenceId: 'org-1',
+    })
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+  })
+
+  const setupTx = (existingRow: { id: string; cost: string } | null) => {
+    const limit = vi.fn().mockResolvedValue(existingRow ? [existingRow] : [])
+    const where = vi.fn().mockReturnValue({ limit })
+    const from = vi.fn().mockReturnValue({ where })
+    const select = vi.fn().mockReturnValue({ from })
+    const updateWhere = vi.fn().mockResolvedValue(undefined)
+    const updateSet = vi.fn().mockReturnValue({ where: updateWhere })
+    mockUpdate.mockReturnValue({ set: updateSet })
+    const tx = {
+      execute: vi.fn().mockResolvedValue(undefined),
+      select,
+      update: mockUpdate,
+      insert: mockInsert, // recordUsage(tx) reuses the shared insert chain
+    }
+    mockTransaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx))
+    return { tx, select, updateSet }
+  }
+
+  it('inserts the full cumulative on the first flush', async () => {
+    setupTx(null)
+    const result = await recordCumulativeUsage({
+      userId: 'user-1',
+      workspaceId: 'ws-1',
+      source: 'workspace-chat',
+      model: 'claude-opus-4.8',
+      cost: 0.3474447,
+      eventKey: 'update-cost:msg-1-billing',
+      metadata: { inputTokens: 100, outputTokens: 5 },
+    })
+    expect(result).toEqual({ billed: true, delta: 0.3474447, total: 0.3474447 })
+    expect(mockInsert).toHaveBeenCalledTimes(1)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it('tops up to the higher cumulative and bills only the delta', async () => {
+    const { updateSet } = setupTx({ id: 'row-1', cost: '0.3474447' })
+    const result = await recordCumulativeUsage({
+      userId: 'user-1',
+      source: 'workspace-chat',
+      model: 'claude-opus-4.8',
+      cost: 0.4662453,
+      eventKey: 'update-cost:msg-1-billing',
+    })
+    expect(result.billed).toBe(true)
+    expect(result.total).toBe(0.4662453)
+    expect(result.delta).toBeCloseTo(0.1188006, 9)
+    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ cost: '0.4662453' }))
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('does not bill when the cumulative is not higher than recorded', async () => {
+    const { updateSet } = setupTx({ id: 'row-1', cost: '0.4662453' })
+    const result = await recordCumulativeUsage({
+      userId: 'user-1',
+      source: 'workspace-chat',
+      model: 'claude-opus-4.8',
+      cost: 0.4662453,
+      eventKey: 'update-cost:msg-1-billing',
+    })
+    expect(result).toEqual({ billed: false, delta: 0, total: 0.4662453 })
+    expect(updateSet).not.toHaveBeenCalled()
+    expect(mockInsert).not.toHaveBeenCalled()
   })
 })

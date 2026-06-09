@@ -29,27 +29,27 @@ function makeFileRecord(): WorkspaceFileRecord {
 }
 
 describe('workspace file reference normalization', () => {
-  it('normalizes canonical by-id VFS paths to the raw file id', () => {
-    expect(normalizeWorkspaceFileReference(`files/by-id/${FILE_ID}/content`)).toBe(FILE_ID)
-    expect(normalizeWorkspaceFileReference(`files/by-id/${FILE_ID}/meta.json`)).toBe(FILE_ID)
-    expect(normalizeWorkspaceFileReference(`by-id/${FILE_ID}`)).toBe(FILE_ID)
-    expect(normalizeWorkspaceFileReference(`recently-deleted/files/by-id/${FILE_ID}/content`)).toBe(
-      FILE_ID
+  it('normalizes canonical VFS paths to their sanitized display path', () => {
+    expect(normalizeWorkspaceFileReference('files/Reports/q1.csv/content')).toBe('Reports/q1.csv')
+    expect(normalizeWorkspaceFileReference('files/Reports/q1.csv/meta.json')).toBe('Reports/q1.csv')
+    expect(normalizeWorkspaceFileReference('recently-deleted/files/data.csv/content')).toBe(
+      'data.csv'
     )
   })
 
-  it('finds files from canonical by-id content paths', () => {
+  it('still resolves a raw file id passed directly', () => {
     const files = [makeFileRecord()]
 
-    expect(findWorkspaceFileRecord(files, `files/by-id/${FILE_ID}/content`)).toMatchObject({
+    expect(findWorkspaceFileRecord(files, FILE_ID)).toMatchObject({
       id: FILE_ID,
       name: 'the_last_cartographer_of_vael.md',
     })
+  })
 
-    expect(findWorkspaceFileRecord(files, `by-id/${FILE_ID}`)).toMatchObject({
-      id: FILE_ID,
-      name: 'the_last_cartographer_of_vael.md',
-    })
+  it('does not resolve id-based VFS paths', () => {
+    const files = [makeFileRecord()]
+
+    expect(findWorkspaceFileRecord(files, `files/by-id/${FILE_ID}/content`)).toBeNull()
   })
 
   it('resolves duplicate names by folder-aware VFS path', () => {
