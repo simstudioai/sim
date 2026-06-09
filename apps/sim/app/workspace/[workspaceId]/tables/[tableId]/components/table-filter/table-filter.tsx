@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { ChevronDown, Plus } from '@/components/emcn/icons'
-import type { Filter, FilterRule } from '@/lib/table'
+import type { ColumnDefinition, Filter, FilterRule } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
 
@@ -20,7 +21,7 @@ const OPERATOR_LABELS = Object.fromEntries(
 ) as Record<string, string>
 
 interface TableFilterProps {
-  columns: Array<{ name: string; type: string }>
+  columns: ColumnDefinition[]
   filter: Filter | null
   onApply: (filter: Filter | null) => void
   onClose: () => void
@@ -35,8 +36,9 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
   const rulesRef = useRef(rules)
   rulesRef.current = rules
 
+  // `value` is the filter field key (column id); `label` is what the user sees.
   const columnOptions = useMemo(
-    () => columns.map((col) => ({ value: col.name, label: col.name })),
+    () => columns.map((col) => ({ value: getColumnId(col), label: col.name })),
     [columns]
   )
 
@@ -164,7 +166,9 @@ const FilterRuleRow = memo(function FilterRuleRow({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className='flex h-[28px] min-w-[100px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
-            <span className='truncate'>{rule.column || 'Column'}</span>
+            <span className='truncate'>
+              {columns.find((col) => col.value === rule.column)?.label || rule.column || 'Column'}
+            </span>
             <ChevronDown className='ml-1 size-[10px] shrink-0 text-[var(--text-icon)]' />
           </button>
         </DropdownMenuTrigger>
@@ -224,11 +228,11 @@ const FilterRuleRow = memo(function FilterRuleRow({
   )
 })
 
-function createRule(columns: Array<{ name: string }>): FilterRule {
+function createRule(columns: ColumnDefinition[]): FilterRule {
   return {
     id: generateShortId(),
     logicalOperator: 'and',
-    column: columns[0]?.name ?? '',
+    column: columns[0] ? getColumnId(columns[0]) : '',
     operator: 'eq',
     value: '',
   }
