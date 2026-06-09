@@ -2,7 +2,10 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
+import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import { glob } from 'glob'
+import type { BlockCategory } from '../apps/sim/blocks/types'
+import { IntegrationType } from '../apps/sim/blocks/types'
 
 console.log('Starting documentation generator...')
 
@@ -21,6 +24,7 @@ const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
 const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/tools')
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
+const INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/lib/integrations')
 const LANDING_INTEGRATIONS_DATA_PATH = path.join(
   rootDir,
   'apps/sim/app/(landing)/integrations/data'
@@ -99,12 +103,24 @@ if (!fs.existsSync(docsComponentsDir)) {
   fs.mkdirSync(docsComponentsDir, { recursive: true })
 }
 
+/** Runtime set of valid `IntegrationType` values, derived from the canonical enum. */
+const INTEGRATION_CATEGORY_VALUES: ReadonlySet<IntegrationType> = new Set(
+  Object.values(IntegrationType)
+)
+
+/**
+ * Defensive shape for blocks parsed out of source files. Fields stay loose
+ * (`string`) so the AST-style extractor can populate them progressively; the
+ * canonical taxonomy is enforced at the JSON-write boundary inside
+ * `writeIntegrationsJson`.
+ */
 interface BlockConfig {
   type: string
   name: string
   description: string
   longDescription?: string
   category: string
+  integrationType?: string
   bgColor?: string
   outputs?: Record<string, any>
   tools?: {
@@ -180,8 +196,8 @@ interface IntegrationEntry {
   triggers: TriggerInfo[]
   triggerCount: number
   authType: 'oauth' | 'api-key' | 'none'
-  category: string
-  integrationTypes?: string[]
+  category: BlockCategory
+  integrationType: IntegrationType
   tags?: string[]
   landingContent?: Record<string, unknown>
 }
@@ -270,20 +286,18 @@ async function generateIconMapping(options: {
           // Get category for additional filtering
           const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
 
+          // Exclude first-party `blocks`-category primitives (except the small
+          // catalog-surfaced allowlist) and core/plumbing types. This mirrors
+          // the catalog/docs `isIntegrationBlock` predicate, with the two
+          // explicit `blocks`-category exceptions folded in here.
           if (
-            (category === 'blocks' && blockType !== 'memory' && blockType !== 'knowledge') ||
-            blockType === 'evaluator' ||
-            blockType === 'number' ||
-            blockType === 'webhook' ||
-            blockType === 'schedule' ||
-            blockType === 'mcp' ||
-            blockType === 'generic_webhook' ||
-            blockType === 'rss'
+            (category === 'blocks' && !ICON_MAP_BLOCK_CATEGORY_ALLOWLIST.has(blockType)) ||
+            ICON_MAP_EXCLUDED_TYPES.has(blockType)
           ) {
             continue
           }
 
-          const isVersionedBlockType = /_v\d+$/.test(blockType)
+          const isVersionedBlockType = isVersionedType(blockType)
           if (!hideFromToolbar || (options.includeHidden && isVersionedBlockType)) {
             iconMapping[blockType] = iconName
           }
@@ -521,6 +535,10 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
  * 'api-key' if it uses a plain API key field, or 'none' otherwise.
  */
 function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
+  // Prefer the authoritative `authMode` declaration when present.
+  if (/authMode\s*:\s*AuthMode\.OAuth\b/.test(blockContent)) return 'oauth'
+  if (/authMode\s*:\s*AuthMode\.(?:ApiKey|BotToken)\b/.test(blockContent)) return 'api-key'
+  // Fall back to credential subBlock heuristics for blocks without authMode.
   if (/type\s*:\s*['"]oauth-input['"]/.test(blockContent)) return 'oauth'
   if (/\bid\s*:\s*['"](?:apiKey|api_key|accessToken)['"]/.test(blockContent)) return 'api-key'
   return 'none'
@@ -614,15 +632,19 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
 }
 
 /**
- * Write the icon mapping TypeScript file for the landing integrations page.
- * Mirrors writeIconMapping but targets the sim app so it imports from @/components/icons.
+ * Write the icon mapping TypeScript file for the shared integrations data
+ * directory (`apps/sim/lib/integrations`). Mirrors `writeIconMapping` (the
+ * docs-app variant) but targets the sim app so it imports from
+ * `@/components/icons`. Unlike the docs variant, no bare-name aliasing is
+ * applied because consumers always look up by the canonical (possibly
+ * versioned) `integration.type` emitted into `integrations.json`.
  */
 function writeIntegrationsIconMapping(iconMapping: Record<string, string>): void {
   try {
-    if (!fs.existsSync(LANDING_INTEGRATIONS_DATA_PATH)) {
-      fs.mkdirSync(LANDING_INTEGRATIONS_DATA_PATH, { recursive: true })
+    if (!fs.existsSync(INTEGRATIONS_DATA_PATH)) {
+      fs.mkdirSync(INTEGRATIONS_DATA_PATH, { recursive: true })
     }
-    const iconMappingPath = path.join(LANDING_INTEGRATIONS_DATA_PATH, 'icon-mapping.ts')
+    const iconMappingPath = path.join(INTEGRATIONS_DATA_PATH, 'icon-mapping.ts')
 
     const iconNames = [...new Set(Object.values(iconMapping))].sort(biomeSortCompare)
     const imports = iconNames.map((icon) => `  ${icon},`).join('\n')
@@ -647,7 +669,7 @@ ${mappingEntries}
 }
 `
     fs.writeFileSync(iconMappingPath, content)
-    console.log('✓ Integration icon mapping written to landing app')
+    console.log('✓ Integration icon mapping written')
   } catch (error) {
     console.error('Error writing integration icon mapping:', error)
   }
@@ -655,13 +677,13 @@ ${mappingEntries}
 
 /**
  * Collect all integration entries from block definitions and write integrations.json
- * to the landing integrations page data directory.
+ * to the shared integrations data directory (`apps/sim/lib/integrations`).
  * Applies the same visibility filters as the docs generation pipeline.
  */
 async function writeIntegrationsJson(iconMapping: Record<string, string>): Promise<void> {
   try {
-    if (!fs.existsSync(LANDING_INTEGRATIONS_DATA_PATH)) {
-      fs.mkdirSync(LANDING_INTEGRATIONS_DATA_PATH, { recursive: true })
+    if (!fs.existsSync(INTEGRATIONS_DATA_PATH)) {
+      fs.mkdirSync(INTEGRATIONS_DATA_PATH, { recursive: true })
     }
 
     const triggerRegistry = await buildTriggerRegistry()
@@ -691,21 +713,26 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
       for (const config of configs) {
         const blockType = config.type
 
-        // Apply the same filters as docs/icon-mapping generation
-        if (
-          blockType.includes('_trigger') ||
-          blockType.includes('_webhook') ||
-          blockType.includes('rss') ||
-          (config.category === 'blocks' && blockType !== 'memory' && blockType !== 'knowledge') ||
-          blockType === 'evaluator' ||
-          blockType === 'number' ||
-          blockType === 'webhook' ||
-          blockType === 'schedule' ||
-          blockType === 'mcp' ||
-          blockType === 'generic_webhook'
-        ) {
-          continue
+        // Canonical integrations filter: only third-party tool blocks visible in the toolbar.
+        // `isIntegrationBlock` is the single source of truth for "is integration".
+        if (!isIntegrationBlock(config)) continue
+
+        // Every tools-category block MUST declare an `integrationType` from the canonical
+        // 16-value enum (apps/sim/blocks/types.ts). Fail loudly so the catalog never
+        // ships a tool without a category bucket.
+        if (!config.integrationType) {
+          throw new Error(
+            `Block "${blockType}" has \`category: 'tools'\` but is missing required \`integrationType\`. ` +
+              `Add one of the IntegrationType values from apps/sim/blocks/types.ts.`
+          )
         }
+        if (!INTEGRATION_CATEGORY_VALUES.has(config.integrationType as IntegrationType)) {
+          throw new Error(
+            `Block "${blockType}" has unrecognised \`integrationType: "${config.integrationType}"\`. ` +
+              `Use one of: ${[...INTEGRATION_CATEGORY_VALUES].join(', ')}.`
+          )
+        }
+        const integrationType = config.integrationType as IntegrationType
 
         // Deduplicate by stripped base type
         const baseType = stripVersionSuffix(blockType)
@@ -782,15 +809,8 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           triggers,
           triggerCount: triggers.length,
           authType,
-          category: config.category,
-          ...(config.integrationType || config.tags
-            ? {
-                integrationTypes: deriveIntegrationTypes(
-                  config.integrationType || null,
-                  config.tags || []
-                ),
-              }
-            : {}),
+          category: 'tools',
+          integrationType,
           ...(config.tags ? { tags: config.tags } : {}),
           ...(landingContentMap[slug] ? { landingContent: landingContentMap[slug] } : {}),
         })
@@ -800,9 +820,11 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
     // Sort alphabetically by name for a predictable, crawl-friendly order
     integrations.sort((a, b) => a.name.localeCompare(b.name))
 
-    const jsonPath = path.join(LANDING_INTEGRATIONS_DATA_PATH, 'integrations.json')
-    // JSON.stringify always expands arrays across multiple lines. Biome's formatter
-    // collapses short arrays of primitives onto single lines. Post-process to match.
+    const jsonPath = path.join(INTEGRATIONS_DATA_PATH, 'integrations.json')
+    // `JSON.stringify` always expands every array across multiple lines, but Biome's
+    // JSON formatter inlines short arrays of primitive strings. Pre-collapse those
+    // arrays here so the emitted file is already in Biome's canonical shape and
+    // `bun run check` does not churn it on every commit.
     const json = JSON.stringify(integrations, null, 2).replace(
       /\[\n(\s+"[^"\n]*"(?:,\n\s+"[^"\n]*")*)\n\s+\]/g,
       (_match, inner) => {
@@ -813,7 +835,11 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
     fs.writeFileSync(jsonPath, `${json}\n`)
     console.log(`✓ Integration data written: ${integrations.length} integrations → ${jsonPath}`)
   } catch (error) {
+    // Surface taxonomy violations (missing/invalid `integrationType`) loudly —
+    // they are programmer errors that must fail the generator, not be logged
+    // and silently swallowed.
     console.error('Error writing integrations JSON:', error)
+    throw error
   }
 }
 
@@ -924,9 +950,7 @@ function extractBlockConfigFromContent(
       baseConfig?.longDescription ||
       ''
     const category =
-      extractStringPropertyFromContent(blockContent, 'category', true) ||
-      baseConfig?.category ||
-      'misc'
+      extractStringPropertyFromContent(blockContent, 'category', true) || baseConfig?.category || ''
     const bgColor =
       extractStringPropertyFromContent(blockContent, 'bgColor', true) ||
       baseConfig?.bgColor ||
@@ -962,7 +986,14 @@ function extractBlockConfigFromContent(
       extractEnumPropertyFromContent(blockContent, 'integrationType') ||
       baseConfig?.integrationType ||
       null
-    const tags = extractArrayPropertyFromContent(blockContent, 'tags') || baseConfig?.tags || null
+    // Tags live on the block's `<BlockName>BlockMeta` export. For spread-inheriting
+    // blocks (e.g. `ConfluenceV2Block` extending `ConfluenceBlock`), also try the
+    // spread base's meta so V2 variants inherit tags.
+    const tags =
+      (fileContent ? extractTagsFromBlockMeta(fileContent, blockName) : null) ||
+      (fileContent && spreadBase
+        ? extractTagsFromBlockMeta(fileContent, spreadBase.replace(/Block$/, ''))
+        : null)
 
     return {
       type: blockType,
@@ -989,12 +1020,42 @@ function extractBlockConfigFromContent(
 }
 
 /**
- * Strip version suffix (e.g., _v2, _v3) from a type for display purposes
- * The internal type remains unchanged for icon mapping
+ * The single predicate that decides whether an extracted block config belongs
+ * in the integration surfaces emitted by this script — the integrations
+ * catalog (`integrations.json`) and the per-tool `/tools/*.mdx` docs. A block
+ * qualifies only when it is a third-party integration (`category: 'tools'`)
+ * that is currently surfaced in the toolbar (`hideFromToolbar` not set). Under
+ * the versioning upgrade paradigm only the latest version is visible, so this
+ * also naturally selects the canonical version. Recategorizing a block to
+ * `'blocks'` or `'triggers'` removes it from all integration surfaces.
  */
-function stripVersionSuffix(type: string): string {
-  return type.replace(/_v\d+$/, '')
+function isIntegrationBlock(config: { category?: string; hideFromToolbar?: boolean }): boolean {
+  return config.category === 'tools' && !config.hideFromToolbar
 }
+
+/**
+ * First-party `category: 'blocks'` primitives that are nonetheless surfaced on
+ * the integrations page (and therefore need an icon-mapping entry) even though
+ * they are not third-party integrations. Everything else in the `'blocks'`
+ * category — including first-party AI capabilities like the image/video
+ * generators, vision, and STT/TTS — is excluded from the integrations icon
+ * map, matching {@link isIntegrationBlock}.
+ */
+const ICON_MAP_BLOCK_CATEGORY_ALLOWLIST = new Set(['memory', 'knowledge'])
+
+/**
+ * Block types that never belong in the integrations icon map regardless of
+ * category — core primitives, triggers, and webhook/feed plumbing.
+ */
+const ICON_MAP_EXCLUDED_TYPES = new Set([
+  'evaluator',
+  'number',
+  'webhook',
+  'schedule',
+  'mcp',
+  'generic_webhook',
+  'rss',
+])
 
 /**
  * Extract a string property from block content.
@@ -1046,113 +1107,31 @@ function extractStringPropertyFromContent(
 }
 
 /**
- * Tag-to-category mapping used by deriveIntegrationTypes to expand a block's
- * primary integrationType into a full set of categories for the landing page.
- */
-const TAG_TO_CATEGORIES: Record<string, string[]> = {
-  llm: ['ai'],
-  agentic: ['ai'],
-  'image-generation': ['ai', 'design'],
-  'video-generation': ['ai', 'design'],
-  'text-to-speech': ['ai'],
-  'speech-to-text': ['ai'],
-  ocr: ['ai', 'documents'],
-  'vector-search': ['ai', 'search'],
-  'document-processing': ['documents'],
-  'content-management': ['documents'],
-  'e-signatures': ['documents'],
-  'note-taking': ['productivity', 'documents'],
-  'knowledge-base': ['documents', 'search'],
-  'data-analytics': ['analytics'],
-  seo: ['analytics', 'search'],
-  monitoring: ['developer-tools', 'analytics'],
-  'error-tracking': ['developer-tools'],
-  'incident-management': ['developer-tools'],
-  'version-control': ['developer-tools'],
-  'ci-cd': ['developer-tools'],
-  'feature-flags': ['developer-tools'],
-  messaging: ['communication'],
-  meeting: ['communication', 'productivity'],
-  calendar: ['productivity'],
-  scheduling: ['productivity'],
-  'project-management': ['productivity'],
-  ticketing: ['productivity', 'customer-support'],
-  forms: ['productivity'],
-  spreadsheet: ['productivity', 'databases'],
-  'data-warehouse': ['databases'],
-  cloud: ['developer-tools'],
-  'web-scraping': ['search'],
-  'sales-engagement': ['sales'],
-  enrichment: ['sales'],
-  'email-marketing': ['email'],
-  marketing: ['analytics'],
-  payments: ['ecommerce'],
-  subscriptions: ['ecommerce'],
-  hiring: ['hr'],
-  identity: ['security'],
-  'secrets-management': ['security'],
-  'customer-support': ['customer-support'],
-  webhooks: ['developer-tools'],
-  automation: ['developer-tools'],
-}
-
-/**
- * Derive the full list of integration type categories from a block's primary
- * integrationType and its tags. The primary type is always first; additional
- * categories are inferred from tags via TAG_TO_CATEGORIES.
- */
-function deriveIntegrationTypes(primaryType: string | null, tags: string[]): string[] {
-  const types = new Set<string>()
-  if (primaryType) {
-    types.add(primaryType)
-  }
-  for (const tag of tags) {
-    const mapped = TAG_TO_CATEGORIES[tag]
-    if (mapped) {
-      for (const t of mapped) {
-        types.add(t)
-      }
-    }
-  }
-  // Return primary first, then the rest sorted for deterministic output
-  const result: string[] = []
-  if (primaryType && types.has(primaryType)) {
-    result.push(primaryType)
-    types.delete(primaryType)
-  }
-  result.push(...Array.from(types).sort())
-  return result
-}
-
-/**
- * Extract an enum property value from block content.
- * Matches patterns like `integrationType: IntegrationType.DeveloperTools`
- * and returns the string value (e.g., 'developer-tools').
+ * Extract an enum property value from block content. Maps an `IntegrationType`
+ * enum key (e.g. `Communication`) to its slug value (e.g. `'communication'`).
+ * Mirrors `apps/sim/blocks/types.ts → IntegrationType` — keep in sync.
  */
 function extractEnumPropertyFromContent(content: string, propName: string): string | null {
   const match = content.match(new RegExp(`${propName}\\s*:\\s*IntegrationType\\.(\\w+)`))
   if (!match) return null
   const enumKey = match[1]
-  // Convert enum key to kebab-case value (e.g., DeveloperTools -> developer-tools)
   const ENUM_MAP: Record<string, string> = {
     AI: 'ai',
     Analytics: 'analytics',
+    Commerce: 'commerce',
     Communication: 'communication',
-    CRM: 'crm',
-    CustomerSupport: 'customer-support',
     Databases: 'databases',
-    Design: 'design',
-    DeveloperTools: 'developer-tools',
+    DevOps: 'devops',
     Documents: 'documents',
-    Ecommerce: 'ecommerce',
     Email: 'email',
-    FileStorage: 'file-storage',
     HR: 'hr',
-    Other: 'other',
+    Marketing: 'marketing',
+    Observability: 'observability',
     Productivity: 'productivity',
     Sales: 'sales',
     Search: 'search',
     Security: 'security',
+    Support: 'support',
   }
   return ENUM_MAP[enumKey] || enumKey.toLowerCase()
 }
@@ -1167,6 +1146,28 @@ function extractArrayPropertyFromContent(content: string, propName: string): str
   const items = match[1].match(/'([^']+)'|"([^"]+)"/g)
   if (!items) return null
   return items.map((item) => item.replace(/['"]/g, ''))
+}
+
+/**
+ * Extract `tags` from a `<BlockName>BlockMeta` literal in the source file.
+ * Looks for `export const <BlockName>BlockMeta = { ... tags: [...] ... }`
+ * at file scope and scans only the body of that literal. Returns null when
+ * no matching meta export exists or it contains no `tags` array.
+ *
+ * During the in-progress migration to per-block meta, some blocks declare
+ * `tags` on `BlockConfig` and others on `*BlockMeta`. The caller should
+ * try this extractor first and fall back to the `BlockConfig` extractor.
+ */
+function extractTagsFromBlockMeta(fileContent: string, blockName: string): string[] | null {
+  const headerRegex = new RegExp(`export\\s+const\\s+${blockName}BlockMeta\\s*(?::[^=]+)?=\\s*\\{`)
+  const metaHeaderMatch = fileContent.match(headerRegex)
+  if (!metaHeaderMatch || metaHeaderMatch.index === undefined) return null
+  const openBracePos = fileContent.indexOf('{', metaHeaderMatch.index)
+  if (openBracePos === -1) return null
+  const closeBracePos = findMatchingClose(fileContent, openBracePos)
+  if (closeBracePos === -1) return null
+  const metaBody = fileContent.substring(openBracePos + 1, closeBracePos)
+  return extractArrayPropertyFromContent(metaBody, 'tags')
 }
 
 function extractIconNameFromContent(content: string): string | null {
@@ -1778,6 +1779,9 @@ function extractToolInfo(
         if (endPos !== -1) {
           const paramBlock = paramsContent.substring(startPos + 1, endPos - 1).trim()
           paramPositions.push({ name: paramName, start: startPos, content: paramBlock })
+          // Resume scanning after this param's block so nested descriptors
+          // (e.g. an array param's `items: {...}`) are not parsed as params.
+          paramBlocksRegex.lastIndex = endPos
         }
       }
 
@@ -2408,7 +2412,7 @@ async function getToolInfo(toolName: string): Promise<{
     }
 
     // Check if this is a versioned tool (e.g., _v2, _v3)
-    const isVersionedTool = /_v\d+$/.test(toolSuffix)
+    const isVersionedTool = isVersionedType(toolSuffix)
     const strippedToolSuffix = stripVersionSuffix(toolSuffix)
 
     const possibleLocations: Array<{ path: string; priority: 'exact' | 'fallback' }> = []
@@ -2583,29 +2587,9 @@ async function generateBlockDoc(blockPath: string) {
         continue
       }
 
-      if (
-        blockConfig.type.includes('_trigger') ||
-        blockConfig.type.includes('_webhook') ||
-        blockConfig.type.includes('rss')
-      ) {
-        console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
-        continue
-      }
-
-      if (
-        (blockConfig.category === 'blocks' &&
-          blockConfig.type !== 'memory' &&
-          blockConfig.type !== 'knowledge') ||
-        blockConfig.type === 'evaluator' ||
-        blockConfig.type === 'number' ||
-        blockConfig.type === 'webhook' ||
-        blockConfig.type === 'schedule' ||
-        blockConfig.type === 'mcp' ||
-        blockConfig.type === 'generic_webhook' ||
-        blockConfig.type === 'rss'
-      ) {
-        continue
-      }
+      // Canonical integrations filter: docs are written only for third-party tool blocks
+      // visible in the toolbar. Source of truth: `isIntegrationBlock`.
+      if (!isIntegrationBlock(blockConfig)) continue
 
       // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
       const displayType = stripVersionSuffix(blockConfig.type)
@@ -2644,7 +2628,6 @@ async function generateMarkdownForBlock(
     name,
     description,
     longDescription,
-    category,
     bgColor,
     outputs = {},
     tools = { access: [] },
@@ -2829,64 +2812,42 @@ ${toolsSection}
 }
 
 /**
- * Extract all hidden block types (blocks with hideFromToolbar: true) and
- * the set of display names that will be generated by visible blocks.
- * This is needed to avoid deleting docs for hidden V1 blocks when a visible V2 block
- * will regenerate them.
+ * Compute the canonical set of stripped block types that should have a
+ * `docs/tools/*.mdx` file — namely every visible `category: 'tools'` block
+ * (matching the writer filter at the top of this script). Any existing MDX
+ * not in this set is stale and gets cleaned up.
+ *
+ * Uses `extractAllBlockConfigs` so spread-inherited fields (e.g. a V2 that
+ * spreads `...GmailBlock` and inherits `category: 'tools'`) are resolved the
+ * same way the writer resolves them. `stripVersionSuffix` ensures V1 and V2
+ * map to the same doc filename — alphabetical glob order means the newest
+ * version naturally wins for both generation and cleanup.
  */
-async function getHiddenAndVisibleBlockTypes(): Promise<{
-  hiddenTypes: Set<string>
-  visibleDisplayNames: Set<string>
-}> {
-  const hiddenTypes = new Set<string>()
-  const visibleDisplayNames = new Set<string>()
+async function getCanonicalToolDocNames(): Promise<Set<string>> {
+  const validToolDocs = new Set<string>()
   const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 
   for (const blockFile of blockFiles) {
     const fileContent = fs.readFileSync(blockFile, 'utf-8')
+    const configs = extractAllBlockConfigs(fileContent)
 
-    // Find all block exports
-    const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
-    let match
-
-    while ((match = exportRegex.exec(fileContent)) !== null) {
-      const startIndex = match.index + match[0].length - 1
-
-      // Extract the block content
-      const endIndex = findMatchingClose(fileContent, startIndex)
-
-      if (endIndex !== -1) {
-        const blockContent = fileContent.substring(startIndex, endIndex)
-        const blockType = extractStringPropertyFromContent(blockContent, 'type', true)
-
-        if (blockType) {
-          // Check if this block has hideFromToolbar: true
-          if (/hideFromToolbar\s*:\s*true/.test(blockContent)) {
-            hiddenTypes.add(blockType)
-          } else {
-            // This block is visible - add its display name (stripped version)
-            visibleDisplayNames.add(stripVersionSuffix(blockType))
-          }
-        }
-      }
+    for (const config of configs) {
+      if (!isIntegrationBlock(config)) continue
+      validToolDocs.add(stripVersionSuffix(config.type))
     }
   }
 
-  return { hiddenTypes, visibleDisplayNames }
+  return validToolDocs
 }
 
 /**
- * Remove documentation files for hidden blocks.
- * Skips deletion if a visible V2 block will regenerate the docs.
+ * Remove any `docs/tools/*.mdx` that no longer corresponds to a visible
+ * `category: 'tools'` block — covers both hidden blocks and blocks that
+ * have been re-categorized to `'blocks'` / `'triggers'`. Keeps the
+ * tools/ docs directory in lockstep with the canonical block registry.
  */
-function cleanupHiddenBlockDocs(hiddenTypes: Set<string>, visibleDisplayNames: Set<string>): void {
-  console.log('Cleaning up docs for hidden blocks...')
-
-  // Create a set of stripped hidden types (for matching doc files without version suffix)
-  const strippedHiddenTypes = new Set<string>()
-  for (const type of hiddenTypes) {
-    strippedHiddenTypes.add(stripVersionSuffix(type))
-  }
+function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
+  console.log('Cleaning up stale tool docs...')
 
   const existingDocs = fs
     .readdirSync(DOCS_OUTPUT_PATH)
@@ -2896,27 +2857,19 @@ function cleanupHiddenBlockDocs(hiddenTypes: Set<string>, visibleDisplayNames: S
 
   for (const docFile of existingDocs) {
     const blockType = path.basename(docFile, '.mdx')
+    if (blockType === 'index') continue
+    if (validToolDocs.has(blockType)) continue
 
-    // Check both original type and stripped type (since doc files use stripped names)
-    if (hiddenTypes.has(blockType) || strippedHiddenTypes.has(blockType)) {
-      // Skip deletion if there's a visible V2 block that will regenerate this doc
-      // (e.g., don't delete intercom.mdx if IntercomV2Block is visible)
-      if (visibleDisplayNames.has(blockType)) {
-        console.log(`  Skipping deletion of ${blockType}.mdx - visible V2 block will regenerate it`)
-        continue
-      }
-
-      const docPath = path.join(DOCS_OUTPUT_PATH, docFile)
-      fs.unlinkSync(docPath)
-      console.log(`✓ Removed docs for hidden block: ${blockType}`)
-      removedCount++
-    }
+    const docPath = path.join(DOCS_OUTPUT_PATH, docFile)
+    fs.unlinkSync(docPath)
+    console.log(`✓ Removed stale tool doc: ${blockType}.mdx`)
+    removedCount++
   }
 
   if (removedCount > 0) {
-    console.log(`✓ Cleaned up ${removedCount} doc files for hidden blocks`)
+    console.log(`✓ Cleaned up ${removedCount} stale tool doc files`)
   } else {
-    console.log('✓ No hidden block docs to clean up')
+    console.log('✓ No stale tool docs to clean up')
   }
 }
 
@@ -3734,12 +3687,10 @@ async function generateAllBlockDocs() {
     await writeIntegrationsJson(visibleIconMapping)
     writeIntegrationsIconMapping(visibleIconMapping)
 
-    // Get hidden and visible block types before generating docs
-    const { hiddenTypes, visibleDisplayNames } = await getHiddenAndVisibleBlockTypes()
-    console.log(`Found ${hiddenTypes.size} hidden blocks: ${[...hiddenTypes].join(', ')}`)
-
-    // Clean up docs for hidden blocks (skipping those with visible V2 equivalents)
-    cleanupHiddenBlockDocs(hiddenTypes, visibleDisplayNames)
+    // Compute the canonical set of tool docs and clean up anything stale —
+    // covers hidden blocks AND blocks re-categorized away from `'tools'`.
+    const validToolDocs = await getCanonicalToolDocNames()
+    cleanupStaleToolDocs(validToolDocs)
 
     const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 

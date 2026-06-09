@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy } from '@/components/emcn/icons'
+import { Duplicate } from '@/components/emcn/icons'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
 
 interface ShareButtonProps {
@@ -46,21 +46,21 @@ export function ShareButton({ url, title }: ShareButtonProps) {
           className='flex items-center gap-1.5 text-[var(--landing-text-muted)] text-sm hover:text-[var(--landing-text)]'
           aria-label='Share this post'
         >
-          <Share2 className='size-4' />
+          <Share2 className='h-4 w-4' />
           <span>Share</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuItem onSelect={handleCopyLink}>
-          <Copy className='size-4' />
+          <Duplicate className='h-4 w-4' />
           {copied ? 'Copied!' : 'Copy link'}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleShareTwitter}>
-          <XIcon className='size-4' />
+          <XIcon className='h-4 w-4' />
           Share on X
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={handleShareLinkedIn}>
-          <LinkedInIcon className='size-4' />
+          <LinkedInIcon className='h-4 w-4' />
           Share on LinkedIn
         </DropdownMenuItem>
       </DropdownMenuContent>

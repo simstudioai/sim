@@ -10,14 +10,13 @@ const DISALLOWED_PATHS = [
   '/invite/',
   '/unsubscribe/',
   '/w/',
-  '/form/',
   '/credential-account/',
   '/_next/',
   '/private/',
   '/blog*tag=',
 ]
 
-/** Looser disallow than the wildcard so OG previews can fetch /chat/ and /form/. */
+/** Looser disallow than the wildcard so OG previews can fetch /chat/. */
 const LINK_PREVIEW_DISALLOWED_PATHS = [
   '/api/',
   '/workspace/',

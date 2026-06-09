@@ -4,7 +4,7 @@ import type React from 'react'
 import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { X } from 'lucide-react'
-import { Button, Combobox, FieldDivider, Input, Label, Switch, toast } from '@/components/emcn'
+import { Button, ChipCombobox, FieldDivider, Input, Label, Switch, toast } from '@/components/emcn'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
@@ -116,7 +116,9 @@ function ColumnConfigBody({
         return
       }
 
-      const renamed = trimmedName !== config.columnName
+      // `config.columnName` is the column id; compare against the current display
+      // name to detect an actual rename.
+      const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged = !!existingColumn && !!existingColumn.unique !== uniqueInput
 
@@ -187,7 +189,7 @@ function ColumnConfigBody({
             <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>
               <RequiredLabel>Type</RequiredLabel>
-              <Combobox
+              <ChipCombobox
                 options={PLAIN_COLUMN_TYPE_OPTIONS.map((o) => ({
                   label: o.label,
                   value: o.type,

@@ -1,14 +1,8 @@
 'use client'
 
-import { ErrorState } from '@/app/workspace/[workspaceId]/components'
+import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
 
-export default function SettingsSectionError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string }
-  reset: () => void
-}) {
+export default function SettingsSectionError({ error, reset }: ErrorBoundaryProps) {
   return (
     <ErrorState
       error={error}

@@ -27,7 +27,7 @@ import type {
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { useProgressiveList } from '@/hooks/use-progressive-list'
 import type { ChatContext } from '@/stores/panel'
-import { MothershipChatSkeleton } from './mothership-chat-skeleton'
+import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 
 interface MothershipChatProps {
   messages: ChatMessage[]
@@ -64,13 +64,13 @@ const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
       'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable_both-edges]',
-    content: 'mx-auto max-w-[42rem] space-y-6',
+    content: 'mx-auto max-w-[48rem] space-y-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
     attachmentWidth: 'max-w-[70%]',
     userBubble: 'max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
     footer: 'flex-shrink-0 px-[24px] pb-[16px]',
-    footerInner: 'mx-auto max-w-[42rem]',
+    footerInner: 'mx-auto max-w-[48rem]',
   },
   'copilot-view': {
     scrollContainer: 'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4',

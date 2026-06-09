@@ -222,19 +222,22 @@ export function useTableUndo({
           }
 
           case 'create-column': {
+            // Identity (delete lookup + id-keyed metadata) uses the stable id;
+            // re-create uses the display name.
+            const colKey = action.columnId ?? action.columnName
             if (direction === 'undo') {
-              deleteColumnMutation.mutate(action.columnName, {
+              deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
                   const metadata: Record<string, unknown> = {}
                   const currentWidths = getColumnWidthsRef.current?.() ?? {}
-                  if (action.columnName in currentWidths) {
-                    const { [action.columnName]: _, ...rest } = currentWidths
+                  if (colKey in currentWidths) {
+                    const { [colKey]: _, ...rest } = currentWidths
                     onColumnWidthsChangeRef.current?.(rest)
                     metadata.columnWidths = rest
                   }
                   const currentPinned = getPinnedColumnsRef.current?.() ?? []
-                  if (currentPinned.includes(action.columnName)) {
-                    const newPinned = currentPinned.filter((n) => n !== action.columnName)
+                  if (currentPinned.includes(colKey)) {
+                    const newPinned = currentPinned.filter((n) => n !== colKey)
                     onPinnedColumnsChangeRef.current?.(newPinned)
                     metadata.pinnedColumns = newPinned
                   }
@@ -245,6 +248,7 @@ export function useTableUndo({
               })
             } else {
               addColumnMutation.mutate({
+                ...(action.columnId ? { id: action.columnId } : {}),
                 name: action.columnName,
                 type: 'string',
                 position: action.position,
@@ -254,9 +258,15 @@ export function useTableUndo({
           }
 
           case 'delete-column': {
+            // Identity (cell-data keys, id-keyed metadata, delete lookup) uses the
+            // stable id; re-create uses the display name.
+            const colKey = action.columnId ?? action.columnName
             if (direction === 'undo') {
               addColumnMutation.mutate(
                 {
+                  // Reuse the original id so the saved (id-keyed) cell data below
+                  // lands on the restored column.
+                  ...(action.columnId ? { id: action.columnId } : {}),
                   name: action.columnName,
                   type: action.columnType,
                   required: action.columnRequired,
@@ -268,7 +278,7 @@ export function useTableUndo({
                     if (action.cellData.length > 0) {
                       const updates = action.cellData.map((c) => ({
                         rowId: c.rowId,
-                        data: { [action.columnName]: c.value },
+                        data: { [colKey]: c.value },
                       }))
                       void (async () => {
                         try {
@@ -297,26 +307,22 @@ export function useTableUndo({
                     if (action.previousWidth !== null) {
                       const merged = {
                         ...(getColumnWidthsRef.current?.() ?? {}),
-                        [action.columnName]: action.previousWidth,
+                        [colKey]: action.previousWidth,
                       }
                       metadata.columnWidths = merged
                       onColumnWidthsChangeRef.current?.(merged)
                     }
                     if (action.previousPinnedColumns !== null) {
-                      const wasColumnPinned = action.previousPinnedColumns.includes(
-                        action.columnName
-                      )
+                      const wasColumnPinned = action.previousPinnedColumns.includes(colKey)
                       if (wasColumnPinned) {
                         const currentPinned = getPinnedColumnsRef.current?.() ?? []
-                        if (!currentPinned.includes(action.columnName)) {
-                          const insertIndex = action.previousPinnedColumns.indexOf(
-                            action.columnName
-                          )
+                        if (!currentPinned.includes(colKey)) {
+                          const insertIndex = action.previousPinnedColumns.indexOf(colKey)
                           const restoredPinned = [...currentPinned]
                           restoredPinned.splice(
                             Math.min(insertIndex, restoredPinned.length),
                             0,
-                            action.columnName
+                            colKey
                           )
                           onPinnedColumnsChangeRef.current?.(restoredPinned)
                           metadata.pinnedColumns = restoredPinned
@@ -330,24 +336,24 @@ export function useTableUndo({
                 }
               )
             } else {
-              deleteColumnMutation.mutate(action.columnName, {
+              deleteColumnMutation.mutate(colKey, {
                 onSuccess: () => {
                   const metadata: Record<string, unknown> = {}
                   if (action.previousOrder) {
-                    const newOrder = action.previousOrder.filter((n) => n !== action.columnName)
+                    const newOrder = action.previousOrder.filter((n) => n !== colKey)
                     onColumnOrderChangeRef.current?.(newOrder)
                     metadata.columnOrder = newOrder
                   }
                   if (action.previousWidth !== null) {
                     const currentWidths = getColumnWidthsRef.current?.() ?? {}
-                    const { [action.columnName]: _, ...rest } = currentWidths
+                    const { [colKey]: _, ...rest } = currentWidths
                     metadata.columnWidths = rest
                     onColumnWidthsChangeRef.current?.(rest)
                   }
                   if (action.previousPinnedColumns !== null) {
                     const currentPinned = getPinnedColumnsRef.current?.() ?? []
-                    if (currentPinned.includes(action.columnName)) {
-                      const newPinned = currentPinned.filter((n) => n !== action.columnName)
+                    if (currentPinned.includes(colKey)) {
+                      const newPinned = currentPinned.filter((n) => n !== colKey)
                       onPinnedColumnsChangeRef.current?.(newPinned)
                       metadata.pinnedColumns = newPinned
                     }
@@ -364,11 +370,14 @@ export function useTableUndo({
           case 'rename-column': {
             const fromName = direction === 'undo' ? action.newName : action.oldName
             const toName = direction === 'undo' ? action.oldName : action.newName
+            // Look up by the stable id (falls back to the current name) so undo
+            // never renames the column to its internal id.
+            const colKey = action.columnId ?? fromName
             updateColumnMutation.mutate({
-              columnName: fromName,
+              columnName: colKey,
               updates: { name: toName },
             })
-            onColumnRenameRef.current?.(fromName, toName)
+            onColumnRenameRef.current?.(colKey, toName)
             break
           }
 

@@ -5,6 +5,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { useToast } from '@/components/emcn'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import {
   useWorkspacePermissionsQuery,
@@ -12,7 +15,6 @@ import {
   workspaceKeys,
 } from '@/hooks/queries/workspace'
 import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
-import { useNotificationStore } from '@/stores/notifications'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
 const logger = createLogger('WorkspacePermissionsProvider')
@@ -54,11 +56,10 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   const params = useParams()
   const workspaceId = params?.workspaceId as string
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   const [hasShownOfflineNotification, setHasShownOfflineNotification] = useState(false)
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
-  const addNotification = useNotificationStore((state) => state.addNotification)
-  const removeNotification = useNotificationStore((state) => state.removeNotification)
   const { isReconnecting, isRetryingWorkflowJoin } = useSocket()
   const realtimeStatusNotificationIdRef = useRef<string | null>(null)
   const realtimeStatusNotificationMessageRef = useRef<string | null>(null)
@@ -75,10 +76,10 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
       return
     }
 
-    removeNotification(realtimeStatusNotificationIdRef.current)
+    toast.dismiss(realtimeStatusNotificationIdRef.current)
     realtimeStatusNotificationIdRef.current = null
     realtimeStatusNotificationMessageRef.current = null
-  }, [removeNotification])
+  }, [])
 
   useEffect(() => {
     if (isOfflineMode || !realtimeStatusMessage) {
@@ -95,18 +96,29 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
 
     clearRealtimeStatusNotification()
 
-    const id = addNotification({
-      level: 'error',
-      message: realtimeStatusMessage,
-    })
+    const id = toast.error(realtimeStatusMessage, { duration: 0, persistAcrossRoutes: true })
 
     realtimeStatusNotificationIdRef.current = id
     realtimeStatusNotificationMessageRef.current = realtimeStatusMessage
-  }, [addNotification, clearRealtimeStatusNotification, isOfflineMode, realtimeStatusMessage])
+  }, [clearRealtimeStatusNotification, isOfflineMode, realtimeStatusMessage])
 
   useEffect(() => {
     return clearRealtimeStatusNotification
   }, [clearRealtimeStatusNotification])
+
+  useRegisterGlobalCommands(() =>
+    createCommands([
+      {
+        id: 'clear-notifications',
+        handler: () => {
+          toast.dismissAll()
+        },
+        overrides: {
+          allowInEditable: false,
+        },
+      },
+    ])
+  )
 
   useEffect(() => {
     if (!isOfflineMode || hasShownOfflineNotification) {
@@ -116,19 +128,16 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     clearRealtimeStatusNotification()
 
     try {
-      addNotification({
-        level: 'error',
-        message: 'Connection unavailable',
-        action: {
-          type: 'refresh',
-          message: '',
-        },
+      toast.error('Connection unavailable', {
+        duration: 0,
+        persistAcrossRoutes: true,
+        action: { label: 'Refresh', onClick: () => window.location.reload() },
       })
       setHasShownOfflineNotification(true)
     } catch (error) {
       logger.error('Failed to add offline notification', { error })
     }
-  }, [addNotification, clearRealtimeStatusNotification, hasShownOfflineNotification, isOfflineMode])
+  }, [clearRealtimeStatusNotification, hasShownOfflineNotification, isOfflineMode])
 
   const {
     data: workspacePermissions,

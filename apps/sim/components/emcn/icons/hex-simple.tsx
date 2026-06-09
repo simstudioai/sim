@@ -19,10 +19,10 @@ export function HexSimple(props: SVGProps<SVGSVGElement>) {
         d='M12 2L20.66 7V17L12 22L3.34 17V7L12 2Z'
         fill='none'
         stroke='currentColor'
-        strokeWidth='2'
+        strokeWidth='1.55'
         strokeLinejoin='round'
       />
-      <circle cx='12' cy='12' r='4' fill='none' stroke='currentColor' strokeWidth='2' />
+      <circle cx='12' cy='12' r='4' fill='none' stroke='currentColor' strokeWidth='1.55' />
     </svg>
   )
 }

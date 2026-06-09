@@ -2,23 +2,32 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, Loader } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { Download } from '@/components/emcn/icons'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
-import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('FileCards')
 
+interface FileData {
+  id?: string
+  name: string
+  size: number
+  type: string
+  key: string
+  url: string
+  storageProvider?: 's3' | 'blob' | 'local'
+  bucketName?: string
+}
+
 interface FileCardsProps {
-  files: UserFile[]
+  files: FileData[]
   isExecutionFile?: boolean
   workspaceId?: string
 }
 
 interface FileCardProps {
-  file: UserFile
+  file: FileData
   isExecutionFile?: boolean
   workspaceId?: string
 }
@@ -109,7 +118,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
           {isDownloading ? (
             <Loader className='mr-1 size-[10px]' animate />
           ) : (
-            <ArrowDown className='mr-1 size-[10px]' />
+            <Download className='mr-1 size-[10px]' />
           )}
           {isDownloading ? 'Opening...' : 'Download'}
         </Button>
@@ -146,7 +155,7 @@ export function FileDownload({
   className,
   workspaceId,
 }: {
-  file: UserFile
+  file: FileData
   isExecutionFile?: boolean
   className?: string
   workspaceId?: string
@@ -209,16 +218,14 @@ export function FileDownload({
   return (
     <Button
       variant='ghost'
-      className={cn('h-7 px-2 text-xs', className)}
+      className={`h-7 px-2 text-xs ${className}`}
       onClick={handleDownload}
       disabled={isDownloading}
     >
-      {isDownloading ? (
-        <Loader className='size-3' animate />
-      ) : (
-        <ArrowDown className='size-[14px]' />
-      )}
+      {isDownloading ? <Loader className='size-3' animate /> : <Download className='size-[14px]' />}
       {isDownloading ? 'Downloading...' : 'Download'}
     </Button>
   )
 }
+
+export default FileCards

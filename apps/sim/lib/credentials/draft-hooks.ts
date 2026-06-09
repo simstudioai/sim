@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialDraftHooks')
 
@@ -66,6 +67,20 @@ export async function handleCreateCredentialFromDraft(params: {
       description: `Created OAuth credential "${draft.displayName}"`,
       metadata: { providerId, accountId },
     })
+
+    captureServerEvent(
+      userId,
+      'credential_connected',
+      {
+        credential_type: 'oauth',
+        provider_id: providerId,
+        workspace_id: draft.workspaceId,
+      },
+      {
+        groups: { workspace: draft.workspaceId },
+        setOnce: { first_credential_connected_at: now.toISOString() },
+      }
+    )
   } catch (insertError: unknown) {
     const code =
       insertError && typeof insertError === 'object' && 'code' in insertError

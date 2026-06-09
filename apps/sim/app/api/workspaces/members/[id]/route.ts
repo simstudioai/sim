@@ -1,17 +1,23 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissionGroupMember, permissions, workspace } from '@sim/db/schema'
+import { member, permissionGroupMember, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { removeWorkspaceMemberContract } from '@/lib/api/contracts/invitations'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
+  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
+  WorkspaceBillingAccountRemovalError,
+} from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceMemberAPI')
 
@@ -34,6 +40,7 @@ export const DELETE = withRouteHandler(
         .select({
           ownerId: workspace.ownerId,
           billedAccountUserId: workspace.billedAccountUserId,
+          organizationId: workspace.organizationId,
         })
         .from(workspace)
         .where(eq(workspace.id, workspaceId))
@@ -111,78 +118,110 @@ export const DELETE = withRouteHandler(
         }
       }
 
-      const ownershipTransferred = await db.transaction(async (tx) => {
-        let didTransferOwnership = false
+      const organizationId = workspaceRow[0].organizationId
 
-        if (isRemovingWorkspaceOwner) {
-          /**
-           * Invariant: the billed account is the org owner for org workspaces,
-           * the owner for personal workspaces, and a workspace admin for
-           * grandfathered shared workspaces.
-           */
-          const newOwnerId = workspaceRow[0].billedAccountUserId
+      const { ownershipTransferred, workflowOwnershipReassignment } = await db.transaction(
+        async (tx) => {
+          const didTransferOwnership =
+            await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
+              tx,
+              workspaceId,
+              departingUserId: userId,
+            })
+
+          const workflowOwnershipReassignment =
+            await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+              tx,
+              workspaceIds: [workspaceId],
+              departingUserId: userId,
+            })
+          if (workflowOwnershipReassignment.unresolved.length > 0) {
+            throw new WorkspaceBillingAccountRemovalError()
+          }
 
           await tx
-            .update(workspace)
-            .set({ ownerId: newOwnerId, updatedAt: new Date() })
-            .where(eq(workspace.id, workspaceId))
-
-          const [existingNewOwnerPermission] = await tx
-            .select({ id: permissions.id })
-            .from(permissions)
+            .delete(permissions)
             .where(
               and(
-                eq(permissions.userId, newOwnerId),
+                eq(permissions.userId, userId),
                 eq(permissions.entityType, 'workspace'),
                 eq(permissions.entityId, workspaceId)
               )
             )
-            .limit(1)
 
-          if (existingNewOwnerPermission) {
-            await tx
-              .update(permissions)
-              .set({ permissionType: 'admin', updatedAt: new Date() })
-              .where(eq(permissions.id, existingNewOwnerPermission.id))
-          } else {
-            const now = new Date()
-            await tx.insert(permissions).values({
-              id: generateId(),
-              userId: newOwnerId,
-              entityType: 'workspace',
-              entityId: workspaceId,
-              permissionType: 'admin',
-              createdAt: now,
-              updatedAt: now,
+          await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
+
+          await tx
+            .delete(permissionGroupMember)
+            .where(
+              and(
+                eq(permissionGroupMember.userId, userId),
+                eq(permissionGroupMember.workspaceId, workspaceId)
+              )
+            )
+
+          return { ownershipTransferred: didTransferOwnership, workflowOwnershipReassignment }
+        }
+      )
+
+      /**
+       * Seats are tied to organization membership (one per member), so a
+       * single-workspace removal only drops a seat when it leaves the member
+       * with no access to any of the org's workspaces — at which point their
+       * org membership is removed too. Members still in other org workspaces
+       * keep their membership and seat.
+       */
+      let organizationRemoval = false
+      let seatReduction: Awaited<ReturnType<typeof reconcileOrganizationSeats>> | null = null
+
+      if (organizationId && userId !== workspaceRow[0].billedAccountUserId) {
+        const [orgMembership] = await db
+          .select({ id: member.id })
+          .from(member)
+          .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+          .limit(1)
+
+        if (orgMembership) {
+          /**
+           * Remove the org membership + seat only when this is the member's last
+           * access to any org workspace. The remaining-access check and the
+           * deletion happen atomically under a `(user, org)` advisory lock inside
+           * `removeUserFromOrganization` (`requireNoOrgWorkspaceAccess`), so a
+           * concurrent invite acceptance can't be raced into a "workspace access
+           * but no org membership" state.
+           */
+          const removal = await removeUserFromOrganization({
+            userId,
+            organizationId,
+            memberId: orgMembership.id,
+            requireNoOrgWorkspaceAccess: true,
+          })
+
+          if (removal.success && removal.removed) {
+            organizationRemoval = true
+            try {
+              seatReduction = await reconcileOrganizationSeats({
+                organizationId,
+                reason: 'member-removed',
+              })
+            } catch (seatError) {
+              logger.error('Failed to reduce seats after workspace member removal', {
+                organizationId,
+                workspaceId,
+                removedUserId: userId,
+                error: seatError,
+              })
+            }
+          } else if (!removal.success) {
+            logger.error('Failed to remove org membership after last workspace removal', {
+              organizationId,
+              workspaceId,
+              removedUserId: userId,
+              error: removal.error,
             })
           }
-
-          didTransferOwnership = true
         }
-
-        await tx
-          .delete(permissions)
-          .where(
-            and(
-              eq(permissions.userId, userId),
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.entityId, workspaceId)
-            )
-          )
-
-        await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
-
-        await tx
-          .delete(permissionGroupMember)
-          .where(
-            and(
-              eq(permissionGroupMember.userId, userId),
-              eq(permissionGroupMember.workspaceId, workspaceId)
-            )
-          )
-
-        return didTransferOwnership
-      })
+      }
 
       captureServerEvent(
         session.user.id,
@@ -199,18 +238,30 @@ export const DELETE = withRouteHandler(
         action: AuditAction.MEMBER_REMOVED,
         resourceType: AuditResourceType.WORKSPACE,
         resourceId: workspaceId,
-        description: isSelf ? 'Left the workspace' : `Removed member ${userId} from the workspace`,
+        description: isSelf
+          ? organizationRemoval
+            ? 'Left the organization'
+            : 'Left the workspace'
+          : organizationRemoval
+            ? `Removed member ${userId} from the organization`
+            : `Removed member ${userId} from the workspace`,
         metadata: {
           removedUserId: userId,
           removedUserRole: userPermission?.permissionType ?? 'owner',
           selfRemoval: isSelf,
           ownershipTransferred,
+          workflowOwnershipReassignment,
+          organizationRemoval,
+          seatReduction,
         },
         request: req,
       })
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      if (error instanceof WorkspaceBillingAccountRemovalError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
       logger.error('Error removing workspace member:', error)
       return NextResponse.json({ error: 'Failed to remove workspace member' }, { status: 500 })
     }

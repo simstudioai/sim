@@ -9,9 +9,9 @@ import {
   Search,
   Settings,
   Table,
+  Workflow,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 export type SidebarView =
@@ -169,7 +169,7 @@ export function LandingPreviewSidebar({
       {/* Workspace */}
       <div className='mt-3.5 flex flex-shrink-0 flex-col'>
         <div className='px-4 pb-1.5'>
-          <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
+          <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
             Workspace
           </div>
         </div>
@@ -191,7 +191,7 @@ export function LandingPreviewSidebar({
         {/* Workflows */}
         <div className='flex flex-col'>
           <div className='px-4'>
-            <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
+            <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
               Workflows
             </div>
           </div>
@@ -208,14 +208,7 @@ export function LandingPreviewSidebar({
                     isActive && 'bg-[#363636]'
                   )}
                 >
-                  <div
-                    className='size-[14px] flex-shrink-0 rounded-[4px] border-[2.5px]'
-                    style={{
-                      backgroundColor: workflow.color,
-                      borderColor: workflowBorderColor(workflow.color),
-                      backgroundClip: 'padding-box',
-                    }}
-                  />
+                  <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                   <div
                     className='min-w-0 flex-1 truncate text-left text-[13px]'
                     style={{ color: C.TEXT_BODY, fontWeight: 450 }}

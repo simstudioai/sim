@@ -12,6 +12,7 @@
  */
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
+import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 
 /**
@@ -392,25 +393,28 @@ export function buildAutoMapping(csvHeaders: string[], tableSchema: TableSchema)
 }
 
 /**
- * Coerces parsed CSV rows into `RowData` objects keyed by target column name,
- * applying the column types declared in `tableSchema`. Headers not present in
- * `headerToColumn` are dropped. Missing table columns remain unset (schema
- * validation decides whether that's acceptable).
+ * Coerces parsed CSV rows into `RowData` objects keyed by the target column's
+ * **stable id** (the row-data storage key), applying the column types declared in
+ * `tableSchema`. Headers not present in `headerToColumn` are dropped. Missing
+ * table columns remain unset (schema validation decides whether that's
+ * acceptable). Pass the schema returned by `createTable` so ids are resolved.
  */
 export function coerceRowsForTable(
   rows: Record<string, unknown>[],
   tableSchema: TableSchema,
   headerToColumn: Map<string, string>
 ): RowData[] {
-  const typeByName = new Map(tableSchema.columns.map((c) => [c.name, c.type as CsvColumnType]))
+  const colByName = new Map(tableSchema.columns.map((c) => [c.name, c]))
 
   return rows.map((row) => {
     const coerced: RowData = {}
     for (const [header, value] of Object.entries(row)) {
       const colName = headerToColumn.get(header)
       if (!colName) continue
-      const colType = typeByName.get(colName) ?? 'string'
-      coerced[colName] = coerceValue(value, colType) as RowData[string]
+      const col = colByName.get(colName)
+      if (!col) continue
+      const colType = (col.type as CsvColumnType) ?? 'string'
+      coerced[getColumnId(col)] = coerceValue(value, colType) as RowData[string]
     }
     return coerced
   })

@@ -16,8 +16,8 @@ vi.mock('@/lib/copilot/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
 
-vi.mock('@/lib/copilot/tasks', () => ({
-  taskPubSub: {
+vi.mock('@/lib/copilot/chat-status', () => ({
+  chatPubSub: {
     publishStatusChanged: mockPublishStatusChanged,
   },
 }))

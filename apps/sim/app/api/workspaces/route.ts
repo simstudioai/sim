@@ -9,6 +9,7 @@ import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -18,9 +19,10 @@ import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   evaluateWorkspaceInvitePolicy,
+  getInvitePlanCategoryForOrganization,
+  getInvitePlanCategoryForUser,
   getWorkspaceCreationPolicy,
   getWorkspaceInvitePolicy,
-  hasActiveTeamOrEnterpriseSubscription,
   UPGRADE_TO_INVITE_REASON,
   WORKSPACE_MODE,
 } from '@/lib/workspaces/policy'
@@ -117,26 +119,43 @@ export const GET = withRouteHandler(async (request: Request) => {
     await ensureWorkflowsHaveWorkspace(session.user.id, userWorkspaces[0].workspace.id)
   }
 
-  const grandfatheredBilledUserIds = [
+  const nonOrgBilledUserIds = [
     ...new Set(
       userWorkspaces
-        .filter(({ workspace: ws }) => ws.workspaceMode === WORKSPACE_MODE.GRANDFATHERED_SHARED)
+        .filter(({ workspace: ws }) => ws.workspaceMode !== WORKSPACE_MODE.ORGANIZATION)
         .map(({ workspace: ws }) => ws.billedAccountUserId)
     ),
   ]
-  const teamOrEnterpriseByUser = new Map<string, boolean>()
-  await Promise.all(
-    grandfatheredBilledUserIds.map(async (userId) => {
-      teamOrEnterpriseByUser.set(userId, await hasActiveTeamOrEnterpriseSubscription(userId))
-    })
-  )
+  const orgIds = [
+    ...new Set(
+      userWorkspaces
+        .filter(
+          ({ workspace: ws }) =>
+            ws.workspaceMode === WORKSPACE_MODE.ORGANIZATION && ws.organizationId
+        )
+        .map(({ workspace: ws }) => ws.organizationId as string)
+    ),
+  ]
+  const planCategoryByBilledUser = new Map<string, PlanCategory>()
+  const planCategoryByOrg = new Map<string, PlanCategory>()
+  await Promise.all([
+    ...nonOrgBilledUserIds.map(async (userId) => {
+      planCategoryByBilledUser.set(userId, await getInvitePlanCategoryForUser(userId))
+    }),
+    ...orgIds.map(async (orgId) => {
+      planCategoryByOrg.set(orgId, await getInvitePlanCategoryForOrganization(orgId))
+    }),
+  ])
 
   const workspacesWithPermissions = userWorkspaces.map(
     ({ workspace: workspaceDetails, permissionType }) => {
-      const invitePolicy = evaluateWorkspaceInvitePolicy(workspaceDetails, {
-        billedUserHasTeamOrEnterprise:
-          teamOrEnterpriseByUser.get(workspaceDetails.billedAccountUserId) ?? false,
-      })
+      const billedPlanCategory: PlanCategory =
+        workspaceDetails.workspaceMode === WORKSPACE_MODE.ORGANIZATION
+          ? workspaceDetails.organizationId
+            ? (planCategoryByOrg.get(workspaceDetails.organizationId) ?? 'free')
+            : 'free'
+          : (planCategoryByBilledUser.get(workspaceDetails.billedAccountUserId) ?? 'free')
+      const invitePolicy = evaluateWorkspaceInvitePolicy(workspaceDetails, { billedPlanCategory })
       const callerIsBilledUser = workspaceDetails.billedAccountUserId === session.user.id
 
       const canActOnUpgrade = invitePolicy.upgradeRequired && callerIsBilledUser
@@ -343,7 +362,6 @@ async function createWorkspace({
           folderId: null,
           name: 'default-agent',
           description: 'Your first workflow - start building here!',
-          color: '#3972F6',
           lastSynced: now,
           createdAt: now,
           updatedAt: now,

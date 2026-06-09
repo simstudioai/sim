@@ -1,6 +1,6 @@
 import { RedditIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RedditResponse } from '@/tools/reddit/types'
 
@@ -14,8 +14,8 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
   docsLink: 'https://docs.sim.ai/tools/reddit',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['content-management', 'web-scraping'],
   bgColor: '#FF5700',
+  iconColor: '#FF5700',
   icon: RedditIcon,
   subBlocks: [
     {
@@ -901,3 +901,103 @@ Return ONLY the message content - no meta-commentary.`,
     icon_img: { type: 'string', description: 'Icon image URL' },
   },
 }
+
+export const RedditBlockMeta = {
+  tags: ['content-management', 'web-scraping'],
+  templates: [
+    {
+      icon: RedditIcon,
+      title: 'Social mention tracker',
+      prompt:
+        'Create a scheduled workflow that monitors Reddit and X for mentions of my brand and competitors, scores each mention by sentiment and reach, logs them to a table, and sends a daily Slack digest of notable mentions.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring', 'analysis'],
+      alsoIntegrations: ['x', 'slack'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit subreddit monitor',
+      prompt:
+        'Build a scheduled workflow that uses Reddit to watch target subreddits for posts matching brand or product keywords, scores each for relevance and sentiment, and posts notable hits to Slack with the original link.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit user-question knowledge mining',
+      prompt:
+        'Create a workflow that pulls top questions from Reddit industry subreddits weekly, classifies by theme, and writes a content-opportunity table the marketing team can prioritize.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit AMA preparer',
+      prompt:
+        'Build a workflow that aggregates top Reddit AMA-style questions for a topic, clusters them, drafts polished answers using a knowledge base, and posts a Q&A document for review.',
+      modules: ['knowledge-base', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit competitor watch',
+      prompt:
+        'Create a scheduled workflow that monitors Reddit threads mentioning competitors weekly, summarizes sentiment and pain points, and writes a competitive intelligence note to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit crisis-signal alerter',
+      prompt:
+        'Build a scheduled workflow that polls Reddit for sudden bursts of negative posts about the brand, classifies severity, and pages the PR team via Slack and PagerDuty when a real crisis emerges.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack', 'pagerduty'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit content-idea collector',
+      prompt:
+        'Create a scheduled workflow that polls marketing-relevant Reddit subreddits, captures upvoted long-form posts, summarizes each, and adds them to a content-ideas table with effort and impact scores.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+  ],
+  skills: [
+    {
+      name: 'monitor-subreddit-mentions',
+      description:
+        'Search a subreddit for brand or keyword mentions and summarize what people say.',
+      content:
+        '# Monitor Subreddit Mentions\n\nTrack what people say about a topic on Reddit.\n\n## Steps\n1. Run search with the brand or keyword query, scoped to the relevant subreddit when appropriate.\n2. For high-signal threads, run get_comments to pull the discussion.\n3. Summarize sentiment, recurring themes, and notable complaints or praise.\n4. Route urgent or negative threads to the right channel.\n\n## Output\nReturn a digest of top mentions with links, sentiment, and key takeaways.',
+    },
+    {
+      name: 'surface-trending-posts',
+      description:
+        'Pull top and controversial posts from a subreddit for a content or research brief.',
+      content:
+        '# Surface Trending Posts\n\nFind what is rising and contentious in a community.\n\n## Steps\n1. Run get_posts for the subreddit using a hot or top sort to capture momentum.\n2. Run get_controversial to surface divisive discussions.\n3. Read get_comments on the standouts for context.\n4. Cluster the posts into themes.\n\n## Output\nReturn a ranked brief of trending and controversial posts with titles, links, and a one-line takeaway each.',
+    },
+    {
+      name: 'reply-to-mention',
+      description: 'Draft and post a helpful, on-brand reply to a Reddit post or comment.',
+      content:
+        '# Reply To Mention\n\nRespond to a relevant Reddit thread.\n\n## Steps\n1. Read the target post or comment with get_posts or get_comments for full context.\n2. Draft a concise, non-promotional reply that adds genuine value.\n3. Run reply to post it on the chosen thread.\n4. Optionally save the thread for later follow-up.\n\n## Output\nReturn the posted reply text and a link to the comment. Respect subreddit rules and avoid spammy self-promotion.',
+    },
+    {
+      name: 'submit-announcement-post',
+      description: 'Submit a new post to a target subreddit for an announcement or launch.',
+      content:
+        '# Submit Announcement Post\n\nShare an announcement on Reddit.\n\n## Steps\n1. Confirm the target subreddit allows the post type and self-promotion rules.\n2. Run submit_post with a clear title and body tailored to the community.\n3. Capture the returned post id and link.\n4. Monitor early get_comments and respond to questions.\n\n## Output\nReturn the new post link and an initial engagement check.',
+    },
+  ],
+} as const satisfies BlockMeta

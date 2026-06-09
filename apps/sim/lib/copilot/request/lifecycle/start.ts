@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
@@ -40,7 +41,6 @@ import {
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 
 export { SSE_RESPONSE_HEADERS }
@@ -476,7 +476,7 @@ function fireTitleGeneration(params: {
         payload: { kind: MothershipStreamV1SessionKind.title, title },
       })
       if (workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
           type: 'renamed',

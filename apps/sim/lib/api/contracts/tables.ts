@@ -78,10 +78,14 @@ export const getTableQuerySchema = z.object({
 })
 
 export const tableColumnSchema = z.object({
+  /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
+  id: z.string().optional(),
   name: columnNameSchema,
   type: columnTypeSchema,
   required: z.boolean().optional().default(false),
   unique: z.boolean().optional().default(false),
+  /** Set when the column is a workflow group's output. */
+  workflowGroupId: z.string().optional(),
 })
 
 export const createTableBodySchema = z.object({
@@ -108,6 +112,9 @@ export const renameTableBodySchema = z.object({
 export const createTableColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   column: z.object({
+    // Optional stable id — first-party undo of a delete re-creates the column
+    // with its original id so saved (id-keyed) cell data restores correctly.
+    id: z.string().optional(),
     name: columnNameSchema,
     type: columnTypeSchema,
     required: z.boolean().optional(),
@@ -504,6 +511,40 @@ export const listTableRowsContract = defineRouteContract({
     ),
   },
 })
+
+export const findTableRowsQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  q: z.string().min(1, 'Search query is required'),
+  filter: domainObjectSchema<Filter>().optional(),
+  sort: domainObjectSchema<Sort>().optional(),
+})
+
+/** One matching cell: its 0-based ordinal in the filtered+sorted view, its row id, and the column name. */
+export const tableFindMatchSchema = z.object({
+  ordinal: z.number().int(),
+  rowId: z.string(),
+  /** Stable column id of the matching cell (JSONB storage key), not the display name. */
+  column: z.string(),
+})
+
+export const findTableRowsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/rows/find',
+  params: tableIdParamsSchema,
+  query: findTableRowsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        matches: z.array(tableFindMatchSchema),
+        truncated: z.boolean(),
+      })
+    ),
+  },
+})
+export type FindTableRowsQuery = z.input<typeof findTableRowsQuerySchema>
+export type FindTableRowsResponse = ContractJsonResponse<typeof findTableRowsContract>
+export type TableFindMatch = z.output<typeof tableFindMatchSchema>
 
 export const createTableRowContract = defineRouteContract({
   method: 'POST',

@@ -3,17 +3,20 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff, Search } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
-  Input as EmcnInput,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  Chip,
+  ChipConfirmModal,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  Search,
 } from '@/components/emcn'
 import {
   AnthropicIcon,
@@ -29,7 +32,9 @@ import {
   HunterIOIcon,
   JinaAIIcon,
   LinkupIcon,
+  MillionVerifierIcon,
   MistralIcon,
+  NeverBounceIcon,
   OllamaIcon,
   OpenAIIcon,
   ParallelIcon,
@@ -39,9 +44,9 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  ZeroBounceIcon,
 } from '@/components/icons'
-import { Input } from '@/components/ui'
-import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type BYOKKey,
   useBYOKKeys,
@@ -220,6 +225,76 @@ const PROVIDERS: {
     description: 'Prospect search, individual reveal, and company enrichment',
     placeholder: 'Enter your Wiza API key',
   },
+  {
+    id: 'zerobounce',
+    name: 'ZeroBounce',
+    icon: ZeroBounceIcon,
+    description: 'Real-time email validation and deliverability checks',
+    placeholder: 'Enter your ZeroBounce API key',
+  },
+  {
+    id: 'neverbounce',
+    name: 'NeverBounce',
+    icon: NeverBounceIcon,
+    description: 'Real-time email verification and list cleaning',
+    placeholder: 'Enter your NeverBounce API key',
+  },
+  {
+    id: 'millionverifier',
+    name: 'MillionVerifier',
+    icon: MillionVerifierIcon,
+    description: 'Real-time email verification and deliverability checks',
+    placeholder: 'Enter your MillionVerifier API key',
+  },
+]
+
+/**
+ * Provider groupings rendered as labeled sections. Every provider id in
+ * {@link PROVIDERS} belongs to exactly one section; rows keep their
+ * {@link PROVIDERS} order within each group.
+ */
+const PROVIDER_SECTIONS: { label: string; ids: BYOKProviderId[] }[] = [
+  {
+    label: 'Models',
+    ids: [
+      'openai',
+      'anthropic',
+      'google',
+      'mistral',
+      'fireworks',
+      'together',
+      'baseten',
+      'ollama-cloud',
+      'falai',
+    ],
+  },
+  {
+    label: 'Search & web',
+    ids: [
+      'firecrawl',
+      'exa',
+      'serper',
+      'linkup',
+      'parallel_ai',
+      'perplexity',
+      'jina',
+      'google_cloud',
+    ],
+  },
+  {
+    label: 'Enrichment',
+    ids: [
+      'brandfetch',
+      'hunter',
+      'peopledatalabs',
+      'findymail',
+      'prospeo',
+      'wiza',
+      'zerobounce',
+      'neverbounce',
+      'millionverifier',
+    ],
+  },
 ]
 
 export function BYOK() {
@@ -248,6 +323,11 @@ export function BYOK() {
         p.description.toLowerCase().includes(searchLower)
     )
   }, [searchTerm])
+
+  const filteredIds = useMemo(
+    () => new Set(filteredProviders.map((p) => p.id)),
+    [filteredProviders]
+  )
 
   const showNoResults = searchTerm.trim() && filteredProviders.length === 0
 
@@ -297,86 +377,80 @@ export function BYOK() {
   }
 
   return (
-    <>
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <Input
-              placeholder='Search providers...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              disabled={isLoading}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-            />
-          </div>
-        </div>
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
+          <ChipInput
+            icon={Search}
+            placeholder='Search providers...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            disabled={isLoading}
+          />
 
-        <p className='text-[var(--text-secondary)] text-sm'>
-          Use your own API keys for hosted model providers.
-        </p>
-
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          {isLoading ? (
-            <div className='flex flex-col gap-2'>
-              {PROVIDERS.map((p) => (
-                <BYOKKeySkeleton key={p.id} />
-              ))}
+          {isLoading ? null : showNoResults ? (
+            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+              No providers found matching "{searchTerm}"
             </div>
           ) : (
-            <div className='flex flex-col gap-2'>
-              {filteredProviders.map((provider) => {
-                const existingKey = getKeyForProvider(provider.id)
-                const Icon = provider.icon
+            <div className='flex flex-col gap-7'>
+              {PROVIDER_SECTIONS.map((section) => {
+                const rows = PROVIDERS.filter(
+                  (p) => section.ids.includes(p.id) && filteredIds.has(p.id)
+                )
+                if (rows.length === 0) return null
 
                 return (
-                  <div key={provider.id} className='flex items-center justify-between gap-3'>
-                    <div className='flex items-center gap-3'>
-                      <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-[var(--surface-6)]'>
-                        <Icon className='size-4' />
-                      </div>
-                      <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='font-medium text-base'>{provider.name}</span>
-                        <p className='truncate text-[var(--text-muted)] text-sm'>
-                          {provider.description}
-                        </p>
-                      </div>
-                    </div>
+                  <SettingsSection key={section.label} label={section.label}>
+                    <div className='flex flex-col gap-2'>
+                      {rows.map((provider) => {
+                        const existingKey = getKeyForProvider(provider.id)
+                        const Icon = provider.icon
 
-                    {existingKey ? (
-                      <div className='flex flex-shrink-0 items-center gap-2'>
-                        <Button variant='default' onClick={() => openEditModal(provider.id)}>
-                          Update
-                        </Button>
-                        <Button
-                          variant='ghost'
-                          onClick={() => setDeleteConfirmProvider(provider.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button variant='primary' onClick={() => openEditModal(provider.id)}>
-                        Add Key
-                      </Button>
-                    )}
-                  </div>
+                        return (
+                          <div
+                            key={provider.id}
+                            className='flex items-center justify-between gap-2.5'
+                          >
+                            <div className='flex min-w-0 items-center gap-2.5'>
+                              <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+                                <Icon className='size-5' />
+                              </div>
+                              <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
+                                <span className='truncate text-[14px] text-[var(--text-body)]'>
+                                  {provider.name}
+                                </span>
+                                <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                                  {provider.description}
+                                </span>
+                              </div>
+                            </div>
+
+                            {existingKey ? (
+                              <div className='flex flex-shrink-0 items-center gap-2'>
+                                <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
+                                <Chip onClick={() => setDeleteConfirmProvider(provider.id)}>
+                                  Delete
+                                </Chip>
+                              </div>
+                            ) : (
+                              <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
+                                Add Key
+                              </Chip>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </SettingsSection>
                 )
               })}
-              {showNoResults && (
-                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                  No providers found matching "{searchTerm}"
-                </div>
-              )}
             </div>
           )}
         </div>
       </div>
 
-      <Modal
+      <ChipModal
         open={!!editingProvider}
         onOpenChange={(open) => {
           if (!open) {
@@ -386,58 +460,61 @@ export function BYOK() {
             setError(null)
           }
         }}
+        srTitle='Add/Update API Key'
       >
-        <ModalContent size='md'>
-          <ModalHeader>
-            {editingProvider && (
-              <>
-                {getKeyForProvider(editingProvider) ? 'Update' : 'Add'}{' '}
-                {PROVIDERS.find((p) => p.id === editingProvider)?.name} API Key
-              </>
-            )}
-          </ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              This key will be used for all {PROVIDERS.find((p) => p.id === editingProvider)?.name}{' '}
-              requests in this workspace. Your key is encrypted and stored securely.
-            </ModalDescription>
-
-            <div className='mt-4 flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Enter your API key</p>
-              {/* Hidden decoy fields to prevent browser autofill */}
-              <input
-                type='text'
-                name='fakeusernameremembered'
-                autoComplete='username'
-                style={{
-                  position: 'absolute',
-                  left: '-9999px',
-                  opacity: 0,
-                  pointerEvents: 'none',
-                }}
-                tabIndex={-1}
-                readOnly
-              />
-              <div className='relative'>
-                <EmcnInput
-                  type={showApiKey ? 'text' : 'password'}
-                  value={apiKeyInput}
-                  onChange={(e) => {
-                    setApiKeyInput(e.target.value)
-                    if (error) setError(null)
-                  }}
-                  placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
-                  className='h-9 pr-9'
-                  name='byok_api_key'
-                  autoComplete='off'
-                  autoCorrect='off'
-                  autoCapitalize='off'
-                  data-lpignore='true'
-                  data-form-type='other'
-                />
+        <ChipModalHeader
+          onClose={() => {
+            setEditingProvider(null)
+            setApiKeyInput('')
+            setShowApiKey(false)
+            setError(null)
+          }}
+        >
+          {editingProvider && (
+            <>
+              {getKeyForProvider(editingProvider) ? 'Update' : 'Add'}{' '}
+              {PROVIDERS.find((p) => p.id === editingProvider)?.name} API Key
+            </>
+          )}
+        </ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            This key will be used for all {PROVIDERS.find((p) => p.id === editingProvider)?.name}{' '}
+            requests in this workspace. Your key is encrypted and stored securely.
+          </p>
+          <ChipModalField type='custom' title='API Key' required>
+            {/* Hidden decoy fields to prevent browser autofill */}
+            <input
+              type='text'
+              name='fakeusernameremembered'
+              autoComplete='username'
+              style={{
+                position: 'absolute',
+                left: '-9999px',
+                opacity: 0,
+                pointerEvents: 'none',
+              }}
+              tabIndex={-1}
+              readOnly
+            />
+            <ChipInput
+              type={showApiKey ? 'text' : 'password'}
+              value={apiKeyInput}
+              onChange={(e) => {
+                setApiKeyInput(e.target.value)
+                if (error) setError(null)
+              }}
+              placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
+              name='byok_api_key'
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              data-lpignore='true'
+              data-form-type='other'
+              endAdornment={
                 <Button
                   variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] size-[28px] p-0'
+                  className='size-[28px] p-0'
                   onClick={() => setShowApiKey(!showApiKey)}
                 >
                   {showApiKey ? (
@@ -446,62 +523,54 @@ export function BYOK() {
                     <Eye className='size-[14px]' />
                   )}
                 </Button>
-              </div>
-              {error && (
-                <p className='text-[var(--text-error)] text-small leading-tight'>{error}</p>
-              )}
-            </div>
-          </ModalBody>
+              }
+            />
+          </ChipModalField>
+          <ChipModalError>{error}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {
+            setEditingProvider(null)
+            setApiKeyInput('')
+            setShowApiKey(false)
+            setError(null)
+          }}
+          cancelDisabled={upsertKey.isPending}
+          primaryAction={{
+            label: upsertKey.isPending ? 'Saving...' : 'Save',
+            onClick: handleSave,
+            disabled: !apiKeyInput.trim() || upsertKey.isPending,
+          }}
+        />
+      </ChipModal>
 
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setEditingProvider(null)
-                setApiKeyInput('')
-                setShowApiKey(false)
-                setError(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='primary'
-              onClick={handleSave}
-              disabled={!apiKeyInput.trim() || upsertKey.isPending}
-            >
-              {upsertKey.isPending ? 'Saving...' : 'Save'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      <Modal open={!!deleteConfirmProvider} onOpenChange={() => setDeleteConfirmProvider(null)}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete API Key</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete the{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
-              </span>{' '}
-              API key?{' '}
-              <span className='text-[var(--text-error)]'>
-                This workspace will revert to using platform hosted keys.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={deleteKey.isPending}>
-              {deleteKey.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-    </>
+      <ChipConfirmModal
+        open={!!deleteConfirmProvider}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirmProvider(null)
+        }}
+        srTitle='Delete API Key'
+        title='Delete API Key'
+        description={
+          <>
+            Are you sure you want to delete the{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
+            </span>{' '}
+            API key?{' '}
+            <span className='text-[var(--text-error)]'>
+              This workspace will revert to using platform hosted keys.
+            </span>{' '}
+            This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteKey.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
+    </div>
   )
 }

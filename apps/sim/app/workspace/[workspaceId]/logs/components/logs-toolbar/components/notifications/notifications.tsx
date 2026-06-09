@@ -4,23 +4,19 @@ import type { ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Plus, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
+  ChipConfirmModal,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalTabs,
   Input as EmcnInput,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
   Skeleton,
   TagInput,
   type TagItem,
@@ -512,6 +508,16 @@ export const NotificationSettings = memo(function NotificationSettings({
     }
   }
 
+  const handleBackToList = () => {
+    resetForm()
+    setShowForm(false)
+  }
+
+  const handleAddNew = () => {
+    resetForm()
+    setShowForm(true)
+  }
+
   const handleEdit = (subscription: NotificationSubscription) => {
     setActiveTab(subscription.notificationType)
     setEditingId(subscription.id)
@@ -738,7 +744,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                     </Button>
                   </div>
                 ) : (
-                  <Combobox
+                  <ChipCombobox
                     options={slackAccounts.map((acc) => ({
                       value: acc.id,
                       label: acc.displayName || 'Slack Workspace',
@@ -785,7 +791,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-col gap-2'>
             <Label>Log Level Filters</Label>
-            <Combobox
+            <ChipCombobox
               options={LOG_LEVELS.map((level) => ({
                 label: level.charAt(0).toUpperCase() + level.slice(1),
                 value: level,
@@ -831,7 +837,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-col gap-2'>
             <Label>Trigger Type Filters</Label>
-            <Combobox
+            <ChipCombobox
               options={TRIGGER_OPTIONS.map((t) => ({
                 label: t.label,
                 value: t.value,
@@ -882,7 +888,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-col gap-2'>
             <Label>Include in Payload</Label>
-            <Combobox
+            <ChipCombobox
               options={[
                 { label: 'Final Output', value: 'includeFinalOutput' },
                 // Trace spans only available for webhooks (too large for email/Slack)
@@ -959,7 +965,7 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           <div className='flex flex-col gap-2'>
             <Label>Rule</Label>
-            <Combobox
+            <ChipCombobox
               options={ALERT_RULES.map((rule) => ({
                 value: rule.value,
                 label: rule.label,
@@ -1201,135 +1207,90 @@ export const NotificationSettings = memo(function NotificationSettings({
 
   return (
     <>
-      <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent size='lg'>
-          <ModalHeader>Notifications</ModalHeader>
+      <ChipModal open={open} onOpenChange={handleClose} srTitle='Notifications' size='lg'>
+        <ChipModalHeader onClose={() => handleClose()}>Notifications</ChipModalHeader>
 
-          <ModalDescription className='sr-only'>
-            Manage webhook, email, and Slack notification subscriptions for this workflow
-          </ModalDescription>
-          <ModalTabs
+        <ChipModalBody className='max-h-[60vh] min-h-0 overflow-y-auto'>
+          <ChipModalTabs
+            tabs={[
+              { value: 'webhook', label: 'Webhook' },
+              { value: 'email', label: 'Email' },
+              { value: 'slack', label: 'Slack' },
+            ]}
             value={activeTab}
-            onValueChange={(value: string) => {
-              const newTab = value as NotificationType
-              const tabHasSubscriptions = getSubscriptionsForTab(newTab).length > 0
+            onChange={(value) => {
+              const tab = value as NotificationType
+              const tabHasSubscriptions = getSubscriptionsForTab(tab).length > 0
               resetForm()
-              setActiveTab(newTab)
+              setActiveTab(tab)
               setShowForm(!tabHasSubscriptions)
             }}
-            className='flex min-h-0 flex-1 flex-col'
-          >
-            <ModalTabsList activeValue={activeTab}>
-              <ModalTabsTrigger value='webhook'>Webhook</ModalTabsTrigger>
-              <ModalTabsTrigger value='email'>Email</ModalTabsTrigger>
-              <ModalTabsTrigger value='slack'>Slack</ModalTabsTrigger>
-            </ModalTabsList>
+          />
 
-            <ModalBody className='min-h-0 pt-4'>
-              <ModalTabsContent value='webhook'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-              <ModalTabsContent value='email'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-              <ModalTabsContent value='slack'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-            </ModalBody>
-          </ModalTabs>
+          <div className='min-h-0 px-2'>
+            <TabContent
+              displayForm={displayForm}
+              renderForm={renderForm}
+              isLoading={isLoading}
+              filteredSubscriptions={filteredSubscriptions}
+              renderSubscriptionItem={renderSubscriptionItem}
+            />
+          </div>
+        </ChipModalBody>
 
-          <ModalFooter>
-            {displayForm ? (
-              <>
-                {hasSubscriptions && (
-                  <Button
-                    variant='default'
-                    onClick={() => {
-                      resetForm()
-                      setShowForm(false)
-                    }}
-                  >
-                    Back
-                  </Button>
-                )}
-                <Button
-                  variant='primary'
-                  onClick={handleSave}
-                  disabled={createNotification.isPending || updateNotification.isPending}
-                >
-                  {createNotification.isPending || updateNotification.isPending
-                    ? editingId
-                      ? 'Updating...'
-                      : 'Creating...'
-                    : editingId
-                      ? 'Update'
-                      : 'Create'}
-                </Button>
-              </>
-            ) : (
-              <Button
-                onClick={() => {
-                  resetForm()
-                  setShowForm(true)
-                }}
-                variant='primary'
-                disabled={isLoading}
-              >
-                <Plus className='mr-1.5 size-[13px]' />
-                Add
-              </Button>
-            )}
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+        <ChipModalFooter
+          onCancel={handleClose}
+          secondaryAction={
+            displayForm && hasSubscriptions
+              ? { label: 'Back', onClick: handleBackToList }
+              : undefined
+          }
+          primaryAction={
+            displayForm
+              ? {
+                  label:
+                    createNotification.isPending || updateNotification.isPending
+                      ? editingId
+                        ? 'Updating...'
+                        : 'Creating...'
+                      : editingId
+                        ? 'Update'
+                        : 'Create',
+                  onClick: handleSave,
+                  disabled: createNotification.isPending || updateNotification.isPending,
+                }
+              : {
+                  label: 'Add',
+                  onClick: handleAddNew,
+                  disabled: isLoading,
+                }
+          }
+        />
+      </ChipModal>
 
-      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Notification</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              <span className='text-[var(--text-error)]'>
-                This will permanently remove the notification and stop all deliveries.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              disabled={deleteNotification.isPending}
-              onClick={() => setShowDeleteDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={deleteNotification.isPending}
-            >
-              {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={showDeleteDialog}
+        onOpenChange={(next) => {
+          if (!next) setDeletingId(null)
+          setShowDeleteDialog(next)
+        }}
+        srTitle='Delete Notification'
+        title='Delete Notification'
+        description={
+          <>
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove the notification and stop all deliveries.
+            </span>{' '}
+            This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteNotification.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 })

@@ -4,16 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
-import {
-  Button,
-  Combobox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn'
+import { ChipCombobox, ChipConfirmModal } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type {
@@ -221,6 +212,11 @@ export function ScheduledTasks() {
     }
   }
 
+  const handleDeleteDialogOpenChange = (open: boolean) => {
+    setIsDeleteDialogOpen(open)
+    if (!open) setActiveTask(null)
+  }
+
   const handlePause = async () => {
     if (!activeTask) return
     try {
@@ -287,7 +283,7 @@ export function ScheduledTasks() {
           <span className='font-medium text-[var(--text-secondary)] text-caption'>
             Schedule Type
           </span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'recurring', label: 'Recurring' },
               { value: 'once', label: 'One-time' },
@@ -302,13 +298,12 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'active', label: 'Active' },
               { value: 'paused', label: 'Paused' },
@@ -321,13 +316,12 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Health</span>
-          <Combobox
+          <ChipCombobox
             options={[{ value: 'has-failures', label: 'Has failures' }]}
             multiSelect
             multiSelectValues={healthFilter}
@@ -337,8 +331,7 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {hasActiveFilters && (
@@ -448,39 +441,27 @@ export function ScheduledTasks() {
         schedule={activeTask ?? undefined}
       />
 
-      <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Scheduled Task</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {activeTask?.jobTitle || 'this task'}
-              </span>
-              ? This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setIsDeleteDialogOpen(false)
-                setActiveTask(null)
-              }}
-              disabled={deleteSchedule.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={deleteSchedule.isPending}
-            >
-              {deleteSchedule.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogOpenChange}
+        srTitle='Delete Scheduled Task'
+        title='Delete Scheduled Task'
+        description={
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {activeTask?.jobTitle || 'this task'}
+            </span>
+            ? This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteSchedule.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

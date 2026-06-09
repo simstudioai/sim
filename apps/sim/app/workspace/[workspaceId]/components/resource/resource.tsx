@@ -12,6 +12,7 @@ import {
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ArrowDown, ArrowUp, Button, Checkbox, Loader, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import type { BreadcrumbItem, CreateAction, HeaderAction } from './components/resource-header'
 import { ResourceHeader } from './components/resource-header'
 import type { FilterTag, SearchConfig, SortConfig } from './components/resource-options-bar'
@@ -344,7 +345,7 @@ export const ResourceTable = memo(function ResourceTable({
                   <th key={col.id} className='h-10 px-4 py-1.5 text-left align-middle'>
                     <Button
                       variant='subtle'
-                      className='px-2 py-1 font-base text-[var(--text-muted)] hover-hover:text-[var(--text-muted)]'
+                      className='px-2 py-1 text-[var(--text-muted)] hover-hover:text-[var(--text-muted)]'
                       onClick={() =>
                         handleSort(
                           col.id,
@@ -478,7 +479,7 @@ const CellContent = memo(function CellContent({ icon, label, content, primary }:
       )}
     >
       {icon && <span className='flex-shrink-0 text-[var(--text-icon)]'>{icon}</span>}
-      <span className='truncate'>{label}</span>
+      <FloatingOverflowText label={label} className='block truncate' />
     </span>
   )
 })
@@ -706,7 +707,7 @@ const DataTableSkeleton = memo(function DataTableSkeleton({
             {columns.map((col) => (
               <th
                 key={col.id}
-                className='h-10 px-6 py-2.5 text-left align-middle font-base text-[var(--text-muted)]'
+                className='h-10 px-6 py-2.5 text-left align-middle text-[var(--text-muted)]'
               >
                 <div className='flex min-h-[20px] items-center'>
                   <Skeleton className='h-[12px] w-[56px]' />

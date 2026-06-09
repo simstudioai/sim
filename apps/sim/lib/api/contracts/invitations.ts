@@ -29,6 +29,7 @@ export const pendingWorkspaceInvitationSchema = z
     id: z.string(),
     workspaceId: z.string(),
     email: z.string(),
+    token: z.string(),
     permission: workspacePermissionSchema,
     membershipIntent: z.enum(['internal', 'external']).optional(),
     status: z.string(),

@@ -1,7 +1,8 @@
 import { useParams, useRouter } from 'next/navigation'
-import { Badge, Button, Skeleton } from '@/components/emcn'
+import { Badge, Chip } from '@/components/emcn'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 type Subscription = {
   id: string
@@ -17,30 +18,10 @@ interface TeamSeatsOverviewProps {
   subscriptionData: Subscription | null
   isLoadingSubscription: boolean
   totalSeats: number
+  /** Seats consumed by actual members. Pending invites are not counted here. */
   usedSeats: number
-  isLoading: boolean
-  onAddSeatDialog: () => void
-}
-
-function TeamSeatsSkeleton() {
-  return (
-    <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex flex-col gap-2 px-3.5 py-3'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <Skeleton className='h-5 w-16 rounded-sm' />
-            <Skeleton className='h-4 w-20 rounded-sm' />
-          </div>
-          <div className='flex items-center gap-1 text-small'>
-            <Skeleton className='h-4 w-8 rounded-sm' />
-            <span className='text-[var(--text-muted)]'>/</span>
-            <Skeleton className='h-4 w-8 rounded-sm' />
-          </div>
-        </div>
-        <Skeleton className='h-[6px] w-full rounded-full' />
-      </div>
-    </div>
-  )
+  /** Outstanding invites that have not been accepted yet (do not consume a seat). */
+  pendingSeats?: number
 }
 
 export function TeamSeatsOverview({
@@ -48,84 +29,92 @@ export function TeamSeatsOverview({
   isLoadingSubscription,
   totalSeats,
   usedSeats,
-  isLoading,
-  onAddSeatDialog,
+  pendingSeats = 0,
 }: TeamSeatsOverviewProps) {
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = params?.workspaceId
 
   if (isLoadingSubscription) {
-    return <TeamSeatsSkeleton />
+    return null
   }
 
   if (!subscriptionData) {
     return (
-      <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-        <div className='flex flex-col items-center gap-3 px-3.5 py-4 text-center'>
-          <div className='flex flex-col gap-1'>
-            <p className='font-medium text-[var(--text-primary)] text-base'>
-              No active Team subscription
-            </p>
-            <p className='text-[var(--text-muted)] text-small'>
-              Purchase a Team plan to invite members and manage seats for this organization.
-            </p>
+      <SettingsSection label='Seats'>
+        <div className='flex items-center justify-between gap-3'>
+          <div className='flex min-w-0 flex-col'>
+            <span className='text-[var(--text-body)] text-small'>No active Team subscription</span>
+            <span className='text-[var(--text-muted)] text-small'>
+              Purchase a Team plan to invite teammates to this organization.
+            </span>
           </div>
-          <Button
+          <Chip
             variant='primary'
+            flush
             onClick={() => {
               if (workspaceId) {
-                router.push(`/workspace/${workspaceId}/settings/subscription`)
+                router.push(`/workspace/${workspaceId}/settings/billing`)
               }
             }}
-            disabled={isLoading || !workspaceId}
+            disabled={!workspaceId}
           >
-            Go to subscription settings
-          </Button>
+            View plans
+          </Chip>
         </div>
-      </div>
+      </SettingsSection>
     )
   }
 
   const isEnterprise = checkEnterprisePlan(subscriptionData)
   const isSeatDataPending = !isEnterprise && totalSeats === 0
   const isOverLimit = totalSeats > 0 && usedSeats > totalSeats
-  const pillCount = Math.max(totalSeats, usedSeats)
+  const pillCount = Math.max(totalSeats, usedSeats, 1)
 
   if (isSeatDataPending) {
-    return <TeamSeatsSkeleton />
+    return null
+  }
+
+  const pendingBadge =
+    pendingSeats > 0 ? (
+      <Badge variant='gray-secondary' size='sm'>
+        {pendingSeats} pending
+      </Badge>
+    ) : null
+
+  /**
+   * Team plans have no fixed seat cap — the seat count is reconciled to the
+   * member count, so a used/total ratio (and its meter) is always 100% and
+   * carries no information. Show a plain seat count instead, and reserve the
+   * cap meter for Enterprise, where seats are a fixed allotment.
+   */
+  if (!isEnterprise) {
+    return (
+      <SettingsSection label='Seats'>
+        <div className='flex items-center justify-between gap-2'>
+          <span className='text-[var(--text-body)] text-small tabular-nums'>
+            {usedSeats} {usedSeats === 1 ? 'seat' : 'seats'}
+          </span>
+          {pendingBadge}
+        </div>
+      </SettingsSection>
+    )
   }
 
   return (
-    <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex flex-col gap-2 px-3.5 py-3'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <span className='font-medium text-[var(--text-primary)] text-base'>Seats</span>
+    <SettingsSection label='Seats'>
+      <div className='flex flex-col gap-2.5'>
+        <div className='flex items-center justify-between gap-2'>
+          <span className='text-[var(--text-body)] text-small tabular-nums'>
+            {usedSeats} used / {totalSeats} total
+          </span>
+          <div className='flex items-center gap-1.5'>
+            {pendingBadge}
             {isOverLimit && (
               <Badge variant='amber' size='sm'>
                 Over limit
               </Badge>
             )}
-            {!isEnterprise && !isOverLimit && (
-              <Badge
-                variant='blue-secondary'
-                size='sm'
-                className='cursor-pointer'
-                onClick={onAddSeatDialog}
-              >
-                Add Seats
-              </Badge>
-            )}
-          </div>
-          <div className='flex items-center gap-1 text-small tabular-nums'>
-            <span className='font-medium text-[var(--text-secondary)] tabular-nums'>
-              {usedSeats} used
-            </span>
-            <span className='font-medium text-[var(--text-secondary)]'>/</span>
-            <span className='font-medium text-[var(--text-secondary)] tabular-nums'>
-              {totalSeats} total
-            </span>
           </div>
         </div>
 
@@ -149,28 +138,12 @@ export function TeamSeatsOverview({
           })}
         </div>
 
-        {isOverLimit && !isEnterprise && (
-          <div className='flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between'>
-            <p className='text-[var(--text-muted)] text-small'>
-              You have more members than seats. New invites are paused until you add seats or remove
-              members.
-            </p>
-            <Button variant='default' size='sm' onClick={onAddSeatDialog} disabled={isLoading}>
-              Add seats
-            </Button>
-          </div>
-        )}
-
-        {isEnterprise && (
-          <div className='pt-1 text-center'>
-            <p className='text-[var(--text-muted)] text-small'>
-              {isOverLimit
-                ? 'You have more members than seats. Contact support to adjust your enterprise seat count.'
-                : 'Contact support for enterprise usage limit changes'}
-            </p>
-          </div>
-        )}
+        <p className='text-[var(--text-muted)] text-small'>
+          {isOverLimit
+            ? 'You have more teammates than seats. Contact support to adjust your enterprise seat count.'
+            : 'Contact support for enterprise seat changes.'}
+        </p>
       </div>
-    </div>
+    </SettingsSection>
   )
 }

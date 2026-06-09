@@ -161,7 +161,6 @@ export const workflow = pgTable(
     sortOrder: integer('sort_order').notNull().default(0),
     name: text('name').notNull(),
     description: text('description'),
-    color: text('color').notNull().default('#3972F6'),
     lastSynced: timestamp('last_synced').notNull(),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
@@ -1115,49 +1114,6 @@ export const chat = pgTable(
       ),
     }
   }
-)
-
-export const form = pgTable(
-  'form',
-  {
-    id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    identifier: text('identifier').notNull(),
-    title: text('title').notNull(),
-    description: text('description'),
-    isActive: boolean('is_active').notNull().default(true),
-
-    // UI/UX Customizations
-    // { primaryColor, welcomeMessage, thankYouTitle, thankYouMessage, logoUrl }
-    customizations: json('customizations').default('{}'),
-
-    // Authentication options (following chat pattern)
-    authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
-    password: text('password'), // Stored encrypted, populated when authType is 'password'
-    allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains
-
-    // Branding
-    showBranding: boolean('show_branding').notNull().default(true),
-
-    archivedAt: timestamp('archived_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    identifierIdx: uniqueIndex('form_identifier_idx')
-      .on(table.identifier)
-      .where(sql`${table.archivedAt} IS NULL`),
-    workflowIdIdx: index('form_workflow_id_idx').on(table.workflowId),
-    userIdIdx: index('form_user_id_idx').on(table.userId),
-    archivedAtPartialIdx: index('form_archived_at_partial_idx')
-      .on(table.archivedAt)
-      .where(sql`${table.archivedAt} IS NOT NULL`),
-  })
 )
 
 export const organization = pgTable('organization', {
@@ -2212,107 +2168,6 @@ export const copilotAsyncToolCalls = pgTable(
   })
 )
 
-export const templateStatusEnum = pgEnum('template_status', ['pending', 'approved', 'rejected'])
-export const templateCreatorTypeEnum = pgEnum('template_creator_type', ['user', 'organization'])
-
-export const templateCreators = pgTable(
-  'template_creators',
-  {
-    id: text('id').primaryKey(),
-    referenceType: templateCreatorTypeEnum('reference_type').notNull(),
-    referenceId: text('reference_id').notNull(),
-    name: text('name').notNull(),
-    profileImageUrl: text('profile_image_url'),
-    details: jsonb('details'),
-    verified: boolean('verified').notNull().default(false),
-    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    referenceUniqueIdx: uniqueIndex('template_creators_reference_idx').on(
-      table.referenceType,
-      table.referenceId
-    ),
-    referenceIdIdx: index('template_creators_reference_id_idx').on(table.referenceId),
-    createdByIdx: index('template_creators_created_by_idx').on(table.createdBy),
-  })
-)
-
-export const templates = pgTable(
-  'templates',
-  {
-    id: text('id').primaryKey(),
-    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
-    name: text('name').notNull(),
-    details: jsonb('details'),
-    creatorId: text('creator_id').references(() => templateCreators.id, { onDelete: 'set null' }),
-    views: integer('views').notNull().default(0),
-    stars: integer('stars').notNull().default(0),
-    status: templateStatusEnum('status').notNull().default('pending'),
-    tags: text('tags').array().notNull().default(sql`'{}'::text[]`), // Array of tags
-    requiredCredentials: jsonb('required_credentials').notNull().default('[]'), // Array of credential requirements
-    state: jsonb('state').notNull(), // Store the workflow state directly
-    ogImageUrl: text('og_image_url'), // Pre-generated OpenGraph image URL
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    // Primary access patterns
-    statusIdx: index('templates_status_idx').on(table.status),
-    creatorIdIdx: index('templates_creator_id_idx').on(table.creatorId),
-
-    // Sorting indexes for popular/trending templates
-    viewsIdx: index('templates_views_idx').on(table.views),
-    starsIdx: index('templates_stars_idx').on(table.stars),
-
-    // Composite indexes for common queries
-    statusViewsIdx: index('templates_status_views_idx').on(table.status, table.views),
-    statusStarsIdx: index('templates_status_stars_idx').on(table.status, table.stars),
-
-    // Temporal indexes
-    createdAtIdx: index('templates_created_at_idx').on(table.createdAt),
-    updatedAtIdx: index('templates_updated_at_idx').on(table.updatedAt),
-  })
-)
-
-export const templateStars = pgTable(
-  'template_stars',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    templateId: text('template_id')
-      .notNull()
-      .references(() => templates.id, { onDelete: 'cascade' }),
-    starredAt: timestamp('starred_at').notNull().defaultNow(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    // Primary access patterns
-    userIdIdx: index('template_stars_user_id_idx').on(table.userId),
-    templateIdIdx: index('template_stars_template_id_idx').on(table.templateId),
-
-    // Composite indexes for common queries
-    userTemplateIdx: index('template_stars_user_template_idx').on(table.userId, table.templateId),
-    templateUserIdx: index('template_stars_template_user_idx').on(table.templateId, table.userId),
-
-    // Temporal indexes for analytics
-    starredAtIdx: index('template_stars_starred_at_idx').on(table.starredAt),
-    templateStarredAtIdx: index('template_stars_template_starred_at_idx').on(
-      table.templateId,
-      table.starredAt
-    ),
-
-    // Uniqueness constraint - prevent duplicate stars
-    uniqueUserTemplateConstraint: uniqueIndex('template_stars_user_template_unique').on(
-      table.userId,
-      table.templateId
-    ),
-  })
-)
-
 export const copilotFeedback = pgTable(
   'copilot_feedback',
   {
@@ -3307,6 +3162,10 @@ export const userTableRows = pgTable(
      * Fractional order key (base-62 string). Authoritative row order when the
      * `TABLES_FRACTIONAL_ORDERING` flag is on; nullable during the backfill
      * window. Ordered with `id` as a deterministic tiebreaker.
+     *
+     * Stored with `COLLATE "C"` (migration 0228) so Postgres compares it bytewise,
+     * matching the fractional-indexing library's ASCII ordering. drizzle can't
+     * express column collation, so the collation lives only in the migration.
      */
     orderKey: text('order_key'),
     createdAt: timestamp('created_at').notNull().defaultNow(),

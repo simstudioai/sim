@@ -29,6 +29,7 @@ type InviteErrorCode =
   | 'already-member'
   | 'already-in-organization'
   | 'no-seats-available'
+  | 'upgrade-required'
   | 'invalid-invitation'
   | 'missing-invitation-id'
   | 'server-error'
@@ -89,7 +90,14 @@ function getInviteError(code: string): InviteError {
     'no-seats-available': {
       code: 'no-seats-available',
       message:
-        'This organization has no available seats right now. Ask an admin to add seats or retry after capacity changes.',
+        'This organization has reached its seat limit. Ask an admin to contact support to add seats, then try again.',
+      canRetry: true,
+    },
+    'upgrade-required': {
+      code: 'upgrade-required',
+      message:
+        'The workspace owner needs an active paid plan with billing set up before you can join. Ask them to update their plan, then try again.',
+      canRetry: true,
     },
     'invalid-invitation': {
       code: 'invalid-invitation',

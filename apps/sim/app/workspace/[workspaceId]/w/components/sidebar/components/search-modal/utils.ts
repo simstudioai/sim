@@ -1,5 +1,13 @@
 import type { ComponentType, ReactNode } from 'react'
 
+export interface IntegrationSearchItem {
+  id: string
+  name: string
+  href: string
+  icon: ComponentType<{ className?: string }>
+  bgColor: string
+}
+
 export interface TaskItem {
   id: string
   name: string
@@ -10,7 +18,6 @@ export interface WorkflowItem {
   id: string
   name: string
   href: string
-  color: string
   folderPath?: string[]
   isCurrent?: boolean
 }
@@ -44,11 +51,14 @@ export interface SearchModalProps {
   onOpenChange: (open: boolean) => void
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
-  tasks?: TaskItem[]
+  chats?: TaskItem[]
   tables?: TaskItem[]
   files?: FileItem[]
   knowledgeBases?: TaskItem[]
+  integrations?: IntegrationSearchItem[]
+  connectedAccounts?: IntegrationSearchItem[]
   isOnWorkflowPage?: boolean
+  isOnIntegrationsPage?: boolean
 }
 
 export interface CommandItemProps {
@@ -61,12 +71,12 @@ export interface CommandItemProps {
 }
 
 export const GROUP_HEADING_CLASSNAME =
-  '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-0.5 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:text-[var(--text-icon)]'
+  '[&_[cmdk-group-heading]]:flex [&_[cmdk-group-heading]]:h-[18px] [&_[cmdk-group-heading]]:items-center [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:mb-2 [&_[cmdk-group-heading]]:text-small [&_[cmdk-group-heading]]:text-[var(--text-muted)]'
 
 export const COMMAND_ITEM_CLASSNAME =
-  'group flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
+  'group mx-0.5 flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-active)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
 
-export function scoreMatch(value: string, search: string): number {
+function scoreMatch(value: string, search: string): number {
   if (!search) return 1
   const valueLower = value.toLowerCase()
   const searchLower = search.toLowerCase()

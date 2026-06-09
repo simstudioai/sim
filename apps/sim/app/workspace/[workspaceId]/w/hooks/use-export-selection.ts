@@ -172,7 +172,6 @@ export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) 
           const exportData = await fetchWorkflowForExport(workflowId, {
             name: workflowMeta.name,
             description: workflowMeta.description,
-            color: workflowMeta.color,
             folderId: workflowMeta.folderId ?? null,
           })
 

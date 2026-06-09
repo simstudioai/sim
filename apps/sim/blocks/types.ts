@@ -1,4 +1,4 @@
-import type { JSX, SVGProps } from 'react'
+import type { ComponentType, JSX, SVGProps } from 'react'
 import type {
   OutputCondition,
   OutputFieldDefinition,
@@ -19,22 +19,49 @@ export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 export enum IntegrationType {
   AI = 'ai',
   Analytics = 'analytics',
+  Commerce = 'commerce',
   Communication = 'communication',
-  CRM = 'crm',
-  CustomerSupport = 'customer-support',
   Databases = 'databases',
-  Design = 'design',
-  DeveloperTools = 'developer-tools',
+  DevOps = 'devops',
   Documents = 'documents',
-  Ecommerce = 'ecommerce',
   Email = 'email',
-  FileStorage = 'file-storage',
   HR = 'hr',
-  Other = 'other',
+  Marketing = 'marketing',
+  Observability = 'observability',
   Productivity = 'productivity',
   Sales = 'sales',
   Search = 'search',
   Security = 'security',
+  Support = 'support',
+}
+
+/**
+ * Human-readable label for each canonical integration category. Used by every
+ * UI surface that renders a category name — landing /integrations grid,
+ * workspace integrations page, dropdowns, etc.
+ */
+export const INTEGRATION_TYPE_LABELS: Record<IntegrationType, string> = {
+  [IntegrationType.AI]: 'AI',
+  [IntegrationType.Analytics]: 'Analytics',
+  [IntegrationType.Commerce]: 'Commerce',
+  [IntegrationType.Communication]: 'Communication',
+  [IntegrationType.Databases]: 'Databases',
+  [IntegrationType.DevOps]: 'DevOps',
+  [IntegrationType.Documents]: 'Documents',
+  [IntegrationType.Email]: 'Email',
+  [IntegrationType.HR]: 'HR',
+  [IntegrationType.Marketing]: 'Marketing',
+  [IntegrationType.Observability]: 'Observability',
+  [IntegrationType.Productivity]: 'Productivity',
+  [IntegrationType.Sales]: 'Sales',
+  [IntegrationType.Search]: 'Search',
+  [IntegrationType.Security]: 'Security',
+  [IntegrationType.Support]: 'Support',
+}
+
+/** Format any category slug for display. Falls back to the slug if unknown. */
+export function formatIntegrationType(slug: string): string {
+  return INTEGRATION_TYPE_LABELS[slug as IntegrationType] ?? slug
 }
 
 export type IntegrationTag =
@@ -87,6 +114,54 @@ export type IntegrationTag =
   | 'link-management'
   | 'events'
   | 'feature-flags'
+
+export type ModuleTag = 'knowledge-base' | 'tables' | 'files' | 'workflows' | 'scheduled' | 'agent'
+
+export type TemplateCategory =
+  | 'popular'
+  | 'sales'
+  | 'support'
+  | 'engineering'
+  | 'marketing'
+  | 'productivity'
+  | 'operations'
+
+/** Catalog template prompt featuring this block. Never read by the executor. */
+export interface BlockTemplate {
+  icon: ComponentType<SVGProps<SVGSVGElement>>
+  title: string
+  prompt: string
+  modules: readonly ModuleTag[]
+  category: TemplateCategory
+  tags: readonly string[]
+  image?: string
+  featured?: boolean
+  /** Other blocks referenced by this template's prompt, besides the owning block. */
+  alsoIntegrations?: readonly string[]
+}
+
+/**
+ * A research-backed, ready-to-add skill suggestion surfaced on an integration's
+ * detail page. Adding one creates a workspace skill with these exact fields, so
+ * the shape mirrors `skillUpsertItemSchema` (name is kebab-case, content is
+ * markdown). Never read by the executor.
+ */
+export interface SuggestedSkill {
+  /** kebab-case identifier; becomes the created skill's `name`. */
+  name: string
+  /** One-line summary of what the skill does and when to use it. */
+  description: string
+  /** Skill instructions in markdown; becomes the created skill's `content`. */
+  content: string
+}
+
+/** Presentation/catalog data for a block. Never read by the executor. */
+export interface BlockMeta {
+  tags: readonly IntegrationTag[]
+  templates?: readonly BlockTemplate[]
+  /** Popular, ready-to-add skills for this integration, shown on its detail page. */
+  skills?: readonly SuggestedSkill[]
+}
 
 // Authentication modes for sub-blocks and summaries
 export enum AuthMode {
@@ -343,11 +418,19 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   description: string
   category: BlockCategory
   integrationType?: IntegrationType
-  tags?: IntegrationTag[]
   longDescription?: string
   bestPractices?: string
   docsLink?: string
   bgColor: string
+  /**
+   * Theme-safe brand foreground color for rendering this block's icon WITHOUT
+   * its colored tile background (a "bare" icon). Unlike {@link bgColor}, which
+   * is the tile fill, this is applied as the icon's `color`/`currentColor` and
+   * must read clearly on both light and dark surfaces — so only set it to vivid
+   * brand colors (e.g. HubSpot `#FF7A59`), never near-black tile colors. When
+   * omitted, bare renders fall back to the theme-aware `var(--text-icon)`.
+   */
+  iconColor?: string
   icon: BlockIcon
   subBlocks: SubBlockConfig[]
   triggerAllowed?: boolean
