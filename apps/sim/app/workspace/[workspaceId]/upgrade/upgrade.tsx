@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Chip } from '@/components/emcn'
+import { ArrowLeft, Chip, toast } from '@/components/emcn'
 import {
   getUpgradeCardCta,
   type PlanCardCta,
@@ -91,7 +91,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
           onClick: () =>
             state
               .handleSwitchInterval(state.isAnnual ? 'year' : 'month')
-              .catch((e) => alert(getErrorMessage(e, 'Failed to switch interval'))),
+              .catch((e) => toast.error(getErrorMessage(e, 'Failed to switch interval'))),
         }
       }
       return { ...cta, onClick: () => {}, disabled: true }

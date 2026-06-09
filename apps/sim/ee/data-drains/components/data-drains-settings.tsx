@@ -13,6 +13,7 @@ import {
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
@@ -419,6 +420,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
   const [destState, setDestState] = useState<unknown>(
     () => DESTINATION_FORM_REGISTRY[DESTINATION_TYPES[0]].initialState
   )
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const spec = DESTINATION_FORM_REGISTRY[destinationType]
   const canSubmit = name.trim().length > 0 && spec.isComplete(destState)
@@ -430,6 +432,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
 
   async function handleSubmit() {
     if (!canSubmit) return
+    setSubmitError(null)
     try {
       const body = {
         name: name.trim(),
@@ -443,7 +446,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
     } catch (error) {
       const msg = toError(error).message
       logger.error('Failed to create data drain', { error: msg })
-      toast.error(msg)
+      setSubmitError(msg)
     }
   }
 
@@ -488,6 +491,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
         <section className='flex flex-col gap-3 px-2'>
           <spec.FormFields state={destState} setState={setDestState} />
         </section>
+        <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}

@@ -96,7 +96,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
 
     clearRealtimeStatusNotification()
 
-    const id = toast.error(realtimeStatusMessage, { duration: 0 })
+    const id = toast.error(realtimeStatusMessage, { duration: 0, persistAcrossRoutes: true })
 
     realtimeStatusNotificationIdRef.current = id
     realtimeStatusNotificationMessageRef.current = realtimeStatusMessage
@@ -130,6 +130,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     try {
       toast.error('Connection unavailable', {
         duration: 0,
+        persistAcrossRoutes: true,
         action: { label: 'Refresh', onClick: () => window.location.reload() },
       })
       setHasShownOfflineNotification(true)
