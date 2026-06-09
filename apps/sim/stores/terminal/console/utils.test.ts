@@ -34,6 +34,61 @@ describe('terminal console utils', () => {
     expect(result).toContain('"name": "root"')
   })
 
+  it('preserves small objects nested at the agent tool-call depth', () => {
+    const output = normalizeConsoleOutput({
+      toolCalls: {
+        list: [
+          {
+            name: 'table_query_rows',
+            result: {
+              rows: [{ data: { deal_id: 'DEAL-001', client_name: 'Jennifer Martinez' } }],
+            },
+          },
+        ],
+      },
+    }) as {
+      toolCalls: { list: Array<{ result: { rows: Array<{ data: Record<string, unknown> }> } }> }
+    }
+
+    const row = output.toolCalls.list[0].result.rows[0]
+    expect(row).not.toBe('[Truncated object]')
+    expect(row.data.deal_id).toBe('DEAL-001')
+    expect(row.data.client_name).toBe('Jennifer Martinez')
+  })
+
+  it('resolves true circular references without infinite recursion', () => {
+    const circular: { name: string; self?: unknown } = { name: 'root' }
+    circular.self = circular
+
+    const output = normalizeConsoleOutput(circular) as { name: string; self: unknown }
+
+    expect(output.name).toBe('root')
+    expect(output.self).toBe('[Circular]')
+  })
+
+  it('renders a value shared across sibling positions fully (not circular)', () => {
+    const shared = { x: 1 }
+    const output = normalizeConsoleOutput({ a: shared, b: shared }) as {
+      a: { x: number }
+      b: { x: number }
+    }
+
+    expect(output.a).toEqual({ x: 1 })
+    expect(output.b).toEqual({ x: 1 })
+  })
+
+  it('truncates structures nested beyond MAX_DEPTH as a backstop', () => {
+    let deep: Record<string, unknown> = { value: 'leaf' }
+    for (let i = 0; i < TERMINAL_CONSOLE_LIMITS.MAX_DEPTH + 2; i++) {
+      deep = { nested: deep }
+    }
+
+    const serialized = safeConsoleStringify(normalizeConsoleOutput(deep))
+
+    expect(serialized).toContain('[Truncated object]')
+    expect(serialized).not.toContain('leaf')
+  })
+
   it('truncates oversized nested strings in console output', () => {
     const output = normalizeConsoleOutput({
       stdout: 'x'.repeat(TERMINAL_CONSOLE_LIMITS.MAX_STRING_LENGTH + 100),
