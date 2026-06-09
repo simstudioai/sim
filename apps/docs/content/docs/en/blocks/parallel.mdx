@@ -1,10 +1,13 @@
 ---
 title: Parallel
+description: The Parallel block is a container that runs the block inside it concurrently — once per item or a fixed number of times.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { WorkflowPreview, PARALLEL_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The Parallel block is a container that executes multiple instances concurrently for faster workflow processing. Process items simultaneously instead of sequentially.
@@ -117,17 +120,14 @@ There's an important distinction between referencing parallel data from **inside
   </Tab>
 </Tabs>
 
-## Example Use Cases
+## Examples
 
-**Batch API Processing** - Process multiple API calls simultaneously
-```
-Parallel (Collection) → API (Call Endpoint) → Function (Aggregate)
-```
+<WorkflowPreview workflow={PARALLEL_WORKFLOW} height={340} />
 
-**Multi-Model AI Processing** - Get responses from multiple AI models concurrently
-```
-Parallel (["gpt-4o", "claude-3.7-sonnet", "gemini-2.5-pro"]) → Agent → Evaluator (Select Best)
-```
+A collection-based Parallel calls an endpoint for each task at the same time, and a Function aggregates `<parallel.results>` after they finish. The same container holds the block for either type:
+
+- **Batch API processing** — `Parallel (Collection) → API (Call Endpoint) → Function (Aggregate)`
+- **Multi-model processing** — `Parallel (["model-a", "model-b", "model-c"]) → Agent → Evaluator (Select best)`
 
 ## Advanced Features
 

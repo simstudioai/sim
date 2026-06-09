@@ -1439,3 +1439,53 @@ export const LOOP_WORKFLOW: PreviewWorkflow = {
     { id: 'loop-summary', source: 'loop', target: 'summary' },
   ],
 }
+
+/** Parallel example: process every item concurrently, then aggregate the results. */
+export const PARALLEL_WORKFLOW: PreviewWorkflow = {
+  id: 'parallel-collection',
+  name: 'Process tasks in parallel',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 95 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Tasks' }],
+    },
+    {
+      id: 'parallel',
+      name: 'Parallel',
+      type: 'parallel',
+      bgColor: '#1D1C1A',
+      position: { x: 340, y: 30 },
+      size: { width: 430, height: 170 },
+      rows: [],
+    },
+    {
+      id: 'call',
+      name: 'Call',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 150, y: 62 },
+      parentId: 'parallel',
+      hideSourceHandle: true,
+      rows: [{ title: 'URL', value: '/tasks/<parallel.currentItem>' }],
+    },
+    {
+      id: 'aggregate',
+      name: 'Aggregate',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 860, y: 95 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Code', value: 'merge(<parallel.results>)' }],
+    },
+  ],
+  edges: [
+    { id: 'start-parallel', source: 'start', target: 'parallel' },
+    { id: 'parallel-call', source: 'parallel', target: 'call', sourceHandle: 'loop-start-source' },
+    { id: 'parallel-aggregate', source: 'parallel', target: 'aggregate' },
+  ],
+}
