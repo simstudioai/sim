@@ -523,3 +523,140 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
     { id: 'router-billing', source: 'router', target: 'billing' },
   ],
 }
+
+/** Response example: return a structured answer from an API-triggered workflow. */
+export const RESPONSE_API_WORKFLOW: PreviewWorkflow = {
+  id: 'response-api',
+  name: 'Answer over the API',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Question' }],
+    },
+    {
+      id: 'agent',
+      name: 'Agent',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 320, y: 0 },
+      rows: [{ title: 'Messages', value: 'Answer <start.input>' }],
+    },
+    {
+      id: 'response',
+      name: 'Response',
+      type: 'response',
+      bgColor: '#2F55FF',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [
+        { title: 'Data', value: '{ "answer": <agent.content> }' },
+        { title: 'Status', value: '200' },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'start-agent', source: 'start', target: 'agent' },
+    { id: 'agent-response', source: 'agent', target: 'response' },
+  ],
+}
+
+/** Router example: classify incoming feedback into the right child workflow. */
+export const ROUTER_CLASSIFY_WORKFLOW: PreviewWorkflow = {
+  id: 'router-classify',
+  name: 'Classify feedback',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 50 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Feedback' }],
+    },
+    {
+      id: 'router',
+      name: 'Router',
+      type: 'router',
+      bgColor: '#28C43F',
+      position: { x: 320, y: 50 },
+      rows: [{ title: 'Context', value: '<start.input>' }],
+    },
+    {
+      id: 'product',
+      name: 'Product',
+      type: 'workflow',
+      bgColor: '#6366F1',
+      position: { x: 700, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Workflow', value: 'product-intake' }],
+    },
+    {
+      id: 'bug',
+      name: 'Bug report',
+      type: 'workflow',
+      bgColor: '#6366F1',
+      position: { x: 700, y: 110 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Workflow', value: 'bug-triage' }],
+    },
+  ],
+  edges: [
+    { id: 'start-router', source: 'start', target: 'router' },
+    { id: 'router-product', source: 'router', target: 'product' },
+    { id: 'router-bug', source: 'router', target: 'bug' },
+  ],
+}
+
+/** Router example: qualify a lead into sales or self-serve. */
+export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
+  id: 'router-lead',
+  name: 'Qualify a lead',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 50 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Lead' }],
+    },
+    {
+      id: 'router',
+      name: 'Router',
+      type: 'router',
+      bgColor: '#28C43F',
+      position: { x: 320, y: 50 },
+      rows: [{ title: 'Context', value: '<start.input>' }],
+    },
+    {
+      id: 'enterprise',
+      name: 'Enterprise',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 700, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Book a sales call' }],
+    },
+    {
+      id: 'selfserve',
+      name: 'Self-serve',
+      type: 'workflow',
+      bgColor: '#6366F1',
+      position: { x: 700, y: 110 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Workflow', value: 'onboarding' }],
+    },
+  ],
+  edges: [
+    { id: 'start-router', source: 'start', target: 'router' },
+    { id: 'router-enterprise', source: 'router', target: 'enterprise' },
+    { id: 'router-selfserve', source: 'router', target: 'selfserve' },
+  ],
+}
