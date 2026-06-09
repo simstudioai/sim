@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
 import { ChipCombobox, ChipConfirmModal, toast, Upload } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
-import { generateUniqueTableName } from '@/lib/table/constants'
+import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import type {
   FilterTag,
   ResourceColumn,
@@ -24,14 +25,17 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
+  ImportProgressMenu,
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
+  cancelTableImport,
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
+  useImportCsvAsync,
   useRenameTable,
   useTablesList,
   useUploadCsvToTable,
@@ -40,6 +44,7 @@ import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('Tables')
 
@@ -76,6 +81,7 @@ export function Tables() {
   const renameTable = useRenameTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
   const uploadCsv = useUploadCsvToTable()
+  const importCsvAsync = useImportCsvAsync()
 
   const tableRename = useInlineRename({
     onSave: (tableId, name) => renameTable.mutate({ tableId, name }),
@@ -407,37 +413,77 @@ export function Tables() {
       const list = e.target.files
       if (!list || list.length === 0 || !workspaceId) return
 
+      const csvFiles = Array.from(list).filter((f) => {
+        const ext = f.name.split('.').pop()?.toLowerCase()
+        return ext === 'csv' || ext === 'tsv'
+      })
+
+      if (csvFiles.length === 0) {
+        toast.error('No CSV or TSV files selected')
+        if (csvInputRef.current) csvInputRef.current.value = ''
+        return
+      }
+
+      // Large files can't be POSTed through the server (request-body cap) — upload them
+      // straight to storage and import in the background. These are tracked by the import
+      // tray, never the header upload button, so don't touch uploading/uploadProgress here.
+      const asyncFiles = csvFiles.filter((f) => f.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES)
+      const syncFiles = csvFiles.filter((f) => f.size < CSV_ASYNC_IMPORT_THRESHOLD_BYTES)
+
       try {
-        setUploading(true)
-
-        const csvFiles = Array.from(list).filter((f) => {
-          const ext = f.name.split('.').pop()?.toLowerCase()
-          return ext === 'csv' || ext === 'tsv'
-        })
-
-        if (csvFiles.length === 0) {
-          toast.error('No CSV or TSV files selected')
-          return
+        for (const file of asyncFiles) {
+          // Show the indicator immediately under a temporary id (the real table id doesn't
+          // exist until kickoff returns), then let the tray track it. Don't redirect — the
+          // table is still empty/importing, so stay on the list.
+          const pendingId = `pending_${generateId()}`
+          useImportTrayStore
+            .getState()
+            .startUpload({ uploadId: pendingId, workspaceId, title: file.name })
+          toast.success(`Importing "${file.name}" in the background`)
+          try {
+            const result = await importCsvAsync.mutateAsync({
+              workspaceId,
+              file,
+              onProgress: (percent) => {
+                useImportTrayStore.getState().setUploadPercent(pendingId, percent)
+              },
+            })
+            useImportTrayStore.getState().endUpload(pendingId)
+            // The server row drives the tray once the list refetches (mutation invalidates it).
+            // If canceled mid-upload, flag the real id so it's not shown and cancel server-side.
+            if (result?.tableId && useImportTrayStore.getState().consumeCanceled(pendingId)) {
+              useImportTrayStore.getState().cancel(result.tableId)
+              void cancelTableImport(workspaceId, result.tableId, result.importId).catch(() => {})
+            }
+          } catch (err) {
+            useImportTrayStore.getState().endUpload(pendingId)
+            toast.error(`Failed to import ${file.name}`)
+            logger.error('Error uploading CSV:', err)
+          }
         }
 
-        setUploadProgress({ completed: 0, total: csvFiles.length })
+        if (syncFiles.length === 0) return
+
+        setUploading(true)
+        setUploadProgress({ completed: 0, total: syncFiles.length })
         const failed: string[] = []
 
-        for (let i = 0; i < csvFiles.length; i++) {
+        for (let i = 0; i < syncFiles.length; i++) {
+          const file = syncFiles[i]
           try {
-            const result = await uploadCsv.mutateAsync({ workspaceId, file: csvFiles[i] })
+            const result = await uploadCsv.mutateAsync({ workspaceId, file })
 
-            if (csvFiles.length === 1) {
+            if (syncFiles.length === 1 && asyncFiles.length === 0) {
               const tableId = result?.data?.table?.id
               if (tableId) {
                 router.push(`/workspace/${workspaceId}/tables/${tableId}`)
               }
             }
           } catch (err) {
-            failed.push(csvFiles[i].name)
+            failed.push(file.name)
             logger.error('Error uploading CSV:', err)
           } finally {
-            setUploadProgress({ completed: i + 1, total: csvFiles.length })
+            setUploadProgress({ completed: i + 1, total: syncFiles.length })
           }
         }
 
@@ -459,7 +505,7 @@ export function Tables() {
         }
       }
     },
-    [workspaceId, router, uploadCsv]
+    [workspaceId, router, uploadCsv, importCsvAsync]
   )
 
   const handleListUploadCsv = useCallback(() => {
@@ -508,6 +554,7 @@ export function Tables() {
         sort={sortConfig}
         filter={filterContent}
         filterTags={filterTags}
+        leadingActions={<ImportProgressMenu workspaceId={workspaceId} />}
         headerActions={[
           {
             label: uploadButtonLabel,
