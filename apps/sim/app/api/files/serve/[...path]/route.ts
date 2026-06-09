@@ -153,6 +153,24 @@ function getWorkspaceIdForCompile(key: string): string | undefined {
   return parseWorkspaceFileKey(key) ?? undefined
 }
 
+const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable'
+const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
+
+/**
+ * Cache-Control for a served file. A versioned request (`?v=<updatedAt>`) addresses
+ * content-immutable bytes — generated docs are content-addressed and the version
+ * bumps on every edit — so the browser may cache it indefinitely; re-opens and
+ * focus refetches then resolve from cache with no round trip. Unversioned workspace
+ * reads stay revalidated because the same storage key is edited in place.
+ */
+function resolveServeCacheControl(
+  versioned: boolean,
+  context: string | undefined
+): string | undefined {
+  if (versioned) return IMMUTABLE_CACHE_CONTROL
+  return context === 'workspace' ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
+}
+
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) => {
     try {
@@ -190,8 +208,10 @@ export const GET = withRouteHandler(
 
       const query = fileServeQuerySchema.parse({
         raw: request.nextUrl.searchParams.get('raw'),
+        v: request.nextUrl.searchParams.get('v'),
       })
       const raw = query.raw === '1'
+      const versioned = query.v != null
 
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
@@ -206,10 +226,10 @@ export const GET = withRouteHandler(
       const userId = authResult.userId
 
       if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, raw, request.signal)
+        return await handleCloudProxy(cloudKey, userId, raw, versioned, request.signal)
       }
 
-      return await handleLocalFile(cloudKey, userId, raw, request.signal)
+      return await handleLocalFile(cloudKey, userId, raw, versioned, request.signal)
     } catch (error) {
       // An in-progress/incomplete doc source fails to compile — this is expected
       // mid-generation, not a server fault. Return 409 (not 500) so it isn't an
@@ -237,6 +257,7 @@ async function handleLocalFile(
   filename: string,
   userId: string,
   raw: boolean,
+  versioned: boolean,
   signal: AbortSignal | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
@@ -283,7 +304,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: contextParam === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
+      cacheControl: resolveServeCacheControl(versioned, contextParam),
     })
   } catch (error) {
     logger.error('Error reading local file:', error)
@@ -295,6 +316,7 @@ async function handleCloudProxy(
   cloudKey: string,
   userId: string,
   raw = false,
+  versioned = false,
   signal: AbortSignal | undefined = undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
@@ -349,7 +371,7 @@ async function handleCloudProxy(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: context === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
+      cacheControl: resolveServeCacheControl(versioned, context),
     })
   } catch (error) {
     logger.error('Error downloading from cloud storage:', error)

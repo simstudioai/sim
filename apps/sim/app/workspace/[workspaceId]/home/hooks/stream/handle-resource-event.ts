@@ -1,44 +1,22 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
 import {
+  type MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
-  type MothershipStreamV1ResourceRemovePayload,
-  type MothershipStreamV1ResourceUpsertPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   hasRenderableFilePreviewContent,
   shouldReplaceSession,
 } from '@/app/workspace/[workspaceId]/home/hooks/preview'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
+import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-type ResourceEventPayload =
-  | MothershipStreamV1ResourceUpsertPayload
-  | MothershipStreamV1ResourceRemovePayload
-
-export interface ResourceEventContext {
-  workspaceId: string
-  queryClient: QueryClient
-  addResource: (resource: MothershipResource) => boolean
-  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
-  setResources: Dispatch<SetStateAction<MothershipResource[]>>
-  setActiveResourceId: Dispatch<SetStateAction<string | null>>
-  resourcesRef: MutableRefObject<MothershipResource[]>
-  activeResourceIdRef: MutableRefObject<string | null>
-  previewSessionsRef: MutableRefObject<Record<string, FilePreviewSession>>
-  completedPreviewResourceHandoffRef: MutableRefObject<
-    Map<string, { sessionId: string; suppressActivation: boolean }>
-  >
-  previewActivationOwnerRef: MutableRefObject<Map<string, string | null>>
-  shouldAutoActivatePreviewSession: (session: FilePreviewSession) => boolean
-  ensureWorkflowInRegistry: (resourceId: string, title: string, workspaceId: string) => boolean
-  onResourceEvent?: () => void
-}
+type ResourceEvent = Extract<
+  PersistedStreamEventEnvelope,
+  { type: typeof MothershipStreamV1EventType.resource }
+>
 
 /**
  * Applies a streamed resource upsert/remove to the mothership resource list,
@@ -46,10 +24,7 @@ export interface ResourceEventContext {
  * generated file is not activated out from under the user while its preview is
  * still streaming. Workflow resources are mirrored into the workflow registry.
  */
-export function handleResourceEvent(
-  ctx: ResourceEventContext,
-  payload: ResourceEventPayload
-): void {
+export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEvent): void {
   const {
     workspaceId,
     queryClient,
@@ -64,8 +39,10 @@ export function handleResourceEvent(
     previewActivationOwnerRef,
     shouldAutoActivatePreviewSession,
     ensureWorkflowInRegistry,
-    onResourceEvent,
-  } = ctx
+    onResourceEventRef,
+  } = ctx.deps
+  const onResourceEvent = onResourceEventRef.current
+  const payload = parsed.payload
   const resource = payload.resource
 
   if (payload.op === MothershipStreamV1ResourceOp.remove) {

@@ -67,6 +67,52 @@ export function resolveDocPreviewBinary({
   }
 }
 
+interface DocPreviewStepArgs {
+  fileChanged: boolean
+  data: ArrayBuffer | undefined
+  isPlaceholderData: boolean
+  error: Error | null
+  hasCommittedContent: boolean
+  prevHasResolvedForFile: boolean
+  prevLastGood: ArrayBuffer | null
+}
+
+interface DocPreviewStep {
+  resolved: ResolvedDocPreview
+  hasResolvedForFile: boolean
+  lastGood: ArrayBuffer | null
+}
+
+/**
+ * Pure per-render step for {@link useDocPreviewBinary}: folds the prior last-good
+ * binary and the "has a fresh binary resolved for this file yet" flag with the
+ * current query result. On a file change the prior file's last-good and resolved
+ * flag are dropped, and the keep-previous placeholder (which still holds the prior
+ * file's bytes) is ignored until a fresh binary resolves for the new file.
+ */
+export function stepDocPreviewBinary({
+  fileChanged,
+  data,
+  isPlaceholderData,
+  error,
+  hasCommittedContent,
+  prevHasResolvedForFile,
+  prevLastGood,
+}: DocPreviewStepArgs): DocPreviewStep {
+  const lastGood = fileChanged ? null : prevLastGood
+  const hasResolvedForFile =
+    (fileChanged ? false : prevHasResolvedForFile) || (Boolean(data) && !isPlaceholderData)
+  const placeholderFromPriorFile = isPlaceholderData && !hasResolvedForFile
+  const resolved = resolveDocPreviewBinary({
+    data: placeholderFromPriorFile ? undefined : data,
+    isPlaceholderData,
+    error,
+    lastGood,
+    hasCommittedContent,
+  })
+  return { resolved, hasResolvedForFile, lastGood: resolved.lastGood }
+}
+
 /**
  * Resolves the compiled binary to render for a generated or uploaded document and
  * retains the last successfully fetched binary as a fallback.
@@ -89,30 +135,27 @@ export function useDocPreviewBinary(workspaceId: string, file: DocPreviewFile): 
   const lastGoodRef = useRef<ArrayBuffer | null>(null)
   const fileIdRef = useRef(file.id)
   const hasResolvedForFileRef = useRef(false)
-  if (fileIdRef.current !== file.id) {
+  const fileChanged = fileIdRef.current !== file.id
+  if (fileChanged) {
     fileIdRef.current = file.id
-    lastGoodRef.current = null
-    hasResolvedForFileRef.current = false
-  }
-  if (query.data && !query.isPlaceholderData) {
-    hasResolvedForFileRef.current = true
   }
 
-  const placeholderFromPriorFile = query.isPlaceholderData && !hasResolvedForFileRef.current
-
-  const resolved = resolveDocPreviewBinary({
-    data: placeholderFromPriorFile ? undefined : query.data,
+  const step = stepDocPreviewBinary({
+    fileChanged,
+    data: query.data,
     isPlaceholderData: query.isPlaceholderData,
     error: (query.error as Error | null) ?? null,
-    lastGood: lastGoodRef.current,
     hasCommittedContent: (file.size ?? 0) > 0,
+    prevHasResolvedForFile: hasResolvedForFileRef.current,
+    prevLastGood: lastGoodRef.current,
   })
-  lastGoodRef.current = resolved.lastGood
+  hasResolvedForFileRef.current = step.hasResolvedForFile
+  lastGoodRef.current = step.lastGood
 
   return {
-    data: resolved.data,
-    state: resolved.state,
-    error: resolved.error,
+    data: step.resolved.data,
+    state: step.resolved.state,
+    error: step.resolved.error,
     dataUpdatedAt: query.dataUpdatedAt,
   }
 }

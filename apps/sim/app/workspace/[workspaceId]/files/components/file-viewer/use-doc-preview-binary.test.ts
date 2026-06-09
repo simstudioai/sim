@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { resolveDocPreviewBinary } from './use-doc-preview-binary'
+import { resolveDocPreviewBinary, stepDocPreviewBinary } from './use-doc-preview-binary'
 
 function buffer(byte: number): ArrayBuffer {
   return new Uint8Array([byte]).buffer
@@ -92,5 +92,93 @@ describe('resolveDocPreviewBinary', () => {
 
     expect(result.data).toBeNull()
     expect(result.error).toBe(err)
+  })
+})
+
+describe('stepDocPreviewBinary', () => {
+  it('shows loading for a committed file whose first fetch has not resolved', () => {
+    const step = stepDocPreviewBinary({
+      fileChanged: false,
+      data: undefined,
+      isPlaceholderData: false,
+      error: null,
+      hasCommittedContent: true,
+      prevHasResolvedForFile: false,
+      prevLastGood: null,
+    })
+
+    expect(step.resolved.state).toBe('loading')
+    expect(step.hasResolvedForFile).toBe(false)
+    expect(step.lastGood).toBeNull()
+  })
+
+  it('advances the head and records resolution on a fresh success', () => {
+    const fresh = buffer(1)
+    const step = stepDocPreviewBinary({
+      fileChanged: false,
+      data: fresh,
+      isPlaceholderData: false,
+      error: null,
+      hasCommittedContent: true,
+      prevHasResolvedForFile: false,
+      prevLastGood: null,
+    })
+
+    expect(step.resolved.state).toBe('ready')
+    expect(step.resolved.data).toBe(fresh)
+    expect(step.hasResolvedForFile).toBe(true)
+    expect(step.lastGood).toBe(fresh)
+  })
+
+  it('ignores the prior-file placeholder on a file change (no cross-file bleed)', () => {
+    const priorFileBytes = buffer(1)
+    const step = stepDocPreviewBinary({
+      fileChanged: true,
+      data: priorFileBytes,
+      isPlaceholderData: true,
+      error: null,
+      hasCommittedContent: true,
+      prevHasResolvedForFile: true,
+      prevLastGood: priorFileBytes,
+    })
+
+    expect(step.resolved.state).toBe('loading')
+    expect(step.resolved.data).toBeNull()
+    expect(step.hasResolvedForFile).toBe(false)
+    expect(step.lastGood).toBeNull()
+  })
+
+  it('holds the previous version as stale during a same-file recompile', () => {
+    const v1 = buffer(1)
+    const step = stepDocPreviewBinary({
+      fileChanged: false,
+      data: v1,
+      isPlaceholderData: true,
+      error: null,
+      hasCommittedContent: true,
+      prevHasResolvedForFile: true,
+      prevLastGood: v1,
+    })
+
+    expect(step.resolved.state).toBe('stale')
+    expect(step.resolved.data).toBe(v1)
+    expect(step.hasResolvedForFile).toBe(true)
+  })
+
+  it('keeps the last good binary and suppresses the error after a failed refetch', () => {
+    const v1 = buffer(1)
+    const step = stepDocPreviewBinary({
+      fileChanged: false,
+      data: undefined,
+      isPlaceholderData: false,
+      error: new Error('boom'),
+      hasCommittedContent: true,
+      prevHasResolvedForFile: true,
+      prevLastGood: v1,
+    })
+
+    expect(step.resolved.state).toBe('stale')
+    expect(step.resolved.data).toBe(v1)
+    expect(step.resolved.error).toBeNull()
   })
 })

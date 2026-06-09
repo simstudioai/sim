@@ -93,9 +93,16 @@ export function getE2BDocFormat(fileName: string): E2BDocFormat | null {
   return null
 }
 
-// Workspace images are referenced by the skills at /home/user/inputs/<fileId>.
-// We stage exactly those before running the script.
+// The skills reference workspace images by BARE file id through the injected
+// helpers — `getFileBase64(id)`, `addImage(slide, id, ...)` (pptx),
+// `addImage(id, ...)` (docx), `drawImage(page, id, ...)` (pdf) — never as a path.
+// Capture the id from those call sites (skipping a leading slide/page argument),
+// plus the legacy `/home/user/inputs/<id>` path, so referenced files are staged
+// before the script runs. Without this the sandbox `getFileBase64` throws
+// "file not staged" and every workspace-image embed silently fails.
 const INPUT_PATH_RE = /\/home\/user\/inputs\/([A-Za-z0-9_-]+)/g
+const FILE_HELPER_RE =
+  /\b(?:getFileBase64|addImage|drawImage)\(\s*(?:[A-Za-z_$][\w$]*\s*,\s*)?['"]([A-Za-z0-9_-]+)['"]/g
 
 // The doc source is user/LLM-controlled, so bound how much it can pull into the
 // sandbox: each `/home/user/inputs/<id>` reference is only ~35 bytes, so the
@@ -106,11 +113,25 @@ const MAX_STAGED_INPUTS = 20
 const MAX_STAGED_FILE_BYTES = 25 * 1024 * 1024
 const MAX_STAGED_TOTAL_BYTES = 50 * 1024 * 1024
 
-async function stageReferencedImages(source: string, workspaceId: string): Promise<SandboxFile[]> {
+/**
+ * Collects the workspace file ids a doc source references — from the injected
+ * image-helper call sites and the legacy `/home/user/inputs/<id>` path. Matching
+ * is scoped to the helper calls (not bare id-like strings in slide text), and the
+ * caller skips any id that does not resolve to a real file, so over-matching is
+ * harmless.
+ */
+export function collectReferencedFileIds(source: string): Set<string> {
   const ids = new Set<string>()
-  for (const match of source.matchAll(INPUT_PATH_RE)) {
-    if (match[1]) ids.add(match[1])
+  for (const re of [INPUT_PATH_RE, FILE_HELPER_RE]) {
+    for (const match of source.matchAll(re)) {
+      if (match[1]) ids.add(match[1])
+    }
   }
+  return ids
+}
+
+async function stageReferencedImages(source: string, workspaceId: string): Promise<SandboxFile[]> {
+  const ids = collectReferencedFileIds(source)
   if (ids.size > MAX_STAGED_INPUTS) {
     throw new Error(
       `Too many referenced input files (${ids.size}); max ${MAX_STAGED_INPUTS}. Reference fewer files.`

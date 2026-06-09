@@ -64,25 +64,7 @@ export function dispatchStreamEvent(
       handleToolEvent(ctx, parsed, scope)
       break
     case MothershipStreamV1EventType.resource:
-      handleResourceEvent(
-        {
-          workspaceId: ctx.deps.workspaceId,
-          queryClient: ctx.deps.queryClient,
-          addResource: ctx.deps.addResource,
-          removeResource: ctx.deps.removeResource,
-          setResources: ctx.deps.setResources,
-          setActiveResourceId: ctx.deps.setActiveResourceId,
-          resourcesRef: ctx.deps.resourcesRef,
-          activeResourceIdRef: ctx.deps.activeResourceIdRef,
-          previewSessionsRef: ctx.deps.previewSessionsRef,
-          completedPreviewResourceHandoffRef: ctx.deps.completedPreviewResourceHandoffRef,
-          previewActivationOwnerRef: ctx.deps.previewActivationOwnerRef,
-          shouldAutoActivatePreviewSession: ctx.deps.shouldAutoActivatePreviewSession,
-          ensureWorkflowInRegistry: ctx.deps.ensureWorkflowInRegistry,
-          onResourceEvent: ctx.deps.onResourceEventRef.current,
-        },
-        parsed.payload
-      )
+      handleResourceEvent(ctx, parsed)
       break
     case MothershipStreamV1EventType.run:
       handleRunEvent(ctx, parsed)

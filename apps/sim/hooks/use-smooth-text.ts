@@ -74,10 +74,18 @@ export function useSmoothText(
   contentRef.current = content
   streamingRef.current = isStreaming
 
+  // Key the reveal loop to streaming + remaining backlog, NOT to `content`:
+  // `content` changes on every streamed chunk, and re-subscribing an rAF + setState
+  // loop on each change is the "a dependency changes on every render" pattern that
+  // trips React's max-update-depth guard. The running tick reads the latest content
+  // from `contentRef`, so new chunks are absorbed without per-chunk teardown;
+  // `hasBacklog` only flips when the reveal falls behind or catches up.
+  const hasBacklog = effectiveRevealed < content.length
+
   useEffect(() => {
     if (!isStreaming) {
-      revealedRef.current = content.length
-      setRevealed(content.length)
+      revealedRef.current = contentRef.current.length
+      setRevealed(contentRef.current.length)
       return
     }
 
@@ -111,7 +119,7 @@ export function useSmoothText(
       frameRef.current = window.requestAnimationFrame(tick)
     }
 
-    if (frameRef.current === null) {
+    if (hasBacklog && frameRef.current === null) {
       frameRef.current = window.requestAnimationFrame(tick)
     }
 
@@ -121,7 +129,7 @@ export function useSmoothText(
         frameRef.current = null
       }
     }
-  }, [content, isStreaming])
+  }, [isStreaming, hasBacklog])
 
   // Content can shrink when upstream sanitization rewrites earlier text; never
   // hand back a slice index past the current end.
