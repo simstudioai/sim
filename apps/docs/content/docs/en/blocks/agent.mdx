@@ -107,6 +107,13 @@ A workflow that reads an incoming customer message and classifies it:
 
 The Agent reads the message from Start with `<start.input>` and returns a result that later blocks read as `<agent.content>`.
 
+## Best Practices
+
+- **Write a clear system message.** Define the agent's role, tone, and limits. Specific instructions produce more reliable output than a vague prompt.
+- **Match the model and temperature to the task.** Use a stronger model and lower temperature (0–0.3) for accuracy; raise temperature for creative or varied output.
+- **Give the agent only the tools it needs.** Too many tools dilute its choices. For jobs that don't overlap, use a second Agent block instead of overloading one.
+- **Use a response format when a downstream block needs specific fields.** It guarantees the shape, and you read each field as `<agent.field>`.
+
 <FAQ items={[
   { question: "What LLM providers does the Agent block support?", answer: "OpenAI, Anthropic, Google (Gemini), xAI (Grok), DeepSeek, Groq, Cerebras, Azure OpenAI, Azure Anthropic, Google Vertex AI, AWS Bedrock, OpenRouter, and local models via Ollama or VLLM. Type or select any supported model from the model combobox." },
   { question: "What are the memory options for the Agent block?", answer: "Four modes: None (no memory, each run is independent), Conversation (full history keyed by a conversation ID), Sliding window by messages (the N most recent messages), and Sliding window by tokens (messages up to a token budget). Memory needs a conversation ID to persist across runs." },
