@@ -21,7 +21,7 @@ Everything in angle brackets is the same mechanism: `<name.path>` reads a value 
 | `{{KEY}}` | An environment variable | `{{OPENAI_API_KEY}}` |
 | `<blockname.field>` | A block's output — a connection tag, not a variable | `<agent.content>` |
 
-The table is in resolution order: when a reference could match more than one thing, loop and parallel context win, then workflow variables, then environment variables, then block outputs. If nothing matches, the raw reference is left in place unsubstituted, which usually breaks the block that reads it — so give variables and blocks distinct names.
+The table is in resolution order: when an angle-bracket reference could match more than one source — say a block named `variable` — loop and parallel context win, then workflow variables, then block outputs. (`{{KEY}}` can't collide; it's a different syntax.) If nothing matches, the raw reference is left in place unsubstituted, which usually breaks the block that reads it — so give variables and blocks distinct names.
 
 Type `<` in any block text field to open the picker and browse everything you can reference.
 
