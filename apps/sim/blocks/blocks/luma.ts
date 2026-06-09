@@ -468,4 +468,33 @@ export const LumaBlockMeta = {
       alsoIntegrations: ['gmail'],
     },
   ],
+  skills: [
+    {
+      name: 'create-event',
+      description:
+        'Create a Luma event with a name, start time, timezone, description, and visibility.',
+      content:
+        '# Create Event\n\nSpin up a new Luma event ready to share.\n\n## Steps\n1. Decide the event name, start time as an ISO 8601 timestamp, and the IANA timezone.\n2. Create Event with those fields plus an optional end time or duration, a Markdown description, and a meeting URL for virtual events.\n3. Set visibility to public, members-only, or private as appropriate.\n\n## Output\nThe created event ID and URL, with its start time, timezone, and visibility.',
+    },
+    {
+      name: 'add-guests-to-event',
+      description: 'Add a batch of guests to a Luma event from a list of emails and names.',
+      content:
+        '# Add Guests to Event\n\nBulk-register guests on a Luma event.\n\n## Steps\n1. Confirm the target event ID.\n2. Build the guests JSON array, one object per guest with an email and optional name or first and last name.\n3. Add Guests with the event ID and the guest array.\n\n## Output\nConfirmation of how many guests were added and the event ID they were added to.',
+    },
+    {
+      name: 'export-guest-list',
+      description:
+        'Pull a Luma event guest list, optionally filtered by approval status, for follow-up or enrichment.',
+      content:
+        '# Export Guest List\n\nRetrieve registrants for an event.\n\n## Steps\n1. Get Guests for the event ID, optionally filtering by approval status such as approved or waitlist.\n2. Page through results using the limit and pagination cursor until the full list is collected.\n3. Extract the fields you need, such as email, name, approval status, and registered or checked-in timestamps.\n\n## Output\nThe full guest list with key fields, ready to segment attendees from no-shows or feed into a CRM.',
+    },
+    {
+      name: 'send-event-reminders',
+      description:
+        'Pull the Luma guest list and prepare personalized reminders for upcoming registrants.',
+      content:
+        '# Send Event Reminders\n\nPrepare reminder content for an upcoming Luma event.\n\n## Steps\n1. Get Event to read the name, start time, timezone, and meeting or location details.\n2. Get Guests filtered to approved registrants, paging until complete.\n3. For each guest, draft a personalized reminder with the event time in their context and the join or location info.\n\n## Output\nA per-guest list of email addresses and drafted reminder messages, ready to hand to an email or messaging step.',
+    },
+  ],
 } as const satisfies BlockMeta

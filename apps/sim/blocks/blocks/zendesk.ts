@@ -768,4 +768,34 @@ export const ZendeskBlockMeta = {
       alsoIntegrations: ['salesforce'],
     },
   ],
+  skills: [
+    {
+      name: 'triage-new-ticket',
+      description:
+        'Read a Zendesk ticket, classify it, and update priority, tags, and assignee accordingly.',
+      content:
+        '# Triage a Zendesk Ticket\n\nClassify an incoming ticket and route it correctly.\n\n## Steps\n1. Get the ticket by ID to read the subject, description, and requester.\n2. Classify the issue type, urgency, and the team or queue it belongs to.\n3. Update the ticket with the right priority, tags, and assignee or group.\n4. Optionally add an internal note explaining the triage decision.\n\n## Output\nReport the ticket ID, the classification, and the priority, tags, and assignee set. Note anything that needs human review.',
+    },
+    {
+      name: 'create-support-ticket',
+      description:
+        'Create a Zendesk ticket from an inbound request, linking it to the right requester.',
+      content:
+        '# Create a Zendesk Ticket\n\nLog an inbound issue as a support ticket.\n\n## Steps\n1. Gather the subject, description, and requester details.\n2. Look up the requester with search-users, creating the user if they do not exist.\n3. Call create-ticket with the subject, body, requester, priority, and any tags.\n4. Capture the new ticket ID.\n\n## Output\nReturn the created ticket ID, its priority, and the requester it is linked to. Confirm whether a new user was created.',
+    },
+    {
+      name: 'search-tickets',
+      description:
+        'Run a Zendesk search to find tickets matching status, requester, or keyword criteria.',
+      content:
+        '# Search Zendesk Tickets\n\nFind tickets that match a set of conditions.\n\n## Steps\n1. Express the criteria as a Zendesk search query, for example status, tags, requester, or keyword.\n2. Call the search operation, choosing the right sort order.\n3. Read the results and pull the fields needed for the task.\n\n## Output\nReturn the matching tickets with ID, subject, status, priority, and assignee. State the query used and the total count via search-count if a volume figure is needed.',
+    },
+    {
+      name: 'sync-organization',
+      description:
+        'Create or update a Zendesk organization and its associated users for account hygiene.',
+      content:
+        '# Sync a Zendesk Organization\n\nKeep an organization record and its users accurate.\n\n## Steps\n1. Look up the organization with get-organizations or autocomplete-organizations to check if it exists.\n2. Create the organization, or update it with the latest name, domains, and details.\n3. Reconcile the associated users, creating or updating them so they map to the organization.\n\n## Output\nReport the organization ID and whether it was created or updated, plus a count of users created or updated. List any conflicts found.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -663,4 +663,31 @@ export const MicrosoftDataverseBlockMeta = {
       alsoIntegrations: ['microsoft_teams'],
     },
   ],
+  skills: [
+    {
+      name: 'upsert-record',
+      description: 'Create or update a record in a Dataverse table by its key without duplicating.',
+      content:
+        '# Upsert Record\n\nKeep a Dataverse table in sync from an external source without creating duplicates.\n\n## Steps\n1. Identify the target table and the key field that uniquely identifies the record.\n2. Map the incoming data to the table column names.\n3. Use Upsert Record so an existing match is updated and a new key creates a record.\n\n## Output\nThe record ID and whether it was created or updated, plus the fields written.',
+    },
+    {
+      name: 'query-records',
+      description: 'List or query Dataverse records with filters and return the matching rows.',
+      content:
+        '# Query Records\n\nRetrieve a filtered set of rows from a Dataverse table.\n\n## Steps\n1. Choose the table to query.\n2. Use List Records with OData filters, selected columns, and ordering, or use a FetchXML Query for complex joins and aggregates.\n3. Page through results until the needed rows are collected.\n\n## Output\nThe matching records with the selected columns, ready for downstream processing.',
+    },
+    {
+      name: 'relevance-search',
+      description:
+        'Run a relevance search across Dataverse tables to find records matching a term.',
+      content:
+        '# Relevance Search\n\nFind records across Dataverse using full-text relevance search.\n\n## Steps\n1. Take the search term, such as a customer name or case keyword.\n2. Use Search with the term, choosing simple or Lucene query syntax and match-any or match-all behavior.\n3. Review the ranked matches and pick the relevant record.\n\n## Output\nA ranked list of matching records with their table and key fields.',
+    },
+    {
+      name: 'bulk-write-records',
+      description: 'Create or update many Dataverse records in one batch operation.',
+      content:
+        '# Bulk Write Records\n\nWrite many Dataverse rows efficiently in a single call.\n\n## Steps\n1. Assemble the array of records, mapping each to the table column names.\n2. Use Create Multiple to insert new rows, or Update Multiple to change existing rows by ID.\n3. Verify the operation succeeded and capture any per-record errors.\n\n## Output\nThe count of records written, their IDs, and any rows that failed with their error.',
+    },
+  ],
 } as const satisfies BlockMeta

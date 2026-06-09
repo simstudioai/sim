@@ -473,4 +473,25 @@ export const MistralParseBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'pdf-to-markdown',
+      description: 'Convert a PDF document into clean structured Markdown using Mistral OCR.',
+      content:
+        '# PDF to Markdown\n\nUse Mistral Parser to turn a PDF, including scanned image-only pages, into clean Markdown.\n\n## Steps\n1. Provide the PDF as a URL or uploaded file to the parser.\n2. Run the parse to extract text, headings, tables, and layout into Markdown.\n3. Review the Markdown for page-break artifacts and stray headers or footers and clean them.\n\n## Output\nReturn the full Markdown. Note the page count and flag any pages where OCR confidence looked low.',
+    },
+    {
+      name: 'extract-document-fields',
+      description:
+        'Parse a PDF and pull specific structured fields such as totals, dates, or names.',
+      content:
+        '# Extract Document Fields\n\nExtract a defined set of fields from a document such as an invoice, statement, or contract.\n\n## Steps\n1. Run Mistral Parser on the source PDF to get the text content.\n2. Locate the requested fields (for example vendor, total, due date, line items) within the parsed text.\n3. Return the fields as a structured object, leaving any field that is genuinely absent as null rather than guessing.\n\n## Output\nA JSON object keyed by the requested field names. List any fields that could not be found.',
+    },
+    {
+      name: 'summarize-long-document',
+      description: 'Parse a long PDF and produce a concise summary of its key points.',
+      content:
+        '# Summarize Long Document\n\nProduce a readable summary from a long PDF such as a report, paper, or agreement.\n\n## Steps\n1. Parse the PDF with Mistral Parser to get its full text.\n2. Identify the main sections and the most important claims, findings, or obligations.\n3. Write a tight summary that preserves specifics like figures and dates.\n\n## Output\nA short summary with a few bullet highlights. Keep numbers and named entities exact.',
+    },
+  ],
 } as const satisfies BlockMeta

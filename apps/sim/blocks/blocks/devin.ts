@@ -389,4 +389,27 @@ export const DevinBlockMeta = {
       alsoIntegrations: ['linear'],
     },
   ],
+  skills: [
+    {
+      name: 'start-engineering-session',
+      description:
+        'Create a Devin session with a clear engineering task prompt and report the session id and link.',
+      content:
+        '# Start a Devin Engineering Session\n\nKick off an autonomous engineering task with Devin.\n\n## Steps\n1. Confirm the repository and the task to perform.\n2. Write a precise prompt: the goal, constraints, and acceptance criteria.\n3. Create the session, optionally tagging it for tracking.\n4. Capture the session id and URL.\n\n## Output\nA confirmation with the session id, link, and the task prompt Devin was given.',
+    },
+    {
+      name: 'check-session-progress',
+      description:
+        'Get a Devin session status and recent messages and summarize what it has accomplished or where it is blocked.',
+      content:
+        '# Check Devin Session Progress\n\nMonitor a running Devin session.\n\n## Steps\n1. Get the session for the given session id and read its status.\n2. List recent session messages to see Devin actions and reasoning.\n3. Determine whether it is making progress, finished, or blocked needing input.\n\n## Output\nA status summary describing progress, current state, and any questions Devin is waiting on.',
+    },
+    {
+      name: 'guide-session',
+      description:
+        'Send a message to an active Devin session to answer a question or redirect its work.',
+      content:
+        '# Guide a Devin Session\n\nUnblock or steer an active session.\n\n## Steps\n1. Confirm the session id and review the latest messages.\n2. Compose a clear reply: answer the open question or give new direction.\n3. Send the message to the session.\n4. Confirm Devin has resumed.\n\n## Output\nA confirmation that the message was sent, with the guidance provided.',
+    },
+  ],
 } as const satisfies BlockMeta

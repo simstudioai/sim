@@ -277,4 +277,26 @@ export const PulseBlockMeta = {
       tags: ['ocr', 'document-processing', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'extract-document-text',
+      description: 'Run a PDF, image, or Office file through Pulse OCR and return clean markdown.',
+      content:
+        '# Extract Document Text\n\nTurn a document into structured markdown text.\n\n## Steps\n1. Upload the Document (PDF, image, DOCX, PPTX, or XLSX) or provide a file reference.\n2. Optionally set Specific Pages (for example 1-3,5) to limit extraction to part of the document.\n3. Provide the Pulse API Key.\n4. Use the returned markdown as the source for downstream summarization or parsing.\n\n## Output\nThe extracted markdown text and the page count, plus any bounding-box or figure data when available.',
+    },
+    {
+      name: 'extract-structured-fields',
+      description:
+        'Use Pulse OCR output to pull structured fields like vendor, totals, or dates from a document.',
+      content:
+        '# Extract Structured Fields\n\nPull specific data points out of a scanned document.\n\n## Steps\n1. Run the document through Pulse OCR to get the markdown text.\n2. In a following agent step, map the markdown to the target fields (for example invoice vendor, line items, totals, or contract parties and renewal dates).\n3. Validate the parsed values against the source text before using them.\n\n## Output\nA structured record of the requested fields, with a note on any field that could not be confidently extracted from the document.',
+    },
+    {
+      name: 'chunk-for-knowledge-base',
+      description:
+        'Extract and chunk a document with Pulse OCR so it can be indexed for retrieval.',
+      content:
+        '# Chunk For Knowledge Base\n\nPrepare a document for vector indexing.\n\n## Steps\n1. Upload the Document and provide the Pulse API Key.\n2. Set a Chunking Strategy (semantic, header, page, or recursive) and a Chunk Size in characters.\n3. Use the returned chunks as the units to embed and index into a knowledge base.\n\n## Output\nThe chunked content ready for embedding, with each chunk sized per the strategy, plus the total page count for reference.',
+    },
+  ],
 } as const satisfies BlockMeta

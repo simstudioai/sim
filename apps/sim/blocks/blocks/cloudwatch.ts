@@ -950,4 +950,27 @@ export const CloudWatchBlockMeta = {
       alsoIntegrations: ['linear', 'slack'],
     },
   ],
+  skills: [
+    {
+      name: 'investigate-error-spike',
+      description:
+        'Run a CloudWatch Logs Insights query to find and summarize error spikes in a log group over a time window.',
+      content:
+        '# Investigate CloudWatch Error Spike\n\nFind the cause of an error spike using Logs Insights.\n\n## Steps\n1. Identify the relevant log group and the time window to investigate.\n2. Run a Logs Insights query that filters for error or exception lines and aggregates by error type.\n3. Pull representative sample log events for the top error groups.\n4. Correlate timing with any recent deploys or traffic changes.\n\n## Output\nA summary of the top error types, their counts, sample messages, and the likely cause.',
+    },
+    {
+      name: 'check-metric-health',
+      description:
+        'Pull CloudWatch metric statistics for a resource and report whether key metrics are within healthy ranges.',
+      content:
+        '# Check CloudWatch Metric Health\n\nReview key metrics for a resource against expected thresholds.\n\n## Steps\n1. Identify the namespace, metric names, and dimensions for the resource (e.g. CPUUtilization, latency, error rate).\n2. Get metric statistics over the chosen window with an appropriate period and statistic (Average, p99, Sum).\n3. Compare values against healthy thresholds.\n\n## Output\nA per-metric summary with the current value, trend, and whether it is within a healthy range.',
+    },
+    {
+      name: 'review-alarm-state',
+      description:
+        'List CloudWatch alarms, report which are in ALARM or INSUFFICIENT_DATA, and optionally mute noisy alarms.',
+      content:
+        '# Review CloudWatch Alarm State\n\nGet a snapshot of alarm health across the account.\n\n## Steps\n1. Describe alarms and group them by state (OK, ALARM, INSUFFICIENT_DATA).\n2. For alarms in ALARM, capture the metric, threshold, and reason.\n3. If asked, mute alarms that are known-noisy during a maintenance window and note them.\n\n## Output\nA list of alarms currently firing or missing data, with the metric and threshold for each.',
+    },
+  ],
 } as const satisfies BlockMeta

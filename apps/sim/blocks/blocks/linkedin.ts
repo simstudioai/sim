@@ -191,4 +191,27 @@ export const LinkedInBlockMeta = {
       tags: ['marketing', 'content', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'publish-linkedin-post',
+      description:
+        'Draft and share a post to your LinkedIn feed with a hook, value, and a clear call-to-action.',
+      content:
+        '# Publish LinkedIn Post\n\nWrite and publish an engagement-optimized post to your LinkedIn feed.\n\n## Steps\n1. Take the source idea, article, or update to post about.\n2. Draft post text with a strong first-line hook, two to three lines of value or insight, and a clear call-to-action, kept within LinkedIn length limits.\n3. Share Post with the drafted text and a visibility of PUBLIC or CONNECTIONS.\n\n## Output\nConfirmation the post was shared, the created post ID, and the final post text used.',
+    },
+    {
+      name: 'repurpose-content-to-post',
+      description:
+        'Turn a blog post, release note, or announcement into a punchy LinkedIn post and share it.',
+      content:
+        '# Repurpose Content to Post\n\nRepurpose long-form content into a native LinkedIn post.\n\n## Steps\n1. Read the source content and pull out the single most compelling insight or takeaway.\n2. Rewrite it as a standalone LinkedIn post with a hook, a concise body, and a call-to-action or link.\n3. Share Post with PUBLIC visibility.\n\n## Output\nThe published post ID and the post text, plus a note of the source it was derived from.',
+    },
+    {
+      name: 'get-my-profile',
+      description:
+        'Fetch your LinkedIn profile information for use in downstream personalization or logging.',
+      content:
+        '# Get My Profile\n\nRetrieve your authenticated LinkedIn profile.\n\n## Steps\n1. Run Get Profile to fetch the connected account profile.\n2. Extract the fields you need, such as name and identifiers, for personalization or record-keeping.\n\n## Output\nThe profile JSON and a short summary of the key fields available.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -14,7 +14,7 @@ import {
   ChipModalHeader,
   Search,
 } from '@/components/emcn'
-import { AgentSkillsIcon } from '@/components/icons'
+import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
@@ -28,16 +28,6 @@ import { useDeleteSkill, useSkills } from '@/hooks/queries/skills'
 const logger = createLogger('SkillsSettings')
 
 const SKILLS_LABEL = 'Skills'
-
-function SkillTile() {
-  return (
-    <div className='size-9 flex-shrink-0'>
-      <div className='flex size-full items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]'>
-        <AgentSkillsIcon className='size-5 text-[var(--text-icon)]' />
-      </div>
-    </div>
-  )
-}
 
 interface SkillItemProps {
   name: string

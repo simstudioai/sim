@@ -591,6 +591,18 @@ export interface PostHogEventMap {
     expanded: boolean
   }
 
+  /**
+   * A curated "suggested skill" was added to the workspace from an integration's
+   * detail page. `position` is the skill's index within the integration's list.
+   */
+  integration_skill_added: {
+    workspace_id: string
+    integration_type: string
+    skill_name: string
+    position: number
+    skill_count: number
+  }
+
   workflow_imported: {
     workspace_id: string
     workflow_count: number

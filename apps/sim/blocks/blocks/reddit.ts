@@ -972,4 +972,32 @@ export const RedditBlockMeta = {
       tags: ['marketing', 'content'],
     },
   ],
+  skills: [
+    {
+      name: 'monitor-subreddit-mentions',
+      description:
+        'Search a subreddit for brand or keyword mentions and summarize what people say.',
+      content:
+        '# Monitor Subreddit Mentions\n\nTrack what people say about a topic on Reddit.\n\n## Steps\n1. Run search with the brand or keyword query, scoped to the relevant subreddit when appropriate.\n2. For high-signal threads, run get_comments to pull the discussion.\n3. Summarize sentiment, recurring themes, and notable complaints or praise.\n4. Route urgent or negative threads to the right channel.\n\n## Output\nReturn a digest of top mentions with links, sentiment, and key takeaways.',
+    },
+    {
+      name: 'surface-trending-posts',
+      description:
+        'Pull top and controversial posts from a subreddit for a content or research brief.',
+      content:
+        '# Surface Trending Posts\n\nFind what is rising and contentious in a community.\n\n## Steps\n1. Run get_posts for the subreddit using a hot or top sort to capture momentum.\n2. Run get_controversial to surface divisive discussions.\n3. Read get_comments on the standouts for context.\n4. Cluster the posts into themes.\n\n## Output\nReturn a ranked brief of trending and controversial posts with titles, links, and a one-line takeaway each.',
+    },
+    {
+      name: 'reply-to-mention',
+      description: 'Draft and post a helpful, on-brand reply to a Reddit post or comment.',
+      content:
+        '# Reply To Mention\n\nRespond to a relevant Reddit thread.\n\n## Steps\n1. Read the target post or comment with get_posts or get_comments for full context.\n2. Draft a concise, non-promotional reply that adds genuine value.\n3. Run reply to post it on the chosen thread.\n4. Optionally save the thread for later follow-up.\n\n## Output\nReturn the posted reply text and a link to the comment. Respect subreddit rules and avoid spammy self-promotion.',
+    },
+    {
+      name: 'submit-announcement-post',
+      description: 'Submit a new post to a target subreddit for an announcement or launch.',
+      content:
+        '# Submit Announcement Post\n\nShare an announcement on Reddit.\n\n## Steps\n1. Confirm the target subreddit allows the post type and self-promotion rules.\n2. Run submit_post with a clear title and body tailored to the community.\n3. Capture the returned post id and link.\n4. Monitor early get_comments and respond to questions.\n\n## Output\nReturn the new post link and an initial engagement check.',
+    },
+  ],
 } as const satisfies BlockMeta

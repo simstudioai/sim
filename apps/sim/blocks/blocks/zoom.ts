@@ -743,4 +743,27 @@ export const ZoomBlockMeta = {
       alsoIntegrations: ['telegram'],
     },
   ],
+  skills: [
+    {
+      name: 'schedule-meeting',
+      description:
+        'Create a Zoom meeting with a topic, time, and settings, and return the join details.',
+      content:
+        '# Schedule a Zoom Meeting\n\nBook a meeting and capture its join link.\n\n## Steps\n1. Gather the host user ID, meeting topic, start time, duration, and timezone.\n2. Choose the meeting type, typically scheduled, and set options like recording and waiting room.\n3. Call the create-meeting operation.\n4. Capture the meeting ID, join URL, and passcode returned.\n\n## Output\nReturn the meeting ID, join URL, passcode, and start time. If you need formatted invite text, fetch the meeting invitation.',
+    },
+    {
+      name: 'reschedule-meeting',
+      description:
+        'Find a Zoom meeting and update its time, topic, or settings without recreating it.',
+      content:
+        '# Reschedule a Zoom Meeting\n\nMove or adjust an existing meeting.\n\n## Steps\n1. Locate the meeting by ID, or list meetings for the host and match on topic.\n2. Get the meeting to read its current settings.\n3. Call update-meeting with only the fields that change, such as start time or duration.\n4. Confirm the update and re-fetch the join details if they changed.\n\n## Output\nReport the meeting ID, the old and new time, and confirm the join URL is unchanged or updated. Note who should be re-notified.',
+    },
+    {
+      name: 'fetch-meeting-recordings',
+      description:
+        'Retrieve cloud recordings for a past Zoom meeting and return the download links.',
+      content:
+        '# Fetch Zoom Meeting Recordings\n\nCollect the recordings from a completed meeting.\n\n## Steps\n1. Identify the meeting ID, or use list-recordings to find recent recorded meetings.\n2. Call get-meeting-recordings for the chosen meeting.\n3. Collect the recording files, their types (video, audio, transcript), and download URLs.\n\n## Output\nReturn each recording file with its type, size, and download URL, plus the meeting topic and date. Note if no recordings exist for the meeting.',
+    },
+  ],
 } as const satisfies BlockMeta

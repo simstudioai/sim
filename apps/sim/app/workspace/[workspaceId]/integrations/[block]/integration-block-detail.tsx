@@ -13,6 +13,7 @@ import {
 } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -21,7 +22,11 @@ import {
   CONNECT_QUERY_PARAM,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
-import { getTemplatesForBlock, type ScopedBlockTemplate } from '@/blocks/registry'
+import {
+  getSuggestedSkillsForBlock,
+  getTemplatesForBlock,
+  type ScopedBlockTemplate,
+} from '@/blocks/registry'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
@@ -46,6 +51,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const searchParams = useSearchParams()
   const Icon = blockTypeToIconMap[integration.type]
   const matchingTemplates = getTemplatesForBlock(integration.type)
+  const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
   const [oauthOpen, setOAuthOpen] = useState(false)
 
@@ -208,6 +214,14 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                 </Link>
               ))}
             </IntegrationSection>
+          )}
+
+          {suggestedSkills.length > 0 && (
+            <IntegrationSkillsSection
+              skills={suggestedSkills}
+              workspaceId={workspaceId}
+              integrationType={integration.type}
+            />
           )}
 
           {matchingTemplates.length > 0 && (

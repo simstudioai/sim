@@ -393,4 +393,24 @@ export const ResendBlockMeta = {
       tags: ['automation', 'communication', 'compliance'],
     },
   ],
+  skills: [
+    {
+      name: 'send-transactional-email',
+      description: 'Send a personalized transactional email and confirm delivery via Resend.',
+      content:
+        '# Send Transactional Email\n\nSend a one-off transactional email through Resend.\n\n## Steps\n1. Compose the recipient, from address, subject, and HTML or text body, filling in personalization fields.\n2. Run the send operation.\n3. Capture the returned email id.\n4. Optionally run get_email with the id to confirm the delivery status.\n\n## Output\nReturn the email id and delivery status. If sending fails, report the error reason.',
+    },
+    {
+      name: 'add-contact-to-audience',
+      description: 'Create or update a Resend contact in an audience for marketing sends.',
+      content:
+        '# Add Contact To Audience\n\nKeep a Resend audience in sync with new contacts.\n\n## Steps\n1. Run list_contacts or get_contact to check whether the person already exists.\n2. If new, run create_contact with email and name fields and the subscribed state.\n3. If existing, run update_contact to refresh fields.\n4. Confirm the contact is in the correct audience.\n\n## Output\nReturn the contact id and whether it was created or updated.',
+    },
+    {
+      name: 'handle-unsubscribe',
+      description: 'Mark a Resend contact as unsubscribed and send a confirmation email.',
+      content:
+        '# Handle Unsubscribe\n\nProcess an opt-out request cleanly.\n\n## Steps\n1. Run get_contact to look up the matching contact by email.\n2. Run update_contact to set unsubscribed to true.\n3. Log the opt-out reason for compliance records.\n4. Run the send operation to deliver a brief confirmation acknowledging the change.\n\n## Output\nConfirm the contact is unsubscribed and the acknowledgement email id.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -197,6 +197,8 @@ For **each tool** in `tools.access`:
 - [ ] Has at least 7 templates, each with `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 - [ ] Prompts describe concrete use cases, not generic descriptions of what the service does
 - [ ] `alsoIntegrations` is set on any template whose prompt references another service
+- [ ] `skills` present (3–5 mainstream, 2–3 niche), each grounded in `tools.access` — flag any skill implying an unsupported action
+- [ ] **Each skill is real, not hallucinated** — web-search and confirm it maps to a popular use case attested online (vendor use-case pages, official docs describing the workflow, reputable "top automations" articles); rewrite/remove any you cannot source
 
 ### Block Inputs
 - [ ] `inputs` section lists all subBlock params that the block accepts

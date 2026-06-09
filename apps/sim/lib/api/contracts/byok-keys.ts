@@ -26,6 +26,9 @@ export const byokProviderIdSchema = z.enum([
   'findymail',
   'prospeo',
   'wiza',
+  'zerobounce',
+  'neverbounce',
+  'millionverifier',
 ])
 
 export const byokKeySchema = z.object({

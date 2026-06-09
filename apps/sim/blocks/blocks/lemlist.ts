@@ -308,4 +308,27 @@ export const LemlistBlockMeta = {
       alsoIntegrations: ['hubspot'],
     },
   ],
+  skills: [
+    {
+      name: 'triage-campaign-replies',
+      description:
+        'Pull recent Lemlist reply activity, classify each reply by intent, and surface the ones that need a human.',
+      content:
+        '# Triage Campaign Replies\n\nMonitor Lemlist replies and route them by intent so reps act on hot leads fast.\n\n## Steps\n1. Get Activities filtered to the Email Replied type, optionally scoped to a campaign ID, with a sensible limit.\n2. For each reply, look up the lead with Get Lead to attach name, company, and job title.\n3. Classify the reply intent: interested, not interested, out-of-office, unsubscribe, or question.\n4. For interested or question replies, build a short summary with the lead name, campaign, and the reply text.\n\n## Output\nA list of replies grouped by intent. For each interested or question reply, include lead name, company, campaign, a one-line summary, and the raw reply text so a rep can respond.',
+    },
+    {
+      name: 'analyze-campaign-performance',
+      description:
+        'Compute open, click, reply, and bounce rates per campaign and per step from Lemlist activities and flag weak steps.',
+      content:
+        '# Analyze Campaign Performance\n\nTurn raw Lemlist activity into step-level metrics and concrete fixes.\n\n## Steps\n1. Get Activities for the target campaign with a high limit, paging with offset until all activity is collected.\n2. Tally events by type: emails sent, opened, clicked, replied, and bounced.\n3. Compute open rate, click rate, reply rate, and bounce rate overall and per sequence step.\n4. Flag steps where reply rate is low, bounce rate is high, or drop-off between steps is steep.\n\n## Output\nA per-campaign and per-step metrics table plus a short list of recommendations, such as rewriting a low-reply subject line or pausing a high-bounce step.',
+    },
+    {
+      name: 'qualify-and-reply-to-lead',
+      description:
+        'Look up a Lemlist lead and send a personalized reply through their Lemlist mailbox.',
+      content:
+        '# Qualify and Reply to Lead\n\nRespond to an inbound lead with a tailored message sent from your Lemlist inbox.\n\n## Steps\n1. Get Lead by email or lead ID to pull first name, company, and job title.\n2. Draft a concise, personalized reply that references the lead context and includes a clear next step or booking link.\n3. Send Email through Lemlist using the sender user ID, sender email, mailbox ID, contact ID, lead ID, subject, and the drafted HTML message body.\n\n## Output\nConfirmation that the email was sent, the lead identity it went to, and the message body that was used.',
+    },
+  ],
 } as const satisfies BlockMeta

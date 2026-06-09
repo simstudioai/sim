@@ -1946,6 +1946,10 @@ import {
   microsoftTeamsWriteChannelTool,
   microsoftTeamsWriteChatTool,
 } from '@/tools/microsoft_teams'
+import {
+  millionverifierGetCreditsTool,
+  millionverifierVerifyEmailTool,
+} from '@/tools/millionverifier'
 import { mistralParserTool, mistralParserV2Tool, mistralParserV3Tool } from '@/tools/mistral'
 import {
   mondayArchiveItemTool,
@@ -1987,6 +1991,7 @@ import {
   neo4jQueryTool,
   neo4jUpdateTool,
 } from '@/tools/neo4j'
+import { neverbounceGetCreditsTool, neverbounceVerifyEmailTool } from '@/tools/neverbounce'
 import {
   newRelicCreateDeploymentEventTool,
   newRelicGetEntityTool,
@@ -3276,6 +3281,7 @@ import {
   zepGetUserThreadsTool,
   zepGetUserTool,
 } from '@/tools/zep'
+import { zerobounceGetCreditsTool, zerobounceVerifyEmailTool } from '@/tools/zerobounce'
 import {
   zoomCreateMeetingTool,
   zoomDeleteMeetingTool,
@@ -5205,6 +5211,12 @@ export const tools: Record<string, ToolConfig> = {
   findymail_reverse_email_lookup: findymailReverseEmailLookupTool,
   findymail_search_technologies: findymailSearchTechnologiesTool,
   findymail_verify_email: findymailVerifyEmailTool,
+  zerobounce_verify_email: zerobounceVerifyEmailTool,
+  zerobounce_get_credits: zerobounceGetCreditsTool,
+  neverbounce_verify_email: neverbounceVerifyEmailTool,
+  neverbounce_get_credits: neverbounceGetCreditsTool,
+  millionverifier_verify_email: millionverifierVerifyEmailTool,
+  millionverifier_get_credits: millionverifierGetCreditsTool,
   stt_whisper: whisperSttTool,
   stt_whisper_v2: whisperSttV2Tool,
   stt_deepgram: deepgramSttTool,

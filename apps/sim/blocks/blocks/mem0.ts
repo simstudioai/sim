@@ -343,4 +343,27 @@ export const Mem0BlockMeta = {
       tags: ['individual', 'automation', 'onboarding'],
     },
   ],
+  skills: [
+    {
+      name: 'remember-user-context',
+      description:
+        'Store new facts and preferences for a user in Mem0 from the latest conversation.',
+      content:
+        '# Remember User Context\n\nPersist what you learned about a user so future sessions stay informed.\n\n## Steps\n1. Identify the user ID this memory belongs to.\n2. Build the messages array from the relevant conversation turns as role and content objects.\n3. Add Memories with the user ID and messages so Mem0 extracts and stores the durable facts.\n\n## Output\nConfirmation the memories were added for the user, with the IDs of the facts created.',
+    },
+    {
+      name: 'recall-relevant-memories',
+      description:
+        "Search a user's Mem0 memories for the facts relevant to the current request before answering.",
+      content:
+        '# Recall Relevant Memories\n\nGround a response in what Mem0 already knows about the user.\n\n## Steps\n1. Identify the user ID.\n2. Phrase a search query that captures the current request or topic.\n3. Search Memories with the user ID and query.\n4. Use the returned memories as context when drafting the answer.\n\n## Output\nThe most relevant memories for the user and a note of how they should shape the response.',
+    },
+    {
+      name: 'review-stored-memories',
+      description:
+        "Retrieve a user's stored Mem0 memories, optionally within a date range, to audit what is known.",
+      content:
+        "# Review Stored Memories\n\nInspect what Mem0 holds for a user.\n\n## Steps\n1. Identify the user ID.\n2. Get Memories for that user, optionally bounding by a start and end date or a specific memory ID.\n3. Page through results if there are many.\n4. Summarize the stored facts and flag anything stale or contradictory.\n\n## Output\nA readable list of the user's stored memories with a short summary and any items worth updating.",
+    },
+  ],
 } as const satisfies BlockMeta
