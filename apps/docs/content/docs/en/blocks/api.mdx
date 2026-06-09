@@ -61,6 +61,13 @@ A workflow that calls an HTTP endpoint and summarizes the response:
 
 The API block builds its URL from the Start input, fetches the data, and the Agent reads the response as `<api.data>`.
 
+## Best Practices
+
+- **Keep secrets in environment variables.** Reference them with `{{VAR}}` in the URL or headers; never hardcode keys.
+- **Handle failures.** Read `<api.status>` and branch on it with a [Condition](/blocks/condition), or connect the error path for network failures and timeouts.
+- **Set retries for flaky endpoints.** Use the Advanced retry settings for idempotent calls. Leave POST and PATCH off unless a repeated request is safe.
+- **Reference only the field you need.** Pull `<api.data.id>` rather than the whole `<api.data>` when the response is large.
+
 <FAQ items={[
   { question: "What is the default request timeout?", answer: "The default timeout is 300,000 milliseconds (5 minutes). You can configure it up to a maximum of 600,000 milliseconds (10 minutes) in the block's Advanced settings." },
   { question: "Which HTTP errors trigger automatic retries?", answer: "Retries are attempted for network and connection failures, timeouts, rate-limit responses (HTTP 429), and server errors (5xx). Client errors like 400 or 404 are not retried." },
