@@ -112,14 +112,13 @@ export const ResourceHeader = memo(function ResourceHeader({
   return (
     <div
       ref={headerRef}
-      className={cn(
-        'border-[var(--border)] border-b',
-        hasBreadcrumbs ? 'px-4 py-[8.5px]' : 'px-6 py-2.5'
-      )}
+      className='flex h-[44px] items-center border-[var(--border)] border-b px-4'
     >
-      <div className='flex min-w-0 items-center justify-between gap-3'>
+      <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
-          <SidebarToggle />
+          {/* Edge controls pull out by 9px so their 30px hover pills sit 7px
+              from the panel edge — same rhythm as the chat title bar. */}
+          <SidebarToggle className='-ml-[9px]' />
           <ChatSwitcher />
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => {
@@ -169,7 +168,7 @@ export const ResourceHeader = memo(function ResourceHeader({
             </>
           )}
         </div>
-        <div className='flex shrink-0 items-center gap-1.5'>
+        <div className='-mr-[9px] flex shrink-0 items-center gap-1.5'>
           {leadingActions}
           {actions?.map((action) => {
             const ActionIcon = action.icon
@@ -180,11 +179,9 @@ export const ResourceHeader = memo(function ResourceHeader({
                 disabled={action.disabled}
                 variant='subtle'
                 className={cn(
-                  'whitespace-nowrap px-2 py-1 text-caption',
-                  action.active !== undefined && 'rounded-lg',
+                  'h-[30px] whitespace-nowrap rounded-lg bg-transparent px-2 text-caption hover-hover:bg-[var(--surface-active)]',
                   action.active === true &&
-                    'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-active)]',
-                  action.active === false && 'hover-hover:bg-[var(--surface-hover)]'
+                    'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-active)]'
                 )}
               >
                 {ActionIcon && (
@@ -203,7 +200,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                 onClick={create.onClick}
                 disabled={create.disabled}
                 variant='subtle'
-                className='whitespace-nowrap px-2 py-1 text-caption'
+                className='h-[30px] whitespace-nowrap rounded-lg bg-transparent px-2 text-caption hover-hover:bg-[var(--surface-active)]'
               >
                 {HEADER_PLUS_ICON}
                 {create.label}
