@@ -43,10 +43,10 @@ export const kalshiCancelOrderTool: ToolConfig<KalshiCancelOrderParams, KalshiCa
     },
 
     request: {
-      url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId}`),
+      url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
       method: 'DELETE',
       headers: (params) => {
-        const path = `/trade-api/v2/portfolio/orders/${params.orderId}`
+        const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
         return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'DELETE', path)
       },
     },
@@ -157,10 +157,10 @@ export const kalshiCancelOrderV2Tool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId}`),
+    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
     method: 'DELETE',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId}`
+      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'DELETE', path)
     },
   },

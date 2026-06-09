@@ -62,13 +62,13 @@ export const kalshiGetFillsTool: ToolConfig<KalshiGetFillsParams, KalshiGetFills
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Minimum timestamp in Unix milliseconds (e.g., 1704067200000)',
+      description: 'Minimum timestamp in Unix seconds (e.g., 1704067200)',
     },
     maxTs: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum timestamp in Unix milliseconds (e.g., 1704153600000)',
+      description: 'Maximum timestamp in Unix seconds (e.g., 1704153600)',
     },
     limit: {
       type: 'string',
@@ -217,13 +217,13 @@ export const kalshiGetFillsV2Tool: ToolConfig<KalshiGetFillsV2Params, KalshiGetF
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Minimum timestamp in Unix milliseconds (e.g., 1704067200000)',
+      description: 'Minimum timestamp in Unix seconds (e.g., 1704067200)',
     },
     maxTs: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum timestamp in Unix milliseconds (e.g., 1704153600000)',
+      description: 'Maximum timestamp in Unix seconds (e.g., 1704153600)',
     },
     subaccount: {
       type: 'string',
@@ -235,7 +235,7 @@ export const kalshiGetFillsV2Tool: ToolConfig<KalshiGetFillsV2Params, KalshiGetF
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to return (1-200, default: 100)',
+      description: 'Number of results to return (1-1000, default: 100)',
     },
     cursor: {
       type: 'string',

@@ -147,10 +147,16 @@ export interface KalshiGetEventsV2Response {
       markets: Array<Record<string, unknown>> | null
     }>
     milestones: Array<{
-      event_ticker: string
-      milestone_type: string
-      milestone_date: string
-      milestone_title: string | null
+      id: string | null
+      category: string | null
+      type: string | null
+      title: string | null
+      start_date: string | null
+      end_date: string | null
+      notification_message: string | null
+      primary_event_tickers: string[] | null
+      related_event_tickers: string[] | null
+      last_updated_ts: string | null
     }> | null
     cursor: string | null
   }
@@ -256,10 +262,16 @@ export const kalshiGetEventsV2Tool: ToolConfig<KalshiGetEventsV2Params, KalshiGe
 
       const milestones = data.milestones
         ? (data.milestones as Array<Record<string, unknown>>).map((m) => ({
-            event_ticker: (m.event_ticker as string) ?? '',
-            milestone_type: (m.milestone_type as string) ?? '',
-            milestone_date: (m.milestone_date as string) ?? '',
-            milestone_title: (m.milestone_title as string | null) ?? null,
+            id: (m.id as string) ?? null,
+            category: (m.category as string) ?? null,
+            type: (m.type as string) ?? null,
+            title: (m.title as string | null) ?? null,
+            start_date: (m.start_date as string) ?? null,
+            end_date: (m.end_date as string) ?? null,
+            notification_message: (m.notification_message as string | null) ?? null,
+            primary_event_tickers: (m.primary_event_tickers as string[]) ?? null,
+            related_event_tickers: (m.related_event_tickers as string[]) ?? null,
+            last_updated_ts: (m.last_updated_ts as string) ?? null,
           }))
         : null
 
@@ -288,10 +300,16 @@ export const kalshiGetEventsV2Tool: ToolConfig<KalshiGetEventsV2Params, KalshiGe
         items: {
           type: 'object',
           properties: {
-            event_ticker: { type: 'string', description: 'Event ticker' },
-            milestone_type: { type: 'string', description: 'Milestone type' },
-            milestone_date: { type: 'string', description: 'Milestone date' },
-            milestone_title: { type: 'string', description: 'Milestone title' },
+            id: { type: 'string', description: 'Milestone ID' },
+            category: { type: 'string', description: 'Milestone category' },
+            type: { type: 'string', description: 'Milestone type' },
+            title: { type: 'string', description: 'Milestone title' },
+            start_date: { type: 'string', description: 'Milestone start date (ISO 8601)' },
+            end_date: { type: 'string', description: 'Milestone end date (ISO 8601)' },
+            notification_message: { type: 'string', description: 'Notification message' },
+            primary_event_tickers: { type: 'array', description: 'Primary event tickers' },
+            related_event_tickers: { type: 'array', description: 'Related event tickers' },
+            last_updated_ts: { type: 'string', description: 'Last updated time (ISO 8601)' },
           },
         },
       },

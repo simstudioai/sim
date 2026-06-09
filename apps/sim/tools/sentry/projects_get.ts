@@ -118,8 +118,8 @@ export const getProjectTool: ToolConfig<SentryGetProjectParams, SentryGetProject
           optional: true,
         },
         firstTransactionEvent: {
-          type: 'string',
-          description: 'When the first transaction event was received',
+          type: 'boolean',
+          description: 'Whether the project has received its first transaction event',
           optional: true,
         },
         access: { type: 'array', description: 'Access permissions' },

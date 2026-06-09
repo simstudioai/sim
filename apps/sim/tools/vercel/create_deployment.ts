@@ -111,6 +111,9 @@ export const vercelCreateDeploymentTool: ToolConfig<
         alias: data.alias ?? [],
         target: data.target ?? null,
         inspectorUrl: data.inspectorUrl ?? '',
+        errorCode: data.errorCode ?? null,
+        errorMessage: data.errorMessage ?? null,
+        aliasAssigned: data.aliasAssigned ?? null,
       },
     }
   },
@@ -132,5 +135,12 @@ export const vercelCreateDeploymentTool: ToolConfig<
     },
     target: { type: 'string', description: 'Target environment', optional: true },
     inspectorUrl: { type: 'string', description: 'Vercel inspector URL' },
+    errorCode: { type: 'string', description: 'Deployment error code', optional: true },
+    errorMessage: { type: 'string', description: 'Deployment error message', optional: true },
+    aliasAssigned: {
+      type: 'boolean',
+      description: 'Whether the alias has been assigned',
+      optional: true,
+    },
   },
 }

@@ -103,9 +103,8 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
       const subreddit = normalizeSubreddit(params.subreddit)
       const sort = params.sort || 'relevance'
       const limit = Math.min(Math.max(1, params.limit ?? 10), 100)
-      const restrict_sr = params.restrict_sr !== false // Default to true
+      const restrict_sr = params.restrict_sr !== false
 
-      // Build URL with appropriate parameters using OAuth endpoint
       const urlParams = new URLSearchParams({
         q: params.query,
         sort: sort,
@@ -114,12 +113,10 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
         raw_json: '1',
       })
 
-      // Add time filter if provided
       if (params.time) {
         urlParams.append('t', params.time)
       }
 
-      // Add pagination parameters if provided
       if (params.after) urlParams.append('after', params.after)
       if (params.before) urlParams.append('before', params.before)
       if (params.count !== undefined) urlParams.append('count', Number(params.count).toString())
@@ -146,11 +143,9 @@ export const searchTool: ToolConfig<RedditSearchParams, RedditPostsResponse> = {
   transformResponse: async (response: Response, requestParams?: RedditSearchParams) => {
     const data = await response.json()
 
-    // Extract subreddit name from response (with fallback)
     const subredditName =
       data.data?.children?.[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
 
-    // Transform posts data
     const posts =
       data.data?.children?.map((child: any) => {
         const post = child.data || {}
