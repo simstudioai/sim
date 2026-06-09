@@ -1,21 +1,21 @@
 ---
 title: Workspace fundamentals
-description: A workspace is the container that holds your workflows and resources and scopes who can access them.
+description: A workspace holds your workflows and resources and decides who can access them.
 pageType: concept
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-A workspace is the container for one set of AI systems. It holds the workflows you build and the resources they use: tables, files, knowledge bases, integrations, and secrets. It also draws the boundary for access. Every resource belongs to exactly one workspace, and the people who can see those resources are the members of that workspace.
+A **workspace** holds one set of AI systems: the workflows you build and the resources they use — tables, files, knowledge bases, integrations, and secrets. It also decides who sees them. Every resource belongs to exactly one workspace, and only that workspace's members can access it. A workflow in one workspace cannot read a table in another.
 
-Think of a workspace like a project folder, but for AI systems. Open it and you find everything one team needs in one place: the procedures, the data, the connected accounts, the run history, and the settings that govern them. Nothing crosses the boundary, so a workflow in one workspace cannot read a table in another.
+Think of a workspace as a project folder for AI systems. Open it and everything one team needs is in one place: the procedures, the data, the connected accounts, the run history, and the settings.
 
-{/* VISUAL: nesting diagram. Outer ring: user or organization. Middle ring: workspace (the boundary). Inside: workflows, tables, files, knowledge bases, integrations, secrets. Members with permission levels attached at the workspace ring. */}
+{/* VISUAL: nesting diagram. Outer ring: user or organization. Middle ring: workspace. Inside: workflows, tables, files, knowledge bases, integrations, secrets. Members with permission levels attached at the workspace ring. */}
 
 ## What a workspace contains
 
-The sidebar is the anatomy of a workspace. Each section is a kind of resource scoped to it:
+The sidebar is the map of a workspace. Each section is one kind of resource:
 
 {/* VISUAL: the workspace sidebar with sections labeled: Workflows, Tables, Files, Knowledge Base, Scheduled Tasks, Logs, Settings. Each row shows one example item. */}
 
@@ -25,7 +25,7 @@ A **workflow** is a saved, repeatable procedure made of blocks: the primary reso
 
 ### Tables
 
-A **table** is structured data scoped to the workspace, used as a source or an output inside workflows.
+A **table** is structured data in the workspace, used as a source or an output inside workflows.
 
 ### Files
 
@@ -37,29 +37,29 @@ A **knowledge base** is a collection of documents or structured data that workfl
 
 ### Integrations
 
-An **integration** is a connected account for a third-party service (Gmail, Slack, GitHub, and so on), scoped to the workspace. Each carries its own access control so a team shares one connection. See [Integrations](/integrations).
+An **integration** is a connected account for a third-party service (Gmail, Slack, GitHub, and so on). Each carries its own access control, so a team shares one connection. See [Integrations](/integrations).
 
 ### Secrets
 
-A **secret** is an API key or environment variable stored securely in the workspace. Secrets split into two scopes: **Workspace** secrets are shared with the workspace, and **Personal** secrets are private to you. See [Secrets](/credentials).
+A **secret** is an API key or environment variable stored securely in the workspace. Secrets come in two scopes: **Workspace** secrets are shared with the workspace, and **Personal** secrets are private to you. See [Secrets](/credentials).
 
 ### Logs
 
-A **log** is the execution trace of one workflow run: the trigger, the blocks that ran, and each block's input, output, and error. Logs are scoped to the workspace and are how you verify what happened.
+A **log** is the execution trace of one workflow run: the trigger, the blocks that ran, and each block's input, output, and error. Logs are how you verify what happened.
 
 <Callout type="info">
 **Deployments** are not a sidebar section. A deployment is a versioned snapshot of one workflow, published for outside use through an API, chat, or MCP server. Editing a workflow does not change a live deployment until you promote the new version, and rollback means promoting an earlier one. See [Deployments](/deployment).
 </Callout>
 
-## The boundary
+## Access and isolation
 
-Scoping to the workspace is what makes the boundary useful, because access, billing, and operations all follow the same edge.
+Everything is scoped to the workspace, so access, settings, and isolation work the same way:
 
-- **Access.** Membership is granted per workspace. A member sees every resource in the workspace at the level their permission allows.
-- **Settings.** Each workspace carries its own configuration: integrations, secrets, access control, API keys, and more. The Settings page lists the full menu.
-- **Isolation.** Resources never span workspaces. To reuse a workflow elsewhere, you move or copy it into that workspace.
+- **Access.** Membership is per workspace. A member sees every resource in it, at the level their permission allows.
+- **Settings.** Each workspace has its own configuration: integrations, secrets, access control, API keys, and more. The Settings page lists the full menu.
+- **Isolation.** Resources never span workspaces. To reuse a workflow elsewhere, move or copy it into that workspace.
 
-Members join a workspace with one of three **permission levels**: **Read**, **Write**, or **Admin** (the creator is **Owner**). Read can view, Write can build and run, Admin can also manage members and settings. See [Roles and permissions](/permissions/roles-and-permissions) for the full breakdown.
+Members join with one of three **permission levels**: **Read**, **Write**, or **Admin** (the creator is **Owner**). Read can view, Write can build and run, Admin can also manage members and settings. See [Roles and permissions](/permissions/roles-and-permissions) for the full breakdown.
 
 {/* VISUAL: organization → workspace → resources nesting, with members and their permission levels attached at the workspace ring. */}
 
@@ -69,7 +69,7 @@ Most workspaces are one of two kinds.
 
 A **personal workspace** lives under your own account. Use it for experimentation and individual work. Your plan sets how many you can create.
 
-An **organization workspace** (also called a shared workspace) lives under an organization, available on Team and Enterprise plans. You invite multiple members, each with a permission level. Internal members join the organization and count toward its seat total. External members keep their own organization membership and do not consume a seat, which is how partners and clients get access. For teams and enterprises, this workspace becomes the deliverable, the app the customer uses, owns, and maintains.
+An **organization workspace** (also called a shared workspace) lives under an organization, available on Team and Enterprise plans. You invite members, each with a permission level. Internal members join the organization and count toward its seat total. External members keep their own organization membership and don't use a seat — that's how partners and clients get access. For agencies and enterprises, this is the workspace you hand to the customer: the app they use, own, and maintain.
 
 A third kind, `grandfathered_shared`, exists for legacy accounts. Its invitation and billing rules differ from the two above; you will not create one.
 
