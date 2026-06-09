@@ -29,10 +29,19 @@ export const AppConfigBlock: BlockConfig<
         { label: 'Get Configuration', id: 'get_configuration' },
         { label: 'List Applications', id: 'list_applications' },
         { label: 'Create Application', id: 'create_application' },
+        { label: 'Get Application', id: 'get_application' },
+        { label: 'Update Application', id: 'update_application' },
+        { label: 'Delete Application', id: 'delete_application' },
         { label: 'List Environments', id: 'list_environments' },
         { label: 'Create Environment', id: 'create_environment' },
+        { label: 'Get Environment', id: 'get_environment' },
+        { label: 'Update Environment', id: 'update_environment' },
+        { label: 'Delete Environment', id: 'delete_environment' },
         { label: 'List Configuration Profiles', id: 'list_configuration_profiles' },
         { label: 'Create Configuration Profile', id: 'create_configuration_profile' },
+        { label: 'Get Configuration Profile', id: 'get_configuration_profile' },
+        { label: 'Update Configuration Profile', id: 'update_configuration_profile' },
+        { label: 'Delete Configuration Profile', id: 'delete_configuration_profile' },
         {
           label: 'Create Hosted Configuration Version',
           id: 'create_hosted_configuration_version',
@@ -41,6 +50,10 @@ export const AppConfigBlock: BlockConfig<
         {
           label: 'List Hosted Configuration Versions',
           id: 'list_hosted_configuration_versions',
+        },
+        {
+          label: 'Delete Hosted Configuration Version',
+          id: 'delete_hosted_configuration_version',
         },
         { label: 'List Deployment Strategies', id: 'list_deployment_strategies' },
         { label: 'Start Deployment', id: 'start_deployment' },
@@ -81,13 +94,23 @@ export const AppConfigBlock: BlockConfig<
       condition: {
         field: 'operation',
         value: [
+          'get_application',
+          'update_application',
+          'delete_application',
           'list_environments',
           'create_environment',
+          'get_environment',
+          'update_environment',
+          'delete_environment',
           'list_configuration_profiles',
           'create_configuration_profile',
+          'get_configuration_profile',
+          'update_configuration_profile',
+          'delete_configuration_profile',
           'create_hosted_configuration_version',
           'get_hosted_configuration_version',
           'list_hosted_configuration_versions',
+          'delete_hosted_configuration_version',
           'start_deployment',
           'get_deployment',
           'list_deployments',
@@ -98,13 +121,23 @@ export const AppConfigBlock: BlockConfig<
       required: {
         field: 'operation',
         value: [
+          'get_application',
+          'update_application',
+          'delete_application',
           'list_environments',
           'create_environment',
+          'get_environment',
+          'update_environment',
+          'delete_environment',
           'list_configuration_profiles',
           'create_configuration_profile',
+          'get_configuration_profile',
+          'update_configuration_profile',
+          'delete_configuration_profile',
           'create_hosted_configuration_version',
           'get_hosted_configuration_version',
           'list_hosted_configuration_versions',
+          'delete_hosted_configuration_version',
           'start_deployment',
           'get_deployment',
           'list_deployments',
@@ -121,6 +154,9 @@ export const AppConfigBlock: BlockConfig<
       condition: {
         field: 'operation',
         value: [
+          'get_environment',
+          'update_environment',
+          'delete_environment',
           'start_deployment',
           'get_deployment',
           'list_deployments',
@@ -131,6 +167,9 @@ export const AppConfigBlock: BlockConfig<
       required: {
         field: 'operation',
         value: [
+          'get_environment',
+          'update_environment',
+          'delete_environment',
           'start_deployment',
           'get_deployment',
           'list_deployments',
@@ -147,9 +186,13 @@ export const AppConfigBlock: BlockConfig<
       condition: {
         field: 'operation',
         value: [
+          'get_configuration_profile',
+          'update_configuration_profile',
+          'delete_configuration_profile',
           'create_hosted_configuration_version',
           'get_hosted_configuration_version',
           'list_hosted_configuration_versions',
+          'delete_hosted_configuration_version',
           'start_deployment',
           'get_configuration',
         ],
@@ -157,9 +200,13 @@ export const AppConfigBlock: BlockConfig<
       required: {
         field: 'operation',
         value: [
+          'get_configuration_profile',
+          'update_configuration_profile',
+          'delete_configuration_profile',
           'create_hosted_configuration_version',
           'get_hosted_configuration_version',
           'list_hosted_configuration_versions',
+          'delete_hosted_configuration_version',
           'start_deployment',
           'get_configuration',
         ],
@@ -172,7 +219,14 @@ export const AppConfigBlock: BlockConfig<
       placeholder: 'Resource name',
       condition: {
         field: 'operation',
-        value: ['create_application', 'create_environment', 'create_configuration_profile'],
+        value: [
+          'create_application',
+          'create_environment',
+          'create_configuration_profile',
+          'update_application',
+          'update_environment',
+          'update_configuration_profile',
+        ],
       },
       required: {
         field: 'operation',
@@ -205,7 +259,10 @@ export const AppConfigBlock: BlockConfig<
       title: 'Retrieval Role ARN',
       type: 'short-input',
       placeholder: 'arn:aws:iam::123456789012:role/AppConfigRetrieval',
-      condition: { field: 'operation', value: 'create_configuration_profile' },
+      condition: {
+        field: 'operation',
+        value: ['create_configuration_profile', 'update_configuration_profile'],
+      },
       required: false,
       mode: 'advanced',
     },
@@ -248,8 +305,14 @@ export const AppConfigBlock: BlockConfig<
       title: 'Version Number',
       type: 'short-input',
       placeholder: '1',
-      condition: { field: 'operation', value: 'get_hosted_configuration_version' },
-      required: { field: 'operation', value: 'get_hosted_configuration_version' },
+      condition: {
+        field: 'operation',
+        value: ['get_hosted_configuration_version', 'delete_hosted_configuration_version'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_hosted_configuration_version', 'delete_hosted_configuration_version'],
+      },
     },
     {
       id: 'deploymentStrategyId',
@@ -286,6 +349,9 @@ export const AppConfigBlock: BlockConfig<
           'create_application',
           'create_environment',
           'create_configuration_profile',
+          'update_application',
+          'update_environment',
+          'update_configuration_profile',
           'create_hosted_configuration_version',
           'start_deployment',
         ],
@@ -337,13 +403,23 @@ export const AppConfigBlock: BlockConfig<
       'appconfig_get_configuration',
       'appconfig_list_applications',
       'appconfig_create_application',
+      'appconfig_get_application',
+      'appconfig_update_application',
+      'appconfig_delete_application',
       'appconfig_list_environments',
       'appconfig_create_environment',
+      'appconfig_get_environment',
+      'appconfig_update_environment',
+      'appconfig_delete_environment',
       'appconfig_list_configuration_profiles',
       'appconfig_create_configuration_profile',
+      'appconfig_get_configuration_profile',
+      'appconfig_update_configuration_profile',
+      'appconfig_delete_configuration_profile',
       'appconfig_create_hosted_configuration_version',
       'appconfig_get_hosted_configuration_version',
       'appconfig_list_hosted_configuration_versions',
+      'appconfig_delete_hosted_configuration_version',
       'appconfig_list_deployment_strategies',
       'appconfig_start_deployment',
       'appconfig_get_deployment',
@@ -359,20 +435,40 @@ export const AppConfigBlock: BlockConfig<
             return 'appconfig_list_applications'
           case 'create_application':
             return 'appconfig_create_application'
+          case 'get_application':
+            return 'appconfig_get_application'
+          case 'update_application':
+            return 'appconfig_update_application'
+          case 'delete_application':
+            return 'appconfig_delete_application'
           case 'list_environments':
             return 'appconfig_list_environments'
           case 'create_environment':
             return 'appconfig_create_environment'
+          case 'get_environment':
+            return 'appconfig_get_environment'
+          case 'update_environment':
+            return 'appconfig_update_environment'
+          case 'delete_environment':
+            return 'appconfig_delete_environment'
           case 'list_configuration_profiles':
             return 'appconfig_list_configuration_profiles'
           case 'create_configuration_profile':
             return 'appconfig_create_configuration_profile'
+          case 'get_configuration_profile':
+            return 'appconfig_get_configuration_profile'
+          case 'update_configuration_profile':
+            return 'appconfig_update_configuration_profile'
+          case 'delete_configuration_profile':
+            return 'appconfig_delete_configuration_profile'
           case 'create_hosted_configuration_version':
             return 'appconfig_create_hosted_configuration_version'
           case 'get_hosted_configuration_version':
             return 'appconfig_get_hosted_configuration_version'
           case 'list_hosted_configuration_versions':
             return 'appconfig_list_hosted_configuration_versions'
+          case 'delete_hosted_configuration_version':
+            return 'appconfig_delete_hosted_configuration_version'
           case 'list_deployment_strategies':
             return 'appconfig_list_deployment_strategies'
           case 'start_deployment':
@@ -482,6 +578,9 @@ export const AppConfigBlock: BlockConfig<
     deploymentStrategies: { type: 'json', description: 'List of deployment strategies' },
     deployments: { type: 'json', description: 'List of deployments' },
     versions: { type: 'json', description: 'List of hosted configuration versions' },
+    monitors: { type: 'json', description: 'CloudWatch alarms monitoring an environment' },
+    validators: { type: 'json', description: 'Validators configured on a configuration profile' },
+    retrievalRoleArn: { type: 'string', description: 'IAM role ARN to retrieve configuration' },
     nextToken: { type: 'string', description: 'Pagination token for the next page' },
     count: { type: 'number', description: 'Number of items returned' },
   },

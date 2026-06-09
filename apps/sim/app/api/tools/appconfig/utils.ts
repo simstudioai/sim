@@ -4,7 +4,14 @@ import {
   CreateConfigurationProfileCommand,
   CreateEnvironmentCommand,
   CreateHostedConfigurationVersionCommand,
+  DeleteApplicationCommand,
+  DeleteConfigurationProfileCommand,
+  DeleteEnvironmentCommand,
+  DeleteHostedConfigurationVersionCommand,
+  GetApplicationCommand,
+  GetConfigurationProfileCommand,
   GetDeploymentCommand,
+  GetEnvironmentCommand,
   GetHostedConfigurationVersionCommand,
   ListApplicationsCommand,
   ListConfigurationProfilesCommand,
@@ -14,6 +21,9 @@ import {
   ListHostedConfigurationVersionsCommand,
   StartDeploymentCommand,
   StopDeploymentCommand,
+  UpdateApplicationCommand,
+  UpdateConfigurationProfileCommand,
+  UpdateEnvironmentCommand,
 } from '@aws-sdk/client-appconfig'
 import {
   AppConfigDataClient,
@@ -468,5 +478,204 @@ export async function getConfiguration(
     configuration: decodeContent(response.Configuration),
     contentType: response.ContentType ?? null,
     versionLabel: response.VersionLabel ?? null,
+  }
+}
+
+export async function getApplication(client: AppConfigClient, applicationId: string) {
+  const response = await client.send(new GetApplicationCommand({ ApplicationId: applicationId }))
+
+  return {
+    id: response.Id ?? '',
+    name: response.Name ?? '',
+    description: response.Description ?? null,
+  }
+}
+
+export async function updateApplication(
+  client: AppConfigClient,
+  applicationId: string,
+  name?: string | null,
+  description?: string | null
+) {
+  const response = await client.send(
+    new UpdateApplicationCommand({
+      ApplicationId: applicationId,
+      ...(name ? { Name: name } : {}),
+      ...(description != null ? { Description: description } : {}),
+    })
+  )
+
+  return {
+    message: `Application "${response.Name ?? applicationId}" updated`,
+    id: response.Id ?? '',
+    name: response.Name ?? '',
+    description: response.Description ?? null,
+  }
+}
+
+export async function deleteApplication(client: AppConfigClient, applicationId: string) {
+  await client.send(new DeleteApplicationCommand({ ApplicationId: applicationId }))
+
+  return {
+    message: `Application ${applicationId} deleted`,
+    id: applicationId,
+  }
+}
+
+export async function getEnvironment(
+  client: AppConfigClient,
+  applicationId: string,
+  environmentId: string
+) {
+  const response = await client.send(
+    new GetEnvironmentCommand({ ApplicationId: applicationId, EnvironmentId: environmentId })
+  )
+
+  return {
+    applicationId: response.ApplicationId ?? applicationId,
+    id: response.Id ?? '',
+    name: response.Name ?? '',
+    description: response.Description ?? null,
+    state: response.State ?? null,
+    monitors: (response.Monitors ?? []).map((monitor) => ({
+      alarmArn: monitor.AlarmArn ?? '',
+      alarmRoleArn: monitor.AlarmRoleArn ?? null,
+    })),
+  }
+}
+
+export async function updateEnvironment(
+  client: AppConfigClient,
+  applicationId: string,
+  environmentId: string,
+  name?: string | null,
+  description?: string | null
+) {
+  const response = await client.send(
+    new UpdateEnvironmentCommand({
+      ApplicationId: applicationId,
+      EnvironmentId: environmentId,
+      ...(name ? { Name: name } : {}),
+      ...(description != null ? { Description: description } : {}),
+    })
+  )
+
+  return {
+    message: `Environment "${response.Name ?? environmentId}" updated`,
+    applicationId: response.ApplicationId ?? applicationId,
+    id: response.Id ?? '',
+    name: response.Name ?? '',
+    state: response.State ?? null,
+  }
+}
+
+export async function deleteEnvironment(
+  client: AppConfigClient,
+  applicationId: string,
+  environmentId: string
+) {
+  await client.send(
+    new DeleteEnvironmentCommand({ ApplicationId: applicationId, EnvironmentId: environmentId })
+  )
+
+  return {
+    message: `Environment ${environmentId} deleted`,
+    applicationId,
+    id: environmentId,
+  }
+}
+
+export async function getConfigurationProfile(
+  client: AppConfigClient,
+  applicationId: string,
+  configurationProfileId: string
+) {
+  const response = await client.send(
+    new GetConfigurationProfileCommand({
+      ApplicationId: applicationId,
+      ConfigurationProfileId: configurationProfileId,
+    })
+  )
+
+  return {
+    applicationId: response.ApplicationId ?? applicationId,
+    id: response.Id ?? '',
+    name: response.Name ?? '',
+    description: response.Description ?? null,
+    locationUri: response.LocationUri ?? null,
+    retrievalRoleArn: response.RetrievalRoleArn ?? null,
+    type: response.Type ?? null,
+    validators: (response.Validators ?? []).map((validator) => ({
+      type: validator.Type ?? '',
+    })),
+  }
+}
+
+export async function updateConfigurationProfile(
+  client: AppConfigClient,
+  applicationId: string,
+  configurationProfileId: string,
+  name?: string | null,
+  description?: string | null,
+  retrievalRoleArn?: string | null
+) {
+  const response = await client.send(
+    new UpdateConfigurationProfileCommand({
+      ApplicationId: applicationId,
+      ConfigurationProfileId: configurationProfileId,
+      ...(name ? { Name: name } : {}),
+      ...(description != null ? { Description: description } : {}),
+      ...(retrievalRoleArn != null ? { RetrievalRoleArn: retrievalRoleArn } : {}),
+    })
+  )
+
+  return {
+    message: `Configuration profile "${response.Name ?? configurationProfileId}" updated`,
+    applicationId: response.ApplicationId ?? applicationId,
+    id: response.Id ?? '',
+    name: response.Name ?? '',
+    description: response.Description ?? null,
+    type: response.Type ?? null,
+  }
+}
+
+export async function deleteConfigurationProfile(
+  client: AppConfigClient,
+  applicationId: string,
+  configurationProfileId: string
+) {
+  await client.send(
+    new DeleteConfigurationProfileCommand({
+      ApplicationId: applicationId,
+      ConfigurationProfileId: configurationProfileId,
+    })
+  )
+
+  return {
+    message: `Configuration profile ${configurationProfileId} deleted`,
+    applicationId,
+    id: configurationProfileId,
+  }
+}
+
+export async function deleteHostedConfigurationVersion(
+  client: AppConfigClient,
+  applicationId: string,
+  configurationProfileId: string,
+  versionNumber: number
+) {
+  await client.send(
+    new DeleteHostedConfigurationVersionCommand({
+      ApplicationId: applicationId,
+      ConfigurationProfileId: configurationProfileId,
+      VersionNumber: versionNumber,
+    })
+  )
+
+  return {
+    message: `Hosted configuration version ${versionNumber} deleted`,
+    applicationId,
+    configurationProfileId,
+    versionNumber,
   }
 }

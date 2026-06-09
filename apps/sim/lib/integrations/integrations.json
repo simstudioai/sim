@@ -1478,6 +1478,18 @@
         "description": "Create an application in AWS AppConfig"
       },
       {
+        "name": "Get Application",
+        "description": "Get details about a single AWS AppConfig application"
+      },
+      {
+        "name": "Update Application",
+        "description": "Update the name or description of an AWS AppConfig application"
+      },
+      {
+        "name": "Delete Application",
+        "description": "Delete an AWS AppConfig application"
+      },
+      {
         "name": "List Environments",
         "description": "List environments for an AWS AppConfig application"
       },
@@ -1486,12 +1498,36 @@
         "description": "Create an environment for an AWS AppConfig application"
       },
       {
+        "name": "Get Environment",
+        "description": "Get details about a single AWS AppConfig environment"
+      },
+      {
+        "name": "Update Environment",
+        "description": "Update the name or description of an AWS AppConfig environment"
+      },
+      {
+        "name": "Delete Environment",
+        "description": "Delete an AWS AppConfig environment"
+      },
+      {
         "name": "List Configuration Profiles",
         "description": "List configuration profiles for an AWS AppConfig application"
       },
       {
         "name": "Create Configuration Profile",
         "description": "Create a configuration profile in an AWS AppConfig application"
+      },
+      {
+        "name": "Get Configuration Profile",
+        "description": "Get details about a single AWS AppConfig configuration profile"
+      },
+      {
+        "name": "Update Configuration Profile",
+        "description": "Update the name, description, or retrieval role of an AppConfig configuration profile"
+      },
+      {
+        "name": "Delete Configuration Profile",
+        "description": "Delete an AWS AppConfig configuration profile"
       },
       {
         "name": "Create Hosted Configuration Version",
@@ -1504,6 +1540,10 @@
       {
         "name": "List Hosted Configuration Versions",
         "description": "List hosted configuration versions for an AWS AppConfig configuration profile"
+      },
+      {
+        "name": "Delete Hosted Configuration Version",
+        "description": "Delete a specific hosted configuration version from an AppConfig profile"
       },
       {
         "name": "List Deployment Strategies",
@@ -1526,7 +1566,7 @@
         "description": "Stop an in-progress AWS AppConfig deployment"
       }
     ],
-    "operationCount": 15,
+    "operationCount": 25,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",

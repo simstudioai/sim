@@ -324,3 +324,145 @@ export interface AppConfigGetConfigurationResponse extends ToolResponse {
   }
   error?: string
 }
+
+export interface AppConfigGetApplicationParams extends AppConfigConnectionConfig {
+  applicationId: string
+}
+
+export interface AppConfigUpdateApplicationParams extends AppConfigConnectionConfig {
+  applicationId: string
+  name?: string | null
+  description?: string | null
+}
+
+export interface AppConfigDeleteApplicationParams extends AppConfigConnectionConfig {
+  applicationId: string
+}
+
+export interface AppConfigGetEnvironmentParams extends AppConfigConnectionConfig {
+  applicationId: string
+  environmentId: string
+}
+
+export interface AppConfigUpdateEnvironmentParams extends AppConfigConnectionConfig {
+  applicationId: string
+  environmentId: string
+  name?: string | null
+  description?: string | null
+}
+
+export interface AppConfigDeleteEnvironmentParams extends AppConfigConnectionConfig {
+  applicationId: string
+  environmentId: string
+}
+
+export interface AppConfigGetConfigurationProfileParams extends AppConfigConnectionConfig {
+  applicationId: string
+  configurationProfileId: string
+}
+
+export interface AppConfigUpdateConfigurationProfileParams extends AppConfigConnectionConfig {
+  applicationId: string
+  configurationProfileId: string
+  name?: string | null
+  description?: string | null
+  retrievalRoleArn?: string | null
+}
+
+export interface AppConfigDeleteConfigurationProfileParams extends AppConfigConnectionConfig {
+  applicationId: string
+  configurationProfileId: string
+}
+
+export interface AppConfigDeleteHostedConfigurationVersionParams extends AppConfigConnectionConfig {
+  applicationId: string
+  configurationProfileId: string
+  versionNumber: number
+}
+
+export interface AppConfigGetApplicationResponse extends ToolResponse {
+  output: {
+    id: string
+    name: string
+    description: string | null
+  }
+  error?: string
+}
+
+export interface AppConfigUpdateApplicationResponse extends ToolResponse {
+  output: {
+    message: string
+    id: string
+    name: string
+    description: string | null
+  }
+  error?: string
+}
+
+export interface AppConfigGetEnvironmentResponse extends ToolResponse {
+  output: {
+    applicationId: string
+    id: string
+    name: string
+    description: string | null
+    state: string | null
+    monitors: Array<{ alarmArn: string; alarmRoleArn: string | null }>
+  }
+  error?: string
+}
+
+export interface AppConfigUpdateEnvironmentResponse extends ToolResponse {
+  output: {
+    message: string
+    applicationId: string
+    id: string
+    name: string
+    state: string | null
+  }
+  error?: string
+}
+
+export interface AppConfigGetConfigurationProfileResponse extends ToolResponse {
+  output: {
+    applicationId: string
+    id: string
+    name: string
+    description: string | null
+    locationUri: string | null
+    retrievalRoleArn: string | null
+    type: string | null
+    validators: Array<{ type: string }>
+  }
+  error?: string
+}
+
+export interface AppConfigUpdateConfigurationProfileResponse extends ToolResponse {
+  output: {
+    message: string
+    applicationId: string
+    id: string
+    name: string
+    description: string | null
+    type: string | null
+  }
+  error?: string
+}
+
+export interface AppConfigDeleteResourceResponse extends ToolResponse {
+  output: {
+    message: string
+    applicationId?: string
+    id: string
+  }
+  error?: string
+}
+
+export interface AppConfigDeleteHostedConfigurationVersionResponse extends ToolResponse {
+  output: {
+    message: string
+    applicationId: string
+    configurationProfileId: string
+    versionNumber: number
+  }
+  error?: string
+}
