@@ -29,7 +29,6 @@ export const SendblueBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/sendblue',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['messaging', 'automation', 'webhooks'],
   bgColor: '#008BFF',
   icon: SendblueIcon,
   authMode: AuthMode.ApiKey,
