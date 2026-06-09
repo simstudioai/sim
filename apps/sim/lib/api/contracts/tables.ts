@@ -523,6 +523,7 @@ export const findTableRowsQuerySchema = z.object({
 export const tableFindMatchSchema = z.object({
   ordinal: z.number().int(),
   rowId: z.string(),
+  /** Stable column id of the matching cell (JSONB storage key), not the display name. */
   column: z.string(),
 })
 

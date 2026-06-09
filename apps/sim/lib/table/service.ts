@@ -2429,6 +2429,7 @@ export interface FindRowMatch {
   /** 0-based index of the row in the filtered+sorted view (aligns with the list query). */
   ordinal: number
   rowId: string
+  /** Stable column id of the matching cell (the JSONB storage key), not the display name. */
   column: string
 }
 
@@ -2454,8 +2455,9 @@ export async function findRowMatches(
 ): Promise<{ matches: FindRowMatch[]; truncated: boolean }> {
   const tableName = USER_TABLE_ROWS_SQL_NAME
   const columns = table.schema.columns
-  const columnNames = columns.map((c) => c.name)
-  if (columnNames.length === 0) return { matches: [], truncated: false }
+  // Row data is keyed by stable column id, so scan/return JSONB keys as ids.
+  const columnIds = columns.map(getColumnId)
+  if (columnIds.length === 0) return { matches: [], truncated: false }
 
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),
@@ -2484,7 +2486,7 @@ export async function findRowMatches(
     FROM ordered o
     CROSS JOIN LATERAL jsonb_each_text(o.data) kv
     WHERE kv.value ILIKE ${pattern}
-      AND ${inArray(sql`kv.key`, columnNames)}
+      AND ${inArray(sql`kv.key`, columnIds)}
     ORDER BY o.ordinal
     LIMIT ${FIND_MATCH_LIMIT + 1}
   `)

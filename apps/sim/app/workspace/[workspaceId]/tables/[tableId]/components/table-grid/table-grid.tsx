@@ -762,13 +762,15 @@ export function TableGrid({
   const findMatches = useMemo<readonly TableFindMatch[]>(() => {
     const raw = findData?.matches
     if (!raw || raw.length === 0) return EMPTY_FIND_MATCHES
-    const colIndexByName = new Map(displayColumns.map((c, i) => [c.name, i]))
+    // `m.column` is the stable column id (the JSONB storage key); index display
+    // columns by their id so id-native tables resolve and stale/hidden columns drop.
+    const colIndexByKey = new Map(displayColumns.map((c, i) => [c.key, i]))
     return raw
-      .filter((m) => colIndexByName.has(m.column))
+      .filter((m) => colIndexByKey.has(m.column))
       .sort(
         (a, b) =>
           a.ordinal - b.ordinal ||
-          (colIndexByName.get(a.column) ?? 0) - (colIndexByName.get(b.column) ?? 0)
+          (colIndexByKey.get(a.column) ?? 0) - (colIndexByKey.get(b.column) ?? 0)
       )
   }, [findData, displayColumns])
 
@@ -809,7 +811,7 @@ export function TableGrid({
     if (!match) return
     const rowIndex = rows.findIndex((r) => r.id === match.rowId)
     if (rowIndex === -1) return
-    const colIndex = displayColumns.findIndex((c) => c.name === match.column)
+    const colIndex = displayColumns.findIndex((c) => c.key === match.column)
     pendingMatchRef.current = null
     if (colIndex === -1) return
     setEditingCell(null)
