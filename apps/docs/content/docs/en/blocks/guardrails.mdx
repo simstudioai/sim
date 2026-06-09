@@ -1,10 +1,18 @@
 ---
 title: Guardrails
+description: The Guardrails block checks content against a validation type before it moves through the workflow.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
-import { BlockPreview } from '@/components/workflow-preview'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  GUARDRAILS_JSON_WORKFLOW,
+  GUARDRAILS_HALLUCINATION_WORKFLOW,
+  GUARDRAILS_PII_WORKFLOW,
+} from '@/components/workflow-preview'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -58,7 +66,7 @@ Uses Retrieval-Augmented Generation (RAG) with LLM scoring to detect when AI-gen
 
 **Configuration:**
 - **Knowledge Base**: Select from your existing knowledge bases
-- **Model**: Choose LLM for scoring (requires strong reasoning - GPT-4o, Claude 3.7 Sonnet recommended)
+- **Model**: The model that scores grounding. Use a strong reasoning model; the default is `claude-sonnet-4-6`
 - **API Key**: Authentication for selected LLM provider (auto-hidden for hosted/Ollama or VLLM compatible models)
 - **Confidence**: Minimum score to pass (0-10, default: 3)
 - **Top K** (Advanced): Number of knowledge base chunks to retrieve (default: 5)
@@ -165,22 +173,25 @@ Additional outputs by type:
 - **`<guardrails.detectedEntities>`**: Array of detected PII entities
 - **`<guardrails.maskedText>`**: Content with PII masked (if mode = "Mask")
 
-## Example Use Cases
+## Examples
 
-**Validate JSON Before Parsing** - Ensure Agent output is valid JSON
-```
-Agent (Generate) → Guardrails (Validate) → Condition (Check passed) → Function (Parse)
-```
+### Validate JSON before parsing
 
-**Prevent Hallucinations** - Validate customer support responses against knowledge base
-```
-Agent (Response) → Guardrails (Check KB) → Condition (Score ≥ 3) → Send or Flag
-```
+<WorkflowPreview workflow={GUARDRAILS_JSON_WORKFLOW} />
 
-**Block PII in User Inputs** - Sanitize user-submitted content
-```
-Input → Guardrails (Detect PII) → Condition (No PII) → Process or Reject
-```
+Check the Agent's output is valid JSON, then branch on `<guardrails.passed>` before a Function parses it.
+
+### Prevent hallucinations
+
+<WorkflowPreview workflow={GUARDRAILS_HALLUCINATION_WORKFLOW} />
+
+Score the answer against a knowledge base, then gate on `<guardrails.score>` to send a grounded answer or flag a weak one.
+
+### Block PII in user input
+
+<WorkflowPreview workflow={GUARDRAILS_PII_WORKFLOW} />
+
+Detect PII in the input and branch on `<guardrails.passed>` to process clean input or reject it.
 
 ## Best Practices
 
@@ -188,7 +199,7 @@ Input → Guardrails (Detect PII) → Condition (No PII) → Process or Reject
 - **Use JSON validation before parsing**: Always validate JSON structure before attempting to parse LLM outputs
 - **Choose appropriate PII types**: Only select the PII entity types relevant to your use case for better performance
 - **Set reasonable confidence thresholds**: For hallucination detection, adjust threshold based on your accuracy requirements (higher = stricter)
-- **Use strong models for hallucination detection**: GPT-4o or Claude 3.7 Sonnet provide more accurate confidence scoring
+- **Use strong models for hallucination detection**: a strong reasoning model gives more accurate confidence scores
 - **Mask PII for logging**: Use "Mask" mode when you need to log or store content that may contain PII
 - **Test regex patterns**: Validate your regex patterns thoroughly before deploying to production
 - **Monitor validation failures**: Track `<guardrails.error>` messages to identify common validation issues

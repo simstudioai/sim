@@ -1048,3 +1048,101 @@ export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
     { id: 'condition-staging', source: 'condition', target: 'staging' },
   ],
 }
+
+const GUARDRAILS_START = {
+  id: 'start',
+  name: 'Agent',
+  type: 'agent',
+  bgColor: '#33C482',
+  position: { x: 0, y: 0 },
+  hideTargetHandle: true,
+} as const
+
+const GUARDRAILS_GATE = {
+  id: 'condition',
+  name: 'Condition',
+  type: 'condition',
+  bgColor: '#FF752F',
+  position: { x: 640, y: 0 },
+  hideSourceHandle: true,
+} as const
+
+/** Guardrails example: validate JSON before parsing it. */
+export const GUARDRAILS_JSON_WORKFLOW: PreviewWorkflow = {
+  id: 'guardrails-json',
+  name: 'Validate JSON',
+  blocks: [
+    { ...GUARDRAILS_START, rows: [{ title: 'Messages', value: 'Return JSON' }] },
+    {
+      id: 'guardrails',
+      name: 'Guardrails',
+      type: 'guardrails',
+      bgColor: '#3D642D',
+      position: { x: 320, y: 0 },
+      rows: [{ title: 'Validation', value: 'Valid JSON' }],
+    },
+    { ...GUARDRAILS_GATE, rows: [{ title: 'If', value: '<guardrails.passed>' }] },
+  ],
+  edges: [
+    { id: 'start-guardrails', source: 'start', target: 'guardrails' },
+    { id: 'guardrails-condition', source: 'guardrails', target: 'condition' },
+  ],
+}
+
+/** Guardrails example: check an answer is grounded in the knowledge base. */
+export const GUARDRAILS_HALLUCINATION_WORKFLOW: PreviewWorkflow = {
+  id: 'guardrails-hallucination',
+  name: 'Check grounding',
+  blocks: [
+    { ...GUARDRAILS_START, rows: [{ title: 'Messages', value: 'Answer from the docs' }] },
+    {
+      id: 'guardrails',
+      name: 'Guardrails',
+      type: 'guardrails',
+      bgColor: '#3D642D',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Validation', value: 'Hallucination' },
+        { title: 'Knowledge Base', value: 'docs' },
+      ],
+    },
+    { ...GUARDRAILS_GATE, rows: [{ title: 'If', value: '<guardrails.score> >= 3' }] },
+  ],
+  edges: [
+    { id: 'start-guardrails', source: 'start', target: 'guardrails' },
+    { id: 'guardrails-condition', source: 'guardrails', target: 'condition' },
+  ],
+}
+
+/** Guardrails example: block user input that contains PII. */
+export const GUARDRAILS_PII_WORKFLOW: PreviewWorkflow = {
+  id: 'guardrails-pii',
+  name: 'Block PII',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'User message' }],
+    },
+    {
+      id: 'guardrails',
+      name: 'Guardrails',
+      type: 'guardrails',
+      bgColor: '#3D642D',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Validation', value: 'PII Detection' },
+        { title: 'Action', value: 'Block' },
+      ],
+    },
+    { ...GUARDRAILS_GATE, rows: [{ title: 'If', value: '<guardrails.passed>' }] },
+  ],
+  edges: [
+    { id: 'start-guardrails', source: 'start', target: 'guardrails' },
+    { id: 'guardrails-condition', source: 'guardrails', target: 'condition' },
+  ],
+}
