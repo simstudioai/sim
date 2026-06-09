@@ -46,12 +46,24 @@ Later blocks read these by name: `<table1.rows>` is the array, `<table1.rowCount
   blockName="table1"
   blockType="table"
   blockColor="#10B981"
+  duration="84ms"
   values={[
-    { key: 'rows', value: '[ { id, company, status }, … ]', highlight: true },
-    { key: 'rowCount', value: '5' },
-    { key: 'totalCount', value: '42' },
+    {
+      key: 'rows', type: 'array', highlight: true,
+      children: [
+        {
+          key: '0', type: 'object',
+          children: [
+            { key: 'id', type: 'string', expanded: false },
+            { key: 'company', type: 'string', value: '"Acme"' },
+            { key: 'status', type: 'string', value: '"unprocessed"' },
+          ],
+        },
+      ],
+    },
+    { key: 'rowCount', type: 'number', value: '5' },
+    { key: 'totalCount', type: 'number', value: '42' },
   ]}
-  read="table1.rows"
 />
 
 **Filter Conditions** narrow the result. In the default **Builder** input mode you add rules visually: pick a column, an operator, and a value. Switch the **Input Mode** to **Editor** to write the filter as an object instead, using operators like `$eq`, `$gt`, `$contains`, and `$in`:

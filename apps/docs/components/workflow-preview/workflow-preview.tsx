@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
+import { Maximize2, X } from 'lucide-react'
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
@@ -18,10 +19,12 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { BlockInspector } from '@/components/workflow-preview/block-inspector'
 import { PreviewBlockNode } from '@/components/workflow-preview/preview-block-node'
 import { PreviewContainerNode } from '@/components/workflow-preview/preview-container-node'
 import {
   EASE_OUT,
+  type PreviewBlock,
   type PreviewWorkflow,
   toReactFlowElements,
 } from '@/components/workflow-preview/workflow-data'
@@ -92,20 +95,64 @@ const NODE_TYPES: NodeTypes = {
 const EDGE_TYPES: EdgeTypes = { previewEdge: PreviewEdge }
 const PRO_OPTIONS = { hideAttribution: true }
 const FIT_VIEW_OPTIONS = { padding: 0.25, maxZoom: 1 } as const
+const LIGHTBOX_FIT_VIEW_OPTIONS = { padding: 0.3, maxZoom: 1.4 } as const
+
+/** Field titles rendered as multiline text in the inspector. */
+const TEXTAREA_TITLES = new Set(['Messages', 'Prompt', 'Code', 'Data', 'Body', 'Display'])
+/** Field titles rendered as dropdowns in the inspector. */
+const SELECT_TITLES = new Set([
+  'Model',
+  'Operation',
+  'Method',
+  'Unit',
+  'Event type',
+  'Validation',
+  'Account',
+  'Table',
+  'Knowledge Base',
+  'Language',
+  'Workflow',
+  'Format',
+])
+
+function inspectorFieldsFor(block: PreviewBlock) {
+  return block.rows.map((row) => ({
+    label: row.title,
+    kind:
+      TEXTAREA_TITLES.has(row.title) || row.value.length > 40
+        ? ('textarea' as const)
+        : SELECT_TITLES.has(row.title)
+          ? ('select' as const)
+          : ('input' as const),
+    value: row.value,
+  }))
+}
 
 function PreviewFlow({
   workflow,
   animate = false,
   highlightBlock,
   highlightEdge,
-}: WorkflowPreviewProps) {
+  selectedBlock,
+  interactive = false,
+  onNodeClick,
+}: WorkflowPreviewProps & {
+  selectedBlock?: string
+  interactive?: boolean
+  onNodeClick?: (blockId: string) => void
+}) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => toReactFlowElements(workflow, animate, { highlightBlock, highlightEdge }),
-    [workflow, animate, highlightBlock, highlightEdge]
+    () => toReactFlowElements(workflow, animate, { highlightBlock, highlightEdge, selectedBlock }),
+    [workflow, animate, highlightBlock, highlightEdge, selectedBlock]
   )
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes)
   const [edges, setEdges] = useState<Edge[]>(initialEdges)
+
+  useEffect(() => {
+    setNodes(initialNodes)
+    setEdges(initialEdges)
+  }, [initialNodes, initialEdges])
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -122,23 +169,24 @@ function PreviewFlow({
       edges={edges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
+      onNodeClick={onNodeClick ? (_, node) => onNodeClick(node.id) : undefined}
       nodeTypes={NODE_TYPES}
       edgeTypes={EDGE_TYPES}
       defaultEdgeOptions={{ type: 'previewEdge' }}
       elementsSelectable={false}
       nodesDraggable
       nodesConnectable={false}
-      zoomOnScroll={false}
-      zoomOnDoubleClick={false}
+      zoomOnScroll={interactive}
+      zoomOnDoubleClick={interactive}
       panOnScroll={false}
-      zoomOnPinch={false}
+      zoomOnPinch={interactive}
       panOnDrag
-      preventScrolling={false}
+      preventScrolling={interactive}
       autoPanOnNodeDrag={false}
       proOptions={PRO_OPTIONS}
-      minZoom={0.4}
+      minZoom={0.2}
       fitView
-      fitViewOptions={FIT_VIEW_OPTIONS}
+      fitViewOptions={interactive ? LIGHTBOX_FIT_VIEW_OPTIONS : FIT_VIEW_OPTIONS}
       className='h-full w-full'
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1} color='#2a2a2a' />
@@ -148,7 +196,11 @@ function PreviewFlow({
 
 /**
  * Read-only, app-styled workflow diagram for docs pages. Renders a
- * {@link PreviewWorkflow} with ReactFlow — draggable, non-editable, no app runtime.
+ * {@link PreviewWorkflow} with ReactFlow — draggable, non-editable, no app
+ * runtime. Clicking a block (or the expand control) opens a full-screen
+ * lightbox with zoom and pan, plus a read-only inspector panel showing the
+ * selected block's full configuration — canvas rows truncate, the inspector
+ * doesn't.
  *
  * @example
  * <WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
@@ -160,10 +212,42 @@ export function WorkflowPreview({
   highlightBlock,
   highlightEdge,
 }: WorkflowPreviewProps) {
+  const [expanded, setExpanded] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!expanded) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false)
+    }
+    document.addEventListener('keydown', onKey)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [expanded])
+
+  const selectedBlock = selectedId
+    ? (workflow.blocks.find((b) => b.id === selectedId) ?? null)
+    : null
+  const incoming = selectedBlock
+    ? workflow.edges
+        .filter((e) => e.target === selectedBlock.id)
+        .map((e) => workflow.blocks.find((b) => b.id === e.source))
+        .filter((b): b is PreviewBlock => Boolean(b))
+    : []
+
+  const openWith = (blockId: string | null) => {
+    setSelectedId(blockId)
+    setExpanded(true)
+  }
+
   return (
     <LazyMotion features={domAnimation}>
       <div
-        className='not-prose my-6 overflow-hidden rounded-xl border border-[#2a2a2a] bg-[#0f0f0f]'
+        className='not-prose group relative my-6 overflow-hidden rounded-xl border border-[#2a2a2a] bg-[#0f0f0f]'
         style={{ height }}
       >
         <ReactFlowProvider key={`${workflow.id}-${highlightBlock ?? ''}-${highlightEdge ?? ''}`}>
@@ -172,9 +256,80 @@ export function WorkflowPreview({
             animate={animate}
             highlightBlock={highlightBlock}
             highlightEdge={highlightEdge}
+            onNodeClick={(id) => openWith(id)}
           />
         </ReactFlowProvider>
+        <button
+          type='button'
+          aria-label='Expand workflow preview'
+          onClick={() => openWith(null)}
+          className='absolute top-2 right-2 z-10 flex size-[28px] items-center justify-center rounded-[6px] border border-[#3d3d3d] bg-[#1c1c1c] text-[#9a9a9a] opacity-0 transition-opacity duration-150 hover:text-[#e6e6e6] group-hover:opacity-100'
+        >
+          <Maximize2 className='size-[13px]' />
+        </button>
       </div>
+
+      {expanded && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm'
+          onClick={() => setExpanded(false)}
+          onKeyDown={() => {}}
+          role='presentation'
+        >
+          <div
+            className='relative flex h-[86vh] w-[92vw] overflow-hidden rounded-xl border border-[#2a2a2a] bg-[#0f0f0f]'
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={() => {}}
+            role='presentation'
+          >
+            <div className='relative min-w-0 flex-1'>
+              <div className='pointer-events-none absolute top-0 right-0 left-0 z-10 flex items-center justify-between px-4 py-3'>
+                <span className='text-[#9a9a9a] text-[13px]'>{workflow.name}</span>
+                <button
+                  type='button'
+                  aria-label='Close'
+                  onClick={() => setExpanded(false)}
+                  className='pointer-events-auto flex size-[28px] items-center justify-center rounded-[6px] border border-[#3d3d3d] bg-[#1c1c1c] text-[#9a9a9a] transition-colors hover:text-[#e6e6e6]'
+                >
+                  <X className='size-[14px]' />
+                </button>
+              </div>
+              <ReactFlowProvider key={`${workflow.id}-lightbox`}>
+                <PreviewFlow
+                  workflow={workflow}
+                  highlightBlock={highlightBlock}
+                  highlightEdge={highlightEdge}
+                  selectedBlock={selectedId ?? undefined}
+                  interactive
+                  onNodeClick={(id) => setSelectedId(id)}
+                />
+              </ReactFlowProvider>
+            </div>
+
+            <div className='w-[340px] flex-shrink-0 border-[#2a2a2a] border-l'>
+              {selectedBlock ? (
+                <BlockInspector
+                  embedded
+                  name={selectedBlock.name}
+                  type={selectedBlock.type}
+                  color={selectedBlock.bgColor}
+                  fields={inspectorFieldsFor(selectedBlock)}
+                  tools={selectedBlock.tools}
+                  connections={incoming.map((b) => ({
+                    name: b.name,
+                    type: b.type,
+                    color: b.bgColor,
+                  }))}
+                />
+              ) : (
+                <div className='flex h-full items-center justify-center px-6 text-center text-[#7a7a7a] text-[13px]'>
+                  Select a block to see its full configuration
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </LazyMotion>
   )
 }

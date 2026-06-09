@@ -23,13 +23,20 @@ An output is usually a set of named values, not a single thing. You read one by 
 <OutputBundle
   blockName="classify"
   blockType="agent"
-  blockColor="#6f3dfa"
+  blockColor="#33C482"
+  duration="2.1s"
   values={[
-    { key: 'content', value: '"Billing · high urgency"', highlight: true },
-    { key: 'model', value: '"gpt-4o"' },
-    { key: 'tokens', value: '{ input, output, total }' },
+    { key: 'content', type: 'string', value: '"Billing · high urgency"', highlight: true },
+    { key: 'model', type: 'string', value: '"claude-sonnet-4-6"', expanded: false },
+    {
+      key: 'tokens', type: 'object',
+      children: [
+        { key: 'input', type: 'number', value: '412' },
+        { key: 'output', type: 'number', value: '38' },
+        { key: 'total', type: 'number', value: '450' },
+      ],
+    },
   ]}
-  read="classify.content"
 />
 
 Different blocks produce different values. An [Agent](/blocks/agent) keeps its `content`; an [API](/blocks/api) keeps the `data` it received; a Table block keeps a `rowCount` and the rows it read, reached with `<table1.rowCount>`.

@@ -49,6 +49,8 @@ const EDGE_STYLE_HIGHLIGHT = { stroke: '#33b4ff', strokeWidth: 2.5 } as const
 export interface HighlightOptions {
   highlightBlock?: string
   highlightEdge?: string
+  /** Ring one block (selection) without dimming the rest. */
+  selectedBlock?: string
 }
 
 /**
@@ -63,7 +65,7 @@ export function toReactFlowElements(
   animate = false,
   highlight: HighlightOptions = {}
 ): { nodes: Node[]; edges: Edge[] } {
-  const { highlightBlock, highlightEdge } = highlight
+  const { highlightBlock, highlightEdge, selectedBlock } = highlight
   const hasHighlight = Boolean(highlightBlock || highlightEdge)
   const blockIndexMap = new Map(workflow.blocks.map((b, i) => [b.id, i]))
 
@@ -94,7 +96,7 @@ export function toReactFlowElements(
         hideSourceHandle: block.hideSourceHandle,
         index,
         animate,
-        isHighlighted: highlightBlock === block.id,
+        isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
         isDimmed: hasHighlight && highlightBlock !== block.id,
       },
       draggable: true,

@@ -51,12 +51,25 @@ The Search operation produces an **output** stored under the block's name, the s
   blockName="knowledge"
   blockType="knowledge"
   blockColor="#00B0B0"
+  duration="312ms"
   values={[
-    { key: 'results', value: '[ { content, documentName, similarity, … }, … ]', highlight: true },
-    { key: 'query', value: '"refund policy"' },
-    { key: 'totalResults', value: '5' },
+    {
+      key: 'results', type: 'array', highlight: true,
+      children: [
+        {
+          key: '0', type: 'object',
+          children: [
+            { key: 'content', type: 'string', value: '"Refunds are issued within 14 days…"' },
+            { key: 'documentName', type: 'string', value: '"refund-policy.pdf"' },
+            { key: 'similarity', type: 'number', value: '0.92' },
+            { key: 'sourceUrl', type: 'null', expanded: false },
+          ],
+        },
+      ],
+    },
+    { key: 'query', type: 'string', value: '"refund policy"' },
+    { key: 'totalResults', type: 'number', value: '5' },
   ]}
-  read="knowledge.results"
 />
 
 Each result in the array is an object with these fields:
