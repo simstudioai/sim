@@ -605,6 +605,17 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       // prior executions, so the stamped set is the full delta).
       const stampedCount = countNewlyInFlight({}, stamped.executions ?? {})
       if (stampedCount > 0) bumpRunState(queryClient, tableId, { [row.id]: stampedCount })
+
+      // `reconcileCreatedRow` only patches the default-order view. Filtered /
+      // column-sorted rows queries can't be reconciled from that heuristic
+      // (membership, sort position, and `totalCount` are query-specific), so
+      // refetch them — active ones update now, inactive ones on next view. The
+      // default view stays optimistic, so the common case never refetches.
+      queryClient.invalidateQueries({
+        queryKey: tableKeys.rowsRoot(tableId),
+        exact: false,
+        predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
+      })
     },
     onError: (error) => {
       if (isValidationError(error)) return
@@ -654,11 +665,34 @@ function patchCachedRows(
 }
 
 /**
+ * A cached rows query whose ordering matches {@link reconcileCreatedRow}'s
+ * orderKey/position heuristic: the default view with no active filter or sort.
+ * Filtered or column-sorted variants encode a non-null `filter`/`sort` in their
+ * params key — their membership, order, and `totalCount` are query-specific, so
+ * an optimistic splice can't be trusted there (they're refetched instead). The
+ * `find`/`write` subtrees aren't row-list data and never match.
+ */
+function isDefaultOrderRowsQuery(queryKey: readonly unknown[]): boolean {
+  if (queryKey.includes('find') || queryKey.includes('write')) return false
+  const last = queryKey[queryKey.length - 1]
+  if (typeof last !== 'string') return false
+  try {
+    const params = JSON.parse(last) as { filter?: unknown; sort?: unknown }
+    return params.filter == null && params.sort == null
+  } catch {
+    return false
+  }
+}
+
+/**
  * Splice a server-returned new row into the paginated row cache. Bumps the
  * `position` of any cached row at or past the new row's position, then inserts
  * the row into the overlapping page (or appends to the last page when the
- * position lies past everything fetched). `onSettled` invalidation reconciles
- * drift after the next refetch.
+ * position lies past everything fetched).
+ *
+ * Scoped to the default-order rows queries only — the orderKey/position
+ * heuristic matches the unfiltered, unsorted server order, not an active filter
+ * or column sort. Filtered/sorted queries are refetched by the caller.
  */
 function reconcileCreatedRow(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -666,7 +700,11 @@ function reconcileCreatedRow(
   row: TableRow
 ) {
   queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
-    { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+    {
+      queryKey: tableKeys.rowsRoot(tableId),
+      exact: false,
+      predicate: (query) => isDefaultOrderRowsQuery(query.queryKey),
+    },
     (old) => {
       if (!old) return old
       if (old.pages.some((p) => p.rows.some((r) => r.id === row.id))) return old
