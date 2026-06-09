@@ -604,8 +604,7 @@ export function Table({
         <TableActionBar
           selectedCellCount={
             selection.selectedRunScope
-              ? selection.selectedRunScope.groupIds.length *
-                selection.selectedRunScope.rowIds.length
+              ? selection.selectedRunScope.groupIds.length * selection.selectedRunScope.rowCount
               : 0
           }
           runningCount={selection.runningInActionBarSelection}
@@ -741,6 +740,7 @@ export function Table({
                 const { excludeRowIds } = deletingAll
                 deleteRowsAsyncMutation.mutate({
                   filter: queryOptions.filter ?? undefined,
+                  sort: queryOptions.sort,
                   excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
                 })
                 afterDeleteAllSinkRef.current?.()

@@ -102,8 +102,15 @@ export interface SelectionSnapshot {
   /** Whether the table has any workflow-output columns (drives the Run/Stop visibility). */
   hasWorkflowColumns: boolean
   /** Cells the Play / Refresh / Stop buttons act on. Null when the selection
-   *  contains no workflow output cells. */
-  selectedRunScope: { groupIds: string[]; rowIds: string[]; allRows: boolean } | null
+   *  contains no workflow output cells. `rowCount` is the true selected-row total for the
+   *  action-bar label — equal to `rowIds.length` except under select-all, where `rowIds` holds
+   *  only the loaded (virtualized) window but `rowCount` is the table's full row count. */
+  selectedRunScope: {
+    groupIds: string[]
+    rowIds: string[]
+    allRows: boolean
+    rowCount: number
+  } | null
   /** Drives Play (`hasIncompleteOrFailed`) / Refresh (`hasCompleted`) /
    *  Stop (`hasInFlight`) visibility on the action bar. */
   selectionStats: ExecStatusMix
@@ -327,6 +334,7 @@ export function TableGrid({
     tableData,
     isLoadingTable,
     rows,
+    rowTotal,
     isLoadingRows,
     fetchNextPage,
     hasNextPage,
@@ -354,6 +362,10 @@ export function TableGrid({
 
   const tableRowCountRef = useRef(tableData?.rowCount ?? 0)
   tableRowCountRef.current = tableData?.rowCount ?? 0
+  // True "select all" total: the filter-scoped COUNT(*) when a filter is active, else the whole
+  // table. Drives the delete-confirm count and the action-bar cell count.
+  const selectAllTotalRef = useRef(0)
+  selectAllTotalRef.current = rowTotal ?? tableData?.rowCount ?? 0
 
   const fetchNextPageRef = useRef(fetchNextPage)
   fetchNextPageRef.current = fetchNextPage
@@ -813,7 +825,7 @@ export function TableGrid({
     if (rowSel.kind === 'all' && contextRowInRows) {
       closeContextMenu()
       const excludeRowIds = rowSel.excluded ? [...rowSel.excluded] : []
-      const estimatedCount = Math.max(0, tableRowCountRef.current - excludeRowIds.length)
+      const estimatedCount = Math.max(0, selectAllTotalRef.current - excludeRowIds.length)
       onRequestDeleteAllByFilter({ excludeRowIds, estimatedCount })
       return
     }
@@ -2597,18 +2609,15 @@ export function TableGrid({
       const currentCols = columnsRef.current
       if (rws.length > 0 && currentCols.length > 0) {
         e.preventDefault()
-        suppressFocusScrollRef.current = true
-        setEditingCell(null)
-        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
-        lastCheckboxRowRef.current = null
-        setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
-        setSelectionFocus({ rowIndex: rws.length - 1, colIndex: currentCols.length - 1 })
-        setIsColumnSelection(false)
+        // Cmd/Ctrl+A toggles the whole-table row selection (same as the gutter checkbox), so it
+        // reflects the true row count and feeds the filter-based delete — not a loaded-window cell
+        // rectangle. Pressing again clears.
+        handleSelectAllToggle()
       }
     }
     document.addEventListener('keydown', handleSelectAll)
     return () => document.removeEventListener('keydown', handleSelectAll)
-  }, [embedded])
+  }, [embedded, handleSelectAllToggle])
 
   const navigateAfterSave = useCallback((reason: SaveReason) => {
     const anchor = selectionAnchorRef.current
@@ -3153,11 +3162,19 @@ export function TableGrid({
     if (tableWorkflowGroupIds.length === 0) return null
     if (!rowSelectionIsEmpty(rowSelection)) {
       if (rowSelection.kind === 'all') {
-        return { groupIds: tableWorkflowGroupIds, rowIds: rows.map((r) => r.id), allRows: true }
+        // `rowIds` is the loaded window (virtualized); the label total comes from the filter-scoped
+        // row count minus any deselected rows.
+        const excluded = rowSelection.excluded?.size ?? 0
+        return {
+          groupIds: tableWorkflowGroupIds,
+          rowIds: rows.map((r) => r.id),
+          allRows: true,
+          rowCount: Math.max(0, selectAllTotalRef.current - excluded),
+        }
       }
       const rowIds = rows.filter((r) => rowSelectionIncludes(rowSelection, r.id)).map((r) => r.id)
       if (rowIds.length === 0) return null
-      return { groupIds: tableWorkflowGroupIds, rowIds, allRows: false }
+      return { groupIds: tableWorkflowGroupIds, rowIds, allRows: false, rowCount: rowIds.length }
     }
     const sel = normalizedSelection
     if (!sel) return null
@@ -3175,7 +3192,7 @@ export function TableGrid({
       if (row) rowIds.push(row.id)
     }
     if (rowIds.length === 0) return null
-    return { groupIds: [...groupIdsInRect], rowIds, allRows: false }
+    return { groupIds: [...groupIdsInRect], rowIds, allRows: false, rowCount: rowIds.length }
   }, [rowSelection, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
 
   const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {

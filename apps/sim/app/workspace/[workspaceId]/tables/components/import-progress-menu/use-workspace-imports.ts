@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { toast } from '@/components/emcn'
-import type { TableJobType } from '@/lib/table'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
@@ -12,15 +11,14 @@ const POLL_INTERVAL_MS = 2000
 
 export type ImportPhase = 'importing' | 'ready' | 'failed'
 
-/** A row rendered in the job tray. Running rows come live from the table list; uploads are
- *  client-only (import jobs only) until their server row exists. */
+/** A row rendered in the import tray. Running rows come live from the table list; uploads are
+ *  client-only until their server row exists. Delete jobs are intentionally excluded — the grid
+ *  reflects a delete optimistically, so a progress row would be redundant. */
 export interface ImportRow {
   id: string
   workspaceId: string
   title: string
   phase: ImportPhase
-  /** Which job this row tracks — drives the tray wording (Importing vs Deleting). */
-  jobType: TableJobType
   rowsProcessed: number
   /** Upload byte percent (upload phase only). */
   percent?: number
@@ -30,9 +28,10 @@ export interface ImportRow {
 
 /**
  * Single source for the import tray. Importing rows are derived live from the table list (polled
- * while any import is in flight) rather than mirrored into a store; the store only supplies
+ * while any job is in flight) rather than mirrored into a store; the store only supplies
  * optimistic uploads and which terminal completions to surface this session. Also fires the
- * completion toasts on the importing → terminal transition.
+ * completion toasts on the importing → terminal transition. Delete jobs never render as tray rows
+ * and only surface a toast on failure (a failed delete restores the optimistically-removed rows).
  */
 export function useWorkspaceImports(
   workspaceId: string | undefined,
@@ -51,21 +50,21 @@ export function useWorkspaceImports(
       const before = prevStatus.current.get(table.id)
       const now = table.jobStatus ?? 'none'
       if (before === 'running' && now === 'ready') {
-        const rows = (table.jobRowsProcessed ?? 0).toLocaleString()
-        const message =
-          table.jobType === 'delete'
-            ? `Deleted ${rows} rows from "${table.name}"`
-            : `Imported ${rows} rows into "${table.name}"`
-        toast.success(message)
-        store.notify(table.id)
-        setTimeout(() => useImportTrayStore.getState().dismiss(table.id), READY_AUTO_CLEAR_MS)
+        // Deletes are reflected instantly in the grid — no tray row, no success toast.
+        if (table.jobType !== 'delete') {
+          const rows = (table.jobRowsProcessed ?? 0).toLocaleString()
+          toast.success(`Imported ${rows} rows into "${table.name}"`)
+          store.notify(table.id)
+          setTimeout(() => useImportTrayStore.getState().dismiss(table.id), READY_AUTO_CLEAR_MS)
+        }
       } else if (before === 'running' && now === 'failed') {
+        // Surface failures for both — a failed delete restores the optimistically-removed rows.
         const fallback =
           table.jobType === 'delete'
             ? `Delete failed for "${table.name}"`
             : `Import failed for "${table.name}"`
         toast.error(table.jobError || fallback)
-        store.notify(table.id)
+        if (table.jobType !== 'delete') store.notify(table.id)
       }
       if (now !== 'running' && store.isCanceled(table.id)) store.consumeCanceled(table.id)
       prevStatus.current.set(table.id, now)
@@ -82,7 +81,8 @@ export function useWorkspaceImports(
 
     for (const table of tables ?? []) {
       if (scopeTableId && table.id !== scopeTableId) continue
-      const jobType: TableJobType = table.jobType === 'delete' ? 'delete' : 'import'
+      // Delete jobs are reflected optimistically in the grid — they never render in the tray.
+      if (table.jobType === 'delete') continue
       if (table.jobStatus === 'running') {
         if (canceledIds[table.id]) continue
         rows.push({
@@ -90,7 +90,6 @@ export function useWorkspaceImports(
           workspaceId: table.workspaceId,
           title: table.name,
           phase: 'importing',
-          jobType,
           rowsProcessed: table.jobRowsProcessed ?? 0,
           jobId: table.jobId ?? undefined,
         })
@@ -104,7 +103,6 @@ export function useWorkspaceImports(
           workspaceId: table.workspaceId,
           title: table.name,
           phase: table.jobStatus,
-          jobType,
           rowsProcessed: table.jobRowsProcessed ?? 0,
           error: table.jobError ?? undefined,
         })
@@ -121,7 +119,6 @@ export function useWorkspaceImports(
         workspaceId: upload.workspaceId,
         title: upload.title,
         phase: 'importing',
-        jobType: 'import',
         rowsProcessed: 0,
         percent: upload.percent,
       })

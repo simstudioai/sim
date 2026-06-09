@@ -915,15 +915,20 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
 interface DeleteTableRowsAsyncVariables {
   /** Active filter; omit for a whole-table "select all". */
   filter?: DeleteTableRowsAsyncBody['filter']
+  /** Active sort — together with `filter` it identifies the exact rows query to optimistically
+   *  strip, so we don't clear unrelated cached views (other filters/sorts). */
+  sort?: Sort | null
   /** Rows deselected after "select all" — spared by the job. */
   excludeRowIds?: string[]
 }
 
 /**
  * Kicks off a background "select all" delete (filter + optional exclusion set) instead of sending
- * every row id. Optimistically removes the loaded matching rows — which are exactly the active
- * filter view — so the table empties instantly while the worker deletes in the background. The SSE
- * job stream reconciles on completion (and restores rows on failure/cancel).
+ * every row id. Optimistically strips the rows from the *active* filter/sort view only (the one the
+ * user is looking at) so the table empties instantly while the worker deletes in the background;
+ * emptying that view's pages also drops `hasNextPage`, so scrolling won't reload not-yet-deleted
+ * rows. Other cached views are left intact. The SSE job stream reconciles on completion (and
+ * restores rows on failure/cancel).
  */
 export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
@@ -935,27 +940,29 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
         body: { workspaceId, filter, excludeRowIds },
       })
     },
-    onMutate: async ({ excludeRowIds }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
-        queryKey: tableKeys.rowsRoot(tableId),
-      })
+    onMutate: async ({ filter, sort, excludeRowIds }) => {
+      // Target the exact infinite-rows query for the view the user is on — not every cached view.
+      const activeKey = tableKeys.infiniteRows(
+        tableId,
+        tableRowsParamsKey({ pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT, filter: filter ?? null, sort })
+      )
+      await queryClient.cancelQueries({ queryKey: activeKey })
+      const previousRows =
+        queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(activeKey)
       const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
       const keep = new Set(excludeRowIds ?? [])
-      queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
-        { queryKey: tableKeys.rowsRoot(tableId), exact: false },
-        (old) =>
-          old
-            ? {
-                ...old,
-                pages: old.pages.map((page) => ({
-                  ...page,
-                  rows: page.rows.filter((r) => keep.has(r.id)),
-                })),
-              }
-            : old
+      queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(activeKey, (old) =>
+        old
+          ? {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                rows: page.rows.filter((r) => keep.has(r.id)),
+              })),
+            }
+          : old
       )
-      return { previousQueries, previousDetail }
+      return { activeKey, previousRows, previousDetail }
     },
     onSuccess: ({ data }) => {
       // Lock the SSE job consumer onto this run so its running/terminal events are accepted, and
@@ -967,10 +974,8 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
     },
     onError: (error, _vars, context) => {
       // Restore the optimistically-removed rows — the kickoff failed, nothing was deleted.
-      if (context?.previousQueries) {
-        for (const [queryKey, data] of context.previousQueries) {
-          queryClient.setQueryData(queryKey, data)
-        }
+      if (context?.activeKey && context.previousRows) {
+        queryClient.setQueryData(context.activeKey, context.previousRows)
       }
       if (context?.previousDetail) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
