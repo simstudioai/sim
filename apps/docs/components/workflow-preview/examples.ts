@@ -660,3 +660,92 @@ export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
     { id: 'router-selfserve', source: 'router', target: 'selfserve' },
   ],
 }
+
+/** Response example: acknowledge a webhook after processing it. */
+export const RESPONSE_WEBHOOK_WORKFLOW: PreviewWorkflow = {
+  id: 'response-webhook',
+  name: 'Acknowledge a webhook',
+  blocks: [
+    {
+      id: 'webhook',
+      name: 'Webhook',
+      type: 'webhook',
+      bgColor: '#10B981',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Format', value: 'JSON' }],
+    },
+    {
+      id: 'process',
+      name: 'Process',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 320, y: 0 },
+      rows: [{ title: 'Code', value: 'save(<webhook.body>)' }],
+    },
+    {
+      id: 'ack',
+      name: 'Response',
+      type: 'response',
+      bgColor: '#2F55FF',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [
+        { title: 'Data', value: '{ "received": true }' },
+        { title: 'Status', value: '200' },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'webhook-process', source: 'webhook', target: 'process' },
+    { id: 'process-ack', source: 'process', target: 'ack' },
+  ],
+}
+
+/** Response example: return a different status on each branch. */
+export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
+  id: 'response-error',
+  name: 'Status per branch',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 60 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Request' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 320, y: 60 },
+      rows: [{ title: 'If', value: '<start.valid>' }],
+    },
+    {
+      id: 'ok',
+      name: 'Response',
+      type: 'response',
+      bgColor: '#2F55FF',
+      position: { x: 700, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Status', value: '200' }],
+    },
+    {
+      id: 'bad',
+      name: 'Response',
+      type: 'response',
+      bgColor: '#2F55FF',
+      position: { x: 700, y: 130 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Status', value: '400' }],
+    },
+  ],
+  edges: [
+    { id: 'start-condition', source: 'start', target: 'condition' },
+    { id: 'condition-ok', source: 'condition', target: 'ok' },
+    { id: 'condition-bad', source: 'condition', target: 'bad' },
+  ],
+}

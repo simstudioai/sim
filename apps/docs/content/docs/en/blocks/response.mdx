@@ -1,115 +1,98 @@
 ---
 title: Response
+description: The Response block ends an API-triggered workflow and returns a structured HTTP response.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { BlockPreview } from '@/components/workflow-preview'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  RESPONSE_API_WORKFLOW,
+  RESPONSE_ERROR_WORKFLOW,
+  RESPONSE_WEBHOOK_WORKFLOW,
+} from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The Response block formats and sends structured HTTP responses back to API callers. Use it to return workflow results with proper status codes and headers.
+The **Response block** ends a workflow and returns a structured HTTP response to the caller. Use it with an [API deployment](/deployment/api) to control the exact body, status code, and headers that come back.
 
 <BlockPreview type="response" />
 
 <Callout type="info">
-  Response blocks are exit points — when a Response block executes, it ends the workflow and sends the HTTP response immediately. Multiple Response blocks can be placed on different branches (e.g. after a Router or Condition), but only the first one to execute determines the API response.
+A Response block is an **exit point**. When one runs, the workflow ends and the HTTP response is sent immediately. You can place several on different branches (after a [Router](/blocks/router) or [Condition](/blocks/condition)); the first to run determines the response.
 </Callout>
 
-## Configuration Options
+## Configuration
+
+### Response Data Mode
+
+**Builder** lays out the response body field by field with types; **Editor** is a raw JSON code editor. Builder fits most cases.
 
 ### Response Data
 
-The response data is the main content that will be sent back to the API caller. This should be formatted as JSON and can include:
+The body sent back, as JSON. Reference any earlier output with a [connection tag](/workflows/connections) — a block output like `<agent.content>`, or a workflow variable like `<variable.userId>` — and nest objects and arrays freely.
 
-- Static values
-- Dynamic references to workflow variables using the `<variable.name>` syntax
-- Nested objects and arrays
-- Any valid JSON structure
+```json
+{
+  "query": "<start.input>",
+  "answer": "<agent.content>",
+  "model": "<agent.model>"
+}
+```
 
 ### Status Code
 
-A free-text input field where you can enter any valid HTTP status code (the default placeholder is 200). Common examples include:
-
-- **200**: OK - Standard success response
-- **201**: Created - Resource successfully created
-- **400**: Bad Request - Invalid request parameters
-- **404**: Not Found - Resource doesn't exist
-- **500**: Internal Server Error - Server-side error
-
-Any valid HTTP status code can be entered directly into the field.
+Any valid HTTP status code; defaults to `200`. Set `4xx` or `5xx` on error branches (`201` created, `400` bad request, `404` not found, `500` server error).
 
 ### Response Headers
 
-Configure additional HTTP headers to include in the response.
-
-Headers are configured as key-value pairs:
+Extra response headers, as key-value pairs:
 
 | Key | Value |
-|-----|-------|
+| --- | --- |
 | Content-Type | application/json |
 | Cache-Control | no-cache |
 | X-API-Version | 1.0 |
 
-## Example Use Cases
-
-**API Endpoint Response** - Return structured data from a search API
-```
-Agent (Search) → Function (Format & Paginate) → Response (200, JSON)
-```
-
-**Webhook Confirmation** - Acknowledge webhook receipt and processing
-```
-Webhook Trigger → Function (Process) → Response (200, Confirmation)
-```
-
-**Error Response Handling** - Return appropriate error responses
-```
-Condition (Error Detected) → Router → Response (400/500, Error Details)
-```
-
 ## Outputs
 
-Response blocks are exit points — when one executes, no further blocks run. The block defines outputs (`data`, `status`, `headers`) which are used to construct the HTTP response sent back to the API caller.
+A Response block is a terminal block, so nothing reads from it. Its `data`, `status`, and `headers` become the HTTP response itself. A workflow with no Response block returns its last block's output by default; add a Response block when you need exact HTTP control.
 
-<Callout type="warning">
-  If a Response block is placed on a parallel branch, there are no guarantees about whether other parallel blocks will run or not. Execution order across parallel branches is non-deterministic, so a parallel block may execute before or after the Response block on any given run. Avoid placing Response blocks in parallel with blocks that have important side effects.
+<Callout type="warn">
+Don't place a Response block in [parallel](/blocks/parallel) with blocks that have important side effects. Order across parallel branches is non-deterministic, so the Response may fire before or after them on any given run.
 </Callout>
 
-## Variable References
+## Examples
 
-Use the `<variable.name>` syntax to dynamically insert workflow variables into your response:
+### Return data from an API endpoint
 
-```json
-{
-  "user": {
-    "id": "<variable.userId>",
-    "name": "<variable.userName>",
-    "email": "<variable.userEmail>"
-  },
-  "query": "<variable.searchQuery>",
-  "results": "<variable.searchResults>",
-  "totalFound": "<variable.resultCount>",
-  "processingTime": "<variable.executionTime>ms"
-}
-```
+<WorkflowPreview workflow={RESPONSE_API_WORKFLOW} />
 
-<Callout type="warning">
-  Variable names are case-sensitive and must match exactly with the variables available in your workflow.
-</Callout>
+The Response block reads `<agent.content>` into its body and returns `200` to the API caller.
+
+### Acknowledge a webhook
+
+<WorkflowPreview workflow={RESPONSE_WEBHOOK_WORKFLOW} />
+
+After processing the payload, the Response block returns a small confirmation so the sender knows the event was received.
+
+### Return a different status per branch
+
+<WorkflowPreview workflow={RESPONSE_ERROR_WORKFLOW} />
+
+A Condition routes valid requests to a `200` Response and invalid ones to a `400`. The first Response to run determines what the caller gets.
 
 ## Best Practices
 
-- **Use meaningful status codes**: Choose appropriate HTTP status codes that accurately reflect the outcome of the workflow
-- **Structure your responses consistently**: Maintain a consistent JSON structure across all your API endpoints for better developer experience
-- **Include relevant metadata**: Add timestamps and version information to help with debugging and monitoring
-- **Handle errors gracefully**: Use conditional logic in your workflow to set appropriate error responses with descriptive messages
-- **Validate variable references**: Ensure all referenced variables exist and contain the expected data types before the Response block executes
+- **Use accurate status codes.** `2xx` for success, `4xx`/`5xx` for errors, set per branch.
+- **Keep a consistent response shape** across your endpoints so callers can rely on it.
+- **Return a different response per outcome.** Put a Response on each branch after a Condition or Router.
+- **Check your references resolve.** A connection tag pointing at a block that did not run comes back empty, so set fields on the branch that produces them.
 
 <FAQ items={[
-  { question: "Can I have multiple Response blocks in a workflow?", answer: "Yes. You can place multiple Response blocks on different branches (e.g. after a Router or Condition block). The first Response block to execute determines the API response and ends the workflow. This is useful for returning different responses based on conditions — for example, a 200 on the success branch and a 500 on the error branch." },
-  { question: "What triggers require a Response block?", answer: "The Response block is designed for use with the API Trigger. When your workflow is invoked via the API, the Response block sends the structured HTTP response back to the caller. Other trigger types (like webhooks or schedules) do not require a Response block." },
-  { question: "What is the difference between Builder and Editor mode?", answer: "Builder mode provides a visual interface for constructing your response structure with fields and types. Editor mode gives you a raw JSON code editor where you can write the response body directly. Builder mode is recommended for most use cases." },
-  { question: "What is the default status code?", answer: "If you do not specify a status code, the Response block defaults to 200 (OK). You can set any valid HTTP status code including error codes like 400, 404, or 500." },
-  { question: "Can the Response block connect to downstream blocks?", answer: "No. Response blocks are exit points — they end workflow execution and send the HTTP response. No further blocks can execute after a Response block." },
+  { question: "Can I have multiple Response blocks in a workflow?", answer: "Yes. Place them on different branches (after a Router or Condition). The first Response block to run determines the API response and ends the workflow — for example a 200 on the success branch and a 500 on the error branch." },
+  { question: "What triggers require a Response block?", answer: "It is designed for the API trigger. When the workflow is invoked over the API, the Response block sends the structured HTTP response back to the caller. Other triggers like webhooks or schedules don't require one." },
+  { question: "What is the difference between Builder and Editor mode?", answer: "Builder mode is a visual interface for constructing the response structure with fields and types. Editor mode is a raw JSON editor where you write the response body directly. Builder mode suits most cases." },
+  { question: "What is the default status code?", answer: "If you don't set one, the Response block returns 200 (OK). You can set any valid HTTP status code, including error codes like 400, 404, or 500." },
+  { question: "Can the Response block connect to downstream blocks?", answer: "No. Response blocks are exit points — they end execution and send the HTTP response, so no block runs after one." },
 ]} />
-
