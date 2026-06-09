@@ -2638,6 +2638,13 @@ import {
   secretsManagerUpdateSecretTool,
 } from '@/tools/secrets_manager'
 import {
+  sendblueEvaluateServiceTool,
+  sendblueGetMessageTool,
+  sendblueSendGroupMessageTool,
+  sendblueSendMessageTool,
+  sendblueSendTypingIndicatorTool,
+} from '@/tools/sendblue'
+import {
   sendGridAddContactsToListTool,
   sendGridAddContactTool,
   sendGridCreateListTool,
@@ -3659,6 +3666,11 @@ export const tools: Record<string, ToolConfig> = {
   resend_update_contact: resendUpdateContactTool,
   resend_delete_contact: resendDeleteContactTool,
   resend_list_domains: resendListDomainsTool,
+  sendblue_send_message: sendblueSendMessageTool,
+  sendblue_send_group_message: sendblueSendGroupMessageTool,
+  sendblue_evaluate_service: sendblueEvaluateServiceTool,
+  sendblue_send_typing_indicator: sendblueSendTypingIndicatorTool,
+  sendblue_get_message: sendblueGetMessageTool,
   sendgrid_send_mail: sendGridSendMailTool,
   sendgrid_add_contact: sendGridAddContactTool,
   sendgrid_get_contact: sendGridGetContactTool,
