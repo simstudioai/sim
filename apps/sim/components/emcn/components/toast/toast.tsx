@@ -28,65 +28,41 @@ import { X } from '@/components/emcn/icons/x'
 import { cn } from '@/lib/core/utils/cn'
 
 const AUTO_DISMISS_MS = 5000
-/** Auto-dismiss countdown for the whole stack once the dismiss-all control appears (2+ toasts). */
+/** Whole-stack auto-dismiss window once the dismiss-all control appears (2+ toasts). */
 const STACK_DISMISS_MS = 6000
-/** Toast count at which the dismiss-all control appears and the stack countdown takes over. */
+/** Toast count at which the dismiss-all control and stack countdown take over. */
 const STACK_DISMISS_THRESHOLD = 2
 
 /** Card width; tracks the workflow-panel inset on narrow viewports. */
 const TOAST_WIDTH = 'min(100vw - 2rem, 280px)'
 
-/**
- * Stack behavior, modeled on the Sonner / Base-UI toast: a collapsed pile that
- * fans open upward on hover.
- *
- * - `STACK_LIMIT` — most toasts kept alive at once; arrivals beyond this evict
- *   the oldest. Both the collapsed pile and the expanded fan show up to this
- *   many.
- * - `COLLAPSED_OFFSET_PX` / `COLLAPSED_SCALE_STEP` — per-depth lift and shrink
- *   that make stacked cards peek above the front one when collapsed.
- * - `EXPAND_GAP_PX` — vertical gap between cards once the stack is expanded.
- */
+/** Most toasts kept alive at once; older arrivals are evicted. */
 const STACK_LIMIT = 3
+/** Per-depth lift and shrink that make collapsed cards peek above the front one. */
 const COLLAPSED_OFFSET_PX = 13
 const COLLAPSED_SCALE_STEP = 0.05
+/** Vertical gap between cards once the stack is expanded. */
 const EXPAND_GAP_PX = 8
 
 /** Fallback card height used for the expanded fan-out before a toast is measured. */
 const ESTIMATED_TOAST_HEIGHT = 56
 
-/** Top + bottom border of a card, added to the measured content so the clamped `<li>` height matches the border box. */
+/** Card border box, added to the measured content so the clamped `<li>` height matches. */
 const CARD_BORDER_PX = 2
 
-/**
- * Shared expo-out easing for every toast motion (stack reshuffle, enter, text
- * resize). One fixed-duration tween — not a spring — so rapid arrivals all move
- * with identical timing and settle in unison, instead of a re-targeted spring
- * carrying velocity and making one card look like it lags behind the others.
- */
+/** Shared expo-out easing so every card in the stack reshuffles with identical timing. */
 const TOAST_EASE = [0.22, 1, 0.36, 1] as const
-/** Duration for stack reshuffle + card enter. */
 const STACK_DURATION = 0.4
-/** Duration for the text-reveal resize (tail grow + blur). */
 const RESIZE_DURATION = 0.3
 
-/**
- * Cards at or below roughly one line of text use a tighter corner radius — the
- * concentric 16px reads as a pill on a short card. Taller cards (multi-line, or
- * with a description / action) keep the concentric 16px.
- */
+/** Single-line cards use a tighter corner radius; taller cards keep the concentric 16px. */
 const COMPACT_CARD_HEIGHT_PX = 46
 const COMPACT_RADIUS_PX = 12
 const CONCENTRIC_RADIUS_PX = 16
 
 type ToastVariant = 'default' | 'info' | 'success' | 'warning' | 'error'
 
-/**
- * Leading icon per variant, rendered inline at the start of the message. The
- * icon shape signals intent; {@link VARIANT_ICON_COLOR} adds a matching tint so
- * an error vs. an info toast is distinguishable pre-attentively in a mixed
- * stack, not only by reading the copy.
- */
+/** Leading icon per variant; the shape signals intent, {@link VARIANT_ICON_COLOR} tints it. */
 const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>> = {
   default: Bell,
   info: CircleInfo,
@@ -95,11 +71,7 @@ const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>>
   error: CircleAlert,
 }
 
-/**
- * Per-variant icon tint, drawn from the shared intent palette (the same tokens
- * the badge / callout system uses) so the toast reads as part of the design
- * language. `default` stays neutral — it carries no intent.
- */
+/** Per-variant icon tint from the shared intent palette; `default` stays neutral. */
 const VARIANT_ICON_COLOR: Record<ToastVariant, string> = {
   default: 'text-[var(--text-icon)]',
   info: 'text-[var(--badge-blue-text)]',
@@ -136,9 +108,9 @@ type ToastFn = {
   error: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
   warning: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
   info: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
-  /** Dismisses a single toast by id. No-op if the id is unknown or the provider is unmounted. */
+  /** Dismisses a single toast by id. */
   dismiss: (id: string) => void
-  /** Dismisses every visible toast. No-op when the provider is unmounted. */
+  /** Dismisses every visible toast. */
   dismissAll: () => void
 }
 
@@ -166,19 +138,13 @@ function createToastFn(add: (input: ToastInput) => string): ToastFn {
 }
 
 /**
- * Imperative toast function. Requires `<ToastProvider>` to be mounted.
- *
- * Variants — `default` (neutral), `info`, `success`, `warning`, `error` —
- * each render a distinct tinted leading icon. A toast carrying an `action`
- * persists until dismissed unless an explicit `duration` is passed.
+ * Imperative toast. Requires a mounted `<ToastProvider>`. A toast carrying an
+ * `action` persists until dismissed unless an explicit `duration` is passed.
  *
  * @example
  * ```tsx
  * toast.error('Upload failed', { description: 'Network timed out' })
- * toast.warning('Usage nearing limit')
- * toast.info('Sync in progress')
  * toast.success('Saved', { action: { label: 'View', onClick: () => router.push('/x') } })
- * toast({ message: 'Hello', variant: 'default' })
  * ```
  */
 export const toast: ToastFn = createToastFn((input) => {
@@ -188,7 +154,7 @@ export const toast: ToastFn = createToastFn((input) => {
   return globalToast(input)
 })
 
-/** Hook to access the toast function and dismiss helper from context. */
+/** Hook to access the toast function and dismiss helpers from context. */
 export function useToast() {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used within <ToastProvider>')
@@ -200,11 +166,7 @@ interface ToastGeometry {
   y: number
   /** Depth shrink; `1` when expanded or for the front card. */
   scale: number
-  /**
-   * Rendered card height. Collapsed back cards are clamped to the front card's
-   * height so each reveals a consistent strip; expanded and front cards take
-   * their natural height.
-   */
+  /** Rendered height; collapsed back cards are clamped to the front card's height. */
   height: number
   /** Paint order — the front card sits on top. */
   zIndex: number
@@ -224,27 +186,19 @@ interface RevealTextProps {
   expanded: boolean
   /** Lines kept visible before truncation. */
   clampLines: number
-  /** Line height in px; must match the text's leading so the head/tail split lands on a line boundary. */
+  /** Line height in px; must match the text leading so the head/tail split lands on a line boundary. */
   lineHeightPx: number
-  /**
-   * Optional inline icon rendered at the start of the text. Included in both
-   * head and tail so wrapping stays identical (the tail's copy lands on line 1,
-   * shifted out of view).
-   */
+  /** Optional inline icon; included in head and tail so wrapping stays identical. */
   leadingIcon?: ReactNode
   className?: string
   reduceMotion: boolean
 }
 
 /**
- * Truncated text that reveals its hidden lines on hover. The head shows the
- * first `clampLines` lines and never moves or animates. When the card is
- * hovered AND the text actually overflows, the remaining lines mount below as
- * a "tail" and blur in — so only the previously-hidden text animates. The
- * head/tail split lands on an exact line boundary (`clampLines * lineHeightPx`)
- * and the tail renders the same text shifted up by that height, so the two
- * read as one continuous block. Text that fits within the clamp is never
- * truncated, has no tail, and the card never grows for it.
+ * Truncated text that reveals its hidden lines on hover: the head shows the
+ * first `clampLines` lines, and when hovered (and actually overflowing) the
+ * remaining lines mount below and blur in as one continuous block. Text that
+ * fits within the clamp is never truncated and the card never grows for it.
  */
 function RevealText({
   text,
@@ -270,8 +224,6 @@ function RevealText({
   }, [text])
 
   const open = expanded && truncated
-  // Fade the last ~1.5 lines (not just a sliver) so the truncation reads as
-  // "more text, faded" rather than a hard cut.
   const fadeStart = Math.max(0, clampHeight - lineHeightPx * 1.5)
   const collapsedMask = `linear-gradient(to bottom, #000 ${fadeStart}px, transparent ${clampHeight}px)`
 
@@ -282,8 +234,6 @@ function RevealText({
         className={cn('overflow-hidden', className)}
         style={{
           maxHeight: clampHeight,
-          // Soft bottom edge hints at more text while collapsed; dropped once
-          // the tail takes over so the head/tail seam stays crisp.
           maskImage: truncated && !open ? collapsedMask : undefined,
           WebkitMaskImage: truncated && !open ? collapsedMask : undefined,
         }}
@@ -324,22 +274,13 @@ function RevealText({
 
 function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: ToastItemProps) {
   const contentRef = useRef<HTMLDivElement>(null)
-  /**
-   * Hovering a single card reveals the hidden lines of any truncated text it
-   * holds (see `RevealText`); the content grows and the measured height feeds
-   * the stack layout so the card expands in place to fit. Cards with no
-   * truncated text don't react.
-   */
   const [hovered, setHovered] = useState(false)
   const Icon = VARIANT_ICON[t.variant]
 
   /**
-   * Report the card's natural height so the provider can lay out the expanded
-   * fan and the collapsed clamp against real (not estimated) heights. Measured
-   * on the inner content element — which is never height-constrained — so the
-   * clamp applied to the outer `<li>` can't feed back into the measurement.
-   * `useLayoutEffect` measures before paint to avoid an initial height jump;
-   * safe here because the portal only renders on the client.
+   * Report the natural height — measured on the unconstrained inner content so
+   * the outer `<li>` clamp can't feed back — so the provider lays the fan and
+   * collapsed clamp against real heights. `useLayoutEffect` avoids a paint jump.
    */
   useLayoutEffect(() => {
     const el = contentRef.current
@@ -355,23 +296,12 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
 
   const { y, scale, height, zIndex } = geometry
   const cornerRadius = height <= COMPACT_CARD_HEIGHT_PX ? COMPACT_RADIUS_PX : CONCENTRIC_RADIUS_PX
-  /**
-   * One fixed-duration tween drives `y`/`scale`/`opacity` so every card in the
-   * stack reshuffles with identical timing — no card lags. The expo-out ease is
-   * steep at the start, so an entering card is mostly opaque by the time it
-   * slides over the cards behind it (no doubled-text bleed) without needing a
-   * separate opacity ramp.
-   */
+  /** One fixed-duration tween so all cards reshuffle in unison; height tracks content instantly. */
   const transition = reduceMotion
     ? { duration: 0 }
     : {
         duration: STACK_DURATION,
         ease: TOAST_EASE,
-        // Height tracks the content instantly: the smooth growth comes from the
-        // tail's own height animation (RevealText), so the measured card height
-        // equals the content every frame. The action button stays pinned to the
-        // bottom and rides the morph instead of being clipped while a spring
-        // catches up.
         height: { duration: 0 },
       }
 
@@ -379,10 +309,6 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
     <motion.li
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      /**
-       * Enter from below the stack (one card-height down) rather than cross-
-       * fading in place, so the card rises into its slot already opaque.
-       */
       initial={{ opacity: 0, y: height }}
       animate={{ opacity: 1, y, scale, height }}
       exit={{
@@ -391,27 +317,12 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
         transition: reduceMotion ? { duration: 0 } : { duration: 0.15, ease: 'easeIn' },
       }}
       transition={transition}
-      /**
-       * Concentric radius: the action Chip is `rounded-lg` (8px) inset by the
-       * `p-2` (8px) padding, so a card with content is 8 + 8 = 16px — keeping
-       * the corner consistent whether or not a Chip is present. Single-line
-       * cards drop to a tighter radius (`cornerRadius`) so they don't read as
-       * pills.
-       */
       style={{ zIndex, transformOrigin: 'bottom', width: TOAST_WIDTH, borderRadius: cornerRadius }}
       className='pointer-events-auto absolute right-0 bottom-0 m-0 overflow-hidden border border-[var(--border-1)] bg-[var(--bg)] shadow-[var(--shadow-overlay)]'
     >
       <div ref={contentRef} className='flex flex-col gap-2 p-2'>
         <div className='flex items-start gap-2'>
           <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-            {/*
-             * Title vs. subtext hierarchy: the message is the title — `font-medium`
-             * in the primary text color — while the description is lighter,
-             * smaller body copy. The variant icon flows inline at the start of
-             * the title so wrapped lines run full width with no hanging indent;
-             * `inline-block` + `align-middle` + the `-2px` nudge optically center
-             * the `size-[14px]` glyph on the first line's cap height.
-             */}
             <RevealText
               text={t.message}
               expanded={hovered}
@@ -475,10 +386,8 @@ interface StackDismissProps {
   paused: boolean
   /**
    * Whether the ring auto-fires. `false` when the stack holds a persistent
-   * toast (an actionable / `duration <= 0` toast that must not vanish on its
-   * own) — the control still renders and dismisses on click, but the countdown
-   * never runs, so a "Fix in Copilot" action can't be cleared out from under
-   * the user just because a second toast arrived.
+   * toast, so an actionable toast can't be cleared from under the user; the
+   * control still dismisses on click.
    */
   autoDismiss: boolean
   reduceMotion: boolean
@@ -488,12 +397,9 @@ interface StackDismissProps {
 }
 
 /**
- * A small control that floats just outside the bottom-left of the stack once
- * multiple toasts pile up. A linear ring fills over `STACK_DISMISS_MS` (linear
- * because it represents elapsed time) and clears the whole stack when full;
- * hovering the stack or the control holds it, and clicking dismisses
- * immediately. It enters with a spring "pop" (overshoot-and-settle) so the
- * secondary control arrives with a little life without stealing focus.
+ * Dismiss-all control shown once multiple toasts pile up: a ring fills over
+ * `STACK_DISMISS_MS` and clears the whole stack, hovering holds it, and clicking
+ * dismisses immediately.
  */
 function StackDismiss({
   paused,
@@ -517,11 +423,6 @@ function StackDismiss({
     onDismissRef.current = onDismiss
   }, [onDismiss])
 
-  // Restart the countdown from zero whenever a new toast arrives (`resetKey`
-  // changes), so every fresh arrival gives the whole stack the full window
-  // again rather than inheriting the older, already-elapsed timer. When
-  // `autoDismiss` is false (a persistent toast is in the stack) the ring stays
-  // empty and never fires — only the click handler can dismiss.
   useEffect(() => {
     progress.set(0)
     if (!autoDismiss) {
@@ -562,11 +463,6 @@ function StackDismiss({
       transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 520, damping: 24 }}
       className='pointer-events-auto absolute bottom-[8px] left-[-30px] z-50 flex size-[22px] items-center justify-center rounded-full bg-[var(--bg)] text-[var(--text-icon)] shadow-[var(--shadow-overlay)] transition-colors hover-hover:text-[var(--text-body)]'
     >
-      {/*
-       * The ring rides the circle's edge (no separate inner border): the track
-       * is the card-like outline and the progress fills over it. `r=10` with a
-       * 1.5px stroke lands the outer edge ~flush with the 22px button.
-       */}
       <svg
         viewBox='0 0 22 22'
         className='-rotate-90 absolute inset-0 size-full'
@@ -590,12 +486,10 @@ function StackDismiss({
 }
 
 /**
- * Toast container that renders toasts via portal. Mount once in your root
- * layout. Toasts pile bottom-right as a collapsed stack — newest in front,
- * older cards scaled and lifted behind it — and fan open upward on hover (or
- * keyboard focus) so the whole stack is readable, mirroring the Sonner /
- * Base-UI toast interaction. Hovering also pauses every auto-dismiss timer so
- * a toast can't vanish while it's being read.
+ * Toast container, mounted once in the root layout. Toasts pile bottom-right as
+ * a collapsed stack that fans open on hover or keyboard focus, mirroring the
+ * Sonner / Base-UI interaction; hovering pauses auto-dismiss. On workflow pages
+ * the stack is inset by the panel and terminal, and it clears on navigation.
  *
  * @example
  * ```tsx
@@ -605,24 +499,14 @@ function StackDismiss({
 export function ToastProvider({ children }: { children?: ReactNode }) {
   const pathname = usePathname()
   const reduceMotion = useReducedMotion() ?? false
-  /**
-   * On workflow pages the toast portal must sit inside the workflow surface
-   * — not over the right-side panel or the bottom terminal. Mirrors the
-   * `ModalContent` workflow-aware inset using the same `--panel-width` and
-   * `--terminal-height` CSS variables maintained by the panel + terminal
-   * stores.
-   */
+  /** On workflow pages the stack insets by `--panel-width` / `--terminal-height` so it clears the panel and terminal. */
   const isWorkflowPage = pathname?.includes('/w/') ?? false
 
   const [toasts, setToasts] = useState<ToastData[]>([])
   const [heights, setHeights] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
-  /**
-   * Monotonic count of toasts ever added. Drives the stack-dismiss countdown
-   * reset: it changes only on a NEW arrival, so dismissing the front card no
-   * longer restarts the whole stack's timer (which keying on the newest id did).
-   */
+  /** Monotonic arrival count; changes only on a new toast, so dismissing the front card doesn't restart the stack countdown. */
   const [arrivalCount, setArrivalCount] = useState(0)
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
@@ -630,6 +514,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     setMounted(true)
   }, [])
 
+  /** Adds a toast; actionable toasts persist (`duration: 0`) unless an explicit `duration` is given. */
   const addToast = useCallback((input: ToastInput): string => {
     const id = generateId()
     const data: ToastData = {
@@ -638,12 +523,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       description: input.description,
       variant: input.variant ?? 'default',
       action: input.action,
-      /**
-       * Actionable toasts persist until dismissed (`duration: 0`) so the
-       * action — e.g. "Fix in Copilot" — can't disappear before the user
-       * reacts. An explicit `duration` always wins. Everything else auto-
-       * dismisses after the default window.
-       */
       duration: input.duration ?? (input.action ? 0 : AUTO_DISMISS_MS),
     }
     setToasts((prev) => [...prev, data].slice(-STACK_LIMIT))
@@ -677,13 +556,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     setHeights((prev) => (prev[id] === height ? prev : { ...prev, [id]: height }))
   }, [])
 
-  /**
-   * Drop measured heights for toasts that are no longer in the stack. Single
-   * dismissal prunes its own entry, but stack-limit eviction (`addToast`'s
-   * `slice(-STACK_LIMIT)`) drops the oldest toast without touching `heights` —
-   * so reconcile here, mirroring the timer effect's stale-entry cleanup, to
-   * keep the map from growing across a long session.
-   */
+  /** Drop measured heights for toasts evicted by `slice(-STACK_LIMIT)` (single dismissal prunes its own entry). */
   useEffect(() => {
     setHeights((prev) => {
       const live = new Set(toasts.map((t) => t.id))
@@ -695,12 +568,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     })
   }, [toasts])
 
-  /**
-   * Per-toast auto-dismiss timers, used only for a lone toast. Hovering
-   * (`expanded`) holds them, and once the stack reaches the dismiss-all
-   * threshold the single ring countdown (`StackDismiss`) takes over for the
-   * whole stack, so per-toast timers stand down.
-   */
+  /** Per-toast auto-dismiss timers for a lone toast; the stack countdown takes over at 2+ toasts, and hover holds them. */
   useEffect(() => {
     const timers = timersRef.current
     if (toasts.length === 0 || expanded || toasts.length >= STACK_DISMISS_THRESHOLD) {
@@ -735,22 +603,12 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     }
   }, [])
 
-  /**
-   * Toasts are scoped to the route that raised them. Navigating clears the
-   * stack so a notification never trails the user across the platform — it
-   * previously persisted and visibly jumped when the workflow-aware portal
-   * inset (`--panel-width` / `--terminal-height`) changed between pages.
-   * Runs once on mount against an empty stack, which is a no-op.
-   */
+  /** Clear the stack on navigation so a toast never trails the user across the platform. */
   useEffect(() => {
     dismissAllToasts()
   }, [pathname, dismissAllToasts])
 
-  /**
-   * Stable across mounts because `addToast` is memoized with no deps. Capturing
-   * once at mount lets the module-level `toast` re-export bind to the live
-   * provider without re-allocating wrappers on every render.
-   */
+  /** Held in a ref (seeded once from the stable `addToast`) so the module-level `toast` binds to the live provider. */
   const toastFn = useRef<ToastFn>(createToastFn(addToast))
 
   useEffect(() => {
@@ -759,8 +617,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     globalDismiss = dismissToast
     globalDismissAll = dismissAllToasts
     return () => {
-      // Only relinquish the bindings if they're still ours — guards against a
-      // second provider (or an out-of-order unmount) nulling a live binding.
       if (globalToast === fn) globalToast = null
       if (globalDismiss === dismissToast) globalDismiss = null
       if (globalDismissAll === dismissAllToasts) globalDismissAll = null
@@ -772,15 +628,9 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     [dismissToast, dismissAllToasts]
   )
 
-  /**
-   * A persistent toast (`duration <= 0` — i.e. an actionable toast that must
-   * wait for the user) pins the stack: the dismiss-all ring still renders but
-   * its auto-countdown is suppressed so the action can't be cleared out from
-   * under the user when a second toast arrives.
-   */
+  /** A persistent toast pins the stack: the dismiss-all ring renders but its auto-countdown is suppressed. */
   const hasPersistentToast = toasts.some((t) => t.duration <= 0)
 
-  /** Front-first order: `ordered[0]` is the newest card. */
   const ordered = [...toasts].reverse()
   const frontHeight = heights[ordered[0]?.id ?? ''] ?? ESTIMATED_TOAST_HEIGHT
   let cumulative = 0
@@ -807,10 +657,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       {children}
       {mounted
         ? createPortal(
-            // AnimatePresence keeps the stack mounted through its exit, so
-            // clearing all toasts at once (dismiss-all / route change) fades the
-            // frozen stack out instead of cutting it abruptly. Per-card exits
-            // still play for single dismissals (the inner AnimatePresence).
             <AnimatePresence>
               {toasts.length > 0 ? (
                 <motion.ol
@@ -841,12 +687,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                       />
                     ) : null}
                   </AnimatePresence>
-                  {/*
-                   * Expand-on-hover is scoped to the cards only. The dismiss control
-                   * sits outside this region, so hovering (or resting near) it pauses
-                   * the countdown without fanning the stack open — the stack stays
-                   * collapsed until the cards themselves are hovered.
-                   */}
                   <div
                     onMouseEnter={() => setExpanded(true)}
                     onMouseLeave={() => setExpanded(false)}

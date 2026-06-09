@@ -273,8 +273,6 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Keep the failure inside the wizard rather than firing a toast that
-      // escapes to the screen corner.
       setCopyFailed(true)
     }
   }, [canCopy, manifestJson])

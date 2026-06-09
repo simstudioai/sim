@@ -273,7 +273,6 @@ const notifyBlockError = ({ error, blockName, logContext }: NotifyBlockErrorPara
     if (lastShownAt !== undefined && now - lastShownAt < NOTIFY_DEDUP_WINDOW_MS) return
     recentErrorNotifications.set(dedupKey, now)
 
-    // Block name is the title (what failed); the error is the subtext (why).
     toast.error(displayName, {
       description: errorMessage,
       action: {
