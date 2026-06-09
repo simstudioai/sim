@@ -6,7 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Sim automatically calculates costs for all workflow runs, providing transparent pricing based on AI model usage and run charges. Understanding these costs helps you optimize workflows and manage your budget effectively.
+Sim automatically calculates the cost of every workflow run from AI model usage plus a base run charge.
 
 ## Credits
 
@@ -27,7 +27,7 @@ totalCredits = baseRunCharge + modelCost × 200
 ```
 
 <Callout type="info">
-  AI model prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost. Workflows without AI blocks only incur the base run charge.
+  AI model prices are per million tokens. Workflows without AI blocks incur only the base run charge.
 </Callout>
 
 ## Model Breakdown in Logs
