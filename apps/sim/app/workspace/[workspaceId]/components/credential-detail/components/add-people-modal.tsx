@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -154,15 +153,14 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
           disabled={isAdding}
         />
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip
-          variant='primary'
-          onClick={handleAddPeople}
-          disabled={emailsToAdd.length === 0 || isAdding}
-        >
-          {isAdding ? 'Adding...' : 'Add'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={handleClose}
+        primaryAction={{
+          label: isAdding ? 'Adding...' : 'Add',
+          onClick: handleAddPeople,
+          disabled: emailsToAdd.length === 0 || isAdding,
+        }}
+      />
     </ChipModal>
   )
 }

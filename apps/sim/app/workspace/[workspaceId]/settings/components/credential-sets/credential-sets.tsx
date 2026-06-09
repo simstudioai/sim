@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -781,78 +782,61 @@ export function CredentialSets() {
           </ChipModalField>
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleCloseCreateModal}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleCreateCredentialSet}
-            disabled={!newSetName.trim() || createCredentialSet.isPending}
-          >
-            {createCredentialSet.isPending ? 'Creating...' : 'Create'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={handleCloseCreateModal}
+          primaryAction={{
+            label: createCredentialSet.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreateCredentialSet,
+            disabled: !newSetName.trim() || createCredentialSet.isPending,
+          }}
+        />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!leavingMembership}
-        onOpenChange={() => setLeavingMembership(null)}
+        onOpenChange={(open) => {
+          if (!open) setLeavingMembership(null)
+        }}
         srTitle='Leave Polling Group'
-      >
-        <ChipModalHeader showDivider={false}>Leave Polling Group</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Leave Polling Group'
+        description={
+          <>
             Are you sure you want to leave{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {leavingMembership?.name}
             </span>
             ? Your email account will no longer be polled in workflows using this group.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setLeavingMembership(null)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmLeave}
-            disabled={leaveCredentialSet.isPending}
-          >
-            {leaveCredentialSet.isPending ? 'Leaving...' : 'Leave'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Leave',
+          onClick: confirmLeave,
+          pending: leaveCredentialSet.isPending,
+          pendingLabel: 'Leaving...',
+        }}
+      />
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!deletingSet}
-        onOpenChange={() => setDeletingSet(null)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingSet(null)
+        }}
         srTitle='Delete Polling Group'
-      >
-        <ChipModalHeader showDivider={false}>Delete Polling Group</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Polling Group'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setDeletingSet(null)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmDelete}
-            disabled={deleteCredentialSet.isPending}
-          >
-            {deleteCredentialSet.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: confirmDelete,
+          pending: deleteCredentialSet.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

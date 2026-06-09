@@ -90,7 +90,6 @@ import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import {
-  useCreateMothershipChat,
   useDeleteMothershipChat,
   useDeleteMothershipChats,
   useMarkMothershipChatRead,
@@ -109,7 +108,6 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -589,7 +587,6 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
-  const createChatMutation = useCreateMothershipChat(workspaceId)
   const deleteChatMutation = useDeleteMothershipChat(workspaceId)
   const deleteChatsMutation = useDeleteMothershipChats(workspaceId)
   const markChatReadMutation = useMarkMothershipChatRead(workspaceId)
@@ -608,7 +605,6 @@ export const Sidebar = memo(function Sidebar() {
     preventDismiss: preventChatDismiss,
   } = useContextMenu()
 
-  const isCreatingChatRef = useRef(false)
   const contextMenuSelectionRef = useRef<{ chatIds: string[]; names: string[] }>({
     chatIds: [],
     names: [],
@@ -1134,25 +1130,6 @@ export const Sidebar = memo(function Sidebar() {
     onSelect: handleCreateWorkflow,
   }
 
-  const handleNewChat = useCallback(async () => {
-    if (!workspaceId || isCreatingChatRef.current) return
-    isCreatingChatRef.current = true
-    try {
-      const { id } = await createChatMutation.mutateAsync()
-      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
-      navigateToPage(`/workspace/${workspaceId}/chat/${id}`)
-    } catch {
-      navigateToPage(`/workspace/${workspaceId}/home`)
-    } finally {
-      isCreatingChatRef.current = false
-    }
-  }, [workspaceId, navigateToPage])
-
-  const chatsPrimaryAction = {
-    label: 'New chat',
-    onSelect: handleNewChat,
-  }
-
   const handleSeeMoreChats = useCallback(() => setVisibleChatCount((prev) => prev + 5), [])
   const handleSeeLessChats = useCallback(() => setVisibleChatCount(5), [])
 
@@ -1239,12 +1216,6 @@ export const Sidebar = memo(function Sidebar() {
         handler: () => {
           if (!canEdit || isCreatingWorkflow) return
           handleCreateWorkflow()
-        },
-      },
-      {
-        id: 'add-task',
-        handler: () => {
-          handleNewChat()
         },
       },
     ])
@@ -1341,27 +1312,6 @@ export const Sidebar = memo(function Sidebar() {
                     <div className='chats-section flex flex-shrink-0 flex-col'>
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                         <div className='text-[var(--text-muted)] text-small'>Chats</div>
-                        {!isCollapsed && (
-                          <div className='flex items-center justify-center gap-2'>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='quiet'
-                                  className='h-[18px] w-[18px] rounded-sm p-0'
-                                  onClick={handleNewChat}
-                                  disabled={createChatMutation.isPending}
-                                >
-                                  <Plus className='h-[16px] w-[16px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                <Tooltip.Shortcut keys={isMac ? '⌘⇧K' : 'Ctrl+Shift+K'}>
-                                  New chat
-                                </Tooltip.Shortcut>
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          </div>
-                        )}
                       </div>
                       {isCollapsed ? (
                         <CollapsedSidebarMenu
@@ -1369,7 +1319,6 @@ export const Sidebar = memo(function Sidebar() {
                           hover={chatsHover}
                           ariaLabel='Chats'
                           className='mt-2'
-                          primaryAction={chatsPrimaryAction}
                         >
                           {chatsLoading ? (
                             <DropdownMenuItem disabled>

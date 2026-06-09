@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -158,6 +159,62 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
       logger.error('Failed to add workflow:', err)
     }
   }
+
+  const handleSaveToolEdit = async () => {
+    if (!toolToView) return
+    try {
+      const currentSchema = toolToView.parameterSchema as Record<string, unknown>
+      const currentProperties = (currentSchema?.properties || {}) as Record<
+        string,
+        { type?: string; description?: string }
+      >
+      const updatedProperties: Record<string, { type?: string; description?: string }> = {}
+
+      for (const [name, prop] of Object.entries(currentProperties)) {
+        updatedProperties[name] = {
+          ...prop,
+          description: editingParameterDescriptions[name]?.trim() || undefined,
+        }
+      }
+
+      const updatedSchema = {
+        ...currentSchema,
+        properties: updatedProperties,
+      }
+
+      await updateToolMutation.mutateAsync({
+        workspaceId,
+        serverId,
+        toolId: toolToView.id,
+        toolDescription: editingDescription.trim() || undefined,
+        parameterSchema: updatedSchema,
+      })
+      setToolToView(null)
+      setEditingDescription('')
+      setEditingParameterDescriptions({})
+    } catch (err) {
+      logger.error('Failed to update tool:', err)
+    }
+  }
+
+  const isSaveToolDisabled = (() => {
+    if (updateToolMutation.isPending) return true
+    if (!toolToView) return true
+
+    const descriptionChanged = editingDescription.trim() !== (toolToView.toolDescription || '')
+
+    const schema = toolToView.parameterSchema as
+      | { properties?: Record<string, { type?: string; description?: string }> }
+      | undefined
+    const properties = schema?.properties || {}
+    const paramDescriptionsChanged = Object.keys(properties).some((name) => {
+      const original = properties[name]?.description || ''
+      const edited = editingParameterDescriptions[name]?.trim() || ''
+      return original !== edited
+    })
+
+    return !descriptionChanged && !paramDescriptionsChanged
+  })()
 
   const tools = data?.tools ?? []
 
@@ -620,33 +677,25 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         </div>
       </div>
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!toolToDelete}
         onOpenChange={(open) => !open && setToolToDelete(null)}
         srTitle='Remove Workflow'
-      >
-        <ChipModalHeader showDivider={false}>Remove Workflow</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Remove Workflow'
+        description={
+          <>
             Are you sure you want to remove{' '}
             <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.toolName}</span>{' '}
             from this server? The workflow will remain deployed and can be added back later.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setToolToDelete(null)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDeleteTool}
-            disabled={deleteToolMutation.isPending}
-          >
-            {deleteToolMutation.isPending ? 'Removing...' : 'Remove'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Remove',
+          onClick: handleDeleteTool,
+          pending: deleteToolMutation.isPending,
+          pendingLabel: 'Removing...',
+        }}
+      />
 
       <ChipModal
         open={!!toolToView}
@@ -722,73 +771,14 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             })()}
           </ChipModalField>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setToolToView(null)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={async () => {
-              if (!toolToView) return
-              try {
-                const currentSchema = toolToView.parameterSchema as Record<string, unknown>
-                const currentProperties = (currentSchema?.properties || {}) as Record<
-                  string,
-                  { type?: string; description?: string }
-                >
-                const updatedProperties: Record<string, { type?: string; description?: string }> =
-                  {}
-
-                for (const [name, prop] of Object.entries(currentProperties)) {
-                  updatedProperties[name] = {
-                    ...prop,
-                    description: editingParameterDescriptions[name]?.trim() || undefined,
-                  }
-                }
-
-                const updatedSchema = {
-                  ...currentSchema,
-                  properties: updatedProperties,
-                }
-
-                await updateToolMutation.mutateAsync({
-                  workspaceId,
-                  serverId,
-                  toolId: toolToView.id,
-                  toolDescription: editingDescription.trim() || undefined,
-                  parameterSchema: updatedSchema,
-                })
-                setToolToView(null)
-                setEditingDescription('')
-                setEditingParameterDescriptions({})
-              } catch (err) {
-                logger.error('Failed to update tool:', err)
-              }
-            }}
-            disabled={(() => {
-              if (updateToolMutation.isPending) return true
-              if (!toolToView) return true
-
-              const descriptionChanged =
-                editingDescription.trim() !== (toolToView.toolDescription || '')
-
-              const schema = toolToView.parameterSchema as
-                | { properties?: Record<string, { type?: string; description?: string }> }
-                | undefined
-              const properties = schema?.properties || {}
-              const paramDescriptionsChanged = Object.keys(properties).some((name) => {
-                const original = properties[name]?.description || ''
-                const edited = editingParameterDescriptions[name]?.trim() || ''
-                return original !== edited
-              })
-
-              return !descriptionChanged && !paramDescriptionsChanged
-            })()}
-          >
-            {updateToolMutation.isPending ? 'Saving...' : 'Save'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setToolToView(null)}
+          primaryAction={{
+            label: updateToolMutation.isPending ? 'Saving...' : 'Save',
+            onClick: handleSaveToolEdit,
+            disabled: isSaveToolDisabled,
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -834,26 +824,17 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               : null}
           </ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setShowAddWorkflow(false)
-              setSelectedWorkflowId(null)
-            }}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleAddWorkflow}
-            disabled={!selectedWorkflowId || addToolMutation.isPending}
-          >
-            {addToolMutation.isPending ? 'Adding...' : 'Add Workflow'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => {
+            setShowAddWorkflow(false)
+            setSelectedWorkflowId(null)
+          }}
+          primaryAction={{
+            label: addToolMutation.isPending ? 'Adding...' : 'Add Workflow',
+            onClick: handleAddWorkflow,
+            disabled: !selectedWorkflowId || addToolMutation.isPending,
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -900,25 +881,19 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             </div>
           </ChipModalField>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowEditServer(false)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleSaveServerEdit}
-            disabled={
+        <ChipModalFooter
+          onCancel={() => setShowEditServer(false)}
+          primaryAction={{
+            label: updateServerMutation.isPending ? 'Saving...' : 'Save',
+            onClick: handleSaveServerEdit,
+            disabled:
               !editServerName.trim() ||
               updateServerMutation.isPending ||
               (editServerName === server.name &&
                 editServerDescription === (server.description || '') &&
-                editServerIsPublic === server.isPublic)
-            }
-          >
-            {updateServerMutation.isPending ? 'Saving...' : 'Save'}
-          </Chip>
-        </ChipModalFooter>
+                editServerIsPublic === server.isPublic),
+          }}
+        />
       </ChipModal>
 
       <CreateApiKeyModal
@@ -1090,28 +1065,20 @@ export function WorkflowMcpServers() {
         isLoadingWorkflows={isLoadingWorkflows}
       />
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!serverToDelete}
         onOpenChange={(open) => !open && setServerToDelete(null)}
         srTitle='Delete MCP Server'
-      >
-        <ChipModalHeader showDivider={false}>Delete MCP Server</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete MCP Server'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>?
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setServerToDelete(null)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDeleteServer}>
-            Delete
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{ label: 'Delete', onClick: handleDeleteServer }}
+      />
     </>
   )
 }
