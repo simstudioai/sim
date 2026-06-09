@@ -46,7 +46,9 @@ export { HelpCircle } from './help-circle'
 export { HexSimple } from './hex-simple'
 export { Home } from './home'
 export { ImageUp } from './image-up'
-export { Info } from './info'
+// `Info` (lucide-style icon) is intentionally not re-exported here: the emcn barrel
+// already exports an `Info` tooltip component, and re-exporting both collides. The
+// toast imports this icon directly from './info', so the barrel export is unneeded.
 export { Integration } from './integration'
 export { Key } from './key'
 export { KeySquare } from './key-square'
@@ -60,6 +62,7 @@ export { LogIn } from './log-in'
 export { LogOut } from './log-out'
 export { Mail } from './mail'
 export { ManageWorkspace } from './manage-workspace'
+export { MessageCircle } from './message-circle'
 export { Mic } from './mic'
 export { MoreHorizontal } from './more-horizontal'
 export { NoWrap } from './no-wrap'
