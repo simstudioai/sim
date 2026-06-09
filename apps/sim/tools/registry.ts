@@ -4011,7 +4011,6 @@ export const tools: Record<string, ToolConfig> = {
   notion_create_database: notionCreateDatabaseTool,
   notion_add_database_row: notionAddDatabaseRowTool,
   notion_update_page: notionUpdatePageTool,
-  // Notion V2 tools
   notion_read_v2: notionReadV2Tool,
   notion_read_database_v2: notionReadDatabaseV2Tool,
   notion_write_v2: notionWriteV2Tool,
@@ -4390,7 +4389,6 @@ export const tools: Record<string, ToolConfig> = {
   github_update_project_v2: githubUpdateProjectV2Tool,
   github_delete_project: githubDeleteProjectTool,
   github_delete_project_v2: githubDeleteProjectV2Tool,
-  // New GitHub tools - Search
   github_search_code: githubSearchCodeTool,
   github_search_code_v2: githubSearchCodeV2Tool,
   github_search_commits: githubSearchCommitsTool,
@@ -4401,14 +4399,12 @@ export const tools: Record<string, ToolConfig> = {
   github_search_repos_v2: githubSearchReposV2Tool,
   github_search_users: githubSearchUsersTool,
   github_search_users_v2: githubSearchUsersV2Tool,
-  // New GitHub tools - Commits
   github_list_commits: githubListCommitsTool,
   github_list_commits_v2: githubListCommitsV2Tool,
   github_get_commit: githubGetCommitTool,
   github_get_commit_v2: githubGetCommitV2Tool,
   github_compare_commits: githubCompareCommitsTool,
   github_compare_commits_v2: githubCompareCommitsV2Tool,
-  // New GitHub tools - Gists
   github_create_gist: githubCreateGistTool,
   github_create_gist_v2: githubCreateGistV2Tool,
   github_get_gist: githubGetGistTool,
@@ -4425,12 +4421,10 @@ export const tools: Record<string, ToolConfig> = {
   github_star_gist_v2: githubStarGistV2Tool,
   github_unstar_gist: githubUnstarGistTool,
   github_unstar_gist_v2: githubUnstarGistV2Tool,
-  // New GitHub tools - Forks
   github_fork_repo: githubForkRepoTool,
   github_fork_repo_v2: githubForkRepoV2Tool,
   github_list_forks: githubListForksTool,
   github_list_forks_v2: githubListForksV2Tool,
-  // New GitHub tools - Milestones
   github_create_milestone: githubCreateMilestoneTool,
   github_create_milestone_v2: githubCreateMilestoneV2Tool,
   github_get_milestone: githubGetMilestoneTool,
@@ -4441,7 +4435,6 @@ export const tools: Record<string, ToolConfig> = {
   github_update_milestone_v2: githubUpdateMilestoneV2Tool,
   github_delete_milestone: githubDeleteMilestoneTool,
   github_delete_milestone_v2: githubDeleteMilestoneV2Tool,
-  // New GitHub tools - Reactions
   github_create_issue_reaction: githubCreateIssueReactionTool,
   github_create_issue_reaction_v2: githubCreateIssueReactionV2Tool,
   github_delete_issue_reaction: githubDeleteIssueReactionTool,
@@ -4450,7 +4443,6 @@ export const tools: Record<string, ToolConfig> = {
   github_create_comment_reaction_v2: githubCreateCommentReactionV2Tool,
   github_delete_comment_reaction: githubDeleteCommentReactionTool,
   github_delete_comment_reaction_v2: githubDeleteCommentReactionV2Tool,
-  // New GitHub tools - Stars
   github_star_repo: githubStarRepoTool,
   github_star_repo_v2: githubStarRepoV2Tool,
   github_unstar_repo: githubUnstarRepoTool,
@@ -5048,7 +5040,6 @@ export const tools: Record<string, ToolConfig> = {
   trello_update_card: trelloUpdateCardTool,
   trello_get_actions: trelloGetActionsTool,
   trello_add_comment: trelloAddCommentTool,
-  // Vercel - Deployments
   vercel_list_deployments: vercelListDeploymentsTool,
   vercel_get_deployment: vercelGetDeploymentTool,
   vercel_create_deployment: vercelCreateDeploymentTool,
@@ -5057,7 +5048,6 @@ export const tools: Record<string, ToolConfig> = {
   vercel_get_deployment_events: vercelGetDeploymentEventsTool,
   vercel_list_deployment_files: vercelListDeploymentFilesTool,
   vercel_promote_deployment: vercelPromoteDeploymentTool,
-  // Vercel - Projects
   vercel_list_projects: vercelListProjectsTool,
   vercel_get_project: vercelGetProjectTool,
   vercel_create_project: vercelCreateProjectTool,
@@ -5070,45 +5060,37 @@ export const tools: Record<string, ToolConfig> = {
   vercel_remove_project_domain: vercelRemoveProjectDomainTool,
   vercel_update_project_domain: vercelUpdateProjectDomainTool,
   vercel_verify_project_domain: vercelVerifyProjectDomainTool,
-  // Vercel - Environment Variables
   vercel_get_env_vars: vercelGetEnvVarsTool,
   vercel_create_env_var: vercelCreateEnvVarTool,
   vercel_update_env_var: vercelUpdateEnvVarTool,
   vercel_delete_env_var: vercelDeleteEnvVarTool,
-  // Vercel - Domains
   vercel_list_domains: vercelListDomainsTool,
   vercel_get_domain: vercelGetDomainTool,
   vercel_add_domain: vercelAddDomainTool,
   vercel_delete_domain: vercelDeleteDomainTool,
   vercel_get_domain_config: vercelGetDomainConfigTool,
-  // Vercel - DNS
   vercel_list_dns_records: vercelListDnsRecordsTool,
   vercel_create_dns_record: vercelCreateDnsRecordTool,
   vercel_update_dns_record: vercelUpdateDnsRecordTool,
   vercel_delete_dns_record: vercelDeleteDnsRecordTool,
-  // Vercel - Aliases
   vercel_list_aliases: vercelListAliasesTool,
   vercel_get_alias: vercelGetAliasTool,
   vercel_create_alias: vercelCreateAliasTool,
   vercel_delete_alias: vercelDeleteAliasTool,
-  // Vercel - Edge Config
   vercel_list_edge_configs: vercelListEdgeConfigsTool,
   vercel_get_edge_config: vercelGetEdgeConfigTool,
   vercel_create_edge_config: vercelCreateEdgeConfigTool,
   vercel_delete_edge_config: vercelDeleteEdgeConfigTool,
   vercel_get_edge_config_items: vercelGetEdgeConfigItemsTool,
   vercel_update_edge_config_items: vercelUpdateEdgeConfigItemsTool,
-  // Vercel - Teams & User
   vercel_list_teams: vercelListTeamsTool,
   vercel_get_team: vercelGetTeamTool,
   vercel_list_team_members: vercelListTeamMembersTool,
   vercel_get_user: vercelGetUserTool,
-  // Webhooks
   vercel_list_webhooks: vercelListWebhooksTool,
   vercel_get_webhook: vercelGetWebhookTool,
   vercel_create_webhook: vercelCreateWebhookTool,
   vercel_delete_webhook: vercelDeleteWebhookTool,
-  // Checks
   vercel_create_check: vercelCreateCheckTool,
   vercel_get_check: vercelGetCheckTool,
   vercel_list_checks: vercelListChecksTool,
@@ -6325,7 +6307,6 @@ export const tools: Record<string, ToolConfig> = {
   zoominfo_enrich_contacts: zoominfoEnrichContactsTool,
   zoominfo_search_intent: zoominfoSearchIntentTool,
   zoominfo_search_news: zoominfoSearchNewsTool,
-  // Spotify
   spotify_search: spotifySearchTool,
   spotify_get_track: spotifyGetTrackTool,
   spotify_get_tracks: spotifyGetTracksTool,
