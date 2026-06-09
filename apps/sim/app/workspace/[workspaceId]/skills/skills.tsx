@@ -5,15 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Chip,
-  ChipInput,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  Search,
-} from '@/components/emcn'
+import { Chip, ChipConfirmModal, ChipInput, Search } from '@/components/emcn'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
@@ -200,24 +192,23 @@ export function Skills() {
         initialValues={editingSkill ?? undefined}
       />
 
-      <ChipModal open={showDeleteDialog} onOpenChange={setShowDeleteDialog} srTitle='Delete Skill'>
-        <ChipModalHeader showDivider={false}>Delete Skill</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+      <ChipConfirmModal
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        srTitle='Delete Skill'
+        title='Delete Skill'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{skillToDelete?.name}</span>?{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowDeleteDialog(false)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDeleteSkill}>
-            Delete
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDeleteSkill,
+        }}
+      />
     </div>
   )
 }

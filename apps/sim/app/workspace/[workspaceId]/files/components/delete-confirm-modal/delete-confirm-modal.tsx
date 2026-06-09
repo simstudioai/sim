@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { Chip, ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
+import { ChipConfirmModal } from '@/components/emcn'
 
 interface DeleteConfirmModalProps {
   open: boolean
@@ -34,12 +34,13 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
       : 'You can restore it from Recently Deleted in Settings.'
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
-      <ChipModalHeader onClose={() => onOpenChange(false)} showDivider={false}>
-        {title}
-      </ChipModalHeader>
-      <ChipModalBody>
-        <p className='px-2 text-[var(--text-secondary)] text-sm'>
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle={title}
+      title={title}
+      description={
+        <>
           Are you sure you want to delete{' '}
           {fileName ? (
             <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>
@@ -47,16 +48,14 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
             `${totalCount} item${totalCount === 1 ? '' : 's'}`
           )}
           ? {consequence}
-        </p>
-      </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isPending}>
-          Cancel
-        </Chip>
-        <Chip variant='destructive' flush onClick={onDelete} disabled={isPending}>
-          {isPending ? 'Deleting...' : 'Delete'}
-        </Chip>
-      </ChipModalFooter>
-    </ChipModal>
+        </>
+      }
+      confirm={{
+        label: 'Delete',
+        onClick: onDelete,
+        pending: isPending,
+        pendingLabel: 'Deleting...',
+      }}
+    />
   )
 })

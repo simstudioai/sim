@@ -7,7 +7,6 @@ import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -560,24 +559,15 @@ export default function LoginPage({
             {resetStatus.type === 'error' ? resetStatus.message : null}
           </ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setForgotPasswordOpen(false)}
-            disabled={isSubmittingReset}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleForgotPassword}
-            disabled={!forgotPasswordEmail || isSubmittingReset}
-          >
-            {isSubmittingReset ? 'Sending…' : 'Send Reset Link'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setForgotPasswordOpen(false)}
+          cancelDisabled={isSubmittingReset}
+          primaryAction={{
+            label: isSubmittingReset ? 'Sending…' : 'Send Reset Link',
+            onClick: handleForgotPassword,
+            disabled: !forgotPasswordEmail || isSubmittingReset,
+          }}
+        />
       </ChipModal>
     </>
   )
