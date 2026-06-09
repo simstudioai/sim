@@ -177,6 +177,26 @@ function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tabl
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
 }
 
+/**
+ * Invalidate only the row-count surfaces — the table detail and the tables
+ * list, both of which carry the unfiltered `rowCount`. Deliberately leaves
+ * `rowsRoot` (the rows infinite query) untouched so an offset-paginated refetch
+ * can't resolve late and clobber rows already spliced in optimistically. Use
+ * for inserts, where `reconcileCreatedRow` is the source of truth for the rows
+ * cache and its `totalCount`.
+ *
+ * `rowsRoot` is nested under `detail` (`[...detail(tableId), 'rows']`), so the
+ * detail invalidation MUST be `exact` — a prefix match would cascade into the
+ * rows queries and trigger the very refetch this helper exists to avoid.
+ */
+function invalidateRowCountSurfaces(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+  queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+}
+
 function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -591,7 +611,10 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
-      invalidateRowCount(queryClient, tableId)
+      // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
+      // cache + its `totalCount`; only refresh the count surfaces here so a late
+      // offset refetch can't clobber freshly-inserted rows (insert-flicker).
+      invalidateRowCountSurfaces(queryClient, tableId)
     },
   })
 }
@@ -654,9 +677,19 @@ function reconcileCreatedRow(
       // path so un-keyed rows aren't yanked to the front by an empty-string sort.
       const byKey =
         row.orderKey != null && old.pages.every((p) => p.rows.every((r) => r.orderKey != null))
+      // Compare order keys bytewise to match the server's `COLLATE "C"` ordering
+      // and the `>=` checks in `fitsAfter` — `localeCompare` is locale-aware and
+      // would place the new row in a different slot than the server (e.g. an
+      // uppercase-prefixed key), leaving it visibly misordered until next reload.
       const sortRows = (rows: TableRow[]) =>
         byKey
-          ? [...rows].sort((a, b) => (a.orderKey as string).localeCompare(b.orderKey as string))
+          ? [...rows].sort((a, b) =>
+              (a.orderKey as string) < (b.orderKey as string)
+                ? -1
+                : (a.orderKey as string) > (b.orderKey as string)
+                  ? 1
+                  : 0
+            )
           : [...rows].sort((a, b) => a.position - b.position)
       const fitsAfter = (last: TableRow | undefined) =>
         last === undefined ||
