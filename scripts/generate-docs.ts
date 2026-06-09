@@ -39,6 +39,7 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'index',
   'google-service-account',
   'atlassian-service-account',
+  'hubspot-setup',
 ])
 
 /**
