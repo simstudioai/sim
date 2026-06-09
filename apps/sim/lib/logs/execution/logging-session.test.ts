@@ -627,6 +627,7 @@ describe('completeWithError cancelled-status guard', () => {
 describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'running', trigger: 'api' }])
     dbMocks.updateWhere.mockResolvedValue(undefined)
   })
 
@@ -674,7 +675,7 @@ describe('LoggingSession workflow metrics', () => {
       loops: {},
       parallels: {},
     })
-    dbMocks.selectLimit.mockResolvedValue([{ status: 'running' }])
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'running', trigger: 'api' }])
     dbMocks.execute.mockResolvedValue(undefined)
   })
 
@@ -745,6 +746,8 @@ describe('LoggingSession workflow metrics', () => {
   it('does not double-emit when markAsFailed runs after a completed session', async () => {
     const session = new LoggingSession('wf-1', 'exec-1', 'api', 'req-1')
     await session.complete({ totalDurationMs: 500 })
+
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'completed', trigger: 'api' }])
     await session.markAsFailed('timeout')
 
     expect(recordExecutionCompletedMock).toHaveBeenCalledTimes(1)
@@ -767,6 +770,22 @@ describe('LoggingSession workflow metrics', () => {
     expect(recordExecutionCompletedMock).toHaveBeenCalledWith(
       expect.objectContaining({ trigger: 'api', status: 'failed' })
     )
+  })
+
+  it('static markExecutionAsFailed emits failed only for non-terminal rows', async () => {
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'running', trigger: 'webhook' }])
+    await LoggingSession.markExecutionAsFailed('exec-1', 'crash', undefined, 'wf-1')
+
+    expect(recordExecutionCompletedMock).toHaveBeenCalledTimes(1)
+    expect(recordExecutionCompletedMock).toHaveBeenCalledWith({
+      trigger: 'webhook',
+      status: 'failed',
+    })
+
+    recordExecutionCompletedMock.mockClear()
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'failed', trigger: 'webhook' }])
+    await LoggingSession.markExecutionAsFailed('exec-1', 'crash again', undefined, 'wf-1')
+    expect(recordExecutionCompletedMock).not.toHaveBeenCalled()
   })
 
   it('skips the completion metric when the run was already cancelled elsewhere', async () => {

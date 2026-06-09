@@ -519,7 +519,10 @@ export class LoggingSession {
       })
 
       this.completed = true
-      this.emitExecutionCompletedMetric('failed', Math.max(1, durationMs))
+      this.emitExecutionCompletedMetric(
+        'failed',
+        typeof totalDurationMs === 'number' ? Math.max(1, totalDurationMs) : undefined
+      )
 
       try {
         const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
@@ -613,7 +616,10 @@ export class LoggingSession {
       })
 
       this.completed = true
-      this.emitExecutionCompletedMetric('cancelled', Math.max(1, durationMs))
+      this.emitExecutionCompletedMetric(
+        'cancelled',
+        typeof totalDurationMs === 'number' ? Math.max(1, totalDurationMs) : undefined
+      )
 
       try {
         const { PlatformEvents, createOTelSpansForWorkflowExecution } = await import(
@@ -992,7 +998,10 @@ export class LoggingSession {
       this.requestId,
       this.workflowId
     )
-    this.emitExecutionCompletedMetric('failed')
+    // The static helper emits the failure metric when the row transitions from
+    // a non-terminal status; mark this session as emitted either way so a later
+    // in-process completion attempt can't add a second point.
+    this.completionMetricEmitted = true
   }
 
   static async markExecutionAsFailed(
@@ -1003,6 +1012,21 @@ export class LoggingSession {
   ): Promise<void> {
     try {
       const message = errorMessage || 'Run failed'
+      const current = await db
+        .select({
+          status: workflowExecutionLogs.status,
+          trigger: workflowExecutionLogs.trigger,
+        })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
+        .limit(1)
+        .then((rows) => rows[0])
+
       await db
         .update(workflowExecutionLogs)
         .set({
@@ -1028,6 +1052,12 @@ export class LoggingSession {
             eq(workflowExecutionLogs.workflowId, workflowId)
           )
         )
+
+      // Only a transition from a non-terminal status is a new terminal outcome;
+      // rows already completed/failed/cancelled emitted their point elsewhere.
+      if (current && (current.status === 'running' || current.status === 'pending')) {
+        workflowMetrics.recordExecutionCompleted({ trigger: current.trigger, status: 'failed' })
+      }
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
     } catch (error) {
