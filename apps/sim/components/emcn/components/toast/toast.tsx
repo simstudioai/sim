@@ -514,7 +514,12 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     setMounted(true)
   }, [])
 
-  /** Adds a toast; actionable toasts persist (`duration: 0`) unless an explicit `duration` is given. */
+  /**
+   * Adds a toast. Actionable toasts persist (`duration: 0`) unless an explicit
+   * `duration` is given. When the stack exceeds `STACK_LIMIT` the oldest
+   * auto-dismissable toast is evicted first, so a persistent (actionable) toast
+   * isn't silently dropped — only an all-persistent overflow evicts the oldest.
+   */
   const addToast = useCallback((input: ToastInput): string => {
     const id = generateId()
     const data: ToastData = {
@@ -525,7 +530,13 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       action: input.action,
       duration: input.duration ?? (input.action ? 0 : AUTO_DISMISS_MS),
     }
-    setToasts((prev) => [...prev, data].slice(-STACK_LIMIT))
+    setToasts((prev) => {
+      const next = [...prev, data]
+      if (next.length <= STACK_LIMIT) return next
+      const evictIndex = next.findIndex((t) => t.duration > 0)
+      next.splice(evictIndex === -1 ? 0 : evictIndex, 1)
+      return next
+    })
     setArrivalCount((c) => c + 1)
     return id
   }, [])
