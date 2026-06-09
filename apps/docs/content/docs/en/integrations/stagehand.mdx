@@ -10,6 +10,26 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFC83C"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Stagehand](https://stagehand.com) is a tool that enables both extraction of structured data from webpages and autonomous web automation using Browserbase and modern LLMs (OpenAI or Anthropic).
+
+Stagehand offers two main capabilities in Sim:
+
+- **stagehand_extract**: Extract structured data from a single webpage. You specify what you want (a schema), and the AI retrieves and parses the data in that shape from the page. This is best for extracting lists, fields, or objects when you know exactly what information you need and where to get it.
+
+- **stagehand_agent**: Run an autonomous web agent capable of completing multi-step tasks, interacting with elements, navigating between pages, and returning structured results. This is much more flexible: the agent can do things like log in, search, fill forms, gather data from multiple places, and output a final result according to a requested schema.
+
+**Key Differences:**
+
+- *stagehand_extract* is a rapid “extract this data from this page” operation. It works best for direct, one-step extraction tasks.
+- *stagehand_agent* performs complex, multi-step autonomous tasks on the web — such as navigation, searching, or even transactions — and can dynamically extract data according to your instructions and an optional schema.
+
+In practice, use **stagehand_extract** when you know what you want and where, and use **stagehand_agent** when you need a bot to think through and execute interactive workflows.
+
+By integrating Stagehand, Sim agents can automate data gathering, analysis, and workflow execution on the web: updating databases, organizing information, and generating custom reports—seamlessly and autonomously.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Stagehand into the workflow. Can extract structured data from webpages or run an autonomous agent to perform tasks.

@@ -10,6 +10,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[AWS CloudFormation](https://aws.amazon.com/cloudformation/) is an infrastructure-as-code service that lets you model, provision, and manage AWS resources by treating infrastructure as code. CloudFormation uses templates to describe the resources you need and their dependencies, so you can launch and configure them together as a stack.
+
+With the CloudFormation integration, you can:
+
+- **Describe Stacks**: List all stacks in a region or get detailed information about a specific stack, including its status, outputs, tags, and drift information
+- **List Stack Resources**: Enumerate every resource in a stack with its logical ID, physical ID, type, status, and drift status
+- **Describe Stack Events**: View the full event history for a stack to understand what happened during create, update, or delete operations
+- **Detect Stack Drift**: Initiate drift detection to check whether any resources in a stack have been modified outside of CloudFormation
+- **Drift Detection Status**: Poll the results of a drift detection operation to see which resources have drifted and how many
+- **Get Template**: Retrieve the original template body (JSON or YAML) used to create or update a stack
+- **Validate Template**: Check a CloudFormation template for syntax errors, required capabilities, parameters, and declared transforms before deploying
+
+In Sim, the CloudFormation integration enables your agents to monitor infrastructure state, detect configuration drift, audit stack resources, and validate templates as part of automated SRE and DevOps workflows. This is especially powerful when combined with CloudWatch for observability and SNS for alerting, creating end-to-end infrastructure monitoring pipelines.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.

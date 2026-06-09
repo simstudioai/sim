@@ -10,6 +10,30 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FF1A26"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Prospeo](https://prospeo.io/) is a B2B data platform that finds verified work emails and mobile numbers, enriches person and company profiles, and exposes a searchable database of leads and companies through 20+ filters.
+
+With Prospeo, you can:
+
+- **Find verified contact details**: Discover work emails and mobile numbers from a name, LinkedIn URL, or company
+- **Enrich people and companies**: Fill in profile data including job history, location, technology stack, and funding signals
+- **Bulk-enrich at scale**: Process arrays of identifiers in a single request for high-volume workflows
+- **Search the B2B database**: Filter leads and accounts by job title, location, industry, headcount, and more
+- **Monitor account usage**: Check remaining credits, used credits, and renewal dates before running expensive operations
+
+In Sim, the Prospeo integration lets your agents perform contact discovery and CRM enrichment programmatically:
+
+- **Enrich a person**: Use `prospeo_enrich_person` to match a contact and return verified email, mobile, and profile data
+- **Enrich a company**: Use `prospeo_enrich_company` to resolve a domain, LinkedIn URL, or name into a full company profile
+- **Bulk enrichment**: Use `prospeo_bulk_enrich_person` and `prospeo_bulk_enrich_company` for batched workflows
+- **Search the database**: Use `prospeo_search_person` and `prospeo_search_company` with JSON filter objects to surface leads
+- **Build dynamic filter UIs**: Use `prospeo_search_suggestions` to autocomplete locations and job titles
+- **Track usage**: Use `prospeo_account_information` to monitor credits and plan status from within a workflow
+
+This turns Prospeo into a reliable contact and company data source for your agents — wire it into sales prospecting, CRM hygiene, lead scoring, or any pipeline that depends on accurate B2B identity data.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.

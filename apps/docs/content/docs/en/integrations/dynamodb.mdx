@@ -10,6 +10,31 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) is a fully managed NoSQL database service offered by AWS that provides fast and predictable performance with seamless scalability. DynamoDB lets you store and retrieve any amount of data and serves any level of request traffic, without the need for you to manage hardware or infrastructure.
+
+With DynamoDB, you can:
+
+- **Get items**: Look up items in your tables using primary keys
+- **Put items**: Add or replace items in your tables
+- **Query items**: Retrieve multiple items using queries across indexes
+- **Scan tables**: Read all or part of the data in a table
+- **Update items**: Modify specific attributes of existing items
+- **Delete items**: Remove records from your tables
+
+In Sim, the DynamoDB integration enables your agents to securely access and manipulate DynamoDB tables using AWS credentials. Supported operations include:
+
+- **Get**: Retrieve an item by its key
+- **Put**: Insert or overwrite items
+- **Query**: Run queries using key conditions and filters
+- **Scan**: Read multiple items by scanning the table or index
+- **Update**: Change specific attributes of one or more items
+- **Delete**: Remove an item from a table
+
+This integration empowers Sim agents to automate data management tasks within your DynamoDB tables programmatically, so you can build workflows that manage, modify, and retrieve scalable NoSQL data without manual effort or server management.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.

@@ -10,6 +10,27 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#f9ff69"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[ClickHouse](https://clickhouse.com) is an open-source, column-oriented database management system for online analytical processing (OLAP). It is built for speed at scale — running aggregations and analytical queries over billions of rows in real time.
+
+The ClickHouse block connects to any ClickHouse deployment (ClickHouse Cloud or self-hosted) over the [HTTP interface](https://clickhouse.com/docs/interfaces/http). Use it to run analytical queries, stream rows into tables, manage schemas, inspect system state, and execute arbitrary SQL — all from within a workflow.
+
+**Connection details**
+
+- **Host** — your ClickHouse hostname (e.g. `your-instance.clickhouse.cloud` or your server address).
+- **Port** — the HTTP interface port. Use `8443` for HTTPS (ClickHouse Cloud) or `8123` for plain HTTP (self-hosted).
+- **Database** / **Username** — default to `default` if not specified.
+- **Password** — optional for unauthenticated local instances.
+- **Use HTTPS** — keep enabled for any remote or Cloud instance.
+
+**Things to know**
+
+- `UPDATE` and `DELETE` are implemented as ClickHouse [mutations](https://clickhouse.com/docs/sql-reference/statements/alter/update) (`ALTER TABLE ... UPDATE/DELETE`). Mutations run **asynchronously** in the background, so the affected row count is not returned immediately.
+- ClickHouse is optimized for bulk inserts. Prefer batching many rows per insert over many single-row inserts.
+- The connection host is validated to block private/internal addresses, so the block cannot reach `localhost` or internal-only hosts.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.

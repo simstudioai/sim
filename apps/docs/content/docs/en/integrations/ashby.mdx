@@ -10,6 +10,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#5D4ED6"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Ashby](https://www.ashbyhq.com/) is an all-in-one recruiting platform that combines an applicant tracking system (ATS), CRM, scheduling, and analytics to help teams hire more effectively.
+
+With Ashby, you can:
+
+- **List and search candidates**: Browse your full candidate pipeline or search by name and email to quickly find specific people
+- **Create candidates**: Add new candidates to your Ashby organization with contact details
+- **View candidate details**: Retrieve full candidate profiles including tags, email, phone, and timestamps
+- **Add notes to candidates**: Attach notes to candidate records to capture feedback, context, or follow-up items
+- **List and view jobs**: Browse all open, closed, and archived job postings with location and department info
+- **List applications**: View all applications across your organization with candidate and job details, status tracking, and pagination
+
+The Ashby block also supports **webhook triggers** that automatically start workflows in response to Ashby events. Available triggers include Application Submitted, Candidate Stage Change, Candidate Hired, Candidate Deleted, Job Created, and Offer Created. Webhooks are fully managed — Sim automatically creates the webhook in Ashby when you save the trigger and deletes it when you remove it, so there's no manual webhook configuration needed. Just provide your Ashby API key (with `apiKeysWrite` permission) and select the event type.
+
+In Sim, the Ashby integration enables your agents to programmatically manage your recruiting pipeline. Agents can search for candidates, create new candidate records, add notes after interviews, and monitor applications across jobs. This allows you to automate recruiting workflows like candidate intake, interview follow-ups, pipeline reporting, and cross-referencing candidates across roles.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).

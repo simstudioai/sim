@@ -10,6 +10,31 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[AgentPhone](https://agentphone.to/) is an API-first voice and messaging platform built for AI agents. AgentPhone lets you provision real phone numbers, place outbound AI voice calls, send SMS and iMessage, manage conversations and contacts, and monitor usage — all through a simple REST API designed for programmatic access.
+
+**Why AgentPhone?**
+- **Agent-Native Telephony:** Purpose-built for AI agents — provision numbers, place calls, and send messages without carrier contracts or telephony plumbing.
+- **Voice + Messaging in One API:** Drive outbound AI voice calls alongside SMS, MMS, and iMessage from the same account and phone numbers.
+- **Conversation & Transcript Management:** Every call returns an ordered transcript; every message thread is tracked as a conversation with full history and metadata.
+- **Contacts Built In:** Create, search, update, and delete contacts on the account so your agents can reference people by name instead of raw phone numbers.
+- **Usage Visibility:** Inspect plan limits, current counts, and daily/monthly aggregation so workflows can stay inside guardrails.
+
+**Using AgentPhone in Sim**
+
+Sim's AgentPhone integration connects your agentic workflows directly to AgentPhone using an API key. With 22 operations spanning numbers, calls, conversations, contacts, and usage, you can build powerful voice and messaging automations without writing backend code.
+
+**Key benefits of using AgentPhone in Sim:**
+- **Dynamic number provisioning:** Reserve US or Canadian numbers on the fly — per agent, per customer, or per workflow — and release them when no longer needed.
+- **Outbound AI voice calls:** Place calls from an agent with an optional greeting, voice override, or system prompt, and read the full transcript back as structured data once the call completes.
+- **Two-way messaging:** Send SMS, MMS, or iMessage, fetch conversation history, and react to incoming iMessages — all from inside your workflow.
+- **Contact and metadata management:** Keep an account-level contact list and attach custom JSON metadata to conversations so downstream blocks can branch on state.
+- **Operational insight:** Pull current usage stats and daily/monthly breakdowns to monitor consumption and enforce plan limits before making the next call.
+
+Whether you're building an outbound AI voice agent, running automated SMS follow-ups, managing two-way customer conversations, or monitoring phone usage across your organization, AgentPhone in Sim gives you direct, secure access to the full AgentPhone API — no middleware required. Simply configure your API key, select the operation you need, and let Sim handle the rest.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.

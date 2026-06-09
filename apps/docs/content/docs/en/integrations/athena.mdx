@@ -10,6 +10,32 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Athena](https://aws.amazon.com/athena/) is an interactive query service from AWS that makes it easy to analyze data directly in Amazon S3 using standard SQL. Athena is serverless, so there is no infrastructure to manage, and you pay only for the queries you run.
+
+With Athena, you can:
+
+- **Query data in S3**: Run SQL queries directly against data stored in Amazon S3 without loading it into a database
+- **Support multiple formats**: Query CSV, JSON, Parquet, ORC, Avro, and other common data formats
+- **Integrate with AWS Glue**: Use the AWS Glue Data Catalog to manage table metadata and schemas
+- **Scale automatically**: Handle queries of any size without provisioning servers or clusters
+- **Save and reuse queries**: Create named queries for frequently used SQL statements
+
+In Sim, the Athena integration enables your agents to run SQL queries against data in S3, check query execution status, retrieve results, and manage saved queries — all within your agent workflows. Supported operations include:
+
+- **Start Query**: Execute SQL queries against your S3 data
+- **Get Query Execution**: Check the status and details of a running or completed query
+- **Get Query Results**: Retrieve the results of a completed query
+- **Stop Query**: Cancel a running query execution
+- **List Query Executions**: View recent query execution IDs
+- **Create Named Query**: Save a query for reuse
+- **Get Named Query**: Retrieve details of a saved query
+- **List Named Queries**: View all saved query IDs
+
+This integration empowers Sim agents to automate data analysis tasks using AWS Athena, enabling workflows that query, monitor, and manage large-scale data in S3 without manual effort or infrastructure management.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.

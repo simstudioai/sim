@@ -10,6 +10,27 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[SSH (Secure Shell)](https://en.wikipedia.org/wiki/Secure_Shell) is a widely-used protocol for securely connecting to remote servers, allowing you to execute commands, transfer files, and manage systems over encrypted channels.
+
+With SSH support in Sim, your agents can:
+
+- **Execute remote commands**: Run shell commands on any SSH-accessible server
+- **Upload and run scripts**: Easily transfer and execute multi-line scripts for advanced automation
+- **Transfer files securely**: Upload and download files as part of your workflows (coming soon or via command)
+- **Automate server management**: Perform updates, maintenance, monitoring, deployments, and configuration tasks programmatically
+- **Use flexible authentication**: Connect with password or private key authentication, including support for encrypted keys
+
+The following Sim SSH tools enable your agents to interact with servers as part of larger automations:
+
+- `ssh_execute_command`: Run any single shell command remotely and capture output, status, and errors.
+- `ssh_execute_script`: Upload and execute a full multi-line script on the remote system.
+- (Additional tools coming soon, such as file transfer.)
+
+By integrating SSH into your agent workflows, you can automate secure access, remote operations, and server orchestration—streamlining DevOps, IT automation, and custom remote management, all from within Sim.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.

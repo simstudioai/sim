@@ -10,6 +10,34 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#2D3748"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[SFTP (SSH File Transfer Protocol)](https://en.wikipedia.org/wiki/SSH_File_Transfer_Protocol) is a secure network protocol that enables you to upload, download, and manage files on remote servers. SFTP operates over SSH, making it ideal for automated, encrypted file transfers and remote file management within modern workflows. 
+
+With SFTP tools integrated into Sim, you can easily automate the movement of files between your AI agents and external systems or servers. This empowers your agents to manage critical data exchanges, backups, document generation, and remote system orchestration—all with robust security.
+
+**Key functionality available via SFTP tools:**
+
+- **Upload Files:** Seamlessly transfer files of any type from your workflow to a remote server, with support for both password and SSH private key authentication.
+- **Download Files:** Retrieve files from remote SFTP servers directly for processing, archiving, or further automation.
+- **List & Manage Files:** Enumerate directories, delete or create files and folders, and manage file system permissions remotely.
+- **Flexible Authentication:** Connect using either traditional passwords or SSH keys, with support for passphrases and permissions control.
+- **Large File Support:** Programmatically manage large file uploads and downloads, with built-in size limits for safety.
+
+By integrating SFTP into Sim, you can automate secure file operations as part of any workflow, whether it’s data collection, reporting, remote system maintenance, or dynamic content exchange between platforms.
+
+The sections below describe the key SFTP tools available:
+
+- **sftp_upload:** Upload one or more files to a remote server.
+- **sftp_download:** Download files from a remote server to your workflow.
+- **sftp_list:** List directory contents on a remote SFTP server.
+- **sftp_delete:** Delete files or directories from a remote server.
+- **sftp_create:** Create new files on a remote SFTP server.
+- **sftp_mkdir:** Create new directories remotely.
+
+See the tool documentation below for detailed input and output parameters for each operation.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.

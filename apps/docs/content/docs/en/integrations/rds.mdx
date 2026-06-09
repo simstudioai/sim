@@ -10,6 +10,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon RDS Aurora Serverless](https://aws.amazon.com/rds/aurora/serverless/) is a fully managed relational database that automatically starts up, shuts down, and scales capacity based on your application's needs. It allows you to run SQL databases in the cloud without managing database servers.
+
+With RDS Aurora Serverless, you can:
+
+- **Query data**: Run flexible SQL queries across your tables
+- **Insert new records**: Add data to your database automatically
+- **Update existing records**: Modify data in your tables using custom filters
+- **Delete records**: Remove unwanted data using precise criteria
+- **Execute raw SQL**: Run any valid SQL command supported by Aurora
+
+In Sim, the RDS integration enables your agents to work with Amazon Aurora Serverless databases securely and programmatically. Supported operations include:
+
+- **Query**: Run SELECT and other SQL queries to fetch rows from your database
+- **Insert**: Insert new records into tables with structured data
+- **Update**: Change data in rows that match your specified conditions
+- **Delete**: Remove records from a table by custom filters or criteria
+- **Execute**: Run raw SQL for advanced scenarios
+
+This integration allows your agents to automate a wide range of database operations without manual intervention. By connecting Sim with Amazon RDS, you can build agents that manage, update, and retrieve relational data within your workflows—all without handling database infrastructure or connections.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Amazon RDS Aurora Serverless into the workflow using the Data API. Can query, insert, update, delete, and execute raw SQL without managing database connections.

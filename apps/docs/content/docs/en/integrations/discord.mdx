@@ -10,6 +10,32 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#5865F2"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Discord](https://discord.com) is a powerful communication platform that allows you to connect with friends, communities, and teams. It offers a range of features for team collaboration, including text channels, voice channels, and video calls.
+
+With a Discord account or bot, you can:
+
+- **Send messages**: Send messages to a specific channel
+- **Get messages**: Get messages from a specific channel
+- **Get server**: Get information about a specific server
+- **Get user**: Get information about a specific user
+
+In Sim, the Discord integration enables your agents to access and leverage your organization's Discord servers. Agents can retrieve information from Discord channels, search for specific users, get server information, and send messages. This allows your workflows to integrate with your Discord communities, automate notifications, and create interactive experiences.
+
+> **Important:** To read message content, your Discord bot needs the "Message Content Intent" enabled in the Discord Developer Portal. Without this permission, you'll still receive message metadata but the content field will appear empty.
+
+Discord components in Sim use efficient lazy loading, only fetching data when needed to minimize API calls and prevent rate limiting. Token refreshing happens automatically in the background to maintain your connection.
+
+### Setting Up Your Discord Bot
+
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application and navigate to the "Bot" tab
+3. Create a bot and copy your bot token
+4. Under "Privileged Gateway Intents", enable the **Message Content Intent** to read message content
+5. Invite your bot to your servers with appropriate permissions
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.

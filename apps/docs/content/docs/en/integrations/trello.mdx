@@ -10,7 +10,32 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#0052CC"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Trello](https://trello.com) is a visual collaboration tool that helps you organize projects, tasks, and workflows using boards, lists, and cards.
+
+With Trello in Sim, you can:
+
+- **List boards and lists**: View the boards you have access to and their associated lists.
+- **List and search cards**: Retrieve all cards on a board or filter by list to see their content and status.
+- **Create cards**: Add new cards to a Trello list, including descriptions, labels, and due dates.
+- **Update and move cards**: Edit card properties, move cards across lists, and set due dates or labels.
+- **Get recent activity**: Retrieve actions and activity history for boards and cards.
+- **Comment on cards**: Add comments to cards for collaboration and tracking.
+
+Integrating Trello with Sim empowers your agents to manage your team’s tasks, boards, and projects programmatically. Automate project management workflows, keep task lists up-to-date, synchronize with other tools, or trigger intelligent workflows in response to Trello events—all through your AI agents.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
+
+{/* MANUAL-CONTENT-START:usage */}
+### Trello OAuth Setup
+
+Before connecting Trello in Sim, add your Sim app origin to the **Allowed Origins** list for your Trello API key in the Trello Power-Up admin settings.
+
+Trello's authorization flow redirects back to Sim using a `return_url`. If your Sim origin is not whitelisted in Trello, Trello will block the redirect and the connection flow will fail before Sim can save the token.
+{/* MANUAL-CONTENT-END */}
+
 
 Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.
 

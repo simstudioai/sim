@@ -10,6 +10,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Security Token Service (STS)](https://docs.aws.amazon.com/STS/latest/APIReference/welcome.html) is a web service that enables you to request temporary, limited-privilege credentials for AWS Identity and Access Management (IAM) users or for users that you authenticate (federated users).
+
+With AWS STS, you can:
+
+- **Assume IAM roles**: Request temporary credentials to access AWS resources across accounts or with elevated permissions
+- **Verify identity**: Determine the AWS account, ARN, and user ID associated with the calling credentials
+- **Generate session tokens**: Obtain temporary credentials with optional MFA protection for enhanced security
+- **Audit access keys**: Look up the AWS account that owns a given access key for security investigations
+
+In Sim, the AWS STS integration allows your agents to manage temporary credentials as part of automated workflows. This is useful for cross-account access patterns, credential rotation, identity verification before sensitive operations, and security auditing. Agents can assume roles to interact with other AWS services, verify their own identity, or look up access key ownership without exposing long-lived credentials.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.

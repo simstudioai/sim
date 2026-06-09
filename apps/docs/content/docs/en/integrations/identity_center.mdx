@@ -10,6 +10,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[AWS IAM Identity Center](https://aws.amazon.com/iam/identity-center/) (formerly AWS Single Sign-On) is the recommended service for managing workforce access to multiple AWS accounts and applications. It provides a central place to assign users and groups temporary, permission-scoped access to AWS accounts using permission sets — without creating long-lived IAM credentials.
+
+With AWS IAM Identity Center, you can:
+
+- **Provision account assignments**: Grant a user or group access to a specific AWS account with a specific permission set — the core primitive of temporary elevated access
+- **Revoke access on demand**: Delete account assignments to immediately remove elevated permissions when they are no longer needed
+- **Look up users by email**: Resolve a federated identity (email address) to an Identity Store user ID for programmatic access provisioning
+- **List permission sets**: Enumerate the available permission sets (e.g., ReadOnly, PowerUser, AdministratorAccess) defined in your Identity Center instance
+- **Monitor assignment status**: Poll the provisioning status of create/delete operations, which are asynchronous in AWS
+- **List accounts in your organization**: Enumerate all AWS accounts in your AWS Organizations structure to populate access request dropdowns
+- **Manage groups**: List groups and resolve group IDs by display name for group-based access grants
+
+In Sim, the AWS Identity Center integration is designed to power **TEAM (Temporary Elevated Access Management)** workflows — automated pipelines where users request elevated access, approvers approve or deny it, access is provisioned with a time limit, and auto-revocation removes it when the window expires. This replaces manual console-based access management with auditable, agent-driven workflows that integrate with Slack, email, ticketing systems, and CloudTrail for full traceability.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.

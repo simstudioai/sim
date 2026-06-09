@@ -10,6 +10,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#06AC38"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[PagerDuty](https://www.pagerduty.com/) is a leading incident management platform that helps engineering and operations teams detect, triage, and resolve infrastructure and application issues in real time. PagerDuty integrates with monitoring tools, orchestrates on-call schedules, and ensures the right people are alerted when incidents occur.
+
+The PagerDuty integration in Sim connects with the PagerDuty REST API v2 using API key authentication, enabling your agents to manage the full incident lifecycle and query on-call information programmatically.
+
+With the PagerDuty integration, your agents can:
+
+- **List and filter incidents**: Retrieve incidents filtered by status (triggered, acknowledged, resolved), service, date range, and sort order to monitor your operational health
+- **Create incidents**: Trigger new incidents on specific services with custom titles, descriptions, urgency levels, and assignees directly from your workflows
+- **Update incidents**: Acknowledge or resolve incidents, change urgency, and add resolution notes to keep your incident management in sync with automated processes
+- **Add notes to incidents**: Attach contextual information, investigation findings, or automated diagnostics as notes on existing incidents
+- **List services**: Query your PagerDuty service catalog to discover service IDs and metadata for use in other operations
+- **Check on-call schedules**: Retrieve current on-call entries filtered by escalation policy or schedule to determine who is responsible at any given time
+
+In Sim, the PagerDuty integration enables powerful incident automation scenarios. Your agents can automatically create incidents based on monitoring alerts, enrich incidents with diagnostic data from other tools, resolve incidents when automated remediation succeeds, or build escalation workflows that check on-call schedules and route notifications accordingly. By connecting Sim with PagerDuty, you can build intelligent agents that bridge the gap between detection and response, reducing mean time to resolution and ensuring consistent incident handling across your organization.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.

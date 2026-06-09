@@ -10,6 +10,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Simple Email Service (SES)](https://aws.amazon.com/ses/) is a cloud-based email sending service designed for high-volume, transactional, and marketing email delivery. It provides a cost-effective, scalable way to send email without managing your own mail server infrastructure.
+
+With AWS SES, you can:
+
+- **Send simple emails**: Deliver one-off emails with plain text or HTML body content to individual recipients
+- **Send templated emails**: Use pre-defined templates with variable substitution (e.g., `{{name}}`, `{{link}}`) for personalized emails at scale
+- **Send bulk emails**: Deliver templated emails to large lists of recipients in a single API call, with per-destination data overrides
+- **Manage email templates**: Create, retrieve, list, and delete reusable email templates for transactional and marketing campaigns
+- **Monitor account health**: Retrieve your account's sending quota, send rate, and whether sending is currently enabled
+
+In Sim, the AWS SES integration is designed for workflows that need reliable, programmatic email delivery — from access request notifications and approval alerts to bulk outreach and automated reporting. It pairs naturally with the IAM Identity Center integration for TEAM (Temporary Elevated Access Management) workflows, where email notifications are sent when access is provisioned, approved, or revoked.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.
