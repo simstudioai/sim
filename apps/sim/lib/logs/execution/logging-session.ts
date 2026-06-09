@@ -1077,7 +1077,7 @@ export class LoggingSession {
       } else {
         this.emitExecutionCompletedMetric(
           params.status === 'failed' || params.status === 'cancelled' ? params.status : 'success',
-          params.totalDurationMs || 0
+          params.totalDurationMs
         )
       }
 
