@@ -4,6 +4,7 @@ import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { workflowMetrics } from '@/lib/monitoring/metrics'
 import {
   containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,
@@ -239,6 +240,7 @@ export class BlockExecutor {
         if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
           blockLog.childTraceSpans = normalizedOutput.childTraceSpans
         }
+        this.recordBlockMetric(block, true, duration)
       }
 
       const { childTraceSpans: _traces, ...outputForState } = normalizedOutput
@@ -282,6 +284,21 @@ export class BlockExecutor {
         'execution'
       )
     }
+  }
+
+  private recordBlockMetric(block: SerializedBlock, success: boolean, durationMs: number): void {
+    const operation = block.config?.params?.operation
+    workflowMetrics.recordBlockExecuted({
+      blockType: block.metadata?.id || 'unknown',
+      // Operation is user-configured; only emit registry-style identifiers so
+      // dynamic values can't explode CloudWatch dimension cardinality.
+      operation:
+        typeof operation === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(operation)
+          ? operation
+          : undefined,
+      success,
+      durationMs,
+    })
   }
 
   private buildNodeMetadata(node: DAGNode): WorkflowNodeMetadata {
@@ -371,6 +388,7 @@ export class BlockExecutor {
       if (ChildWorkflowError.isChildWorkflowError(error) && error.childTraceSpans.length > 0) {
         blockLog.childTraceSpans = error.childTraceSpans
       }
+      this.recordBlockMetric(block, false, duration)
     }
 
     this.execLogger.error(

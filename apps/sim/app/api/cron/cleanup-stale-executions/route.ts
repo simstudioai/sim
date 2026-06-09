@@ -8,6 +8,7 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { workflowMetrics } from '@/lib/monitoring/metrics'
 
 const logger = createLogger('CleanupStaleExecutions')
 
@@ -32,6 +33,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         executionId: workflowExecutionLogs.executionId,
         workflowId: workflowExecutionLogs.workflowId,
         startedAt: workflowExecutionLogs.startedAt,
+        trigger: workflowExecutionLogs.trigger,
       })
       .from(workflowExecutionLogs)
       .where(
@@ -70,6 +72,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         logger.info(`Cleaned up stale execution ${execution.executionId}`, {
           workflowId: execution.workflowId,
           staleDurationMinutes,
+        })
+
+        // Crashed workers never reach a LoggingSession completion path, so this
+        // is the only place these failures can be counted toward the error rate.
+        workflowMetrics.recordExecutionCompleted({
+          trigger: execution.trigger,
+          status: 'failed',
         })
 
         cleaned++
