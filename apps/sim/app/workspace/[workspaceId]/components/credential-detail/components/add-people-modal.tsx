@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   ChipModal,
   ChipModalBody,
@@ -105,10 +106,11 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
         (result): result is PromiseRejectedResult => result.status === 'rejected'
       )
       logger.error('Failed to add some credential members', firstError?.reason)
+      const reason = getErrorMessage(firstError?.reason, 'Please try again in a moment.')
       setSubmitError(
         failures.length === targets.length
-          ? "Couldn't add people. Please try again in a moment."
-          : `Couldn't add ${failures.length} of ${targets.length} people. Please try again in a moment.`
+          ? `Couldn't add people. ${reason}`
+          : `Couldn't add ${failures.length} of ${targets.length} people. ${reason}`
       )
     } finally {
       setIsAdding(false)
