@@ -6,9 +6,20 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { SENDBLUE_TRIGGER_IS_OUTBOUND } from '@/triggers/sendblue/utils'
 
 const logger = createLogger('WebhookProvider:Sendblue')
+
+/**
+ * Maps Sendblue trigger IDs to the expected value of the webhook payload's
+ * `is_outbound` flag, used to route inbound vs. outbound status events.
+ * The handler is the only runtime consumer, so the map lives here (single
+ * source of truth) rather than crossing from the triggers graph into the
+ * webhook-providers graph.
+ */
+const SENDBLUE_TRIGGER_IS_OUTBOUND: Record<string, boolean> = {
+  sendblue_message_received: false,
+  sendblue_message_status_updated: true,
+}
 
 export const sendblueHandler: WebhookProviderHandler = {
   matchEvent({ body, webhook, requestId }: EventMatchContext): boolean {

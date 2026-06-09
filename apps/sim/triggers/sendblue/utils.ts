@@ -1,15 +1,5 @@
 import type { TriggerOutput } from '@/triggers/types'
 
-/**
- * Maps Sendblue trigger IDs to the expected value of the webhook payload's
- * `is_outbound` flag, used to route inbound vs. outbound status events.
- * Imported by the webhook provider handler so routing lives in one place.
- */
-export const SENDBLUE_TRIGGER_IS_OUTBOUND: Record<string, boolean> = {
-  sendblue_message_received: false,
-  sendblue_message_status_updated: true,
-}
-
 export const sendblueTriggerOptions = [
   { label: 'Message Received', id: 'sendblue_message_received' },
   { label: 'Message Status Updated', id: 'sendblue_message_status_updated' },
