@@ -138,6 +138,8 @@ export class LoggingSession {
   private completionAttemptFailed = false
   private pendingProgressWrites = new Set<Promise<void>>()
   private postExecutionPromise: Promise<void> | null = null
+  /** Guards against double-counting ExecutionStarted across start/fallback paths */
+  private startMetricEmitted = false
   /** Guards against double-counting ExecutionCompleted across completion paths */
   private completionMetricEmitted = false
 
@@ -219,6 +221,12 @@ export class LoggingSession {
     while (this.pendingProgressWrites.size > 0) {
       await Promise.allSettled(Array.from(this.pendingProgressWrites))
     }
+  }
+
+  private emitExecutionStartedMetric(): void {
+    if (this.startMetricEmitted) return
+    this.startMetricEmitted = true
+    workflowMetrics.recordExecutionStarted({ trigger: this.triggerType })
   }
 
   private emitExecutionCompletedMetric(status: WorkflowExecutionStatus, durationMs?: number): void {
@@ -334,7 +342,7 @@ export class LoggingSession {
           workflowState: this.workflowState,
           deploymentVersionId,
         })
-        workflowMetrics.recordExecutionStarted({ trigger: this.triggerType })
+        this.emitExecutionStartedMetric()
       } else {
         // Resume: no cost reload needed. Billing reconciles from the usage_log
         // ledger (pre-pause rows already exist) plus the live cost summary.
@@ -793,7 +801,7 @@ export class LoggingSession {
           workflowState: this.workflowState,
           deploymentVersionId,
         })
-        workflowMetrics.recordExecutionStarted({ trigger: this.triggerType })
+        this.emitExecutionStartedMetric()
 
         if (this.requestId) {
           logger.debug(
