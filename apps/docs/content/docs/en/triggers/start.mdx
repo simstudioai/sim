@@ -1,79 +1,58 @@
 ---
 title: Start
+description: The Start block is the default trigger — it collects typed inputs and runs the workflow from the editor, an API call, or chat.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-The Start block is the default trigger for workflows built in Sim. It collects structured inputs and fans out to the rest of your graph for editor tests, API deployments, and chat experiences.
+The **Start block** is the default trigger for a workflow. It defines the inputs the workflow takes and runs it from three surfaces with the same shape: a manual run in the editor, an [API deployment](/deployment/api), and a [chat deployment](/deployment/chat).
 
 <div className="flex justify-center">
-  <Image
-    src="/static/start.png"
-    alt="Start block with Input Format fields"
-    width={500}
-    height={400}
-    className="my-6"
-  />
+  <Image src="/static/start.png" alt="Start block with Input Format fields" width={500} height={400} className="my-6" />
 </div>
 
 <Callout type="info">
-The Start block sits in the start slot when you create a workflow. Keep it there when you want the same entry point to serve editor runs, deploy-to-API requests, and chat sessions. Swap it with Webhook or Schedule triggers when you only need event-driven runs.
+Every workflow starts with a Start block in the trigger slot. Keep it when one entry point should serve editor, API, and chat runs. Swap in a [Webhook](/triggers/webhook) or [Schedule](/triggers/schedule) trigger when the workflow should only run on an event or a timer.
 </Callout>
 
-## Fields exposed by Start
+## Input Format
 
-The Start block emits different data depending on the run surface:
+Define the fields the workflow accepts. Each field has a name and a type — `string`, `number`, `boolean`, `object`, `array`, or `files` — and becomes available downstream as `<start.fieldName>`. A `customerId` field reads as `<start.customerId>`.
 
-- **Input Format fields** — Every field you add becomes available as <code>&lt;start.fieldName&gt;</code>. For example, a `customerId` field shows up as <code>&lt;start.customerId&gt;</code> in downstream blocks and templates.
-- **Chat-only fields** — When the workflow runs from the chat side panel or a deployed chat experience, Sim also provides <code>&lt;start.input&gt;</code> (latest user message), <code>&lt;start.conversationId&gt;</code> (active session id), and <code>&lt;start.files&gt;</code> (chat attachments).
+- Give a field a **default value** to prefill the manual-run form. Defaults are ignored on deployed runs.
+- **File** fields accept uploads from both chat and API callers.
+- Reorder fields to control how they appear in the editor form.
 
-Keep Input Format fields scoped to the names you expect to reference later—those values are the only structured fields shared across editor, API, and chat runs.
+## Outputs
 
-## Configure the Input Format
+The fields you define, plus conversation context when the workflow runs from chat:
 
-Use the Input Format sub-block to define the schema that applies across run modes:
+| Output | What it is |
+| --- | --- |
+| `<start.fieldName>` | Each Input Format field, by name |
+| `<start.input>` | The latest user message (chat only) |
+| `<start.conversationId>` | The active session id (chat only) |
+| `<start.files>` | Chat attachments (chat only) |
 
-1. Add a field for each value you want to collect.
-2. Choose a type (`string`, `number`, `boolean`, `object`, `array`, or `files`). File fields accept uploads from chat and API callers.
-3. Provide default values when you want the manual run modal to populate test data automatically. These defaults are ignored for deployed runs.
-4. Reorder fields to control how they appear in the editor form.
+## Per entry point
 
-Reference structured values downstream with expressions such as <code>&lt;start.customerId&gt;</code> depending on the block you connect.
-
-## How it behaves per entry point
-
-<Tabs items={['Editor run', 'Deploy to API', 'Deploy to chat']}>
+<Tabs items={['Editor run', 'API', 'Chat']}>
   <Tab>
-    When you click <strong>Run</strong> in the editor, the Start block renders the Input Format as a form. Default values make it easy to retest without retyping data. Submitting the form triggers the workflow immediately and the values become available on <code>&lt;start.fieldName&gt;</code> (for example <code>&lt;start.sampleField&gt;</code>).
-
-    File fields in the form upload directly into the corresponding{' '}
-    <code>&lt;start.fieldName&gt;</code>; use those values to feed downstream
-    tools or storage steps.
+    **Run** renders the Input Format as a form, prefilled with any default values, so you can retest without retyping. Submitting runs the workflow, and the values land on `<start.fieldName>`. File fields upload straight into `<start.fieldName>`.
   </Tab>
   <Tab>
-    Deploying to API turns the Input Format into a JSON contract for clients. Each field becomes part of the request body, and Sim coerces primitive types on ingestion. File fields expect objects that reference uploaded files; use the file upload endpoint before invoking the workflow.
-
-    API callers can include additional optional properties. They are preserved
-    inside <code>&lt;start.fieldName&gt;</code> outputs so you can experiment
-    without redeploying immediately.
+    The Input Format becomes the JSON request body. Each field is part of the body, and Sim coerces primitive types on the way in. File fields expect objects that reference uploaded files, so upload first, then invoke the workflow.
   </Tab>
   <Tab>
-    In chat deployments the Start block binds to the active conversation. The latest message fills <code>&lt;start.input&gt;</code>, the session identifier is available at <code>&lt;start.conversationId&gt;</code>, and user attachments appear on <code>&lt;start.files&gt;</code>, alongside any Input Format fields scoped as <code>&lt;start.fieldName&gt;</code>.
-
-    If you launch chat with additional structured context (for example from an embed), it merges into the corresponding <code>&lt;start.fieldName&gt;</code> outputs, keeping downstream blocks consistent with API and manual runs.
+    The Start block binds to the active conversation: the latest message fills `<start.input>`, the session id is `<start.conversationId>`, and attachments appear on `<start.files>`, alongside any Input Format fields. Extra structured context passed in at launch merges into the matching `<start.fieldName>` outputs.
   </Tab>
 </Tabs>
 
-## Referencing Start data downstream
+## Best Practices
 
-- Connect <code>&lt;start.fieldName&gt;</code> directly into agents, tools, or functions that expect structured payloads.
-- Use templating syntax like <code>&lt;start.sampleField&gt;</code> or <code>&lt;start.files[0].url&gt;</code> (chat only) in prompt fields.
-- Keep <code>&lt;start.conversationId&gt;</code> handy when you need to group outputs, update conversation history, or call back into the chat API.
-
-## Best practices
-
-- Treat the Start block as the single entry point when you want to support both API and chat callers.
-- Prefer named Input Format fields over parsing raw JSON in downstream nodes; type coercion happens automatically.
-- Add validation or routing immediately after Start if certain fields are required for your workflow to succeed.
+- **Use Start as the single entry point** when one workflow serves both API and chat callers.
+- **Prefer named fields over raw JSON.** Typed Input Format fields are coerced automatically and read by name downstream.
+- **Validate early.** Add a [Condition](/blocks/condition) right after Start when certain fields are required for the run to succeed.
