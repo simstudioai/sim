@@ -523,6 +523,16 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [])
 
   /**
+   * Reset the hover-expanded flag whenever the stack empties. The hover wrapper
+   * unmounts without firing mouse-leave when the last toast goes (dismiss / clear
+   * / navigation), so without this `expanded` could stay `true` and stop the next
+   * toasts from auto-dismissing.
+   */
+  useEffect(() => {
+    if (toasts.length === 0) setExpanded(false)
+  }, [toasts.length])
+
+  /**
    * Adds a toast. Actionable toasts persist (`duration: 0`) unless an explicit
    * `duration` is given. When the stack exceeds `STACK_LIMIT` the oldest
    * auto-dismissable toast is evicted first, so a persistent (actionable) toast
