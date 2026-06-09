@@ -907,3 +907,96 @@ export const WAIT_FOLLOWUP_WORKFLOW: PreviewWorkflow = {
     { id: 'wait-followup', source: 'wait', target: 'followup' },
   ],
 }
+
+/** Evaluator example: gate a draft on a quality score before it ships. */
+export const EVALUATOR_GATE_WORKFLOW: PreviewWorkflow = {
+  id: 'evaluator-gate',
+  name: 'Gate on a score',
+  blocks: [
+    {
+      id: 'draft',
+      name: 'Draft',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Messages', value: 'Write the announcement' }],
+    },
+    {
+      id: 'evaluator',
+      name: 'Evaluator',
+      type: 'evaluator',
+      bgColor: '#4D5FFF',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Metrics', value: 'Accuracy, Clarity' },
+        { title: 'Model', value: 'claude-sonnet-4-6' },
+      ],
+    },
+    {
+      id: 'gate',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'If', value: '<evaluator.accuracy> >= 4' }],
+    },
+  ],
+  edges: [
+    { id: 'draft-evaluator', source: 'draft', target: 'evaluator' },
+    { id: 'evaluator-gate', source: 'evaluator', target: 'gate' },
+  ],
+}
+
+/** Credential example: select one Google account and reuse it across blocks. */
+export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
+  id: 'credential-share',
+  name: 'Share a credential',
+  blocks: [
+    {
+      id: 'credential',
+      name: 'Credential',
+      type: 'credential',
+      bgColor: '#6366F1',
+      position: { x: 0, y: 100 },
+      hideTargetHandle: true,
+      rows: [
+        { title: 'Operation', value: 'Select Credential' },
+        { title: 'Account', value: 'Google' },
+      ],
+    },
+    {
+      id: 'gmail',
+      name: 'Gmail',
+      type: 'gmail',
+      bgColor: '#FFFFFF',
+      position: { x: 380, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Account', value: '<credential.credentialId>' }],
+    },
+    {
+      id: 'drive',
+      name: 'Drive',
+      type: 'google_drive',
+      bgColor: '#FFFFFF',
+      position: { x: 380, y: 100 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Account', value: '<credential.credentialId>' }],
+    },
+    {
+      id: 'calendar',
+      name: 'Calendar',
+      type: 'google_calendar',
+      bgColor: '#FFFFFF',
+      position: { x: 380, y: 200 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Account', value: '<credential.credentialId>' }],
+    },
+  ],
+  edges: [
+    { id: 'credential-gmail', source: 'credential', target: 'gmail' },
+    { id: 'credential-drive', source: 'credential', target: 'drive' },
+    { id: 'credential-calendar', source: 'credential', target: 'calendar' },
+  ],
+}

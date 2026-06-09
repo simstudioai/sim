@@ -3,12 +3,18 @@
 import { memo } from 'react'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { blockTypeToIconMap } from '@/components/ui/icon-mapping'
 import { BLOCK_ICONS } from '@/components/workflow-preview/block-icons'
 import {
   BLOCK_STAGGER,
   EASE_OUT,
   type PreviewTool,
 } from '@/components/workflow-preview/workflow-data'
+
+/** Core-block glyph first, then the integration icon map so diagrams can show tools too. */
+function resolveIcon(type: string) {
+  return BLOCK_ICONS[type] ?? blockTypeToIconMap[type] ?? null
+}
 
 interface PreviewBlockData {
   name: string
@@ -55,7 +61,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
     isHighlighted = false,
     isDimmed = false,
   } = data
-  const Icon = BLOCK_ICONS[blockType]
+  const Icon = resolveIcon(blockType)
   const delay = animate ? index * BLOCK_STAGGER : 0
   const hasContent = rows.length > 0 || (tools && tools.length > 0)
 
@@ -120,7 +126,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                   </span>
                   <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
                     {tools.map((tool) => {
-                      const ToolIcon = BLOCK_ICONS[tool.type]
+                      const ToolIcon = resolveIcon(tool.type)
                       return (
                         <div
                           key={tool.type}
