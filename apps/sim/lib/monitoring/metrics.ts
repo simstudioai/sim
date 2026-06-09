@@ -13,9 +13,13 @@
  * Per-workspace/user cost lives in the `usage_log` table, never on a dimension.
  *
  * Records buffer in-process and flush asynchronously via PutMetricData (batched,
- * off the request path). Long-lived processes flush on a timer + SIGTERM;
- * call flushHostedKeyMetrics() at the end of an ephemeral run so a worker that
- * exits between flushes doesn't drop its last batch.
+ * off the request path). Flushing is automatic — a 5s timer, a buffer-size
+ * threshold, and SIGTERM/SIGINT/beforeExit (the exit handlers AWAIT the final
+ * drain, so both long-lived app processes and ephemeral trigger.dev workers push
+ * their last batch before the process exits). flushHostedKeyMetrics() is also
+ * exported for explicit/early draining (e.g. tests). The buffer is hard-capped:
+ * if CloudWatch flushing stalls it drops the oldest points rather than growing
+ * unbounded.
  */
 
 import {
@@ -31,7 +35,8 @@ const logger = createLogger('HostedKeyMetrics')
 const NAMESPACE = 'Sim/HostedKey'
 const MAX_BATCH = 1000 // CloudWatch PutMetricData hard limit per request
 const FLUSH_INTERVAL_MS = 5_000
-const MAX_BUFFER = 1000
+const FLUSH_THRESHOLD = 1000 // flush once the buffer reaches this many points
+const MAX_BUFFER = 10_000 // hard cap; drop oldest beyond this if flushing stalls
 
 type ThrottleReason = 'billing_actor_limit' | 'upstream_retries_exhausted'
 type QueueReason = 'actor_requests' | 'dimension' | 'queue_position'
@@ -50,6 +55,7 @@ const ENVIRONMENT =
 
 let client: CloudWatchClient | undefined
 let buffer: MetricDatum[] = []
+let dropped = 0
 let timer: ReturnType<typeof setInterval> | undefined
 let handlersRegistered = false
 
@@ -68,8 +74,8 @@ function ensureBackground(): void {
   timer.unref?.()
   if (!handlersRegistered) {
     handlersRegistered = true
-    const onExit = () => {
-      void flushHostedKeyMetrics()
+    const onExit = async () => {
+      await flushHostedKeyMetrics()
     }
     process.once('SIGTERM', onExit)
     process.once('SIGINT', onExit)
@@ -99,12 +105,23 @@ function enqueue(
     Timestamp: new Date(),
     Dimensions: buildDimensions(labels),
   })
+  if (buffer.length > MAX_BUFFER) {
+    // Flushing has stalled (CloudWatch slow/erroring) — bound memory by dropping
+    // the oldest points instead of growing without limit.
+    const overflow = buffer.length - MAX_BUFFER
+    buffer.splice(0, overflow)
+    dropped += overflow
+  }
   ensureBackground()
-  if (buffer.length >= MAX_BUFFER) void flushHostedKeyMetrics()
+  if (buffer.length >= FLUSH_THRESHOLD) void flushHostedKeyMetrics()
 }
 
 /** Drain the buffer to CloudWatch. Safe to call repeatedly; await before exit. */
 export async function flushHostedKeyMetrics(): Promise<void> {
+  if (dropped > 0) {
+    logger.warn('Dropped hosted-key metric points (buffer cap reached)', { dropped })
+    dropped = 0
+  }
   if (!ENABLED || buffer.length === 0) return
   const pending = buffer
   buffer = []
