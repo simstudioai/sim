@@ -1,11 +1,12 @@
 ---
 title: Workflow Block
 description: Run another workflow inside the current flow
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
-import { BlockPreview } from '@/components/workflow-preview'
+import { BlockPreview, WorkflowPreview, WORKFLOW_CALL_WORKFLOW } from '@/components/workflow-preview'
 
 ## What It Does
 
@@ -34,6 +35,12 @@ Drop a Workflow block when you want to call a child workflow as part of a larger
    - `error` – message when the run fails
    - `childWorkflowName` – the name of the child workflow (string)
    - `childWorkflowId` – the ID of the child workflow (string)
+
+## Example
+
+<WorkflowPreview workflow={WORKFLOW_CALL_WORKFLOW} />
+
+The parent passes its input to the child workflow `enrich-lead`, waits for it to finish, and reads the result downstream as `<workflow.result>`.
 
 ## Deployment Status Badge
 

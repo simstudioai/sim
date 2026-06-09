@@ -1348,3 +1348,44 @@ export const WEBHOOK_TRIGGER_WORKFLOW: PreviewWorkflow = {
     { id: 'condition-webhook', source: 'condition', target: 'webhook' },
   ],
 }
+
+/** Workflow-block example: call a child workflow and use its result. */
+export const WORKFLOW_CALL_WORKFLOW: PreviewWorkflow = {
+  id: 'workflow-call',
+  name: 'Call a child workflow',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Lead' }],
+    },
+    {
+      id: 'child',
+      name: 'Workflow',
+      type: 'workflow',
+      bgColor: '#6366F1',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Workflow', value: 'enrich-lead' },
+        { title: 'Input', value: '<start.input>' },
+      ],
+    },
+    {
+      id: 'agent',
+      name: 'Agent',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Summarize <workflow.result>' }],
+    },
+  ],
+  edges: [
+    { id: 'start-child', source: 'start', target: 'child' },
+    { id: 'child-agent', source: 'child', target: 'agent' },
+  ],
+}
