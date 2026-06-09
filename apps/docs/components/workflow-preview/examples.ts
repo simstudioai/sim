@@ -1272,3 +1272,79 @@ export const HITL_VALIDATE_WORKFLOW: PreviewWorkflow = {
     { id: 'validate-process', source: 'validate', target: 'process' },
   ],
 }
+
+/** Webhook example: post a formatted result to an external endpoint. */
+export const WEBHOOK_NOTIFY_WORKFLOW: PreviewWorkflow = {
+  id: 'webhook-notify',
+  name: 'Notify a service',
+  blocks: [
+    {
+      id: 'agent',
+      name: 'Agent',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Messages', value: 'Summarize the run' }],
+    },
+    {
+      id: 'format',
+      name: 'Format',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 320, y: 0 },
+      rows: [{ title: 'Code', value: 'toSlackBlocks(<agent.content>)' }],
+    },
+    {
+      id: 'webhook',
+      name: 'Webhook',
+      type: 'webhook',
+      bgColor: '#10B981',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'URL', value: 'hooks.slack.com/…' }],
+    },
+  ],
+  edges: [
+    { id: 'agent-format', source: 'agent', target: 'format' },
+    { id: 'format-webhook', source: 'format', target: 'webhook' },
+  ],
+}
+
+/** Webhook example: fire an external process when a check passes. */
+export const WEBHOOK_TRIGGER_WORKFLOW: PreviewWorkflow = {
+  id: 'webhook-trigger',
+  name: 'Trigger on a check',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Event' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 320, y: 0 },
+      rows: [{ title: 'If', value: "<start.status> === 'done'" }],
+    },
+    {
+      id: 'webhook',
+      name: 'Webhook',
+      type: 'webhook',
+      bgColor: '#10B981',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'URL', value: 'api.partner.com/hook' }],
+    },
+  ],
+  edges: [
+    { id: 'start-condition', source: 'start', target: 'condition' },
+    { id: 'condition-webhook', source: 'condition', target: 'webhook' },
+  ],
+}

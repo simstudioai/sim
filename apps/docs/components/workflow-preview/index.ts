@@ -29,6 +29,8 @@ export {
   VARIABLES_RETRY_WORKFLOW,
   WAIT_FOLLOWUP_WORKFLOW,
   WAIT_RATELIMIT_WORKFLOW,
+  WEBHOOK_NOTIFY_WORKFLOW,
+  WEBHOOK_TRIGGER_WORKFLOW,
 } from '@/components/workflow-preview/examples'
 export { OutputBundle } from '@/components/workflow-preview/output-bundle'
 export type {

@@ -1,9 +1,11 @@
 ---
 title: Webhook
+description: The Webhook block sends an HTTP POST to an external endpoint, with automatic headers and optional signing.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { BlockPreview } from '@/components/workflow-preview'
+import { BlockPreview, WorkflowPreview, WEBHOOK_NOTIFY_WORKFLOW, WEBHOOK_TRIGGER_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The Webhook block sends HTTP POST requests to external webhook endpoints with automatic webhook headers and optional HMAC signing.
@@ -63,17 +65,19 @@ Every request includes these headers automatically:
 | `status` | number | HTTP status code |
 | `headers` | object | Response headers |
 
-## Example Use Cases
+## Examples
 
-**Notify external services** - Send workflow results to Slack, Discord, or custom endpoints
-```
-Agent → Function (format) → Webhook (notify)
-```
+### Notify an external service
 
-**Trigger external workflows** - Start processes in other systems when conditions are met
-```
-Condition (check) → Webhook (trigger) → Response
-```
+<WorkflowPreview workflow={WEBHOOK_NOTIFY_WORKFLOW} />
+
+Format the result, then POST it to a Slack, Discord, or custom endpoint.
+
+### Fire an external process on a check
+
+<WorkflowPreview workflow={WEBHOOK_TRIGGER_WORKFLOW} />
+
+When the Condition passes, the Webhook starts a process in another system.
 
 <Callout>
 The Webhook block always uses POST. For other HTTP methods or more control, use the [API block](/blocks/api).
