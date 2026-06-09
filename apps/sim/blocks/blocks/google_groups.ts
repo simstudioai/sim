@@ -530,4 +530,31 @@ export const GoogleGroupsBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'add-member-to-group',
+      description:
+        'Add a user to a Google Workspace group with a chosen role and confirm membership.',
+      content:
+        '# Add a Member to a Group\n\nGrant someone membership in a Workspace group.\n\n## Steps\n1. Identify the group email or ID and the member email.\n2. Run Check Membership first to see if the user is already a member; skip the add if so.\n3. Run Add Member with the member email and the desired role (MEMBER, MANAGER, or OWNER; default MEMBER).\n4. Optionally run Check Membership again to confirm the add succeeded.\n\n## Output\nConfirm the user was added (or already present), the role granted, and the group. Note if the operation requires admin privileges that were missing.',
+    },
+    {
+      name: 'audit-group-membership',
+      description: 'List the members and roles of a Google Group for access review or compliance.',
+      content:
+        '# Audit Group Membership\n\nProduce a membership roster for a group.\n\n## Steps\n1. Identify the group email or ID.\n2. Run List Members with a Max Results value; optionally filter by roles (OWNER, MANAGER, MEMBER).\n3. Page through results using the next page token until all members are collected.\n4. Separate owners/managers from regular members and flag any external-domain addresses.\n\n## Output\nA roster grouped by role: owners, managers, members. Include total counts and a list of any external members for review.',
+    },
+    {
+      name: 'create-group',
+      description: 'Create a new Google Workspace group with an email, name, and description.',
+      content:
+        '# Create a Group\n\nStand up a new Workspace group.\n\n## Steps\n1. Decide the group email address, display name, and a clear description of its purpose.\n2. Run List Groups (filter by the intended email/name) to confirm it does not already exist.\n3. Run Create Group with the email, name, and description.\n4. Optionally run Add Member to seed initial owners/managers.\n\n## Output\nConfirm the created group with its email, name, and description. List any initial members added. Note that this requires Workspace admin access.',
+    },
+    {
+      name: 'remove-member-from-group',
+      description: 'Remove a user from a Google Group, useful for offboarding and access cleanup.',
+      content:
+        "# Remove a Member from a Group\n\nRevoke a user's group membership.\n\n## Steps\n1. Identify the group email/ID and the member email or ID.\n2. Run Check Membership to confirm the user is actually a member.\n3. If present, run Remove Member with the group and member keys.\n4. For offboarding across many groups, run List Groups filtered by `memberKey:<email>` first to find every group the user belongs to, then remove from each.\n\n## Output\nConfirm the removal per group, and for offboarding list every group the user was removed from. Note any failures for manual follow-up.",
+    },
+  ],
 } as const satisfies BlockMeta

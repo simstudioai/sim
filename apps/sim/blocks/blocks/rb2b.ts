@@ -295,4 +295,24 @@ export const RB2BBlockMeta = {
       tags: ['sales', 'enrichment', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'identify-website-visitor',
+      description: 'Resolve a visitor IP into a person and company profile for sales follow-up.',
+      content:
+        '# Identify Website Visitor\n\nTurn an anonymous visit into a named, enrichable lead.\n\n## Steps\n1. Take the visitor ip_address and run ip_to_company to resolve the firmographic match.\n2. Run ip_to_hem to obtain the hashed email identifier for the person.\n3. Run hem_to_business_profile and hem_to_best_linkedin to build a full contact profile.\n4. Score the lead by company fit and route high-intent matches to sales.\n\n## Output\nReturn the resolved company, person name, title, and LinkedIn. Flag whether the match clears your fit threshold.',
+    },
+    {
+      name: 'enrich-linkedin-contact',
+      description: 'Enrich a LinkedIn profile with business email and phone for outreach.',
+      content:
+        '# Enrich LinkedIn Contact\n\nTurn a LinkedIn profile into reachable contact details.\n\n## Steps\n1. Provide the LinkedIn URL or slug; use linkedin_slug_search first if you only have a name.\n2. Run linkedin_to_business_profile to capture role and company.\n3. Run linkedin_to_best_personal_email and linkedin_to_mobile_phone for direct contact points.\n4. Push the enriched record into the CRM or an outreach sequence.\n\n## Output\nReturn the contact name, company, best email, and phone. Note any field that could not be resolved.',
+    },
+    {
+      name: 'check-credit-balance',
+      description: 'Check the RB2B credit balance before running a batch of enrichment lookups.',
+      content:
+        '# Check Credit Balance\n\nVerify enrichment credits remain before a batch run.\n\n## Steps\n1. Run credit_check to read the current balance.\n2. Estimate the credits needed for the planned lookups.\n3. If the balance is insufficient, alert the team rather than starting a partial run.\n\n## Output\nReturn the remaining credit balance and whether the planned batch can proceed.',
+    },
+  ],
 } as const satisfies BlockMeta

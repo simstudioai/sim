@@ -181,6 +181,7 @@ import {
 } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock, MicrosoftPlannerBlockMeta } from '@/blocks/blocks/microsoft_planner'
 import { MicrosoftTeamsBlock, MicrosoftTeamsBlockMeta } from '@/blocks/blocks/microsoft_teams'
+import { MillionVerifierBlock, MillionVerifierBlockMeta } from '@/blocks/blocks/millionverifier'
 import {
   MistralParseBlock,
   MistralParseBlockMeta,
@@ -192,6 +193,7 @@ import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
+import { NeverBounceBlock, NeverBounceBlockMeta } from '@/blocks/blocks/neverbounce'
 import { NewRelicBlock, NewRelicBlockMeta } from '@/blocks/blocks/new_relic'
 import { NoteBlock } from '@/blocks/blocks/note'
 import {
@@ -240,6 +242,7 @@ import { SapS4HanaBlock, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
 import { SecretsManagerBlock, SecretsManagerBlockMeta } from '@/blocks/blocks/secrets_manager'
+import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
 import { SerperBlock, SerperBlockMeta } from '@/blocks/blocks/serper'
@@ -299,9 +302,16 @@ import { XBlock, XBlockMeta } from '@/blocks/blocks/x'
 import { YouTubeBlock, YouTubeBlockMeta } from '@/blocks/blocks/youtube'
 import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
+import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce'
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
 import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
-import type { BlockCategory, BlockConfig, BlockMeta, BlockTemplate } from '@/blocks/types'
+import type {
+  BlockCategory,
+  BlockConfig,
+  BlockMeta,
+  BlockTemplate,
+  SuggestedSkill,
+} from '@/blocks/types'
 
 /** All block configs keyed by block type. The execution source of truth. */
 const BLOCK_REGISTRY: Record<string, BlockConfig> = {
@@ -373,6 +383,9 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   file_v3: FileV3Block,
   file_v4: FileV4Block,
   findymail: FindymailBlock,
+  zerobounce: ZeroBounceBlock,
+  neverbounce: NeverBounceBlock,
+  millionverifier: MillionVerifierBlock,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
@@ -513,6 +526,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   schedule: ScheduleBlock,
   search: SearchBlock,
   secrets_manager: SecretsManagerBlock,
+  sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
   serper: SerperBlock,
@@ -717,10 +731,12 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   microsoft_excel_v2: MicrosoftExcelV2BlockMeta,
   microsoft_planner: MicrosoftPlannerBlockMeta,
   microsoft_teams: MicrosoftTeamsBlockMeta,
+  millionverifier: MillionVerifierBlockMeta,
   mistral_parse: MistralParseBlockMeta,
   monday: MondayBlockMeta,
   mongodb: MongoDBBlockMeta,
   neo4j: Neo4jBlockMeta,
+  neverbounce: NeverBounceBlockMeta,
   new_relic: NewRelicBlockMeta,
   notion: NotionBlockMeta,
   notion_v2: NotionV2BlockMeta,
@@ -759,6 +775,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   sap_concur: SapConcurBlockMeta,
   sap_s4hana: SapS4HanaBlockMeta,
   secrets_manager: SecretsManagerBlockMeta,
+  sendblue: SendblueBlockMeta,
   sendgrid: SendGridBlockMeta,
   sentry: SentryBlockMeta,
   serper: SerperBlockMeta,
@@ -797,6 +814,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   youtube: YouTubeBlockMeta,
   zendesk: ZendeskBlockMeta,
   zep: ZepBlockMeta,
+  zerobounce: ZeroBounceBlockMeta,
   zoom: ZoomBlockMeta,
   zoominfo: ZoomInfoBlockMeta,
 }
@@ -946,6 +964,20 @@ export function getTemplatesForBlock(type: string): ScopedBlockTemplate[] {
     }
   }
   return collected
+}
+
+/**
+ * Popular, ready-to-add skills for a block type. Curated skills live on the
+ * base integration's meta, but a versioned catalog type (e.g. `notion_v2`) has
+ * its own meta entry that {@link getBlockMeta} resolves first and which may omit
+ * skills — so fall back to the stripped base meta. Returns an empty array when
+ * the integration has no curated skills.
+ */
+export function getSuggestedSkillsForBlock(type: string): readonly SuggestedSkill[] {
+  const direct = getBlockMeta(type)?.skills
+  if (direct && direct.length > 0) return direct
+  const base = stripVersionSuffix(normalizeType(type))
+  return BLOCK_META_REGISTRY[base]?.skills ?? []
 }
 
 /**

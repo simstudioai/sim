@@ -1410,4 +1410,31 @@ export const JiraBlockMeta = {
       alsoIntegrations: ['confluence'],
     },
   ],
+  skills: [
+    {
+      name: 'create-bug-from-report',
+      description:
+        'Turn a bug report into a well-structured Jira issue with steps, severity, and labels.',
+      content:
+        '# Create a Bug From a Report\n\nConvert a raw bug report into a clean, actionable Jira issue.\n\n## Steps\n1. Parse the report for summary, steps to reproduce, expected vs actual behavior, and environment.\n2. Create an issue in the target project with type Bug, a clear summary, and a structured description.\n3. Set priority based on impact and add relevant labels or components.\n4. Optionally assign it to the right owner.\n\n## Output\nReturn the issue key, URL, priority, and assignee. Confirm the description includes reproduction steps.',
+    },
+    {
+      name: 'triage-open-issues',
+      description: 'Search open issues with JQL and propose assignees, priorities, and labels.',
+      content:
+        '# Triage Open Issues\n\nBring order to a backlog of unassigned or stale issues.\n\n## Steps\n1. Search issues using JQL (e.g. unassigned and recently created in a project).\n2. Read each issue to understand scope and urgency.\n3. For each, propose a priority, suggested assignee, and labels; apply updates where confident.\n4. Add a short triage comment explaining the decision.\n\n## Output\nReturn a table of issues with proposed/applied priority, assignee, and labels, flagging any that need a human decision.',
+    },
+    {
+      name: 'transition-and-comment',
+      description: 'Move an issue to a new workflow status and post a progress comment.',
+      content:
+        '# Transition and Comment\n\nAdvance a Jira issue through its workflow with a clear note.\n\n## Steps\n1. Retrieve the issue and read its current status.\n2. Get available transitions and choose the correct next status (e.g. In Progress, In Review, Done).\n3. Transition the issue to that status.\n4. Add a comment summarizing what changed and any next steps.\n\n## Output\nReturn the issue key, the new status, and the comment that was posted.',
+    },
+    {
+      name: 'sprint-status-digest',
+      description: 'Summarize issues in a project or sprint grouped by status and assignee.',
+      content:
+        '# Sprint Status Digest\n\nProduce a quick read on where work stands.\n\n## Steps\n1. Search issues with JQL scoped to the project or current sprint.\n2. Group results by status and by assignee.\n3. Identify blocked issues, overdue items, and anything unassigned.\n\n## Output\nReturn a digest: counts by status, work per assignee, and a callout list of blocked or at-risk issues with their keys.',
+    },
+  ],
 } as const satisfies BlockMeta

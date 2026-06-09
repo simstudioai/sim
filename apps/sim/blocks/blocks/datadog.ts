@@ -907,4 +907,34 @@ export const DatadogBlockMeta = {
       alsoIntegrations: ['gmail'],
     },
   ],
+  skills: [
+    {
+      name: 'triage-firing-monitors',
+      description:
+        'List Datadog monitors, surface those in alert or warn state, and summarize what is firing and why.',
+      content:
+        '# Triage Firing Datadog Monitors\n\nGet a clear picture of what is alerting right now.\n\n## Steps\n1. List monitors and filter to those in Alert or Warn states.\n2. For each, get the monitor details: query, threshold, and current value.\n3. Group by service or tag to find common root causes.\n\n## Output\nA prioritized list of firing monitors with the metric, threshold, and likely affected service.',
+    },
+    {
+      name: 'investigate-logs',
+      description:
+        'Query Datadog logs for a service and time window to find errors and summarize patterns.',
+      content:
+        '# Investigate Datadog Logs\n\nSearch logs to diagnose an issue.\n\n## Steps\n1. Confirm the service, environment, and time window.\n2. Query logs filtering for error/critical status and the relevant service tag.\n3. Aggregate by error message or type to find the dominant patterns.\n4. Pull sample log lines for the top patterns.\n\n## Output\nA summary of the top error patterns with counts and sample log lines.',
+    },
+    {
+      name: 'analyze-metric-trend',
+      description:
+        'Query a Datadog timeseries metric over a window and report the trend, anomalies, and current value.',
+      content:
+        '# Analyze a Datadog Metric Trend\n\nUnderstand how a metric is behaving over time.\n\n## Steps\n1. Confirm the metric query and the time window.\n2. Query the timeseries and compute the trend (rising, flat, falling).\n3. Identify spikes, dips, or anomalies and when they occurred.\n\n## Output\nA short analysis with the current value, overall trend, and any notable anomalies with timestamps.',
+    },
+    {
+      name: 'schedule-maintenance-downtime',
+      description:
+        'Create a Datadog downtime to mute monitors during a maintenance window, then confirm the scope and timing.',
+      content:
+        '# Schedule Datadog Maintenance Downtime\n\nSuppress alerts during planned maintenance.\n\n## Steps\n1. Confirm the scope (tags/monitors) and the start and end times.\n2. Create the downtime with that scope and window.\n3. Verify it was created by listing active downtimes.\n\n## Output\nA confirmation of the downtime with its scope, start/end time, and id.',
+    },
+  ],
 } as const satisfies BlockMeta

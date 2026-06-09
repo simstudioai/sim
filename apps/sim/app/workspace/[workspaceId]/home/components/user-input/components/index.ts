@@ -15,10 +15,9 @@ export type {
   WindowWithSpeech,
 } from './constants'
 export {
-  autoResizeTextarea,
-  MAX_CHAT_TEXTAREA_HEIGHT,
   mapResourceToContext,
   OVERLAY_CLASSES,
+  SCROLLER_CLASSES,
   SPEECH_RECOGNITION_LANG,
   TEXTAREA_BASE_CLASSES,
 } from './constants'

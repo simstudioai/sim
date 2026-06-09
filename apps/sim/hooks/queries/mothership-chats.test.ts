@@ -21,7 +21,11 @@ vi.mock('@tanstack/react-query', () => ({
   useMutation: vi.fn((options) => options),
 }))
 
-import { fetchChatHistory, fetchTasks, useAddChatResource } from '@/hooks/queries/tasks'
+import {
+  fetchMothershipChatHistory,
+  fetchMothershipChats,
+  useAddChatResource,
+} from '@/hooks/queries/mothership-chats'
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(body), {
@@ -60,7 +64,7 @@ describe('tasks query boundary parsing', () => {
       })
     )
 
-    const tasks = await fetchTasks('ws-1')
+    const tasks = await fetchMothershipChats('ws-1')
 
     expect(tasks).toHaveLength(1)
     expect(tasks[0]).toEqual(
@@ -92,7 +96,9 @@ describe('tasks query boundary parsing', () => {
       })
     )
 
-    await expect(fetchTasks('ws-1')).rejects.toThrow('Response failed contract validation')
+    await expect(fetchMothershipChats('ws-1')).rejects.toThrow(
+      'Response failed contract validation'
+    )
   })
 
   it('parses valid mothership chat history responses', async () => {
@@ -114,7 +120,7 @@ describe('tasks query boundary parsing', () => {
       })
     )
 
-    const history = await fetchChatHistory('chat-1')
+    const history = await fetchMothershipChatHistory('chat-1')
 
     expect(history).toEqual({
       id: 'chat-1',
@@ -146,7 +152,7 @@ describe('tasks query boundary parsing', () => {
         })
       )
 
-    await expect(fetchChatHistory('chat-1')).rejects.toThrow(
+    await expect(fetchMothershipChatHistory('chat-1')).rejects.toThrow(
       'Invalid chat response: chat.resources[0].type is invalid'
     )
   })

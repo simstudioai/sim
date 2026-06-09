@@ -284,6 +284,7 @@ export const GET = withRouteHandler(
             data: r.data,
             executions: r.executions,
             position: r.position,
+            orderKey: r.orderKey ?? undefined,
             createdAt:
               r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
             updatedAt:

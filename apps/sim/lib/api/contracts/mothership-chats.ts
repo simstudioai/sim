@@ -201,7 +201,7 @@ export const removeMothershipChatResourceContract = defineRouteContract({
   },
 })
 
-export const mothershipTaskSchema = z.object({
+export const mothershipChatSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   updatedAt: dateStringSchema,
@@ -218,7 +218,7 @@ export const listMothershipChatsContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      data: z.array(mothershipTaskSchema),
+      data: z.array(mothershipChatSchema),
     }),
   },
 })
@@ -343,4 +343,4 @@ export const getMothershipChatContract = defineRouteContract({
   },
 })
 
-export type MothershipTask = z.infer<typeof mothershipTaskSchema>
+export type MothershipChat = z.infer<typeof mothershipChatSchema>

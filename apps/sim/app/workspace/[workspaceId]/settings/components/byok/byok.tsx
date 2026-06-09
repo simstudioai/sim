@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -31,7 +32,9 @@ import {
   HunterIOIcon,
   JinaAIIcon,
   LinkupIcon,
+  MillionVerifierIcon,
   MistralIcon,
+  NeverBounceIcon,
   OllamaIcon,
   OpenAIIcon,
   ParallelIcon,
@@ -41,6 +44,7 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  ZeroBounceIcon,
 } from '@/components/icons'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -221,6 +225,27 @@ const PROVIDERS: {
     description: 'Prospect search, individual reveal, and company enrichment',
     placeholder: 'Enter your Wiza API key',
   },
+  {
+    id: 'zerobounce',
+    name: 'ZeroBounce',
+    icon: ZeroBounceIcon,
+    description: 'Real-time email validation and deliverability checks',
+    placeholder: 'Enter your ZeroBounce API key',
+  },
+  {
+    id: 'neverbounce',
+    name: 'NeverBounce',
+    icon: NeverBounceIcon,
+    description: 'Real-time email verification and list cleaning',
+    placeholder: 'Enter your NeverBounce API key',
+  },
+  {
+    id: 'millionverifier',
+    name: 'MillionVerifier',
+    icon: MillionVerifierIcon,
+    description: 'Real-time email verification and deliverability checks',
+    placeholder: 'Enter your MillionVerifier API key',
+  },
 ]
 
 /**
@@ -258,7 +283,17 @@ const PROVIDER_SECTIONS: { label: string; ids: BYOKProviderId[] }[] = [
   },
   {
     label: 'Enrichment',
-    ids: ['brandfetch', 'hunter', 'peopledatalabs', 'findymail', 'prospeo', 'wiza'],
+    ids: [
+      'brandfetch',
+      'hunter',
+      'peopledatalabs',
+      'findymail',
+      'prospeo',
+      'wiza',
+      'zerobounce',
+      'neverbounce',
+      'millionverifier',
+    ],
   },
 ]
 
@@ -493,39 +528,31 @@ export function BYOK() {
           </ChipModalField>
           <ChipModalError>{error}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setEditingProvider(null)
-              setApiKeyInput('')
-              setShowApiKey(false)
-              setError(null)
-            }}
-            disabled={upsertKey.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleSave}
-            disabled={!apiKeyInput.trim() || upsertKey.isPending}
-          >
-            {upsertKey.isPending ? 'Saving...' : 'Save'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => {
+            setEditingProvider(null)
+            setApiKeyInput('')
+            setShowApiKey(false)
+            setError(null)
+          }}
+          cancelDisabled={upsertKey.isPending}
+          primaryAction={{
+            label: upsertKey.isPending ? 'Saving...' : 'Save',
+            onClick: handleSave,
+            disabled: !apiKeyInput.trim() || upsertKey.isPending,
+          }}
+        />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!deleteConfirmProvider}
-        onOpenChange={() => setDeleteConfirmProvider(null)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirmProvider(null)
+        }}
         srTitle='Delete API Key'
-      >
-        <ChipModalHeader showDivider={false}>Delete API Key</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete API Key'
+        description={
+          <>
             Are you sure you want to delete the{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
@@ -535,17 +562,15 @@ export function BYOK() {
               This workspace will revert to using platform hosted keys.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setDeleteConfirmProvider(null)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDelete} disabled={deleteKey.isPending}>
-            {deleteKey.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteKey.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </div>
   )
 }

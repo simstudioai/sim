@@ -354,4 +354,26 @@ export const GoogleTasksBlockMeta = {
       alsoIntegrations: ['google_calendar'],
     },
   ],
+  skills: [
+    {
+      name: 'capture-action-items',
+      description:
+        'Turn a list of action items into Google Tasks with titles, notes, and due dates in the right task list.',
+      content:
+        '# Capture Action Items\n\nConvert extracted action items into well-formed Google Tasks.\n\n## Steps\n1. List the available task lists and pick the target list (default to the primary list if none specified).\n2. For each action item, create a task with a concise title, detailed notes for context, and a due date if one was given.\n3. Avoid duplicates by skipping items whose title already exists in the list.\n\n## Output\nReturn the created task IDs and titles, grouped by task list. Note any items skipped as duplicates.',
+    },
+    {
+      name: 'list-due-and-overdue',
+      description:
+        'List open Google Tasks that are due soon or overdue across a task list for a daily review.',
+      content:
+        '# List Due and Overdue Tasks\n\nSurface tasks that need attention for a daily or weekly review.\n\n## Steps\n1. List the task lists, or use a specified list.\n2. List tasks in the list, including completed status and due dates.\n3. Filter to incomplete tasks and split into Overdue (due before today) and Due Soon (due within the next few days).\n4. Sort each group by due date ascending.\n\n## Output\nReturn two sections, Overdue and Due Soon, each with task title, due date, and task ID. Useful for posting a standup or reminder digest.',
+    },
+    {
+      name: 'complete-task-by-title',
+      description: 'Find a Google Task by its title and mark it completed.',
+      content:
+        '# Complete Task By Title\n\nMark a task done when given a title rather than an ID.\n\n## Steps\n1. List tasks in the relevant task list and match the requested title (case-insensitive, allow partial match).\n2. If multiple match, prefer the incomplete one; if still ambiguous, return the candidates and ask for clarification.\n3. Update the matched task to set its status to completed.\n4. Confirm the update by reading the task back.\n\n## Output\nReturn the completed task title and ID, or the list of ambiguous candidates if no single match was found.',
+    },
+  ],
 } as const satisfies BlockMeta

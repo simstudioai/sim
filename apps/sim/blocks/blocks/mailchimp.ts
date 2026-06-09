@@ -1532,4 +1532,33 @@ export const MailchimpBlockMeta = {
       alsoIntegrations: ['hubspot'],
     },
   ],
+  skills: [
+    {
+      name: 'sync-contact-to-audience',
+      description: 'Add or update a contact in a Mailchimp audience with merge fields and tags.',
+      content:
+        '# Sync Contact to Audience\n\nKeep a Mailchimp audience in sync with your source of truth.\n\n## Steps\n1. If the audience is unknown, Get Audiences to find the right list ID.\n2. Use Add or Update Member with the email, subscription status, and merge fields like first and last name.\n3. Apply segmentation with Add Member Tags for lifecycle stage or ICP tags.\n\n## Output\nThe member ID and status in the audience, plus the merge fields and tags applied.',
+    },
+    {
+      name: 'create-and-send-campaign',
+      description:
+        'Create a Mailchimp campaign, set its content, and send or schedule it to an audience.',
+      content:
+        '# Create and Send Campaign\n\nLaunch an email campaign to an audience or segment.\n\n## Steps\n1. Create Campaign targeting the audience or a saved segment, with the subject line and from details.\n2. Set Campaign Content with the HTML or a template ID.\n3. Send Campaign immediately, or Schedule Campaign for a future send time.\n\n## Output\nThe campaign ID, the audience or segment targeted, and whether it was sent or scheduled with the send time.',
+    },
+    {
+      name: 'build-targeted-segment',
+      description:
+        'Create a Mailchimp segment from conditions so a campaign can target a specific slice of an audience.',
+      content:
+        '# Build Targeted Segment\n\nDefine a reusable audience segment for targeting.\n\n## Steps\n1. Identify the audience and the conditions that define the segment, such as tags, merge field values, or activity.\n2. Create Segment on that audience with the conditions and a clear name.\n3. Optionally Get Segment Members to verify the segment matches the intended contacts.\n\n## Output\nThe segment ID and name, the conditions used, and the count of matching members.',
+    },
+    {
+      name: 'report-campaign-performance',
+      description:
+        'Pull Mailchimp campaign reports and summarize open, click, and bounce performance.',
+      content:
+        '# Report Campaign Performance\n\nTurn Mailchimp report data into a readable summary.\n\n## Steps\n1. Get Campaign Reports for the recent window, or Get Campaign Report for a specific campaign ID.\n2. Extract opens, clicks, bounces, and unsubscribes per campaign.\n3. Compute open rate, click rate, and bounce rate and flag campaigns that underperformed.\n\n## Output\nA per-campaign metrics summary with rates and a short list of underperformers worth revisiting.',
+    },
+  ],
 } as const satisfies BlockMeta

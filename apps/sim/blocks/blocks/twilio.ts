@@ -145,4 +145,25 @@ export const TwilioSMSBlockMeta = {
       tags: ['messaging', 'automation', 'team'],
     },
   ],
+  skills: [
+    {
+      name: 'send-sms-notification',
+      description: 'Send an SMS notification to one or more phone numbers via Twilio.',
+      content:
+        '# Send an SMS Notification\n\nDeliver a text message to one or more recipients through your Twilio number.\n\n## Steps\n1. Enter the Recipient Phone Numbers in E.164 format with country code (for example +14155551234), one per line for multiple recipients.\n2. Write the Message text, keeping it concise since long messages split into multiple segments.\n3. Provide your Twilio Account SID, Auth Token, and the verified From Twilio Phone Number.\n\n## Output\nReturn the success status, the Twilio message SID, and the delivery status (queued, sent, delivered) so the send can be confirmed.',
+    },
+    {
+      name: 'send-personalized-reminder',
+      description:
+        'Send a personalized SMS reminder built from upstream data such as appointment or order details.',
+      content:
+        '# Send a Personalized SMS Reminder\n\nText each recipient a reminder tailored with their own details.\n\n## Steps\n1. Pull the recipient details from an upstream block (a table row, CRM record, or order event).\n2. Build the Message using those fields, for example the appointment time or tracking number, plus any link.\n3. Set the Recipient Phone Numbers to the customer number from the source record.\n4. Provide the Account SID, Auth Token, and From Twilio Phone Number.\n\n## Output\nReturn the message SID and status for each send so delivery can be logged back to the source record.',
+    },
+    {
+      name: 'send-verification-code',
+      description: 'Send a one-time verification code over SMS for two-factor authentication.',
+      content:
+        '# Send a Verification Code over SMS\n\nDeliver a one-time code to a user for two-factor authentication or confirmation.\n\n## Steps\n1. Generate or receive the one-time code from an upstream step.\n2. Compose the Message with the code and a short note (for example "Your code is 482913. It expires in 10 minutes.").\n3. Set the Recipient Phone Numbers to the user number and provide the Account SID, Auth Token, and From number.\n4. Log the send outcome for audit.\n\n## Output\nReturn the message SID and delivery status so the verification send can be tracked and audited.',
+    },
+  ],
 } as const satisfies BlockMeta

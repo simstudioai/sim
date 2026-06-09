@@ -901,4 +901,26 @@ export const DynamoDBBlockMeta = {
       alsoIntegrations: ['athena'],
     },
   ],
+  skills: [
+    {
+      name: 'lookup-item-by-key',
+      description:
+        'Get a single DynamoDB item by its primary key and return the requested attributes.',
+      content:
+        '# Lookup Item by Key\n\nRetrieve one record from a DynamoDB table by its key.\n\n## Steps\n1. Identify the table and the partition key (and sort key if the table uses one).\n2. Get the item by its key.\n3. Return the requested attributes, or report that no item exists for that key.\n\n## Output\nThe item attributes if found, or a clear "not found" result. Do not fabricate values for missing attributes.',
+    },
+    {
+      name: 'query-table-records',
+      description:
+        'Query a DynamoDB table or index by partition key with optional filters and return the matching items.',
+      content:
+        '# Query Table Records\n\nFetch a set of related items from DynamoDB using a query.\n\n## Steps\n1. Determine the table or secondary index and the partition key value to query.\n2. Add a sort-key condition or filter expression if needed to narrow results.\n3. Run the query and collect the items, paginating if there are more.\n\n## Output\nThe matching items and a count. Note if results were truncated by a limit or pagination boundary.',
+    },
+    {
+      name: 'upsert-item',
+      description: 'Create or update a DynamoDB item, setting attributes from provided values.',
+      content:
+        '# Upsert Item\n\nWrite a record into a DynamoDB table.\n\n## Steps\n1. Build the item with its primary key and the attributes to set.\n2. Put the item, or use an update expression to modify only specific attributes.\n3. Confirm the write succeeded.\n\n## Output\nConfirm the item key written and which attributes were set or updated.',
+    },
+  ],
 } as const satisfies BlockMeta

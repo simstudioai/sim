@@ -9,9 +9,11 @@ import {
   Button,
   Callout,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
@@ -326,38 +328,25 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           </TableCell>
         </TableRow>
       )}
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Drain'
-      >
-        <ChipModalHeader showDivider={false}>Delete Drain</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Drain'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{drain.name}</span>? This
             action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteConfirm(false)}
-            disabled={deleteMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleConfirmDelete}
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleConfirmDelete,
+          pending: deleteMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }
@@ -431,6 +420,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
   const [destState, setDestState] = useState<unknown>(
     () => DESTINATION_FORM_REGISTRY[DESTINATION_TYPES[0]].initialState
   )
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const spec = DESTINATION_FORM_REGISTRY[destinationType]
   const canSubmit = name.trim().length > 0 && spec.isComplete(destState)
@@ -442,6 +432,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
 
   async function handleSubmit() {
     if (!canSubmit) return
+    setSubmitError(null)
     try {
       const body = {
         name: name.trim(),
@@ -455,7 +446,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
     } catch (error) {
       const msg = toError(error).message
       logger.error('Failed to create data drain', { error: msg })
-      toast.error(msg)
+      setSubmitError(msg)
     }
   }
 
@@ -500,20 +491,17 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
         <section className='flex flex-col gap-3 px-2'>
           <spec.FormFields state={destState} setState={setDestState} />
         </section>
+        <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={onClose} disabled={createMutation.isPending}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleSubmit}
-          disabled={!canSubmit || createMutation.isPending}
-        >
-          {createMutation.isPending ? 'Creating...' : 'Create drain'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={onClose}
+        cancelDisabled={createMutation.isPending}
+        primaryAction={{
+          label: createMutation.isPending ? 'Creating...' : 'Create drain',
+          onClick: handleSubmit,
+          disabled: !canSubmit || createMutation.isPending,
+        }}
+      />
     </ChipModal>
   )
 }
