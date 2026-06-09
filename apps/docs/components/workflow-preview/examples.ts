@@ -374,3 +374,91 @@ export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
     { id: 'condition-quickstart', source: 'condition', target: 'quickstart' },
   ],
 }
+
+/** Function example: reshape an API response into the field a later block needs. */
+export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
+  id: 'function-reshape',
+  name: 'Reshape a response',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'User ID' }],
+    },
+    {
+      id: 'api',
+      name: 'API',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Method', value: 'GET' },
+        { title: 'URL', value: 'api.example.com/users/<start.input>' },
+      ],
+    },
+    {
+      id: 'extract',
+      name: 'Extract',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [
+        { title: 'Language', value: 'JavaScript' },
+        { title: 'Code', value: 'return <api.data>.profile' },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'start-api', source: 'start', target: 'api' },
+    { id: 'api-extract', source: 'api', target: 'extract' },
+  ],
+}
+
+/** Function example: validate and clean input before writing it. */
+export const FUNCTION_VALIDATE_WORKFLOW: PreviewWorkflow = {
+  id: 'function-validate',
+  name: 'Validate before write',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Form' }],
+    },
+    {
+      id: 'clean',
+      name: 'Clean',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Language', value: 'JavaScript' },
+        { title: 'Code', value: 'return sanitize(<start.input>)' },
+      ],
+    },
+    {
+      id: 'save',
+      name: 'Save',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [
+        { title: 'Method', value: 'POST' },
+        { title: 'Body', value: '<clean.result>' },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'start-clean', source: 'start', target: 'clean' },
+    { id: 'clean-save', source: 'clean', target: 'save' },
+  ],
+}
