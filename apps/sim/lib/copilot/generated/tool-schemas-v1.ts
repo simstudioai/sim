@@ -259,25 +259,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  debug: {
-    parameters: {
-      properties: {
-        context: {
-          description:
-            'Pre-gathered context: workflow state JSON, block schemas, error logs. The debug agent will skip re-reading anything included here.',
-          type: 'string',
-        },
-        request: {
-          description:
-            'What to debug. Include error messages, block IDs, and any context about the failure.',
-          type: 'string',
-        },
-      },
-      required: ['request'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
   delete_file: {
     parameters: {
       type: 'object',
@@ -397,6 +378,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description:
             'REQUIRED when action is "deploy": a concise (1-3 sentence) description of what changed in this deployment version, e.g. "Adds Slack failure alert and retries on the HTTP block". If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first. Ignored for undeploy.',
+        },
+        versionName: {
+          type: 'string',
+          description:
+            'REQUIRED when action is "deploy": a short human-readable name/label for this deployment version (shown in the deployment history), e.g. "v2 pricing" or "Add Slack alerts". Ignored for undeploy.',
         },
         workflowId: {
           type: 'string',
@@ -524,6 +510,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description:
             'REQUIRED when action is "deploy": a concise (1-3 sentence) description of what changed in this deployment version (distinct from the chat-facing description). If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first. Ignored for undeploy.',
+        },
+        versionName: {
+          type: 'string',
+          description:
+            'REQUIRED when action is "deploy": a short human-readable name/label for this deployment version (distinct from the chat title; shown in deployment history). Ignored for undeploy.',
         },
         welcomeMessage: {
           type: 'string',
@@ -2142,6 +2133,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  list_integration_tools: {
+    parameters: {
+      properties: {
+        integration: {
+          description:
+            'The integration service name — the folder under components/integrations/ (e.g. "slack", "gmail", "google_sheets"). Returns every operation\'s id, name, and description for that service.',
+          type: 'string',
+        },
+      },
+      required: ['integration'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   list_user_workspaces: {
     parameters: {
       type: 'object',
@@ -2802,12 +2807,17 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'REQUIRED: a concise (1-3 sentence) description of what changed in this deployment version. If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first.',
         },
+        versionName: {
+          type: 'string',
+          description:
+            'REQUIRED: a short human-readable name/label for this deployment version, shown in deployment history.',
+        },
         workflowId: {
           type: 'string',
           description: 'Workflow ID to redeploy (required in workspace context)',
         },
       },
-      required: ['versionDescription'],
+      required: ['versionDescription', 'versionName'],
     },
     resultSchema: {
       type: 'object',
@@ -3444,6 +3454,35 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['success', 'message'],
     },
+  },
+  update_deployment_version: {
+    parameters: {
+      type: 'object',
+      properties: {
+        description: {
+          type: 'string',
+          description:
+            'New description for the deployment version. Provide name and/or description.',
+        },
+        name: {
+          type: 'string',
+          description:
+            'New name/label for the deployment version. Provide name and/or description.',
+        },
+        version: {
+          type: 'number',
+          description:
+            'The numeric deployment version number to update (use get_deployment_log to find it).',
+        },
+        workflowId: {
+          type: 'string',
+          description:
+            'Optional workflow ID. If not provided, uses the current workflow in context.',
+        },
+      },
+      required: ['version'],
+    },
+    resultSchema: undefined,
   },
   update_job_history: {
     parameters: {

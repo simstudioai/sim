@@ -49,6 +49,7 @@ import {
   RunWorkflowUntilBlock,
   SetBlockEnabled,
   SetGlobalWorkflowVariables,
+  UpdateDeploymentVersion,
   UpdateJobHistory,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -69,6 +70,7 @@ import {
   executeListWorkspaceMcpServers,
   executeLoadDeployment,
   executePromoteToLive,
+  executeUpdateDeploymentVersion,
   executeUpdateWorkspaceMcpServer,
 } from '../tools/handlers/deployment/manage'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
@@ -171,6 +173,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [DiffWorkflows.id]: h(executeDiffWorkflows),
     [LoadDeployment.id]: h(executeLoadDeployment),
     [PromoteToLive.id]: h(executePromoteToLive),
+    [UpdateDeploymentVersion.id]: h(executeUpdateDeploymentVersion),
 
     [ManageJob.id]: h(executeManageJob),
     [CompleteJob.id]: h(executeCompleteJob),
