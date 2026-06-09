@@ -369,4 +369,26 @@ export const SixtyfourBlockMeta = {
       alsoIntegrations: ['gmail'],
     },
   ],
+  skills: [
+    {
+      name: 'enrich-lead',
+      description:
+        'Enrich a single lead with Sixtyfour AI research to fill in role, company, and contact context.',
+      content:
+        '# Enrich Lead\n\nTurn a thin lead record into a researched profile.\n\n## Steps\n1. Run Enrich Lead with whatever you know about the person: name, company, email, or LinkedIn.\n2. Request only the fields you need to keep credit usage down.\n3. Review the returned profile: title, seniority, company, and any social or contact data.\n\n## Output\nReturn the enriched lead profile with the discovered role, company, and context, and note any fields the research could not resolve.',
+    },
+    {
+      name: 'find-contact-details',
+      description: 'Find a verified email or phone number for a prospect using Sixtyfour AI.',
+      content:
+        '# Find Contact Details\n\nLocate a reachable email or phone number for a prospect.\n\n## Steps\n1. Provide the person identity you have: name plus company or domain.\n2. Run Find Email to discover a work email, or Find Phone for a phone number. Choose the professional or personal type as appropriate.\n3. Validate that the result matches the intended person before using it.\n\n## Output\nReturn the discovered email or phone number with its type, and clearly state if no verified contact could be found.',
+    },
+    {
+      name: 'enrich-company',
+      description:
+        'Research a company with Sixtyfour AI to build a firmographic and account-context profile.',
+      content:
+        '# Enrich Company\n\nBuild an account profile for a target company.\n\n## Steps\n1. Run Enrich Company with the company name or domain.\n2. Request the firmographic fields you need: industry, size, location, funding, and technologies in use.\n3. Use the result to qualify the account against your ideal customer profile.\n\n## Output\nReturn the company profile with industry, size, location, and notable signals, plus a short note on how well it fits the target profile.',
+    },
+  ],
 } as const satisfies BlockMeta

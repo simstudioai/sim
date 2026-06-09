@@ -46,7 +46,9 @@ export function useSkills(workspaceId: string) {
 }
 
 /**
- * Create skill mutation
+ * Create skill mutation. On success the created skill is merged into the list
+ * cache so consumers (e.g. the integration detail page's "Added" state) reflect
+ * it immediately, before the invalidation refetch lands.
  */
 interface CreateSkillParams {
   workspaceId: string
@@ -74,7 +76,15 @@ export function useCreateSkill() {
       logger.info(`Created skill: ${s.name}`)
       return data
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<SkillDefinition[]>(
+        skillsKeys.list(variables.workspaceId),
+        (prev) => {
+          const byId = new Map((prev ?? []).map((skill) => [skill.id, skill]))
+          for (const skill of data) byId.set(skill.id, skill)
+          return Array.from(byId.values())
+        }
+      )
       queryClient.invalidateQueries({ queryKey: skillsKeys.list(variables.workspaceId) })
     },
   })

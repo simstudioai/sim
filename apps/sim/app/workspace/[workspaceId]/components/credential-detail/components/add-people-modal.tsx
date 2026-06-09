@@ -4,13 +4,12 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  toast,
 } from '@/components/emcn'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -43,6 +42,7 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
   const [emailsToAdd, setEmailsToAdd] = useState<string[]>([])
   const [roleToAdd, setRoleToAdd] = useState<WorkspaceCredentialRole>('member')
   const [isAdding, setIsAdding] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const workspaceUserIdByEmail = useMemo(
     () =>
@@ -74,11 +74,13 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
   const handleClose = useCallback(() => {
     setEmailsToAdd([])
     setRoleToAdd('member')
+    setSubmitError(null)
     onOpenChange(false)
   }, [onOpenChange])
 
   const handleAddPeople = useCallback(async () => {
     if (emailsToAdd.length === 0 || isAdding) return
+    setSubmitError(null)
     const targets = emailsToAdd
       .map((email) => {
         const result = resolveAddEmail(email, { workspaceUserIdByEmail, existingMemberEmails })
@@ -104,11 +106,11 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
         (result): result is PromiseRejectedResult => result.status === 'rejected'
       )
       logger.error('Failed to add some credential members', firstError?.reason)
-      toast.error(
+      const reason = getErrorMessage(firstError?.reason, 'Please try again in a moment.')
+      setSubmitError(
         failures.length === targets.length
-          ? "Couldn't add people"
-          : `Couldn't add ${failures.length} of ${targets.length} people`,
-        { description: getErrorMessage(firstError?.reason, 'Please try again in a moment.') }
+          ? `Couldn't add people. ${reason}`
+          : `Couldn't add ${failures.length} of ${targets.length} people. ${reason}`
       )
     } finally {
       setIsAdding(false)
@@ -153,16 +155,16 @@ export function AddPeopleModal({ credentialId, open, onOpenChange }: AddPeopleMo
           onChange={(role) => setRoleToAdd(role as WorkspaceCredentialRole)}
           disabled={isAdding}
         />
+        <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip
-          variant='primary'
-          onClick={handleAddPeople}
-          disabled={emailsToAdd.length === 0 || isAdding}
-        >
-          {isAdding ? 'Adding...' : 'Add'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={handleClose}
+        primaryAction={{
+          label: isAdding ? 'Adding...' : 'Add',
+          onClick: handleAddPeople,
+          disabled: emailsToAdd.length === 0 || isAdding,
+        }}
+      />
     </ChipModal>
   )
 }

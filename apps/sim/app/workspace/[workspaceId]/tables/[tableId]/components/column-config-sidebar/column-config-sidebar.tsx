@@ -116,7 +116,9 @@ function ColumnConfigBody({
         return
       }
 
-      const renamed = trimmedName !== config.columnName
+      // `config.columnName` is the column id; compare against the current display
+      // name to detect an actual rename.
+      const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged = !!existingColumn && !!existingColumn.unique !== uniqueInput
 

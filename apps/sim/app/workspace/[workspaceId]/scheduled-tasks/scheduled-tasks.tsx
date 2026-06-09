@@ -4,14 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
-import {
-  Chip,
-  ChipCombobox,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-} from '@/components/emcn'
+import { ChipCombobox, ChipConfirmModal } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type {
@@ -217,6 +210,11 @@ export function ScheduledTasks() {
     } catch (err) {
       logger.error('Failed to delete scheduled task:', err)
     }
+  }
+
+  const handleDeleteDialogOpenChange = (open: boolean) => {
+    setIsDeleteDialogOpen(open)
+    if (!open) setActiveTask(null)
   }
 
   const handlePause = async () => {
@@ -443,43 +441,27 @@ export function ScheduledTasks() {
         schedule={activeTask ?? undefined}
       />
 
-      <ChipModal
+      <ChipConfirmModal
         open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogOpenChange}
         srTitle='Delete Scheduled Task'
-      >
-        <ChipModalHeader showDivider={false}>Delete Scheduled Task</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Scheduled Task'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {activeTask?.jobTitle || 'this task'}
             </span>
             ? This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setIsDeleteDialogOpen(false)
-              setActiveTask(null)
-            }}
-            disabled={deleteSchedule.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDelete}
-            disabled={deleteSchedule.isPending}
-          >
-            {deleteSchedule.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteSchedule.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

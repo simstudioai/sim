@@ -54,6 +54,7 @@ export const vercelListWebhooksTool: ToolConfig<
       events: w.events ?? [],
       ownerId: w.ownerId ?? null,
       projectIds: w.projectIds ?? [],
+      projectsMetadata: w.projectsMetadata ?? [],
       createdAt: w.createdAt ?? null,
       updatedAt: w.updatedAt ?? null,
     }))
@@ -86,6 +87,12 @@ export const vercelListWebhooksTool: ToolConfig<
             type: 'array',
             description: 'Associated project IDs',
             items: { type: 'string', description: 'Project ID' },
+          },
+          projectsMetadata: {
+            type: 'array',
+            description: 'Metadata for the projects the webhook is associated with',
+            optional: true,
+            items: { type: 'object', description: 'Project metadata' },
           },
           createdAt: { type: 'number', description: 'Creation timestamp' },
           updatedAt: { type: 'number', description: 'Last updated timestamp' },

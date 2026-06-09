@@ -101,14 +101,12 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
     body: (params: RedditSubmitParams) => {
       const subreddit = normalizeSubreddit(params.subreddit)
 
-      // Build form data
       const formData = new URLSearchParams({
         sr: subreddit,
         title: params.title,
         api_type: 'json',
       })
 
-      // Determine post kind (self or link)
       if (params.text) {
         formData.append('kind', 'self')
         formData.append('text', params.text)
@@ -120,7 +118,6 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
         formData.append('text', '')
       }
 
-      // Add optional parameters
       if (params.nsfw !== undefined) formData.append('nsfw', params.nsfw.toString())
       if (params.spoiler !== undefined) formData.append('spoiler', params.spoiler.toString())
       if (params.flair_id) formData.append('flair_id', params.flair_id)
@@ -134,9 +131,18 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}) as any)
 
-    // Reddit API returns errors in json.errors array
+    if (!response.ok) {
+      return {
+        success: false,
+        output: {
+          success: false,
+          message: `Failed to submit post: HTTP error ${response.status}`,
+        },
+      }
+    }
+
     if (data.json?.errors && data.json.errors.length > 0) {
       const errors = data.json.errors.map((err: any) => err.join(': ')).join(', ')
       return {
@@ -148,7 +154,6 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
       }
     }
 
-    // Success response includes post data
     const postData = data.json?.data
     return {
       success: true,
@@ -181,9 +186,9 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
       description: 'Post data including ID, name, URL, and permalink',
       properties: {
         id: { type: 'string', description: 'New post ID' },
-        name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
+        name: { type: 'string', description: 'Thing fullname (t3_xxxxx)', optional: true },
         url: { type: 'string', description: 'Post URL from API response' },
-        permalink: { type: 'string', description: 'Full Reddit permalink' },
+        permalink: { type: 'string', description: 'Full Reddit permalink', optional: true },
       },
     },
   },

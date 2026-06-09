@@ -10,3 +10,4 @@ These rules apply to block definitions under `apps/sim/blocks/**`.
 - Put type coercion in `tools.config.params`, never in `tools.config.tool`.
 - When supporting file inputs, follow the basic/advanced pattern and normalize with `normalizeFileInput`.
 - Keep block outputs aligned with what the referenced tools actually return.
+- `{Service}BlockMeta.skills` (curated, one-click-add agent skills shown on the integration detail page) must be grounded in operations the block exposes via `tools.access` and derived from real, popular use cases found online — web-search and source each one; never invent or hallucinate skills.

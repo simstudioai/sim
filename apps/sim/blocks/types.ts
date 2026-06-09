@@ -140,10 +140,27 @@ export interface BlockTemplate {
   alsoIntegrations?: readonly string[]
 }
 
+/**
+ * A research-backed, ready-to-add skill suggestion surfaced on an integration's
+ * detail page. Adding one creates a workspace skill with these exact fields, so
+ * the shape mirrors `skillUpsertItemSchema` (name is kebab-case, content is
+ * markdown). Never read by the executor.
+ */
+export interface SuggestedSkill {
+  /** kebab-case identifier; becomes the created skill's `name`. */
+  name: string
+  /** One-line summary of what the skill does and when to use it. */
+  description: string
+  /** Skill instructions in markdown; becomes the created skill's `content`. */
+  content: string
+}
+
 /** Presentation/catalog data for a block. Never read by the executor. */
 export interface BlockMeta {
   tags: readonly IntegrationTag[]
   templates?: readonly BlockTemplate[]
+  /** Popular, ready-to-add skills for this integration, shown on its detail page. */
+  skills?: readonly SuggestedSkill[]
 }
 
 // Authentication modes for sub-blocks and summaries

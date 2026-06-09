@@ -340,4 +340,24 @@ export const ObsidianBlockMeta = {
       tags: ['individual', 'research', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'capture-note',
+      description: 'Create a new Obsidian note with Markdown content at a chosen vault path.',
+      content:
+        '# Capture Note\n\nWrite a new note into the Obsidian vault.\n\n## Steps\n1. Decide the vault path and filename for the note, keeping folder conventions consistent.\n2. Compose the Markdown body with a clear title heading and any tags or frontmatter wanted.\n3. Run Create Note with the path and content. If the note may already exist, use Append to Note instead to avoid overwriting.\n\n## Output\nConfirm the note path created and summarize what was captured.',
+    },
+    {
+      name: 'append-to-daily-note',
+      description: 'Append an entry to the Obsidian periodic daily note.',
+      content:
+        '# Append to Daily Note\n\nAdd a timestamped entry to the current daily note.\n\n## Steps\n1. Use Get Periodic Note to confirm the daily note exists and read its current content if needed.\n2. Format the entry as a Markdown bullet or section, including a timestamp where useful.\n3. Run Append to Periodic Note to add it to the day.\n\n## Output\nConfirm the entry was appended to the daily note and quote the line added.',
+    },
+    {
+      name: 'search-vault',
+      description: 'Search the Obsidian vault for notes matching a query and summarize matches.',
+      content:
+        '# Search Vault\n\nFind notes in the Obsidian vault that mention a topic.\n\n## Steps\n1. Run Search with the query terms.\n2. Open the most relevant results with Get Note to read their content.\n3. Summarize the findings, linking each note by its path.\n\n## Output\nA short synthesis of what the vault says about the topic, with the source note paths listed.',
+    },
+  ],
 } as const satisfies BlockMeta

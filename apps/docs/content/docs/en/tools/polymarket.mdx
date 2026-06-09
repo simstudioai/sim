@@ -79,7 +79,7 @@ Retrieve details of a specific prediction market by ID or slug
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `marketId` | string | No | The market ID \(e.g., "0x1234...abcd" condition ID format\). Required if slug is not provided. |
+| `marketId` | string | No | The numeric market ID \(e.g., "253591"\). Required if slug is not provided. Not the condition ID. |
 | `slug` | string | No | The market slug \(e.g., "will-trump-win"\). URL-friendly identifier. Required if marketId is not provided. |
 
 #### Output
@@ -154,7 +154,7 @@ Retrieve details of a specific event by ID or slug
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `eventId` | string | No | The event ID \(e.g., "12345" or UUID format\). Required if slug is not provided. |
+| `eventId` | string | No | The numeric event ID \(e.g., "12345"\). Required if slug is not provided. |
 | `slug` | string | No | The event slug \(e.g., "2024-presidential-election"\). URL-friendly identifier. Required if eventId is not provided. |
 
 #### Output
@@ -212,11 +212,10 @@ Search for markets, events, and profiles on Polymarket
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search query term \(e.g., "presidential election", "bitcoin price"\). |
-| `limit` | string | No | Number of results per page \(e.g., "25"\). Max: 50. |
+| `limit` | string | No | Maximum number of results per type \(events, tags, profiles\). Default: 50. |
 | `page` | string | No | Page number for pagination \(e.g., "2"\). 1-indexed. |
 | `cache` | string | No | Enable caching \(true/false\) |
 | `eventsStatus` | string | No | Filter events by status |
-| `limitPerType` | string | No | Limit results per type \(markets, events, profiles\) |
 | `eventsTag` | string | No | Filter by event tags \(comma-separated\) |
 | `sort` | string | No | Sort field |
 | `ascending` | string | No | Sort direction \(true for ascending, false for descending\) |
@@ -230,9 +229,8 @@ Search for markets, events, and profiles on Polymarket
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | object | Search results containing markets, events, tags, and profiles arrays |
-|   ↳ `markets` | array | Array of matching market objects |
-|   ↳ `events` | array | Array of matching event objects |
+| `results` | object | Search results containing events, tags, and profiles arrays |
+|   ↳ `events` | array | Array of matching event objects \(markets nested\) |
 |   ↳ `tags` | array | Array of matching tag objects |
 |   ↳ `profiles` | array | Array of matching profile objects |
 
@@ -276,7 +274,7 @@ Retrieve a specific series (related market group) by ID from Polymarket
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `seriesId` | string | Yes | The series ID \(e.g., "12345" or UUID format\). |
+| `seriesId` | string | Yes | The numeric series ID \(e.g., "12345"\). |
 
 #### Output
 
@@ -329,6 +327,7 @@ Retrieve the order book summary for a specific token
 |   ↳ `min_order_size` | string | Minimum order size |
 |   ↳ `tick_size` | string | Tick size |
 |   ↳ `neg_risk` | boolean | Whether negative risk |
+|   ↳ `last_trade_price` | string | Last trade price |
 
 ### `polymarket_get_price`
 
@@ -542,7 +541,7 @@ Retrieve on-chain activity for a user including trades, splits, merges, redempti
 | `offset` | string | No | Number of results to skip for pagination \(e.g., "100"\). Default: 0, max: 10000. |
 | `market` | string | No | Comma-separated condition IDs \(e.g., "0x1234...abcd,0x5678...efgh"\). Mutually exclusive with eventId. |
 | `eventId` | string | No | Comma-separated event IDs \(e.g., "12345,67890"\). Mutually exclusive with market. |
-| `type` | string | No | Activity type filter: TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION, MAKER_REBATE |
+| `type` | string | No | Activity type filter: TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION, MAKER_REBATE, REFERRAL_REWARD |
 | `start` | number | No | Start timestamp \(Unix seconds\) |
 | `end` | number | No | End timestamp \(Unix seconds\) |
 | `sortBy` | string | No | Sort field: TIMESTAMP, TOKENS, or CASH \(default: TIMESTAMP\) |
@@ -635,5 +634,6 @@ Retrieve top holders of a specific market token
 |     ↳ `name` | string | Holder display name |
 |     ↳ `profileImage` | string | Profile image URL |
 |     ↳ `profileImageOptimized` | string | Optimized profile image URL |
+|     ↳ `verified` | boolean | Whether the holder is verified |
 
 

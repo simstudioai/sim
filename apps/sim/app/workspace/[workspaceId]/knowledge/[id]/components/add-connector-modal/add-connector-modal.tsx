@@ -9,7 +9,6 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Checkbox,
-  Chip,
   ChipCombobox,
   ChipInput,
   ChipModal,
@@ -498,19 +497,15 @@ export function AddConnectorModal({
         </ChipModalBody>
 
         {step === 'configure' && (
-          <ChipModalFooter>
-            <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isCreating}>
-              Cancel
-            </Chip>
-            <Chip
-              variant='primary'
-              flush
-              onClick={handleSubmit}
-              disabled={!canSubmit || isCreating}
-            >
-              {isCreating ? 'Connecting…' : 'Connect & Sync'}
-            </Chip>
-          </ChipModalFooter>
+          <ChipModalFooter
+            onCancel={() => onOpenChange(false)}
+            cancelDisabled={isCreating}
+            primaryAction={{
+              label: isCreating ? 'Connecting…' : 'Connect & Sync',
+              onClick: handleSubmit,
+              disabled: !canSubmit || isCreating,
+            }}
+          />
         )}
       </ChipModal>
       {showOAuthModal &&

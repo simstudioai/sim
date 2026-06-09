@@ -72,10 +72,11 @@ Create a new feature flag in a LaunchDarkly project.
 | `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
 | `tags` | array | Tags applied to the flag |
 | `variations` | array | The variations for this feature flag |
-|   ↳ `value` | string | The variation value |
+|   ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
 |   ↳ `name` | string | The variation name |
 |   ↳ `description` | string | The variation description |
 | `maintainerId` | string | The ID of the member who maintains this flag |
+| `maintainerEmail` | string | The email of the member who maintains this flag |
 
 ### `launchdarkly_delete_flag`
 
@@ -105,7 +106,7 @@ List audit log entries from your LaunchDarkly account.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | LaunchDarkly API key |
 | `limit` | number | No | Maximum number of entries to return \(default 10, max 20\) |
-| `spec` | string | No | Filter expression \(e.g., "resourceType:flag"\) |
+| `spec` | string | No | Resource specifier filter \(e.g. "proj/*:env/*:flag/*" for all flag changes, or "proj/default:env/production:flag/my-flag" for one flag in one environment\) |
 
 #### Output
 
@@ -120,7 +121,7 @@ List audit log entries from your LaunchDarkly account.
 |   ↳ `shortDescription` | string | Short description of the action |
 |   ↳ `memberEmail` | string | Email of the member who performed the action |
 |   ↳ `targetName` | string | Name of the target resource |
-|   ↳ `targetKind` | string | Kind of the target resource |
+|   ↳ `targetKind` | string | Resource specifier of the target \(e.g. proj/default:env/production:flag/my-flag\) |
 | `totalCount` | number | Total number of audit log entries |
 
 ### `launchdarkly_get_flag`
@@ -150,11 +151,12 @@ Get a single feature flag by key from a LaunchDarkly project.
 | `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
 | `tags` | array | Tags applied to the flag |
 | `variations` | array | The variations for this feature flag |
-|   ↳ `value` | string | The variation value |
+|   ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
 |   ↳ `name` | string | The variation name |
 |   ↳ `description` | string | The variation description |
 | `maintainerId` | string | The ID of the member who maintains this flag |
-| `on` | boolean | Whether the flag is on in the requested environment \(null if no single environment was specified\) |
+| `maintainerEmail` | string | The email of the member who maintains this flag |
+| `on` | boolean | Whether the flag is on in the requested environment \(null when the flag spans multiple environments and no environment key was provided\) |
 
 ### `launchdarkly_get_flag_status`
 
@@ -232,10 +234,11 @@ List feature flags in a LaunchDarkly project.
 |   ↳ `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
 |   ↳ `tags` | array | Tags applied to the flag |
 |   ↳ `variations` | array | The variations for this feature flag |
-|     ↳ `value` | string | The variation value |
+|     ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
 |     ↳ `name` | string | The variation name |
 |     ↳ `description` | string | The variation description |
 |   ↳ `maintainerId` | string | The ID of the member who maintains this flag |
+|   ↳ `maintainerEmail` | string | The email of the member who maintains this flag |
 | `totalCount` | number | Total number of flags |
 
 ### `launchdarkly_list_members`
@@ -342,15 +345,16 @@ Toggle a feature flag on or off in a specific LaunchDarkly environment.
 | `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
 | `tags` | array | Tags applied to the flag |
 | `variations` | array | The variations for this feature flag |
-|   ↳ `value` | string | The variation value |
+|   ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
 |   ↳ `name` | string | The variation name |
 |   ↳ `description` | string | The variation description |
 | `maintainerId` | string | The ID of the member who maintains this flag |
+| `maintainerEmail` | string | The email of the member who maintains this flag |
 | `on` | boolean | Whether the flag is now on in the target environment |
 
 ### `launchdarkly_update_flag`
 
-Update a feature flag metadata (name, description, tags, temporary, archived) using semantic patch.
+Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch.
 
 #### Input
 
@@ -380,9 +384,10 @@ Update a feature flag metadata (name, description, tags, temporary, archived) us
 | `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
 | `tags` | array | Tags applied to the flag |
 | `variations` | array | The variations for this feature flag |
-|   ↳ `value` | string | The variation value |
+|   ↳ `value` | string | The variation value \(any JSON type, shown as text\) |
 |   ↳ `name` | string | The variation name |
 |   ↳ `description` | string | The variation description |
 | `maintainerId` | string | The ID of the member who maintains this flag |
+| `maintainerEmail` | string | The email of the member who maintains this flag |
 
 

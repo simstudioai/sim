@@ -2,51 +2,82 @@
 
 import {
   type ComponentType,
-  type CSSProperties,
   createContext,
   type ReactNode,
   type SVGProps,
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
 import { generateId } from '@sim/utils/id'
+import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/emcn/components/button/button'
 import { Chip } from '@/components/emcn/components/chip/chip'
-import { CountdownRing } from '@/components/emcn/components/toast/countdown-ring'
-import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { Bell } from '@/components/emcn/icons/bell'
-import { Check } from '@/components/emcn/icons/check'
+import { CircleAlert } from '@/components/emcn/icons/circle-alert'
+import { CircleCheck } from '@/components/emcn/icons/circle-check'
+import { CircleInfo } from '@/components/emcn/icons/circle-info'
+import { TriangleAlert } from '@/components/emcn/icons/triangle-alert'
 import { X } from '@/components/emcn/icons/x'
+import { cn } from '@/lib/core/utils/cn'
 
 const AUTO_DISMISS_MS = 5000
-const EXIT_ANIMATION_MS = 200
-/**
- * Visible stack depth. The per-step `translateX` cascade keeps the depth
- * cue legible; raising this much higher would crowd the bottom-right edge
- * once the portal insets for the workflow panel + terminal.
- */
-const MAX_VISIBLE = 3
-const STACK_OFFSET_PX = 3
+/** Whole-stack auto-dismiss window once the dismiss-all control appears (2+ toasts). */
+const STACK_DISMISS_MS = 6000
+/** Toast count at which the dismiss-all control and stack countdown take over. */
+const STACK_DISMISS_THRESHOLD = 2
 
-type ToastVariant = 'default' | 'success' | 'error'
+/** Card width; tracks the workflow-panel inset on narrow viewports. */
+const TOAST_WIDTH = 'min(100vw - 2rem, 280px)'
 
-/**
- * Leading icon shown next to the toast title, per variant. Icons are EMCN
- * primitives so this surface stays inside the design system. All variants
- * share the neutral `text-[var(--text-icon)]` color used by sidebar items;
- * variant intent is communicated through icon shape and message content,
- * not tint.
- */
+/** Most toasts kept alive at once; older arrivals are evicted. */
+const STACK_LIMIT = 3
+/** Per-depth lift and shrink that make collapsed cards peek above the front one. */
+const COLLAPSED_OFFSET_PX = 13
+const COLLAPSED_SCALE_STEP = 0.05
+/** Vertical gap between cards once the stack is expanded. */
+const EXPAND_GAP_PX = 8
+
+/** Fallback card height used for the expanded fan-out before a toast is measured. */
+const ESTIMATED_TOAST_HEIGHT = 56
+
+/** Card border box, added to the measured content so the clamped `<li>` height matches. */
+const CARD_BORDER_PX = 2
+
+/** Shared expo-out easing so every card in the stack reshuffles with identical timing. */
+const TOAST_EASE = [0.22, 1, 0.36, 1] as const
+const STACK_DURATION = 0.4
+const RESIZE_DURATION = 0.3
+
+/** Single-line cards use a tighter corner radius; taller cards keep the concentric 16px. */
+const COMPACT_CARD_HEIGHT_PX = 46
+const COMPACT_RADIUS_PX = 12
+const CONCENTRIC_RADIUS_PX = 16
+
+type ToastVariant = 'default' | 'info' | 'success' | 'warning' | 'error'
+
+/** Leading icon per variant; the shape signals intent, {@link VARIANT_ICON_COLOR} tints it. */
 const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>> = {
   default: Bell,
-  error: Bell,
-  success: Check,
+  info: CircleInfo,
+  success: CircleCheck,
+  warning: TriangleAlert,
+  error: CircleAlert,
+}
+
+/** Per-variant icon tint from the shared badge intent palette; `default` stays neutral. */
+const VARIANT_ICON_COLOR: Record<ToastVariant, string> = {
+  default: 'text-[var(--text-icon)]',
+  info: 'text-[var(--badge-blue-text)]',
+  success: 'text-[var(--badge-success-text)]',
+  warning: 'text-[var(--badge-amber-text)]',
+  error: 'text-[var(--badge-error-text)]',
 }
 
 interface ToastAction {
@@ -61,6 +92,7 @@ interface ToastData {
   variant: ToastVariant
   action?: ToastAction
   duration: number
+  persistAcrossRoutes: boolean
 }
 
 type ToastInput = {
@@ -69,15 +101,24 @@ type ToastInput = {
   variant?: ToastVariant
   action?: ToastAction
   duration?: number
+  /**
+   * Keep the toast across navigation. The stack is otherwise cleared on every
+   * route change (route-scoped notifications shouldn't trail the user); set
+   * this for global, ongoing-state toasts like a connection/reconnect status.
+   * @default false
+   */
+  persistAcrossRoutes?: boolean
 }
 
 type ToastFn = {
   (input: ToastInput): string
   success: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
   error: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
-  /** Dismisses a single toast by id. No-op if the id is unknown or the provider is unmounted. */
+  warning: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
+  info: (message: string, options?: Omit<ToastInput, 'message' | 'variant'>) => string
+  /** Dismisses a single toast by id. */
   dismiss: (id: string) => void
-  /** Dismisses every visible toast. No-op when the provider is unmounted. */
+  /** Dismisses every visible toast. */
   dismissAll: () => void
 }
 
@@ -97,19 +138,21 @@ function createToastFn(add: (input: ToastInput) => string): ToastFn {
   const fn = ((input: ToastInput) => add(input)) as ToastFn
   fn.success = (message, options) => add({ ...options, message, variant: 'success' })
   fn.error = (message, options) => add({ ...options, message, variant: 'error' })
+  fn.warning = (message, options) => add({ ...options, message, variant: 'warning' })
+  fn.info = (message, options) => add({ ...options, message, variant: 'info' })
   fn.dismiss = (id) => globalDismiss?.(id)
   fn.dismissAll = () => globalDismissAll?.()
   return fn
 }
 
 /**
- * Imperative toast function. Requires `<ToastProvider>` to be mounted.
+ * Imperative toast. Requires a mounted `<ToastProvider>`. A toast carrying an
+ * `action` persists until dismissed unless an explicit `duration` is passed.
  *
  * @example
  * ```tsx
  * toast.error('Upload failed', { description: 'Network timed out' })
  * toast.success('Saved', { action: { label: 'View', onClick: () => router.push('/x') } })
- * toast({ message: 'Hello', variant: 'default' })
  * ```
  */
 export const toast: ToastFn = createToastFn((input) => {
@@ -119,112 +162,212 @@ export const toast: ToastFn = createToastFn((input) => {
   return globalToast(input)
 })
 
-/** Hook to access the toast function and dismiss helper from context. */
+/** Hook to access the toast function and dismiss helpers from context. */
 export function useToast() {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used within <ToastProvider>')
   return ctx
 }
 
-interface ToastItemProps {
-  toast: ToastData
-  depth: number
-  isPaused: boolean
-  onPause: () => void
-  onDismiss: (id: string) => void
+interface ToastGeometry {
+  /** Vertical lift from the bottom anchor (negative = upward). */
+  y: number
+  /** Depth shrink; `1` when expanded or for the front card. */
+  scale: number
+  /** Rendered height; collapsed back cards are clamped to the front card's height. */
+  height: number
+  /** Paint order — the front card sits on top. */
+  zIndex: number
 }
 
-function ToastItem({ toast: t, depth, isPaused, onPause, onDismiss }: ToastItemProps) {
-  const [exiting, setExiting] = useState(false)
-  const exitTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+interface ToastItemProps {
+  toast: ToastData
+  geometry: ToastGeometry
+  reduceMotion: boolean
+  onDismiss: (id: string) => void
+  onMeasure: (id: string, height: number) => void
+}
 
-  const dismiss = useCallback(() => {
-    setExiting(true)
-    exitTimerRef.current = setTimeout(() => onDismiss(t.id), EXIT_ANIMATION_MS)
-  }, [onDismiss, t.id])
+interface RevealTextProps {
+  text: string
+  /** Whether the parent card is hovered — the trigger for revealing hidden lines. */
+  expanded: boolean
+  /** Lines kept visible before truncation. */
+  clampLines: number
+  /** Line height in px; must match the text leading so the head/tail split lands on a line boundary. */
+  lineHeightPx: number
+  /** Optional inline icon; included in head and tail so wrapping stays identical. */
+  leadingIcon?: ReactNode
+  className?: string
+  reduceMotion: boolean
+}
 
-  useEffect(() => {
-    return () => clearTimeout(exitTimerRef.current)
-  }, [])
+/**
+ * Truncated text that reveals its hidden lines on hover: the head shows the
+ * first `clampLines` lines, and when hovered (and actually overflowing) the
+ * remaining lines mount below and blur in as one continuous block. Text that
+ * fits within the clamp is never truncated and the card never grows for it.
+ */
+function RevealText({
+  text,
+  expanded,
+  clampLines,
+  lineHeightPx,
+  leadingIcon,
+  className,
+  reduceMotion,
+}: RevealTextProps) {
+  const headRef = useRef<HTMLDivElement>(null)
+  const [truncated, setTruncated] = useState(false)
+  const clampHeight = clampLines * lineHeightPx
 
-  const showCountdown = !isPaused && !exiting && t.duration > 0
+  useLayoutEffect(() => {
+    const el = headRef.current
+    if (!el) return
+    const check = () => setTruncated(el.scrollHeight - el.clientHeight > 1)
+    check()
+    const observer = new ResizeObserver(check)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [text])
 
-  /**
-   * The `--stack-offset` custom property is read by the `notification-enter` /
-   * `notification-exit` keyframes (see `globals.css`) so each item animates in
-   * along its target translate-X without duplicating per-depth keyframe rules.
-   */
-  const style = {
-    '--stack-offset': `${depth * STACK_OFFSET_PX}px`,
-    animation: exiting
-      ? `notification-exit ${EXIT_ANIMATION_MS}ms ease-in forwards`
-      : 'notification-enter 200ms ease-out forwards',
-    gridArea: '1 / 1',
-  } as CSSProperties
-
-  const Icon = VARIANT_ICON[t.variant]
+  const open = expanded && truncated
+  const fadeStart = Math.max(0, clampHeight - lineHeightPx * 1.5)
+  const collapsedMask = `linear-gradient(to bottom, #000 ${fadeStart}px, transparent ${clampHeight}px)`
 
   return (
-    <div
-      style={style}
-      className='w-[min(100vw-2rem,280px)] self-end overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)] shadow-[var(--shadow-overlay)]'
+    <div>
+      <div
+        ref={headRef}
+        className={cn('overflow-hidden', className)}
+        style={{
+          maxHeight: clampHeight,
+          maskImage: truncated && !open ? collapsedMask : undefined,
+          WebkitMaskImage: truncated && !open ? collapsedMask : undefined,
+        }}
+      >
+        {leadingIcon}
+        {text}
+      </div>
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            className='overflow-hidden'
+            aria-hidden
+            initial={reduceMotion ? false : { height: 0 }}
+            animate={{ height: 'auto' }}
+            exit={{ height: 0 }}
+            transition={
+              reduceMotion ? { duration: 0 } : { duration: RESIZE_DURATION, ease: TOAST_EASE }
+            }
+          >
+            <motion.div
+              className={className}
+              style={{ marginTop: -clampHeight }}
+              initial={reduceMotion ? false : { opacity: 0, filter: 'blur(5px)' }}
+              animate={{ opacity: 1, filter: 'blur(0px)' }}
+              transition={
+                reduceMotion ? { duration: 0 } : { duration: RESIZE_DURATION, ease: [0.2, 0, 0, 1] }
+              }
+            >
+              {leadingIcon}
+              {text}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: ToastItemProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [hovered, setHovered] = useState(false)
+  const Icon = VARIANT_ICON[t.variant]
+
+  /**
+   * Report the natural height — measured on the unconstrained inner content so
+   * the outer `<li>` clamp can't feed back — so the provider lays the fan and
+   * collapsed clamp against real heights. `useLayoutEffect` avoids a paint jump.
+   */
+  useLayoutEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const report = () => onMeasure(t.id, el.offsetHeight + CARD_BORDER_PX)
+    report()
+    const observer = new ResizeObserver(report)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [t.id, onMeasure])
+
+  const dismiss = useCallback(() => onDismiss(t.id), [onDismiss, t.id])
+
+  const { y, scale, height, zIndex } = geometry
+  const cornerRadius = height <= COMPACT_CARD_HEIGHT_PX ? COMPACT_RADIUS_PX : CONCENTRIC_RADIUS_PX
+  /** One fixed-duration tween so all cards reshuffle in unison; height tracks content instantly. */
+  const transition = reduceMotion
+    ? { duration: 0 }
+    : {
+        duration: STACK_DURATION,
+        ease: TOAST_EASE,
+        height: { duration: 0 },
+      }
+
+  return (
+    <motion.li
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      initial={reduceMotion ? false : { opacity: 0, y: height }}
+      animate={{ opacity: 1, y, scale, height }}
+      exit={{
+        opacity: 0,
+        scale: 0.95,
+        transition: reduceMotion ? { duration: 0 } : { duration: 0.15, ease: 'easeIn' },
+      }}
+      transition={transition}
+      style={{ zIndex, transformOrigin: 'bottom', width: TOAST_WIDTH, borderRadius: cornerRadius }}
+      className='pointer-events-auto absolute right-0 bottom-0 m-0 overflow-hidden border border-[var(--border-1)] bg-[var(--bg)] shadow-[var(--shadow-overlay)]'
     >
-      <div className='flex flex-col gap-2 p-2'>
-        <div className='flex items-start gap-2.5'>
-          {/*
-           * Each affordance row (leading icon, close cluster) is wrapped in a
-           * `h-5` flex so its center sits on the title's first-line center
-           * (`text-[14px] leading-5`). Glyphs are all `size-[14px]` so the
-           * leading variant icon, title, and trailing close icon read as a
-           * single horizontal rhythm regardless of how many lines the title
-           * or description wrap to.
-           */}
-          <div className='flex h-5 flex-shrink-0 items-center'>
-            <Icon className='size-[14px] text-[var(--text-icon)]' />
-          </div>
-          <div className='flex min-w-0 flex-1 flex-col'>
-            <span className='line-clamp-2 text-[14px] text-[var(--text-body)] leading-5'>
-              {t.message}
-            </span>
+      <div ref={contentRef} className='flex flex-col gap-2 p-2'>
+        <div className='flex items-start gap-2'>
+          <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+            <RevealText
+              text={t.message}
+              expanded={hovered}
+              clampLines={2}
+              lineHeightPx={20}
+              leadingIcon={
+                <Icon
+                  className={cn(
+                    'mr-[5px] inline-block size-[14px] translate-y-[-2px] align-middle',
+                    VARIANT_ICON_COLOR[t.variant]
+                  )}
+                />
+              }
+              className='font-medium text-[14px] text-[var(--text-primary)] leading-5'
+              reduceMotion={reduceMotion}
+            />
             {t.description ? (
-              <p className='line-clamp-3 text-[12px] text-[var(--text-muted)] leading-4'>
-                {t.description}
-              </p>
+              <RevealText
+                text={t.description}
+                expanded={hovered}
+                clampLines={3}
+                lineHeightPx={18}
+                className='text-[13px] text-[var(--text-secondary)] leading-[18px]'
+                reduceMotion={reduceMotion}
+              />
             ) : null}
           </div>
-          <div className='flex h-5 flex-shrink-0 items-center gap-1.5'>
-            {showCountdown ? (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='quiet'
-                    onClick={onPause}
-                    aria-label='Keep notifications visible'
-                    className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm p-0 text-[var(--text-icon)]'
-                  >
-                    <CountdownRing duration={t.duration} />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content className='z-[calc(var(--z-toast)+1)]'>
-                  <p>Keep visible</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            ) : null}
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='quiet'
-                  onClick={dismiss}
-                  aria-label='Dismiss notification'
-                  className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm p-0'
-                >
-                  <X className='size-[14px] text-[var(--text-icon)]' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content className='z-[calc(var(--z-toast)+1)]'>
-                <p>Dismiss</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
+          <div className='flex h-5 flex-shrink-0 items-center'>
+            <Button
+              variant='quiet'
+              onClick={dismiss}
+              aria-label='Dismiss notification'
+              title='Dismiss'
+              className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm p-0'
+            >
+              <X className='size-[14px] text-[var(--text-icon)]' />
+            </Button>
           </div>
         </div>
         {t.action ? (
@@ -242,18 +385,119 @@ function ToastItem({ toast: t, depth, isPaused, onPause, onDismiss }: ToastItemP
           </Chip>
         ) : null}
       </div>
-    </div>
+    </motion.li>
+  )
+}
+
+interface StackDismissProps {
+  /** When held (stack hovered), the countdown pauses so it can't dismiss mid-read. */
+  paused: boolean
+  /**
+   * Whether the ring auto-fires. `false` when the stack holds a persistent
+   * toast, so an actionable toast can't be cleared from under the user; the
+   * control still dismisses on click.
+   */
+  autoDismiss: boolean
+  reduceMotion: boolean
+  /** Changes whenever a new toast arrives; restarts the countdown from zero. */
+  resetKey: string
+  onDismiss: () => void
+}
+
+/**
+ * Dismiss-all control shown once multiple toasts pile up: a ring fills over
+ * `STACK_DISMISS_MS` and clears the whole stack, hovering holds it, and clicking
+ * dismisses immediately.
+ */
+function StackDismiss({
+  paused,
+  autoDismiss,
+  reduceMotion,
+  resetKey,
+  onDismiss,
+}: StackDismissProps) {
+  const progress = useMotionValue(0)
+  const onDismissRef = useRef(onDismiss)
+  const controlsRef = useRef<ReturnType<typeof animate> | null>(null)
+  const [hovered, setHovered] = useState(false)
+
+  const held = paused || hovered
+  const heldRef = useRef(held)
+  useEffect(() => {
+    heldRef.current = held
+  }, [held])
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss
+  }, [onDismiss])
+
+  useEffect(() => {
+    progress.set(0)
+    if (!autoDismiss) {
+      controlsRef.current = null
+      return
+    }
+    const controls = animate(progress, 1, {
+      duration: STACK_DISMISS_MS / 1000,
+      ease: 'linear',
+      onComplete: () => onDismissRef.current(),
+    })
+    controlsRef.current = controls
+    if (heldRef.current) controls.pause()
+    return () => controls.stop()
+  }, [progress, resetKey, autoDismiss])
+
+  useEffect(() => {
+    const controls = controlsRef.current
+    if (!controls) return
+    if (held) controls.pause()
+    else controls.play()
+  }, [held])
+
+  return (
+    <motion.button
+      type='button'
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => onDismissRef.current()}
+      aria-label='Dismiss all notifications'
+      initial={reduceMotion ? false : { opacity: 0, scale: 0.5 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={
+        reduceMotion
+          ? { opacity: 0 }
+          : { opacity: 0, scale: 0.5, transition: { duration: 0.12, ease: 'easeIn' } }
+      }
+      transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 520, damping: 24 }}
+      className='pointer-events-auto absolute bottom-[8px] left-[-30px] z-50 flex size-[22px] items-center justify-center rounded-full bg-[var(--bg)] text-[var(--text-icon)] shadow-[var(--shadow-overlay)] transition-colors hover-hover:text-[var(--text-body)]'
+    >
+      <svg
+        viewBox='0 0 22 22'
+        className='-rotate-90 absolute inset-0 size-full'
+        fill='none'
+        aria-hidden
+      >
+        <circle cx='11' cy='11' r='10' stroke='var(--border-1)' strokeWidth='1.5' />
+        <motion.circle
+          cx='11'
+          cy='11'
+          r='10'
+          stroke='currentColor'
+          strokeWidth='1.5'
+          strokeLinecap='round'
+          style={{ pathLength: progress }}
+        />
+      </svg>
+      <X className='size-[10px]' />
+    </motion.button>
   )
 }
 
 /**
- * Toast container that renders toasts via portal. Mount once in your root
- * layout. Each item is a chip-modal-styled card with a leading EMCN icon,
- * header, optional description, and a trailing close/countdown cluster.
- * Items stack bottom-right via grid-overlay + `--stack-offset` (consumed
- * by the `notification-enter` / `notification-exit` keyframes in
- * `globals.css`). Clicking any countdown ring pauses every active timer
- * until the stack empties.
+ * Toast container, mounted once in the root layout. Toasts pile bottom-right as
+ * a collapsed stack that fans open on hover or keyboard focus, mirroring the
+ * Sonner / Base-UI interaction; hovering pauses auto-dismiss. On workflow pages
+ * the stack is inset by the panel and terminal, and it clears on navigation.
  *
  * @example
  * ```tsx
@@ -262,29 +506,38 @@ function ToastItem({ toast: t, depth, isPaused, onPause, onDismiss }: ToastItemP
  */
 export function ToastProvider({ children }: { children?: ReactNode }) {
   const pathname = usePathname()
-  /**
-   * On workflow pages the toast portal must sit inside the workflow surface
-   * — not over the right-side panel or the bottom terminal. Mirrors the
-   * `ModalContent` workflow-aware inset using the same `--panel-width` and
-   * `--terminal-height` CSS variables maintained by the panel + terminal
-   * stores.
-   */
-  const isWorkflowPage = pathname?.includes('/w/') ?? false
+  const reduceMotion = useReducedMotion() ?? false
+  /** On the workflow editor (`/w/[id]` and the `/w` index) the stack insets by `--panel-width` / `--terminal-height` to clear the panel and terminal. */
+  const isWorkflowPage = pathname ? /\/w(\/|$)/.test(pathname) : false
 
   const [toasts, setToasts] = useState<ToastData[]>([])
-  const [isPaused, setIsPaused] = useState(false)
+  const [heights, setHeights] = useState<Record<string, number>>({})
+  const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
+  /** Monotonic arrival count; changes only on a new toast, so dismissing the front card doesn't restart the stack countdown. */
+  const [arrivalCount, setArrivalCount] = useState(0)
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  const isPausedRef = useRef(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
+  /**
+   * Reset the hover-expanded flag whenever the stack empties. The hover wrapper
+   * unmounts without firing mouse-leave when the last toast goes (dismiss / clear
+   * / navigation), so without this `expanded` could stay `true` and stop the next
+   * toasts from auto-dismissing.
+   */
   useEffect(() => {
-    isPausedRef.current = isPaused
-  }, [isPaused])
+    if (toasts.length === 0) setExpanded(false)
+  }, [toasts.length])
 
+  /**
+   * Adds a toast. Actionable toasts persist (`duration: 0`) unless an explicit
+   * `duration` is given. When the stack exceeds `STACK_LIMIT` the oldest
+   * auto-dismissable toast is evicted first, so a persistent (actionable) toast
+   * isn't silently dropped — only an all-persistent overflow evicts the oldest.
+   */
   const addToast = useCallback((input: ToastInput): string => {
     const id = generateId()
     const data: ToastData = {
@@ -293,9 +546,17 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       description: input.description,
       variant: input.variant ?? 'default',
       action: input.action,
-      duration: input.duration ?? AUTO_DISMISS_MS,
+      duration: input.duration ?? (input.action ? 0 : AUTO_DISMISS_MS),
+      persistAcrossRoutes: input.persistAcrossRoutes ?? false,
     }
-    setToasts((prev) => [...prev, data].slice(-MAX_VISIBLE))
+    setToasts((prev) => {
+      const next = [...prev, data]
+      if (next.length <= STACK_LIMIT) return next
+      const evictIndex = next.findIndex((t) => t.duration > 0)
+      next.splice(evictIndex === -1 ? 0 : evictIndex, 1)
+      return next
+    })
+    setArrivalCount((c) => c + 1)
     return id
   }, [])
 
@@ -306,57 +567,98 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       timersRef.current.delete(id)
     }
     setToasts((prev) => prev.filter((t) => t.id !== id))
+    setHeights((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }, [])
 
   const dismissAllToasts = useCallback(() => {
     for (const timer of timersRef.current.values()) clearTimeout(timer)
     timersRef.current.clear()
     setToasts([])
-  }, [])
-
-  const pauseAll = useCallback(() => {
-    setIsPaused(true)
-    isPausedRef.current = true
-    for (const timer of timersRef.current.values()) clearTimeout(timer)
-    timersRef.current.clear()
+    setHeights({})
   }, [])
 
   /**
-   * Per-toast auto-dismiss timers. Cleared when the stack empties so a fresh
-   * arrival after a pause gets new timers. Pausing clears all live timers.
+   * Clear only route-scoped toasts. Toasts flagged `persistAcrossRoutes` —
+   * global, ongoing-state notifications like the connection status — survive,
+   * everything else (page-scoped notifications) is cleared on navigation.
+   */
+  const dismissRouteScopedToasts = useCallback(() => {
+    setToasts((prev) => {
+      const kept = prev.filter((t) => t.persistAcrossRoutes)
+      if (kept.length === prev.length) return prev
+      for (const t of prev) {
+        if (t.persistAcrossRoutes) continue
+        const timer = timersRef.current.get(t.id)
+        if (timer) {
+          clearTimeout(timer)
+          timersRef.current.delete(t.id)
+        }
+      }
+      return kept
+    })
+  }, [])
+
+  const measureToast = useCallback((id: string, height: number) => {
+    setHeights((prev) => (prev[id] === height ? prev : { ...prev, [id]: height }))
+  }, [])
+
+  /** Drop measured heights for toasts evicted by `slice(-STACK_LIMIT)` (single dismissal prunes its own entry). */
+  useEffect(() => {
+    setHeights((prev) => {
+      const live = new Set(toasts.map((t) => t.id))
+      const stale = Object.keys(prev).filter((id) => !live.has(id))
+      if (stale.length === 0) return prev
+      const next = { ...prev }
+      for (const id of stale) delete next[id]
+      return next
+    })
+  }, [toasts])
+
+  /**
+   * A persistent toast (`duration <= 0`) pins the stack: the dismiss-all ring's
+   * auto-countdown is suppressed so the action can't be cleared from under the
+   * user. The ring still renders and dismisses on click.
+   */
+  const hasPersistentToast = toasts.some((t) => t.duration <= 0)
+
+  /**
+   * Per-toast auto-dismiss timers. The stack ring owns dismissal when it
+   * auto-fires (2+ toasts, none persistent); otherwise — a lone toast, or a
+   * stack pinned by a persistent toast — each timed toast runs its own timer so
+   * it still expires while the persistent one stays. Hover holds them.
    */
   useEffect(() => {
-    if (toasts.length === 0) {
-      if (isPausedRef.current) setIsPaused(false)
-      for (const timer of timersRef.current.values()) clearTimeout(timer)
-      timersRef.current.clear()
+    const timers = timersRef.current
+    const stackAutoDismiss = toasts.length >= STACK_DISMISS_THRESHOLD && !hasPersistentToast
+    if (toasts.length === 0 || expanded || stackAutoDismiss) {
+      for (const timer of timers.values()) clearTimeout(timer)
+      timers.clear()
       return
     }
-    if (isPausedRef.current) return
-
-    const timers = timersRef.current
-    const activeIds = new Set<string>()
 
     for (const t of toasts) {
       if (t.duration <= 0 || timers.has(t.id)) continue
-      activeIds.add(t.id)
       timers.set(
         t.id,
         setTimeout(() => {
           timers.delete(t.id)
-          if (isPausedRef.current) return
           dismissToast(t.id)
         }, t.duration)
       )
     }
 
     for (const [id, timer] of timers) {
-      if (!activeIds.has(id) && !toasts.some((t) => t.id === id)) {
+      if (!toasts.some((t) => t.id === id)) {
         clearTimeout(timer)
         timers.delete(id)
       }
     }
-  }, [toasts, dismissToast])
+  }, [toasts, expanded, hasPersistentToast, dismissToast])
 
   useEffect(() => {
     const timers = timersRef.current
@@ -365,21 +667,23 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     }
   }, [])
 
-  /**
-   * Stable across mounts because `addToast` is memoized with no deps. Capturing
-   * once at mount lets the module-level `toast` re-export bind to the live
-   * provider without re-allocating wrappers on every render.
-   */
+  /** On navigation, clear route-scoped toasts so they don't trail the user; `persistAcrossRoutes` toasts survive. */
+  useEffect(() => {
+    dismissRouteScopedToasts()
+  }, [pathname, dismissRouteScopedToasts])
+
+  /** Held in a ref (seeded once from the stable `addToast`) so the module-level `toast` binds to the live provider. */
   const toastFn = useRef<ToastFn>(createToastFn(addToast))
 
   useEffect(() => {
-    globalToast = toastFn.current
+    const fn = toastFn.current
+    globalToast = fn
     globalDismiss = dismissToast
     globalDismissAll = dismissAllToasts
     return () => {
-      globalToast = null
-      globalDismiss = null
-      globalDismissAll = null
+      if (globalToast === fn) globalToast = null
+      if (globalDismiss === dismissToast) globalDismiss = null
+      if (globalDismissAll === dismissAllToasts) globalDismissAll = null
     }
   }, [dismissToast, dismissAllToasts])
 
@@ -388,33 +692,89 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     [dismissToast, dismissAllToasts]
   )
 
+  const ordered = [...toasts].reverse()
+  const frontHeight = heights[ordered[0]?.id ?? ''] ?? ESTIMATED_TOAST_HEIGHT
+  let cumulative = 0
+  const layout = ordered.map((toast, index) => {
+    const naturalHeight = heights[toast.id] ?? ESTIMATED_TOAST_HEIGHT
+    const offsetBefore = cumulative
+    cumulative += naturalHeight + EXPAND_GAP_PX
+    const geometry: ToastGeometry = {
+      y: expanded ? -offsetBefore : -index * COLLAPSED_OFFSET_PX,
+      scale: expanded ? 1 : 1 - index * COLLAPSED_SCALE_STEP,
+      height: expanded || index === 0 ? naturalHeight : frontHeight,
+      zIndex: ordered.length - index,
+    }
+    return { toast, geometry }
+  })
+
+  const collapsedHeight =
+    frontHeight + Math.max(0, Math.min(ordered.length, STACK_LIMIT) - 1) * COLLAPSED_OFFSET_PX
+  const expandedHeight = cumulative > 0 ? cumulative - EXPAND_GAP_PX : frontHeight
+  const containerHeight = expanded ? expandedHeight : collapsedHeight
+
   return (
     <ToastContext.Provider value={ctx}>
       {children}
-      {mounted && toasts.length > 0
+      {mounted
         ? createPortal(
-            <Tooltip.Provider>
-              <div
-                aria-live='polite'
-                aria-label='Notifications'
-                className='fixed z-[var(--z-toast)] grid'
-                style={{
-                  right: isWorkflowPage ? 'calc(var(--panel-width) + 16px)' : '16px',
-                  bottom: isWorkflowPage ? 'calc(var(--terminal-height) + 16px)' : '16px',
-                }}
-              >
-                {[...toasts].reverse().map((t, index, stacked) => (
-                  <ToastItem
-                    key={t.id}
-                    toast={t}
-                    depth={stacked.length - index - 1}
-                    isPaused={isPaused}
-                    onPause={pauseAll}
-                    onDismiss={dismissToast}
-                  />
-                ))}
-              </div>
-            </Tooltip.Provider>,
+            <AnimatePresence>
+              {toasts.length > 0 ? (
+                <motion.ol
+                  key='toast-stack'
+                  aria-live='polite'
+                  aria-label='Notifications'
+                  className='fixed z-[var(--z-toast)] m-0 list-none p-0'
+                  exit={{
+                    opacity: 0,
+                    transition: reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' },
+                  }}
+                  style={{
+                    right: isWorkflowPage ? 'calc(var(--panel-width) + 16px)' : '16px',
+                    bottom: isWorkflowPage ? 'calc(var(--terminal-height) + 16px)' : '16px',
+                    width: TOAST_WIDTH,
+                    height: containerHeight,
+                  }}
+                >
+                  <AnimatePresence initial={false}>
+                    {toasts.length >= STACK_DISMISS_THRESHOLD ? (
+                      <StackDismiss
+                        key='dismiss-all'
+                        paused={expanded}
+                        autoDismiss={!hasPersistentToast}
+                        reduceMotion={reduceMotion}
+                        resetKey={String(arrivalCount)}
+                        onDismiss={dismissAllToasts}
+                      />
+                    ) : null}
+                  </AnimatePresence>
+                  <div
+                    onMouseEnter={() => setExpanded(true)}
+                    onMouseLeave={() => setExpanded(false)}
+                    onFocusCapture={() => setExpanded(true)}
+                    onBlurCapture={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        setExpanded(false)
+                      }
+                    }}
+                    className='absolute inset-0'
+                  >
+                    <AnimatePresence>
+                      {layout.map(({ toast, geometry }) => (
+                        <ToastItem
+                          key={toast.id}
+                          toast={toast}
+                          geometry={geometry}
+                          reduceMotion={reduceMotion}
+                          onDismiss={dismissToast}
+                          onMeasure={measureToast}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </motion.ol>
+              ) : null}
+            </AnimatePresence>,
             document.body
           )
         : null}

@@ -88,12 +88,13 @@ export const vercelGetDeploymentEventsTool: ToolConfig<
     const events = (Array.isArray(data) ? data : (data.events ?? [])).map((e: any) => ({
       type: e.type ?? null,
       created: e.created ?? null,
-      date: e.date ?? null,
+      date: e.date ?? e.payload?.date ?? null,
       text: e.text ?? e.payload?.text ?? null,
-      serial: e.serial ?? null,
+      serial: e.serial ?? e.payload?.serial ?? null,
       deploymentId: e.deploymentId ?? e.payload?.deploymentId ?? null,
-      id: e.id ?? null,
+      id: e.id ?? e.payload?.id ?? null,
       level: e.level ?? null,
+      info: e.info ?? e.payload?.info ?? null,
     }))
 
     return {
@@ -124,6 +125,11 @@ export const vercelGetDeploymentEventsTool: ToolConfig<
           deploymentId: { type: 'string', description: 'Associated deployment ID' },
           id: { type: 'string', description: 'Event unique identifier' },
           level: { type: 'string', description: 'Event level: error or warning' },
+          info: {
+            type: 'object',
+            description: 'Build step info (type, name, entrypoint, path, step, readyState)',
+            optional: true,
+          },
         },
       },
     },

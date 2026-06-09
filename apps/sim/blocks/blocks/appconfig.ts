@@ -31,10 +31,11 @@ const PAGINATED_OPERATIONS = [
   'list_strategies',
 ]
 
-const toNumber = (value: unknown): number | undefined => {
+/** Strict integer parse — rejects partial strings like "12abc" (no parseInt truncation). */
+const toInteger = (value: unknown): number | undefined => {
   if (value === undefined || value === null || value === '') return undefined
-  const parsed = Number.parseInt(String(value), 10)
-  return Number.isNaN(parsed) ? undefined : parsed
+  const parsed = Number(value)
+  return Number.isInteger(parsed) ? parsed : undefined
 }
 
 export const AppConfigBlock: BlockConfig<AppConfigResponse> = {
@@ -280,13 +281,14 @@ Return ONLY the configuration content - no explanations, no markdown code blocks
           result.contentType = params.contentType
           if (params.description) result.description = params.description
           if (params.versionLabel) result.versionLabel = params.versionLabel
-          const latest = toNumber(params.latestVersionNumber)
+          const latest = toInteger(params.latestVersionNumber)
           if (latest !== undefined) result.latestVersionNumber = latest
         }
 
         if (op === 'get_version') {
-          const version = toNumber(params.versionNumber)
-          if (version !== undefined) result.versionNumber = version
+          // Required: pass the raw value through when not a clean integer so the contract
+          // surfaces a clear typed error instead of silently dropping the field.
+          result.versionNumber = toInteger(params.versionNumber) ?? params.versionNumber
         }
 
         if (op === 'start_deployment') {
@@ -300,12 +302,13 @@ Return ONLY the configuration content - no explanations, no markdown code blocks
         }
 
         if (DEPLOYMENT_NUMBER_OPERATIONS.includes(op)) {
-          const deployment = toNumber(params.deploymentNumber)
-          if (deployment !== undefined) result.deploymentNumber = deployment
+          // Required: pass the raw value through when not a clean integer so the contract
+          // surfaces a clear typed error instead of silently dropping the field.
+          result.deploymentNumber = toInteger(params.deploymentNumber) ?? params.deploymentNumber
         }
 
         if (PAGINATED_OPERATIONS.includes(op)) {
-          const max = toNumber(params.maxResults)
+          const max = toInteger(params.maxResults)
           if (max !== undefined) result.maxResults = max
           if (params.nextToken) result.nextToken = params.nextToken
         }
