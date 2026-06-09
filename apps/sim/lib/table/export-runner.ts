@@ -21,7 +21,9 @@ import { deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('TableExportRunner')
 
-const EXPORT_BATCH_SIZE = 1000
+/** Rows per page while building the file. Internal caller — not bound by MAX_QUERY_LIMIT; rows
+ *  are fetched without executions, so even wide rows stay a few MB per batch. */
+const EXPORT_BATCH_SIZE = 5000
 
 /** Thrown when this worker loses the job (canceled / janitor-failed). */
 class JobSupersededError extends Error {}
