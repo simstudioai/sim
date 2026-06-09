@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -128,19 +127,15 @@ export function ManageCreditsModal({
         />
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isSaving}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleSave}
-          disabled={!isValid || !isDirty || isSaving || isLoading}
-        >
-          {isSaving ? 'Saving…' : 'Save'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        cancelDisabled={isSaving}
+        primaryAction={{
+          label: isSaving ? 'Saving…' : 'Save',
+          onClick: handleSave,
+          disabled: !isValid || !isDirty || isSaving || isLoading,
+        }}
+      />
     </ChipModal>
   )
 }

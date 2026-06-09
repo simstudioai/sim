@@ -97,7 +97,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messages,
       responseFormat,
       workspaceId,
-      userId,
+      userId: bodyUserId,
       chatId,
       messageId: providedMessageId,
       requestId: providedRequestId,
@@ -106,6 +106,23 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       executionId,
       userMetadata,
     } = validation.data.body
+
+    // Bind the billing actor to the authenticated identity. The executor mints
+    // the internal JWT with the workflow owner's userId, so a token issued for
+    // one user must never be used to attribute mothership-block cost to another
+    // user via a forged body.userId. When the token carries a userId we require
+    // the body to match it; the JWT userId is authoritative.
+    if (auth.userId && auth.userId !== bodyUserId) {
+      logger.warn('Mothership execute userId does not match authenticated identity', {
+        tokenUserId: auth.userId,
+        bodyUserId,
+      })
+      return NextResponse.json(
+        { error: 'userId does not match authenticated identity' },
+        { status: 403 }
+      )
+    }
+    const userId = auth.userId ?? bodyUserId
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 

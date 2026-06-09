@@ -827,7 +827,10 @@ async function handleExecutePost(
     }
 
     const effectiveWorkflowStateOverride =
-      sanitizedWorkflowStateOverride || cachedWorkflowData || undefined
+      // double-cast-allowed: workflowStateSchema is structurally a supertype of the executor's reactflow-typed override (edges[].style is Record<string, unknown> vs CSSProperties); validated bodies carry store-shaped values so the runtime shape matches
+      (sanitizedWorkflowStateOverride as unknown as ExecutionMetadata['workflowStateOverride']) ||
+      cachedWorkflowData ||
+      undefined
     const largeValueExecutionIds = [executionId]
     const largeValueKeys: string[] = []
     const fileKeys: string[] = []

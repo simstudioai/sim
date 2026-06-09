@@ -35,6 +35,7 @@ export const env = createEnv({
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
+    INTERNAL_JWT_SECRET:                   z.string().min(32).optional(),          // Dedicated signing key for internal JWTs (falls back to INTERNAL_API_SECRET); separating limits blast radius if one leaks
 
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
