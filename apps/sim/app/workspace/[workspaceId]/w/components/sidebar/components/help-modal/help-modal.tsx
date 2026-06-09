@@ -254,6 +254,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
       <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; support</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+        <button type='submit' hidden disabled={helpMutation.isPending || isProcessing} />
         <ChipModalBody className='min-h-0'>
           <div
             ref={scrollContainerRef}

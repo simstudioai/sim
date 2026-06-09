@@ -202,6 +202,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       </ChipModalHeader>
       <ChipModalBody className='max-h-[60vh] overflow-y-auto'>
         <form onSubmit={handleFormSubmit} className='flex flex-col gap-4'>
+          <button type='submit' hidden disabled={isSubmitting} />
           <ErrorMessage error={error} />
 
           {columns.map((column) => (

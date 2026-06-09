@@ -320,6 +320,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       <ChipModalHeader onClose={() => handleClose(false)}>Create Knowledge Base</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+        <button type='submit' hidden disabled={isSubmitting || !nameValue?.trim()} />
         <ChipModalBody className='max-h-[70vh] overflow-y-auto'>
           <div ref={scrollContainerRef} className='min-h-0 flex-1'>
             <div className='space-y-3'>
