@@ -13,35 +13,43 @@ import { FAQ } from '@/components/ui/faq'
   <Image src="/static/blocks/triggers.png" alt="The trigger types" width={500} height={350} className="my-6" />
 </div>
 
-A **trigger** is where a workflow begins. Every workflow has exactly one, and it decides both what starts the workflow and what input it receives. Triggers come in two kinds: generic triggers that work on their own, and integration triggers that fire on an event in an external service.
+A **trigger** is where a workflow begins. Every workflow has exactly one, and it decides both what starts the workflow and what input it receives. Triggers come in two kinds: native triggers that need no connected account, and integration triggers that fire on an event in an external service you've connected.
 
-## Generic triggers
+## Native triggers
 
-Three triggers work without any specific service, and they are the ones you reach for first.
+Five triggers need no connected account — they are the workflow's own entry points and event sources, and the ones you reach for first.
 
 <Cards>
   <Card title="Start" href="/triggers/start">
     The default entry point. Runs from the editor, an API deployment, or a chat deployment.
   </Card>
+  <Card title="Schedule" href="/triggers/schedule">
+    Runs on a timer, set by a cron expression or an interval.
+  </Card>
   <Card title="Webhook" href="/triggers/webhook">
     Runs on any inbound HTTP request to a URL Sim gives you.
   </Card>
-  <Card title="Schedule" href="/triggers/schedule">
-    Runs on a timer, set by a cron expression or an interval.
+  <Card title="RSS" href="/triggers/rss">
+    Runs when a new item is published to any RSS or Atom feed.
+  </Card>
+  <Card title="Table" href="/triggers/table">
+    Runs when a row is inserted or updated in a Sim table.
   </Card>
 </Cards>
 
 ## Integration triggers
 
-An **integration trigger** starts a workflow when an event happens in an external service, and hands that event to the workflow. Sim has integration triggers for dozens of services, including [GitHub](/triggers/github), [Slack](/triggers/slack), [Gmail](/triggers/gmail), [Linear](/triggers/linear), [Stripe](/triggers/stripe), and [RSS feeds](/triggers/rss). Each fires on a specific event, like a GitHub push or a new email, and passes the event payload to your workflow. The full set is listed under Triggers in the reference.
+An **integration trigger** starts a workflow when an event happens in an external service you've connected, and hands that event to the workflow. Sim has integration triggers for dozens of services, including [GitHub](/triggers/github), [Slack](/triggers/slack), [Gmail](/triggers/gmail), [Linear](/triggers/linear), [Stripe](/triggers/stripe), and [Notion](/triggers/notion). Each fires on a specific event, like a GitHub push or a new email, and passes the event payload to your workflow. The full set is listed under Triggers in the reference.
 
 ## Comparison
 
 | Trigger | Starts the workflow when |
 | --- | --- |
 | **Start** | you run it in the editor, or call its API or chat deployment |
-| **Webhook** | an inbound HTTP request arrives |
 | **Schedule** | a timer fires, on a cron expression or an interval |
+| **Webhook** | an inbound HTTP request arrives |
+| **RSS** | a new item is published to a feed you watch |
+| **Table** | a row is inserted or updated in a Sim table |
 | **Integration trigger** | its service event happens, like a GitHub push or a new email |
 
 <Callout type="info">
