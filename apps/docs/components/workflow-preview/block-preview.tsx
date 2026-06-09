@@ -24,10 +24,10 @@ function BlockCard({ spec }: { spec: BlockDisplaySpec }) {
   return (
     <div className='relative w-[250px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
       {!spec.hideTargetHandle && (
-        <span className={`${HEADER_DOT} left-[-16px] rounded-l-[2px] bg-[#454545]`} />
+        <span className={`${HEADER_DOT} left-[-8px] rounded-l-[2px] bg-[#454545]`} />
       )}
       {!spec.hideSourceHandle && (
-        <span className={`${HEADER_DOT} right-[-16px] rounded-r-[2px] bg-[#454545]`} />
+        <span className={`${HEADER_DOT} right-[-8px] rounded-r-[2px] bg-[#454545]`} />
       )}
 
       <div
