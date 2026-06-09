@@ -6,12 +6,13 @@ pageType: concept
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, BUILD_AGENT_WORKFLOW } from '@/components/workflow-preview'
 
 An **agent** is a [workflow](/workflows) that reasons and acts on its own. It reads an input, decides what to do, and carries it out, calling tools and using your data along the way. You build a custom agent in Sim by composing a workflow whose thinking runs through one or more [Agent blocks](/blocks/agent).
 
 An **Agent block** is the reasoning step inside that workflow: a model reads the values available to it, decides, and returns a result that later blocks read by reference. A simple agent is a single Agent block; a larger one wires several together with other blocks. The Agent block is where the model thinks; the rest of the workflow is what it acts on and through.
 
-{/* VISUAL: a small agent-workflow. Start → Agent block (model + a tool) → Response, with the Agent block highlighted as the reasoning core of the agent. */}
+<WorkflowPreview workflow={BUILD_AGENT_WORKFLOW} height={200} highlightBlock="agent" />
 
 The example throughout is an agent that scores inbound sales leads.
 

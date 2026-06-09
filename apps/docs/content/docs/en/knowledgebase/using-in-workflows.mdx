@@ -5,7 +5,7 @@ pageType: concept
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { WorkflowPreview, SUPPORT_KB_WORKFLOW } from '@/components/workflow-preview'
+import { WorkflowPreview, OutputBundle, SUPPORT_KB_WORKFLOW } from '@/components/workflow-preview'
 
 A **Knowledge block** searches a [knowledge base](/knowledgebase) and hands the matching passages to a later block, so an [Agent](/blocks/agent) can answer from your documents instead of the model's memory alone. It works like asking a librarian for the most relevant excerpts on a topic: you give it a question and get back a ranked, source-labeled list. This page covers searching, narrowing with tags, reranking, and reading the results.
 
@@ -47,7 +47,17 @@ Leave it off for most searches. Turn it on when retrieval returns roughly the ri
 
 The Search operation produces an **output** stored under the block's name, the same as any other block. Its main value is `results`: an array of the matched chunks, ranked best first. A later block reads it by reference, for example `<knowledge.results>`.
 
-{/* VISUAL: output bundle for the Knowledge block. results: array of chunk objects; query: string; totalResults: number. Highlight one result object expanded with its fields. */}
+<OutputBundle
+  blockName="knowledge"
+  blockType="knowledge"
+  blockColor="#00B0B0"
+  values={[
+    { key: 'results', value: '[ { content, documentName, similarity, … }, … ]', highlight: true },
+    { key: 'query', value: '"refund policy"' },
+    { key: 'totalResults', value: '5' },
+  ]}
+  read="knowledge.results"
+/>
 
 Each result in the array is an object with these fields:
 

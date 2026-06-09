@@ -6,12 +6,13 @@ pageType: concept
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, FILE_SUMMARY_WORKFLOW } from '@/components/workflow-preview'
 
 A file is a document, image, spreadsheet, or PDF in your workspace. A workflow can read a file to act on its contents, pass a file to a block or tool that needs one (attach a PDF to an email, send an image to a vision model), or produce a new file and save it. The [File](/files) block is how a file enters or leaves a workflow; the work in between is done by whatever block the task calls for.
 
 What you do with a file depends on the task, so this page covers the File block's operations and how a file moves between blocks rather than one fixed recipe. The example we'll use throughout reads `report.pdf`, asks an agent to summarize it, and saves the summary as `summary.md`, which exercises reading, processing, and writing in one workflow.
 
-{/* VISUAL: a File Read block feeding an Agent, with the resulting summary referenced by a later block. */}
+<WorkflowPreview workflow={FILE_SUMMARY_WORKFLOW} height={200} />
 
 ## The File block
 

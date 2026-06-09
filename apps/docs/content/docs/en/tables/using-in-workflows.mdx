@@ -6,7 +6,7 @@ pageType: guide
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { WorkflowPreview, OutputBundle, TABLE_ENRICH_WORKFLOW } from '@/components/workflow-preview'
+import { WorkflowPreview, OutputBundle, TABLE_ENRICH_WORKFLOW, TABLE_ROUNDTRIP_WORKFLOW } from '@/components/workflow-preview'
 
 A [table](/tables) is a resource: structured rows your workflows read and write. A [Table block](/integrations/table) is the step that does the reading and writing inside a workflow. You pick an operation on the block (query rows, insert a row, update rows), point it at a table, and its result is remembered under the block's name for later blocks to use.
 
@@ -106,7 +106,7 @@ One way to combine the operations is to query rows, process them, and write the 
 
 After the run, the table holds the enriched rows. The next run queries them again, and the `status` column keeps the workflow from reprocessing what it already handled. So the table serves as both the queue the workflow pulls from and the record of what it has already done.
 
-{/* VISUAL: the full three-block chain annotated with the example data at each hop: filter object in, one row's fields into the Agent, the Agent's { category, score } object out, the updated filter write. */}
+<WorkflowPreview workflow={TABLE_ROUNDTRIP_WORKFLOW} height={200} />
 
 ## Variations
 

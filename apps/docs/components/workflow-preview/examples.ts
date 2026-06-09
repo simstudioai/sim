@@ -1489,3 +1489,136 @@ export const PARALLEL_WORKFLOW: PreviewWorkflow = {
     { id: 'parallel-aggregate', source: 'parallel', target: 'aggregate' },
   ],
 }
+
+/** Building-agents overview: a minimal agent — the Agent block as the reasoning core. */
+export const BUILD_AGENT_WORKFLOW: PreviewWorkflow = {
+  id: 'build-agent',
+  name: 'A minimal agent',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Lead' }],
+    },
+    {
+      id: 'agent',
+      name: 'Score lead',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Messages', value: 'Score <start.input>' },
+        { title: 'Model', value: 'claude-sonnet-4-6' },
+      ],
+      tools: [
+        { type: 'knowledge', name: 'Knowledge', bgColor: '#00B0B0' },
+        { type: 'hubspot', name: 'HubSpot', bgColor: '#FF7A59' },
+      ],
+    },
+    {
+      id: 'response',
+      name: 'Response',
+      type: 'response',
+      bgColor: '#2F55FF',
+      position: { x: 680, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Data', value: '{ "score": <agent.score> }' }],
+    },
+  ],
+  edges: [
+    { id: 'start-agent', source: 'start', target: 'agent' },
+    { id: 'agent-response', source: 'agent', target: 'response' },
+  ],
+}
+
+/** Files guide: read a file, summarize it, save the summary as a new file. */
+export const FILE_SUMMARY_WORKFLOW: PreviewWorkflow = {
+  id: 'file-summary',
+  name: 'Summarize a file',
+  blocks: [
+    {
+      id: 'file',
+      name: 'File',
+      type: 'file',
+      bgColor: '#40916C',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [
+        { title: 'Operation', value: 'Read' },
+        { title: 'File', value: 'report.pdf' },
+      ],
+    },
+    {
+      id: 'agent',
+      name: 'Agent',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 320, y: 0 },
+      rows: [{ title: 'Messages', value: 'Summarize <file.combinedContent>' }],
+    },
+    {
+      id: 'write',
+      name: 'File',
+      type: 'file',
+      bgColor: '#40916C',
+      position: { x: 660, y: 0 },
+      hideSourceHandle: true,
+      rows: [
+        { title: 'Operation', value: 'Write' },
+        { title: 'File Name', value: 'summary.md' },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'file-agent', source: 'file', target: 'agent' },
+    { id: 'agent-write', source: 'agent', target: 'write' },
+  ],
+}
+
+/** Tables guide: query rows, classify them, write the results back. */
+export const TABLE_ROUNDTRIP_WORKFLOW: PreviewWorkflow = {
+  id: 'table-roundtrip',
+  name: 'Classify and write back',
+  blocks: [
+    {
+      id: 'query',
+      name: 'Table',
+      type: 'table',
+      bgColor: '#10B981',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [
+        { title: 'Operation', value: 'Query Rows' },
+        { title: 'Filter', value: "status = 'unprocessed'" },
+      ],
+    },
+    {
+      id: 'classify',
+      name: 'Classify',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 340, y: 0 },
+      rows: [{ title: 'Messages', value: 'Classify <table.rows>' }],
+    },
+    {
+      id: 'update',
+      name: 'Table',
+      type: 'table',
+      bgColor: '#10B981',
+      position: { x: 680, y: 0 },
+      hideSourceHandle: true,
+      rows: [
+        { title: 'Operation', value: 'Update Rows' },
+        { title: 'Set', value: "category, status = 'qualified'" },
+      ],
+    },
+  ],
+  edges: [
+    { id: 'query-classify', source: 'query', target: 'classify' },
+    { id: 'classify-update', source: 'classify', target: 'update' },
+  ],
+}

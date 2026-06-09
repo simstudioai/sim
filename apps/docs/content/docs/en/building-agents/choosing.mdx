@@ -57,7 +57,14 @@ A **skill** is reusable instructions, a written playbook an agent can follow. Ea
 
 In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqualifiers. The agent sees the skill's name and description on every run, and when a lead is ambiguous it loads the full rubric and applies it. The distinction is simple: a tool is an action the agent takes, and a skill is guidance the agent reads. Manage skills in your [workspace](/skills).
 
-{/* VISUAL: comparison grid. Rows: block / agent tool / custom tool / MCP / workflow-as-tool / skill. Columns: Who decides (path / agent) · Where it lives (workflow / workspace / external) · How you author it (drag-drop / code / protocol / instructions). */}
+| | Who decides it runs | Where it lives | How you author it |
+| --- | --- | --- | --- |
+| **Block** | The path | The workflow | Drag in and configure |
+| **Agent tool** | The agent | On the Agent block | Pick from the integrations |
+| **Custom tool** | The agent | The workspace | Write the code once |
+| **MCP server** | The agent | An external server | Connect it |
+| **Workflow-as-tool** | The path | Its own workflow | Build it like any workflow |
+| **Skill** | The agent | The workspace | Write the instructions |
 
 ## Putting it together
 
