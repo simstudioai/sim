@@ -2887,7 +2887,7 @@ function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
 
   for (const docFile of existingDocs) {
     const blockType = path.basename(docFile, '.mdx')
-    if (blockType === 'index') continue
+    if (HANDWRITTEN_INTEGRATION_DOCS.has(blockType)) continue
     if (validToolDocs.has(blockType)) continue
 
     const docPath = path.join(DOCS_OUTPUT_PATH, docFile)

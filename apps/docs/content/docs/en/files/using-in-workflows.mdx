@@ -7,7 +7,7 @@ pageType: concept
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-A file is a document, image, spreadsheet, or PDF in your workspace. A workflow can read a file to act on its contents, pass a file to a block or tool that needs one (attach a PDF to an email, send an image to a vision model), or produce a new file and save it. The [File](/integrations/file) block is how a file enters or leaves a workflow; the work in between is done by whatever block the task calls for.
+A file is a document, image, spreadsheet, or PDF in your workspace. A workflow can read a file to act on its contents, pass a file to a block or tool that needs one (attach a PDF to an email, send an image to a vision model), or produce a new file and save it. The [File](/files) block is how a file enters or leaves a workflow; the work in between is done by whatever block the task calls for.
 
 What you do with a file depends on the task, so this page covers the File block's operations and how a file moves between blocks rather than one fixed recipe. The example we'll use throughout reads `report.pdf`, asks an agent to summarize it, and saves the summary as `summary.md`, which exercises reading, processing, and writing in one workflow.
 
@@ -103,7 +103,7 @@ For the file-object schema in full, base64 access, and how files move across API
 <Cards>
   <Card title="Passing files" href="/files/passing-files" description="The file object in full: properties, base64, and references across blocks." />
   <Card title="Generating & storing files" href="/files/generating" description="Produce files from a run and save them to your workspace." />
-  <Card title="File block reference" href="/integrations/file" description="Every operation, input, and output in detail." />
+  <Card title="File block reference" href="/files" description="Every operation, input, and output in detail." />
   <Card title="Agent block" href="/blocks/agent" description="Give an agent files to read, summarize, or analyze." />
   <Card title="Using tables in workflows" href="/tables/using-in-workflows" description="Read and write structured rows the same way you read and write files." />
 </Cards>
