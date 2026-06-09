@@ -89,7 +89,7 @@ You trigger a group by hand from its column header menu:
 - **Run empty rows** runs only rows whose output columns are still empty.
 - **Run selected rows** runs the rows you've checked.
 
-Auto-run only ever runs rows it hasn't attempted yet. To re-run a row that already finished or errored, use **Run all rows**.
+Auto-run only ever runs rows it hasn't attempted yet. To re-run a single row, use **Re-run cell** from the cell's menu; to re-run everything, use **Run all rows**.
 
 ### Execution status
 
@@ -107,8 +107,30 @@ While a group works a row, its output cells show their state instead of a value:
 When a value arrives, it replaces the badge, and cells that finish stay filled even while other columns on the row are still running. You can see this in the example table: most rows are fully scored, while a few show **Not found** where an enrichment came up empty. The lead scorer still ran on those rows, working with what it had.
 
 <Callout type="info">
-On error, the row stays in the **Error** state. Auto-run skips errored rows, so a failure doesn't loop. To retry, fix the input and use **Run all rows**, which re-runs regardless of the auto-run setting. A row is only ever worked by one run at a time, so re-running doesn't race.
+On error, the row stays in the **Error** state. Auto-run skips errored rows, so a failure doesn't loop. To retry, fix the input and re-run the cell. A row is only ever worked by one run at a time, so re-running doesn't race.
 </Callout>
+
+### Inspecting a row's run
+
+Every value in a workflow column comes from a real workflow run, and each one is inspectable. Open a cell's menu to act on that row:
+
+<Image
+  src="/static/tables/workflow-columns/cell-menu.png"
+  alt="A lead_score cell's menu: View execution, Re-run cell, insert and duplicate row actions, and Delete row"
+  width={800}
+  height={369}
+/>
+
+**View execution** opens the run's trace: each block with its status, timing, and credit cost, the same view as the [Logs](/logs-debugging) page. Here, the row's score came from a 1.86s run of the LeadScorer workflow:
+
+<Image
+  src="/static/tables/workflow-columns/row-trace.png"
+  alt="The Log Details trace for one row's run: Workflow Execution at 1.86s with Start and LeadScorer spans, marked Success"
+  width={650}
+  height={386}
+/>
+
+**Re-run cell** runs the group again for just that row, replacing its values when the run finishes.
 
 ## Cascades
 
