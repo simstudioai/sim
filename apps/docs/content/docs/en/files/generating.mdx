@@ -7,7 +7,7 @@ pageType: concept
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-A generated file is an artifact a workflow run creates: a report, a CSV, a rendered audio clip. It starts as a value a block produces and becomes a workspace file when a [File](/tools/file) block writes it to the [Files](/files) store. Once saved, it has a name, a size, and a URL, and any later run can read it back.
+A generated file is an artifact a workflow run creates: a report, a CSV, a rendered audio clip. It starts as a value a block produces and becomes a workspace file when a [File](/integrations/file) block writes it to the [Files](/files) store. Once saved, it has a name, a size, and a URL, and any later run can read it back.
 
 Like a build pipeline that produces artifacts and stores them in an artifact repository, a workflow produces file artifacts that land in your workspace Files store, indexed by ID and shared across every workflow.
 
@@ -27,7 +27,7 @@ A block's output is remembered under the block's name for the rest of the run, a
 
 ## Saving content with the File block
 
-The [File](/tools/file) block's **Write** operation creates a new workspace file. It takes two required fields: a `fileName` (like `report.md`) and the `content` string to store. It returns the saved file's details.
+The [File](/integrations/file) block's **Write** operation creates a new workspace file. It takes two required fields: a `fileName` (like `report.md`) and the `content` string to store. It returns the saved file's details.
 
 {/* VISUAL: File Write anatomy: inputs (fileName, content, contentType?) → outputs (id, name, size, url) */}
 
@@ -63,6 +63,6 @@ When a workflow is deployed as an [API](/deployment/api), a generated file can b
 <Cards>
   <Card title="Files overview" href="/files" description="The artifact layer of your workspace." />
   <Card title="Using files in workflows" href="/files/passing-files" description="Provide files to a workflow and receive files back." />
-  <Card title="File block" href="/tools/file" description="Read, Get, Write, and Append operations in full." />
+  <Card title="File block" href="/integrations/file" description="Read, Get, Write, and Append operations in full." />
   <Card title="API deployment" href="/deployment/api" description="Expose a workflow as an API and return file references." />
 </Cards>

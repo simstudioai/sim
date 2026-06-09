@@ -1,0 +1,194 @@
+---
+title: Amazon DynamoDB
+description: Get, put, query, scan, update, and delete items in Amazon DynamoDB tables
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="dynamodb"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+## Usage Instructions
+
+Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.
+
+
+
+## Actions
+
+### `dynamodb_get`
+
+Get an item from a DynamoDB table by primary key
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | json | Yes | Primary key of the item to retrieve \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
+| `consistentRead` | boolean | No | Use strongly consistent read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `item` | json | Retrieved item |
+
+### `dynamodb_put`
+
+Put an item into a DynamoDB table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `item` | json | Yes | Item to put into the table \(e.g., \{"pk": "USER#123", "name": "John", "email": "john@example.com"\}\) |
+| `conditionExpression` | string | No | Condition that must be met for the put to succeed \(e.g., "attribute_not_exists\(pk\)" to prevent overwrites\) |
+| `expressionAttributeNames` | json | No | Attribute name mappings for reserved words used in conditionExpression \(e.g., \{"#name": "name"\}\) |
+| `expressionAttributeValues` | json | No | Expression attribute values used in conditionExpression \(e.g., \{":expected": "value"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `item` | json | Created item |
+
+### `dynamodb_query`
+
+Query items from a DynamoDB table using key conditions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `keyConditionExpression` | string | Yes | Key condition expression \(e.g., "pk = :pk" or "pk = :pk AND sk BEGINS_WITH :prefix"\) |
+| `filterExpression` | string | No | Filter expression for results \(e.g., "age &gt; :minAge AND #status = :status"\) |
+| `expressionAttributeNames` | json | No | Attribute name mappings for reserved words \(e.g., \{"#status": "status"\}\) |
+| `expressionAttributeValues` | json | No | Expression attribute values \(e.g., \{":pk": "USER#123", ":minAge": 18\}\) |
+| `indexName` | string | No | Secondary index name to query \(e.g., "GSI1", "email-index"\) |
+| `limit` | number | No | Maximum number of items to return \(e.g., 10, 50, 100\) |
+| `exclusiveStartKey` | json | No | Pagination token from a previous query's lastEvaluatedKey to continue fetching results |
+| `scanIndexForward` | boolean | No | Sort order for the sort key: true for ascending \(default\), false for descending |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `items` | array | Array of items returned |
+| `count` | number | Number of items returned |
+| `lastEvaluatedKey` | json | Pagination token to pass as exclusiveStartKey to fetch the next page of results |
+
+### `dynamodb_scan`
+
+Scan all items in a DynamoDB table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `filterExpression` | string | No | Filter expression for results \(e.g., "age &gt; :minAge AND #status = :status"\) |
+| `projectionExpression` | string | No | Attributes to retrieve \(e.g., "pk, sk, #name, email"\) |
+| `expressionAttributeNames` | json | No | Attribute name mappings for reserved words \(e.g., \{"#name": "name", "#status": "status"\}\) |
+| `expressionAttributeValues` | json | No | Expression attribute values \(e.g., \{":minAge": 18, ":status": "active"\}\) |
+| `limit` | number | No | Maximum number of items to return \(e.g., 10, 50, 100\) |
+| `exclusiveStartKey` | json | No | Pagination token from a previous scan's lastEvaluatedKey to continue fetching results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `items` | array | Array of items returned |
+| `count` | number | Number of items returned |
+| `lastEvaluatedKey` | json | Pagination token to pass as exclusiveStartKey to fetch the next page of results |
+
+### `dynamodb_update`
+
+Update an item in a DynamoDB table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | json | Yes | Primary key of the item to update \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
+| `updateExpression` | string | Yes | Update expression \(e.g., "SET #name = :name, age = :age" or "SET #count = #count + :inc"\) |
+| `expressionAttributeNames` | json | No | Attribute name mappings for reserved words \(e.g., \{"#name": "name", "#count": "count"\}\) |
+| `expressionAttributeValues` | json | No | Expression attribute values \(e.g., \{":name": "John", ":age": 30, ":inc": 1\}\) |
+| `conditionExpression` | string | No | Condition that must be met for the update to succeed \(e.g., "attribute_exists\(pk\)" or "version = :expectedVersion"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `item` | json | Updated item with all attributes |
+
+### `dynamodb_delete`
+
+Delete an item from a DynamoDB table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | Yes | DynamoDB table name \(e.g., "Users", "Orders"\) |
+| `key` | json | Yes | Primary key of the item to delete \(e.g., \{"pk": "USER#123"\} or \{"pk": "ORDER#456", "sk": "ITEM#789"\}\) |
+| `conditionExpression` | string | No | Condition that must be met for the delete to succeed \(e.g., "attribute_exists\(pk\)"\) |
+| `expressionAttributeNames` | json | No | Attribute name mappings for reserved words used in conditionExpression \(e.g., \{"#status": "status"\}\) |
+| `expressionAttributeValues` | json | No | Expression attribute values used in conditionExpression \(e.g., \{":status": "active"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `dynamodb_introspect`
+
+Introspect DynamoDB to list tables or get detailed schema information for a specific table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `tableName` | string | No | Optional table name to get detailed schema \(e.g., "Users", "Orders"\). If not provided, lists all tables. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | List of table names in the region |
+| `tableDetails` | json | Detailed schema information for a specific table |
+
+

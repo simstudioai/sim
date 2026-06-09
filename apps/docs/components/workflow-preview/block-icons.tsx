@@ -1,5 +1,5 @@
 import type { SVGProps } from 'react'
-import { Database, Layers, Repeat, Table } from 'lucide-react'
+import { Clock, Database, Layers, Repeat, Table } from 'lucide-react'
 import {
   ApiIcon,
   ChartBarIcon,
@@ -13,7 +13,6 @@ import {
   ScheduleIcon,
   ShieldCheckIcon,
   VariableIcon,
-  WaitIcon,
   WebhookIcon,
   WorkflowIcon,
 } from '@/components/icons'
@@ -91,7 +90,7 @@ export const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: strin
   response: ResponseIcon,
   router: ConnectIcon,
   variables: VariableIcon,
-  wait: WaitIcon,
+  wait: Clock,
   webhook: WebhookIcon,
   workflow: WorkflowIcon,
   schedule: ScheduleIcon,

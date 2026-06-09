@@ -1,0 +1,50 @@
+---
+title: Hugging Face
+description: Use Hugging Face Inference API
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="huggingface"
+  color="#0B0F19"
+/>
+
+## Usage Instructions
+
+Integrate Hugging Face into the workflow. Can generate completions using the Hugging Face Inference API.
+
+
+
+## Actions
+
+### `huggingface_chat`
+
+Generate completions using Hugging Face Inference API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `systemPrompt` | string | No | System prompt to guide the model behavior |
+| `content` | string | Yes | The user message content to send to the model |
+| `provider` | string | Yes | The provider to use for the API request \(e.g., novita, cerebras, etc.\) |
+| `model` | string | Yes | Model to use for chat completions \(e.g., "deepseek/deepseek-v3-0324", "meta-llama/Llama-3.3-70B-Instruct"\) |
+| `maxTokens` | number | No | Maximum number of tokens to generate |
+| `temperature` | number | No | Sampling temperature \(0-2\). Higher values make output more random |
+| `apiKey` | string | Yes | Hugging Face API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Chat completion results |
+|   ↳ `content` | string | Generated text content |
+|   ↳ `model` | string | Model used for generation |
+|   ↳ `usage` | object | Token usage information |
+|     ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+|     ↳ `completion_tokens` | number | Number of tokens in the completion |
+|     ↳ `total_tokens` | number | Total number of tokens used |
+
+

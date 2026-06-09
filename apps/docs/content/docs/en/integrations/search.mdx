@@ -1,0 +1,41 @@
+---
+title: Search
+description: Search the web ($0.01 per search)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="search"
+  color="#3B82F6"
+/>
+
+## Usage Instructions
+
+Search the web using the Search tool. Each search costs $0.01 per query.
+
+
+
+## Actions
+
+### `search_tool`
+
+Search the web. Returns the most relevant web results, including title, link, snippet, and date for each result.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results |
+| `query` | string | The search query |
+| `totalResults` | number | Total number of results |
+| `source` | string | Search source \(exa\) |
+| `cost` | json | Cost information \($0.01\) |
+
+

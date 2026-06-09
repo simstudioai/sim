@@ -1,0 +1,116 @@
+---
+title: AWS STS
+description: Connect to AWS Security Token Service
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sts"
+  color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
+/>
+
+## Usage Instructions
+
+Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.
+
+
+
+## Actions
+
+### `sts_assume_role`
+
+Assume an IAM role and receive temporary security credentials
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `roleArn` | string | Yes | ARN of the IAM role to assume |
+| `roleSessionName` | string | Yes | Identifier for the assumed role session |
+| `durationSeconds` | number | No | Duration of the session in seconds \(900-43200, default 3600\) |
+| `policy` | string | No | JSON IAM policy to further restrict session permissions \(max 2048 chars\) |
+| `externalId` | string | No | External ID for cross-account access |
+| `serialNumber` | string | No | MFA device serial number or ARN |
+| `tokenCode` | string | No | MFA token code \(6 digits\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessKeyId` | string | Temporary access key ID |
+| `secretAccessKey` | string | Temporary secret access key |
+| `sessionToken` | string | Temporary session token |
+| `expiration` | string | Credential expiration timestamp |
+| `assumedRoleArn` | string | ARN of the assumed role |
+| `assumedRoleId` | string | Assumed role ID with session name |
+| `packedPolicySize` | number | Percentage of allowed policy size used |
+| `sourceIdentity` | string | Source identity set on the role session, if any |
+
+### `sts_get_caller_identity`
+
+Get details about the IAM user or role whose credentials are used to call the API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | string | AWS account ID |
+| `arn` | string | ARN of the calling entity |
+| `userId` | string | Unique identifier of the calling entity |
+
+### `sts_get_session_token`
+
+Get temporary security credentials for an IAM user, optionally with MFA
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `durationSeconds` | number | No | Duration of the session in seconds \(900-129600, default 43200\) |
+| `serialNumber` | string | No | MFA device serial number or ARN |
+| `tokenCode` | string | No | MFA token code \(6 digits\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `accessKeyId` | string | Temporary access key ID |
+| `secretAccessKey` | string | Temporary secret access key |
+| `sessionToken` | string | Temporary session token |
+| `expiration` | string | Credential expiration timestamp |
+
+### `sts_get_access_key_info`
+
+Get the AWS account ID associated with an access key
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `targetAccessKeyId` | string | Yes | The access key ID to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | string | AWS account ID that owns the access key |
+
+

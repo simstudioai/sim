@@ -1,0 +1,62 @@
+---
+title: Google PageSpeed
+description: Analyze webpage performance with Google PageSpeed Insights
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_pagespeed"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Analyze web pages for performance, accessibility, SEO, and best practices using Google PageSpeed Insights API powered by Lighthouse.
+
+
+
+## Actions
+
+### `google_pagespeed_analyze`
+
+Analyze a webpage for performance, accessibility, SEO, and best practices using Google PageSpeed Insights.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google PageSpeed Insights API Key |
+| `url` | string | Yes | The URL of the webpage to analyze |
+| `category` | string | No | Lighthouse categories to analyze \(comma-separated\): performance, accessibility, best-practices, seo |
+| `strategy` | string | No | Analysis strategy: desktop or mobile |
+| `locale` | string | No | Locale for results \(e.g., en, fr, de\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `finalUrl` | string | The final URL after redirects |
+| `performanceScore` | number | Performance category score \(0-1\) |
+| `accessibilityScore` | number | Accessibility category score \(0-1\) |
+| `bestPracticesScore` | number | Best Practices category score \(0-1\) |
+| `seoScore` | number | SEO category score \(0-1\) |
+| `firstContentfulPaint` | string | Time to First Contentful Paint \(display value\) |
+| `firstContentfulPaintMs` | number | Time to First Contentful Paint in milliseconds |
+| `largestContentfulPaint` | string | Time to Largest Contentful Paint \(display value\) |
+| `largestContentfulPaintMs` | number | Time to Largest Contentful Paint in milliseconds |
+| `totalBlockingTime` | string | Total Blocking Time \(display value\) |
+| `totalBlockingTimeMs` | number | Total Blocking Time in milliseconds |
+| `cumulativeLayoutShift` | string | Cumulative Layout Shift \(display value\) |
+| `cumulativeLayoutShiftValue` | number | Cumulative Layout Shift numeric value |
+| `speedIndex` | string | Speed Index \(display value\) |
+| `speedIndexMs` | number | Speed Index in milliseconds |
+| `interactive` | string | Time to Interactive \(display value\) |
+| `interactiveMs` | number | Time to Interactive in milliseconds |
+| `overallCategory` | string | Overall loading experience category \(FAST, AVERAGE, SLOW, or NONE\) |
+| `analysisTimestamp` | string | UTC timestamp of the analysis |
+| `lighthouseVersion` | string | Version of Lighthouse used for the analysis |
+
+

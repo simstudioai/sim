@@ -1,0 +1,46 @@
+---
+title: Embeddings
+description: Generate Open AI embeddings
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="openai"
+  color="#10a37f"
+/>
+
+## Usage Instructions
+
+Integrate Embeddings into the workflow. Can generate embeddings from text.
+
+
+
+## Actions
+
+### `openai_embeddings`
+
+Generate embeddings from text using OpenAI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Text to generate embeddings for |
+| `model` | string | No | Model to use for embeddings |
+| `encodingFormat` | string | No | The format to return the embeddings in |
+| `apiKey` | string | Yes | OpenAI API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Embeddings generation results |
+|   ↳ `embeddings` | array | Array of embedding vectors |
+|   ↳ `model` | string | Model used for generating embeddings |
+|   ↳ `usage` | object | Token usage information |
+|     ↳ `prompt_tokens` | number | Number of tokens in the prompt |
+|     ↳ `total_tokens` | number | Total number of tokens used |
+
+

@@ -7,7 +7,7 @@ pageType: guide
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-A [Knowledge block](/tools/knowledge) search reads a query, embeds it as a vector, and returns the chunks of your documents that are closest to it. When the search misbehaves, it does so in one of three ways: it returns nothing, it returns the wrong chunks, or it returns the same content twice. Each one has a short list of causes you can check in the search results, in the document list, and in your tag filters.
+A [Knowledge block](/integrations/knowledge) search reads a query, embeds it as a vector, and returns the chunks of your documents that are closest to it. When the search misbehaves, it does so in one of three ways: it returns nothing, it returns the wrong chunks, or it returns the same content twice. Each one has a short list of causes you can check in the search results, in the document list, and in your tag filters.
 
 ## What a result looks like
 
@@ -20,7 +20,7 @@ A search returns a `results` array. Each entry is one chunk of one document, wit
 | `content` | The chunk text that matched. |
 | `chunkIndex` | The chunk's position in the document (`0` is the first chunk). |
 | `similarity` | How close the chunk is to your query, `0` to `1` (higher is closer). |
-| `rerankerScore` | An optional relevance score, present only when [Cohere reranking](/tools/knowledge) is on. |
+| `rerankerScore` | An optional relevance score, present only when [Cohere reranking](/integrations/knowledge) is on. |
 | `metadata` | The chunk's tag values, by their display names. |
 
 {/* VISUAL: two result panels side by side. Left: empty `results: []`. Right: one populated result object with documentName, content, chunkIndex, similarity 0.92, metadata, sourceUrl annotated. */}
@@ -91,5 +91,5 @@ The same goes for tag slots when you use [connectors](/knowledgebase/connectors)
   <Card title="Chunking strategies" href="/knowledgebase/chunking-strategies" description="Max chunk size, overlap, and how splits become chunks." />
   <Card title="Tags and filtering" href="/knowledgebase/tags" description="Set tag values and filter searches by them." />
   <Card title="Using a knowledge base in a workflow" href="/knowledgebase/using-in-workflows" description="Wire a Knowledge block search into an agent." />
-  <Card title="Knowledge block" href="/tools/knowledge" description="Every operation the block supports." />
+  <Card title="Knowledge block" href="/integrations/knowledge" description="Every operation the block supports." />
 </Cards>

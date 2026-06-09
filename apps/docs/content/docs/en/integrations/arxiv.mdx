@@ -1,0 +1,76 @@
+---
+title: ArXiv
+description: Search and retrieve academic papers from ArXiv
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="arxiv"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrates ArXiv into the workflow. Can search for papers, get paper details, and get author papers. Does not require OAuth or an API key.
+
+
+
+## Actions
+
+### `arxiv_search`
+
+Search for academic papers on ArXiv by keywords, authors, titles, or other fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `searchQuery` | string | Yes | The search query to execute |
+| `searchField` | string | No | Field to search in: all, ti \(title\), au \(author\), abs \(abstract\), co \(comment\), jr \(journal\), cat \(category\), rn \(report number\) |
+| `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 2000\) |
+| `sortBy` | string | No | Sort by: relevance, lastUpdatedDate, submittedDate \(default: relevance\) |
+| `sortOrder` | string | No | Sort order: ascending, descending \(default: descending\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `papers` | json | Array of papers matching the search query |
+| `totalResults` | number | Total number of results found for the search query |
+
+### `arxiv_get_paper`
+
+Get detailed information about a specific ArXiv paper by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `paperId` | string | Yes | ArXiv paper ID \(e.g., "1706.03762"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `paper` | json | Detailed information about the requested ArXiv paper |
+
+### `arxiv_get_author_papers`
+
+Search for papers by a specific author on ArXiv.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authorName` | string | Yes | Author name to search for |
+| `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 2000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `authorPapers` | json | Array of papers authored by the specified author |
+| `totalResults` | number | Total number of papers found for the author |
+
+

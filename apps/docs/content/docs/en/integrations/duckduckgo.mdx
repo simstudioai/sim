@@ -1,0 +1,55 @@
+---
+title: DuckDuckGo
+description: Search with DuckDuckGo
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="duckduckgo"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, related topics, and more. Free to use without an API key.
+
+
+
+## Actions
+
+### `duckduckgo_search`
+
+Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, and related topics for your query. Free to use without an API key.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query to execute |
+| `noHtml` | boolean | No | Remove HTML from text in results \(default: true\) |
+| `skipDisambig` | boolean | No | Skip disambiguation results \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `heading` | string | The heading/title of the instant answer |
+| `abstract` | string | A short abstract summary of the topic |
+| `abstractText` | string | Plain text version of the abstract |
+| `abstractSource` | string | The source of the abstract \(e.g., Wikipedia\) |
+| `abstractURL` | string | URL to the source of the abstract |
+| `image` | string | URL to an image related to the topic |
+| `answer` | string | Direct answer if available \(e.g., for calculations\) |
+| `answerType` | string | Type of the answer \(e.g., calc, ip, etc.\) |
+| `type` | string | Response type: A \(article\), D \(disambiguation\), C \(category\), N \(name\), E \(exclusive\) |
+| `relatedTopics` | array | Array of related topics with URLs and descriptions |
+|   ↳ `FirstURL` | string | URL to the related topic |
+|   ↳ `Text` | string | Description of the related topic |
+|   ↳ `Result` | string | HTML result snippet |
+| `results` | array | Array of external link results |
+|   ↳ `FirstURL` | string | URL of the result |
+|   ↳ `Text` | string | Description of the result |
+|   ↳ `Result` | string | HTML result snippet |
+
+

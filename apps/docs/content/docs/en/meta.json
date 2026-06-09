@@ -36,11 +36,11 @@
     "---Building agents---",
     "./building-agents/index",
     "./building-agents/choosing",
-    "./tools/custom-tools",
+    "./building-agents/custom-tools",
     "./mcp/index",
     "skills",
-    "./tools/knowledge",
-    "./tools/memory",
+    "./integrations/knowledge",
+    "./integrations/memory",
     "---Mothership---",
     "./mothership/index",
     "./mothership/workflows",
@@ -52,7 +52,6 @@
     "mailer",
     "---Workspaces & Access---",
     "./workspaces/fundamentals",
-    "integrations",
     "./permissions/roles-and-permissions",
     "./credentials/index",
     "./workspaces/organization",
@@ -63,8 +62,7 @@
     "---Reference---",
     "./quick-reference/index",
     "./keyboard-shortcuts/index",
-    "tools",
-    "integration-triggers"
+    "integrations"
   ],
   "defaultOpen": false
 }

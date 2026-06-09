@@ -1,0 +1,223 @@
+---
+title: Table
+description: User-defined data tables
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="table"
+  color="#10B981"
+/>
+
+## Usage Instructions
+
+Create and manage custom data tables. Store, query, and manipulate structured data within workflows.
+
+
+
+## Actions
+
+### `table_insert_row`
+
+Insert a new row into a table. IMPORTANT: You must use the 
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `data` | object | Yes | Row data as JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was inserted |
+| `row` | json | Inserted row data |
+| `message` | string | Status message |
+
+### `table_batch_insert_rows`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `rows` | array | Yes | Array of row data objects \(max $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE\} rows\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether rows were inserted |
+| `rows` | array | Inserted rows data |
+| `insertedCount` | number | Number of rows inserted |
+| `message` | string | Status message |
+
+### `table_upsert_row`
+
+Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the 
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `data` | object | Yes | Row data to insert or update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was upserted |
+| `row` | json | Upserted row data |
+| `operation` | string | Operation performed: insert or update |
+| `message` | string | Status message |
+
+### `table_update_row`
+
+Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the 
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `rowId` | string | Yes | Row ID to update |
+| `data` | object | Yes | Updated row data |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was updated |
+| `row` | json | Updated row data |
+| `message` | string | Status message |
+
+### `table_update_rows_by_filter`
+
+Update multiple rows that match filter criteria. Data is merged with existing row data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `filter` | object | Yes | Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc. |
+| `data` | object | Yes | Fields to update \(merged with existing data\) |
+| `limit` | number | No | Maximum number of rows to update \(default: no limit, max: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether rows were updated |
+| `updatedCount` | number | Number of rows updated |
+| `updatedRowIds` | array | IDs of updated rows |
+| `message` | string | Status message |
+
+### `table_delete_row`
+
+Delete a row from a table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `rowId` | string | Yes | Row ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was deleted |
+| `deletedCount` | number | Number of rows deleted |
+| `message` | string | Status message |
+
+### `table_delete_rows_by_filter`
+
+Delete multiple rows that match filter criteria. Use with caution - supports optional limit for safety.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `filter` | object | Yes | Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc. |
+| `limit` | number | No | Maximum number of rows to delete \(default: no limit, max: $\{TABLE_LIMITS.MAX_BULK_OPERATION_SIZE\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether rows were deleted |
+| `deletedCount` | number | Number of rows deleted |
+| `deletedRowIds` | array | IDs of deleted rows |
+| `message` | string | Status message |
+
+### `table_query_rows`
+
+Query rows from a table with filtering, sorting, and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `filter` | object | No | Filter conditions \(MongoDB-style operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $ncontains, $startsWith, $endsWith, $empty\) |
+| `sort` | object | No | Sort order as \{field: "asc"\|"desc"\} |
+| `limit` | number | No | Maximum rows to return \(default: $\{TABLE_LIMITS.DEFAULT_QUERY_LIMIT\}, max: $\{TABLE_LIMITS.MAX_QUERY_LIMIT\}\) |
+| `offset` | number | No | Number of rows to skip \(default: 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether query succeeded |
+| `rows` | array | Query result rows |
+| `rowCount` | number | Number of rows returned |
+| `totalCount` | number | Total rows matching filter |
+| `limit` | number | Limit used in query |
+| `offset` | number | Offset used in query |
+
+### `table_get_row`
+
+Get a single row by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+| `rowId` | string | Yes | Row ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether row was retrieved |
+| `row` | json | Row data |
+| `message` | string | Status message |
+
+### `table_get_schema`
+
+Get the schema configuration of a table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `tableId` | string | Yes | Table ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether schema was retrieved |
+| `name` | string | Table name |
+| `columns` | array | Column definitions |
+| `message` | string | Status message |
+
+

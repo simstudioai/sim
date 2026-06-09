@@ -1,0 +1,69 @@
+---
+title: LinkedIn
+description: Share posts and manage your LinkedIn presence
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="linkedin"
+  color="#0072B1"
+/>
+
+## Usage Instructions
+
+Integrate LinkedIn into workflows. Share posts to your personal feed and access your LinkedIn profile information.
+
+
+
+## Actions
+
+### `linkedin_share_post`
+
+Share a post to your personal LinkedIn feed
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `text` | string | Yes | The text content of your LinkedIn post |
+| `visibility` | string | No | Who can see this post: "PUBLIC" or "CONNECTIONS" \(default: "PUBLIC"\) |
+| `request` | string | No | No description |
+| `output` | string | No | No description |
+| `output` | string | No | No description |
+| `specificContent` | string | No | No description |
+| `shareCommentary` | string | No | No description |
+| `visibility` | string | No | No description |
+| `headers` | string | No | No description |
+| `output` | string | No | No description |
+| `output` | string | No | No description |
+| `output` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `postId` | string | Created post ID |
+| `profile` | json | LinkedIn profile information |
+| `error` | string | Error message if operation failed |
+
+### `linkedin_get_profile`
+
+Retrieve your LinkedIn profile information
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `postId` | string | Created post ID |
+| `profile` | json | LinkedIn profile information |
+| `error` | string | Error message if operation failed |
+
+

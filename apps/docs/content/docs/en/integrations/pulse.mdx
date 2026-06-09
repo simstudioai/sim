@@ -1,0 +1,52 @@
+---
+title: Pulse
+description: Extract text from documents using Pulse OCR
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="pulse_v2"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.
+
+
+
+## Actions
+
+### `pulse_parser`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | No | URL to a document to be processed |
+| `file` | file | No | Document file to be processed |
+| `fileUpload` | object | No | File upload data from file-upload component |
+| `pages` | string | No | Page range to process \(1-indexed, e.g., "1-2,5"\) |
+| `extractFigure` | boolean | No | Enable figure extraction from the document |
+| `figureDescription` | boolean | No | Generate descriptions/captions for extracted figures |
+| `returnHtml` | boolean | No | Include HTML in the response |
+| `chunking` | string | No | Chunking strategies \(comma-separated: semantic, header, page, recursive\) |
+| `chunkSize` | number | No | Maximum characters per chunk when chunking is enabled |
+| `apiKey` | string | Yes | Pulse API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markdown` | string | Extracted content in markdown format |
+| `page_count` | number | Number of pages in the document |
+| `job_id` | string | Unique job identifier |
+| `bounding_boxes` | json | Bounding box layout information |
+| `extraction_url` | string | URL for extraction results \(for large documents\) |
+| `html` | string | HTML content if requested |
+| `structured_output` | json | Structured output if schema was provided |
+| `chunks` | json | Chunked content if chunking was enabled |
+| `figures` | json | Extracted figures if figure extraction was enabled |
+
+

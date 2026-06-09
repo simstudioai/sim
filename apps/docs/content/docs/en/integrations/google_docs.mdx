@@ -1,0 +1,88 @@
+---
+title: Google Docs
+description: Read, write, and create documents
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_docs"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrate Google Docs into the workflow. Can read, write, and create documents.
+
+
+
+## Actions
+
+### `google_docs_read`
+
+Read content from a Google Docs document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | Google Docs document ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Extracted document text content |
+| `metadata` | json | Document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_write`
+
+Append content to a Google Docs document. Content is inserted literally; Markdown is not interpreted. For formatted output from Markdown, use the Create operation with the markdown toggle enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `documentId` | string | Yes | The ID of the document to write to |
+| `content` | string | Yes | The content to write to the document |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedContent` | boolean | Indicates if document content was updated successfully |
+| `metadata` | json | Updated document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+### `google_docs_create`
+
+Create a new Google Docs document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The title of the document to create |
+| `content` | string | No | The content of the document to create |
+| `folderSelector` | string | No | Google Drive folder ID to create the document in \(e.g., 1ABCxyz...\) |
+| `folderId` | string | No | The ID of the folder to create the document in \(internal use\) |
+| `markdown` | boolean | No | When true, content is interpreted as Markdown and converted to formatted Google Docs content \(headings, bold/italic, lists, tables, links, code blocks, blockquotes\). Default: false \(content inserted as plain text\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metadata` | json | Created document metadata including ID, title, and URL |
+|   ↳ `documentId` | string | Google Docs document ID |
+|   ↳ `title` | string | Document title |
+|   ↳ `mimeType` | string | Document MIME type |
+|   ↳ `url` | string | Document URL |
+
+

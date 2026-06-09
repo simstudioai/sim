@@ -2604,7 +2604,8 @@ async function generateBlockDoc(blockPath: string) {
       if (
         (blockConfig.category === 'blocks' &&
           blockConfig.type !== 'memory' &&
-          blockConfig.type !== 'knowledge') ||
+          blockConfig.type !== 'knowledge' &&
+          blockConfig.type !== 'table') ||
         blockConfig.type === 'evaluator' ||
         blockConfig.type === 'number' ||
         blockConfig.type === 'webhook' ||
@@ -2725,7 +2726,7 @@ async function generateMarkdownForBlock(
 
   let toolsSection = ''
   if (tools.access?.length) {
-    toolsSection = '## Tools\n\n'
+    toolsSection = '## Actions\n\n'
 
     for (const tool of tools.access) {
       // Strip version suffix from tool name for display
@@ -3578,7 +3579,7 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
 
     const separator = i < triggers.length - 1 ? '\n---\n\n' : ''
 
-    triggersSection += `### ${trigger.name} <span className="trigger-badge">Trigger</span>\n\n`
+    triggersSection += `### ${trigger.name}\n\n`
     const escapedTriggerDescription = trigger.description
       .replace(/\{/g, '\\{')
       .replace(/\}/g, '\\}')

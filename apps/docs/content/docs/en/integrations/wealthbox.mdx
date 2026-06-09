@@ -1,0 +1,166 @@
+---
+title: Wealthbox
+description: Interact with Wealthbox
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="wealthbox"
+  color="#E0E0E0"
+/>
+
+## Usage Instructions
+
+Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.
+
+
+
+## Actions
+
+### `wealthbox_read_note`
+
+Read content from a Wealthbox note
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `noteId` | string | No | The ID of the note to read \(e.g., "11111"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Note data and metadata |
+|   ↳ `content` | string | Formatted note information |
+|   ↳ `note` | object | Raw note data from Wealthbox |
+|   ↳ `metadata` | object | Operation metadata |
+|     ↳ `itemId` | string | ID of the note |
+|     ↳ `noteId` | string | ID of the note |
+|     ↳ `itemType` | string | Type of item \(note\) |
+
+### `wealthbox_write_note`
+
+Create or update a Wealthbox note
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `content` | string | Yes | The main body of the note |
+| `contactId` | string | No | ID of contact to link to this note \(e.g., "12345"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created or updated note data and metadata |
+|   ↳ `note` | object | Raw note data from Wealthbox |
+|   ↳ `success` | boolean | Operation success indicator |
+|   ↳ `metadata` | object | Operation metadata |
+|     ↳ `itemId` | string | ID of the created/updated note |
+|     ↳ `noteId` | string | ID of the created/updated note |
+|     ↳ `itemType` | string | Type of item \(note\) |
+
+### `wealthbox_read_contact`
+
+Read content from a Wealthbox contact
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `contactId` | string | No | The ID of the contact to read \(e.g., "12345"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Contact data and metadata |
+|   ↳ `content` | string | Formatted contact information |
+|   ↳ `contact` | object | Raw contact data from Wealthbox |
+|   ↳ `metadata` | object | Operation metadata |
+|     ↳ `itemId` | string | ID of the contact |
+|     ↳ `contactId` | string | ID of the contact |
+|     ↳ `itemType` | string | Type of item \(contact\) |
+
+### `wealthbox_write_contact`
+
+Create a new Wealthbox contact
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `firstName` | string | Yes | The first name of the contact |
+| `lastName` | string | Yes | The last name of the contact |
+| `emailAddress` | string | No | The email address of the contact |
+| `backgroundInformation` | string | No | Background information about the contact |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created or updated contact data and metadata |
+|   ↳ `contact` | object | Raw contact data from Wealthbox |
+|   ↳ `success` | boolean | Operation success indicator |
+|   ↳ `metadata` | object | Operation metadata |
+|     ↳ `itemId` | string | ID of the created/updated contact |
+|     ↳ `contactId` | string | ID of the created/updated contact |
+|     ↳ `itemType` | string | Type of item \(contact\) |
+
+### `wealthbox_read_task`
+
+Read content from a Wealthbox task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | No | The ID of the task to read \(e.g., "67890"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Task data and metadata |
+|   ↳ `content` | string | Formatted task information |
+|   ↳ `task` | object | Raw task data from Wealthbox |
+|   ↳ `metadata` | object | Operation metadata |
+|     ↳ `itemId` | string | ID of the task |
+|     ↳ `taskId` | string | ID of the task |
+|     ↳ `itemType` | string | Type of item \(task\) |
+
+### `wealthbox_write_task`
+
+Create or update a Wealthbox task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | Yes | The name/title of the task |
+| `dueDate` | string | Yes | The due date and time of the task \(format: "YYYY-MM-DD HH:MM AM/PM -HHMM", e.g., "2015-05-24 11:00 AM -0400"\) |
+| `contactId` | string | No | ID of contact to link to this task \(e.g., "12345"\) |
+| `description` | string | No | Description or notes about the task |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Operation success status |
+| `output` | object | Created or updated task data and metadata |
+|   ↳ `task` | object | Raw task data from Wealthbox |
+|   ↳ `success` | boolean | Operation success indicator |
+|   ↳ `metadata` | object | Operation metadata |
+|     ↳ `itemId` | string | ID of the created/updated task |
+|     ↳ `taskId` | string | ID of the created/updated task |
+|     ↳ `itemType` | string | Type of item \(task\) |
+
+

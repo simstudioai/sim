@@ -1,0 +1,702 @@
+---
+title: Kalshi
+description: Access prediction markets and trade on Kalshi
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="kalshi_v2"
+  color="#09C285"
+/>
+
+## Usage Instructions
+
+Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.
+
+
+
+## Actions
+
+### `kalshi_get_markets`
+
+Retrieve a list of prediction markets from Kalshi with all filtering options (V2 - full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | No | Filter by market status: "unopened", "open", "closed", or "settled" |
+| `seriesTicker` | string | No | Filter by series ticker \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+| `eventTicker` | string | No | Filter by event ticker \(e.g., "KXBTC-24DEC31", "INX-25JAN03"\) |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markets` | array | Array of market objects with all API fields |
+|   ↳ `ticker` | string | Unique market ticker identifier |
+|   ↳ `event_ticker` | string | Parent event ticker |
+|   ↳ `market_type` | string | Market type \(binary, etc.\) |
+|   ↳ `title` | string | Market title/question |
+|   ↳ `subtitle` | string | Market subtitle |
+|   ↳ `yes_sub_title` | string | Yes outcome subtitle |
+|   ↳ `no_sub_title` | string | No outcome subtitle |
+|   ↳ `open_time` | string | Market open time \(ISO 8601\) |
+|   ↳ `close_time` | string | Market close time \(ISO 8601\) |
+|   ↳ `expiration_time` | string | Contract expiration time |
+|   ↳ `status` | string | Market status \(open, closed, settled, etc.\) |
+|   ↳ `yes_bid` | number | Current best yes bid price in cents |
+|   ↳ `yes_ask` | number | Current best yes ask price in cents |
+|   ↳ `no_bid` | number | Current best no bid price in cents |
+|   ↳ `no_ask` | number | Current best no ask price in cents |
+|   ↳ `last_price` | number | Last trade price in cents |
+|   ↳ `previous_yes_bid` | number | Previous yes bid |
+|   ↳ `previous_yes_ask` | number | Previous yes ask |
+|   ↳ `previous_price` | number | Previous last price |
+|   ↳ `volume` | number | Total volume \(contracts traded\) |
+|   ↳ `volume_24h` | number | 24-hour trading volume |
+|   ↳ `liquidity` | number | Market liquidity measure |
+|   ↳ `open_interest` | number | Open interest \(outstanding contracts\) |
+|   ↳ `result` | string | Settlement result \(yes, no, null\) |
+|   ↳ `cap_strike` | number | Cap strike for ranged markets |
+|   ↳ `floor_strike` | number | Floor strike for ranged markets |
+|   ↳ `category` | string | Market category |
+| `cursor` | string | Pagination cursor for fetching more results |
+
+### `kalshi_get_market`
+
+Retrieve details of a specific prediction market by ticker (V2 - full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `market` | object | Market object with all API fields |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `event_ticker` | string | Event ticker |
+|   ↳ `market_type` | string | Market type |
+|   ↳ `title` | string | Market title |
+|   ↳ `subtitle` | string | Market subtitle |
+|   ↳ `yes_sub_title` | string | Yes outcome subtitle |
+|   ↳ `no_sub_title` | string | No outcome subtitle |
+|   ↳ `open_time` | string | Market open time |
+|   ↳ `close_time` | string | Market close time |
+|   ↳ `expected_expiration_time` | string | Expected expiration time |
+|   ↳ `expiration_time` | string | Expiration time |
+|   ↳ `latest_expiration_time` | string | Latest expiration time |
+|   ↳ `settlement_timer_seconds` | number | Settlement timer in seconds |
+|   ↳ `status` | string | Market status |
+|   ↳ `response_price_units` | string | Response price units |
+|   ↳ `notional_value` | number | Notional value |
+|   ↳ `tick_size` | number | Tick size |
+|   ↳ `yes_bid` | number | Current yes bid price |
+|   ↳ `yes_ask` | number | Current yes ask price |
+|   ↳ `no_bid` | number | Current no bid price |
+|   ↳ `no_ask` | number | Current no ask price |
+|   ↳ `last_price` | number | Last trade price |
+|   ↳ `previous_yes_bid` | number | Previous yes bid |
+|   ↳ `previous_yes_ask` | number | Previous yes ask |
+|   ↳ `previous_price` | number | Previous price |
+|   ↳ `volume` | number | Total volume |
+|   ↳ `volume_24h` | number | 24-hour volume |
+|   ↳ `liquidity` | number | Market liquidity |
+|   ↳ `open_interest` | number | Open interest |
+|   ↳ `result` | string | Market result |
+|   ↳ `cap_strike` | number | Cap strike |
+|   ↳ `floor_strike` | number | Floor strike |
+|   ↳ `can_close_early` | boolean | Can close early |
+|   ↳ `expiration_value` | string | Expiration value |
+|   ↳ `category` | string | Market category |
+|   ↳ `risk_limit_cents` | number | Risk limit in cents |
+|   ↳ `strike_type` | string | Strike type |
+|   ↳ `rules_primary` | string | Primary rules |
+|   ↳ `rules_secondary` | string | Secondary rules |
+|   ↳ `settlement_source_url` | string | Settlement source URL |
+|   ↳ `custom_strike` | object | Custom strike object |
+|   ↳ `underlying` | string | Underlying asset |
+|   ↳ `settlement_value` | number | Settlement value |
+|   ↳ `cfd_contract_size` | number | CFD contract size |
+|   ↳ `yes_fee_fp` | number | Yes fee \(fixed-point\) |
+|   ↳ `no_fee_fp` | number | No fee \(fixed-point\) |
+|   ↳ `last_price_fp` | number | Last price \(fixed-point\) |
+|   ↳ `yes_bid_fp` | number | Yes bid \(fixed-point\) |
+|   ↳ `yes_ask_fp` | number | Yes ask \(fixed-point\) |
+|   ↳ `no_bid_fp` | number | No bid \(fixed-point\) |
+|   ↳ `no_ask_fp` | number | No ask \(fixed-point\) |
+
+### `kalshi_get_events`
+
+Retrieve a list of events from Kalshi with optional filtering (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `status` | string | No | Filter by event status: "open", "closed", or "settled" |
+| `seriesTicker` | string | No | Filter by series ticker \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+| `withNestedMarkets` | string | No | Include nested markets in response: "true" or "false" |
+| `limit` | string | No | Number of results to return \(1-200, default: 200\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Array of event objects |
+|   ↳ `event_ticker` | string | Unique event ticker identifier |
+|   ↳ `series_ticker` | string | Parent series ticker |
+|   ↳ `title` | string | Event title |
+|   ↳ `sub_title` | string | Event subtitle |
+|   ↳ `mutually_exclusive` | boolean | Whether markets are mutually exclusive |
+|   ↳ `category` | string | Event category |
+|   ↳ `strike_date` | string | Strike/settlement date |
+|   ↳ `status` | string | Event status |
+| `milestones` | array | Array of milestone objects \(if requested\) |
+|   ↳ `event_ticker` | string | Event ticker |
+|   ↳ `milestone_type` | string | Milestone type |
+|   ↳ `milestone_date` | string | Milestone date |
+|   ↳ `milestone_title` | string | Milestone title |
+| `cursor` | string | Pagination cursor for fetching more results |
+
+### `kalshi_get_event`
+
+Retrieve details of a specific event by ticker (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTicker` | string | Yes | Event ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03"\) |
+| `withNestedMarkets` | string | No | Include nested markets in response \(true/false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | Event object with full details matching Kalshi API response |
+|   ↳ `event_ticker` | string | Event ticker |
+|   ↳ `series_ticker` | string | Series ticker |
+|   ↳ `title` | string | Event title |
+|   ↳ `sub_title` | string | Event subtitle |
+|   ↳ `mutually_exclusive` | boolean | Mutually exclusive markets |
+|   ↳ `category` | string | Event category |
+|   ↳ `collateral_return_type` | string | Collateral return type |
+|   ↳ `strike_date` | string | Strike date |
+|   ↳ `strike_period` | string | Strike period |
+|   ↳ `available_on_brokers` | boolean | Available on brokers |
+|   ↳ `product_metadata` | object | Product metadata |
+|   ↳ `markets` | array | Nested markets \(if requested\) |
+
+### `kalshi_get_balance`
+
+Retrieve your account balance and portfolio value from Kalshi (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `balance` | number | Account balance in cents |
+| `portfolio_value` | number | Portfolio value in cents |
+| `updated_ts` | number | Unix timestamp of last update \(milliseconds\) |
+
+### `kalshi_get_positions`
+
+Retrieve your open positions from Kalshi (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
+| `settlementStatus` | string | No | Filter by settlement status: "all", "unsettled", or "settled" \(default: "unsettled"\) |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `market_positions` | array | Array of market position objects |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `event_ticker` | string | Event ticker |
+|   ↳ `event_title` | string | Event title |
+|   ↳ `market_title` | string | Market title |
+|   ↳ `position` | number | Net position \(positive=yes, negative=no\) |
+|   ↳ `market_exposure` | number | Maximum potential loss in cents |
+|   ↳ `realized_pnl` | number | Realized profit/loss in cents |
+|   ↳ `total_traded` | number | Total contracts traded |
+|   ↳ `resting_orders_count` | number | Number of resting orders |
+|   ↳ `fees_paid` | number | Total fees paid in cents |
+| `event_positions` | array | Array of event position objects |
+|   ↳ `event_ticker` | string | Event ticker |
+|   ↳ `event_exposure` | number | Event-level exposure in cents |
+|   ↳ `realized_pnl` | number | Realized P&L in cents |
+|   ↳ `total_cost` | number | Total cost basis in cents |
+| `cursor` | string | Pagination cursor for fetching more results |
+
+### `kalshi_get_orders`
+
+Retrieve your orders from Kalshi with optional filtering (V2 with full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `eventTicker` | string | No | Filter by event ticker, max 10 comma-separated \(e.g., "KXBTC-24DEC31,INX-25JAN03"\) |
+| `status` | string | No | Filter by order status: "resting", "canceled", or "executed" |
+| `limit` | string | No | Number of results to return \(1-200, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orders` | array | Array of order objects with full API response fields |
+|   ↳ `order_id` | string | Unique order identifier |
+|   ↳ `user_id` | string | User ID |
+|   ↳ `client_order_id` | string | Client-provided order ID |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `side` | string | Order side \(yes/no\) |
+|   ↳ `action` | string | Order action \(buy/sell\) |
+|   ↳ `type` | string | Order type \(limit/market\) |
+|   ↳ `status` | string | Order status \(resting, canceled, executed\) |
+|   ↳ `yes_price` | number | Yes price in cents |
+|   ↳ `no_price` | number | No price in cents |
+|   ↳ `fill_count` | number | Number of contracts filled |
+|   ↳ `remaining_count` | number | Remaining contracts to fill |
+|   ↳ `initial_count` | number | Initial order size |
+|   ↳ `taker_fees` | number | Taker fees paid in cents |
+|   ↳ `maker_fees` | number | Maker fees paid in cents |
+|   ↳ `created_time` | string | Order creation time \(ISO 8601\) |
+|   ↳ `expiration_time` | string | Order expiration time |
+|   ↳ `last_update_time` | string | Last order update time |
+| `cursor` | string | Pagination cursor for fetching more results |
+
+### `kalshi_get_order`
+
+Retrieve details of a specific order by ID from Kalshi (V2 with full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `orderId` | string | Yes | Order ID to retrieve \(e.g., "abc123-def456-ghi789"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | Order object with full API response fields |
+|   ↳ `order_id` | string | Order ID |
+|   ↳ `user_id` | string | User ID |
+|   ↳ `client_order_id` | string | Client order ID |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `side` | string | Order side \(yes/no\) |
+|   ↳ `action` | string | Action \(buy/sell\) |
+|   ↳ `type` | string | Order type \(limit/market\) |
+|   ↳ `status` | string | Order status \(resting/canceled/executed\) |
+|   ↳ `yes_price` | number | Yes price in cents |
+|   ↳ `no_price` | number | No price in cents |
+|   ↳ `yes_price_dollars` | string | Yes price in dollars |
+|   ↳ `no_price_dollars` | string | No price in dollars |
+|   ↳ `fill_count` | number | Filled contract count |
+|   ↳ `fill_count_fp` | string | Filled count \(fixed-point\) |
+|   ↳ `remaining_count` | number | Remaining contracts |
+|   ↳ `remaining_count_fp` | string | Remaining count \(fixed-point\) |
+|   ↳ `initial_count` | number | Initial contract count |
+|   ↳ `initial_count_fp` | string | Initial count \(fixed-point\) |
+|   ↳ `taker_fees` | number | Taker fees in cents |
+|   ↳ `maker_fees` | number | Maker fees in cents |
+|   ↳ `taker_fees_dollars` | string | Taker fees in dollars |
+|   ↳ `maker_fees_dollars` | string | Maker fees in dollars |
+|   ↳ `taker_fill_cost` | number | Taker fill cost in cents |
+|   ↳ `maker_fill_cost` | number | Maker fill cost in cents |
+|   ↳ `taker_fill_cost_dollars` | string | Taker fill cost in dollars |
+|   ↳ `maker_fill_cost_dollars` | string | Maker fill cost in dollars |
+|   ↳ `queue_position` | number | Queue position \(deprecated\) |
+|   ↳ `expiration_time` | string | Order expiration time |
+|   ↳ `created_time` | string | Order creation time |
+|   ↳ `last_update_time` | string | Last update time |
+|   ↳ `self_trade_prevention_type` | string | Self-trade prevention type |
+|   ↳ `order_group_id` | string | Order group ID |
+|   ↳ `cancel_order_on_pause` | boolean | Cancel on market pause |
+
+### `kalshi_get_orderbook`
+
+Retrieve the orderbook (yes and no bids) for a specific market (V2 - includes depth and fp fields)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orderbook` | object | Orderbook with yes/no bids \(legacy integer counts\) |
+|   ↳ `yes` | array | Yes side bids as tuples \[price_cents, count\] |
+|   ↳ `no` | array | No side bids as tuples \[price_cents, count\] |
+|   ↳ `yes_dollars` | array | Yes side bids as tuples \[dollars_string, count\] |
+|   ↳ `no_dollars` | array | No side bids as tuples \[dollars_string, count\] |
+| `orderbook_fp` | object | Orderbook with fixed-point counts \(preferred\) |
+|   ↳ `yes_dollars` | array | Yes side bids as tuples \[dollars_string, fp_count_string\] |
+|   ↳ `no_dollars` | array | No side bids as tuples \[dollars_string, fp_count_string\] |
+
+### `kalshi_get_trades`
+
+Retrieve recent trades with additional filtering options (V2 - includes trade_id and count_fp)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `trades` | array | Array of trade objects with trade_id and count_fp |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `yes_price` | number | Trade price for yes in cents |
+|   ↳ `no_price` | number | Trade price for no in cents |
+|   ↳ `count` | number | Number of contracts traded |
+|   ↳ `taker_side` | string | Taker side \(yes/no\) |
+|   ↳ `created_time` | string | Trade time \(ISO 8601\) |
+| `cursor` | string | Pagination cursor for fetching more results |
+
+### `kalshi_get_candlesticks`
+
+Retrieve OHLC candlestick data for a specific market (V2 - full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | Yes | Series ticker identifier \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+| `startTs` | number | Yes | Start timestamp in Unix seconds \(e.g., 1704067200\) |
+| `endTs` | number | Yes | End timestamp in Unix seconds \(e.g., 1704153600\) |
+| `periodInterval` | number | Yes | Period interval: 1 \(1 minute\), 60 \(1 hour\), or 1440 \(1 day\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticker` | string | Market ticker |
+| `candlesticks` | array | Array of OHLC candlestick data with nested bid/ask/price objects |
+
+### `kalshi_get_fills`
+
+Retrieve your portfolio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `ticker` | string | No | Filter by market ticker \(e.g., "KXBTC-24DEC31"\) |
+| `orderId` | string | No | Filter by order ID \(e.g., "abc123-def456-ghi789"\) |
+| `minTs` | number | No | Minimum timestamp in Unix milliseconds \(e.g., 1704067200000\) |
+| `maxTs` | number | No | Maximum timestamp in Unix milliseconds \(e.g., 1704153600000\) |
+| `limit` | string | No | Number of results to return \(1-1000, default: 100\) |
+| `cursor` | string | No | Pagination cursor from previous response for fetching next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fills` | array | Array of fill/trade objects with all API fields |
+|   ↳ `trade_id` | string | Unique trade identifier |
+|   ↳ `order_id` | string | Associated order ID |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `side` | string | Trade side \(yes/no\) |
+|   ↳ `action` | string | Trade action \(buy/sell\) |
+|   ↳ `count` | number | Number of contracts |
+|   ↳ `yes_price` | number | Yes price in cents |
+|   ↳ `no_price` | number | No price in cents |
+|   ↳ `is_taker` | boolean | Whether this was a taker trade |
+|   ↳ `created_time` | string | Trade execution time \(ISO 8601\) |
+| `cursor` | string | Pagination cursor for fetching more results |
+
+### `kalshi_get_series_by_ticker`
+
+Retrieve details of a specific market series by ticker (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `seriesTicker` | string | Yes | Series ticker identifier \(e.g., "KXBTC", "INX", "FED-RATE"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `series` | object | Series object with full details matching Kalshi API response |
+|   ↳ `ticker` | string | Series ticker |
+|   ↳ `title` | string | Series title |
+|   ↳ `frequency` | string | Event frequency |
+|   ↳ `category` | string | Series category |
+|   ↳ `tags` | array | Series tags |
+|   ↳ `settlement_sources` | array | Settlement sources |
+|   ↳ `contract_url` | string | Contract URL |
+|   ↳ `contract_terms_url` | string | Contract terms URL |
+|   ↳ `fee_type` | string | Fee type |
+|   ↳ `fee_multiplier` | number | Fee multiplier |
+|   ↳ `additional_prohibitions` | array | Additional prohibitions |
+|   ↳ `product_metadata` | object | Product metadata |
+|   ↳ `volume` | number | Series volume |
+|   ↳ `volume_fp` | number | Volume \(fixed-point\) |
+
+### `kalshi_get_exchange_status`
+
+Retrieve the current status of the Kalshi exchange (V2 - exact API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exchange_active` | boolean | Whether the exchange is active |
+| `trading_active` | boolean | Whether trading is active |
+| `exchange_estimated_resume_time` | string | Estimated time when exchange will resume \(if inactive\) |
+
+### `kalshi_create_order`
+
+Create a new order on a Kalshi prediction market (V2 with full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+| `side` | string | Yes | Side of the order: "yes" or "no" |
+| `action` | string | Yes | Action type: "buy" or "sell" |
+| `count` | string | Yes | Number of contracts to trade \(e.g., "10", "100"\) |
+| `type` | string | No | Order type: "limit" or "market" \(default: "limit"\) |
+| `yesPrice` | string | No | Yes price in cents \(1-99\) |
+| `noPrice` | string | No | No price in cents \(1-99\) |
+| `yesPriceDollars` | string | No | Yes price in dollars \(e.g., "0.56"\) |
+| `noPriceDollars` | string | No | No price in dollars \(e.g., "0.56"\) |
+| `clientOrderId` | string | No | Custom order identifier |
+| `expirationTs` | string | No | Unix timestamp for order expiration |
+| `timeInForce` | string | No | Time in force: 'fill_or_kill', 'good_till_canceled', 'immediate_or_cancel' |
+| `buyMaxCost` | string | No | Maximum cost in cents \(auto-enables fill_or_kill\) |
+| `postOnly` | string | No | Set to 'true' for maker-only orders |
+| `reduceOnly` | string | No | Set to 'true' for position reduction only |
+| `selfTradePreventionType` | string | No | Self-trade prevention: 'taker_at_cross' or 'maker' |
+| `orderGroupId` | string | No | Associated order group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | The created order object with full API response fields |
+|   ↳ `order_id` | string | Order ID |
+|   ↳ `user_id` | string | User ID |
+|   ↳ `client_order_id` | string | Client order ID |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `side` | string | Order side \(yes/no\) |
+|   ↳ `action` | string | Action \(buy/sell\) |
+|   ↳ `type` | string | Order type \(limit/market\) |
+|   ↳ `status` | string | Order status \(resting/canceled/executed\) |
+|   ↳ `yes_price` | number | Yes price in cents |
+|   ↳ `no_price` | number | No price in cents |
+|   ↳ `yes_price_dollars` | string | Yes price in dollars |
+|   ↳ `no_price_dollars` | string | No price in dollars |
+|   ↳ `fill_count` | number | Filled contract count |
+|   ↳ `fill_count_fp` | string | Filled count \(fixed-point\) |
+|   ↳ `remaining_count` | number | Remaining contracts |
+|   ↳ `remaining_count_fp` | string | Remaining count \(fixed-point\) |
+|   ↳ `initial_count` | number | Initial contract count |
+|   ↳ `initial_count_fp` | string | Initial count \(fixed-point\) |
+|   ↳ `taker_fees` | number | Taker fees in cents |
+|   ↳ `maker_fees` | number | Maker fees in cents |
+|   ↳ `taker_fees_dollars` | string | Taker fees in dollars |
+|   ↳ `maker_fees_dollars` | string | Maker fees in dollars |
+|   ↳ `taker_fill_cost` | number | Taker fill cost in cents |
+|   ↳ `maker_fill_cost` | number | Maker fill cost in cents |
+|   ↳ `taker_fill_cost_dollars` | string | Taker fill cost in dollars |
+|   ↳ `maker_fill_cost_dollars` | string | Maker fill cost in dollars |
+|   ↳ `queue_position` | number | Queue position \(deprecated\) |
+|   ↳ `expiration_time` | string | Order expiration time |
+|   ↳ `created_time` | string | Order creation time |
+|   ↳ `last_update_time` | string | Last update time |
+|   ↳ `self_trade_prevention_type` | string | Self-trade prevention type |
+|   ↳ `order_group_id` | string | Order group ID |
+|   ↳ `cancel_order_on_pause` | boolean | Cancel on market pause |
+
+### `kalshi_cancel_order`
+
+Cancel an existing order on Kalshi (V2 with full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `orderId` | string | Yes | Order ID to cancel \(e.g., "abc123-def456-ghi789"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | The canceled order object with full API response fields |
+|   ↳ `order_id` | string | Order ID |
+|   ↳ `user_id` | string | User ID |
+|   ↳ `client_order_id` | string | Client order ID |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `side` | string | Order side \(yes/no\) |
+|   ↳ `action` | string | Action \(buy/sell\) |
+|   ↳ `type` | string | Order type \(limit/market\) |
+|   ↳ `status` | string | Order status \(resting/canceled/executed\) |
+|   ↳ `yes_price` | number | Yes price in cents |
+|   ↳ `no_price` | number | No price in cents |
+|   ↳ `yes_price_dollars` | string | Yes price in dollars |
+|   ↳ `no_price_dollars` | string | No price in dollars |
+|   ↳ `fill_count` | number | Filled contract count |
+|   ↳ `fill_count_fp` | string | Filled count \(fixed-point\) |
+|   ↳ `remaining_count` | number | Remaining contracts |
+|   ↳ `remaining_count_fp` | string | Remaining count \(fixed-point\) |
+|   ↳ `initial_count` | number | Initial contract count |
+|   ↳ `initial_count_fp` | string | Initial count \(fixed-point\) |
+|   ↳ `taker_fees` | number | Taker fees in cents |
+|   ↳ `maker_fees` | number | Maker fees in cents |
+|   ↳ `taker_fees_dollars` | string | Taker fees in dollars |
+|   ↳ `maker_fees_dollars` | string | Maker fees in dollars |
+|   ↳ `taker_fill_cost` | number | Taker fill cost in cents |
+|   ↳ `maker_fill_cost` | number | Maker fill cost in cents |
+|   ↳ `taker_fill_cost_dollars` | string | Taker fill cost in dollars |
+|   ↳ `maker_fill_cost_dollars` | string | Maker fill cost in dollars |
+|   ↳ `queue_position` | number | Queue position \(deprecated\) |
+|   ↳ `expiration_time` | string | Order expiration time |
+|   ↳ `created_time` | string | Order creation time |
+|   ↳ `last_update_time` | string | Last update time |
+|   ↳ `self_trade_prevention_type` | string | Self-trade prevention type |
+|   ↳ `order_group_id` | string | Order group ID |
+|   ↳ `cancel_order_on_pause` | boolean | Cancel on market pause |
+| `reduced_by` | number | Number of contracts canceled |
+| `reduced_by_fp` | string | Number of contracts canceled in fixed-point format |
+
+### `kalshi_amend_order`
+
+Modify the price or quantity of an existing order on Kalshi (V2 with full API response)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `keyId` | string | Yes | Your Kalshi API Key ID |
+| `privateKey` | string | Yes | Your RSA Private Key \(PEM format\) |
+| `orderId` | string | Yes | Order ID to amend \(e.g., "abc123-def456-ghi789"\) |
+| `ticker` | string | Yes | Market ticker identifier \(e.g., "KXBTC-24DEC31", "INX-25JAN03-T4485.99"\) |
+| `side` | string | Yes | Side of the order: "yes" or "no" |
+| `action` | string | Yes | Action type: "buy" or "sell" |
+| `clientOrderId` | string | Yes | Original client-specified order ID |
+| `updatedClientOrderId` | string | Yes | New client-specified order ID after amendment |
+| `count` | string | No | Updated quantity for the order \(e.g., "10", "100"\) |
+| `yesPrice` | string | No | Updated yes price in cents \(1-99\) |
+| `noPrice` | string | No | Updated no price in cents \(1-99\) |
+| `yesPriceDollars` | string | No | Updated yes price in dollars \(e.g., "0.56"\) |
+| `noPriceDollars` | string | No | Updated no price in dollars \(e.g., "0.56"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `old_order` | object | The original order object before amendment |
+|   ↳ `order_id` | string | Order ID |
+|   ↳ `user_id` | string | User ID |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `event_ticker` | string | Event ticker |
+|   ↳ `status` | string | Order status |
+|   ↳ `side` | string | Order side \(yes/no\) |
+|   ↳ `type` | string | Order type \(limit/market\) |
+|   ↳ `yes_price` | number | Yes price in cents |
+|   ↳ `no_price` | number | No price in cents |
+|   ↳ `action` | string | Action \(buy/sell\) |
+|   ↳ `count` | number | Number of contracts |
+|   ↳ `remaining_count` | number | Remaining contracts |
+|   ↳ `created_time` | string | Order creation time |
+|   ↳ `expiration_time` | string | Order expiration time |
+|   ↳ `order_group_id` | string | Order group ID |
+|   ↳ `client_order_id` | string | Client order ID |
+|   ↳ `place_count` | number | Place count |
+|   ↳ `decrease_count` | number | Decrease count |
+|   ↳ `queue_position` | number | Queue position |
+|   ↳ `maker_fill_count` | number | Maker fill count |
+|   ↳ `taker_fill_count` | number | Taker fill count |
+|   ↳ `maker_fees` | number | Maker fees |
+|   ↳ `taker_fees` | number | Taker fees |
+|   ↳ `last_update_time` | string | Last update time |
+|   ↳ `take_profit_order_id` | string | Take profit order ID |
+|   ↳ `stop_loss_order_id` | string | Stop loss order ID |
+|   ↳ `amend_count` | number | Amend count |
+|   ↳ `amend_taker_fill_count` | number | Amend taker fill count |
+| `order` | object | The amended order object with full API response fields |
+|   ↳ `order_id` | string | Order ID |
+|   ↳ `user_id` | string | User ID |
+|   ↳ `ticker` | string | Market ticker |
+|   ↳ `event_ticker` | string | Event ticker |
+|   ↳ `status` | string | Order status |
+|   ↳ `side` | string | Order side \(yes/no\) |
+|   ↳ `type` | string | Order type \(limit/market\) |
+|   ↳ `yes_price` | number | Yes price in cents |
+|   ↳ `no_price` | number | No price in cents |
+|   ↳ `action` | string | Action \(buy/sell\) |
+|   ↳ `count` | number | Number of contracts |
+|   ↳ `remaining_count` | number | Remaining contracts |
+|   ↳ `created_time` | string | Order creation time |
+|   ↳ `expiration_time` | string | Order expiration time |
+|   ↳ `order_group_id` | string | Order group ID |
+|   ↳ `client_order_id` | string | Client order ID |
+|   ↳ `place_count` | number | Place count |
+|   ↳ `decrease_count` | number | Decrease count |
+|   ↳ `queue_position` | number | Queue position |
+|   ↳ `maker_fill_count` | number | Maker fill count |
+|   ↳ `taker_fill_count` | number | Taker fill count |
+|   ↳ `maker_fees` | number | Maker fees |
+|   ↳ `taker_fees` | number | Taker fees |
+|   ↳ `last_update_time` | string | Last update time |
+|   ↳ `take_profit_order_id` | string | Take profit order ID |
+|   ↳ `stop_loss_order_id` | string | Stop loss order ID |
+|   ↳ `amend_count` | number | Amend count |
+|   ↳ `amend_taker_fill_count` | number | Amend taker fill count |
+
+

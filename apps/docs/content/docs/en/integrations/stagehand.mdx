@@ -1,0 +1,80 @@
+---
+title: Stagehand
+description: Web automation and data extraction
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="stagehand"
+  color="#FFC83C"
+/>
+
+## Usage Instructions
+
+Integrate Stagehand into the workflow. Can extract structured data from webpages or run an autonomous agent to perform tasks.
+
+
+
+## Actions
+
+### `stagehand_extract`
+
+Extract structured data from a webpage using Stagehand
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the webpage to extract data from |
+| `instruction` | string | Yes | Instructions for extraction |
+| `provider` | string | No | AI provider to use: openai or anthropic |
+| `apiKey` | string | Yes | API key for the selected provider |
+| `schema` | json | Yes | JSON schema defining the structure of the data to extract |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | object | Extracted structured data matching the provided schema |
+
+### `stagehand_agent`
+
+Run an autonomous web agent to complete tasks and extract structured data
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startUrl` | string | Yes | URL of the webpage to start the agent on |
+| `task` | string | Yes | The task to complete or goal to achieve on the website |
+| `variables` | json | No | Optional variables to substitute in the task \(format: \{key: value\}\). Reference in task using %key% |
+| `provider` | string | No | AI provider to use: openai or anthropic |
+| `apiKey` | string | Yes | API key for the selected provider |
+| `outputSchema` | json | No | Optional JSON schema defining the structure of data the agent should return |
+| `mode` | string | No | Agent tool mode: dom \(default\), hybrid, or cua |
+| `maxSteps` | number | No | Maximum agent steps \(default 20, max 200\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `agentResult` | object | Result from the Stagehand agent execution |
+|   ↳ `success` | boolean | Whether the agent task completed successfully without errors |
+|   ↳ `completed` | boolean | Whether the agent finished executing \(may be false if max steps reached\) |
+|   ↳ `message` | string | Final status message or result summary from the agent |
+|   ↳ `actions` | array | List of all actions performed by the agent during task execution |
+|     ↳ `type` | string | Type of action performed \(e.g., "act", "observe", "ariaTree", "close", "wait", "navigate"\) |
+|     ↳ `reasoning` | string | AI reasoning for why this action was taken |
+|     ↳ `taskCompleted` | boolean | Whether the task was completed after this action |
+|     ↳ `action` | string | Description of the action taken \(e.g., "click the submit button"\) |
+|     ↳ `instruction` | string | Instruction that triggered this action |
+|     ↳ `pageUrl` | string | URL of the page when this action was performed |
+|     ↳ `pageText` | string | Page text content \(for ariaTree actions\) |
+|     ↳ `timestamp` | number | Unix timestamp when the action was performed |
+|     ↳ `timeMs` | number | Time in milliseconds \(for wait actions\) |
+| `structuredOutput` | object | Extracted data matching the provided output schema |
+| `liveViewUrl` | string | Embeddable Browserbase live view URL \(active only while the session is running\) |
+| `sessionId` | string | Browserbase session identifier |
+
+

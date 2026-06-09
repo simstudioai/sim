@@ -32,7 +32,7 @@ To let an agent do something in the world, give it **tools**. A tool is an actio
 Tools come from a few places:
 
 - **[Integrations](/tools)** are the catalog of external services: Gmail, Slack, Airtable, Linear, and hundreds more.
-- **[Custom tools](/tools/custom-tools)** are tools you define once with a schema and a snippet of code, then reuse.
+- **[Custom tools](/building-agents/custom-tools)** are tools you define once with a schema and a snippet of code, then reuse.
 - **[MCP tools](/mcp)** come from an external provider you connect through the Model Context Protocol.
 - **[Workflow-as-tool](/workflows)** makes another workflow callable, so the agent runs a whole procedure as one step.
 
@@ -50,7 +50,7 @@ To let an agent answer from your own content, connect a [knowledge base](/knowle
 
 ### Remember across runs: memory
 
-To let an agent reuse information from one run to the next, give it [memory](/tools/memory), which stores and recalls values keyed to a conversation. Without it, each run starts fresh; with it, an agent in a chat carries what was said earlier into later messages.
+To let an agent reuse information from one run to the next, give it [memory](/integrations/memory), which stores and recalls values keyed to a conversation. Without it, each run starts fresh; with it, an agent in a chat carries what was said earlier into later messages.
 
 ### Return a usable result: structured output
 
@@ -67,6 +67,6 @@ Start with one Agent block and a prompt, then add only what the task needs: a to
 <Cards>
   <Card title="Agent block reference" href="/blocks/agent" description="Every model, setting, and output field of the Agent block." />
   <Card title="Choosing what to use" href="/building-agents/choosing" description="Pick the right feature for each task." />
-  <Card title="Custom tools" href="/tools/custom-tools" description="Define a reusable tool with a schema and code." />
+  <Card title="Custom tools" href="/building-agents/custom-tools" description="Define a reusable tool with a schema and code." />
   <Card title="Using MCP tools" href="/mcp" description="Connect an external MCP server to your agents." />
 </Cards>
