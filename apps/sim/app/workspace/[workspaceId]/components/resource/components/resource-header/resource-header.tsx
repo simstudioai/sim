@@ -112,14 +112,15 @@ export const ResourceHeader = memo(function ResourceHeader({
   return (
     <div
       ref={headerRef}
-      className='flex h-[44px] items-center border-[var(--border)] border-b px-4'
+      className='flex h-[44px] items-center gap-2 border-[var(--border)] border-b px-4'
     >
+      {/* Chrome controls live outside the overflow-hidden breadcrumb group so
+          the toggle's 9px pull-out (7px edge inset, matching the chat title
+          bar) isn't clipped. */}
+      <SidebarToggle className='-ml-[9px]' />
+      <ChatSwitcher />
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
-          {/* Edge controls pull out by 9px so their 30px hover pills sit 7px
-              from the panel edge — same rhythm as the chat title bar. */}
-          <SidebarToggle className='-ml-[9px]' />
-          <ChatSwitcher />
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => {
               const segmentClassName = getBreadcrumbSegmentClassName(
