@@ -92,6 +92,7 @@ interface ToastData {
   variant: ToastVariant
   action?: ToastAction
   duration: number
+  persistAcrossRoutes: boolean
 }
 
 type ToastInput = {
@@ -100,6 +101,13 @@ type ToastInput = {
   variant?: ToastVariant
   action?: ToastAction
   duration?: number
+  /**
+   * Keep the toast across navigation. The stack is otherwise cleared on every
+   * route change (route-scoped notifications shouldn't trail the user); set
+   * this for global, ongoing-state toasts like a connection/reconnect status.
+   * @default false
+   */
+  persistAcrossRoutes?: boolean
 }
 
 type ToastFn = {
@@ -529,6 +537,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       variant: input.variant ?? 'default',
       action: input.action,
       duration: input.duration ?? (input.action ? 0 : AUTO_DISMISS_MS),
+      persistAcrossRoutes: input.persistAcrossRoutes ?? false,
     }
     setToasts((prev) => {
       const next = [...prev, data]
@@ -561,6 +570,27 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     timersRef.current.clear()
     setToasts([])
     setHeights({})
+  }, [])
+
+  /**
+   * Clear only route-scoped toasts. Toasts flagged `persistAcrossRoutes` —
+   * global, ongoing-state notifications like the connection status — survive,
+   * everything else (page-scoped notifications) is cleared on navigation.
+   */
+  const dismissRouteScopedToasts = useCallback(() => {
+    setToasts((prev) => {
+      const kept = prev.filter((t) => t.persistAcrossRoutes)
+      if (kept.length === prev.length) return prev
+      for (const t of prev) {
+        if (t.persistAcrossRoutes) continue
+        const timer = timersRef.current.get(t.id)
+        if (timer) {
+          clearTimeout(timer)
+          timersRef.current.delete(t.id)
+        }
+      }
+      return kept
+    })
   }, [])
 
   const measureToast = useCallback((id: string, height: number) => {
@@ -627,10 +657,10 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     }
   }, [])
 
-  /** Clear the stack on navigation so a toast never trails the user across the platform. */
+  /** On navigation, clear route-scoped toasts so they don't trail the user; `persistAcrossRoutes` toasts survive. */
   useEffect(() => {
-    dismissAllToasts()
-  }, [pathname, dismissAllToasts])
+    dismissRouteScopedToasts()
+  }, [pathname, dismissRouteScopedToasts])
 
   /** Held in a ref (seeded once from the stable `addToast`) so the module-level `toast` binds to the live provider. */
   const toastFn = useRef<ToastFn>(createToastFn(addToast))
