@@ -20,8 +20,14 @@ export type PermissionState = 'prompt' | 'granted' | 'denied'
 
 interface UseSpeechToTextProps {
   onTranscript: (text: string) => void
-  onUsageLimitExceeded?: () => void
+  /**
+   * Called on a 402 from the token endpoint, with the server's limit message and
+   * whether it was a per-member cap (which only an org admin can raise).
+   */
+  onUsageLimitExceeded?: (message?: string, isMemberLimit?: boolean) => void
   language?: string
+  /** Attributes the voice-input cost to this workspace for per-member usage. */
+  workspaceId?: string
 }
 
 interface UseSpeechToTextReturn {
@@ -36,6 +42,7 @@ export function useSpeechToText({
   onTranscript,
   onUsageLimitExceeded,
   language,
+  workspaceId,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
@@ -44,6 +51,7 @@ export function useSpeechToText({
   const onTranscriptRef = useRef(onTranscript)
   const onUsageLimitExceededRef = useRef(onUsageLimitExceeded)
   const languageRef = useRef(language)
+  const workspaceIdRef = useRef(workspaceId)
   const mountedRef = useRef(true)
   const startingRef = useRef(false)
 
@@ -62,6 +70,7 @@ export function useSpeechToText({
   onTranscriptRef.current = onTranscript
   onUsageLimitExceededRef.current = onUsageLimitExceeded
   languageRef.current = language
+  workspaceIdRef.current = workspaceId
 
   useEffect(() => {
     const browserOk =
@@ -166,10 +175,13 @@ export function useSpeechToText({
     try {
       let tokenData: Awaited<ReturnType<typeof requestJson<typeof speechTokenContract>>>
       try {
-        tokenData = await requestJson(speechTokenContract, { body: {} })
+        tokenData = await requestJson(speechTokenContract, {
+          body: workspaceIdRef.current ? { workspaceId: workspaceIdRef.current } : {},
+        })
       } catch (err) {
         if (isApiClientError(err) && err.status === 402) {
-          onUsageLimitExceededRef.current?.()
+          const isMemberLimit = (err.body as { scope?: string } | null)?.scope === 'member'
+          onUsageLimitExceededRef.current?.(err.message, isMemberLimit)
           return false
         }
         throw err instanceof Error ? err : new Error('Failed to get speech token')

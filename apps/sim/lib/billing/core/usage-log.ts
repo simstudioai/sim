@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
-import { usageLog } from '@sim/db/schema'
+import { usageLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
@@ -223,6 +223,41 @@ export async function getBillingPeriodUsageCostByUser(
 }
 
 /**
+ * A single user's usage_log cost inside an organization's own workspaces within
+ * a wall-clock window (by `created_at`).
+ *
+ * Unlike {@link getBillingPeriodUsageCostByUser} (which filters by the attributed
+ * billing entity and the stored billing-period columns), this joins `workspace`
+ * on `organization_id` and filters by `user_id` + a `created_at` range. That
+ * captures the member's consumption inside org-owned workspaces regardless of
+ * which billing entity the row was attributed to — required for per-member
+ * org-workspace usage, including external members whose runs bill to their own
+ * personal entity and mothership/copilot cost attributed to the using user.
+ * Scoped to one user so it uses the `(user_id, created_at)` index rather than
+ * scanning the whole org's period on the execution hot path.
+ */
+export async function getOrgWorkspaceUsageCostForUser(
+  organizationId: string,
+  userId: string,
+  window: { start: Date; end: Date }
+): Promise<number> {
+  const [row] = await db
+    .select({ cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)` })
+    .from(usageLog)
+    .innerJoin(workspace, eq(workspace.id, usageLog.workspaceId))
+    .where(
+      and(
+        eq(usageLog.userId, userId),
+        eq(workspace.organizationId, organizationId),
+        gte(usageLog.createdAt, window.start),
+        lt(usageLog.createdAt, window.end)
+      )
+    )
+
+  return Number.parseFloat(row?.cost ?? '0')
+}
+
+/**
  * Records usage as append-only billing events.
  *
  * This intentionally avoids per-event userStats updates: userStats is retained
@@ -316,6 +351,125 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     totalCost: insertedCost,
     entryCount: validEntries.length,
     sources: [...new Set(validEntries.map((e) => e.source))],
+  })
+}
+
+/**
+ * Floating-point tolerance for cumulative cost comparison. Costs are dollars;
+ * a sub-microcent difference is treated as "no change" so a DB round-trip
+ * (decimal string -> float) can't manufacture a spurious top-up.
+ */
+export const CUMULATIVE_COST_EPSILON = 1e-9
+
+/**
+ * Decide whether an incoming CUMULATIVE cost for a request should bill, given
+ * what has already been recorded for it.
+ *
+ * Billing is a monotonic top-up: only a strictly-higher cumulative bills, and
+ * it bills just the delta above what's recorded; a same-or-lower cumulative is
+ * a no-op. This is the core invariant that makes repeated flushes of a single
+ * request converge to the true total exactly once — a partial mid-loop flush
+ * (e.g. after a provider error), the recovered terminal flush, and abort-race
+ * duplicates all reconcile to the maximum cumulative with no under- or
+ * over-billing, independent of arrival order.
+ */
+export function resolveCumulativeTopUp(
+  recordedCost: number,
+  incomingCost: number
+): { shouldBill: boolean; delta: number; newTotal: number } {
+  if (incomingCost <= recordedCost + CUMULATIVE_COST_EPSILON) {
+    return { shouldBill: false, delta: 0, newTotal: recordedCost }
+  }
+  return { shouldBill: true, delta: incomingCost - recordedCost, newTotal: incomingCost }
+}
+
+export interface RecordCumulativeUsageParams {
+  userId: string
+  workspaceId?: string
+  source: UsageLogSource
+  /** Model name, stored as the row description. */
+  model: string
+  /** The request's CUMULATIVE cost so far (not a per-leg delta). */
+  cost: number
+  /** Stable per-request key; the single ledger row is keyed on this. */
+  eventKey: string
+  metadata?: UsageLogMetadata
+}
+
+export interface RecordCumulativeUsageResult {
+  /** True when a new (delta) charge was recorded for this flush. */
+  billed: boolean
+  /** Amount newly charged by this flush (0 on a duplicate/lower flush). */
+  delta: number
+  /** The request's recorded cumulative cost after this flush. */
+  total: number
+}
+
+/**
+ * Record a request's CUMULATIVE cost idempotently with monotonic top-up.
+ *
+ * Keeps exactly ONE usage_log row per `eventKey` holding the MAX cumulative
+ * cost ever submitted for the request, billing only the incremental delta on
+ * each flush. A per-key transactional advisory lock serializes concurrent
+ * flushes so the read-then-write — including the first insert — is race-free
+ * (no two flushes can both believe they are first and clobber each other).
+ *
+ * Because every leg flushes its cumulative and this converges to the max,
+ * there is no under-billing if the request recovers after a partial flush, no
+ * over-billing from duplicate/abort-race flushes, and no lost billing if the
+ * process dies between legs — each leg's cost is durably recorded as it lands.
+ */
+export async function recordCumulativeUsage(
+  params: RecordCumulativeUsageParams
+): Promise<RecordCumulativeUsageResult> {
+  const { userId, workspaceId, source, model, cost, eventKey, metadata } = params
+
+  return db.transaction(async (tx) => {
+    // Serialize all flushes for this request (lock auto-releases at tx end).
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${eventKey}))`)
+
+    const [existing] = await tx
+      .select({ id: usageLog.id, cost: usageLog.cost })
+      .from(usageLog)
+      .where(eq(usageLog.eventKey, eventKey))
+      .limit(1)
+
+    const recorded = existing ? Number.parseFloat(existing.cost) : 0
+    const { shouldBill, delta, newTotal } = resolveCumulativeTopUp(recorded, cost)
+
+    if (!shouldBill) {
+      return { billed: false, delta: 0, total: recorded }
+    }
+
+    if (existing) {
+      // Top up the single row to the new (higher) cumulative; the
+      // period total is SUM(usage_log.cost), so this lifts it by the delta.
+      await tx
+        .update(usageLog)
+        .set({ cost: newTotal.toString(), metadata: metadata ?? null })
+        .where(eq(usageLog.id, existing.id))
+    } else {
+      // First flush for this request: insert the canonical row (recordUsage
+      // resolves billing entity/period). Runs in the same tx + advisory lock.
+      await recordUsage({
+        userId,
+        workspaceId,
+        tx,
+        entries: [
+          {
+            category: 'model',
+            source,
+            description: model,
+            cost: newTotal,
+            eventKey,
+            sourceReference: eventKey,
+            ...(metadata ? { metadata } : {}),
+          },
+        ],
+      })
+    }
+
+    return { billed: true, delta, total: newTotal }
   })
 }
 

@@ -285,7 +285,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         const inserted = insertedRows.length
         // Fire trigger + scheduler AFTER the tx commits — both read through the
         // global db connection and would otherwise see no rows.
-        dispatchAfterBatchInsert(finalTable, insertedRows, requestId)
+        dispatchAfterBatchInsert(finalTable, insertedRows, requestId, authResult.userId)
 
         logger.info(`[${requestId}] Append CSV imported`, {
           tableId: table.id,

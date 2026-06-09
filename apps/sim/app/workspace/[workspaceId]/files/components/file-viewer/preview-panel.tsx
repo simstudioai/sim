@@ -35,6 +35,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useScrollAnchor } from '@/hooks/use-scroll-anchor'
+import { useSmoothText } from '@/hooks/use-smooth-text'
 import { DataTable } from './data-table'
 import { ZoomablePreview } from './zoomable-preview'
 
@@ -182,6 +183,18 @@ function remarkCallouts() {
 
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMermaid, remarkCallouts]
 const REHYPE_PLUGINS = [rehypeSlug]
+
+/**
+ * Soft per-character fade for newly revealed markdown while streaming. Mirrors
+ * the chat surface so a streamed file preview reveals with the same cadence;
+ * paired with {@link useSmoothText}, which paces the reveal itself.
+ */
+const STREAM_ANIMATION = {
+  animation: 'fadeIn',
+  duration: 220,
+  stagger: 0,
+  sep: 'char',
+} as const
 
 /**
  * Carries the contentRef and toggle handler from MarkdownPreview down to the
@@ -866,16 +879,20 @@ const MarkdownPreview = memo(function MarkdownPreview({
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { push: navigate } = useRouter()
+  // Pace the reveal so streamed markdown builds at a steady cadence instead of
+  // jumping per server chunk. `snapOnNonAppend` shows in-place rewrites (patch)
+  // in full immediately so a diff never appears to retype from the top.
+  const revealedContent = useSmoothText(content, isStreaming, { snapOnNonAppend: true })
   const { ref: autoScrollRef, spacerRef } = useScrollAnchor(
     isStreaming && !disableAutoScroll,
-    content
+    revealedContent
   )
 
   const contentRef = useRef(content)
   contentRef.current = content
 
   const { frontMatterData, markdownContent } = useMemo(() => {
-    if (isStreaming) return { frontMatterData: null, markdownContent: content }
+    if (isStreaming) return { frontMatterData: null, markdownContent: revealedContent }
     try {
       const parsed = matter(content)
       const hasFrontMatter = Object.keys(parsed.data).length > 0
@@ -886,7 +903,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
     } catch {
       return { frontMatterData: null, markdownContent: content }
     }
-  }, [content, isStreaming])
+  }, [content, revealedContent, isStreaming])
 
   const ctxValue = useMemo(
     () => (onCheckboxToggle ? { contentRef, onToggle: onCheckboxToggle } : null),
@@ -917,6 +934,8 @@ const MarkdownPreview = memo(function MarkdownPreview({
       {frontMatterData && <FrontMatterCard data={frontMatterData} />}
       <Streamdown
         mode={streamdownMode}
+        animated={isStreaming ? STREAM_ANIMATION : false}
+        isAnimating={isStreaming}
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={REHYPE_PLUGINS}
         components={markdownComponents}

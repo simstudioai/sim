@@ -82,6 +82,8 @@ const nextConfig: NextConfig = {
     'fluent-ffmpeg',
     'ws',
     'isolated-vm',
+    '@e2b/code-interpreter',
+    'e2b',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],

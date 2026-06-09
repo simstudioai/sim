@@ -42,6 +42,10 @@ vi.mock('@/app/api/knowledge/search/utils', () => ({
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 
+vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
+  checkActorUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
+}))
+
 vi.mock('@/app/api/v1/middleware', () => ({
   authenticateRequest: mockAuthenticateRequest,
   validateWorkspaceAccess: mockValidateWorkspaceAccess,

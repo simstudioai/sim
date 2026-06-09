@@ -8,7 +8,12 @@ import { getClientIp } from '@/lib/core/utils/request'
 const logger = createLogger('CronAuth')
 
 const getJwtSecret = () => {
-  const secret = new TextEncoder().encode(env.INTERNAL_API_SECRET)
+  // Prefer a dedicated JWT signing key so the internal-JWT trust domain is
+  // separable from the raw INTERNAL_API_SECRET shared-bearer secret: leaking one
+  // shouldn't grant the other (raw secret => call internal endpoints; JWT key =>
+  // mint tokens for arbitrary userIds). Falls back to INTERNAL_API_SECRET when
+  // unset so existing deployments keep working until the key is rotated in.
+  const secret = new TextEncoder().encode(env.INTERNAL_JWT_SECRET || env.INTERNAL_API_SECRET)
   return secret
 }
 

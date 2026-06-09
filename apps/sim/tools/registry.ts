@@ -744,6 +744,7 @@ import {
 import {
   fileAppendTool,
   fileFetchTool,
+  fileGetContentTool,
   fileGetTool,
   fileParserV2Tool,
   fileParserV3Tool,
@@ -3584,6 +3585,7 @@ export const tools: Record<string, ToolConfig> = {
   file_append: fileAppendTool,
   file_fetch: fileFetchTool,
   file_get: fileGetTool,
+  file_get_content: fileGetContentTool,
   file_read: fileReadTool,
   file_write: fileWriteTool,
   firecrawl_scrape: firecrawlScrapeTool,
