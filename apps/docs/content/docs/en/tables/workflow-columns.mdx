@@ -10,7 +10,7 @@ import { Image } from '@/components/ui/image'
 
 A [table](/tables) is a grid of typed columns. Usually you type a column's values in. A **workflow column** is different: its values come from a [workflow](/workflows) that runs once per row. For each row, the workflow reads the columns you choose as input, runs its blocks, and writes its results back into columns on that same row.
 
-This is what makes a table active. Instead of running a workflow by hand and pasting the results in, you attach the workflow to the table and it fills each row on its own.
+This is what makes a table active. Instead of running a workflow by hand and pasting the results in, you attach the workflow to the table and it fills each row on its own — a bit like a spreadsheet macro that runs on every row, except each step is a full workflow.
 
 The running example is a table of AI startups, `ai_startup_customers`. The company is typed in; three workflow groups fill everything else:
 
@@ -25,7 +25,7 @@ The running example is a table of AI startups, `ai_startup_customers`. The compa
 - **Company Info** reads the domain and fills `employee_count` and `description`.
 - **Lead Score Enrichment** reads the info and writes `lead_score`, `priority`, and `score_reasoning`.
 
-Each group's header spans the columns it owns, every row has a run button (▷), and the toolbar shows the work in flight — here, **21 running**, with **Stop all** beside it.
+Each group's header spans the columns it owns, every row has a run button (▷), and the toolbar shows the work in flight: here, **21 running**, with **Stop all** beside it.
 
 ```
 domain            │ employee_count │ lead_score │ priority
@@ -39,9 +39,9 @@ genspark.net      │ 51-250         │ 20         │ Cold
 
 ### Workflow group
 
-A **workflow group** is the unit you configure: one workflow, plus how its inputs and outputs map to columns, plus what makes it run. One group can produce several result columns from a single run per row — Lead Score Enrichment fills `lead_score`, `priority`, and `score_reasoning` together.
+A **workflow group** is the unit you configure: one workflow, plus how its inputs and outputs map to columns, plus what makes it run. One group can produce several result columns from a single run per row: Lead Score Enrichment fills `lead_score`, `priority`, and `score_reasoning` together.
 
-Click a group's header to open **Configure workflow**. It previews the workflow it will run, and holds everything that defines the group:
+A group's **Configure workflow** panel holds everything that defines it, with a preview of the workflow it will run:
 
 <Image
   src="/static/tables/workflow-columns/configure-workflow.png"
@@ -50,10 +50,10 @@ Click a group's header to open **Configure workflow**. It previews the workflow 
   height={792}
 />
 
-- **Workflow** — which workflow runs per row (here, *Lead Score Enrichment*).
-- **Add column inputs** — map columns to the workflow's inputs.
-- **Output columns** — which workflow outputs to write back (here, 3 selected).
-- **Auto-run workflow** and **Run after** — when rows run (below).
+- **Workflow** picks which workflow runs per row; here, *Lead Score Enrichment*.
+- **Add column inputs** maps columns to the workflow's inputs.
+- **Output columns** picks which workflow outputs to write back; here, 3 are selected.
+- **Auto-run workflow** and **Run after** control when rows run (both below).
 
 ### Input columns
 
@@ -66,7 +66,7 @@ Click a group's header to open **Configure workflow**. It previews the workflow 
   height={604}
 />
 
-When the group runs a row, that row's `domain` value becomes the workflow's input, read inside it as `<start.companyDomain>`. The workflow only sees the columns you mapped; the rest of the row is untouched, and inputs are read-only during the run.
+When the group runs a row, that row's `domain` value becomes the workflow's input, read from its [Start](/triggers/start) trigger like any other input. The workflow only sees the columns you mapped; the rest of the row is untouched, and inputs are read-only during the run.
 
 ### Output columns
 
@@ -74,13 +74,13 @@ When the group runs a row, that row's `domain` value becomes the workflow's inpu
 
 ### Run after
 
-**Run after** is the set of columns that must be filled before the group runs on a row. Company Info runs after `domain`: a row with an empty `domain` waits, and the moment Company Domain fills it, that row becomes eligible. Lead Score Enrichment runs after the info columns — six dependencies in the panel above.
+**Run after** is the set of columns that must be filled before the group runs on a row. Company Info runs after `domain`: a row with an empty `domain` waits, and the moment Company Domain fills it, that row becomes eligible. Lead Score Enrichment runs after the info columns, the six dependencies in the panel above.
 
 A dependency can be a typed column or another group's output column. That second case is what makes cascades work (below). At least one dependency is required when auto-run is on.
 
 ### Auto-run
 
-**Auto-run** decides whether the group fires on its own. On, a group runs a row as soon as that row's Run-after columns are filled, no click needed — that's how 21 rows end up running at once in the example. Off, the group is manual: it runs only when you trigger it.
+**Auto-run** decides whether the group fires on its own. With auto-run on, a group runs a row as soon as that row's Run-after columns are filled, no click needed; that's how 21 rows end up running at once in the example. With it off, the group is manual: it runs only when you trigger it.
 
 You trigger a group by hand from its column header menu:
 
@@ -104,7 +104,7 @@ While a group works a row, its output cells show their state instead of a value:
 | **Cancelled** | The run was stopped before it finished. |
 | **Not found** | An enrichment finished but matched nothing for this row. |
 
-When a value arrives, it replaces the badge, and cells that finish stay filled even while other columns on the row are still running. You can see this in the example table: most rows are fully scored while a few show **Not found** where an enrichment came up empty — and the lead scorer still ran on those rows, working with what it had.
+When a value arrives, it replaces the badge, and cells that finish stay filled even while other columns on the row are still running. You can see this in the example table: most rows are fully scored, while a few show **Not found** where an enrichment came up empty. The lead scorer still ran on those rows, working with what it had.
 
 <Callout type="info">
 On error, the row stays in the **Error** state. Auto-run skips errored rows, so a failure doesn't loop. To retry, fix the input and use **Run all rows**, which re-runs regardless of the auto-run setting. A row is only ever worked by one run at a time, so re-running doesn't race.
@@ -112,7 +112,7 @@ On error, the row stays in the **Error** state. Auto-run skips errored rows, so 
 
 ## Cascades
 
-Because a group can run after another group's output column, you can chain groups across the table. The example is a three-stage **cascade**: Company Domain fills `domain` from the company name, Company Info runs after `domain` and fills the info columns, and Lead Score Enrichment runs after those and writes the score. Each row advances through the stages independently — the moment its own Run-after columns are filled, it becomes eligible for the next group, which is why some rows in the screenshot are fully scored while others are still mid-pipeline.
+Because a group can run after another group's output column, you can chain groups across the table. The example is a three-stage **cascade**: Company Domain fills `domain` from the company name, Company Info runs after `domain` and fills the info columns, and Lead Score Enrichment runs after those and writes the score. Each row advances through the stages independently: the moment its own Run-after columns are filled, it becomes eligible for the next group. That's why some rows in the screenshot are fully scored while others are still mid-pipeline.
 
 ## When to use a workflow column
 
