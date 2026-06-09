@@ -82,9 +82,10 @@ const CONCENTRIC_RADIUS_PX = 16
 type ToastVariant = 'default' | 'info' | 'success' | 'warning' | 'error'
 
 /**
- * Leading icon per variant. Rendered inline at the start of the message in a
- * neutral icon color (no tint, no badge) — variant intent reads from the icon
- * shape and the message copy rather than color.
+ * Leading icon per variant, rendered inline at the start of the message. The
+ * icon shape signals intent; {@link VARIANT_ICON_COLOR} adds a matching tint so
+ * an error vs. an info toast is distinguishable pre-attentively in a mixed
+ * stack, not only by reading the copy.
  */
 const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>> = {
   default: Bell,
@@ -92,6 +93,19 @@ const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>>
   success: CircleCheck,
   warning: TriangleAlert,
   error: CircleAlert,
+}
+
+/**
+ * Per-variant icon tint, drawn from the shared intent palette (the same tokens
+ * the badge / callout system uses) so the toast reads as part of the design
+ * language. `default` stays neutral — it carries no intent.
+ */
+const VARIANT_ICON_COLOR: Record<ToastVariant, string> = {
+  default: 'text-[var(--text-icon)]',
+  info: 'text-[var(--badge-blue-text)]',
+  success: 'text-[var(--text-success)]',
+  warning: 'text-[var(--badge-amber-text)]',
+  error: 'text-[var(--text-error)]',
 }
 
 interface ToastAction {
@@ -404,7 +418,12 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
               clampLines={2}
               lineHeightPx={20}
               leadingIcon={
-                <Icon className='mr-[5px] inline-block size-[14px] translate-y-[-2px] align-middle text-[var(--text-icon)]' />
+                <Icon
+                  className={cn(
+                    'mr-[5px] inline-block size-[14px] translate-y-[-2px] align-middle',
+                    VARIANT_ICON_COLOR[t.variant]
+                  )}
+                />
               }
               className='font-medium text-[14px] text-[var(--text-primary)] leading-5'
               reduceMotion={reduceMotion}
@@ -599,6 +618,12 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   const [heights, setHeights] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
+  /**
+   * Monotonic count of toasts ever added. Drives the stack-dismiss countdown
+   * reset: it changes only on a NEW arrival, so dismissing the front card no
+   * longer restarts the whole stack's timer (which keying on the newest id did).
+   */
+  const [arrivalCount, setArrivalCount] = useState(0)
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
   useEffect(() => {
@@ -622,6 +647,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       duration: input.duration ?? (input.action ? 0 : AUTO_DISMISS_MS),
     }
     setToasts((prev) => [...prev, data].slice(-STACK_LIMIT))
+    setArrivalCount((c) => c + 1)
     return id
   }, [])
 
@@ -728,13 +754,16 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   const toastFn = useRef<ToastFn>(createToastFn(addToast))
 
   useEffect(() => {
-    globalToast = toastFn.current
+    const fn = toastFn.current
+    globalToast = fn
     globalDismiss = dismissToast
     globalDismissAll = dismissAllToasts
     return () => {
-      globalToast = null
-      globalDismiss = null
-      globalDismissAll = null
+      // Only relinquish the bindings if they're still ours — guards against a
+      // second provider (or an out-of-order unmount) nulling a live binding.
+      if (globalToast === fn) globalToast = null
+      if (globalDismiss === dismissToast) globalDismiss = null
+      if (globalDismissAll === dismissAllToasts) globalDismissAll = null
     }
   }, [dismissToast, dismissAllToasts])
 
@@ -776,62 +805,75 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   return (
     <ToastContext.Provider value={ctx}>
       {children}
-      {mounted && toasts.length > 0
+      {mounted
         ? createPortal(
-            <motion.ol
-              aria-live='polite'
-              aria-label='Notifications'
-              className='fixed z-[var(--z-toast)] m-0 list-none p-0'
-              style={{
-                right: isWorkflowPage ? 'calc(var(--panel-width) + 16px)' : '16px',
-                bottom: isWorkflowPage ? 'calc(var(--terminal-height) + 16px)' : '16px',
-                width: TOAST_WIDTH,
-                height: containerHeight,
-              }}
-            >
-              <AnimatePresence initial={false}>
-                {toasts.length >= STACK_DISMISS_THRESHOLD ? (
-                  <StackDismiss
-                    key='dismiss-all'
-                    paused={expanded}
-                    autoDismiss={!hasPersistentToast}
-                    reduceMotion={reduceMotion}
-                    resetKey={toasts[toasts.length - 1]?.id ?? ''}
-                    onDismiss={dismissAllToasts}
-                  />
-                ) : null}
-              </AnimatePresence>
-              {/*
-               * Expand-on-hover is scoped to the cards only. The dismiss control
-               * sits outside this region, so hovering (or resting near) it pauses
-               * the countdown without fanning the stack open — the stack stays
-               * collapsed until the cards themselves are hovered.
-               */}
-              <div
-                onMouseEnter={() => setExpanded(true)}
-                onMouseLeave={() => setExpanded(false)}
-                onFocusCapture={() => setExpanded(true)}
-                onBlurCapture={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                    setExpanded(false)
-                  }
-                }}
-                className='absolute inset-0'
-              >
-                <AnimatePresence>
-                  {layout.map(({ toast, geometry }) => (
-                    <ToastItem
-                      key={toast.id}
-                      toast={toast}
-                      geometry={geometry}
-                      reduceMotion={reduceMotion}
-                      onDismiss={dismissToast}
-                      onMeasure={measureToast}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.ol>,
+            // AnimatePresence keeps the stack mounted through its exit, so
+            // clearing all toasts at once (dismiss-all / route change) fades the
+            // frozen stack out instead of cutting it abruptly. Per-card exits
+            // still play for single dismissals (the inner AnimatePresence).
+            <AnimatePresence>
+              {toasts.length > 0 ? (
+                <motion.ol
+                  key='toast-stack'
+                  aria-live='polite'
+                  aria-label='Notifications'
+                  className='fixed z-[var(--z-toast)] m-0 list-none p-0'
+                  exit={{
+                    opacity: 0,
+                    transition: reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' },
+                  }}
+                  style={{
+                    right: isWorkflowPage ? 'calc(var(--panel-width) + 16px)' : '16px',
+                    bottom: isWorkflowPage ? 'calc(var(--terminal-height) + 16px)' : '16px',
+                    width: TOAST_WIDTH,
+                    height: containerHeight,
+                  }}
+                >
+                  <AnimatePresence initial={false}>
+                    {toasts.length >= STACK_DISMISS_THRESHOLD ? (
+                      <StackDismiss
+                        key='dismiss-all'
+                        paused={expanded}
+                        autoDismiss={!hasPersistentToast}
+                        reduceMotion={reduceMotion}
+                        resetKey={String(arrivalCount)}
+                        onDismiss={dismissAllToasts}
+                      />
+                    ) : null}
+                  </AnimatePresence>
+                  {/*
+                   * Expand-on-hover is scoped to the cards only. The dismiss control
+                   * sits outside this region, so hovering (or resting near) it pauses
+                   * the countdown without fanning the stack open — the stack stays
+                   * collapsed until the cards themselves are hovered.
+                   */}
+                  <div
+                    onMouseEnter={() => setExpanded(true)}
+                    onMouseLeave={() => setExpanded(false)}
+                    onFocusCapture={() => setExpanded(true)}
+                    onBlurCapture={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        setExpanded(false)
+                      }
+                    }}
+                    className='absolute inset-0'
+                  >
+                    <AnimatePresence>
+                      {layout.map(({ toast, geometry }) => (
+                        <ToastItem
+                          key={toast.id}
+                          toast={toast}
+                          geometry={geometry}
+                          reduceMotion={reduceMotion}
+                          onDismiss={dismissToast}
+                          onMeasure={measureToast}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </motion.ol>
+              ) : null}
+            </AnimatePresence>,
             document.body
           )
         : null}
