@@ -5,6 +5,7 @@ pageType: concept
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
 
 A **log** is the recorded trace of one workflow run. Every time a workflow runs, Sim writes down what triggered it, which blocks ran in what order, and for each block its exact input, its output, and any error. That trace is the ground truth for debugging: it replays what each block received, what it did, and what it returned, so you can find where something went wrong.
 
@@ -12,25 +13,33 @@ Think of it like a video replay of the run, where you read what actually happene
 
 The **Logs page** lists every run across your workspace, one row per run. The [Logging reference](/logs-debugging/logging) covers the page itself: the columns, filters, and sidebar. This page covers what a log captures and how to trace a failure back to its cause.
 
-{/* VISUAL: the Logs page as a list of run rows (Workflow, Date, Status, Cost, Trigger, Duration), one row expanded into its sidebar trace. */}
+<Image
+  src="/static/logs/workspace-logs.png"
+  alt="The Logs page: one row per run with workflow, date, status, cost in credits, trigger, and duration"
+  width={900}
+  height={481}
+/>
 
 ## What a log records
 
 ### The run
 
-Each row on the Logs page is one **run**. It records the **trigger** that started it (manual, api, schedule, chat, webhook, mcp, mothership, copilot, workflow, or a2a), a **status**, a **duration**, and the total **cost**. It also carries an **execution ID** that uniquely names the run.
+Each row on the Logs page is one **run**. It records the **trigger** that started it (manual, api, schedule, chat, webhook, mcp, mothership, copilot, workflow, or a2a), a **status**, a **duration**, and the **cost** in credits. It also carries an **execution ID** that uniquely names the run.
 
-The status is the run's outcome at a glance: **success**, **error**, **running**, **pending**, or **cancelled**. When you are hunting a failure, you filter the list to **error** and start there.
-
-{/* VISUAL: one run row broken out into its parts, each labeled: trigger badge, status badge, duration, cost, execution ID. */}
+The status shows the run's outcome at a glance, with failed runs badged **Error**. When you are hunting a failure, you filter the list to the errors and start there.
 
 ### The blocks
 
-Open a run and the sidebar shows its blocks in the order they ran. Each **block execution** records the [block](/workflows#blocks)'s name and type, its own status (**success**, **error**, or **skipped**), its timing, its **input**, its **output**, and an error message if it failed.
+Open a run and **Log Details** shows the trace. The **Trace** tab lists each block as a span with its timing, in the order they ran; each **block execution** records the [block](/workflows#blocks)'s name and type, its own status, its **input**, its **output**, and an error message if it failed.
 
-This is the level you debug at, because a run fails when one of its blocks fails, and a block usually fails because of the input it received.
+<Image
+  src="/static/logs/log-trace.png"
+  alt="Log Details with the Trace tab open: a CRM sync run's spans, each block with its duration, 11.61s total"
+  width={900}
+  height={471}
+/>
 
-{/* VISUAL: the sidebar trace, a vertical list of block executions with status dots, one expanded to show its Input/Output tabs. */}
+This is the level you debug at, because a run fails when one of its blocks fails, and a block usually fails because of the input it received. In this run, one glance at the spans shows where the time went: the HealingAgent took 7.83s of the 11.61s total.
 
 ### Input and output
 
@@ -38,7 +47,14 @@ Each block in the sidebar has two tabs. The **Input** tab shows the resolved val
 
 The input tab is the important one. A block reads earlier outputs by name, written `<blockName.field>`, and the input tab shows what those references resolved to at run time. If a reference pointed at a value that was not there, you see it here as missing or wrong, not as the tag you wrote. See [how blocks pass data](/workflows/data-flow) for how those references resolve.
 
-{/* VISUAL: the Input tab of an Agent block showing a resolved reference, e.g. the prompt with <classify.category> filled in with its actual value. */}
+The same inspector follows you into the editor: during manual and chat runs, the console shows each block's Output and Input live, with values as a typed tree.
+
+<Image
+  src="/static/logs/run-inspector.png"
+  alt="The editor's run console: blocks with their durations on the left, and the selected Agent's Output tab showing content, model, and tokens as a typed tree"
+  width={900}
+  height={354}
+/>
 
 ### The snapshot
 
