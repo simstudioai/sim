@@ -454,6 +454,14 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
 interface StackDismissProps {
   /** When held (stack hovered), the countdown pauses so it can't dismiss mid-read. */
   paused: boolean
+  /**
+   * Whether the ring auto-fires. `false` when the stack holds a persistent
+   * toast (an actionable / `duration <= 0` toast that must not vanish on its
+   * own) — the control still renders and dismisses on click, but the countdown
+   * never runs, so a "Fix in Copilot" action can't be cleared out from under
+   * the user just because a second toast arrived.
+   */
+  autoDismiss: boolean
   reduceMotion: boolean
   /** Changes whenever a new toast arrives; restarts the countdown from zero. */
   resetKey: string
@@ -468,7 +476,13 @@ interface StackDismissProps {
  * immediately. It enters with a spring "pop" (overshoot-and-settle) so the
  * secondary control arrives with a little life without stealing focus.
  */
-function StackDismiss({ paused, reduceMotion, resetKey, onDismiss }: StackDismissProps) {
+function StackDismiss({
+  paused,
+  autoDismiss,
+  reduceMotion,
+  resetKey,
+  onDismiss,
+}: StackDismissProps) {
   const progress = useMotionValue(0)
   const onDismissRef = useRef(onDismiss)
   const controlsRef = useRef<ReturnType<typeof animate> | null>(null)
@@ -486,9 +500,15 @@ function StackDismiss({ paused, reduceMotion, resetKey, onDismiss }: StackDismis
 
   // Restart the countdown from zero whenever a new toast arrives (`resetKey`
   // changes), so every fresh arrival gives the whole stack the full window
-  // again rather than inheriting the older, already-elapsed timer.
+  // again rather than inheriting the older, already-elapsed timer. When
+  // `autoDismiss` is false (a persistent toast is in the stack) the ring stays
+  // empty and never fires — only the click handler can dismiss.
   useEffect(() => {
     progress.set(0)
+    if (!autoDismiss) {
+      controlsRef.current = null
+      return
+    }
     const controls = animate(progress, 1, {
       duration: STACK_DISMISS_MS / 1000,
       ease: 'linear',
@@ -497,7 +517,7 @@ function StackDismiss({ paused, reduceMotion, resetKey, onDismiss }: StackDismis
     controlsRef.current = controls
     if (heldRef.current) controls.pause()
     return () => controls.stop()
-  }, [progress, resetKey])
+  }, [progress, resetKey, autoDismiss])
 
   useEffect(() => {
     const controls = controlsRef.current
@@ -632,6 +652,24 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [])
 
   /**
+   * Drop measured heights for toasts that are no longer in the stack. Single
+   * dismissal prunes its own entry, but stack-limit eviction (`addToast`'s
+   * `slice(-STACK_LIMIT)`) drops the oldest toast without touching `heights` —
+   * so reconcile here, mirroring the timer effect's stale-entry cleanup, to
+   * keep the map from growing across a long session.
+   */
+  useEffect(() => {
+    setHeights((prev) => {
+      const live = new Set(toasts.map((t) => t.id))
+      const stale = Object.keys(prev).filter((id) => !live.has(id))
+      if (stale.length === 0) return prev
+      const next = { ...prev }
+      for (const id of stale) delete next[id]
+      return next
+    })
+  }, [toasts])
+
+  /**
    * Per-toast auto-dismiss timers, used only for a lone toast. Hovering
    * (`expanded`) holds them, and once the stack reaches the dismiss-all
    * threshold the single ring countdown (`StackDismiss`) takes over for the
@@ -705,6 +743,14 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     [dismissToast, dismissAllToasts]
   )
 
+  /**
+   * A persistent toast (`duration <= 0` — i.e. an actionable toast that must
+   * wait for the user) pins the stack: the dismiss-all ring still renders but
+   * its auto-countdown is suppressed so the action can't be cleared out from
+   * under the user when a second toast arrives.
+   */
+  const hasPersistentToast = toasts.some((t) => t.duration <= 0)
+
   /** Front-first order: `ordered[0]` is the newest card. */
   const ordered = [...toasts].reverse()
   const frontHeight = heights[ordered[0]?.id ?? ''] ?? ESTIMATED_TOAST_HEIGHT
@@ -748,6 +794,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                   <StackDismiss
                     key='dismiss-all'
                     paused={expanded}
+                    autoDismiss={!hasPersistentToast}
                     reduceMotion={reduceMotion}
                     resetKey={toasts[toasts.length - 1]?.id ?? ''}
                     onDismiss={dismissAllToasts}
