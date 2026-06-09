@@ -8,11 +8,7 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
-  Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
+  ChipConfirmModal,
   Loader,
   Modal,
   ModalBody,
@@ -833,45 +829,36 @@ export function DeployModal({
         </ModalContent>
       </Modal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={Boolean(undeployTargetWorkflowId)}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setUndeployTargetWorkflowId(null)
         }}
         srTitle='Undeploy API'
-      >
-        <ChipModalHeader showDivider={false}>Undeploy API</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Undeploy API'
+        description={
+          <>
             Are you sure you want to undeploy this workflow?{' '}
             <span className='text-[var(--text-error)]'>
               This will remove the API endpoint and make it unavailable to external users.
             </span>
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setUndeployTargetWorkflowId(null)}
-            disabled={isUndeploying}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleUndeploy} disabled={isUndeploying}>
-            {isUndeploying ? 'Undeploying...' : 'Undeploy'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Undeploy',
+          onClick: handleUndeploy,
+          pending: isUndeploying,
+          pendingLabel: 'Undeploying...',
+        }}
+      />
 
-      <ChipModal
+      <ChipConfirmModal
         open={showA2aDeleteConfirm}
         onOpenChange={setShowA2aDeleteConfirm}
         srTitle='Delete A2A Agent'
-      >
-        <ChipModalHeader showDivider={false}>Delete A2A Agent</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete A2A Agent'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {existingA2aAgent?.name || 'this agent'}
@@ -881,22 +868,15 @@ export function DeployModal({
               This will permanently remove the agent configuration.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowA2aDeleteConfirm(false)}
-            disabled={a2aSubmitting}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleA2aDelete} disabled={a2aSubmitting}>
-            {a2aSubmitting ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleA2aDelete,
+          pending: a2aSubmitting,
+          pendingLabel: 'Deleting...',
+        }}
+      />
 
       <CreateApiKeyModal
         open={isCreateKeyModalOpen}

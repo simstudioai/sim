@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
-  Chip,
   ChipDropdown,
   type ChipDropdownOption,
   ChipModal,
@@ -169,11 +168,14 @@ export function OrganizationInviteModal({
           onChange={(role) => setInviteRole(role as PermissionType)}
         />
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='primary' onClick={handleSend} disabled={isSendDisabled}>
-          {isSubmitting ? 'Sending...' : 'Send invites'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => handleOpenChange(false)}
+        primaryAction={{
+          label: isSubmitting ? 'Sending...' : 'Send invites',
+          onClick: handleSend,
+          disabled: isSendDisabled,
+        }}
+      />
     </ChipModal>
   )
 }

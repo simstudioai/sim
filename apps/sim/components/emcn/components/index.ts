@@ -32,6 +32,9 @@ export {
 } from './chip-dropdown/chip-dropdown'
 export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
 export {
+  type ChipConfirmAction,
+  ChipConfirmModal,
+  type ChipConfirmModalProps,
   ChipModal,
   ChipModalBody,
   type ChipModalDropdownOption,
@@ -41,6 +44,8 @@ export {
   ChipModalField,
   type ChipModalFieldProps,
   ChipModalFooter,
+  type ChipModalFooterAction,
+  type ChipModalFooterProps,
   ChipModalHeader,
   type ChipModalHeaderProps,
   type ChipModalProps,
