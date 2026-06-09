@@ -50,8 +50,13 @@ export type CsvColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100
 
-/** Maximum rows inserted per `batchInsertRows` call during import. */
-export const CSV_MAX_BATCH_SIZE = 1000
+/**
+ * Maximum rows inserted per import batch. Each batch is one `INSERT … VALUES` statement, and
+ * Postgres caps bind parameters at 65,535 — at 9 params per row that's a hard ceiling of ~7,200
+ * rows, so 5,000 keeps a margin while cutting per-batch overhead (validation, unique-constraint
+ * check, ownership heartbeat) 5× vs the old 1,000.
+ */
+export const CSV_MAX_BATCH_SIZE = 5000
 
 /** Maximum CSV/TSV file size accepted by import routes (25 MB). */
 export const CSV_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
