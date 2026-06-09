@@ -1456,6 +1456,81 @@
     "tags": ["sales-engagement", "enrichment"]
   },
   {
+    "type": "appconfig",
+    "slug": "aws-appconfig",
+    "name": "AWS AppConfig",
+    "description": "Manage and retrieve configuration with AWS AppConfig",
+    "longDescription": "Integrate AWS AppConfig into workflows. Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
+    "iconName": "AppConfigIcon",
+    "docsUrl": "https://docs.sim.ai/tools/appconfig",
+    "operations": [
+      {
+        "name": "Get Configuration",
+        "description": "Retrieve the latest deployed configuration for an AppConfig application, environment, and profile"
+      },
+      {
+        "name": "List Applications",
+        "description": "List applications in AWS AppConfig"
+      },
+      {
+        "name": "Create Application",
+        "description": "Create an application in AWS AppConfig"
+      },
+      {
+        "name": "List Environments",
+        "description": "List environments for an AWS AppConfig application"
+      },
+      {
+        "name": "Create Environment",
+        "description": "Create an environment for an AWS AppConfig application"
+      },
+      {
+        "name": "List Configuration Profiles",
+        "description": "List configuration profiles for an AWS AppConfig application"
+      },
+      {
+        "name": "Create Configuration Profile",
+        "description": "Create a configuration profile in an AWS AppConfig application"
+      },
+      {
+        "name": "Create Hosted Configuration Version",
+        "description": "Create a new hosted configuration version for an AppConfig configuration profile"
+      },
+      {
+        "name": "Get Hosted Configuration Version",
+        "description": "Retrieve a specific hosted configuration version from an AppConfig profile"
+      },
+      {
+        "name": "List Deployment Strategies",
+        "description": "List deployment strategies available in AWS AppConfig"
+      },
+      {
+        "name": "Start Deployment",
+        "description": "Start deploying a configuration version to an AWS AppConfig environment"
+      },
+      {
+        "name": "Get Deployment",
+        "description": "Get details about a specific AWS AppConfig deployment"
+      },
+      {
+        "name": "List Deployments",
+        "description": "List deployments for an AWS AppConfig environment"
+      },
+      {
+        "name": "Stop Deployment",
+        "description": "Stop an in-progress AWS AppConfig deployment"
+      }
+    ],
+    "operationCount": 14,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["cloud", "configuration", "feature-flags"]
+  },
+  {
     "type": "iam",
     "slug": "aws-iam",
     "name": "AWS IAM",
