@@ -48,7 +48,13 @@ What the approver sees — the context shown in the portal to help them decide. 
 
 ### Notification
 
-How approvers are alerted. Send to Slack, Gmail, Microsoft Teams, SMS (via Twilio), or a custom webhook. Include the approval URL (`<blockId.url>`) in the message so they can open the portal.
+How approvers are alerted that a decision is waiting. Include the approval URL (`<blockId.url>`) in the message so they can open the portal. Available channels:
+
+- **Slack** — a message to a channel or DM
+- **Gmail** — an email with the approval link
+- **Microsoft Teams** — a channel notification
+- **SMS** — a text alert via Twilio
+- **Webhook** — a request to your own notification system
 
 ### Resume Form
 
