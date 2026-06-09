@@ -71,13 +71,13 @@ const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>>
   error: CircleAlert,
 }
 
-/** Per-variant icon tint from the shared intent palette; `default` stays neutral. */
+/** Per-variant icon tint from the shared badge intent palette; `default` stays neutral. */
 const VARIANT_ICON_COLOR: Record<ToastVariant, string> = {
   default: 'text-[var(--text-icon)]',
   info: 'text-[var(--badge-blue-text)]',
-  success: 'text-[var(--text-success)]',
+  success: 'text-[var(--badge-success-text)]',
   warning: 'text-[var(--badge-amber-text)]',
-  error: 'text-[var(--text-error)]',
+  error: 'text-[var(--badge-error-text)]',
 }
 
 interface ToastAction {
@@ -309,7 +309,7 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
     <motion.li
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      initial={{ opacity: 0, y: height }}
+      initial={reduceMotion ? false : { opacity: 0, y: height }}
       animate={{ opacity: 1, y, scale, height }}
       exit={{
         opacity: 0,
@@ -499,8 +499,8 @@ function StackDismiss({
 export function ToastProvider({ children }: { children?: ReactNode }) {
   const pathname = usePathname()
   const reduceMotion = useReducedMotion() ?? false
-  /** On workflow pages the stack insets by `--panel-width` / `--terminal-height` so it clears the panel and terminal. */
-  const isWorkflowPage = pathname?.includes('/w/') ?? false
+  /** On the workflow editor (`/w/[id]` and the `/w` index) the stack insets by `--panel-width` / `--terminal-height` to clear the panel and terminal. */
+  const isWorkflowPage = pathname ? /\/w(\/|$)/.test(pathname) : false
 
   const [toasts, setToasts] = useState<ToastData[]>([])
   const [heights, setHeights] = useState<Record<string, number>>({})
