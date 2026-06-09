@@ -13,7 +13,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import type { TaskChatHistory } from '@/hooks/queries/tasks'
+import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 
 export type ActiveTurn = {
   userMessageId: string
@@ -74,9 +74,9 @@ export interface StreamLoopDeps {
   addResource: (resource: MothershipResource) => boolean
   removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
-  upsertTaskChatHistory: (
+  upsertMothershipChatHistory: (
     chatId: string,
-    updater: (current: TaskChatHistory) => TaskChatHistory
+    updater: (current: MothershipChatHistory) => MothershipChatHistory
   ) => void
   ensureWorkflowInRegistry: (resourceId: string, title: string, workspaceId: string) => boolean
 
@@ -368,7 +368,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
       contentBlocks: state.blocks,
       ...(state.streamRequestId ? { requestId: state.streamRequestId } : {}),
     })
-    deps.upsertTaskChatHistory(activeChatId, (current) => {
+    deps.upsertMothershipChatHistory(activeChatId, (current) => {
       const streamId = deps.streamIdRef.current ?? current.activeStreamId ?? deps.assistantId
       const terminalPersistedAssistantExists =
         current.activeStreamId !== streamId &&

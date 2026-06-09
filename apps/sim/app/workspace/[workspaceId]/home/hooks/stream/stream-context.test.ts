@@ -166,14 +166,17 @@ describe('createStreamLoopContext', () => {
       expect(result[0]).toMatchObject({ id: 'assistant-1', role: 'assistant', content: 'hello' })
     })
 
-    it('routes to task chat history when a chatId is present', () => {
-      const upsertTaskChatHistory = vi.fn()
+    it('routes to mothership chat history when a chatId is present', () => {
+      const upsertMothershipChatHistory = vi.fn()
       const ctx = createStreamLoopContext(
-        makeStreamLoopDeps({ chatIdRef: ref<string | undefined>('chat-1'), upsertTaskChatHistory })
+        makeStreamLoopDeps({
+          chatIdRef: ref<string | undefined>('chat-1'),
+          upsertMothershipChatHistory,
+        })
       )
       ctx.state.runningText = 'hi'
       ctx.ops.flush()
-      expect(upsertTaskChatHistory).toHaveBeenCalledWith('chat-1', expect.any(Function))
+      expect(upsertMothershipChatHistory).toHaveBeenCalledWith('chat-1', expect.any(Function))
     })
   })
 

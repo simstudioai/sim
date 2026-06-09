@@ -2,7 +2,7 @@ import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcri
 import { MothershipStreamV1SessionKind } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
-import { type TaskChatHistory, taskKeys } from '@/hooks/queries/tasks'
+import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
 type SessionEvent = Extract<PersistedStreamEventEnvelope, { type: 'session' }>
 
@@ -27,7 +27,7 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
     } else if (payloadChatId === selected) {
       deps.setResolvedChatId(payloadChatId)
     }
-    deps.queryClient.invalidateQueries({ queryKey: taskKeys.list(deps.workspaceId) })
+    deps.queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(deps.workspaceId) })
     if (isNewChat) {
       const userMsg = deps.pendingUserMsgRef.current
       const activeStreamId = deps.streamIdRef.current
@@ -40,27 +40,30 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
           contentBlocks: deps.streamingBlocksRef.current,
         })
         const seededMessages = [userMsg, assistantMessage]
-        deps.queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(payloadChatId), {
-          id: payloadChatId,
-          title: null,
-          messages: seededMessages,
-          activeStreamId,
-          resources: deps.resourcesRef.current,
-        })
+        deps.queryClient.setQueryData<MothershipChatHistory>(
+          mothershipChatKeys.detail(payloadChatId),
+          {
+            id: payloadChatId,
+            title: null,
+            messages: seededMessages,
+            activeStreamId,
+            resources: deps.resourcesRef.current,
+          }
+        )
       }
       deps.setPendingMessages([])
       if (!deps.workflowIdRef.current) {
         window.history.replaceState(
           null,
           '',
-          `/workspace/${deps.workspaceId}/task/${payloadChatId}`
+          `/workspace/${deps.workspaceId}/chat/${payloadChatId}`
         )
       }
     }
   }
 
   if (payload.kind === MothershipStreamV1SessionKind.title) {
-    deps.queryClient.invalidateQueries({ queryKey: taskKeys.list(deps.workspaceId) })
+    deps.queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(deps.workspaceId) })
     deps.onTitleUpdateRef.current?.()
   }
 }
