@@ -6,31 +6,22 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { SENDBLUE_TRIGGER_IS_OUTBOUND } from '@/triggers/sendblue/utils'
 
 const logger = createLogger('WebhookProvider:Sendblue')
-
-/**
- * Maps Sendblue trigger IDs to the expected value of the payload `is_outbound`
- * flag. Inbound messages are routed to the "message received" trigger and
- * outbound status callbacks to the "message status updated" trigger.
- */
-const TRIGGER_IS_OUTBOUND: Record<string, boolean> = {
-  sendblue_message_received: false,
-  sendblue_message_status_updated: true,
-}
 
 export const sendblueHandler: WebhookProviderHandler = {
   matchEvent({ body, webhook, requestId }: EventMatchContext): boolean {
     const providerConfig = getProviderConfig(webhook)
     const triggerId = providerConfig.triggerId as string | undefined
-    if (!triggerId || !(triggerId in TRIGGER_IS_OUTBOUND)) return true
+    if (!triggerId || !(triggerId in SENDBLUE_TRIGGER_IS_OUTBOUND)) return true
 
     if (!isRecord(body)) {
       logger.warn(`[${requestId}] Sendblue webhook payload was not an object`)
       return false
     }
 
-    const expected = TRIGGER_IS_OUTBOUND[triggerId]
+    const expected = SENDBLUE_TRIGGER_IS_OUTBOUND[triggerId]
     const isOutbound = body.is_outbound === true
     if (isOutbound !== expected) {
       logger.info(`[${requestId}] Sendblue event did not match trigger`, { triggerId, isOutbound })
@@ -43,14 +34,19 @@ export const sendblueHandler: WebhookProviderHandler = {
   extractIdempotencyId(body: unknown): string | null {
     if (!isRecord(body)) return null
     const handle = body.message_handle
-    return typeof handle === 'string' && handle.length > 0 ? handle : null
+    if (typeof handle !== 'string' || handle.length === 0) return null
+    // A single outbound message emits multiple status callbacks (e.g. SENT then
+    // DELIVERED) that share one message_handle, so the status is part of the key
+    // to keep distinct transitions from being deduped as retries.
+    const status = typeof body.status === 'string' && body.status.length > 0 ? body.status : null
+    return status ? `${handle}:${status}` : handle
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = isRecord(body) ? body : {}
     return {
       input: {
-        accountEmail: b.accountEmail ?? b.account_email ?? null,
+        account_email: b.accountEmail ?? b.account_email ?? null,
         content: b.content ?? null,
         media_url: b.media_url ?? null,
         is_outbound: b.is_outbound ?? null,

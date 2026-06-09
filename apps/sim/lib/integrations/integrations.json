@@ -12744,7 +12744,7 @@
       }
     ],
     "triggerCount": 2,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "automation", "webhooks"]

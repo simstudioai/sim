@@ -535,6 +535,10 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
  * 'api-key' if it uses a plain API key field, or 'none' otherwise.
  */
 function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
+  // Prefer the authoritative `authMode` declaration when present.
+  if (/authMode\s*:\s*AuthMode\.OAuth\b/.test(blockContent)) return 'oauth'
+  if (/authMode\s*:\s*AuthMode\.(?:ApiKey|BotToken)\b/.test(blockContent)) return 'api-key'
+  // Fall back to credential subBlock heuristics for blocks without authMode.
   if (/type\s*:\s*['"]oauth-input['"]/.test(blockContent)) return 'oauth'
   if (/\bid\s*:\s*['"](?:apiKey|api_key|accessToken)['"]/.test(blockContent)) return 'api-key'
   return 'none'

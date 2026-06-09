@@ -3,6 +3,7 @@ import type { TriggerOutput } from '@/triggers/types'
 /**
  * Maps Sendblue trigger IDs to the expected value of the webhook payload's
  * `is_outbound` flag, used to route inbound vs. outbound status events.
+ * Imported by the webhook provider handler so routing lives in one place.
  */
 export const SENDBLUE_TRIGGER_IS_OUTBOUND: Record<string, boolean> = {
   sendblue_message_received: false,
@@ -38,7 +39,7 @@ export function sendblueSetupInstructions(eventType: string): string {
  */
 export function buildSendblueOutputs(): Record<string, TriggerOutput> {
   return {
-    accountEmail: { type: 'string', description: 'Email of the Sendblue account' },
+    account_email: { type: 'string', description: 'Email of the Sendblue account' },
     content: { type: 'string', description: 'Message text content' },
     media_url: { type: 'string', description: 'CDN link to attached media, if any' },
     is_outbound: { type: 'boolean', description: 'True for outbound messages, false for inbound' },
