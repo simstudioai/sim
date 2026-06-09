@@ -51,6 +51,10 @@ The fields you define, plus conversation context when the workflow runs from cha
   </Tab>
 </Tabs>
 
+## Multiple triggers
+
+A workflow can have more than one trigger. When you click **Run** in the editor, Sim runs the highest-priority one: the **Start** trigger first, then a [Schedule](/triggers/schedule), then external triggers (webhooks and integrations). So a workflow with both a Start and a Webhook runs from Start when you click Run. Running an external trigger by hand instead generates a mock payload from its expected shape, so downstream blocks can resolve their references while you test.
+
 ## Best Practices
 
 - **Use Start as the single entry point** when one workflow serves both API and chat callers.

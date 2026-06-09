@@ -29,10 +29,10 @@ const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
 const TRIGGER_DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/triggers')
 
 /** Trigger doc pages that are hand-written and must never be overwritten. */
-const HANDWRITTEN_TRIGGER_DOCS = new Set(['index', 'start', 'schedule', 'webhook', 'rss'])
+const HANDWRITTEN_TRIGGER_DOCS = new Set(['index', 'start', 'schedule', 'webhook', 'rss', 'table'])
 
 /** Providers whose docs are already covered by hand-written pages. */
-const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss'])
+const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss', 'table'])
 
 /**
  * Maps trigger provider names (from TriggerConfig.provider) to their
