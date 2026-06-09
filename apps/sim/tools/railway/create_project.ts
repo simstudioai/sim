@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import type {
   RailwayCreatedResource,
   RailwayCreateProjectParams,
   RailwayCreateProjectResponse,
 } from '@/tools/railway/types'
 import {
-  compactVariables,
   optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
@@ -91,7 +91,7 @@ export const railwayCreateProjectTool: ToolConfig<
         }
       `,
       variables: {
-        input: compactVariables({
+        input: filterUndefined({
           name: params.name.trim(),
           description: optionalString(params.description),
           workspaceId: optionalString(params.workspaceId),

@@ -195,12 +195,11 @@ List members for a Railway project
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `members` | array | Project members |
-|   ↳ `id` | string | Project membership ID |
+|   ↳ `id` | string | Member user ID |
 |   ↳ `role` | string | Project role |
-|   ↳ `user` | object | Railway user |
-|     ↳ `id` | string | User ID |
-|     ↳ `name` | string | User name |
-|     ↳ `email` | string | User email |
+|   ↳ `name` | string | Member name |
+|   ↳ `email` | string | Member email |
+|   ↳ `avatar` | string | Member avatar URL |
 | `count` | number | Number of members returned |
 
 ### `railway_create_environment`
@@ -400,9 +399,7 @@ Roll a Railway service back to a previous deployment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `deployment` | object | Deployment created by the rollback |
-|   ↳ `id` | string | Deployment ID |
-|   ↳ `status` | string | Deployment status |
+| `success` | boolean | Whether the rollback was triggered |
 
 ### `railway_get_deployment_logs`
 

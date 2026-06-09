@@ -8,7 +8,6 @@ export interface PolymarketSearchParams {
   page?: string
   cache?: string
   eventsStatus?: string
-  limitPerType?: string
   eventsTag?: string
   sort?: string
   ascending?: string
@@ -42,7 +41,7 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (e.g., "25"). Max: 50.',
+      description: 'Maximum number of results per type (events, tags, profiles). Default: 50.',
       visibility: 'user-or-llm',
     },
     page: {
@@ -61,12 +60,6 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
       type: 'string',
       required: false,
       description: 'Filter events by status',
-      visibility: 'user-or-llm',
-    },
-    limitPerType: {
-      type: 'string',
-      required: false,
-      description: 'Limit results per type (markets, events, profiles)',
       visibility: 'user-or-llm',
     },
     eventsTag: {
@@ -123,11 +116,11 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
     url: (params) => {
       const queryParams = new URLSearchParams()
       queryParams.append('q', params.query)
-      queryParams.append('limit', params.limit || '50')
+      // /public-search caps results via limit_per_type; a plain `limit` is ignored
+      queryParams.append('limit_per_type', params.limit || '50')
       if (params.page) queryParams.append('page', params.page)
       if (params.cache) queryParams.append('cache', params.cache)
       if (params.eventsStatus) queryParams.append('events_status', params.eventsStatus)
-      if (params.limitPerType) queryParams.append('limit_per_type', params.limitPerType)
       if (params.eventsTag) queryParams.append('events_tag', params.eventsTag)
       if (params.sort) queryParams.append('sort', params.sort)
       if (params.ascending) queryParams.append('ascending', params.ascending)
@@ -153,8 +146,8 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
       handlePolymarketError(data, response.status, 'search')
     }
 
+    // /public-search returns events, tags, and profiles (markets are nested within events)
     const results: PolymarketSearchResult = {
-      markets: data.markets ?? [],
       events: data.events ?? [],
       tags: data.tags ?? [],
       profiles: data.profiles ?? [],
@@ -171,10 +164,9 @@ export const polymarketSearchTool: ToolConfig<PolymarketSearchParams, Polymarket
   outputs: {
     results: {
       type: 'object',
-      description: 'Search results containing markets, events, tags, and profiles arrays',
+      description: 'Search results containing events, tags, and profiles arrays',
       properties: {
-        markets: { type: 'array', description: 'Array of matching market objects' },
-        events: { type: 'array', description: 'Array of matching event objects' },
+        events: { type: 'array', description: 'Array of matching event objects (markets nested)' },
         tags: { type: 'array', description: 'Array of matching tag objects' },
         profiles: { type: 'array', description: 'Array of matching profile objects' },
       },

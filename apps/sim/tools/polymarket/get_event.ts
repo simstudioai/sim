@@ -27,7 +27,7 @@ export const polymarketGetEventTool: ToolConfig<
     eventId: {
       type: 'string',
       required: false,
-      description: 'The event ID (e.g., "12345" or UUID format). Required if slug is not provided.',
+      description: 'The numeric event ID (e.g., "12345"). Required if slug is not provided.',
       visibility: 'user-or-llm',
     },
     slug: {
@@ -42,9 +42,9 @@ export const polymarketGetEventTool: ToolConfig<
   request: {
     url: (params) => {
       if (params.slug) {
-        return buildGammaUrl(`/events/slug/${params.slug}`)
+        return buildGammaUrl(`/events/slug/${params.slug.trim()}`)
       }
-      return buildGammaUrl(`/events/${params.eventId}`)
+      return buildGammaUrl(`/events/${params.eventId?.trim()}`)
     },
     method: 'GET',
     headers: () => ({

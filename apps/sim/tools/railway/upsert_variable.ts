@@ -1,9 +1,9 @@
+import { filterUndefined } from '@sim/utils/object'
 import type {
   RailwayUpsertVariableParams,
   RailwayUpsertVariableResponse,
 } from '@/tools/railway/types'
 import {
-  compactVariables,
   optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
@@ -92,7 +92,7 @@ export const railwayUpsertVariableTool: ToolConfig<
           environmentId: params.environmentId.trim(),
           name: params.name.trim(),
           value: params.value,
-          ...compactVariables({
+          ...filterUndefined({
             serviceId: optionalString(params.serviceId),
             skipDeploys: params.skipDeploys,
           }),

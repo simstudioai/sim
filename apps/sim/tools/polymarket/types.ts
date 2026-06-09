@@ -114,6 +114,7 @@ export interface PolymarketOrderBook {
   min_order_size: string
   tick_size: string
   neg_risk: boolean
+  last_trade_price: string
 }
 
 interface PolymarketPrice {
@@ -148,7 +149,6 @@ export interface PolymarketSeries {
 }
 
 export interface PolymarketSearchResult {
-  markets: PolymarketMarket[]
   events: PolymarketEvent[]
   tags: PolymarketTag[]
   profiles: PolymarketProfile[]
@@ -264,6 +264,7 @@ interface PolymarketHolder {
   name: string | null
   profileImage: string | null
   profileImageOptimized: string | null
+  verified: boolean
 }
 
 export interface PolymarketMarketHolders {

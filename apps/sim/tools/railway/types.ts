@@ -40,11 +40,9 @@ export interface RailwayProjectEnvironment {
 export interface RailwayProjectMember {
   id: string
   role: string
-  user: {
-    id: string
-    name: string | null
-    email: string | null
-  } | null
+  name: string | null
+  email: string | null
+  avatar: string | null
 }
 
 export interface RailwayCreatedResource {
@@ -290,10 +288,7 @@ export interface RailwayRestartDeploymentResponse extends ToolResponse {
 
 export interface RailwayRollbackDeploymentResponse extends ToolResponse {
   output: {
-    deployment: {
-      id: string
-      status: string
-    }
+    success: boolean
   }
 }
 

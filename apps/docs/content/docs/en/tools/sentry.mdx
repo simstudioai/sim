@@ -60,7 +60,7 @@ List issues from Sentry for a specific organization and optionally a specific pr
 | `statsPeriod` | string | No | Time window for the per-issue stats series \(e.g., "24h", "14d"\). Note: this controls the stats returned with each issue, not which issues are returned — use the query \(e.g., "age:-7d", "lastSeen:-24h"\) to filter results. |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
 | `limit` | number | No | Number of issues to return per page \(max: 100\) |
-| `status` | string | No | Filter by issue status: unresolved, resolved, or ignored \(mapped to Sentry\'s "archived" search token\) |
+| `status` | string | No | Filter by issue status: unresolved, resolved, or ignored. The legacy "ignored"/"muted" values map to Sentry\'s current "archived" search token. |
 | `sort` | string | No | Sort order: date, new, trends, freq, or user \(default: date\) |
 
 #### Output

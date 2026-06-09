@@ -32,7 +32,7 @@ export const launchDarklyGetAuditLogTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Resource specifier filter (e.g. "resourceType:flag" for all flag changes, or "proj/default:env/production:flag/my-flag" for one flag in one environment)',
+        'Resource specifier filter (e.g. "proj/*:env/*:flag/*" for all flag changes, or "proj/default:env/production:flag/my-flag" for one flag in one environment)',
     },
   },
 

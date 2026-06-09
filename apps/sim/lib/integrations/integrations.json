@@ -7909,16 +7909,36 @@
         "description": "Retrieve OHLC candlestick data for a specific market"
       },
       {
+        "name": "Get Event Candlesticks",
+        "description": "Retrieve OHLC candlestick data aggregated across all markets in an event"
+      },
+      {
         "name": "Get Fills",
         "description": "Retrieve your portfolio"
+      },
+      {
+        "name": "Get Settlements",
+        "description": "Retrieve your portfolio settlement history from Kalshi"
       },
       {
         "name": "Get Series by Ticker",
         "description": "Retrieve details of a specific market series by ticker"
       },
       {
+        "name": "Get Series List",
+        "description": "Retrieve a list of market series from Kalshi with optional filtering"
+      },
+      {
         "name": "Get Exchange Status",
         "description": "Retrieve the current status of the Kalshi exchange (trading and exchange activity)"
+      },
+      {
+        "name": "Get Exchange Schedule",
+        "description": "Retrieve the Kalshi exchange trading schedule and maintenance windows"
+      },
+      {
+        "name": "Get Exchange Announcements",
+        "description": "Retrieve exchange-wide announcements from Kalshi"
       },
       {
         "name": "Create Order",
@@ -7933,7 +7953,7 @@
         "description": "Modify the price or quantity of an existing order on Kalshi"
       }
     ],
-    "operationCount": 17,
+    "operationCount": 22,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -8822,7 +8842,7 @@
     "slug": "luma",
     "name": "Luma",
     "description": "Manage events and guests on Luma",
-    "longDescription": "Integrate Luma into the workflow. Can create events, update events, get event details, list calendar events, get guest lists, and add guests to events.",
+    "longDescription": "Integrate Luma into the workflow. Can create, update, look up, and cancel events, list calendar events, manage guest lists (get one or many, add guests, send invites, and update approval status).",
     "bgColor": "#000000",
     "iconName": "LumaIcon",
     "docsUrl": "https://docs.sim.ai/tools/luma",
@@ -8844,15 +8864,35 @@
         "description": "List events from your Luma calendar with optional date range filtering, sorting, and pagination."
       },
       {
+        "name": "Lookup Event",
+        "description": "Look up an event by its public URL or event ID to resolve its canonical ID, API ID, and approval status."
+      },
+      {
+        "name": "Cancel Event",
+        "description": "Cancel a Luma event. This is irreversible and notifies all registered guests. Requires a cancellation token obtained from the Request Event Cancellation endpoint."
+      },
+      {
         "name": "Get Guests",
         "description": "Retrieve the guest list for a Luma event with optional filtering by approval status, sorting, and pagination."
       },
       {
+        "name": "Get Guest",
+        "description": "Retrieve a single guest"
+      },
+      {
         "name": "Add Guests",
         "description": "Add guests to a Luma event by email. Guests are added with Going (approved) status and receive one ticket of the default ticket type."
+      },
+      {
+        "name": "Send Invites",
+        "description": "Send email invitations to guests for a Luma event. Unlike Add Guests (which registers guests directly), this emails an invite that recipients can accept."
+      },
+      {
+        "name": "Update Guest Status",
+        "description": "Update a guest"
       }
     ],
-    "operationCount": 6,
+    "operationCount": 11,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -12102,9 +12142,65 @@
       {
         "name": "List Playbooks",
         "description": "List playbooks from Rootly with pagination support."
+      },
+      {
+        "name": "Mitigate Incident",
+        "description": "Transition a Rootly incident to the mitigated state."
+      },
+      {
+        "name": "Resolve Incident",
+        "description": "Transition a Rootly incident to the resolved state."
+      },
+      {
+        "name": "Assign Incident Role",
+        "description": "Assign an incident role (e.g. commander) to a user on a Rootly incident."
+      },
+      {
+        "name": "Unassign Incident Role",
+        "description": "Remove an incident role assignment from a user on a Rootly incident."
+      },
+      {
+        "name": "Add Subscribers",
+        "description": "Subscribe users to a Rootly incident so they receive updates."
+      },
+      {
+        "name": "Remove Subscribers",
+        "description": "Unsubscribe users from a Rootly incident."
+      },
+      {
+        "name": "Create Status Page Event",
+        "description": "Post a public status page update for a Rootly incident."
+      },
+      {
+        "name": "Update Action Item",
+        "description": "Update a Rootly incident action item (status, priority, assignee, etc.)."
+      },
+      {
+        "name": "Delete Action Item",
+        "description": "Delete a Rootly incident action item."
+      },
+      {
+        "name": "Snooze Alert",
+        "description": "Snooze a Rootly alert for a set number of minutes."
+      },
+      {
+        "name": "Escalate Alert",
+        "description": "Escalate a Rootly alert, optionally to a specific escalation policy or level."
+      },
+      {
+        "name": "List Incident Events",
+        "description": "List the timeline events for a Rootly incident."
+      },
+      {
+        "name": "Run Workflow",
+        "description": "Trigger a Rootly automation workflow, optionally scoped to an incident or alert."
+      },
+      {
+        "name": "List Incident Roles",
+        "description": "List incident roles configured in Rootly (e.g. commander, scribe)."
       }
     ],
-    "operationCount": 27,
+    "operationCount": 41,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",

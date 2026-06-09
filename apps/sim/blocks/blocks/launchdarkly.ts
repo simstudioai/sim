@@ -205,7 +205,7 @@ export const LaunchDarklyBlock: BlockConfig = {
       id: 'spec',
       title: 'Filter',
       type: 'short-input',
-      placeholder: 'resourceType:flag',
+      placeholder: 'proj/*:env/*:flag/*',
       condition: { field: 'operation', value: 'get_audit_log' },
       mode: 'advanced',
       wandConfig: {
@@ -213,7 +213,7 @@ export const LaunchDarklyBlock: BlockConfig = {
         prompt: `Generate a LaunchDarkly audit log resource specifier filter based on the user's description.
 
 Resource specifier format: type/key:type/key:type/key, where each segment narrows the scope.
-- All flag changes account-wide: resourceType:flag
+- All flag changes account-wide: proj/*:env/*:flag/*
 - All changes in one project: proj/my-project
 - One flag in one environment: proj/my-project:env/production:flag/my-flag
 - All flags in an environment: proj/my-project:env/production:flag/*

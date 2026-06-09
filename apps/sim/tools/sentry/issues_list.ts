@@ -59,7 +59,7 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       required: false,
       visibility: 'user-only',
       description:
-        'Filter by issue status: unresolved, resolved, or ignored (mapped to Sentry\'s "archived" search token)',
+        'Filter by issue status: unresolved, resolved, or ignored. The legacy "ignored"/"muted" values map to Sentry\'s current "archived" search token.',
     },
     sort: {
       type: 'string',
@@ -80,7 +80,8 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
 
       let searchQuery = params.query && params.query !== null ? params.query.trim() : ''
       if (params.status && params.status !== null && params.status !== '') {
-        const statusToken = params.status === 'ignored' ? 'archived' : params.status
+        const statusToken =
+          params.status === 'ignored' || params.status === 'muted' ? 'archived' : params.status
         searchQuery = searchQuery ? `${searchQuery} is:${statusToken}` : `is:${statusToken}`
       }
       queryParams.push(`query=${encodeURIComponent(searchQuery)}`)
@@ -98,7 +99,8 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       }
 
       if (params.sort && params.sort !== null && params.sort !== '') {
-        queryParams.push(`sort=${encodeURIComponent(params.sort)}`)
+        const sortValue = params.sort === 'priority' ? 'trends' : params.sort
+        queryParams.push(`sort=${encodeURIComponent(sortValue)}`)
       }
 
       return queryParams.length > 0 ? `${baseUrl}?${queryParams.join('&')}` : baseUrl

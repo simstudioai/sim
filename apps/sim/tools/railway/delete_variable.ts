@@ -1,9 +1,9 @@
+import { filterUndefined } from '@sim/utils/object'
 import type {
   RailwayDeleteVariableParams,
   RailwayDeleteVariableResponse,
 } from '@/tools/railway/types'
 import {
-  compactVariables,
   optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
@@ -79,7 +79,7 @@ export const railwayDeleteVariableTool: ToolConfig<
           projectId: params.projectId.trim(),
           environmentId: params.environmentId.trim(),
           name: params.name.trim(),
-          ...compactVariables({
+          ...filterUndefined({
             serviceId: optionalString(params.serviceId),
           }),
         },

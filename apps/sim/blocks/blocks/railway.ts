@@ -823,7 +823,7 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
     },
     members: {
       type: 'json',
-      description: 'Railway project members [{id, role, user{id, name, email}}]',
+      description: 'Railway project members [{id, role, name, email, avatar}]',
     },
     environment: { type: 'json', description: 'Railway environment (id, name)' },
     service: { type: 'json', description: 'Railway service (id, name)' },

@@ -10,10 +10,7 @@ import {
 import type { ToolConfig } from '@/tools/types'
 
 interface RailwayRollbackDeploymentData {
-  deploymentRollback?: {
-    id: string
-    status: string
-  }
+  deploymentRollback?: boolean
 }
 
 export const railwayRollbackDeploymentTool: ToolConfig<
@@ -54,10 +51,7 @@ export const railwayRollbackDeploymentTool: ToolConfig<
     body: (params) => ({
       query: `
         mutation RollbackDeployment($id: String!) {
-          deploymentRollback(id: $id) {
-            id
-            status
-          }
+          deploymentRollback(id: $id)
         }
       `,
       variables: {
@@ -68,28 +62,22 @@ export const railwayRollbackDeploymentTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await parseRailwayGraphqlResponse<RailwayRollbackDeploymentData>(response)
-    const deployment = data.data?.deploymentRollback
-    if (!deployment) throw new Error('Railway did not return a rollback result')
+    if (typeof data.data?.deploymentRollback !== 'boolean') {
+      throw new Error('Railway did not return a rollback result')
+    }
 
     return {
       success: true,
       output: {
-        deployment: {
-          id: deployment.id,
-          status: deployment.status,
-        },
+        success: data.data.deploymentRollback,
       },
     }
   },
 
   outputs: {
-    deployment: {
-      type: 'object',
-      description: 'Deployment created by the rollback',
-      properties: {
-        id: { type: 'string', description: 'Deployment ID' },
-        status: { type: 'string', description: 'Deployment status' },
-      },
+    success: {
+      type: 'boolean',
+      description: 'Whether the rollback was triggered',
     },
   },
 }

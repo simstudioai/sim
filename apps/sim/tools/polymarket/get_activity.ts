@@ -71,7 +71,7 @@ export const polymarketGetActivityTool: ToolConfig<
       type: 'string',
       required: false,
       description:
-        'Activity type filter: TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION, MAKER_REBATE',
+        'Activity type filter: TRADE, SPLIT, MERGE, REDEEM, REWARD, CONVERSION, MAKER_REBATE, REFERRAL_REWARD',
       visibility: 'user-or-llm',
     },
     start: {

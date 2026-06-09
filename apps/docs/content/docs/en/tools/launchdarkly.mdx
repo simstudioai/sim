@@ -106,7 +106,7 @@ List audit log entries from your LaunchDarkly account.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | LaunchDarkly API key |
 | `limit` | number | No | Maximum number of entries to return \(default 10, max 20\) |
-| `spec` | string | No | Resource specifier filter \(e.g. "resourceType:flag" for all flag changes, or "proj/default:env/production:flag/my-flag" for one flag in one environment\) |
+| `spec` | string | No | Resource specifier filter \(e.g. "proj/*:env/*:flag/*" for all flag changes, or "proj/default:env/production:flag/my-flag" for one flag in one environment\) |
 
 #### Output
 
