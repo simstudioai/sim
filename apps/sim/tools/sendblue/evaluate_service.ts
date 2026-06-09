@@ -31,7 +31,7 @@ export const sendblueEvaluateServiceTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(`${SENDBLUE_API_BASE_URL}/api/evaluate-service`)
-      url.searchParams.set('number', params.number)
+      url.searchParams.set('number', params.number.trim())
       return url.toString()
     },
     method: 'GET',

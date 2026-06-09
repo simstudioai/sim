@@ -28,7 +28,7 @@ export interface SendblueSendMessageParams extends SendblueBaseParams {
   from_number: string
   content?: string
   media_url?: string
-  send_style?: string
+  send_style?: SendblueSendStyle
   status_callback?: string
 }
 
@@ -37,7 +37,7 @@ export interface SendblueSendGroupMessageParams extends SendblueBaseParams {
   from_number: string
   content?: string
   media_url?: string
-  send_style?: string
+  send_style?: SendblueSendStyle
   group_id?: string
   status_callback?: string
 }

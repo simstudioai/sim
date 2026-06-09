@@ -27,7 +27,7 @@ export const sendblueGetMessageTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${SENDBLUE_API_BASE_URL}/api/v2/messages/${encodeURIComponent(params.message_id)}`,
+      `${SENDBLUE_API_BASE_URL}/api/v2/messages/${encodeURIComponent(params.message_id.trim())}`,
     method: 'GET',
     headers: (params) => sendblueHeaders(params),
   },
