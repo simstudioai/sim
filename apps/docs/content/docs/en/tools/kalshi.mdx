@@ -177,10 +177,16 @@ Retrieve a list of events from Kalshi with optional filtering (V2 - exact API re
 |   ↳ `strike_date` | string | Strike/settlement date |
 |   ↳ `status` | string | Event status |
 | `milestones` | array | Array of milestone objects \(if requested\) |
-|   ↳ `event_ticker` | string | Event ticker |
-|   ↳ `milestone_type` | string | Milestone type |
-|   ↳ `milestone_date` | string | Milestone date |
-|   ↳ `milestone_title` | string | Milestone title |
+|   ↳ `id` | string | Milestone ID |
+|   ↳ `category` | string | Milestone category |
+|   ↳ `type` | string | Milestone type |
+|   ↳ `title` | string | Milestone title |
+|   ↳ `start_date` | string | Milestone start date \(ISO 8601\) |
+|   ↳ `end_date` | string | Milestone end date \(ISO 8601\) |
+|   ↳ `notification_message` | string | Notification message |
+|   ↳ `primary_event_tickers` | array | Primary event tickers |
+|   ↳ `related_event_tickers` | array | Related event tickers |
+|   ↳ `last_updated_ts` | string | Last updated time \(ISO 8601\) |
 | `cursor` | string | Pagination cursor for fetching more results |
 
 ### `kalshi_get_event`
