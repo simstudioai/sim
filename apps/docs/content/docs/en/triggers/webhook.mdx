@@ -50,6 +50,18 @@ The request is parsed and made available to the rest of the workflow — the bod
 Validate and sanitize incoming webhook data before you use it downstream.
 </Callout>
 
+## Test it
+
+Send a request to the webhook URL with `curl` (or Postman) and watch the run appear in [Logs](/logs-debugging):
+
+```bash
+curl -X POST "<your webhook URL>" \
+  -H "Content-Type: application/json" \
+  -d '{"event": "test", "userId": "123"}'
+```
+
+Open the run to confirm the payload landed the way downstream blocks expect — that `<webhook.userId>` resolves, and that authentication rejects a request without the token if you turned it on.
+
 ## Service triggers
 
 Many integrations can act as triggers too: toggle **Use as Trigger** on a service block (Slack, GitHub, Stripe, and more) to register a service-specific webhook with event filtering and structured data — no generic endpoint to wire up.

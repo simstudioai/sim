@@ -20,6 +20,8 @@ A variable is different from a **connection tag**. A variable is a value you def
 | `<variable.obj.prop>` | A nested property of an object variable | `<variable.config.retryCount>` |
 | `{{KEY}}` | An environment variable | `{{OPENAI_API_KEY}}` |
 | `<blockname.field>` | A block output (connection tag) | `<agent.content>` |
+| `<loop.index>` / `<loop.currentItem>` | The current iteration, inside a [Loop](/blocks/loop) container | `<loop.currentItem>` |
+| `<parallel.index>` / `<parallel.currentItem>` | The current instance, inside a [Parallel](/blocks/parallel) container | `<parallel.index>` |
 
 Type `<` in any block text field to open the picker and browse the variables and outputs you can reference.
 
