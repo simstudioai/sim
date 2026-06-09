@@ -19,6 +19,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { PreviewBlockNode } from '@/components/workflow-preview/preview-block-node'
+import { PreviewContainerNode } from '@/components/workflow-preview/preview-container-node'
 import {
   EASE_OUT,
   type PreviewWorkflow,
@@ -84,7 +85,10 @@ function PreviewEdge({
   )
 }
 
-const NODE_TYPES: NodeTypes = { previewBlock: PreviewBlockNode }
+const NODE_TYPES: NodeTypes = {
+  previewBlock: PreviewBlockNode,
+  previewContainer: PreviewContainerNode,
+}
 const EDGE_TYPES: EdgeTypes = { previewEdge: PreviewEdge }
 const PRO_OPTIONS = { hideAttribution: true }
 const FIT_VIEW_OPTIONS = { padding: 0.25, maxZoom: 1 } as const

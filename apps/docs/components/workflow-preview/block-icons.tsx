@@ -1,5 +1,5 @@
 import type { SVGProps } from 'react'
-import { Database, Repeat, Table } from 'lucide-react'
+import { Database, Layers, Repeat, Table } from 'lucide-react'
 import {
   ApiIcon,
   ChartBarIcon,
@@ -97,6 +97,7 @@ export const BLOCK_ICONS: Record<string, React.ComponentType<{ className?: strin
   schedule: ScheduleIcon,
   rss: RssIcon,
   loop: Repeat,
+  parallel: Layers,
   knowledge_base: Database,
   knowledge: Database,
   table: Table,

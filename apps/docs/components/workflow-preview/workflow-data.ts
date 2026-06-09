@@ -23,6 +23,10 @@ export interface PreviewBlock {
   position: { x: number; y: number }
   hideTargetHandle?: boolean
   hideSourceHandle?: boolean
+  /** When set, the block renders as a Loop/Parallel container sized to hold its children. */
+  size?: { width: number; height: number }
+  /** Id of the container block this block sits inside. Its position is relative to the container. */
+  parentId?: string
 }
 
 /**
@@ -32,7 +36,7 @@ export interface PreviewWorkflow {
   id: string
   name: string
   blocks: PreviewBlock[]
-  edges: Array<{ id: string; source: string; target: string }>
+  edges: Array<{ id: string; source: string; target: string; sourceHandle?: string }>
 }
 
 export const BLOCK_STAGGER = 0.12
@@ -63,29 +67,37 @@ export function toReactFlowElements(
   const hasHighlight = Boolean(highlightBlock || highlightEdge)
   const blockIndexMap = new Map(workflow.blocks.map((b, i) => [b.id, i]))
 
-  const nodes: Node[] = workflow.blocks.map((block, index) => ({
-    id: block.id,
-    type: 'previewBlock',
-    position: block.position,
-    data: {
-      name: block.name,
-      blockType: block.type,
-      bgColor: block.bgColor,
-      rows: block.rows,
-      tools: block.tools,
-      hideTargetHandle: block.hideTargetHandle,
-      hideSourceHandle: block.hideSourceHandle,
-      index,
-      animate,
-      isHighlighted: highlightBlock === block.id,
-      isDimmed: hasHighlight && highlightBlock !== block.id,
-    },
-    draggable: true,
-    selectable: false,
-    connectable: false,
-    sourcePosition: Position.Right,
-    targetPosition: Position.Left,
-  }))
+  const nodes: Node[] = workflow.blocks.map((block, index) => {
+    const isContainer = Boolean(block.size)
+    return {
+      id: block.id,
+      type: isContainer ? 'previewContainer' : 'previewBlock',
+      position: block.position,
+      ...(block.size ? { style: { width: block.size.width, height: block.size.height } } : {}),
+      ...(block.parentId ? { parentNode: block.parentId, extent: 'parent' as const } : {}),
+      data: {
+        name: block.name,
+        blockType: block.type,
+        bgColor: block.bgColor,
+        rows: block.rows,
+        tools: block.tools,
+        hideTargetHandle: block.hideTargetHandle,
+        hideSourceHandle: block.hideSourceHandle,
+        index,
+        animate,
+        isHighlighted: highlightBlock === block.id,
+        isDimmed: hasHighlight && highlightBlock !== block.id,
+      },
+      draggable: true,
+      selectable: false,
+      connectable: false,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    }
+  })
+
+  // React Flow requires a parent node to appear before its children in the array.
+  nodes.sort((a, b) => (a.parentNode ? 1 : 0) - (b.parentNode ? 1 : 0))
 
   const edges: Edge[] = workflow.edges.map((e) => {
     const sourceIndex = blockIndexMap.get(e.source) ?? 0
@@ -101,7 +113,7 @@ export function toReactFlowElements(
         ...(isEdgeHighlight ? EDGE_STYLE_HIGHLIGHT : EDGE_STYLE),
         opacity: dimmed ? 0.35 : 1,
       },
-      sourceHandle: 'source',
+      sourceHandle: e.sourceHandle ?? 'source',
       targetHandle: 'target',
       data: {
         animate,

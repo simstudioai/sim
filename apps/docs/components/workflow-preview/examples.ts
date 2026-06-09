@@ -1389,3 +1389,53 @@ export const WORKFLOW_CALL_WORKFLOW: PreviewWorkflow = {
     { id: 'child-agent', source: 'child', target: 'agent' },
   ],
 }
+
+/** Loop example: run a block once per item, then use the collected results. */
+export const LOOP_WORKFLOW: PreviewWorkflow = {
+  id: 'loop-foreach',
+  name: 'Score each review',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 95 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Reviews' }],
+    },
+    {
+      id: 'loop',
+      name: 'Loop',
+      type: 'loop',
+      bgColor: '#FAFAF9',
+      position: { x: 340, y: 30 },
+      size: { width: 430, height: 170 },
+      rows: [],
+    },
+    {
+      id: 'score',
+      name: 'Score',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 150, y: 62 },
+      parentId: 'loop',
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Rate <loop.currentItem>' }],
+    },
+    {
+      id: 'summary',
+      name: 'Summary',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 860, y: 95 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Summarize <loop.results>' }],
+    },
+  ],
+  edges: [
+    { id: 'start-loop', source: 'start', target: 'loop' },
+    { id: 'loop-score', source: 'loop', target: 'score', sourceHandle: 'loop-start-source' },
+    { id: 'loop-summary', source: 'loop', target: 'summary' },
+  ],
+}

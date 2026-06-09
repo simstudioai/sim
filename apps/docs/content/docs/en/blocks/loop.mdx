@@ -1,10 +1,13 @@
 ---
 title: Loop
+description: The Loop block is a container that runs the blocks inside it repeatedly — over a collection, a count, or while a condition holds.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { WorkflowPreview, LOOP_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
 The Loop block is a container that executes blocks repeatedly. Iterate over collections, repeat operations a fixed number of times, or continue while a condition is met.
@@ -164,22 +167,15 @@ There's an important distinction between referencing loop data from **inside** v
   </Tab>
 </Tabs>
 
-## Example Use Cases
+## Examples
 
-**Processing API Results** - ForEach loop processes customer records from an API
-```
-API (Fetch) → Loop (ForEach) → Agent (Analyze) → Function (Store)
-```
+<WorkflowPreview workflow={LOOP_WORKFLOW} height={340} />
 
-**Iterative Content Generation** - For loop generates multiple content variations
-```
-Loop (5x) → Agent (Generate) → Evaluator (Score) → Function (Select Best)
-```
+A ForEach loop scores each review and collects the results; after the loop finishes, an Agent summarizes `<loop.results>`. The same container holds the blocks for any loop type:
 
-**Counter with While Loop** - While loop processes items with counter
-```
-Variables (i=0) → Loop (While i<10) → Agent (Process) → Variables (i++)
-```
+- **Process API results** — `API (Fetch) → Loop (ForEach) → Agent (Analyze) → Function (Store)`
+- **Generate variations** — `Loop (5×) → Agent (Generate) → Evaluator (Score) → Function (Select best)`
+- **Counter with While** — `Variables (i=0) → Loop (While i<10) → Agent (Process) → Variables (i++)`
 
 ## Advanced Features
 
