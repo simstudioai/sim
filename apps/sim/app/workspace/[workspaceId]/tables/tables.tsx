@@ -455,10 +455,9 @@ export function Tables() {
               useImportTrayStore.getState().cancel(result.tableId)
               void cancelTableImport(workspaceId, result.tableId, result.importId).catch(() => {})
             }
-          } catch (err) {
+          } catch {
+            // The hook's onError surfaces the toast; just clear the tray indicator here.
             useImportTrayStore.getState().endUpload(pendingId)
-            toast.error(`Failed to import ${file.name}`)
-            logger.error('Error uploading CSV:', err)
           }
         }
 

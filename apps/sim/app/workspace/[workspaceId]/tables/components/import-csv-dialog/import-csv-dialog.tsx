@@ -325,10 +325,9 @@ export function ImportCsvDialog({
               void cancelTableImport(workspaceId, table.id, data.importId).catch(() => {})
             }
           },
-          onError: (err) => {
+          onError: () => {
+            // The hook's onError surfaces the toast; just clear the tray indicator here.
             useImportTrayStore.getState().endUpload(table.id)
-            toast.error(getErrorMessage(err, 'Failed to start import'))
-            logger.error('Async CSV import failed to start', err)
           },
         }
       )
