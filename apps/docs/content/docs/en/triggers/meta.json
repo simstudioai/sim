@@ -1,13 +1,7 @@
 {
+  "title": "Integration triggers",
   "pages": [
     "index",
-    "---Native triggers---",
-    "start",
-    "schedule",
-    "webhook",
-    "rss",
-    "table",
-    "---Integration triggers---",
     "airtable",
     "ashby",
     "attio",
