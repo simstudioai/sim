@@ -1,11 +1,19 @@
 ---
 title: Human in the Loop
+description: The Human in the Loop block pauses a run for human approval, then resumes with their input.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
-import { BlockPreview } from '@/components/workflow-preview'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  HITL_APPROVAL_WORKFLOW,
+  HITL_MULTISTAGE_WORKFLOW,
+  HITL_VALIDATE_WORKFLOW,
+} from '@/components/workflow-preview'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -206,27 +214,25 @@ When triggering a workflow via the execute API (`POST /api/workflows/{id}/execut
   </Tab>
 </Tabs>
 
-## Common Use Cases
+## Examples
 
-**Content Approval** - Review AI-generated content before publishing
-```
-Agent → Human in the Loop → API (Publish)
-```
+### Approve content before it ships
 
-**Multi-Stage Approvals** - Chain multiple approval steps for high-stakes decisions
-```
-Agent → Human in the Loop (Manager) → Human in the Loop (Director) → Execute
-```
+<WorkflowPreview workflow={HITL_APPROVAL_WORKFLOW} />
 
-**Data Validation** - Verify extracted data before processing
-```
-Agent (Extract) → Human in the Loop (Validate) → Function (Process)
-```
+The run pauses at the Human in the Loop block until someone approves; on resume, the API publishes. The same gate works before any action, like sending a customer email.
 
-**Quality Control** - Review AI outputs before sending to customers
-```
-Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
-```
+### Chain multiple approvals
+
+<WorkflowPreview workflow={HITL_MULTISTAGE_WORKFLOW} />
+
+For a high-stakes change, chain two approval steps — a manager, then a director — before the workflow executes.
+
+### Verify extracted data
+
+<WorkflowPreview workflow={HITL_VALIDATE_WORKFLOW} />
+
+A reviewer checks the data an Agent extracted before a Function processes it.
 
 ## Block Outputs
 

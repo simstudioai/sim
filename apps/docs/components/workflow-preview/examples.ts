@@ -1146,3 +1146,129 @@ export const GUARDRAILS_PII_WORKFLOW: PreviewWorkflow = {
     { id: 'guardrails-condition', source: 'guardrails', target: 'condition' },
   ],
 }
+
+/** HITL example: a human approves AI content before it ships. */
+export const HITL_APPROVAL_WORKFLOW: PreviewWorkflow = {
+  id: 'hitl-approval',
+  name: 'Approve before publish',
+  blocks: [
+    {
+      id: 'draft',
+      name: 'Draft',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Messages', value: 'Write the post' }],
+    },
+    {
+      id: 'approve',
+      name: 'Human in the Loop',
+      type: 'human_in_the_loop',
+      bgColor: '#10B981',
+      position: { x: 300, y: 0 },
+      rows: [
+        { title: 'Display', value: '<draft.content>' },
+        { title: 'Resume', value: 'approved' },
+      ],
+    },
+    {
+      id: 'publish',
+      name: 'Publish',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Method', value: 'POST' }],
+    },
+  ],
+  edges: [
+    { id: 'draft-approve', source: 'draft', target: 'approve' },
+    { id: 'approve-publish', source: 'approve', target: 'publish' },
+  ],
+}
+
+/** HITL example: chain two approvals for a high-stakes change. */
+export const HITL_MULTISTAGE_WORKFLOW: PreviewWorkflow = {
+  id: 'hitl-multistage',
+  name: 'Two-stage approval',
+  blocks: [
+    {
+      id: 'agent',
+      name: 'Agent',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Messages', value: 'Draft the change' }],
+    },
+    {
+      id: 'manager',
+      name: 'Manager',
+      type: 'human_in_the_loop',
+      bgColor: '#10B981',
+      position: { x: 280, y: 0 },
+      rows: [{ title: 'Resume', value: 'approved' }],
+    },
+    {
+      id: 'director',
+      name: 'Director',
+      type: 'human_in_the_loop',
+      bgColor: '#10B981',
+      position: { x: 580, y: 0 },
+      rows: [{ title: 'Resume', value: 'approved' }],
+    },
+    {
+      id: 'execute',
+      name: 'Execute',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 880, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Code', value: 'apply()' }],
+    },
+  ],
+  edges: [
+    { id: 'agent-manager', source: 'agent', target: 'manager' },
+    { id: 'manager-director', source: 'manager', target: 'director' },
+    { id: 'director-execute', source: 'director', target: 'execute' },
+  ],
+}
+
+/** HITL example: a human verifies extracted data before processing. */
+export const HITL_VALIDATE_WORKFLOW: PreviewWorkflow = {
+  id: 'hitl-validate',
+  name: 'Verify before processing',
+  blocks: [
+    {
+      id: 'extract',
+      name: 'Extract',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Messages', value: 'Extract the fields' }],
+    },
+    {
+      id: 'validate',
+      name: 'Human in the Loop',
+      type: 'human_in_the_loop',
+      bgColor: '#10B981',
+      position: { x: 300, y: 0 },
+      rows: [{ title: 'Display', value: '<extract.content>' }],
+    },
+    {
+      id: 'process',
+      name: 'Process',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Code', value: 'process()' }],
+    },
+  ],
+  edges: [
+    { id: 'extract-validate', source: 'extract', target: 'validate' },
+    { id: 'validate-process', source: 'validate', target: 'process' },
+  ],
+}
