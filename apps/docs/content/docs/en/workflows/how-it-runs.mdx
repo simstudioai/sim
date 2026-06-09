@@ -20,7 +20,7 @@ Here the Customer Support and Deep Researcher agents both run right after the St
 
 ## A block waits for all its inputs
 
-When several blocks feed into one, that block waits for all of them to finish, then runs once with each of their outputs available to read. You don't merge them yourself.
+When several blocks feed into one, that block waits for every feeder that is going to run, then runs once with each of their outputs available to read. A feeder on a branch that wasn't taken doesn't hold it up. You don't merge the outputs yourself.
 
 <Image src="/static/execution/combination.png" alt="A Function block running after two agent blocks complete" width={800} height={500} />
 
@@ -32,7 +32,7 @@ A workflow can split. A [Condition](/blocks/condition) block branches on an expl
 
 <Image src="/static/execution/routing.png" alt="A workflow branching by condition and by router" width={800} height={500} />
 
-To repeat work, a [Loop](/blocks/loop) block runs its inner blocks over a list or a count, and a [Parallel](/blocks/parallel) block runs them for several items at once.
+To repeat work, a [Loop](/blocks/loop) block runs its inner blocks over a list, a count, or while a condition holds, and a [Parallel](/blocks/parallel) block runs them for several items at once.
 
 <Callout type="info">
 A workflow can call other workflows, through a Workflow block, an MCP tool, or an API block. Sim tracks the call chain and stops a run that exceeds 25 hops, so workflows that call each other can't loop forever.
@@ -40,7 +40,7 @@ A workflow can call other workflows, through a Workflow block, an MCP tool, or a
 
 ## Watching a run
 
-While a workflow runs, the editor shows each block's state live: queued, running, done, or errored. A failed block stops its own path but leaves independent paths running. Every run is recorded, so you can open the [logs](/logs-debugging) to see what each block received and returned after it finishes.
+While a workflow runs, the editor shows each block's state live: queued, running, done, or errored. When a block fails, the run fails with it — blocks already running finish, but nothing new starts. The exception is a block with its error port connected: the failure routes down the [error path](/workflows/connections) and the run continues. Every run is recorded, so you can open the [logs](/logs-debugging) to see what each block received and returned after it finishes.
 
 ## Next
 
