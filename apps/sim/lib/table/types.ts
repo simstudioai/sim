@@ -7,7 +7,12 @@ import type { COLUMN_TYPES } from './constants'
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
 
-/** Row data mapping column names to values. */
+/**
+ * Row data mapping **column id** → value at rest (in `user_table_rows.data`).
+ * The two name-translating boundaries (public v1 API, mothership tool) and CSV
+ * key by column name on the wire; everything else uses ids. Resolve a column's
+ * storage key with `getColumnId` from `./column-keys`.
+ */
 export type RowData = Record<string, JsonValue>
 
 export type SortDirection = 'asc' | 'desc'
@@ -22,13 +27,22 @@ export interface ColumnOption {
 }
 
 export interface ColumnDefinition {
+  /**
+   * Stable storage key for this column. Row data, metadata, workflow-group
+   * refs, and filter/sort all key on this id; `name` is a pure display label
+   * that can change freely (rename is metadata-only). Absent only on legacy
+   * columns before the backfill — `getColumnId` falls back to `name`, which is
+   * the key those rows were already written under. New columns get a generated
+   * `col_…` from `generateColumnId`.
+   */
+  id?: string
   name: string
   type: (typeof COLUMN_TYPES)[number]
   required?: boolean
   unique?: boolean
   /**
    * When set, this column is one of a workflow group's outputs. The value in
-   * `row.data[name]` is populated by the group's per-cell run.
+   * `row.data[getColumnId(col)]` is populated by the group's per-cell run.
    */
   workflowGroupId?: string
 }
@@ -41,16 +55,22 @@ export interface WorkflowGroupOutput {
   path: string
   /** Enrichment output id this column receives (enrichment groups only). */
   outputId?: string
-  /** Plain column in `schema.columns` that receives the produced value. */
+  /**
+   * Stable **column id** (`getColumnId`) of the plain column in
+   * `schema.columns` that receives the produced value. Despite the field name,
+   * this holds the column id, not its display name — so a column rename never
+   * touches this ref. Legacy values equal the column name (== id pre-backfill).
+   */
   columnName: string
 }
 
 export interface WorkflowGroupDependencies {
   /**
-   * Columns that must be non-empty before this group runs. Workflow output
-   * columns count too — once an upstream group fills its output column, any
-   * downstream group depending on that column becomes eligible. The user
-   * model is uniform: deps are columns, not group-completion edges.
+   * Stable **column ids** (`getColumnId`) that must be non-empty before this
+   * group runs. Workflow output columns count too — once an upstream group
+   * fills its output column, any downstream group depending on that column
+   * becomes eligible. The user model is uniform: deps are columns, not
+   * group-completion edges. Legacy values equal column names (== id pre-backfill).
    */
   columns?: string[]
 }
@@ -74,7 +94,11 @@ export type WorkflowGroupDeploymentMode = 'live' | 'deployed'
 export interface WorkflowGroupInputMapping {
   /** `inputFormat` field name on the workflow's Start block. */
   inputName: string
-  /** Table column whose per-row value feeds that input. */
+  /**
+   * Stable **column id** (`getColumnId`) whose per-row value feeds that input.
+   * Despite the field name, this holds the column id, not its display name.
+   * Legacy values equal the column name (== id pre-backfill).
+   */
   columnName: string
 }
 
@@ -159,9 +183,11 @@ export interface TableSchema {
  * is enforced at the trigger.dev queue layer, not via metadata.
  */
 export interface TableMetadata {
+  /** Pixel widths keyed by **column id** (`getColumnId`). */
   columnWidths?: Record<string, number>
+  /** Visible left-to-right order as **column ids** (`getColumnId`). */
   columnOrder?: string[]
-  /** Logical column names that are pinned to the left while scrolling horizontally. */
+  /** **Column ids** pinned to the left while scrolling horizontally. */
   pinnedColumns?: string[]
 }
 

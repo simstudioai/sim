@@ -6,6 +6,7 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { getColumnId } from './column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
 import type { ColumnDefinition, JsonValue, RowData, TableSchema, ValidationResult } from './types'
 
@@ -207,7 +208,7 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
   const errors: string[] = []
 
   for (const column of schema.columns) {
-    const value = data[column.name]
+    const value = data[getColumnId(column)]
 
     if (column.required && (value === undefined || value === null)) {
       errors.push(`Missing required field: ${column.name}`)
@@ -317,14 +318,15 @@ function coerceValueToColumnType(
  */
 export function coerceRowValues(data: RowData, schema: TableSchema): void {
   for (const column of schema.columns) {
-    const value = data[column.name]
+    const key = getColumnId(column)
+    const value = data[key]
     if (value === null || value === undefined) continue
 
     const coerced = coerceValueToColumnType(value, column.type)
     if (coerced.ok) {
-      data[column.name] = coerced.value
+      data[key] = coerced.value
     } else if (!column.required) {
-      data[column.name] = null
+      data[key] = null
     }
   }
 }
@@ -373,13 +375,14 @@ export function validateUniqueConstraints(
   const uniqueColumns = getUniqueColumns(schema)
 
   for (const column of uniqueColumns) {
-    const value = data[column.name]
+    const key = getColumnId(column)
+    const value = data[key]
     if (value === null || value === undefined) continue
 
     const duplicate = existingRows.find((row) => {
       if (excludeRowId && row.id === excludeRowId) return false
 
-      const existingValue = row.data[column.name]
+      const existingValue = row.data[key]
       if (typeof value === 'string' && typeof existingValue === 'string') {
         return value.toLowerCase() === existingValue.toLowerCase()
       }
@@ -420,25 +423,26 @@ export async function checkUniqueConstraintsDb(
   const conditions = []
 
   for (const column of uniqueColumns) {
-    if (!NAME_PATTERN.test(column.name)) {
-      throw new Error(`Invalid column name: ${column.name}`)
+    const key = getColumnId(column)
+    if (!NAME_PATTERN.test(key)) {
+      throw new Error(`Invalid column id: ${key}`)
     }
 
-    const value = data[column.name]
+    const value = data[key]
     if (value === null || value === undefined) continue
 
     if (typeof value === 'string') {
       conditions.push({
         column,
         value,
-        sql: sql`lower(${userTableRows.data}->>${sql.raw(`'${column.name}'`)}) = ${value.toLowerCase()}`,
+        sql: sql`lower(${userTableRows.data}->>${sql.raw(`'${key}'`)}) = ${value.toLowerCase()}`,
       })
     } else {
       // For other types, use direct JSONB comparison
       conditions.push({
         column,
         value,
-        sql: sql`(${userTableRows.data}->${sql.raw(`'${column.name}'`)})::jsonb = ${JSON.stringify(value)}::jsonb`,
+        sql: sql`(${userTableRows.data}->${sql.raw(`'${key}'`)})::jsonb = ${JSON.stringify(value)}::jsonb`,
       })
     }
   }
@@ -499,18 +503,19 @@ export async function checkBatchUniqueConstraintsDb(
     return { valid: true, errors: [] }
   }
 
-  // Build a set of all unique values for each column to check against DB
+  // Build a set of all unique values for each column to check against DB.
+  // Keyed by the stable column id (the row-data storage key).
   const valuesByColumn = new Map<string, { values: Set<string>; column: ColumnDefinition }>()
 
   for (const column of uniqueColumns) {
-    valuesByColumn.set(column.name, { values: new Set(), column })
+    valuesByColumn.set(getColumnId(column), { values: new Set(), column })
   }
 
   // Collect all unique values from the batch and check for duplicates within the batch
-  const batchValueMap = new Map<string, Map<string, number>>() // columnName -> (normalizedValue -> firstRowIndex)
+  const batchValueMap = new Map<string, Map<string, number>>() // columnId -> (normalizedValue -> firstRowIndex)
 
   for (const column of uniqueColumns) {
-    batchValueMap.set(column.name, new Map())
+    batchValueMap.set(getColumnId(column), new Map())
   }
 
   for (let i = 0; i < rows.length; i++) {
@@ -518,14 +523,15 @@ export async function checkBatchUniqueConstraintsDb(
     const currentRowErrors: string[] = []
 
     for (const column of uniqueColumns) {
-      const value = rowData[column.name]
+      const key = getColumnId(column)
+      const value = rowData[key]
       if (value === null || value === undefined) continue
 
       const normalizedValue =
         typeof value === 'string' ? value.toLowerCase() : JSON.stringify(value)
 
       // Check for duplicate within batch
-      const columnValueMap = batchValueMap.get(column.name)!
+      const columnValueMap = batchValueMap.get(key)!
       if (columnValueMap.has(normalizedValue)) {
         const firstRowIndex = columnValueMap.get(normalizedValue)!
         currentRowErrors.push(
@@ -533,7 +539,7 @@ export async function checkBatchUniqueConstraintsDb(
         )
       } else {
         columnValueMap.set(normalizedValue, i)
-        valuesByColumn.get(column.name)!.values.add(normalizedValue)
+        valuesByColumn.get(key)!.values.add(normalizedValue)
       }
     }
 
@@ -543,11 +549,11 @@ export async function checkBatchUniqueConstraintsDb(
   }
 
   // Now check against database for all unique values at once
-  for (const [columnName, { values, column }] of valuesByColumn) {
+  for (const [columnId, { values, column }] of valuesByColumn) {
     if (values.size === 0) continue
 
-    if (!NAME_PATTERN.test(columnName)) {
-      throw new Error(`Invalid column name: ${columnName}`)
+    if (!NAME_PATTERN.test(columnId)) {
+      throw new Error(`Invalid column id: ${columnId}`)
     }
 
     const valueArray = Array.from(values)
@@ -557,9 +563,9 @@ export async function checkBatchUniqueConstraintsDb(
       const isStringColumn = column.type === 'string'
 
       if (isStringColumn) {
-        return sql`lower(${userTableRows.data}->>${sql.raw(`'${columnName}'`)}) = ${normalizedValue}`
+        return sql`lower(${userTableRows.data}->>${sql.raw(`'${columnId}'`)}) = ${normalizedValue}`
       }
-      return sql`(${userTableRows.data}->${sql.raw(`'${columnName}'`)})::jsonb = ${normalizedValue}::jsonb`
+      return sql`(${userTableRows.data}->${sql.raw(`'${columnId}'`)})::jsonb = ${normalizedValue}::jsonb`
     })
 
     const conflictingRows = await executor
@@ -575,7 +581,7 @@ export async function checkBatchUniqueConstraintsDb(
     // Map conflicts back to batch rows
     for (const conflict of conflictingRows) {
       const conflictData = conflict.data as RowData
-      const conflictValue = conflictData[columnName]
+      const conflictValue = conflictData[columnId]
       const normalizedConflictValue =
         typeof conflictValue === 'string'
           ? conflictValue.toLowerCase()
@@ -583,7 +589,7 @@ export async function checkBatchUniqueConstraintsDb(
 
       // Find which batch rows have this conflicting value
       for (let i = 0; i < rows.length; i++) {
-        const rowValue = rows[i][columnName]
+        const rowValue = rows[i][columnId]
         if (rowValue === null || rowValue === undefined) continue
 
         const normalizedRowValue =
@@ -597,7 +603,7 @@ export async function checkBatchUniqueConstraintsDb(
             rowErrors.push(rowError)
           }
 
-          const errorMsg = `Column "${columnName}" must be unique. Value "${rowValue}" already exists in row ${conflict.position + 1}`
+          const errorMsg = `Column "${column.name}" must be unique. Value "${rowValue}" already exists in row ${conflict.position + 1}`
           if (!rowError.errors.includes(errorMsg)) {
             rowError.errors.push(errorMsg)
           }

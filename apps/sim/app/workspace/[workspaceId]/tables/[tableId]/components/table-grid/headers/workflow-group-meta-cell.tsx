@@ -162,28 +162,28 @@ export function ColumnOptionsMenu({
             View workflow
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onOpenConfig(column.name)}>
+        <DropdownMenuItem onSelect={() => onOpenConfig(column.key)}>
           <Pencil />
           Edit column
         </DropdownMenuItem>
         {onPinToggle && (
-          <DropdownMenuItem onSelect={() => onPinToggle(column.name)}>
+          <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}
             {isPinned ? 'Unpin column' : 'Pin column'}
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
+        <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
           <ArrowLeft />
           Insert column left
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
+        <DropdownMenuItem onSelect={() => onInsertRight(column.key)}>
           <ArrowRight />
           Insert column right
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.name))}
+          onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.key))}
         >
           {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
           {deleteLabel ?? 'Delete column'}

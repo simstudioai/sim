@@ -8,6 +8,7 @@
 
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
 import type { RowData, TableRow, TableSchema } from '@/lib/table/types'
 
 const logger = createLogger('TableTrigger')
@@ -62,6 +63,9 @@ export async function fireTableTrigger(
     if (webhooks.length === 0) return
 
     const headers = schema.columns.map((c) => c.name)
+    // The webhook payload is name-keyed (the workflow author references columns
+    // by name); stored row data is id-keyed, so translate on the way out.
+    const nameById = buildNameById(schema)
 
     // Filter to webhooks watching this table with a matching event type
     const matching = webhooks.filter((entry) => {
@@ -87,8 +91,15 @@ export async function fireTableTrigger(
       const includeHeaders = config?.includeHeaders !== false
 
       for (const row of rows) {
-        const previousRow = oldRows?.get(row.id) ?? null
-        const changedColumns = previousRow ? detectChangedColumns(previousRow, row.data) : []
+        const previousIdData = oldRows?.get(row.id) ?? null
+        // Translate id-keyed stored data → name-keyed for the external payload.
+        const rawRow = rowDataIdToName(row.data, nameById)
+        const previousRow = previousIdData ? rowDataIdToName(previousIdData, nameById) : null
+        const changedColumns = previousIdData
+          ? detectChangedColumns(previousIdData, row.data)
+              .map((id) => nameById.get(id))
+              .filter((name): name is string => name !== undefined)
+          : []
 
         // For updates with watch columns, skip rows where no watched column changed
         if (eventType === 'update' && watchColumns.length > 0) {
@@ -100,14 +111,14 @@ export async function fireTableTrigger(
         let mappedRow: Record<string, unknown> | null = null
         if (includeHeaders && headers.length > 0) {
           mappedRow = {}
-          for (const header of headers) {
-            mappedRow[header] = row.data[header] ?? null
+          for (const col of schema.columns) {
+            mappedRow[col.name] = row.data[getColumnId(col)] ?? null
           }
         }
 
         const payload: TableTriggerPayload = {
           row: mappedRow,
-          rawRow: row.data,
+          rawRow,
           previousRow,
           changedColumns,
           rowId: row.id,
