@@ -455,4 +455,30 @@ export const OktaBlockMeta = {
       tags: ['legal', 'enterprise'],
     },
   ],
+  skills: [
+    {
+      name: 'onboard-user',
+      description: 'Create an Okta user, set their profile, and add them to the right groups.',
+      content:
+        '# Onboard User\n\nProvision a new user in Okta and grant their group access.\n\n## Steps\n1. Run Create User with the profile fields: first name, last name, email, and login.\n2. Determine the groups the role requires, using List Groups to resolve group ids.\n3. Run Add User to Group for each required group.\n4. Activate the user if it was created in a staged state.\n\n## Output\nConfirm the new user id and login, and list the groups they were added to.',
+    },
+    {
+      name: 'offboard-user',
+      description: 'Deactivate an Okta user and remove their group memberships during offboarding.',
+      content:
+        '# Offboard User\n\nRevoke access for a departing user in Okta.\n\n## Steps\n1. Find the user with List Users or Get User to confirm the user id.\n2. Run Deactivate User (or Suspend User for a temporary hold) to block sign-in.\n3. Remove the user from sensitive groups with Remove User from Group.\n4. Only run Delete User when permanent removal is explicitly requested, since it is irreversible.\n\n## Output\nConfirm the user status and the groups removed. State clearly whether the account was deactivated or deleted.',
+    },
+    {
+      name: 'audit-group-membership',
+      description: 'List Okta groups and their members to audit access for a security review.',
+      content:
+        '# Audit Group Membership\n\nReview who belongs to Okta groups, focusing on privileged access.\n\n## Steps\n1. Run List Groups to enumerate the groups, or Get Group for a specific one.\n2. For each group of interest, run List Group Members.\n3. Highlight privileged or admin groups and call out any unexpected members.\n\n## Output\nA per-group roster with member counts, and a short list of access concerns to review.',
+    },
+    {
+      name: 'reset-user-password',
+      description: 'Trigger an Okta password reset for a user who is locked out.',
+      content:
+        '# Reset User Password\n\nHelp a user regain access by resetting their Okta password.\n\n## Steps\n1. Locate the user with Get User to confirm identity.\n2. Run Reset Password to start the reset flow for that user.\n3. If the account is suspended, run Unsuspend User first so the reset can proceed.\n\n## Output\nConfirm the reset was initiated for the named user and note any prerequisite step that was taken.',
+    },
+  ],
 } as const satisfies BlockMeta

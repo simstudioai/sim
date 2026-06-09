@@ -6,7 +6,6 @@ import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -258,25 +257,21 @@ export function AddDocumentsModal({
         {uploadError && <ChipModalError>{uploadError.message}</ChipModalError>}
       </ChipModalBody>
 
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={handleClose} disabled={isUploading}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleUpload}
-          disabled={files.length === 0 || isUploading}
-        >
-          {isUploading
+      <ChipModalFooter
+        onCancel={handleClose}
+        cancelDisabled={isUploading}
+        primaryAction={{
+          label: isUploading
             ? uploadProgress.stage === 'uploading'
               ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
               : uploadProgress.stage === 'processing'
                 ? 'Processing...'
                 : 'Uploading...'
-            : 'Upload'}
-        </Chip>
-      </ChipModalFooter>
+            : 'Upload',
+          onClick: handleUpload,
+          disabled: files.length === 0 || isUploading,
+        }}
+      />
     </ChipModal>
   )
 }

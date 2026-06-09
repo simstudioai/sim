@@ -6,7 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Checkbox,
-  Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -103,8 +103,8 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     deleteRowMutation.isPending ||
     deleteRowsMutation.isPending
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleFormSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
     setError(null)
 
     try {
@@ -153,38 +153,33 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     const isSingleRow = deleteCount === 1
 
     return (
-      <ChipModal
+      <ChipConfirmModal
         open={isOpen}
         onOpenChange={handleClose}
         srTitle={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
-      >
-        <ChipModalHeader showDivider={false}>
-          Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}
-        </ChipModalHeader>
-        <ChipModalBody>
-          {error && (
-            <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
-              {error}
-            </div>
-          )}
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
+        description={
+          <>
+            {error && (
+              <span className='mb-3 block rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
+                {error}
+              </span>
+            )}
             Are you sure you want to delete {isSingleRow ? 'this row' : `these ${deleteCount} rows`}
             ?{' '}
             <span className='text-[var(--text-error)]'>
               This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleClose} disabled={isSubmitting}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDelete} disabled={isSubmitting}>
-            {isSubmitting ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: isSubmitting,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     )
   }
 
@@ -207,6 +202,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       </ChipModalHeader>
       <ChipModalBody className='max-h-[60vh] overflow-y-auto'>
         <form onSubmit={handleFormSubmit} className='flex flex-col gap-4'>
+          <button type='submit' hidden disabled={isSubmitting} />
           <ErrorMessage error={error} />
 
           {columns.map((column) => (
@@ -219,20 +215,21 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           ))}
         </form>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={handleClose} disabled={isSubmitting}>
-          Cancel
-        </Chip>
-        <Chip variant='primary' flush onClick={handleFormSubmit} disabled={isSubmitting}>
-          {isSubmitting
+      <ChipModalFooter
+        onCancel={handleClose}
+        cancelDisabled={isSubmitting}
+        primaryAction={{
+          label: isSubmitting
             ? isAddMode
               ? 'Adding...'
               : 'Updating...'
             : isAddMode
               ? 'Add Row'
-              : 'Update Row'}
-        </Chip>
-      </ChipModalFooter>
+              : 'Update Row',
+          onClick: handleFormSubmit,
+          disabled: isSubmitting,
+        }}
+      />
     </ChipModal>
   )
 }

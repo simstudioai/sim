@@ -415,4 +415,26 @@ export const LaunchDarklyBlockMeta = {
       alsoIntegrations: ['hubspot'],
     },
   ],
+  skills: [
+    {
+      name: 'toggle-flag-in-environment',
+      description: 'Turn a LaunchDarkly feature flag on or off in a specific environment safely.',
+      content:
+        '# Toggle a Flag in an Environment\n\nFlip a feature flag for a target environment with a confirmation step.\n\n## Steps\n1. Identify the project and the environment (e.g. production, staging) and the flag key.\n2. Get the current flag status to confirm its present state.\n3. Toggle the flag to the desired on/off state in that environment.\n4. Re-check the status to confirm the change took effect.\n\n## Output\nReturn the flag key, environment, previous state, and new state. Confirm the toggle was applied.',
+    },
+    {
+      name: 'create-feature-flag',
+      description:
+        'Create a new LaunchDarkly feature flag in a project with a clear key and description.',
+      content:
+        '# Create a Feature Flag\n\nStand up a new feature flag for an upcoming release.\n\n## Steps\n1. Choose the project and define a descriptive flag key and human-readable name.\n2. Set a description explaining what the flag controls and whether it is temporary or permanent.\n3. Create the flag, defaulting it to off so it can be rolled out deliberately.\n\n## Output\nReturn the flag key, name, project, and initial state. Confirm the flag starts disabled.',
+    },
+    {
+      name: 'flag-rollout-audit',
+      description:
+        'Report on a flag state across environments and recent changes from the audit log.',
+      content:
+        '# Flag Rollout Audit\n\nUnderstand where a flag stands and who changed it recently.\n\n## Steps\n1. Get the flag and list environments for the project.\n2. For each environment, capture the flag on/off state and targeting.\n3. Pull the audit log entries for the flag to see recent changes and who made them.\n\n## Output\nReturn a per-environment state table for the flag and a short changelog of recent modifications with actor and timestamp.',
+    },
+  ],
 } as const satisfies BlockMeta

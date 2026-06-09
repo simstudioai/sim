@@ -915,6 +915,28 @@ export const KalshiBlockMeta = {
       tags: ['finance', 'analysis'],
     },
   ],
+  skills: [
+    {
+      name: 'market-odds-snapshot',
+      description:
+        'Pull current prices and odds for a Kalshi event and summarize the implied probabilities.',
+      content:
+        '# Market Odds Snapshot\n\nReport the current state of a Kalshi prediction market.\n\n## Steps\n1. Find the event by ticker or search recent events.\n2. Get the markets under that event and their current yes/no prices.\n3. Convert prices to implied probabilities and capture volume and open interest.\n\n## Output\nReturn each market with its current yes/no price, implied probability, and recent volume, plus a one-line read on where the market is leaning.',
+    },
+    {
+      name: 'track-position-pnl',
+      description:
+        'Report account balance, open positions, and unrealized profit or loss on Kalshi.',
+      content:
+        '# Track Position P&L\n\nGive a clear read on the current trading account state.\n\n## Steps\n1. Get the account balance.\n2. Get current positions and, for each, the market and entry exposure.\n3. Get current market prices to estimate unrealized P&L per position.\n\n## Output\nReturn balance, each open position with its market and estimated unrealized P&L, and a total exposure figure.',
+    },
+    {
+      name: 'place-limit-order',
+      description: 'Place a limit order on a Kalshi market after confirming price and balance.',
+      content:
+        '# Place a Limit Order\n\nSubmit a limit order on a chosen Kalshi market with guardrails.\n\n## Steps\n1. Get the target market and confirm its current price and orderbook.\n2. Check the account balance to ensure the order is affordable.\n3. Create a limit order with the side (yes/no), price, and quantity.\n4. Confirm the order was accepted and capture its ID.\n\n## Output\nReturn the order ID, market, side, price, quantity, and status. State clearly if the order was rejected or only partially filled.',
+    },
+  ],
 } as const satisfies BlockMeta
 
 export const KalshiV2BlockMeta = {

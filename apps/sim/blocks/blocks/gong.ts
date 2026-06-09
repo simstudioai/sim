@@ -784,4 +784,27 @@ export const GongBlockMeta = {
       tags: ['sales', 'research'],
     },
   ],
+  skills: [
+    {
+      name: 'summarize-call',
+      description:
+        'Pull a Gong call transcript and produce a structured recap with topics, objections, and next steps.',
+      content:
+        '# Summarize Call\n\nUse Gong to turn a recorded call into a clean recap.\n\n## Steps\n1. Get the call by its call ID to read the metadata (participants, duration, account).\n2. Get the call transcript for the same call ID.\n3. Identify the main topics, customer objections, and agreed next steps from the transcript.\n\n## Output\nReturn a recap: a short overview, key topics discussed, objections raised, and a list of next steps with owners. Keep it grounded in the transcript.',
+    },
+    {
+      name: 'extract-deal-signals',
+      description:
+        'Read a Gong call transcript and extract CRM-ready deal signals like decision-maker, competitor, and next step.',
+      content:
+        '# Extract Deal Signals\n\nUse Gong to turn conversation content into structured deal attributes.\n\n## Steps\n1. Get the call transcript for the given call ID.\n2. Scan for high-value signals: decision-maker, budget, timeline, competitor mentions, use case, and the agreed next step with its date.\n3. Normalize each signal into a structured field.\n\n## Output\nReturn a structured object of deal attributes (decision_maker, competitor, next_step, next_step_date, use_case, and any others found). Leave fields null when not mentioned rather than guessing, so they can be written to CRM.',
+    },
+    {
+      name: 'review-recent-calls',
+      description:
+        'List recent Gong calls in a date range and produce a digest of themes and follow-ups across them.',
+      content:
+        '# Review Recent Calls\n\nUse Gong to summarize a batch of recent calls.\n\n## Steps\n1. List calls (or use Get Extensive Calls) filtered by a date range and optionally by user or workspace.\n2. For the most relevant calls, get the transcript to pull themes and outcomes.\n3. Roll the findings up into recurring themes, common objections, and open follow-ups across the calls.\n\n## Output\nReturn a digest: a per-call one-liner, the cross-call themes, and a consolidated follow-up list. Note any call missing a clear next step.',
+    },
+  ],
 } as const satisfies BlockMeta

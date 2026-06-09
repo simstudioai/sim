@@ -20,6 +20,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import type {
   PlusMenuHandle,
   SkillsMenuHandle,
@@ -27,16 +28,15 @@ import type {
 import {
   AnimatedPlaceholderEffect,
   AttachedFilesList,
-  autoResizeTextarea,
   chipDisplayToken,
   chipLinkToContext,
   DropOverlay,
-  MAX_CHAT_TEXTAREA_HEIGHT,
   MicButton,
   mapResourceToContext,
   OVERLAY_CLASSES,
   PlusMenuDropdown,
   parseChipLinks,
+  SCROLLER_CLASSES,
   SendButton,
   SkillsMenuDropdown,
   serializeSelectionForClipboard,
@@ -63,6 +63,7 @@ import {
   SKILL_CHIP_TRIGGER,
   stripMentionTrigger,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
@@ -138,9 +139,11 @@ interface UserInputProps {
 
 export interface UserInputHandle {
   loadQueuedMessage: (msg: QueuedMessage) => void
-  /** Populates the textarea with `text` (running it through auto-mention
-   * chipification), focuses the input, and places the caret at the end.
-   * Does NOT submit. Safe to call with the same text twice in a row. */
+  /** Populates the textarea with a CURATED prompt (suggested action, template,
+   * etc. — never free-form user prose), running it through `mentionifyIntegrations`
+   * (bare `Slack` → `@Slack`) and then auto-mention chipification so integration
+   * names chip with brand icons. Focuses the input and places the caret at the
+   * end. Does NOT submit. Safe to call with the same text twice in a row. */
   populatePrompt: (text: string) => void
 }
 
@@ -171,7 +174,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   })
   const valueRef = useRef(value)
   valueRef.current = value
-  const overlayRef = useRef<HTMLDivElement>(null)
   const plusMenuRef = useRef<PlusMenuHandle>(null)
   const skillsMenuRef = useRef<SkillsMenuHandle>(null)
 
@@ -377,6 +379,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
    * mounted. Mirrors the previously inline render-phase derivation but
    * now runs the prompt through `applyToText` so integration `@`-mentions
    * get chipified consistently with paste / draft restore flows.
+   *
+   * Deliberately does NOT run `mentionifyIntegrations` here: `defaultValue` is
+   * seeded from `LandingPromptStorage`, whose producers include the free-form
+   * landing prompt panel as well as curated CTAs. Curated producers opt their
+   * bare names in at the store seam (`storeCuratedPrompt`), so prose seeded here
+   * is never bare-chipped (the scunthorpe constraint).
    */
   useEffect(() => {
     if (defaultValue === prevDefaultValueRef.current) return
@@ -465,7 +473,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         focusTextareaAtEnd()
       },
       populatePrompt: (text: string) => {
-        setValue(applyAutoMentions(text))
+        // `text` is a curated prompt, so opt its bare integration names into
+        // `@`-mention form before chipification (the auto-mention pipeline only
+        // chips already-`@`-prefixed names). Curated prompts arriving via the
+        // `defaultValue` seed are mentionified at their producer instead, since
+        // that path is also reused for free-form landing prose.
+        setValue(applyAutoMentions(mentionifyIntegrations(text)))
         focusTextareaAtEnd()
       },
     }),
@@ -480,13 +493,11 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-    const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
+    // Grow the textarea to its full content height; the scroller caps the
+    // visible height and scrolls textarea + overlay together natively.
     textarea.style.height = 'auto'
-    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = textarea.scrollTop
-    }
-  }, [value, isInitialView, textareaRef])
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [value, textareaRef])
 
   const handleResourceSelect = useCallback(
     (resource: MothershipResource) => {
@@ -742,6 +753,16 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     }
   }, [onSubmit, textareaRef, resetTranscript])
 
+  /**
+   * Adopts the textarea's DOM value into state. State and DOM can only drift
+   * when an edit's input event is lost (programmatic edits pair setValue
+   * synchronously) — the DOM is the user's intent.
+   */
+  const adoptDomValue = useCallback((textarea: HTMLTextAreaElement) => {
+    valueRef.current = textarea.value
+    setValue(textarea.value)
+  }, [])
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (mentionRangeRef.current && !e.nativeEvent.isComposing) {
@@ -819,8 +840,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
       // Single-chip delete: remove the token's text atomically. A selection
       // delete falls through to the native edit; either way the context-sync
-      // effect prunes contexts whose last token is gone.
-      if ((e.key === 'Backspace' || e.key === 'Delete') && selectionLength === 0) {
+      // effect prunes contexts whose last token is gone. Cmd+Backspace
+      // (delete to line start) stays native — it spans more than one chip.
+      if ((e.key === 'Backspace' || e.key === 'Delete') && selectionLength === 0 && !e.metaKey) {
         const ranges = mentionTokensWithContext.mentionRanges
         const target =
           e.key === 'Backspace'
@@ -834,7 +856,18 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         }
       }
 
-      if (selectionLength === 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      // Hop chips on plain arrows only: Shift/Cmd/Alt/Ctrl variants and IME
+      // composition keep native handling; the select handler snaps any
+      // resulting edge inside a chip to a chip boundary.
+      if (
+        selectionLength === 0 &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.nativeEvent.isComposing
+      ) {
         if (textarea) {
           if (e.key === 'ArrowLeft') {
             const nextPos = Math.max(0, selStart - 1)
@@ -858,7 +891,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         }
       }
 
-      if (e.key.length === 1 || e.key === 'Space') {
+      // Block typing inside a chip (snap to its end instead). Cmd/Ctrl
+      // shortcuts (Cmd+A, Cmd+C, ...) don't insert text and must pass through.
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
         const blocked =
           selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
         if (blocked) {
@@ -1017,33 +1052,70 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     ]
   )
 
+  // Selection one change ago, used to infer which edge of a range moved. Kept
+  // current by the `selectionchange` listener below — which fires on EVERY
+  // caret/selection change (typing, arrows, clicks, programmatic), unlike
+  // `select`/`mouseup` — so the inference is never fed a stale `prev`.
+  const prevSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    let last = { start: 0, end: 0 }
+    const onSelectionChange = () => {
+      if (document.activeElement !== textarea) return
+      prevSelectionRef.current = last
+      last = { start: textarea.selectionStart ?? 0, end: textarea.selectionEnd ?? 0 }
+    }
+    document.addEventListener('selectionchange', onSelectionChange)
+    return () => document.removeEventListener('selectionchange', onSelectionChange)
+  }, [textareaRef])
+
+  /**
+   * Keeps mention chips atomic under every selection gesture. A collapsed
+   * caret inside a chip snaps to the nearest edge; a ranged selection edge
+   * inside a chip snaps to a chip boundary — never collapsed — so select-all,
+   * Shift+arrows, drag, and double-click all select chips whole.
+   */
   const handleSelectAdjust = useCallback(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-    const pos = textarea.selectionStart ?? 0
-    const r = mentionTokensWithContext.findRangeContaining(pos)
-    if (r) {
-      const snapPos = pos - r.start < r.end - pos ? r.start : r.end
+    const start = textarea.selectionStart ?? 0
+    const end = textarea.selectionEnd ?? 0
+    const prev = prevSelectionRef.current
+
+    // Adopt value changes that bypassed React's change tracking (browser
+    // autofill, password managers, grammar extensions — see facebook/react#2125)
+    // so state never drifts from the DOM. The render rebuilds the overlay and
+    // selection logic resumes on the next event.
+    if (textarea.value !== valueRef.current) {
+      adoptDomValue(textarea)
+      return
+    }
+
+    const startChip = mentionTokensWithContext.findRangeContaining(start)
+    const endChip = start === end ? startChip : mentionTokensWithContext.findRangeContaining(end)
+    const snapped = snapSelectionToChips({ start, end }, prev, startChip, endChip)
+
+    if (snapped.start !== start || snapped.end !== end) {
+      // Deferred so in-flight click/drag processing can't override the write,
+      // and bailed if the selection moved again first. The write re-fires this
+      // handler, which then syncs the menus.
       setTimeout(() => {
-        textarea.setSelectionRange(snapPos, snapPos)
+        if (textarea.selectionStart !== start || textarea.selectionEnd !== end) return
+        textarea.setSelectionRange(
+          snapped.start,
+          snapped.end,
+          textarea.selectionDirection ?? undefined
+        )
       }, 0)
       return
     }
-    syncMentionState(textarea, textarea.value, pos)
-    syncSlashState(textarea, textarea.value, pos)
-  }, [textareaRef, mentionTokensWithContext, syncMentionState, syncSlashState])
 
-  const handleInput = useCallback(
-    (e: React.FormEvent<HTMLTextAreaElement>) => {
-      const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
-      autoResizeTextarea(e, maxHeight)
-
-      if (overlayRef.current) {
-        overlayRef.current.scrollTop = (e.target as HTMLTextAreaElement).scrollTop
-      }
-    },
-    [isInitialView]
-  )
+    const focusPos = textarea.selectionDirection === 'backward' ? start : end
+    syncMentionState(textarea, textarea.value, focusPos)
+    syncSlashState(textarea, textarea.value, focusPos)
+  }, [textareaRef, mentionTokensWithContext, adoptDomValue, syncMentionState, syncSlashState])
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget
@@ -1127,12 +1199,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       dt.items.add(file)
     }
     filesRef.current.processFiles(dt.files)
-  }, [])
-
-  const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = e.currentTarget.scrollTop
-    }
   }, [])
 
   /**
@@ -1230,12 +1296,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
       elements.push(
         <span key={`mention-${i}-${range.start}-${range.end}`}>
           <span className='relative'>
-            {/* Spacer reserves the real trigger glyph's width so the overlay's
-                advance matches the transparent textarea char-for-char —
-                hardcoding a width here would drift the text. For '@' the glyph is
-                ~1em; skill chips store an EM SPACE sentinel (SKILL_CHIP_TRIGGER)
-                in place of the narrow '/' so the centered 12px icon fits its slot
-                exactly like '@' does. */}
+            {/* Invisible trigger glyph keeps the overlay's advance identical to
+                the transparent textarea; the icon centers over its slot. */}
             <span className='invisible'>{range.token.charAt(0)}</span>
             {mentionIconNode}
           </span>
@@ -1274,35 +1336,30 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         onRemoveFile={handleRemoveFile}
       />
 
-      {/* Clip the absolutely-positioned mirror overlay to the textarea's box.
-          The overlay is `h-auto`, so its content (e.g. the trailing-newline
-          sentinel on Shift+Enter) can exceed the textarea height and would
-          otherwise paint over the toolbar below. */}
-      <div className='relative overflow-hidden'>
-        <div
-          ref={overlayRef}
-          className={cn(OVERLAY_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
-          aria-hidden='true'
-        >
-          {overlayContent}
-        </div>
+      {/* Single scroller for textarea + overlay so they co-scroll natively;
+          the sizer is sized by the full-height textarea, and the overlay fills
+          it via `inset-0`. */}
+      <div className={cn(SCROLLER_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}>
+        <div className='relative'>
+          <div className={OVERLAY_CLASSES} aria-hidden='true'>
+            {overlayContent}
+          </div>
 
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onInput={handleInput}
-          onPaste={handlePaste}
-          onCopy={handleCopy}
-          onCut={handleCut}
-          onSelect={handleSelectAdjust}
-          onMouseUp={handleSelectAdjust}
-          onScroll={handleScroll}
-          placeholder='Ask Sim to '
-          rows={1}
-          className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
-        />
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onCopy={handleCopy}
+            onCut={handleCut}
+            onSelect={handleSelectAdjust}
+            onMouseUp={handleSelectAdjust}
+            placeholder='Ask Sim to '
+            rows={1}
+            className={TEXTAREA_BASE_CLASSES}
+          />
+        </div>
       </div>
 
       <div className='flex items-center justify-between'>

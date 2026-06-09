@@ -426,4 +426,26 @@ export const NewRelicBlockMeta = {
       alsoIntegrations: ['pagerduty', 'slack'],
     },
   ],
+  skills: [
+    {
+      name: 'query-golden-signals',
+      description:
+        'Run NRQL to pull latency, error rate, and throughput for a service over a time window.',
+      content:
+        '# Query Golden Signals\n\nUse New Relic NRQL to read the golden signals for a service.\n\n## Steps\n1. Identify the service or application name, using Search Entities if it is unknown.\n2. Build NRQL queries for throughput, average and p95 latency, and error rate over the requested window using SELECT ... FROM Transaction WHERE appName = ... SINCE ...\n3. Run NRQL Query for each signal and collect the values.\n\n## Output\nA short table of throughput, latency p50/p95, and error rate with the time window stated. Flag any signal that looks anomalous.',
+    },
+    {
+      name: 'investigate-error-spike',
+      description:
+        'Use NRQL to break down a New Relic error spike by type and impacted transaction.',
+      content:
+        '# Investigate Error Spike\n\nDrill into an error spike for a service in New Relic.\n\n## Steps\n1. Run an NRQL query counting errors over time to confirm and bound the spike window.\n2. Break the errors down by error.class, message, and transactionName using FACET.\n3. Use Get Entity to add context such as the service health and recent alerts.\n4. Check for a recent Create Deployment Event near the spike start to correlate with a release.\n\n## Output\nThe top error types by count, the most impacted transactions, and whether a recent deployment lines up with the spike.',
+    },
+    {
+      name: 'record-deployment-marker',
+      description: 'Create a New Relic deployment event so releases line up with metric changes.',
+      content:
+        '# Record Deployment Marker\n\nMark a deployment in New Relic to correlate releases with performance.\n\n## Steps\n1. Identify the target entity with Search Entities to get its GUID.\n2. Run Create Deployment Event with the version, and include the commit or changelog and the user who deployed.\n3. Confirm the marker is associated with the right entity.\n\n## Output\nConfirm the deployment event created, with the entity name, version, and timestamp.',
+    },
+  ],
 } as const satisfies BlockMeta

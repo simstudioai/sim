@@ -977,4 +977,34 @@ export const PolymarketBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'find-market-odds',
+      description:
+        'Look up a Polymarket market and report the current implied odds and price for each outcome.',
+      content:
+        '# Find Market Odds\n\nGet the live implied probability for a question.\n\n## Steps\n1. Use Search or Get Markets to locate the market, or Get Market with a known market ID or slug.\n2. Read the outcome token IDs from the market, then use Get Price or Get Midpoint per token to get the current price.\n3. Treat the price (0 to 1) as the implied probability of that outcome.\n\n## Output\nFor the market, list each outcome with its current price as a percentage probability, plus the market volume and whether it is still open.',
+    },
+    {
+      name: 'list-top-markets',
+      description:
+        'List the highest-volume or most-liquid Polymarket markets, optionally filtered by category tag.',
+      content:
+        '# List Top Markets\n\nSurface the markets attracting the most attention.\n\n## Steps\n1. Use Get Markets (or Get Events) sorted by Volume or Liquidity in descending order.\n2. Optionally filter by a Tag ID for a category and set Closed Status to open only.\n3. Set a Limit and use the offset to page through results.\n\n## Output\nA ranked list of markets with title, volume, liquidity, and current implied odds for the leading outcome.',
+    },
+    {
+      name: 'track-price-history',
+      description:
+        'Pull Polymarket price history for an outcome token over an interval and summarize the trend.',
+      content:
+        '# Track Price History\n\nSee how an outcome moved over time.\n\n## Steps\n1. Identify the outcome token ID from the market.\n2. Use Get Price History with that Token ID and either a preset Interval (1h, 6h, 1d, 1w, max) or a Start and End timestamp with a Fidelity in minutes.\n3. Compare the latest price against the start of the window to compute the move.\n\n## Output\nThe price at the start and end of the window, the net change, and a one-line read on the trend (rising, falling, or flat).',
+    },
+    {
+      name: 'analyze-wallet-positions',
+      description:
+        "Fetch a Polymarket wallet's open positions and summarize value and profit and loss.",
+      content:
+        '# Analyze Wallet Positions\n\nReview what a trader holds and how it is performing.\n\n## Steps\n1. Use Get Positions with the User Wallet Address, optionally sorted by Cash P&L or Current Value.\n2. Filter with a Size Threshold or by redeemable status to focus on meaningful holdings.\n3. Optionally use Get Activity for the same wallet to see recent trades and redemptions.\n\n## Output\nA summary of the wallet positions: total current value, aggregate profit and loss, and the largest winners and losers by market.',
+    },
+  ],
 } as const satisfies BlockMeta

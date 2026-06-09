@@ -770,4 +770,25 @@ export const Neo4jBlockMeta = {
       tags: ['analysis', 'research', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'answer-graph-question',
+      description:
+        'Translate a plain-English question into Cypher, run it on Neo4j, and explain the result.',
+      content:
+        '# Answer Graph Question\n\nTurn a natural-language question into a Cypher query against the Neo4j graph.\n\n## Steps\n1. Run Introspect Schema to learn the node labels, relationship types, and properties.\n2. Translate the question into a Cypher MATCH that uses the real labels and relationships from the schema.\n3. Run the Query operation and read the returned rows.\n4. If the query returns nothing, relax the pattern and explain what was tried.\n\n## Output\nA plain-language answer plus the Cypher used and the key matching nodes or paths.',
+    },
+    {
+      name: 'create-graph-relationship',
+      description: 'Create or merge nodes and connect them with a relationship in Neo4j.',
+      content:
+        '# Create Graph Relationship\n\nAdd nodes and a relationship between them without creating duplicates.\n\n## Steps\n1. Introspect Schema to confirm the labels and relationship type to use.\n2. Use Merge (Find or Create) for each node so existing nodes are reused rather than duplicated.\n3. Create the relationship between them with the requested direction and any properties.\n\n## Output\nConfirm the nodes involved and the relationship created, noting whether each node was found or newly created.',
+    },
+    {
+      name: 'find-connected-nodes',
+      description: 'Traverse the Neo4j graph from a starting node to find related entities.',
+      content:
+        '# Find Connected Nodes\n\nExplore the neighborhood of a node to find connected entities.\n\n## Steps\n1. Introspect Schema to know the relationship types available.\n2. Build a Cypher MATCH that starts at the given node and traverses the relevant relationships to the desired depth.\n3. Run the Query operation and collect the connected nodes.\n\n## Output\nA list of connected nodes grouped by relationship type, with the traversal path described in one line.',
+    },
+  ],
 } as const satisfies BlockMeta

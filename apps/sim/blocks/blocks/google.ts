@@ -162,4 +162,27 @@ export const GoogleSearchBlockMeta = {
       tags: ['support', 'research', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'search-the-web',
+      description:
+        'Run a Google web search and return the most relevant results with titles and links.',
+      content:
+        '# Search the Web\n\nFind current information with Google Custom Search.\n\n## Steps\n1. Turn the request into an effective query. Use operators when helpful: "exact phrase", `site:domain.com`, `-exclude`, `OR`, `filetype:pdf`.\n2. Set Number of Results to a sensible value (e.g., 10).\n3. Run the search with the API key and Custom Search Engine ID.\n4. Read the result items: title, link, and snippet.\n\n## Output\nA ranked list of results, each with title, URL, and a one-line snippet. Drop low-relevance hits and note if the query returned little so it can be broadened.',
+    },
+    {
+      name: 'research-and-summarize',
+      description:
+        'Search Google for a topic, gather the best sources, and synthesize a cited answer.',
+      content:
+        '# Research and Summarize\n\nAnswer a question from fresh web sources.\n\n## Steps\n1. Break the question into 1-3 focused search queries.\n2. Run each search and collect the most relevant result items (title, link, snippet).\n3. Synthesize a concise answer grounded in the snippets; do not assert facts the sources do not support.\n4. Attribute each claim to its source link.\n\n## Output\nA short, sourced answer followed by a list of the sources used (title + URL). If sources conflict, say so rather than guessing.',
+    },
+    {
+      name: 'monitor-mentions',
+      description:
+        'Search Google for recent mentions of a brand, person, or keyword and surface notable hits.',
+      content:
+        '# Monitor Mentions\n\nFind recent web mentions of a target term.\n\n## Steps\n1. Build queries for the brand/person/keyword, optionally scoped with `site:` for specific outlets or quotes for exact names.\n2. Run the searches and collect result items.\n3. Filter out irrelevant or stale hits and dedupe near-identical results.\n4. Classify each remaining mention (e.g., news, review, social) and gauge tone where possible.\n\n## Output\nA list of notable mentions: title, source URL, a one-line summary, and a tone tag. Lead with the most significant items.',
+    },
+  ],
 } as const satisfies BlockMeta

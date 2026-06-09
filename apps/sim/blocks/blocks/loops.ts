@@ -604,4 +604,33 @@ export const LoopsBlockMeta = {
       tags: ['marketing', 'automation', 'communication'],
     },
   ],
+  skills: [
+    {
+      name: 'onboard-new-contact',
+      description: 'Create a Loops contact on signup and send a transactional welcome email.',
+      content:
+        '# Onboard New Contact\n\nAdd a new signup to Loops and welcome them.\n\n## Steps\n1. Create Contact with the email, first and last name, and any source or user group, plus custom properties like plan.\n2. Send Transactional Email using the welcome template ID, passing the contact data as data variables.\n3. Optionally Send Event with a signup event name so any onboarding automation begins.\n\n## Output\nThe created contact ID, confirmation the welcome email was sent, and any event fired.',
+    },
+    {
+      name: 'send-product-event',
+      description:
+        'Fire a Loops event for a user with structured properties to trigger lifecycle automations.',
+      content:
+        '# Send Product Event\n\nDrive Loops automations from real product behavior.\n\n## Steps\n1. Identify the contact by email or user ID and the event that occurred.\n2. Build event properties as a JSON object with the relevant values, such as plan and amount.\n3. Send Event with the event name, the contact identifier, and the properties.\n4. Optionally update mailing list subscriptions in the same call.\n\n## Output\nConfirmation the event was sent, the contact it was attributed to, and the properties included.',
+    },
+    {
+      name: 'enrich-contact-properties',
+      description:
+        'Find a Loops contact and update it with enriched custom properties and user group.',
+      content:
+        '# Enrich Contact Properties\n\nKeep Loops contact data complete and current.\n\n## Steps\n1. Find Contact by email or user ID to read existing fields and spot gaps.\n2. Gather the missing or stale values from your source or research.\n3. Update Contact with the new custom properties, user group, and any name fields.\n\n## Output\nThe updated contact ID and a summary of the properties that were set or changed.',
+    },
+    {
+      name: 'send-transactional-email',
+      description:
+        'Send a Loops transactional email from a template with personalized data variables.',
+      content:
+        '# Send Transactional Email\n\nDeliver a templated transactional email through Loops.\n\n## Steps\n1. Confirm the transactional email template ID to use.\n2. Build the data variables JSON to match the variable names in the template, such as name and a confirmation URL.\n3. Send Transactional Email with the recipient email, template ID, and data variables, attaching files if needed.\n\n## Output\nConfirmation of send success and the template ID and recipient used.',
+    },
+  ],
 } as const satisfies BlockMeta

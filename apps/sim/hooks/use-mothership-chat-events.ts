@@ -3,31 +3,31 @@ import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
-import { type TaskChatHistory, taskKeys } from '@/hooks/queries/tasks'
+import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
-const logger = createLogger('TaskEvents')
+const logger = createLogger('MothershipChatEvents')
 
-const TASK_STATUS_TYPES = ['started', 'completed', 'created', 'deleted', 'renamed'] as const
-type TaskStatusEventType = (typeof TASK_STATUS_TYPES)[number]
-const TASK_STATUS_TYPE_SET = new Set<string>(TASK_STATUS_TYPES)
+const CHAT_STATUS_TYPES = ['started', 'completed', 'created', 'deleted', 'renamed'] as const
+type ChatStatusEventType = (typeof CHAT_STATUS_TYPES)[number]
+const CHAT_STATUS_TYPE_SET = new Set<string>(CHAT_STATUS_TYPES)
 
-interface TaskStatusEventPayload {
+interface ChatStatusEventPayload {
   chatId?: string
-  type?: TaskStatusEventType
+  type?: ChatStatusEventType
   streamId?: string
 }
 
-const DETAIL_INVALIDATING_TASK_STATUS_TYPES = new Set<TaskStatusEventType>([
+const DETAIL_INVALIDATING_CHAT_STATUS_TYPES = new Set<ChatStatusEventType>([
   'started',
   'completed',
   'renamed',
 ])
 
-function isTaskStatusEventType(value: unknown): value is TaskStatusEventType {
-  return typeof value === 'string' && TASK_STATUS_TYPE_SET.has(value)
+function isChatStatusEventType(value: unknown): value is ChatStatusEventType {
+  return typeof value === 'string' && CHAT_STATUS_TYPE_SET.has(value)
 }
 
-function isLocalOptimisticActiveStream(current: TaskChatHistory | undefined) {
+function isLocalOptimisticActiveStream(current: MothershipChatHistory | undefined) {
   if (!current?.activeStreamId) return false
   const liveAssistantId = getLiveAssistantMessageId(current.activeStreamId)
   return current.messages.some((message) => message.id === liveAssistantId)
@@ -39,7 +39,7 @@ function isLocalOptimisticActiveStream(current: TaskChatHistory | undefined) {
  * If either stream is absent from the transcript, callers should refetch
  * instead of inferring order from incomplete cache state.
  */
-function hasNewerKnownActiveStream(current: TaskChatHistory | undefined, streamId: string) {
+function hasNewerKnownActiveStream(current: MothershipChatHistory | undefined, streamId: string) {
   if (!current?.activeStreamId || current.activeStreamId === streamId) return false
 
   const activeIndex = current.messages.findIndex((message) => message.id === current.activeStreamId)
@@ -50,8 +50,8 @@ function hasNewerKnownActiveStream(current: TaskChatHistory | undefined, streamI
 }
 
 function shouldSkipDetailInvalidationForStreamEvent(
-  current: TaskChatHistory | undefined,
-  payload: TaskStatusEventPayload
+  current: MothershipChatHistory | undefined,
+  payload: ChatStatusEventPayload
 ) {
   if (payload.type !== 'started' && payload.type !== 'completed') return false
   if (!current?.activeStreamId) return false
@@ -66,7 +66,7 @@ function shouldSkipDetailInvalidationForStreamEvent(
   )
 }
 
-function parseTaskStatusEventPayload(data: unknown): TaskStatusEventPayload | null {
+function parseChatStatusEventPayload(data: unknown): ChatStatusEventPayload | null {
   let parsed = data
 
   if (typeof parsed === 'string') {
@@ -85,43 +85,46 @@ function parseTaskStatusEventPayload(data: unknown): TaskStatusEventPayload | nu
 
   return {
     ...(typeof record.chatId === 'string' ? { chatId: record.chatId } : {}),
-    ...(isTaskStatusEventType(record.type) ? { type: record.type } : {}),
+    ...(isChatStatusEventType(record.type) ? { type: record.type } : {}),
     ...(typeof record.streamId === 'string' ? { streamId: record.streamId } : {}),
   }
 }
 
-export function handleTaskStatusEvent(
+export function handleMothershipChatStatusEvent(
   queryClient: Pick<QueryClient, 'getQueryData' | 'invalidateQueries' | 'removeQueries'>,
   workspaceId: string,
   data: unknown
 ): void {
-  const payload = parseTaskStatusEventPayload(data)
+  const payload = parseChatStatusEventPayload(data)
   if (!payload) {
     logger.warn('Received invalid task_status payload')
     return
   }
 
-  queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
   if (!payload.chatId) return
   if (payload.type === 'deleted') {
-    queryClient.removeQueries({ queryKey: taskKeys.detail(payload.chatId) })
+    queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
     return
   }
   if (payload.type === 'started' || payload.type === 'completed') {
-    const current = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(payload.chatId))
+    const current = queryClient.getQueryData<MothershipChatHistory>(
+      mothershipChatKeys.detail(payload.chatId)
+    )
     if (shouldSkipDetailInvalidationForStreamEvent(current, payload)) {
       return
     }
   }
-  if (payload.type && DETAIL_INVALIDATING_TASK_STATUS_TYPES.has(payload.type)) {
-    queryClient.invalidateQueries({ queryKey: taskKeys.detail(payload.chatId) })
+  if (payload.type && DETAIL_INVALIDATING_CHAT_STATUS_TYPES.has(payload.type)) {
+    queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
   }
 }
 
 /**
- * Subscribes to task status SSE events and invalidates task caches on changes.
+ * Subscribes to chat status SSE events and invalidates chat caches on changes.
+ * The SSE event name remains `task_status` for wire compatibility.
  */
-export function useTaskEvents(workspaceId: string | undefined) {
+export function useMothershipChatEvents(workspaceId: string | undefined) {
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -132,7 +135,7 @@ export function useTaskEvents(workspaceId: string | undefined) {
     )
 
     eventSource.addEventListener('task_status', (event) => {
-      handleTaskStatusEvent(
+      handleMothershipChatStatusEvent(
         queryClient,
         workspaceId,
         event instanceof MessageEvent ? event.data : undefined

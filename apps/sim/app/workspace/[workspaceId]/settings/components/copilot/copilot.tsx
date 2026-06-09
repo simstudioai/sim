@@ -7,6 +7,7 @@ import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
 import {
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -275,27 +276,18 @@ export function Copilot() {
           />
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setIsCreateDialogOpen(false)
-              setNewKeyName('')
-              setCreateError(null)
-            }}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleCreateKey}
-            disabled={!newKeyName.trim() || generateKey.isPending}
-          >
-            {generateKey.isPending ? 'Creating...' : 'Create'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => {
+            setIsCreateDialogOpen(false)
+            setNewKeyName('')
+            setCreateError(null)
+          }}
+          primaryAction={{
+            label: generateKey.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreateKey,
+            disabled: !newKeyName.trim() || generateKey.isPending,
+          }}
+        />
       </ChipModal>
 
       {/* New API Key Dialog */}
@@ -322,29 +314,34 @@ export function Copilot() {
             {newKey && <SecretReveal value={newKey} />}
           </ChipModalField>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='primary'
-            flush
-            onClick={() => {
+        <ChipModalFooter
+          onCancel={() => {
+            setShowNewKeyDialog(false)
+            setNewKey(null)
+          }}
+          primaryAction={{
+            label: 'Done',
+            onClick: () => {
               setShowNewKeyDialog(false)
               setNewKey(null)
-            }}
-          >
-            Done
-          </Chip>
-        </ChipModalFooter>
+            },
+          }}
+        />
       </ChipModal>
 
       {/* Delete Confirmation Dialog */}
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowDeleteDialog(false)
+            setDeleteKey(null)
+          }
+        }}
         srTitle='Delete API key'
-      >
-        <ChipModalHeader showDivider={false}>Delete API key</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete API key'
+        description={
+          <>
             Deleting{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {deleteKey?.name || 'Unnamed Key'}
@@ -353,30 +350,15 @@ export function Copilot() {
               will immediately revoke access for any integrations using it.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setShowDeleteDialog(false)
-              setDeleteKey(null)
-            }}
-            disabled={deleteKeyMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDeleteKey}
-            disabled={deleteKeyMutation.isPending}
-          >
-            {deleteKeyMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDeleteKey,
+          pending: deleteKeyMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

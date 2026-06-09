@@ -490,4 +490,27 @@ export const DatabricksBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'run-sql-query',
+      description:
+        'Execute a SQL query against a Databricks SQL warehouse and return the results in a clean, summarized form.',
+      content:
+        '# Run a Databricks SQL Query\n\nQuery a table or view and summarize the result.\n\n## Steps\n1. Confirm the SQL warehouse and the query to run.\n2. Execute the SQL statement and wait for it to complete.\n3. Capture the returned rows and column schema.\n4. Summarize key findings (counts, totals, notable values).\n\n## Output\nThe query results plus a short plain-English summary of what they show.',
+    },
+    {
+      name: 'trigger-job-run',
+      description:
+        'Trigger a Databricks job, capture the run id, and confirm it started successfully.',
+      content:
+        '# Trigger a Databricks Job\n\nKick off a job and confirm it launched.\n\n## Steps\n1. List jobs to confirm the target job id and name.\n2. Run the job with any required parameters.\n3. Capture the run id and starting state.\n\n## Output\nA confirmation with the job name, run id, and initial status.',
+    },
+    {
+      name: 'monitor-job-run',
+      description:
+        'Check the status of a Databricks job run, pull its output, and diagnose failures.',
+      content:
+        '# Monitor a Databricks Job Run\n\nTrack a job run to completion and report results.\n\n## Steps\n1. Get the run for the given run id and read its lifecycle and result state.\n2. If still running, report progress; if finished, pull the run output.\n3. On failure, capture the error and the failing task.\n\n## Output\nA run summary with final state, key output, and (on failure) the error and failing task.',
+    },
+  ],
 } as const satisfies BlockMeta

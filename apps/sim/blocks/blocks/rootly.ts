@@ -1849,4 +1849,38 @@ export const RootlyBlockMeta = {
       alsoIntegrations: ['langsmith'],
     },
   ],
+  skills: [
+    {
+      name: 'declare-incident',
+      description: 'Open a Rootly incident with the right severity, service, and team assigned.',
+      content:
+        '# Declare Incident\n\nSpin up a structured Rootly incident from an alert or report.\n\n## Steps\n1. Run list_severities, list_services, and list_teams to resolve the correct ids.\n2. Run create_incident with a clear title, summary, severity, affected service, and owning team.\n3. Capture the returned incident id.\n4. Add an opening timeline note with add_incident_event.\n\n## Output\nReturn the incident id, severity, assigned team, and a link. Confirm the opening event was logged.',
+    },
+    {
+      name: 'post-incident-update',
+      description: 'Append a status update event to an active Rootly incident timeline.',
+      content:
+        '# Post Incident Update\n\nKeep an incident timeline current.\n\n## Steps\n1. Run get_incident to confirm the current state.\n2. Run add_incident_event with the update text (mitigation steps, customer impact, next checkpoint).\n3. Run update_incident if the severity or status has changed.\n\n## Output\nReturn the appended event and the current incident status.',
+    },
+    {
+      name: 'triage-alerts',
+      description:
+        'List open Rootly alerts, acknowledge them, and escalate to an incident if needed.',
+      content:
+        '# Triage Alerts\n\nWork through the open alert queue.\n\n## Steps\n1. Run list_alerts to pull open alerts.\n2. For each, run get_alert for detail and run acknowledge_alert to claim it.\n3. If an alert warrants response, run create_incident and link it.\n4. Run resolve_alert once the alert is handled.\n\n## Output\nReturn how many alerts were acknowledged, resolved, and escalated to incidents.',
+    },
+    {
+      name: 'check-on-call',
+      description:
+        'Look up who is currently on call across Rootly schedules and escalation policies.',
+      content:
+        '# Check On Call\n\nFind the right person to page right now.\n\n## Steps\n1. Run list_schedules to enumerate on-call schedules.\n2. Run list_on_calls to read the current rotation members.\n3. Cross-reference list_escalation_policies for the escalation path.\n\n## Output\nReturn the current on-call person per schedule and the escalation order.',
+    },
+    {
+      name: 'track-action-items',
+      description: 'Create and list retrospective action items tied to a Rootly incident.',
+      content:
+        '# Track Action Items\n\nCapture and follow up on postmortem action items.\n\n## Steps\n1. Run get_incident to confirm the incident context.\n2. Run create_action_item for each follow-up with a clear owner and description.\n3. Run list_action_items to review open items for the incident.\n\n## Output\nReturn the created action items and the list of outstanding follow-ups.',
+    },
+  ],
 } as const satisfies BlockMeta

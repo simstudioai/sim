@@ -483,4 +483,33 @@ export const MailgunBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'send-transactional-email',
+      description:
+        'Send a transactional email through a Mailgun sending domain to one or more recipients.',
+      content:
+        '# Send Transactional Email\n\nDeliver an email through Mailgun.\n\n## Steps\n1. Confirm the verified sending domain to use, listing domains first if unsure.\n2. Compose the message with from, to, subject, and an HTML or text body.\n3. Send Message with those fields, adding CC, BCC, or attachments as needed.\n\n## Output\nConfirmation of acceptance with the Mailgun message ID and the recipients it was queued to.',
+    },
+    {
+      name: 'track-delivery-events',
+      description:
+        'Pull Mailgun events filtered by type to see what was delivered, opened, clicked, or failed.',
+      content:
+        '# Track Delivery Events\n\nMonitor what happened to your Mailgun sends.\n\n## Steps\n1. List Messages or query events filtered by an event type such as delivered, failed, opened, or clicked.\n2. Group the events by recipient and by type to see delivery outcomes.\n3. Highlight failures and bounces that need attention.\n\n## Output\nA summary of event counts by type and a list of failed or bounced recipients.',
+    },
+    {
+      name: 'sweep-bounces-and-complaints',
+      description:
+        'Collect Mailgun failed and complained events and compile the offending addresses for suppression.',
+      content:
+        '# Sweep Bounces and Complaints\n\nKeep your list clean by capturing bad addresses.\n\n## Steps\n1. Query Mailgun events filtered to failed and complained types over the chosen window.\n2. Extract the recipient addresses and the reason for each.\n3. Compile a suppression list of addresses to stop mailing.\n\n## Output\nA list of bounced and complained addresses with reasons, ready to write to a suppression table.',
+    },
+    {
+      name: 'add-member-to-list',
+      description: 'Create a Mailgun mailing list if needed and add a subscriber to it.',
+      content:
+        '# Add Member to List\n\nGrow a Mailgun mailing list.\n\n## Steps\n1. Get Mailing List to confirm the list exists, or Create Mailing List with the address and access level if it does not.\n2. Add List Member with the subscriber email and any name or variables.\n\n## Output\nConfirmation the member was added, the list address, and the member email.',
+    },
+  ],
 } as const satisfies BlockMeta

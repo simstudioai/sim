@@ -1,5 +1,6 @@
 export {
   BlocksGroup,
+  ChatsGroup,
   ConnectedAccountsGroup,
   DocsGroup,
   FilesGroup,
@@ -7,7 +8,6 @@ export {
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,
-  TasksGroup,
   ToolOpsGroup,
   ToolsGroup,
   TriggersGroup,

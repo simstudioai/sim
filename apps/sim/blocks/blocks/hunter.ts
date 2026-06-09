@@ -480,4 +480,26 @@ export const HunterBlockMeta = {
       alsoIntegrations: ['apollo'],
     },
   ],
+  skills: [
+    {
+      name: 'find-decision-maker-emails',
+      description:
+        'Find verified email addresses for key roles at a target company using domain search.',
+      content:
+        '# Find Decision-Maker Emails\n\nGiven a company domain, find verified professional email addresses for the people who matter.\n\n## Steps\n1. Run a domain search for the target domain (e.g. example.com).\n2. Filter results by department or seniority (executive, sales, IT) to surface decision-makers.\n3. For each candidate, capture the full name, role, email, and confidence score.\n4. Drop any result below your confidence threshold (e.g. < 80).\n\n## Output\nReturn a list of contacts with name, title, email, and confidence score, sorted by seniority. Note the total emails available on the domain so the user knows coverage.',
+    },
+    {
+      name: 'verify-email-list',
+      description:
+        'Verify a batch of email addresses and flag undeliverable or risky ones before sending.',
+      content:
+        '# Verify Email List\n\nClean a list of email addresses so a campaign only sends to deliverable inboxes.\n\n## Steps\n1. For each address, run the email verifier.\n2. Record the verification status (valid, invalid, accept-all, disposable, webmail) and the deliverability score.\n3. Bucket addresses into deliverable, risky, and undeliverable.\n\n## Output\nReturn the three buckets with counts, and a recommended clean list containing only deliverable addresses.',
+    },
+    {
+      name: 'find-person-email',
+      description: 'Find the most likely email address for a named person at a specific company.',
+      content:
+        '# Find a Person Email\n\nGiven a first name, last name, and company domain, find that person email address.\n\n## Steps\n1. Run the email finder with the full name and domain.\n2. Capture the returned email, confidence score, and the sources Hunter used.\n3. If confidence is low, optionally run a domain search to confirm the pattern.\n\n## Output\nReturn the email, confidence score, and supporting sources. State clearly when no confident match was found.',
+    },
+  ],
 } as const satisfies BlockMeta

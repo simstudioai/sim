@@ -48,9 +48,9 @@ import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/provide
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
+  CollapsedChatFlyoutItem,
   CollapsedFolderItems,
   CollapsedSidebarMenu,
-  CollapsedTaskFlyoutItem,
   CollapsedWorkflowFlyoutItem,
   HelpModal,
   NavItemContextMenu,
@@ -70,12 +70,12 @@ import {
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
+  useChatSelection,
   useContextMenu,
   useFlyoutInlineRename,
   useFolderOperations,
   useHoverMenu,
   useSidebarResize,
-  useTaskSelection,
   useWorkflowOperations,
   useWorkspaceLogoUpload,
   useWorkspaceManagement,
@@ -89,27 +89,25 @@ import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useTablesList } from '@/hooks/queries/tables'
 import {
-  useCreateTask,
-  useDeleteTask,
-  useDeleteTasks,
-  useMarkTaskRead,
-  useMarkTaskUnread,
-  useRenameTask,
-  useSetTaskPinned,
-  useTasks,
-} from '@/hooks/queries/tasks'
+  useDeleteMothershipChat,
+  useDeleteMothershipChats,
+  useMarkMothershipChatRead,
+  useMarkMothershipChatUnread,
+  useMothershipChats,
+  useRenameMothershipChat,
+  useSetMothershipChatPinned,
+} from '@/hooks/queries/mothership-chats'
+import { useTablesList } from '@/hooks/queries/tables'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -145,8 +143,8 @@ function SidebarItemSkeleton() {
   )
 }
 
-const SidebarTaskItem = memo(function SidebarTaskItem({
-  task,
+const SidebarChatItem = memo(function SidebarChatItem({
+  chat,
   isCurrentRoute,
   isSelected,
   isActive,
@@ -159,7 +157,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   onMorePointerDown,
   onMoreClick,
 }: {
-  task: { id: string; href: string; name: string }
+  chat: { id: string; href: string; name: string }
   isCurrentRoute: boolean
   isSelected: boolean
   isActive: boolean
@@ -167,10 +165,10 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isPinned: boolean
   isMenuOpen: boolean
   showCollapsedTooltips: boolean
-  onMultiSelectClick: (taskId: string, shiftKey: boolean) => void
-  onContextMenu: (e: React.MouseEvent, taskId: string) => void
+  onMultiSelectClick: (chatId: string, shiftKey: boolean) => void
+  onContextMenu: (e: React.MouseEvent, chatId: string) => void
   onMorePointerDown: () => void
-  onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
+  onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, chatId: string) => void
 }) {
   const dragGhostRef = useRef<HTMLElement | null>(null)
 
@@ -178,9 +176,9 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
     e.dataTransfer.effectAllowed = 'copyMove'
     e.dataTransfer.setData(
       SIM_RESOURCES_DRAG_TYPE,
-      JSON.stringify([{ type: 'task', id: task.id, title: task.name }])
+      JSON.stringify([{ type: 'task', id: chat.id, title: chat.name }])
     )
-    const ghost = createSidebarDragGhost(task.name, { kind: 'task' })
+    const ghost = createSidebarDragGhost(chat.name, { kind: 'task' })
     void ghost.offsetHeight
     e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
     dragGhostRef.current = ghost
@@ -194,9 +192,9 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   }
 
   return (
-    <SidebarTooltip label={task.name} enabled={showCollapsedTooltips}>
+    <SidebarTooltip label={chat.name} enabled={showCollapsedTooltips}>
       <Link
-        href={task.href}
+        href={chat.href}
         className={chipVariants({
           active: isCurrentRoute || isSelected || isMenuOpen,
           fullWidth: true,
@@ -205,18 +203,18 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           if (e.metaKey || e.ctrlKey) return
           if (e.shiftKey) {
             e.preventDefault()
-            onMultiSelectClick(task.id, true)
+            onMultiSelectClick(chat.id, true)
           } else {
-            useFolderStore.getState().selectTaskOnly(task.id)
+            useFolderStore.getState().selectChatOnly(chat.id)
           }
         }}
-        onContextMenu={(e) => onContextMenu(e, task.id)}
+        onContextMenu={(e) => onContextMenu(e, chat.id)}
         draggable
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{task.name}</div>
-        {task.id !== 'new' && (
+        <div className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{chat.name}</div>
+        {chat.id !== 'new' && (
           <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
             {(isActive || (!isCurrentRoute && isUnread)) && (
               <span
@@ -243,7 +241,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                onMoreClick(e, task.id)
+                onMoreClick(e, chat.id)
               }}
               className={cn(
                 'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
@@ -589,77 +587,75 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
-  const createTaskMutation = useCreateTask(workspaceId)
-  const deleteTaskMutation = useDeleteTask(workspaceId)
-  const deleteTasksMutation = useDeleteTasks(workspaceId)
-  const markTaskReadMutation = useMarkTaskRead(workspaceId)
-  const markTaskUnreadMutation = useMarkTaskUnread(workspaceId)
-  const renameTaskMutation = useRenameTask(workspaceId)
-  const setTaskPinnedMutation = useSetTaskPinned(workspaceId)
-  const tasksHover = useHoverMenu()
+  const deleteChatMutation = useDeleteMothershipChat(workspaceId)
+  const deleteChatsMutation = useDeleteMothershipChats(workspaceId)
+  const markChatReadMutation = useMarkMothershipChatRead(workspaceId)
+  const markChatUnreadMutation = useMarkMothershipChatUnread(workspaceId)
+  const renameChatMutation = useRenameMothershipChat(workspaceId)
+  const setChatPinnedMutation = useSetMothershipChatPinned(workspaceId)
+  const chatsHover = useHoverMenu()
   const workflowsHover = useHoverMenu()
 
   const {
-    isOpen: isTaskContextMenuOpen,
-    position: taskContextMenuPosition,
-    menuRef: taskMenuRef,
-    handleContextMenu: handleTaskContextMenuBase,
-    closeMenu: closeTaskContextMenu,
-    preventDismiss: preventTaskDismiss,
+    isOpen: isChatContextMenuOpen,
+    position: chatContextMenuPosition,
+    menuRef: chatMenuRef,
+    handleContextMenu: handleChatContextMenuBase,
+    closeMenu: closeChatContextMenu,
+    preventDismiss: preventChatDismiss,
   } = useContextMenu()
 
-  const isCreatingTaskRef = useRef(false)
-  const contextMenuSelectionRef = useRef<{ taskIds: string[]; names: string[] }>({
-    taskIds: [],
+  const contextMenuSelectionRef = useRef<{ chatIds: string[]; names: string[] }>({
+    chatIds: [],
     names: [],
   })
-  const [menuOpenTaskId, setMenuOpenTaskId] = useState<string | null>(null)
+  const [menuOpenChatId, setMenuOpenChatId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isTaskContextMenuOpen) setMenuOpenTaskId(null)
-  }, [isTaskContextMenuOpen])
+    if (!isChatContextMenuOpen) setMenuOpenChatId(null)
+  }, [isChatContextMenuOpen])
 
-  const captureTaskSelection = useCallback((taskId: string) => {
-    const { selectedTasks, selectTaskOnly } = useFolderStore.getState()
-    if (selectedTasks.size > 0 && selectedTasks.has(taskId)) {
+  const captureChatSelection = useCallback((chatId: string) => {
+    const { selectedChats, selectChatOnly } = useFolderStore.getState()
+    if (selectedChats.size > 0 && selectedChats.has(chatId)) {
       contextMenuSelectionRef.current = {
-        taskIds: Array.from(selectedTasks),
+        chatIds: Array.from(selectedChats),
         names: [],
       }
     } else {
-      selectTaskOnly(taskId)
-      contextMenuSelectionRef.current = { taskIds: [taskId], names: [] }
+      selectChatOnly(chatId)
+      contextMenuSelectionRef.current = { chatIds: [chatId], names: [] }
     }
   }, [])
 
-  const handleTaskContextMenu = useCallback(
-    (e: React.MouseEvent, taskId: string) => {
-      captureTaskSelection(taskId)
-      setMenuOpenTaskId(taskId)
-      tasksHover.setLocked(true)
-      preventTaskDismiss()
-      handleTaskContextMenuBase(e)
+  const handleChatContextMenu = useCallback(
+    (e: React.MouseEvent, chatId: string) => {
+      captureChatSelection(chatId)
+      setMenuOpenChatId(chatId)
+      chatsHover.setLocked(true)
+      preventChatDismiss()
+      handleChatContextMenuBase(e)
     },
-    [captureTaskSelection, handleTaskContextMenuBase, preventTaskDismiss, tasksHover]
+    [captureChatSelection, handleChatContextMenuBase, preventChatDismiss, chatsHover]
   )
 
-  const handleTaskMorePointerDown = useCallback(() => {
-    if (isTaskContextMenuOpen) {
-      preventTaskDismiss()
+  const handleChatMorePointerDown = useCallback(() => {
+    if (isChatContextMenuOpen) {
+      preventChatDismiss()
     }
-  }, [isTaskContextMenuOpen, preventTaskDismiss])
+  }, [isChatContextMenuOpen, preventChatDismiss])
 
-  const handleTaskMoreClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => {
-      if (isTaskContextMenuOpen) {
-        closeTaskContextMenu()
+  const handleChatMoreClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>, chatId: string) => {
+      if (isChatContextMenuOpen) {
+        closeChatContextMenu()
         return
       }
-      tasksHover.setLocked(true)
-      captureTaskSelection(taskId)
-      setMenuOpenTaskId(taskId)
+      chatsHover.setLocked(true)
+      captureChatSelection(chatId)
+      setMenuOpenChatId(chatId)
       const rect = e.currentTarget.getBoundingClientRect()
-      handleTaskContextMenuBase({
+      handleChatContextMenuBase({
         preventDefault: () => {},
         stopPropagation: () => {},
         clientX: rect.right,
@@ -667,11 +663,11 @@ export const Sidebar = memo(function Sidebar() {
       } as React.MouseEvent)
     },
     [
-      isTaskContextMenuOpen,
-      closeTaskContextMenu,
-      captureTaskSelection,
-      handleTaskContextMenuBase,
-      tasksHover,
+      isChatContextMenuOpen,
+      closeChatContextMenu,
+      captureChatSelection,
+      handleChatContextMenuBase,
+      chatsHover,
     ]
   )
 
@@ -793,19 +789,19 @@ export const Sidebar = memo(function Sidebar() {
     [navigateToSettings, getSettingsHref, setSidebarWidth]
   )
 
-  const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
+  const { data: fetchedChats = [], isLoading: chatsLoading } = useMothershipChats(workspaceId)
 
-  useTaskEvents(workspaceId)
+  useMothershipChatEvents(workspaceId)
 
-  const tasks = useMemo(
+  const chats = useMemo(
     () =>
-      fetchedTasks
-        ? fetchedTasks.map((t) => ({
+      fetchedChats
+        ? fetchedChats.map((t) => ({
             ...t,
-            href: `/workspace/${workspaceId}/task/${t.id}`,
+            href: `/workspace/${workspaceId}/chat/${t.id}`,
           }))
         : [],
-    [fetchedTasks, workspaceId]
+    [fetchedChats, workspaceId]
   )
 
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
@@ -849,26 +845,26 @@ export const Sidebar = memo(function Sidebar() {
     [fetchedKnowledgeBases, workspaceId, permissionConfig.hideKnowledgeBaseTab]
   )
 
-  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
+  const chatIds = useMemo(() => chats.map((t) => t.id), [chats])
 
-  const { selectedTasks, handleTaskClick } = useTaskSelection({ taskIds })
-  const hasTaskMultiSelection = selectedTasks.size > 1
+  const { selectedChats, handleChatClick } = useChatSelection({ chatIds })
+  const hasChatMultiSelection = selectedChats.size > 1
 
-  const isMultiTaskContextMenu = contextMenuSelectionRef.current.taskIds.length > 1
-  const activeTaskContextMenuItem =
-    !isMultiTaskContextMenu && contextMenuSelectionRef.current.taskIds.length === 1
-      ? tasks.find((task) => task.id === contextMenuSelectionRef.current.taskIds[0])
+  const isMultiChatContextMenu = contextMenuSelectionRef.current.chatIds.length > 1
+  const activeChatContextMenuItem =
+    !isMultiChatContextMenu && contextMenuSelectionRef.current.chatIds.length === 1
+      ? chats.find((chat) => chat.id === contextMenuSelectionRef.current.chatIds[0])
       : null
 
-  const [isTaskDeleteModalOpen, setIsTaskDeleteModalOpen] = useState(false)
+  const [isChatDeleteModalOpen, setIsChatDeleteModalOpen] = useState(false)
 
-  const handleDeleteTask = useCallback(() => {
-    const { taskIds: ids } = contextMenuSelectionRef.current
+  const handleDeleteChat = useCallback(() => {
+    const { chatIds: ids } = contextMenuSelectionRef.current
     if (ids.length === 0) return
-    const names = ids.map((id) => tasks.find((t) => t.id === id)?.name).filter(Boolean) as string[]
-    contextMenuSelectionRef.current = { taskIds: ids, names }
-    setIsTaskDeleteModalOpen(true)
-  }, [tasks])
+    const names = ids.map((id) => chats.find((t) => t.id === id)?.name).filter(Boolean) as string[]
+    contextMenuSelectionRef.current = { chatIds: ids, names }
+    setIsChatDeleteModalOpen(true)
+  }, [chats])
 
   const navigateToPage = useCallback(
     (path: string) => {
@@ -880,35 +876,35 @@ export const Sidebar = memo(function Sidebar() {
     [setSidebarWidth, router]
   )
 
-  const handleConfirmDeleteTasks = () => {
-    const { taskIds: taskIdsToDelete } = contextMenuSelectionRef.current
-    if (taskIdsToDelete.length === 0) return
+  const handleConfirmDeleteChats = () => {
+    const { chatIds: chatIdsToDelete } = contextMenuSelectionRef.current
+    if (chatIdsToDelete.length === 0) return
 
     const currentPath = pathname ?? ''
-    const isViewingDeletedTask = taskIdsToDelete.some(
-      (id) => currentPath === `/workspace/${workspaceId}/task/${id}`
+    const isViewingDeletedChat = chatIdsToDelete.some(
+      (id) => currentPath === `/workspace/${workspaceId}/chat/${id}`
     )
 
     const onDeleteSuccess = () => {
-      useFolderStore.getState().clearTaskSelection()
-      if (isViewingDeletedTask) {
+      useFolderStore.getState().clearChatSelection()
+      if (isViewingDeletedChat) {
         navigateToPage(`/workspace/${workspaceId}/home`)
       }
     }
 
-    if (taskIdsToDelete.length === 1) {
-      deleteTaskMutation.mutate(taskIdsToDelete[0], { onSuccess: onDeleteSuccess })
+    if (chatIdsToDelete.length === 1) {
+      deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess: onDeleteSuccess })
     } else {
-      deleteTasksMutation.mutate(taskIdsToDelete, { onSuccess: onDeleteSuccess })
+      deleteChatsMutation.mutate(chatIdsToDelete, { onSuccess: onDeleteSuccess })
     }
-    setIsTaskDeleteModalOpen(false)
+    setIsChatDeleteModalOpen(false)
   }
 
-  const [visibleTaskCount, setVisibleTaskCount] = useState(5)
-  const taskFlyoutRename = useFlyoutInlineRename({
+  const [visibleChatCount, setVisibleChatCount] = useState(5)
+  const chatFlyoutRename = useFlyoutInlineRename({
     itemType: 'task',
-    onSave: async (taskId, name) => {
-      await renameTaskMutation.mutateAsync({ chatId: taskId, title: name })
+    onSave: async (chatId, name) => {
+      await renameChatMutation.mutateAsync({ chatId: chatId, title: name })
     },
   })
 
@@ -924,49 +920,49 @@ export const Sidebar = memo(function Sidebar() {
   })
 
   useEffect(() => {
-    tasksHover.setLocked(isTaskContextMenuOpen || !!taskFlyoutRename.editingId)
-  }, [isTaskContextMenuOpen, taskFlyoutRename.editingId, tasksHover.setLocked])
+    chatsHover.setLocked(isChatContextMenuOpen || !!chatFlyoutRename.editingId)
+  }, [isChatContextMenuOpen, chatFlyoutRename.editingId, chatsHover.setLocked])
 
   useEffect(() => {
     workflowsHover.setLocked(!!workflowFlyoutRename.editingId)
   }, [workflowFlyoutRename.editingId, workflowsHover.setLocked])
 
-  const handleTaskOpenInNewTab = useCallback(() => {
-    const { taskIds: ids } = contextMenuSelectionRef.current
+  const handleChatOpenInNewTab = useCallback(() => {
+    const { chatIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
-    window.open(`/workspace/${workspaceId}/task/${ids[0]}`, '_blank', 'noopener,noreferrer')
+    window.open(`/workspace/${workspaceId}/chat/${ids[0]}`, '_blank', 'noopener,noreferrer')
   }, [workspaceId])
 
-  const handleMarkTaskAsRead = useCallback(() => {
-    const { taskIds: ids } = contextMenuSelectionRef.current
+  const handleMarkChatAsRead = useCallback(() => {
+    const { chatIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
-    markTaskReadMutation.mutate(ids[0])
+    markChatReadMutation.mutate(ids[0])
   }, [])
 
-  const handleMarkTaskAsUnread = useCallback(() => {
-    const { taskIds: ids } = contextMenuSelectionRef.current
+  const handleMarkChatAsUnread = useCallback(() => {
+    const { chatIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
-    markTaskUnreadMutation.mutate(ids[0])
+    markChatUnreadMutation.mutate(ids[0])
   }, [])
 
-  const handleStartTaskRename = useCallback(() => {
-    const { taskIds: ids } = contextMenuSelectionRef.current
+  const handleStartChatRename = useCallback(() => {
+    const { chatIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
-    const taskId = ids[0]
-    const task = tasks.find((t) => t.id === taskId)
-    if (!task) return
-    tasksHover.setLocked(true)
-    taskFlyoutRename.startRename({ id: taskId, name: task.name })
-  }, [taskFlyoutRename, tasks, tasksHover])
+    const chatId = ids[0]
+    const chat = chats.find((t) => t.id === chatId)
+    if (!chat) return
+    chatsHover.setLocked(true)
+    chatFlyoutRename.startRename({ id: chatId, name: chat.name })
+  }, [chatFlyoutRename, chats, chatsHover])
 
-  const handleToggleTaskPin = useCallback(() => {
-    const { taskIds: ids } = contextMenuSelectionRef.current
+  const handleToggleChatPin = useCallback(() => {
+    const { chatIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
-    const taskId = ids[0]
-    const task = tasks.find((t) => t.id === taskId)
-    if (!task) return
-    setTaskPinnedMutation.mutate({ chatId: taskId, pinned: !task.isPinned })
-  }, [tasks, setTaskPinnedMutation])
+    const chatId = ids[0]
+    const chat = chats.find((t) => t.id === chatId)
+    if (!chat) return
+    setChatPinnedMutation.mutate({ chatId: chatId, pinned: !chat.isPinned })
+  }, [chats, setChatPinnedMutation])
 
   const handleCollapsedWorkflowOpenInNewTab = useCallback(
     (workflow: { id: string }) => {
@@ -1123,7 +1119,7 @@ export const Sidebar = memo(function Sidebar() {
     [workspaces, handleLeaveWorkspace]
   )
 
-  const tasksCollapsedIcon = <Task className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+  const chatsCollapsedIcon = <Task className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
 
   const workflowsCollapsedIcon = (
     <Workflow className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -1134,29 +1130,10 @@ export const Sidebar = memo(function Sidebar() {
     onSelect: handleCreateWorkflow,
   }
 
-  const handleNewTask = useCallback(async () => {
-    if (!workspaceId || isCreatingTaskRef.current) return
-    isCreatingTaskRef.current = true
-    try {
-      const { id } = await createTaskMutation.mutateAsync()
-      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
-      navigateToPage(`/workspace/${workspaceId}/task/${id}`)
-    } catch {
-      navigateToPage(`/workspace/${workspaceId}/home`)
-    } finally {
-      isCreatingTaskRef.current = false
-    }
-  }, [workspaceId, navigateToPage])
+  const handleSeeMoreChats = useCallback(() => setVisibleChatCount((prev) => prev + 5), [])
+  const handleSeeLessChats = useCallback(() => setVisibleChatCount(5), [])
 
-  const tasksPrimaryAction = {
-    label: 'New chat',
-    onSelect: handleNewTask,
-  }
-
-  const handleSeeMoreTasks = useCallback(() => setVisibleTaskCount((prev) => prev + 5), [])
-  const handleSeeLessTasks = useCallback(() => setVisibleTaskCount(5), [])
-
-  const handleCloseTaskDeleteModal = useCallback(() => setIsTaskDeleteModalOpen(false), [])
+  const handleCloseChatDeleteModal = useCallback(() => setIsChatDeleteModalOpen(false), [])
 
   const handleEdgeKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1175,9 +1152,9 @@ export const Sidebar = memo(function Sidebar() {
     captureEvent(posthog, 'docs_opened', { source: 'help_menu' })
   }, [posthog])
 
-  const handleTaskRenameBlur = useCallback(
-    () => void taskFlyoutRename.saveRename(),
-    [taskFlyoutRename.saveRename]
+  const handleChatRenameBlur = useCallback(
+    () => void chatFlyoutRename.saveRename(),
+    [chatFlyoutRename.saveRename]
   )
 
   const handleWorkflowRenameBlur = useCallback(
@@ -1239,12 +1216,6 @@ export const Sidebar = memo(function Sidebar() {
         handler: () => {
           if (!canEdit || isCreatingWorkflow) return
           handleCreateWorkflow()
-        },
-      },
-      {
-        id: 'add-task',
-        handler: () => {
-          handleNewTask()
         },
       },
     ])
@@ -1338,103 +1309,81 @@ export const Sidebar = memo(function Sidebar() {
                   )}
                 >
                   <div ref={scrollContentRef} className='flex flex-col'>
-                    <div className='tasks-section flex flex-shrink-0 flex-col'>
+                    <div className='chats-section flex flex-shrink-0 flex-col'>
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                         <div className='text-[var(--text-muted)] text-small'>Chats</div>
-                        {!isCollapsed && (
-                          <div className='flex items-center justify-center gap-2'>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='quiet'
-                                  className='h-[18px] w-[18px] rounded-sm p-0'
-                                  onClick={handleNewTask}
-                                  disabled={createTaskMutation.isPending}
-                                >
-                                  <Plus className='h-[16px] w-[16px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                <Tooltip.Shortcut keys={isMac ? '⌘⇧K' : 'Ctrl+Shift+K'}>
-                                  New chat
-                                </Tooltip.Shortcut>
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          </div>
-                        )}
                       </div>
                       {isCollapsed ? (
                         <CollapsedSidebarMenu
-                          icon={tasksCollapsedIcon}
-                          hover={tasksHover}
+                          icon={chatsCollapsedIcon}
+                          hover={chatsHover}
                           ariaLabel='Chats'
                           className='mt-2'
-                          primaryAction={tasksPrimaryAction}
                         >
-                          {tasksLoading ? (
+                          {chatsLoading ? (
                             <DropdownMenuItem disabled>
                               <Loader className='h-[14px] w-[14px]' animate />
                               Loading...
                             </DropdownMenuItem>
-                          ) : tasks.length === 0 ? (
+                          ) : chats.length === 0 ? (
                             <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
                           ) : (
-                            tasks.map((task) => (
-                              <CollapsedTaskFlyoutItem
-                                key={task.id}
-                                task={task}
-                                isCurrentRoute={pathname === task.href}
-                                isMenuOpen={menuOpenTaskId === task.id}
-                                isEditing={task.id === taskFlyoutRename.editingId}
-                                editValue={taskFlyoutRename.value}
-                                inputRef={taskFlyoutRename.inputRef}
-                                isRenaming={taskFlyoutRename.isSaving}
-                                onEditValueChange={taskFlyoutRename.setValue}
-                                onEditKeyDown={taskFlyoutRename.handleKeyDown}
-                                onEditBlur={handleTaskRenameBlur}
-                                onContextMenu={handleTaskContextMenu}
-                                onMorePointerDown={handleTaskMorePointerDown}
-                                onMoreClick={handleTaskMoreClick}
+                            chats.map((chat) => (
+                              <CollapsedChatFlyoutItem
+                                key={chat.id}
+                                chat={chat}
+                                isCurrentRoute={pathname === chat.href}
+                                isMenuOpen={menuOpenChatId === chat.id}
+                                isEditing={chat.id === chatFlyoutRename.editingId}
+                                editValue={chatFlyoutRename.value}
+                                inputRef={chatFlyoutRename.inputRef}
+                                isRenaming={chatFlyoutRename.isSaving}
+                                onEditValueChange={chatFlyoutRename.setValue}
+                                onEditKeyDown={chatFlyoutRename.handleKeyDown}
+                                onEditBlur={handleChatRenameBlur}
+                                onContextMenu={handleChatContextMenu}
+                                onMorePointerDown={handleChatMorePointerDown}
+                                onMoreClick={handleChatMoreClick}
                               />
                             ))
                           )}
                         </CollapsedSidebarMenu>
                       ) : (
                         <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'mt-2 flex flex-col px-2')}>
-                          {tasksLoading ? (
+                          {chatsLoading ? (
                             <SidebarItemSkeleton />
                           ) : (
                             <>
-                              {tasks.length === 0 ? (
+                              {chats.length === 0 ? (
                                 <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
                                   No chats yet
                                 </div>
                               ) : null}
-                              {/* `selectTaskOnly` populates `selectedTasks` on every click, so
+                              {/* `selectChatOnly` populates `selectedChats` on every click, so
                                   a single entry just means "last clicked" — already conveyed by
                                   `isCurrentRoute`. Highlight from selection only for explicit
                                   multi-selection (size > 1), otherwise it lingers after navigating
-                                  away from a task. */}
-                              {tasks.slice(0, visibleTaskCount).map((task) => {
-                                const isCurrentRoute = pathname === task.href
-                                const isRenaming = taskFlyoutRename.editingId === task.id
+                                  away from a chat. */}
+                              {chats.slice(0, visibleChatCount).map((chat) => {
+                                const isCurrentRoute = pathname === chat.href
+                                const isRenaming = chatFlyoutRename.editingId === chat.id
                                 const isSelected =
-                                  task.id !== 'new' &&
-                                  hasTaskMultiSelection &&
-                                  selectedTasks.has(task.id)
+                                  chat.id !== 'new' &&
+                                  hasChatMultiSelection &&
+                                  selectedChats.has(chat.id)
 
                                 if (isRenaming) {
                                   return (
                                     <div
-                                      key={task.id}
+                                      key={chat.id}
                                       className={chipVariants({ active: true, fullWidth: true })}
                                     >
                                       <input
-                                        ref={taskFlyoutRename.inputRef}
-                                        value={taskFlyoutRename.value}
-                                        onChange={(e) => taskFlyoutRename.setValue(e.target.value)}
-                                        onKeyDown={taskFlyoutRename.handleKeyDown}
-                                        onBlur={handleTaskRenameBlur}
+                                        ref={chatFlyoutRename.inputRef}
+                                        value={chatFlyoutRename.value}
+                                        onChange={(e) => chatFlyoutRename.setValue(e.target.value)}
+                                        onKeyDown={chatFlyoutRename.handleKeyDown}
+                                        onBlur={handleChatRenameBlur}
                                         className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-none'
                                       />
                                     </div>
@@ -1442,37 +1391,37 @@ export const Sidebar = memo(function Sidebar() {
                                 }
 
                                 return (
-                                  <SidebarTaskItem
-                                    key={task.id}
-                                    task={task}
+                                  <SidebarChatItem
+                                    key={chat.id}
+                                    chat={chat}
                                     isCurrentRoute={isCurrentRoute}
                                     isSelected={isSelected}
-                                    isActive={!!task.isActive}
-                                    isUnread={!!task.isUnread}
-                                    isPinned={!!task.isPinned}
-                                    isMenuOpen={menuOpenTaskId === task.id}
+                                    isActive={!!chat.isActive}
+                                    isUnread={!!chat.isUnread}
+                                    isPinned={!!chat.isPinned}
+                                    isMenuOpen={menuOpenChatId === chat.id}
                                     showCollapsedTooltips={showCollapsedTooltips}
-                                    onMultiSelectClick={handleTaskClick}
-                                    onContextMenu={handleTaskContextMenu}
-                                    onMorePointerDown={handleTaskMorePointerDown}
-                                    onMoreClick={handleTaskMoreClick}
+                                    onMultiSelectClick={handleChatClick}
+                                    onContextMenu={handleChatContextMenu}
+                                    onMorePointerDown={handleChatMorePointerDown}
+                                    onMoreClick={handleChatMoreClick}
                                   />
                                 )
                               })}
-                              {tasks.length > 5 && (
+                              {chats.length > 5 && (
                                 <button
                                   type='button'
                                   onClick={
-                                    tasks.length > visibleTaskCount
-                                      ? handleSeeMoreTasks
-                                      : handleSeeLessTasks
+                                    chats.length > visibleChatCount
+                                      ? handleSeeMoreChats
+                                      : handleSeeLessChats
                                   }
                                   className={cn(
                                     chipVariants({ fullWidth: true }),
                                     'text-[var(--text-muted)] text-small'
                                   )}
                                 >
-                                  {tasks.length > visibleTaskCount ? 'See more' : 'See less'}
+                                  {chats.length > visibleChatCount ? 'See more' : 'See less'}
                                 </button>
                               )}
                             </>
@@ -1714,36 +1663,36 @@ export const Sidebar = memo(function Sidebar() {
                 />
 
                 <ContextMenu
-                  isOpen={isTaskContextMenuOpen}
-                  position={taskContextMenuPosition}
-                  menuRef={taskMenuRef}
-                  onClose={closeTaskContextMenu}
-                  onOpenInNewTab={handleTaskOpenInNewTab}
-                  onMarkAsRead={handleMarkTaskAsRead}
-                  onMarkAsUnread={handleMarkTaskAsUnread}
-                  onTogglePin={handleToggleTaskPin}
-                  onRename={handleStartTaskRename}
-                  onDelete={handleDeleteTask}
-                  showOpenInNewTab={!isMultiTaskContextMenu}
-                  showMarkAsRead={!isMultiTaskContextMenu && !!activeTaskContextMenuItem?.isUnread}
+                  isOpen={isChatContextMenuOpen}
+                  position={chatContextMenuPosition}
+                  menuRef={chatMenuRef}
+                  onClose={closeChatContextMenu}
+                  onOpenInNewTab={handleChatOpenInNewTab}
+                  onMarkAsRead={handleMarkChatAsRead}
+                  onMarkAsUnread={handleMarkChatAsUnread}
+                  onTogglePin={handleToggleChatPin}
+                  onRename={handleStartChatRename}
+                  onDelete={handleDeleteChat}
+                  showOpenInNewTab={!isMultiChatContextMenu}
+                  showMarkAsRead={!isMultiChatContextMenu && !!activeChatContextMenuItem?.isUnread}
                   showMarkAsUnread={
-                    !isMultiTaskContextMenu &&
-                    !!activeTaskContextMenuItem &&
-                    !activeTaskContextMenuItem.isUnread
+                    !isMultiChatContextMenu &&
+                    !!activeChatContextMenuItem &&
+                    !activeChatContextMenuItem.isUnread
                   }
-                  showPin={!isMultiTaskContextMenu && !!activeTaskContextMenuItem}
-                  isPinned={!!activeTaskContextMenuItem?.isPinned}
-                  showRename={!isMultiTaskContextMenu}
+                  showPin={!isMultiChatContextMenu && !!activeChatContextMenuItem}
+                  isPinned={!!activeChatContextMenuItem?.isPinned}
+                  showRename={!isMultiChatContextMenu}
                   showDuplicate={false}
                   disableRename={!canEdit}
                   disableDelete={!canEdit}
                 />
 
                 <DeleteModal
-                  isOpen={isTaskDeleteModalOpen}
-                  onClose={handleCloseTaskDeleteModal}
-                  onConfirm={handleConfirmDeleteTasks}
-                  isDeleting={deleteTaskMutation.isPending || deleteTasksMutation.isPending}
+                  isOpen={isChatDeleteModalOpen}
+                  onClose={handleCloseChatDeleteModal}
+                  onConfirm={handleConfirmDeleteChats}
+                  isDeleting={deleteChatMutation.isPending || deleteChatsMutation.isPending}
                   itemType='task'
                   itemName={contextMenuSelectionRef.current.names}
                 />
@@ -1772,7 +1721,7 @@ export const Sidebar = memo(function Sidebar() {
         onOpenChange={setIsSearchModalOpen}
         workflows={searchModalWorkflows}
         workspaces={searchModalWorkspaces}
-        tasks={tasks}
+        chats={chats}
         tables={searchModalTables}
         files={searchModalFiles}
         knowledgeBases={searchModalKnowledgeBases}

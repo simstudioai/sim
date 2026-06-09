@@ -207,6 +207,12 @@ For **each tool** in `tools.access`:
 - [ ] `authMode` is set correctly (`AuthMode.OAuth` or `AuthMode.ApiKey`)
 - [ ] Block is registered in `blocks/registry.ts` alphabetically
 
+### BlockMeta Skills (catalog)
+- [ ] `{Service}BlockMeta.skills` is present (3–5 for mainstream services, 2–3 for niche/low-level)
+- [ ] **Every skill is grounded** — its steps only use operations the block exposes in `tools.access`; flag any skill that implies an unsupported action (e.g. "receive messages" when the block only sends)
+- [ ] **Every skill is real, not hallucinated** — web-search the service and confirm each skill maps to a popular use case attested online (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles). Rewrite or remove any skill you cannot source as something people genuinely do with the service.
+- [ ] Each skill has a kebab-case `name` (≤64 chars, unique), a one-line `description`, and markdown `content` with `# Title` + `## Steps` + an output/guidance section
+
 ### Block Inputs
 - [ ] `inputs` section lists all subBlock params that the block accepts
 - [ ] Input types match the subBlock types

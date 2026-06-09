@@ -622,4 +622,34 @@ export const ZoomInfoBlockMeta = {
       tags: ['sales', 'research'],
     },
   ],
+  skills: [
+    {
+      name: 'enrich-contact',
+      description:
+        'Enrich a known person with ZoomInfo to fill in verified title, email, and company data.',
+      content:
+        '# Enrich a Contact with ZoomInfo\n\nFill in verified detail for a known person.\n\n## Steps\n1. Gather the identifiers you have, such as name and company, email, or a profile URL.\n2. Call the enrich-contacts operation.\n3. Extract the returned fields: verified email, direct phone, title, seniority, and company.\n\n## Output\nReturn the enriched contact as structured fields with a match-confidence note. If no match was found, report the input used rather than fabricating values.',
+    },
+    {
+      name: 'build-target-account-list',
+      description:
+        'Search ZoomInfo companies by firmographic filters to build a list of target accounts.',
+      content:
+        '# Build a Target Account List with ZoomInfo\n\nAssemble accounts that fit the ideal-customer profile.\n\n## Steps\n1. Translate the profile into company filters: industry, revenue band, employee size, and location.\n2. Call search-companies with those filters and a result limit, choosing a sort order.\n3. For top accounts, optionally enrich-companies to pull full firmographics.\n\n## Output\nReturn the matched accounts with company name, domain, industry, size, and revenue band. State the filters used and the total match count.',
+    },
+    {
+      name: 'find-decision-makers',
+      description:
+        'Search ZoomInfo contacts at a target company by title and seniority to find decision makers.',
+      content:
+        '# Find Decision Makers with ZoomInfo\n\nLocate the right people inside a target account.\n\n## Steps\n1. Identify the company, then set contact filters for title, department, and seniority.\n2. Call search-contacts scoped to that company.\n3. Enrich the chosen contacts to retrieve verified email and phone.\n\n## Output\nReturn the decision makers with name, title, seniority, and verified contact details. Group by department and note which contacts have verified direct dials.',
+    },
+    {
+      name: 'compile-account-briefing',
+      description:
+        'Combine ZoomInfo firmographics, intent signals, and news into a pre-meeting account brief.',
+      content:
+        '# Compile a ZoomInfo Account Briefing\n\nProduce a one-page brief before an account meeting.\n\n## Steps\n1. Enrich the company to pull firmographics: size, revenue, industry, and location.\n2. Search intent signals for the account to see what topics they are researching.\n3. Search news for recent company developments.\n4. Synthesize these into a concise briefing.\n\n## Output\nReturn a brief with company snapshot, top intent topics, recent news headlines, and two or three suggested talking points. Cite the company referenced.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -1040,4 +1040,27 @@ export const AshbyBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'add-candidate',
+      description:
+        'Create a candidate in Ashby from an inbound application or referral and attach them to a job. Use for sourcing and referral intake.',
+      content:
+        '# Add Candidate\n\nCapture a new candidate into Ashby and link them to the right role.\n\n## Steps\n1. Gather the candidate name, email, source, and the target job.\n2. If the job is named, list jobs to resolve its ID.\n3. Create the candidate, then create an application linking them to the job with the correct source.\n4. Add a note with referral context or screening details, and apply any relevant tags.\n\n## Output\nReport the created candidate and application IDs, the linked job, and the source applied.',
+    },
+    {
+      name: 'advance-candidate-stage',
+      description:
+        'Move a candidate application to a new interview stage in Ashby and log the decision. Use to keep the pipeline moving after interviews.',
+      content:
+        '# Advance Candidate Stage\n\nProgress a candidate through the hiring pipeline.\n\n## Steps\n1. Find the application — by ID, or list applications for the candidate or job.\n2. Confirm the current stage by getting the application.\n3. Change the application stage to the target stage.\n4. Add a note capturing the rationale and any interview feedback.\n\n## Output\nConfirm the candidate, the stage moved from and to, and the note added.',
+    },
+    {
+      name: 'pipeline-status-report',
+      description:
+        'List candidates and applications by status or job in Ashby and summarize pipeline health. Use for recruiting standups and weekly reports.',
+      content:
+        '# Pipeline Status Report\n\nSummarize the state of an Ashby hiring pipeline.\n\n## Steps\n1. List the relevant jobs, or focus on one role.\n2. List applications, grouping candidates by current stage and status (active, hired, archived).\n3. Flag candidates stalled in a stage or awaiting feedback.\n4. Note new candidates added since the last report.\n\n## Output\nA pipeline summary: candidate counts per stage and status, stalled candidates called out by name and role, and recent additions.',
+    },
+  ],
 } as const satisfies BlockMeta

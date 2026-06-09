@@ -359,4 +359,26 @@ export const GoogleBigQueryBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'answer-question-with-sql',
+      description:
+        'Inspect BigQuery schema, translate a natural-language question into safe SQL, run it, and return results.',
+      content:
+        '# Answer Question With SQL\n\nUse BigQuery to answer a data question from plain English.\n\n## Steps\n1. List datasets and tables, and Get Table on the relevant ones to understand the schema and column types.\n2. Translate the question into a single read-only BigQuery Standard SQL query, scoping it with filters and a LIMIT to control cost.\n3. Use Run Query to execute it.\n\n## Output\nReturn the result rows as a table plus the exact SQL query used, so the answer is verifiable. If the schema cannot support the question, say what is missing.',
+    },
+    {
+      name: 'explore-dataset-schema',
+      description:
+        'List BigQuery datasets and tables and summarize the schema of a dataset for an analyst.',
+      content:
+        '# Explore Dataset Schema\n\nUse BigQuery to map out what data is available.\n\n## Steps\n1. List datasets in the project.\n2. List tables in the target dataset.\n3. Get Table on each relevant table to read its columns, types, and descriptions.\n\n## Output\nReturn a structured schema summary: each table with its columns, types, and a one-line purpose. Highlight likely join keys so an analyst can plan queries.',
+    },
+    {
+      name: 'load-rows-to-table',
+      description: 'Insert structured rows into a BigQuery table for logging or pipeline output.',
+      content:
+        '# Load Rows to Table\n\nUse BigQuery to write structured records into a table.\n\n## Steps\n1. Confirm the target dataset and table, and Get Table to verify the expected columns and types.\n2. Shape the incoming records to match the table schema exactly.\n3. Use Insert Rows to write the batch.\n\n## Output\nReturn the count of rows inserted and any rows rejected with their error. If types did not match the schema, report which fields failed rather than silently dropping data.',
+    },
+  ],
 } as const satisfies BlockMeta

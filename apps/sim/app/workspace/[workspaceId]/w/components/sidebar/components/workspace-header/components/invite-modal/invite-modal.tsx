@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -179,11 +178,15 @@ export function InviteModal({
           onChange={(role) => setInviteRole(role as PermissionType)}
         />
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='primary' onClick={handleSendInvites} disabled={isSendDisabled}>
-          {isSubmitting ? 'Sending...' : 'Send invites'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => handleOpenChange(false)}
+        cancelDisabled={isSubmitting}
+        primaryAction={{
+          label: isSubmitting ? 'Sending...' : 'Send invites',
+          onClick: handleSendInvites,
+          disabled: isSendDisabled,
+        }}
+      />
     </ChipModal>
   )
 }
