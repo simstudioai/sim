@@ -4,17 +4,14 @@ description: The Agent block runs a model over your inputs to reason, call tools
 pageType: reference
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview, WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The **Agent block** runs a model as one step of a workflow. It reads the values you give it, optionally calls tools and reads files, and returns a result, either plain text or structured JSON, that later blocks read by reference.
+The **Agent block** runs a model inside a workflow. You give it instructions, context, and tools; the model reasons over the input, calls tools as needed, and returns plain text or structured JSON that later blocks read by reference. Most workflows are built around one or more Agent blocks.
+
+An *agent* and an *Agent block* are related but distinct. An agent is a whole workflow that reasons and acts on its own; an Agent block is one reasoning step inside it. The simplest agent is a single Agent block with tools, and larger ones wire several together with other blocks. See [Building agents](/building-agents).
 
 <BlockPreview type="agent" />
-
-<Callout type="info">
-An *agent* and an *Agent block* are not the same thing. An agent is a workflow you build and ship that reasons and acts on its own. An Agent block is one reasoning step inside it. A simple agent is a single Agent block; a larger one wires several together with other blocks. See [Building agents](/building-agents).
-</Callout>
 
 ## Configuration
 
