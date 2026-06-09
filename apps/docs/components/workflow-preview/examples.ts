@@ -462,3 +462,64 @@ export const FUNCTION_VALIDATE_WORKFLOW: PreviewWorkflow = {
     { id: 'clean-save', source: 'clean', target: 'save' },
   ],
 }
+
+/** Router example: a model triages a ticket to the right team. */
+export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
+  id: 'router-triage',
+  name: 'Triage a ticket',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 95 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Ticket' }],
+    },
+    {
+      id: 'router',
+      name: 'Router',
+      type: 'router',
+      bgColor: '#28C43F',
+      position: { x: 320, y: 95 },
+      rows: [
+        { title: 'Context', value: '<start.input>' },
+        { title: 'Model', value: 'claude-sonnet-4-6' },
+      ],
+    },
+    {
+      id: 'sales',
+      name: 'Sales',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 700, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Answer the pricing question' }],
+    },
+    {
+      id: 'support',
+      name: 'Support',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 700, y: 95 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Help with the issue' }],
+    },
+    {
+      id: 'billing',
+      name: 'Billing',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 700, y: 190 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Resolve the billing question' }],
+    },
+  ],
+  edges: [
+    { id: 'start-router', source: 'start', target: 'router' },
+    { id: 'router-sales', source: 'router', target: 'sales' },
+    { id: 'router-support', source: 'router', target: 'support' },
+    { id: 'router-billing', source: 'router', target: 'billing' },
+  ],
+}
