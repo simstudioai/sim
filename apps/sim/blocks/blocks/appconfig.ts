@@ -394,6 +394,7 @@ export const AppConfigBlock: BlockConfig<
           versionNumber,
           deploymentNumber,
           latestVersionNumber,
+          configurationVersion,
           ...rest
         } = params
 
@@ -403,6 +404,12 @@ export const AppConfigBlock: BlockConfig<
           if (value === undefined || value === null || value === '') return undefined
           const parsed = Number.parseInt(String(value), 10)
           return Number.isNaN(parsed) ? undefined : parsed
+        }
+
+        // Stringify: a versionNumber piped from an upstream step resolves to a JSON number,
+        // but AppConfig's ConfigurationVersion (version number or label) must be a string.
+        if (configurationVersion !== undefined && configurationVersion !== null) {
+          result.configurationVersion = String(configurationVersion)
         }
 
         const maxResultsInt = toInt(maxResults)
