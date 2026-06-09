@@ -103,7 +103,7 @@ export interface AppConfigListConfigurationProfilesParams extends AppConfigConne
 export interface AppConfigCreateConfigurationProfileParams extends AppConfigConnectionConfig {
   applicationId: string
   name: string
-  locationUri?: string | null
+  locationUri: string
   description?: string | null
   retrievalRoleArn?: string | null
   type?: string | null

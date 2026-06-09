@@ -224,7 +224,7 @@ export async function createHostedConfigurationVersion(
       Content: new TextEncoder().encode(content),
       ContentType: contentType,
       ...(description ? { Description: description } : {}),
-      ...(latestVersionNumber ? { LatestVersionNumber: latestVersionNumber } : {}),
+      ...(latestVersionNumber != null ? { LatestVersionNumber: latestVersionNumber } : {}),
       ...(versionLabel ? { VersionLabel: versionLabel } : {}),
     })
   )
