@@ -12,7 +12,7 @@ import {
 } from '@/components/emcn'
 import { ChevronDown, Plus } from '@/components/emcn/icons'
 import type { ColumnDefinition, Filter, FilterRule } from '@/lib/table'
-import { getColumnId } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
 
