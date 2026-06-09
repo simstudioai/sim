@@ -1622,3 +1622,71 @@ export const TABLE_ROUNDTRIP_WORKFLOW: PreviewWorkflow = {
     { id: 'classify-update', source: 'classify', target: 'update' },
   ],
 }
+
+/**
+ * The running example of the choosing guide: a lead scorer combining a
+ * workflow-as-tool (enrich), a deterministic Function, an Agent with tools,
+ * and a deterministic Google Sheets append.
+ */
+export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
+  id: 'lead-scorer',
+  name: 'Lead scorer',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Lead' }],
+    },
+    {
+      id: 'enrich',
+      name: 'Enrich',
+      type: 'workflow',
+      bgColor: '#6366F1',
+      position: { x: 290, y: 0 },
+      rows: [{ title: 'Workflow', value: 'enrich-lead' }],
+    },
+    {
+      id: 'reshape',
+      name: 'Reshape',
+      type: 'function',
+      bgColor: '#FF402F',
+      position: { x: 580, y: 0 },
+      rows: [{ title: 'Code', value: 'return fields(<enrich.result>)' }],
+    },
+    {
+      id: 'score',
+      name: 'Score lead',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 870, y: 0 },
+      rows: [
+        { title: 'Messages', value: 'Score <reshape.result>' },
+        { title: 'Model', value: 'claude-sonnet-4-6' },
+      ],
+      tools: [
+        { type: 'exa', name: 'Search', bgColor: '#1F40ED' },
+        { type: 'gmail', name: 'Send Email', bgColor: '#E0E0E0' },
+        { type: 'hubspot', name: 'CRM', bgColor: '#FF7A59' },
+      ],
+    },
+    {
+      id: 'log',
+      name: 'Log',
+      type: 'google_sheets',
+      bgColor: '#FFFFFF',
+      position: { x: 1200, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Operation', value: 'Append' }],
+    },
+  ],
+  edges: [
+    { id: 'start-enrich', source: 'start', target: 'enrich' },
+    { id: 'enrich-reshape', source: 'enrich', target: 'reshape' },
+    { id: 'reshape-score', source: 'reshape', target: 'score' },
+    { id: 'score-log', source: 'score', target: 'log' },
+  ],
+}

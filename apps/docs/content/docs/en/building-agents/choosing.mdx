@@ -6,10 +6,13 @@ pageType: concept
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, LEAD_SCORER_WORKFLOW } from '@/components/workflow-preview'
 
 When you build an agent, several features overlap: a deterministic block and an agent tool can run the same integration, and a custom tool, an MCP tool, and a workflow-as-tool can all give an agent the same action. This page lays out the differences so you pick the right one. They vary along three lines: whether the action is **deterministic** (always runs) or **model-decided** (an agent chooses), whether it lives in one workflow or is **reusable** across your workspace, and whether it comes from Sim or an **external** provider.
 
-The running example is a workflow that scores inbound sales leads. It reads a new lead, enriches it, decides on a score, logs the result, and notifies the team. Each option below builds part of it.
+The running example is a workflow that scores inbound sales leads. It reads a new lead, enriches it, decides on a score, logs the result, and notifies the team. Each option below builds part of it:
+
+<WorkflowPreview workflow={LEAD_SCORER_WORKFLOW} height={210} />
 
 {/* VISUAL: decision tree. Always happens? → deterministic block. Else agent chooses? → agent tool. Reuse across workspace? → custom tool. External toolset? → MCP. Whole workflow? → workflow-as-tool. Reusable instructions? → skill. */}
 
@@ -19,6 +22,8 @@ A **block** is a single step that runs at a fixed point on the path, with no mod
 
 In the lead scorer, a [Google Sheets](/integrations) block always appends the scored lead to a tracking sheet, and a [Function](/blocks/function) block always reshapes the enrichment response into the fields the next step expects. There is no judgment call. The work is guaranteed.
 
+<WorkflowPreview workflow={LEAD_SCORER_WORKFLOW} height={170} highlightBlock="log" />
+
 Most steps in a workflow are blocks. Reach for the kinds below only when you want a model to decide, or you want to reuse something.
 
 ## Agent tool
@@ -26,6 +31,8 @@ Most steps in a workflow are blocks. Reach for the kinds below only when you wan
 An **agent tool** is an action you hand to an [Agent](/blocks/agent) block. The agent reads the task and decides whether and when to call it. The same catalog of [integrations](/integrations) that exist as standalone blocks can also be attached to an agent as tools.
 
 In the lead scorer, the Agent has a Search tool and a Send Email tool. For a lead with a thin profile it runs Search to gather context; for a strong lead it calls Send Email. A thin, obvious lead might trigger neither. The agent chooses per run.
+
+<WorkflowPreview workflow={LEAD_SCORER_WORKFLOW} height={170} highlightBlock="score" />
 
 Each tool carries a `usageControl` setting. **Auto** lets the model decide (the default). **Force** makes the agent call the tool every run, for actions that should never be skipped, like always logging the decision. **None** removes the tool from that agent.
 
@@ -50,6 +57,8 @@ In the lead scorer, your CRM vendor ships an MCP server. After you connect it on
 A **workflow-as-tool** runs a whole workflow as one step. The [Workflow](/blocks/workflow) block selects a child workflow and maps values to its [Start](/triggers/start) trigger, then returns `success`, `result`, and `error`. Use it to keep a large system modular: build a procedure once, call it from many parents.
 
 In the lead scorer, enrichment is its own workflow with five steps. The parent uses a Workflow block to call it and reads the enriched lead from `result`, instead of inlining those five steps. So one workflow can call another, much the way a function calls another function.
+
+<WorkflowPreview workflow={LEAD_SCORER_WORKFLOW} height={170} highlightBlock="enrich" />
 
 ## Skill
 
