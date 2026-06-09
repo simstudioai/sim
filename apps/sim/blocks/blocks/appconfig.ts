@@ -127,11 +127,10 @@ export const AppConfigBlock: BlockConfig<AppConfigResponse> = {
       wandConfig: {
         enabled: true,
         prompt: `Generate AppConfig configuration content based on the user's description.
-The content can be JSON, YAML, or plain text matching the configuration profile's expected format.
+Match the format selected in the Content Type field — JSON for application/json, YAML for application/x-yaml, or plain text for text/plain.
 
 Return ONLY the configuration content - no explanations, no markdown code blocks.`,
         placeholder: 'Describe the configuration...',
-        generationType: 'json-object',
       },
     },
     {
@@ -292,7 +291,11 @@ Return ONLY the configuration content - no explanations, no markdown code blocks
 
         if (op === 'start_deployment') {
           result.deploymentStrategyId = params.deploymentStrategyId
-          result.configurationVersion = params.configurationVersion
+          // Stringify: a versionNumber piped from a create/list step resolves to a JSON
+          // number, but AppConfig's ConfigurationVersion (number or label) is a string.
+          if (params.configurationVersion !== undefined && params.configurationVersion !== null) {
+            result.configurationVersion = String(params.configurationVersion)
+          }
           if (params.description) result.description = params.description
         }
 
