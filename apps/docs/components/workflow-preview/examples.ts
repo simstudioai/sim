@@ -1000,3 +1000,51 @@ export const CREDENTIAL_SHARE_WORKFLOW: PreviewWorkflow = {
     { id: 'credential-calendar', source: 'credential', target: 'calendar' },
   ],
 }
+
+/** Credential example: pick a production or staging account at runtime. */
+export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
+  id: 'credential-route',
+  name: 'Route to an account',
+  blocks: [
+    {
+      id: 'pick',
+      name: 'Pick account',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 0, y: 60 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Messages', value: 'Production or staging?' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 330, y: 60 },
+      rows: [{ title: 'If', value: "<variable.env> === 'prod'" }],
+    },
+    {
+      id: 'prod',
+      name: 'Credential',
+      type: 'credential',
+      bgColor: '#6366F1',
+      position: { x: 700, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Account', value: 'Prod Slack' }],
+    },
+    {
+      id: 'staging',
+      name: 'Credential',
+      type: 'credential',
+      bgColor: '#6366F1',
+      position: { x: 700, y: 130 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Account', value: 'Staging Slack' }],
+    },
+  ],
+  edges: [
+    { id: 'pick-condition', source: 'pick', target: 'condition' },
+    { id: 'condition-prod', source: 'condition', target: 'prod' },
+    { id: 'condition-staging', source: 'condition', target: 'staging' },
+  ],
+}
