@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation'
 import {
   Button,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -543,16 +544,15 @@ export function BYOK() {
         />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!deleteConfirmProvider}
-        onOpenChange={() => setDeleteConfirmProvider(null)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirmProvider(null)
+        }}
         srTitle='Delete API Key'
-      >
-        <ChipModalHeader onClose={() => setDeleteConfirmProvider(null)}>
-          Delete API Key
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete API Key'
+        description={
+          <>
             Are you sure you want to delete the{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
@@ -562,18 +562,15 @@ export function BYOK() {
               This workspace will revert to using platform hosted keys.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setDeleteConfirmProvider(null)}
-          primaryAction={{
-            label: deleteKey.isPending ? 'Deleting...' : 'Delete',
-            onClick: handleDelete,
-            disabled: deleteKey.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteKey.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </div>
   )
 }

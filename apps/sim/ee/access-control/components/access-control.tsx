@@ -10,6 +10,7 @@ import {
   AvatarImage,
   Checkbox,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -1558,35 +1559,28 @@ export function AccessControl() {
         />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!deletingGroup}
         onOpenChange={() => setDeletingGroup(null)}
-        size='sm'
         srTitle='Delete Permission Group'
-      >
-        <ChipModalHeader onClose={() => setDeletingGroup(null)}>
-          Delete Permission Group
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Permission Group'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?{' '}
             <span className='text-[var(--text-error)]'>
               All members will be removed from this group.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setDeletingGroup(null)}
-          primaryAction={{
-            label: deletePermissionGroup.isPending ? 'Deleting...' : 'Delete',
-            onClick: confirmDelete,
-            disabled: deletePermissionGroup.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: confirmDelete,
+          pending: deletePermissionGroup.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

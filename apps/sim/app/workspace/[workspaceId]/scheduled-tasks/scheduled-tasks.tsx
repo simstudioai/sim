@@ -4,13 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
-import {
-  ChipCombobox,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-} from '@/components/emcn'
+import { ChipCombobox, ChipConfirmModal } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type {
@@ -218,9 +212,9 @@ export function ScheduledTasks() {
     }
   }
 
-  const handleCancelDelete = () => {
-    setIsDeleteDialogOpen(false)
-    setActiveTask(null)
+  const handleDeleteDialogOpenChange = (open: boolean) => {
+    setIsDeleteDialogOpen(open)
+    if (!open) setActiveTask(null)
   }
 
   const handlePause = async () => {
@@ -447,34 +441,27 @@ export function ScheduledTasks() {
         schedule={activeTask ?? undefined}
       />
 
-      <ChipModal
+      <ChipConfirmModal
         open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogOpenChange}
         srTitle='Delete Scheduled Task'
-      >
-        <ChipModalHeader onClose={() => setIsDeleteDialogOpen(false)}>
-          Delete Scheduled Task
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Scheduled Task'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {activeTask?.jobTitle || 'this task'}
             </span>
             ? This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={handleCancelDelete}
-          cancelDisabled={deleteSchedule.isPending}
-          primaryAction={{
-            label: deleteSchedule.isPending ? 'Deleting...' : 'Delete',
-            onClick: handleDelete,
-            disabled: deleteSchedule.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteSchedule.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

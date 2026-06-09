@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -676,29 +677,25 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         </div>
       </div>
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!toolToDelete}
         onOpenChange={(open) => !open && setToolToDelete(null)}
         srTitle='Remove Workflow'
-      >
-        <ChipModalHeader onClose={() => setToolToDelete(null)}>Remove Workflow</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Remove Workflow'
+        description={
+          <>
             Are you sure you want to remove{' '}
             <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.toolName}</span>{' '}
             from this server? The workflow will remain deployed and can be added back later.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setToolToDelete(null)}
-          primaryAction={{
-            label: deleteToolMutation.isPending ? 'Removing...' : 'Remove',
-            onClick: handleDeleteTool,
-            disabled: deleteToolMutation.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Remove',
+          onClick: handleDeleteTool,
+          pending: deleteToolMutation.isPending,
+          pendingLabel: 'Removing...',
+        }}
+      />
 
       <ChipModal
         open={!!toolToView}
@@ -1068,24 +1065,20 @@ export function WorkflowMcpServers() {
         isLoadingWorkflows={isLoadingWorkflows}
       />
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!serverToDelete}
         onOpenChange={(open) => !open && setServerToDelete(null)}
         srTitle='Delete MCP Server'
-      >
-        <ChipModalHeader onClose={() => setServerToDelete(null)}>Delete MCP Server</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete MCP Server'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>?
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setServerToDelete(null)}
-          primaryAction={{ label: 'Delete', onClick: handleDeleteServer, variant: 'destructive' }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{ label: 'Delete', onClick: handleDeleteServer }}
+      />
     </>
   )
 }

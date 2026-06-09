@@ -6,10 +6,7 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
+  ChipConfirmModal,
   Expand,
   Label,
   Modal,
@@ -277,10 +274,13 @@ export function GeneralDeploy({
         </div>
       </div>
 
-      <ChipModal open={showLoadDialog} onOpenChange={setShowLoadDialog} srTitle='Load Deployment'>
-        <ChipModalHeader onClose={() => setShowLoadDialog(false)}>Load Deployment</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+      <ChipConfirmModal
+        open={showLoadDialog}
+        onOpenChange={setShowLoadDialog}
+        srTitle='Load Deployment'
+        title='Load Deployment'
+        description={
+          <>
             Are you sure you want to load{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {versionToLoadInfo?.name || `v${versionToLoad?.version}`}
@@ -289,29 +289,22 @@ export function GeneralDeploy({
             <span className='text-[var(--text-error)]'>
               This will replace your current workflow with the deployed version.
             </span>
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowLoadDialog(false)}
-          primaryAction={{
-            label: 'Load deployment',
-            onClick: confirmLoadDeployment,
-            disabled: revertMutation.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Load deployment',
+          onClick: confirmLoadDeployment,
+          pending: revertMutation.isPending,
+        }}
+      />
 
-      <ChipModal
+      <ChipConfirmModal
         open={showPromoteDialog}
         onOpenChange={setShowPromoteDialog}
         srTitle='Promote to live'
-      >
-        <ChipModalHeader onClose={() => setShowPromoteDialog(false)}>
-          Promote to live
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Promote to live'
+        description={
+          <>
             Are you sure you want to promote{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {versionToPromoteInfo?.name || `v${versionToPromote?.version}`}
@@ -320,17 +313,15 @@ export function GeneralDeploy({
             <span className='text-[var(--text-primary)]'>
               This version will become the active deployment and serve all API requests.
             </span>
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowPromoteDialog(false)}
-          primaryAction={{
-            label: 'Promote to live',
-            onClick: confirmPromoteToLive,
-            disabled: isPromotingVersion,
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Promote to live',
+          onClick: confirmPromoteToLive,
+          variant: 'primary',
+          pending: isPromotingVersion,
+        }}
+      />
 
       {workflowToShow && (
         <Modal open={showExpandedPreview} onOpenChange={setShowExpandedPreview}>

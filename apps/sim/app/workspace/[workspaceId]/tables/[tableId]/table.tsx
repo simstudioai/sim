@@ -4,13 +4,7 @@ import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import {
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  toast,
-} from '@/components/emcn'
+import { ChipConfirmModal, toast } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
@@ -715,7 +709,7 @@ export function Table({
           }}
         />
       )}
-      <ChipModal
+      <ChipConfirmModal
         open={deletingColumns !== null}
         onOpenChange={(open) => {
           if (!open) setDeletingColumns(null)
@@ -725,14 +719,13 @@ export function Table({
             ? `Delete ${deletingColumns.length} Columns`
             : 'Delete Column'
         }
-      >
-        <ChipModalHeader onClose={() => setDeletingColumns(null)}>
-          {deletingColumns && deletingColumns.length > 1
+        title={
+          deletingColumns && deletingColumns.length > 1
             ? `Delete ${deletingColumns.length} Columns`
-            : 'Delete Column'}
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            : 'Delete Column'
+        }
+        description={
+          <>
             {deletingColumns && deletingColumns.length > 1 ? (
               <>
                 Are you sure you want to delete{' '}
@@ -755,47 +748,36 @@ export function Table({
               {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
             </span>{' '}
             You can undo this action.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setDeletingColumns(null)}
-          primaryAction={{
-            label: 'Delete',
-            onClick: handleConfirmDeleteColumns,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleConfirmDeleteColumns,
+        }}
+      />
       {!embedded && (
-        <ChipModal
+        <ChipConfirmModal
           open={showDeleteTableConfirm}
           onOpenChange={setShowDeleteTableConfirm}
           srTitle='Delete Table'
-        >
-          <ChipModalHeader onClose={() => setShowDeleteTableConfirm(false)}>
-            Delete Table
-          </ChipModalHeader>
-          <ChipModalBody>
-            <p className='px-2 text-[var(--text-secondary)] text-sm'>
+          title='Delete Table'
+          description={
+            <>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
               <span className='text-[var(--text-error)]'>
                 All {tableData?.rowCount ?? 0} rows will be removed.
               </span>{' '}
               You can restore it from Recently Deleted in Settings.
-            </p>
-          </ChipModalBody>
-          <ChipModalFooter
-            onCancel={() => setShowDeleteTableConfirm(false)}
-            cancelDisabled={deleteTableMutation.isPending}
-            primaryAction={{
-              label: deleteTableMutation.isPending ? 'Deleting...' : 'Delete',
-              onClick: handleDeleteTable,
-              disabled: deleteTableMutation.isPending,
-              variant: 'destructive',
-            }}
-          />
-        </ChipModal>
+            </>
+          }
+          confirm={{
+            label: 'Delete',
+            onClick: handleDeleteTable,
+            pending: deleteTableMutation.isPending,
+            pendingLabel: 'Deleting...',
+          }}
+        />
       )}
     </div>
   )

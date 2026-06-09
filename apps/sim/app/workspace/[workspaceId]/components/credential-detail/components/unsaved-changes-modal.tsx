@@ -1,4 +1,4 @@
-import { ChipModal, ChipModalBody, ChipModalFooter, ChipModalHeader } from '@/components/emcn'
+import { ChipConfirmModal } from '@/components/emcn'
 
 interface UnsavedChangesModalProps {
   open: boolean
@@ -14,21 +14,14 @@ interface UnsavedChangesModalProps {
  */
 export function UnsavedChangesModal({ open, onOpenChange, onDiscard }: UnsavedChangesModalProps) {
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Unsaved Changes'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>Unsaved Changes</ChipModalHeader>
-      <ChipModalBody>
-        <p className='px-2 text-[var(--text-secondary)] text-sm'>
-          You have unsaved changes. Are you sure you want to discard them?
-        </p>
-      </ChipModalBody>
-      <ChipModalFooter
-        onCancel={() => onOpenChange(false)}
-        primaryAction={{
-          label: 'Discard Changes',
-          onClick: onDiscard,
-          variant: 'destructive',
-        }}
-      />
-    </ChipModal>
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle='Unsaved Changes'
+      title='Unsaved Changes'
+      description='You have unsaved changes. Are you sure you want to discard them?'
+      dismissLabel='Keep editing'
+      confirm={{ label: 'Discard Changes', onClick: onDiscard }}
+    />
   )
 }

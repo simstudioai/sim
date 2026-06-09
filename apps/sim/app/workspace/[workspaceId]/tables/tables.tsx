@@ -4,15 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
-import {
-  ChipCombobox,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  toast,
-  Upload,
-} from '@/components/emcn'
+import { ChipCombobox, ChipConfirmModal, toast, Upload } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
@@ -590,43 +582,31 @@ export function Tables() {
         />
       )}
 
-      <ChipModal
+      <ChipConfirmModal
         open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open)
+          if (!open) setActiveTable(null)
+        }}
         srTitle='Delete Table'
-      >
-        <ChipModalHeader
-          onClose={() => {
-            setIsDeleteDialogOpen(false)
-            setActiveTable(null)
-          }}
-        >
-          Delete Table
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Table'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
             <span className='text-[var(--text-error)]'>
               All {activeTable?.rowCount} rows will be removed.
             </span>{' '}
             You can restore it from Recently Deleted in Settings.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => {
-            setIsDeleteDialogOpen(false)
-            setActiveTable(null)
-          }}
-          cancelDisabled={deleteTable.isPending}
-          primaryAction={{
-            label: deleteTable.isPending ? 'Deleting...' : 'Delete',
-            onClick: handleDelete,
-            disabled: deleteTable.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteTable.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

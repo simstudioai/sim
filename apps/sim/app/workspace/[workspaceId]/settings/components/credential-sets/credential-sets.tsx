@@ -11,6 +11,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -791,57 +792,51 @@ export function CredentialSets() {
         />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!leavingMembership}
-        onOpenChange={() => setLeavingMembership(null)}
+        onOpenChange={(open) => {
+          if (!open) setLeavingMembership(null)
+        }}
         srTitle='Leave Polling Group'
-      >
-        <ChipModalHeader onClose={() => setLeavingMembership(null)}>
-          Leave Polling Group
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Leave Polling Group'
+        description={
+          <>
             Are you sure you want to leave{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {leavingMembership?.name}
             </span>
             ? Your email account will no longer be polled in workflows using this group.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setLeavingMembership(null)}
-          primaryAction={{
-            label: leaveCredentialSet.isPending ? 'Leaving...' : 'Leave',
-            onClick: confirmLeave,
-            disabled: leaveCredentialSet.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Leave',
+          onClick: confirmLeave,
+          pending: leaveCredentialSet.isPending,
+          pendingLabel: 'Leaving...',
+        }}
+      />
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!deletingSet}
-        onOpenChange={() => setDeletingSet(null)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingSet(null)
+        }}
         srTitle='Delete Polling Group'
-      >
-        <ChipModalHeader onClose={() => setDeletingSet(null)}>Delete Polling Group</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Polling Group'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setDeletingSet(null)}
-          primaryAction={{
-            label: deleteCredentialSet.isPending ? 'Deleting...' : 'Delete',
-            onClick: confirmDelete,
-            disabled: deleteCredentialSet.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: confirmDelete,
+          pending: deleteCredentialSet.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Checkbox,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -152,40 +153,33 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     const isSingleRow = deleteCount === 1
 
     return (
-      <ChipModal
+      <ChipConfirmModal
         open={isOpen}
         onOpenChange={handleClose}
         srTitle={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
-      >
-        <ChipModalHeader onClose={handleClose}>
-          Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}
-        </ChipModalHeader>
-        <ChipModalBody>
-          {error && (
-            <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
-              {error}
-            </div>
-          )}
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
+        description={
+          <>
+            {error && (
+              <span className='mb-3 block rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
+                {error}
+              </span>
+            )}
             Are you sure you want to delete {isSingleRow ? 'this row' : `these ${deleteCount} rows`}
             ?{' '}
             <span className='text-[var(--text-error)]'>
               This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={handleClose}
-          cancelDisabled={isSubmitting}
-          primaryAction={{
-            label: isSubmitting ? 'Deleting...' : 'Delete',
-            onClick: handleDelete,
-            disabled: isSubmitting,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: isSubmitting,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     )
   }
 
@@ -287,7 +281,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           onChange={(e) => onChange(e.target.value)}
           placeholder='{"key": "value"}'
           rows={4}
-          className='font-mono'
+          className='font-mono text-caption'
           required={column.required}
         />
       ) : column.type === 'date' ? (

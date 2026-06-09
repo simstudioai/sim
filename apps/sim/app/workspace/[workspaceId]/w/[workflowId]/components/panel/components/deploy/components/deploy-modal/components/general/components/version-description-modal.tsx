@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import {
   Chip,
+  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -144,28 +145,18 @@ export function VersionDescriptionModal({
         />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={showUnsavedChangesAlert}
         onOpenChange={setShowUnsavedChangesAlert}
         srTitle='Unsaved Changes'
-      >
-        <ChipModalHeader onClose={() => setShowUnsavedChangesAlert(false)}>
-          Unsaved Changes
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            You have unsaved changes. Are you sure you want to discard them?
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowUnsavedChangesAlert(false)}
-          primaryAction={{
-            label: 'Discard Changes',
-            onClick: handleDiscardChanges,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+        title='Unsaved Changes'
+        description='You have unsaved changes. Are you sure you want to discard them?'
+        dismissLabel='Keep editing'
+        confirm={{
+          label: 'Discard Changes',
+          onClick: handleDiscardChanges,
+        }}
+      />
     </>
   )
 }

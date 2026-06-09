@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
@@ -1182,57 +1183,40 @@ try {
         )}
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Custom Tool'
-      >
-        <ChipModalHeader onClose={() => setShowDeleteConfirm(false)}>
-          Delete Custom Tool
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Custom Tool'
+        description={
+          <>
             <span className='text-[var(--text-error)]'>
               This will permanently delete the tool and remove it from any workflows that are using
               it.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowDeleteConfirm(false)}
-          cancelDisabled={deleteToolMutation.isPending}
-          primaryAction={{
-            label: deleteToolMutation.isPending ? 'Deleting...' : 'Delete',
-            onClick: handleDelete,
-            disabled: deleteToolMutation.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteToolMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDiscardAlert}
         onOpenChange={setShowDiscardAlert}
         srTitle='Unsaved Changes'
-      >
-        <ChipModalHeader onClose={() => setShowDiscardAlert(false)}>
-          Unsaved Changes
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            You have unsaved changes. Are you sure you want to discard them?
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowDiscardAlert(false)}
-          primaryAction={{
-            label: 'Discard Changes',
-            onClick: handleConfirmDiscard,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+        title='Unsaved Changes'
+        description='You have unsaved changes. Are you sure you want to discard them?'
+        dismissLabel='Keep editing'
+        confirm={{
+          label: 'Discard Changes',
+          onClick: handleConfirmDiscard,
+        }}
+      />
     </>
   )
 }

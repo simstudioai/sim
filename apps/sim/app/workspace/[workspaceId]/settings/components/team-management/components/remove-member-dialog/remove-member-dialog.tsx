@@ -1,10 +1,4 @@
-import {
-  ChipModal,
-  ChipModalBody,
-  ChipModalError,
-  ChipModalFooter,
-  ChipModalHeader,
-} from '@/components/emcn'
+import { ChipConfirmModal } from '@/components/emcn'
 
 interface RemoveMemberDialogProps {
   open: boolean
@@ -35,11 +29,20 @@ export function RemoveMemberDialog({
       ? 'Remove External Member'
       : 'Remove Team Member'
 
+  const errorMessage =
+    error instanceof Error && error.message ? error.message : error ? String(error) : null
+
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>{title}</ChipModalHeader>
-      <ChipModalBody>
-        <p className='px-2 text-[var(--text-secondary)] text-sm'>
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onCancel()
+        onOpenChange(next)
+      }}
+      srTitle={title}
+      title={title}
+      description={
+        <>
           {isSelfRemoval ? (
             'Are you sure you want to leave this organization? You will lose access to all team resources.'
           ) : isExternalRemoval ? (
@@ -57,22 +60,19 @@ export function RemoveMemberDialog({
             </>
           )}{' '}
           This action cannot be undone.
+        </>
+      }
+      confirm={{
+        label: isSelfRemoval ? 'Leave Organization' : 'Remove',
+        onClick: () => onConfirmRemove(),
+        pending: isSubmitting,
+      }}
+    >
+      {errorMessage ? (
+        <p role='alert' className='mt-1 px-2 text-[var(--text-error)] text-caption'>
+          {errorMessage}
         </p>
-
-        <ChipModalError>
-          {error instanceof Error && error.message ? error.message : error ? String(error) : null}
-        </ChipModalError>
-      </ChipModalBody>
-      <ChipModalFooter
-        onCancel={onCancel}
-        cancelDisabled={isSubmitting}
-        primaryAction={{
-          label: isSelfRemoval ? 'Leave Organization' : 'Remove',
-          onClick: () => onConfirmRemove(),
-          disabled: isSubmitting,
-          variant: 'destructive',
-        }}
-      />
-    </ChipModal>
+      ) : null}
+    </ChipConfirmModal>
   )
 }

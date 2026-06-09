@@ -7,6 +7,7 @@ import { formatDate } from '@sim/utils/formatting'
 import { Plus } from 'lucide-react'
 import {
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -329,14 +330,18 @@ export function Copilot() {
       </ChipModal>
 
       {/* Delete Confirmation Dialog */}
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowDeleteDialog(false)
+            setDeleteKey(null)
+          }
+        }}
         srTitle='Delete API key'
-      >
-        <ChipModalHeader onClose={() => setShowDeleteDialog(false)}>Delete API key</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete API key'
+        description={
+          <>
             Deleting{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {deleteKey?.name || 'Unnamed Key'}
@@ -345,22 +350,15 @@ export function Copilot() {
               will immediately revoke access for any integrations using it.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => {
-            setShowDeleteDialog(false)
-            setDeleteKey(null)
-          }}
-          cancelDisabled={deleteKeyMutation.isPending}
-          primaryAction={{
-            label: deleteKeyMutation.isPending ? 'Deleting...' : 'Delete',
-            onClick: handleDeleteKey,
-            disabled: deleteKeyMutation.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDeleteKey,
+          pending: deleteKeyMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

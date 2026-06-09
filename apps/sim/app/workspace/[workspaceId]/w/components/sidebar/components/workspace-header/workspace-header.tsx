@@ -6,10 +6,7 @@ import { MoreHorizontal } from 'lucide-react'
 import {
   ChevronDown,
   Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
+  ChipConfirmModal,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
@@ -684,33 +681,26 @@ function WorkspaceHeaderImpl({
         itemType='workspace'
         itemName={deleteTarget?.name}
       />
-      <ChipModal
+      <ChipConfirmModal
         open={isLeaveModalOpen}
         onOpenChange={() => setIsLeaveModalOpen(false)}
         srTitle='Leave workspace'
-      >
-        <ChipModalHeader onClose={() => setIsLeaveModalOpen(false)}>
-          Leave workspace
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Leave workspace'
+        description={
+          <>
             Are you sure you want to leave{' '}
             <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
             will lose access to all workflows and data in this workspace. This action cannot be
             undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setIsLeaveModalOpen(false)}
-          cancelDisabled={isLeavingWorkspace}
-          primaryAction={{
-            label: isLeavingWorkspace ? 'Leaving...' : 'Leave workspace',
-            onClick: handleLeaveWorkspace,
-            disabled: isLeavingWorkspace,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Leave workspace',
+          onClick: handleLeaveWorkspace,
+          pending: isLeavingWorkspace,
+          pendingLabel: 'Leaving...',
+        }}
+      />
     </div>
   )
 }

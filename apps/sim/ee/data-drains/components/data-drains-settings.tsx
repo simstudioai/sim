@@ -9,6 +9,7 @@ import {
   Button,
   Callout,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -326,30 +327,25 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           </TableCell>
         </TableRow>
       )}
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Drain'
-      >
-        <ChipModalHeader onClose={() => setShowDeleteConfirm(false)}>Delete Drain</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Drain'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{drain.name}</span>? This
             action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowDeleteConfirm(false)}
-          cancelDisabled={deleteMutation.isPending}
-          primaryAction={{
-            label: deleteMutation.isPending ? 'Deleting...' : 'Delete',
-            onClick: handleConfirmDelete,
-            disabled: deleteMutation.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleConfirmDelete,
+          pending: deleteMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

@@ -180,6 +180,7 @@ export function InviteModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => handleOpenChange(false)}
+        cancelDisabled={isSubmitting}
         primaryAction={{
           label: isSubmitting ? 'Sending...' : 'Send invites',
           onClick: handleSendInvites,

@@ -7,11 +7,8 @@ import {
   AvatarImage,
   Badge,
   Banner,
+  ChipConfirmModal,
   ChipInput,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
   Search,
   Skeleton,
 } from '@/components/emcn'
@@ -85,9 +82,20 @@ export function TransferOwnershipDialog({
   }
 
   return (
-    <ChipModal open={open} onOpenChange={handleClose} srTitle='Leave organization'>
-      <ChipModalHeader onClose={() => handleClose(false)}>Leave organization</ChipModalHeader>
-      <ChipModalBody>
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={handleClose}
+      srTitle='Leave organization'
+      title='Leave organization'
+      confirm={{
+        label: 'Transfer & leave',
+        onClick: handleConfirm,
+        pending: isSubmitting,
+        pendingLabel: 'Transferring...',
+        disabled: !selectedUserId || !hasCandidates || isLoadingMembers,
+      }}
+    >
+      <div className='flex flex-col gap-4'>
         {isLoadingMembers ? (
           <div className='space-y-3'>
             <Skeleton className='h-4 w-3/4' />
@@ -202,17 +210,7 @@ export function TransferOwnershipDialog({
             {error instanceof Error && error.message ? error.message : String(error)}
           </p>
         )}
-      </ChipModalBody>
-      <ChipModalFooter
-        onCancel={() => handleClose(false)}
-        cancelDisabled={isSubmitting}
-        primaryAction={{
-          label: isSubmitting ? 'Transferring...' : 'Transfer & leave',
-          onClick: handleConfirm,
-          disabled: !selectedUserId || isSubmitting || !hasCandidates || isLoadingMembers,
-          variant: 'destructive',
-        }}
-      />
-    </ChipModal>
+      </div>
+    </ChipConfirmModal>
   )
 }

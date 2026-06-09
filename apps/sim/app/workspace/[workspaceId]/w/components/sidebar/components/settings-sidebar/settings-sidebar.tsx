@@ -3,14 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import {
-  ChevronDown,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  chipVariants,
-} from '@/components/emcn'
+import { ChevronDown, ChipConfirmModal, chipVariants } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
@@ -365,26 +358,18 @@ export function SettingsSidebar({
         </div>
       </div>
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDiscardDialog}
         onOpenChange={(open) => !open && handleCancelDiscard()}
         srTitle='Unsaved changes'
-      >
-        <ChipModalHeader onClose={handleCancelDiscard}>Unsaved changes</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            You have unsaved changes. Are you sure you want to discard them?
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={handleCancelDiscard}
-          primaryAction={{
-            label: 'Discard changes',
-            onClick: handleConfirmDiscard,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+        title='Unsaved changes'
+        description='You have unsaved changes. Are you sure you want to discard them?'
+        dismissLabel='Keep editing'
+        confirm={{
+          label: 'Discard changes',
+          onClick: handleConfirmDiscard,
+        }}
+      />
     </>
   )
 }

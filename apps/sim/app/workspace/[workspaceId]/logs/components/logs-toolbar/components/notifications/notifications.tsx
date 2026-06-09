@@ -9,6 +9,7 @@ import {
   Badge,
   Button,
   ChipCombobox,
+  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
@@ -1267,33 +1268,29 @@ export const NotificationSettings = memo(function NotificationSettings({
         />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+        onOpenChange={(next) => {
+          if (!next) setDeletingId(null)
+          setShowDeleteDialog(next)
+        }}
         srTitle='Delete Notification'
-      >
-        <ChipModalHeader onClose={() => setShowDeleteDialog(false)}>
-          Delete Notification
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Notification'
+        description={
+          <>
             <span className='text-[var(--text-error)]'>
               This will permanently remove the notification and stop all deliveries.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter
-          onCancel={() => setShowDeleteDialog(false)}
-          cancelDisabled={deleteNotification.isPending}
-          primaryAction={{
-            label: deleteNotification.isPending ? 'Deleting...' : 'Delete',
-            onClick: handleDelete,
-            disabled: deleteNotification.isPending,
-            variant: 'destructive',
-          }}
-        />
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteNotification.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 })
