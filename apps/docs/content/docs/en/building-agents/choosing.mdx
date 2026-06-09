@@ -17,13 +17,13 @@ The running example is a workflow that scores inbound sales leads. It reads a ne
 
 A **block** is a single step that runs at a fixed point on the path, with no model deciding whether to. It always runs when the workflow reaches it. Use one when the action must happen every time: an API call, a data transform, a branch.
 
-In the lead scorer, a [Google Sheets](/tools) block always appends the scored lead to a tracking sheet, and a [Function](/blocks/function) block always reshapes the enrichment response into the fields the next step expects. There is no judgment call. The work is guaranteed.
+In the lead scorer, a [Google Sheets](/integrations) block always appends the scored lead to a tracking sheet, and a [Function](/blocks/function) block always reshapes the enrichment response into the fields the next step expects. There is no judgment call. The work is guaranteed.
 
 Most steps in a workflow are blocks. Reach for the kinds below only when you want a model to decide, or you want to reuse something.
 
 ## Agent tool
 
-An **agent tool** is an action you hand to an [Agent](/blocks/agent) block. The agent reads the task and decides whether and when to call it. The same catalog of [integrations](/tools) that exist as standalone blocks can also be attached to an agent as tools.
+An **agent tool** is an action you hand to an [Agent](/blocks/agent) block. The agent reads the task and decides whether and when to call it. The same catalog of [integrations](/integrations) that exist as standalone blocks can also be attached to an agent as tools.
 
 In the lead scorer, the Agent has a Search tool and a Send Email tool. For a lead with a thin profile it runs Search to gather context; for a strong lead it calls Send Email. A thin, obvious lead might trigger neither. The agent chooses per run.
 

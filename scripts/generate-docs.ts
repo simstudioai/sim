@@ -41,6 +41,13 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'atlassian-service-account',
 ])
 
+/**
+ * Native Sim resource blocks (category 'blocks') that still get a generated
+ * integration page. The writer's filter and the stale-doc cleanup must both
+ * honor this set, or cleanup deletes what the writer emits (losing manual content).
+ */
+const NATIVE_RESOURCE_BLOCK_TYPES = new Set(['memory', 'knowledge', 'table'])
+
 /** Trigger doc pages that are hand-written and must never be overwritten. */
 const HANDWRITTEN_TRIGGER_DOCS = new Set(['index', 'start', 'schedule', 'webhook', 'rss', 'table'])
 
@@ -57,6 +64,7 @@ const PROVIDER_TO_BLOCK_TYPE: Record<string, string> = {
   'google-calendar': 'google_calendar',
   'google-drive': 'google_drive',
   'google-sheets': 'google_sheets',
+  jsm: 'jira_service_management',
 }
 
 /** Human-readable display names for trigger providers. */
@@ -2607,9 +2615,7 @@ async function generateBlockDoc(blockPath: string) {
 
       if (
         (blockConfig.category === 'blocks' &&
-          blockConfig.type !== 'memory' &&
-          blockConfig.type !== 'knowledge' &&
-          blockConfig.type !== 'table') ||
+          !NATIVE_RESOURCE_BLOCK_TYPES.has(stripVersionSuffix(blockConfig.type))) ||
         blockConfig.type === 'evaluator' ||
         blockConfig.type === 'number' ||
         blockConfig.type === 'webhook' ||
@@ -2862,8 +2868,14 @@ async function getCanonicalToolDocNames(): Promise<Set<string>> {
     const configs = extractAllBlockConfigs(fileContent)
 
     for (const config of configs) {
-      if (!isIntegrationBlock(config)) continue
-      validToolDocs.add(stripVersionSuffix(config.type))
+      // Match the writer filter: integration blocks, the documented
+      // native-resource blocks (category 'blocks'), and trigger-only service
+      // blocks (category 'triggers') whose pages the trigger pass writes.
+      const stripped = config.type ? stripVersionSuffix(config.type) : ''
+      const isDocumentedResource = NATIVE_RESOURCE_BLOCK_TYPES.has(stripped)
+      const isTriggerService = config.category === 'triggers' && !config.hideFromToolbar
+      if (!isIntegrationBlock(config) && !isDocumentedResource && !isTriggerService) continue
+      validToolDocs.add(stripped)
     }
   }
 
@@ -3649,19 +3661,30 @@ async function generateAllTriggerDocs(): Promise<void> {
         continue
       }
 
-      if (fs.existsSync(outputFilePath)) {
-        // Actions page already generated for this service — append the Triggers section.
-        const existing = fs.readFileSync(outputFilePath, 'utf-8')
+      const existing = fs.existsSync(outputFilePath)
+        ? fs.readFileSync(outputFilePath, 'utf-8')
+        : null
+
+      if (existing?.includes('\n## Actions')) {
+        // Actions page generated this run by the block pass — append the Triggers section.
         if (!existing.includes('\n## Triggers')) {
           fs.appendFileSync(outputFilePath, `\n${buildTriggersSection(triggers)}`)
         }
       } else {
-        // Trigger-only service (no actions block) — write a standalone page.
+        // Trigger-only service (no actions block) — (re)write the standalone page,
+        // preserving manual content from the previous run. Cleanup spares these
+        // pages (category 'triggers' blocks are in the canonical set).
         const providerColor = colorMap.get(blockType) ?? '#6B7280'
-        fs.writeFileSync(
-          outputFilePath,
-          generateTriggerProviderDoc(provider, triggers, blockType, providerColor)
+        const markdown = generateTriggerProviderDoc(provider, triggers, blockType, providerColor)
+        const rawSections = existing ? extractManualContent(existing) : {}
+        const manualSections = Object.fromEntries(
+          Object.entries(rawSections).filter(([, v]) => v.length > 0)
         )
+        const finalContent =
+          Object.keys(manualSections).length > 0
+            ? mergeWithManualContent(markdown, existing, manualSections)
+            : markdown
+        fs.writeFileSync(outputFilePath, finalContent)
       }
 
       generatedProviders.push(blockType)
