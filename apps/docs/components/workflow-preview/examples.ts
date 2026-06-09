@@ -227,3 +227,54 @@ export const API_FETCH_WORKFLOW: PreviewWorkflow = {
     { id: 'api-agent', source: 'api', target: 'agent' },
   ],
 }
+
+/**
+ * The example on the Condition block page: route a ticket to a different path
+ * based on its priority.
+ */
+export const CONDITION_ROUTE_WORKFLOW: PreviewWorkflow = {
+  id: 'condition-route',
+  name: 'Route by priority',
+  blocks: [
+    {
+      id: 'start',
+      name: 'Start',
+      type: 'start_trigger',
+      bgColor: '#2FB3FF',
+      position: { x: 0, y: 60 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Input', value: 'Ticket' }],
+    },
+    {
+      id: 'condition',
+      name: 'Condition',
+      type: 'condition',
+      bgColor: '#FF752F',
+      position: { x: 330, y: 60 },
+      rows: [{ title: 'If', value: "<start.priority> === 'high'" }],
+    },
+    {
+      id: 'escalate',
+      name: 'Escalate',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 700, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Escalate this ticket' }],
+    },
+    {
+      id: 'reply',
+      name: 'Reply',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 700, y: 130 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Draft a standard reply' }],
+    },
+  ],
+  edges: [
+    { id: 'start-condition', source: 'start', target: 'condition' },
+    { id: 'condition-escalate', source: 'condition', target: 'escalate' },
+    { id: 'condition-reply', source: 'condition', target: 'reply' },
+  ],
+}
