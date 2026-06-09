@@ -1,81 +1,66 @@
 ---
 title: Agent
+description: The Agent block runs a model over your inputs to reason, call tools, and return text or structured output.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { BlockPreview } from '@/components/workflow-preview'
+import { BlockPreview, WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The Agent block connects your workflow to Large Language Models (LLMs). It processes natural language inputs, calls external tools, and generates structured or unstructured outputs.
+The **Agent block** runs a model as one step of a workflow. It reads the values you give it, optionally calls tools and reads files, and returns a result, either plain text or structured JSON, that later blocks read by reference.
 
-<BlockPreview type="agent" /> 
+<BlockPreview type="agent" />
 
-## Configuration Options
+<Callout type="info">
+An *agent* and an *Agent block* are not the same thing. An agent is a workflow you build and ship that reasons and acts on its own. An Agent block is one reasoning step inside it. A simple agent is a single Agent block; a larger one wires several together with other blocks. See [Building agents](/building-agents).
+</Callout>
 
-### System Prompt
+## Configuration
 
-The system prompt establishes the agent's operational parameters and behavioral constraints. This configuration defines the agent's role, response methodology, and processing boundaries for all incoming requests.
+### Messages
+
+The messages sent to the model. Each message has a role: **System** sets the agent's job and rules, **User** gives it the input to act on. Insert a [connection tag](/workflows/connections) to pass an earlier output, like `<start.input>`.
 
 ```markdown
-You are a helpful assistant that specializes in financial analysis.
-Always provide clear explanations and cite sources when possible.
-When responding to questions about investments, include risk disclaimers.
+You are a support assistant for an analytics product.
+Answer in two sentences, cite the doc you used, and never guess a price.
 ```
 
-### User Prompt
+### Model
 
-The user prompt represents the primary input data for inference processing. This parameter accepts natural language text or structured data that the agent will analyze and respond to. Input sources include:
+The model that runs the step. Defaults to `claude-sonnet-4-6`. Type or pick any model from OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Azure, AWS Bedrock, Google Vertex, or OpenRouter, or a local model through Ollama or VLLM.
 
-- **Static Configuration**: Direct text input specified in the block configuration
-- **Dynamic Input**: Data passed from upstream blocks through connection interfaces
-- **Runtime Generation**: Programmatically generated content during workflow execution
+### Files
 
-### Model Selection
-
-The Agent block supports multiple LLM providers through a unified inference interface. Available models include:
-
-- **OpenAI**: GPT-5.1, GPT-5, GPT-4o, o1, o3, o4-mini, gpt-4.1
-- **Anthropic**: Claude 4.5 Sonnet, Claude Opus 4.1
-- **Google**: Gemini 2.5 Pro, Gemini 2.0 Flash
-- **Other Providers**: Groq, Cerebras, xAI, Azure OpenAI, OpenRouter
-- **Local Models**: Ollama or VLLM compatible models
-
-### Temperature
-
-Controls response randomness and creativity:
-
-- **Low (0-0.3)**: Deterministic and focused. Best for factual tasks and accuracy.
-- **Medium (0.3-0.7)**: Balanced creativity and focus. Good for general use.
-- **High (0.7-2.0)**: Creative and varied. Ideal for brainstorming and content generation.
-
-### Max Output Tokens
-
-Controls the maximum length of the model's response. Each model defaults to its full max output token limit (e.g., 64,000 tokens for Claude Sonnet 4.5). You can override this with a custom value using the Max Tokens setting. For Anthropic models, when non-streaming requests exceed the SDK's internal threshold, the provider automatically uses internal streaming to avoid timeouts.
-
-### API Key
-
-Your API key for the selected LLM provider. This is securely stored and used for authentication.
+Files for the model to read: images for a vision-capable model, or documents for text. Upload them on the block, or pass a file from an earlier block, such as an upload trigger or an [API](/blocks/api) response, with a connection tag.
 
 ### Tools
 
-Extend agent capabilities with external integrations. Select from 60+ pre-built tools or define custom functions.
+Capabilities the agent can call while it runs: search a knowledge base, send a Slack message, run a [Function](/blocks/function), or call any of the [integrations](/tools). The model decides which to call and when. Each tool has a usage control:
 
-**Available Categories:**
-- **Communication**: Gmail, Slack, Telegram, WhatsApp, Microsoft Teams
-- **Data Sources**: Notion, Google Sheets, Airtable, Supabase, Pinecone
-- **Web Services**: Firecrawl, Google Search, Exa AI, browser automation
-- **Development**: GitHub, Jira, Linear
-- **AI Services**: OpenAI, Perplexity, Hugging Face, ElevenLabs
+- **Auto.** The model calls it when the context warrants.
+- **Force.** The model must call it on every run.
+- **None.** The tool is hidden from the model, which disables it without removing it from the block.
 
-**Execution Modes:**
-- **Auto**: Model decides when to use tools based on context
-- **Required**: Tool must be called in every request
-- **None**: Tool is completely filtered out and not sent to the model — effectively disables the tool
+### Skills
+
+[Agent skills](/skills) the agent can load on demand: reusable instruction packages like a coding standard or a support playbook. Only the skill names sit in context up front, and the agent loads the full instructions when it decides a skill is relevant.
+
+### Memory
+
+Built-in conversation memory, kept across runs by a conversation ID:
+
+- **None.** Each run is independent.
+- **Conversation.** The full history for that conversation ID.
+- **Sliding window (messages).** The most recent N messages.
+- **Sliding window (tokens).** Recent messages up to a token budget.
+
+Memory needs a conversation ID to persist between runs.
 
 ### Response Format
 
-The Response Format parameter enforces structured output generation through JSON Schema validation. This ensures consistent, machine-readable responses that conform to predefined data structures:
+Give the agent a JSON Schema to force structured output. The response is constrained to match the schema, and each field becomes its own output you read by name, like `<agent.sentiment>`. Without a response format, the agent returns plain text in `content`.
 
 ```json
 {
@@ -83,81 +68,51 @@ The Response Format parameter enforces structured output generation through JSON
   "schema": {
     "type": "object",
     "properties": {
-      "sentiment": {
-        "type": "string",
-        "enum": ["positive", "negative", "neutral"]
-      },
-      "confidence": {
-        "type": "number",
-        "minimum": 0,
-        "maximum": 1
-      }
+      "sentiment": { "type": "string", "enum": ["positive", "negative", "neutral"] },
+      "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
     },
     "required": ["sentiment", "confidence"]
   }
 }
 ```
 
-This configuration constrains the model's output to comply with the specified schema, preventing free-form text responses and ensuring structured data generation.
+### Advanced
 
-### Accessing Results
+Some settings live under advanced, or appear only for models that support them:
 
-After an agent completes, you can access its outputs:
-
-- **`<agent.content>`**: The agent's response text or structured data
-- **`<agent.tokens>`**: Token usage statistics (prompt, completion, total)
-- **`<agent.toolCalls>`**: Details of any tools the agent used during execution
-- **`<agent.cost>`**: Estimated cost of the API call (if available)
-
-## Advanced Features
-
-### Memory + Agent: Conversation History
-
-Use a `Memory` block with a consistent `id` (for example, `chat`) to persist messages between runs, and include that history in the Agent's prompt.
-
-- Add the user's message before the Agent
-- Read the conversation history for context
-- Append the Agent's reply after it runs
-
-See the [`Memory`](/tools/memory) block reference for details.
+- **Temperature.** How varied the output is, from focused at `0` to creative at higher values.
+- **Max output tokens.** Caps the response length. Defaults to the model's full limit.
+- **Reasoning effort / Thinking level.** For models with extended reasoning, how much the model thinks before answering. Higher is more thorough but slower and costs more tokens.
+- **API key.** Your key for the chosen provider. Hidden on hosted Sim, which supplies one.
 
 ## Outputs
 
-- **`<agent.content>`**: Agent's response text
-- **`<agent.model>`**: Model identifier used for the request
-- **`<agent.tokens>`**: Token usage statistics
-- **`<agent.toolCalls>`**: Tool execution details
-- **`<agent.cost>`**: Estimated API call cost
+After the agent runs, later blocks read its result by name:
 
-## Example Use Cases
+| Output | What it is |
+| --- | --- |
+| `<agent.content>` | The response: text, or the structured object when a response format is set |
+| `<agent.tokens>` | Token usage, an object `{ input, output, total }` |
+| `<agent.toolCalls>` | The tools the agent called, with their inputs and results |
+| `<agent.model>` | The model that ran the step |
+| `<agent.cost>` | Estimated cost of the call |
 
-**Customer Support Automation** - Handle inquiries with database and tool access
-```
-API (Ticket) → Agent (Postgres, KB, Linear) → Gmail (Reply) → Memory (Save)
-```
+When a response format is set, its fields are readable directly, like `<agent.sentiment>`.
 
-**Multi-Model Content Analysis** - Analyze content with different AI models
-```
-Function (Process) → Agent (GPT-4o Technical) → Agent (Claude Sentiment) → Function (Report)
-```
+## Example
 
-**Tool-Powered Research Assistant** - Research with web search and document access
-```
-Input → Agent (Google Search, Notion) → Function (Compile Report)
-```
+A workflow that reads an incoming customer message and classifies it:
 
-## Best Practices
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
 
-- **Be specific in system prompts**: Clearly define the agent's role, tone, and limitations. The more specific your instructions are, the better the agent will be able to fulfill its intended purpose.
-- **Choose the right temperature setting**: Use lower temperature settings (0-0.3) when accuracy is important, or increase temperature (0.7-2.0) for more creative or varied responses
-- **Leverage tools effectively**: Integrate tools that complement the agent's purpose and enhance its capabilities. Be selective about which tools you provide to avoid overwhelming the agent. For tasks with little overlap, use another Agent block for the best results.
+The Agent reads the message from Start with `<start.input>` and returns a result that later blocks read as `<agent.content>`.
 
 <FAQ items={[
-  { question: "What LLM providers does the Agent block support?", answer: "The Agent block supports OpenAI, Anthropic, Google (Gemini), xAI (Grok), DeepSeek, Groq, Cerebras, Azure OpenAI, Azure Anthropic, Google Vertex AI, AWS Bedrock, OpenRouter, and local models via Ollama or VLLM. You can type or select any supported model from the model combobox." },
-  { question: "What are the memory options for the Agent block?", answer: "The Agent block has four memory modes: None (no memory, each request is independent), Conversation (full conversation history keyed by a conversation ID), Sliding Window by messages (keeps the N most recent messages), and Sliding Window by tokens (keeps messages up to a token limit). Memory requires a conversation ID to persist across runs." },
-  { question: "What is the difference between the tool execution modes (Auto, Required, None)?", answer: "In Auto mode, the model decides when to call a tool based on context. In Required mode, the model must call the tool on every request. In None mode, the tool is completely filtered out and never sent to the model — it effectively disables that tool without removing it from the configuration." },
-  { question: "How does the Response Format work?", answer: "Response Format enforces structured output by providing a JSON Schema. When set, the model's response is constrained to match the schema exactly. Fields from the structured response can be accessed directly by downstream blocks using <agent.fieldName> syntax. If no response format is set, the agent returns its standard outputs: content, model, tokens, and toolCalls." },
-  { question: "What does the Reasoning Effort / Thinking Level setting do?", answer: "These are advanced settings that appear only for models that support extended reasoning. Reasoning Effort (for OpenAI o-series and GPT-5 models) and Thinking Level (for Anthropic Claude and Gemini models with thinking) control how much compute the model spends reasoning before responding. Higher levels produce more thorough answers but cost more tokens and take longer." },
-  { question: "How does max output tokens work with Anthropic models specifically?", answer: "The Agent block uses each Anthropic model's full max output token limit by default (e.g., 64,000 for Claude Sonnet 4.5). You can override this with the Max Tokens setting. For non-streaming requests that exceed the SDK's internal threshold, the provider automatically uses internal streaming to avoid timeouts." },
-  { question: "Can I use the Agent block with a custom or self-hosted model?", answer: "Yes. You can use any Ollama or VLLM-compatible model by typing the model name directly into the model combobox. This lets you connect to locally hosted or custom-deployed models as long as they expose a compatible API endpoint." },
+  { question: "What LLM providers does the Agent block support?", answer: "OpenAI, Anthropic, Google (Gemini), xAI (Grok), DeepSeek, Groq, Cerebras, Azure OpenAI, Azure Anthropic, Google Vertex AI, AWS Bedrock, OpenRouter, and local models via Ollama or VLLM. Type or select any supported model from the model combobox." },
+  { question: "What are the memory options for the Agent block?", answer: "Four modes: None (no memory, each run is independent), Conversation (full history keyed by a conversation ID), Sliding window by messages (the N most recent messages), and Sliding window by tokens (messages up to a token budget). Memory needs a conversation ID to persist across runs." },
+  { question: "What is the difference between the tool usage controls (Auto, Force, None)?", answer: "In Auto, the model decides when to call a tool based on context. In Force, the model must call the tool on every run. In None, the tool is hidden from the model and never sent, which disables it without removing it from the block." },
+  { question: "How does the Response Format work?", answer: "It enforces structured output by providing a JSON Schema. When set, the model's response is constrained to match the schema exactly, and each field is read directly by downstream blocks using <agent.fieldName>. Without a response format, the agent returns its standard outputs: content, model, tokens, and toolCalls." },
+  { question: "What does the Reasoning Effort / Thinking Level setting do?", answer: "They appear only for models that support extended reasoning. Reasoning Effort (OpenAI o-series and GPT-5 models) and Thinking Level (Anthropic Claude and Gemini models with thinking) control how much compute the model spends reasoning before responding. Higher levels produce more thorough answers but cost more tokens and take longer." },
+  { question: "How does max output tokens work with Anthropic models?", answer: "The Agent block uses each Anthropic model's full max output token limit by default (for example, 64,000 tokens). You can override this with the Max Output Tokens setting. For non-streaming requests that exceed the SDK's internal threshold, the provider automatically uses internal streaming to avoid timeouts." },
+  { question: "Can I use the Agent block with a custom or self-hosted model?", answer: "Yes. Use any Ollama or VLLM-compatible model by typing the model name directly into the model combobox, as long as it exposes a compatible API endpoint." },
 ]} />
