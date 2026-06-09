@@ -18,6 +18,8 @@ export {
   TABLE_ENRICH_WORKFLOW,
   VARIABLES_CONFIG_WORKFLOW,
   VARIABLES_RETRY_WORKFLOW,
+  WAIT_FOLLOWUP_WORKFLOW,
+  WAIT_RATELIMIT_WORKFLOW,
 } from '@/components/workflow-preview/examples'
 export { OutputBundle } from '@/components/workflow-preview/output-bundle'
 export type {

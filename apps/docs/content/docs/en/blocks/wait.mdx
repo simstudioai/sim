@@ -1,13 +1,14 @@
 ---
 title: Wait
+description: The Wait block pauses a workflow for a set time before continuing.
+pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { BlockPreview } from '@/components/workflow-preview'
+import { BlockPreview, WorkflowPreview, WAIT_RATELIMIT_WORKFLOW, WAIT_FOLLOWUP_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The Wait block pauses your workflow for a specified amount of time before continuing to the next block. Use it to add delays between actions, respect API rate limits, or space out operations.
+The **Wait block** pauses a workflow for a set time, then continues. Use it to space out actions, respect API rate limits, or give an external system time to finish. A short wait runs in line; a long one suspends the run and resumes later.
 
 <BlockPreview type="wait" />
 
@@ -15,51 +16,48 @@ The Wait block pauses your workflow for a specified amount of time before contin
 
 ### Wait Amount
 
-Enter the duration to pause execution:
-- **Input**: Positive number
-- **Maximum**: 600 seconds (10 minutes) or 10 minutes
+The duration to pause, as a positive number.
 
 ### Unit
 
-Choose the time unit:
-- **Seconds**: For short, precise delays
-- **Minutes**: For longer pauses
+The time unit. For a short, in-line wait, choose **Seconds** or **Minutes**. With **Async** on, choose **Minutes**, **Hours**, or **Days**.
 
-<Callout type="info">
-  Wait blocks can be cancelled by stopping the workflow. The maximum wait time is 10 minutes.
-</Callout>
+### Async
+
+Off, the run sleeps in line for the duration (up to 10 minutes). On, the run **suspends** and resumes after the delay, which is what lets a wait run for hours or days without holding the execution open. A suspended wait records when it will resume in `<wait.resumeAt>`.
 
 ## Outputs
 
-- **`<wait.waitDuration>`**: The wait duration in milliseconds
-- **`<wait.status>`**: Status of the wait ('waiting', 'completed', or 'cancelled')
+| Output | What it is |
+| --- | --- |
+| `<wait.status>` | `waiting`, `completed`, or `cancelled` |
+| `<wait.waitDuration>` | The wait duration, in milliseconds |
+| `<wait.resumeAt>` | ISO timestamp a suspended (async) wait resumes at |
 
-## Example Use Cases
+## Examples
 
-**API Rate Limiting** - Stay within API rate limits between requests
-```
-API (Request 1) → Wait (2s) → API (Request 2)
-```
+### Space out API calls
 
-**Timed Notifications** - Send follow-up messages after a delay
-```
-Function (Send Email) → Wait (5min) → Function (Follow-up)
-```
+<WorkflowPreview workflow={WAIT_RATELIMIT_WORKFLOW} />
 
-**Processing Delays** - Wait for external system to complete processing
-```
-API (Trigger Job) → Wait (30s) → API (Check Status)
-```
+A short wait between two calls keeps the workflow under an API's rate limit. The same shape works for polling: wait, then re-check an external job.
+
+### Send a delayed follow-up
+
+<WorkflowPreview workflow={WAIT_FOLLOWUP_WORKFLOW} />
+
+With Async on, the run suspends for two days and resumes to send the follow-up, without holding the execution open in between.
 
 ## Best Practices
 
-- **Keep waits reasonable**: Use Wait for delays up to 10 minutes. For longer delays, consider scheduled workflows
-- **Monitor execution time**: Remember that waits extend total workflow duration
+- **Use a short in-line wait for seconds to a few minutes.** Turn on Async for hours or days so the run doesn't stay open the whole time.
+- **Remember waits extend the run.** The wait counts toward total duration, which shows in the logs.
+- **A wait is cancellable.** Stopping the run cancels an active wait, and `status` reports `cancelled`.
 
 <FAQ items={[
-  { question: "What is the maximum wait time?", answer: "The maximum wait time is 600 seconds (10 minutes). You can specify the duration in either seconds or minutes." },
-  { question: "Can a Wait block be cancelled?", answer: "Yes. Wait blocks are interruptible via workflow cancellation. If the workflow is stopped while a Wait block is active, the wait is cancelled and the status output will reflect 'cancelled'." },
-  { question: "What happens if I enter a value exceeding the maximum?", answer: "The wait is capped at 600 seconds. If you enter a value greater than 600 seconds (or greater than 10 minutes), it will be limited to the maximum allowed duration." },
-  { question: "Does the Wait block consume resources while paused?", answer: "The Wait block performs a simple sleep for the configured duration. It does not actively consume compute resources during the wait, but the workflow execution remains open until the wait completes." },
-  { question: "What outputs does the Wait block provide?", answer: "The Wait block outputs the wait duration in milliseconds (waitDuration) and a status string that indicates whether the wait is 'waiting', 'completed', or 'cancelled'." },
+  { question: "What is the maximum wait time?", answer: "An in-line (synchronous) wait is capped at 10 minutes. For longer delays, turn on Async: the run suspends and resumes after the delay, so a wait can run for minutes, hours, or days." },
+  { question: "Can a Wait block be cancelled?", answer: "Yes. Waits are interruptible by workflow cancellation. If the run is stopped while a Wait is active, the wait is cancelled and the status output reads 'cancelled'." },
+  { question: "What is the difference between a sync and an async wait?", answer: "A sync wait (Async off) sleeps in line for up to 10 minutes while the execution stays open. An async wait (Async on) suspends the run and resumes after minutes, hours, or days, recording the resume time in <wait.resumeAt>." },
+  { question: "Does the Wait block consume resources while paused?", answer: "An in-line wait performs a simple sleep and does not actively use compute, though the execution stays open. An async wait suspends the run entirely, so nothing is held open until it resumes." },
+  { question: "What outputs does the Wait block provide?", answer: "waitDuration (the wait in milliseconds), status ('waiting', 'completed', or 'cancelled'), and resumeAt (the ISO timestamp an async wait resumes at)." },
 ]} />

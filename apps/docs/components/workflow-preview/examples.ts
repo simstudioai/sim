@@ -825,3 +825,85 @@ export const VARIABLES_CONFIG_WORKFLOW: PreviewWorkflow = {
     { id: 'vars-agent', source: 'vars', target: 'agent' },
   ],
 }
+
+/** Wait example: space out two API calls to respect a rate limit. */
+export const WAIT_RATELIMIT_WORKFLOW: PreviewWorkflow = {
+  id: 'wait-ratelimit',
+  name: 'Space out calls',
+  blocks: [
+    {
+      id: 'first',
+      name: 'API',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Method', value: 'GET' }],
+    },
+    {
+      id: 'wait',
+      name: 'Wait',
+      type: 'wait',
+      bgColor: '#F59E0B',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Amount', value: '2' },
+        { title: 'Unit', value: 'Seconds' },
+      ],
+    },
+    {
+      id: 'second',
+      name: 'API',
+      type: 'api',
+      bgColor: '#2F55FF',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Method', value: 'GET' }],
+    },
+  ],
+  edges: [
+    { id: 'first-wait', source: 'first', target: 'wait' },
+    { id: 'wait-second', source: 'wait', target: 'second' },
+  ],
+}
+
+/** Wait example: send a follow-up after a delay. */
+export const WAIT_FOLLOWUP_WORKFLOW: PreviewWorkflow = {
+  id: 'wait-followup',
+  name: 'Delayed follow-up',
+  blocks: [
+    {
+      id: 'send',
+      name: 'Send',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 0, y: 0 },
+      hideTargetHandle: true,
+      rows: [{ title: 'Messages', value: 'Send the welcome email' }],
+    },
+    {
+      id: 'wait',
+      name: 'Wait',
+      type: 'wait',
+      bgColor: '#F59E0B',
+      position: { x: 320, y: 0 },
+      rows: [
+        { title: 'Amount', value: '2' },
+        { title: 'Unit', value: 'Days' },
+      ],
+    },
+    {
+      id: 'followup',
+      name: 'Follow up',
+      type: 'agent',
+      bgColor: '#33C482',
+      position: { x: 640, y: 0 },
+      hideSourceHandle: true,
+      rows: [{ title: 'Messages', value: 'Send a check-in' }],
+    },
+  ],
+  edges: [
+    { id: 'send-wait', source: 'send', target: 'wait' },
+    { id: 'wait-followup', source: 'wait', target: 'followup' },
+  ],
+}
