@@ -60,6 +60,12 @@ export interface PerformFullDeployParams {
    * separately via the version metadata endpoint, so it stays optional here.
    */
   versionDescription?: string
+  /**
+   * Optional name/label for the created deployment version. The copilot deploy
+   * tools require this; the UI deploy route sets it via the version metadata
+   * endpoint, so it stays optional here.
+   */
+  versionName?: string
   requestId?: string
   /**
    * Optional NextRequest for external webhook subscriptions.
@@ -114,6 +120,7 @@ export async function performFullDeploy(
     deployedBy: actorId,
     workflowName: workflowName || workflowRecord.name || undefined,
     description: params.versionDescription,
+    name: params.versionName,
     validateWorkflowState: async (workflowState) => {
       const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
       if (!scheduleValidation.isValid) {

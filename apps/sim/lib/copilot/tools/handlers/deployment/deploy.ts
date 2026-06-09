@@ -168,11 +168,21 @@ export async function executeDeployApi(
       }
     }
 
+    const versionName = params.versionName?.trim()
+    if (!versionName) {
+      return {
+        success: false,
+        error:
+          'versionName is required when deploying. Provide a short human-readable label for this deployment version.',
+      }
+    }
+
     const result = await performFullDeploy({
       workflowId,
       userId: context.userId,
       workflowName: workflowRecord.name || undefined,
       versionDescription,
+      versionName,
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to deploy workflow' }
@@ -329,6 +339,15 @@ export async function executeDeployChat(
       }
     }
 
+    const versionName = params.versionName?.trim()
+    if (!versionName) {
+      return {
+        success: false,
+        error:
+          'versionName is required when deploying. Provide a short human-readable label for this deployment version (distinct from the chat title).',
+      }
+    }
+
     const identifierPattern = /^[a-z0-9-]+$/
     if (!identifierPattern.test(identifier)) {
       return {
@@ -380,6 +399,7 @@ export async function executeDeployChat(
       title,
       description: resolvedDescription,
       versionDescription,
+      versionName,
       customizations: {
         primaryColor:
           params.customizations?.primaryColor ||
@@ -735,7 +755,7 @@ export async function executeDeployMcp(
 }
 
 export async function executeRedeploy(
-  params: { workflowId?: string; versionDescription?: string },
+  params: { workflowId?: string; versionDescription?: string; versionName?: string },
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -751,12 +771,21 @@ export async function executeRedeploy(
           'versionDescription is required. Provide a concise summary of what changed in this deployment version (call diff_workflows with ref1 "live" and ref2 "draft" if unsure what changed).',
       }
     }
+    const versionName = params.versionName?.trim()
+    if (!versionName) {
+      return {
+        success: false,
+        error:
+          'versionName is required. Provide a short human-readable label for this deployment version.',
+      }
+    }
     await ensureWorkflowAccess(workflowId, context.userId, 'admin')
 
     const result = await performFullDeploy({
       workflowId,
       userId: context.userId,
       versionDescription,
+      versionName,
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to redeploy workflow' }

@@ -16,6 +16,7 @@ import {
 } from '@/lib/mcp/orchestration'
 import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison'
 import { performActivateVersion, performRevertToVersion } from '@/lib/workflows/orchestration'
+import { updateDeploymentVersionMetadata } from '@/lib/workflows/persistence/utils'
 import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess } from '../access'
 import type {
@@ -27,6 +28,7 @@ import type {
   ListWorkspaceMcpServersParams,
   LoadDeploymentParams,
   PromoteToLiveParams,
+  UpdateDeploymentVersionParams,
   UpdateWorkspaceMcpServerParams,
 } from '../param-types'
 import { resolveWorkflowStateRef } from './state-refs'
@@ -568,6 +570,54 @@ export async function executePromoteToLive(
         deployedAt: result.deployedAt ? new Date(result.deployedAt).toISOString() : undefined,
         warnings: result.warnings,
       },
+    }
+  } catch (error) {
+    return { success: false, error: toError(error).message }
+  }
+}
+
+export async function executeUpdateDeploymentVersion(
+  params: UpdateDeploymentVersionParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    if (params.version === undefined || params.version === null) {
+      return { success: false, error: 'version is required' }
+    }
+    const version = normalizePromoteVersion(params.version)
+    if (version === null) {
+      return {
+        success: false,
+        error: 'version must be a deployment version number (use get_deployment_log to find it)',
+      }
+    }
+
+    const name = typeof params.name === 'string' ? params.name.trim() : undefined
+    const description =
+      typeof params.description === 'string' ? params.description.trim() : undefined
+    if (name === undefined && description === undefined) {
+      return { success: false, error: 'Provide a name and/or description to update' }
+    }
+
+    await ensureWorkflowAccess(workflowId, context.userId, 'write')
+
+    const updated = await updateDeploymentVersionMetadata({
+      workflowId,
+      version,
+      ...(name !== undefined ? { name: name || null } : {}),
+      ...(description !== undefined ? { description: description || null } : {}),
+    })
+    if (!updated) {
+      return { success: false, error: `Deployment version ${version} not found` }
+    }
+
+    return {
+      success: true,
+      output: { workflowId, version, name: updated.name, description: updated.description },
     }
   } catch (error) {
     return { success: false, error: toError(error).message }

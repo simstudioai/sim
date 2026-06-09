@@ -17,7 +17,6 @@ export interface ToolCatalogEntry {
     | 'create_folder'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'debug'
     | 'delete_file'
     | 'delete_file_folder'
     | 'delete_folder'
@@ -54,6 +53,7 @@ export interface ToolCatalogEntry {
     | 'knowledge_base'
     | 'list_file_folders'
     | 'list_folders'
+    | 'list_integration_tools'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
@@ -98,6 +98,7 @@ export interface ToolCatalogEntry {
     | 'superagent'
     | 'table'
     | 'touch_plan'
+    | 'update_deployment_version'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
     | 'user_memory'
@@ -117,7 +118,6 @@ export interface ToolCatalogEntry {
     | 'create_folder'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'debug'
     | 'delete_file'
     | 'delete_file_folder'
     | 'delete_folder'
@@ -154,6 +154,7 @@ export interface ToolCatalogEntry {
     | 'knowledge_base'
     | 'list_file_folders'
     | 'list_folders'
+    | 'list_integration_tools'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
@@ -198,6 +199,7 @@ export interface ToolCatalogEntry {
     | 'superagent'
     | 'table'
     | 'touch_plan'
+    | 'update_deployment_version'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
     | 'user_memory'
@@ -212,7 +214,6 @@ export interface ToolCatalogEntry {
   subagentId?:
     | 'agent'
     | 'auth'
-    | 'debug'
     | 'deploy'
     | 'file'
     | 'job'
@@ -470,31 +471,6 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
-export const Debug: ToolCatalogEntry = {
-  id: 'debug',
-  name: 'debug',
-  route: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: {
-      context: {
-        description:
-          'Pre-gathered context: workflow state JSON, block schemas, error logs. The debug agent will skip re-reading anything included here.',
-        type: 'string',
-      },
-      request: {
-        description:
-          'What to debug. Include error messages, block IDs, and any context about the failure.',
-        type: 'string',
-      },
-    },
-    required: ['request'],
-    type: 'object',
-  },
-  subagentId: 'debug',
-  internal: true,
-}
-
 export const DeleteFile: ToolCatalogEntry = {
   id: 'delete_file',
   name: 'delete_file',
@@ -638,6 +614,11 @@ export const DeployApi: ToolCatalogEntry = {
         description:
           'REQUIRED when action is "deploy": a concise (1-3 sentence) description of what changed in this deployment version, e.g. "Adds Slack failure alert and retries on the HTTP block". If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first. Ignored for undeploy.',
       },
+      versionName: {
+        type: 'string',
+        description:
+          'REQUIRED when action is "deploy": a short human-readable name/label for this deployment version (shown in the deployment history), e.g. "v2 pricing" or "Add Slack alerts". Ignored for undeploy.',
+      },
       workflowId: {
         type: 'string',
         description: 'Workflow ID to deploy (required in workspace context)',
@@ -750,6 +731,11 @@ export const DeployChat: ToolCatalogEntry = {
         type: 'string',
         description:
           'REQUIRED when action is "deploy": a concise (1-3 sentence) description of what changed in this deployment version (distinct from the chat-facing description). If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first. Ignored for undeploy.',
+      },
+      versionName: {
+        type: 'string',
+        description:
+          'REQUIRED when action is "deploy": a short human-readable name/label for this deployment version (distinct from the chat title; shown in deployment history). Ignored for undeploy.',
       },
       welcomeMessage: { type: 'string', description: 'Welcome message shown to users' },
       workflowId: {
@@ -2353,6 +2339,24 @@ export const ListFolders: ToolCatalogEntry = {
   },
 }
 
+export const ListIntegrationTools: ToolCatalogEntry = {
+  id: 'list_integration_tools',
+  name: 'list_integration_tools',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    properties: {
+      integration: {
+        description:
+          'The integration service name — the folder under components/integrations/ (e.g. "slack", "gmail", "google_sheets"). Returns every operation\'s id, name, and description for that service.',
+        type: 'string',
+      },
+    },
+    required: ['integration'],
+    type: 'object',
+  },
+}
+
 export const ListUserWorkspaces: ToolCatalogEntry = {
   id: 'list_user_workspaces',
   name: 'list_user_workspaces',
@@ -3046,12 +3050,17 @@ export const Redeploy: ToolCatalogEntry = {
         description:
           'REQUIRED: a concise (1-3 sentence) description of what changed in this deployment version. If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first.',
       },
+      versionName: {
+        type: 'string',
+        description:
+          'REQUIRED: a short human-readable name/label for this deployment version, shown in deployment history.',
+      },
       workflowId: {
         type: 'string',
         description: 'Workflow ID to redeploy (required in workspace context)',
       },
     },
-    required: ['versionDescription'],
+    required: ['versionDescription', 'versionName'],
   },
   resultSchema: {
     type: 'object',
@@ -3713,6 +3722,38 @@ export const TouchPlan: ToolCatalogEntry = {
   },
   requiredPermission: 'write',
   capabilities: ['file_output'],
+}
+
+export const UpdateDeploymentVersion: ToolCatalogEntry = {
+  id: 'update_deployment_version',
+  name: 'update_deployment_version',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      description: {
+        type: 'string',
+        description: 'New description for the deployment version. Provide name and/or description.',
+      },
+      name: {
+        type: 'string',
+        description: 'New name/label for the deployment version. Provide name and/or description.',
+      },
+      version: {
+        type: 'number',
+        description:
+          'The numeric deployment version number to update (use get_deployment_log to find it).',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['version'],
+  },
+  requiresConfirmation: true,
+  requiredPermission: 'write',
 }
 
 export const UpdateJobHistory: ToolCatalogEntry = {
@@ -4546,7 +4587,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CreateFolder.id]: CreateFolder,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
-  [Debug.id]: Debug,
   [DeleteFile.id]: DeleteFile,
   [DeleteFileFolder.id]: DeleteFileFolder,
   [DeleteFolder.id]: DeleteFolder,
@@ -4583,6 +4623,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [KnowledgeBase.id]: KnowledgeBase,
   [ListFileFolders.id]: ListFileFolders,
   [ListFolders.id]: ListFolders,
+  [ListIntegrationTools.id]: ListIntegrationTools,
   [ListUserWorkspaces.id]: ListUserWorkspaces,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
   [LoadDeployment.id]: LoadDeployment,
@@ -4627,6 +4668,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Superagent.id]: Superagent,
   [Table.id]: Table,
   [TouchPlan.id]: TouchPlan,
+  [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateJobHistory.id]: UpdateJobHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserMemory.id]: UserMemory,

@@ -132,6 +132,8 @@ export interface DeployApiParams {
   action?: 'deploy' | 'undeploy'
   /** Description of what changed in this deployment version. Required when action is 'deploy'. */
   versionDescription?: string
+  /** Short human-readable name/label for this deployment version. Required when action is 'deploy'. */
+  versionName?: string
 }
 
 export interface DeployChatParams {
@@ -142,6 +144,8 @@ export interface DeployChatParams {
   description?: string
   /** Description of what changed in this deployment version (distinct from the chat-facing `description`). Required when action is 'deploy'. */
   versionDescription?: string
+  /** Short human-readable name/label for this deployment version. Required when action is 'deploy'. */
+  versionName?: string
   welcomeMessage?: string
   customizations?: {
     primaryColor?: string
@@ -175,6 +179,15 @@ export interface DeployMcpParams {
 
 export interface CheckDeploymentStatusParams {
   workflowId?: string
+}
+
+export interface UpdateDeploymentVersionParams {
+  workflowId?: string
+  version: number | string
+  /** New name/label for the version. Provide name and/or description. */
+  name?: string
+  /** New description for the version. Provide name and/or description. */
+  description?: string
 }
 
 export interface GetDeploymentLogParams {

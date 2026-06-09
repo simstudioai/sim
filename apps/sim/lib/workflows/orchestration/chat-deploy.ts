@@ -18,6 +18,8 @@ export interface ChatDeployPayload {
   description?: string
   /** Summary of what changed in this deployment version (distinct from the chat-facing `description`). */
   versionDescription?: string
+  /** Short name/label for this deployment version. */
+  versionName?: string
   customizations?: { primaryColor?: string; welcomeMessage?: string; imageUrl?: string }
   authType?: 'public' | 'password' | 'email' | 'sso'
   password?: string | null
@@ -66,6 +68,7 @@ export async function performChatDeploy(
     workflowId,
     userId,
     versionDescription: params.versionDescription,
+    versionName: params.versionName,
   })
   if (!deployResult.success) {
     return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
