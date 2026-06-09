@@ -451,7 +451,11 @@ export function Tables() {
             useImportTrayStore.getState().endUpload(pendingId)
             // The server row drives the tray once the list refetches (mutation invalidates it).
             // If canceled mid-upload, flag the real id so it's not shown and cancel server-side.
-            if (result?.tableId && useImportTrayStore.getState().consumeCanceled(pendingId)) {
+            if (
+              result?.tableId &&
+              result.importId &&
+              useImportTrayStore.getState().consumeCanceled(pendingId)
+            ) {
               useImportTrayStore.getState().cancel(result.tableId)
               void cancelTableImport(workspaceId, result.tableId, result.importId).catch(() => {})
             }
@@ -504,7 +508,8 @@ export function Tables() {
         }
       }
     },
-    [workspaceId, router, uploadCsv, importCsvAsync]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
+    [workspaceId, router]
   )
 
   const handleListUploadCsv = useCallback(() => {
