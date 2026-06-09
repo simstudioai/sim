@@ -445,7 +445,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.io.on('reconnect_error', (error: Error) => {
-          logger.error('Socket reconnection error:', { message: error.message })
+          logger.warn('Socket reconnection attempt failed, will retry', {
+            message: error.message,
+          })
         })
 
         socketInstance.io.on('reconnect_failed', () => {

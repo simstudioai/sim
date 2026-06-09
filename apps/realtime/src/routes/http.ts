@@ -59,6 +59,14 @@ function sendError(res: ServerResponse, message: string, status = 500): void {
  */
 export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
   return async (req: IncomingMessage, res: ServerResponse) => {
+    // Socket.IO/Engine.IO registers its own `request` listener on this HTTP server
+    // before this handler, so Node invokes both for every request. Leave `/socket.io/`
+    // requests for Engine.IO to answer instead of racing it with the 404 fallthrough
+    // below, which otherwise breaks the polling transport handshake.
+    if (req.url?.startsWith('/socket.io/')) {
+      return
+    }
+
     // Health check doesn't require auth
     if (req.method === 'GET' && req.url === '/health') {
       try {
