@@ -38,6 +38,7 @@ import {
   supportsThinking,
   supportsToolUsageControl,
   supportsVerbosity,
+  transformBlockTool,
   updateOllamaProviderModels,
 } from '@/providers/utils'
 
@@ -1512,5 +1513,66 @@ describe('Provider/Model Blacklist', () => {
       expect(getProviderFromModel('GPT-4O')).toBe('openai')
       expect(getProviderFromModel('CLAUDE-SONNET-4-5')).toBe('anthropic')
     })
+  })
+})
+
+describe('transformBlockTool multi-instance unique IDs', () => {
+  const tableBlockDef = {
+    type: 'table',
+    inputs: {},
+    subBlocks: [
+      { id: 'operation', type: 'dropdown' },
+      { id: 'tableSelector', type: 'table-selector', canonicalParamId: 'tableId', mode: 'basic' },
+      {
+        id: 'manualTableId',
+        type: 'short-input',
+        canonicalParamId: 'tableId',
+        mode: 'advanced',
+      },
+    ],
+    tools: {
+      access: ['table_query_rows', 'table_insert_row'],
+      config: { tool: () => 'table_query_rows' },
+    },
+  }
+
+  const getAllBlocks = () => [tableBlockDef]
+  const getTool = (id: string) => ({
+    id,
+    name: 'Query Rows',
+    description: 'Query table rows',
+    params: {},
+  })
+
+  const transformTable = (
+    params: Record<string, unknown>,
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  ) =>
+    transformBlockTool(
+      { type: 'table', operation: 'query_rows', params },
+      { selectedOperation: 'query_rows', getAllBlocks, getTool, canonicalModes }
+    )
+
+  it('appends the table id when stored under the basic selector subblock key', async () => {
+    const result = await transformTable({ tableSelector: 'tbl_abc' })
+    expect(result?.id).toBe('table_query_rows_tbl_abc')
+  })
+
+  it('appends the table id resolved from the advanced manual input', async () => {
+    const result = await transformTable(
+      { manualTableId: 'tbl_xyz' },
+      { 'table:tableId': 'advanced' }
+    )
+    expect(result?.id).toBe('table_query_rows_tbl_xyz')
+  })
+
+  it('appends the canonical table id when already present in params', async () => {
+    const result = await transformTable({ tableId: 'tbl_direct' })
+    expect(result?.id).toBe('table_query_rows_tbl_direct')
+  })
+
+  it('falls back to the base tool id when no table is selected', async () => {
+    const result = await transformTable({})
+    expect(result?.id).toBe('table_query_rows')
   })
 })
