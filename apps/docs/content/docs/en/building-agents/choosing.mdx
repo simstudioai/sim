@@ -54,9 +54,13 @@ In the lead scorer, your CRM vendor ships an MCP server. After you connect it on
 
 ## Workflow-as-tool
 
-A **workflow-as-tool** runs a whole workflow as one step. The [Workflow](/blocks/workflow) block selects a child workflow and maps values to its [Start](/triggers/start) trigger, then returns `success`, `result`, and `error`. Use it to keep a large system modular: build a procedure once, call it from many parents.
+A **workflow-as-tool** is a whole workflow handed to an agent as one callable tool. You pick the workflow in the [Agent](/blocks/agent) block's tool list; the agent decides when to call it and supplies the inputs, which arrive at the child's [Start](/triggers/start) trigger, and the child's result comes back as the tool's output. Use it when a multi-step procedure should be at the agent's disposal, not on the path.
 
-In the lead scorer, enrichment is its own workflow with five steps. The parent uses a Workflow block to call it and reads the enriched lead from `result`, instead of inlining those five steps. So one workflow can call another, much the way a function calls another function.
+In the lead scorer, the agent has a `Deep Enrich` workflow as a tool — its own five-step procedure. For a thin lead, the agent calls it to fill out the profile before scoring; for a complete lead, it never runs. The agent weighs a whole procedure the same way it weighs a single action.
+
+<Callout type="info">
+A workflow can also run as a fixed step: the [Workflow](/blocks/workflow) block calls a child workflow because the path reached it. Same child workflow, same Start trigger — the difference, as with blocks and agent tools, is who decides. The Enrich step in the diagram is that deterministic case.
+</Callout>
 
 <WorkflowPreview workflow={LEAD_SCORER_WORKFLOW} height={170} highlightBlock="enrich" />
 
@@ -72,12 +76,12 @@ In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqu
 | **Agent tool** | The agent | On the Agent block | Pick from the integrations |
 | **Custom tool** | The agent | The workspace | Write the code once |
 | **MCP server** | The agent | An external server | Connect it |
-| **Workflow-as-tool** | The path | Its own workflow | Build it like any workflow |
+| **Workflow-as-tool** | The agent | Its own workflow | Build it, then pick it in the tool list |
 | **Skill** | The agent | The workspace | Write the instructions |
 
 ## Putting it together
 
-The lead scorer uses six kinds at once: blocks for the steps that must always run, agent tools for the calls the model should weigh, a custom tool for shared logic, an MCP server for the CRM, a workflow-as-tool for enrichment, and a skill for the scoring rules. In general, start with a block, then move to an agent tool when a model should decide. Reach for the rest only when you need reuse, an external toolset, a sub-workflow, or written guidance.
+The lead scorer uses six kinds at once: blocks for the steps that must always run, agent tools for the calls the model should weigh, a custom tool for shared logic, an MCP server for the CRM, a deep-enrichment workflow the agent calls when a lead needs it, and a skill for the scoring rules. In general, start with a block, then move to an agent tool when a model should decide. Reach for the rest only when you need reuse, an external toolset, a sub-workflow, or written guidance.
 
 ## Next
 

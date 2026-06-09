@@ -1671,6 +1671,7 @@ export const LEAD_SCORER_WORKFLOW: PreviewWorkflow = {
         { type: 'exa', name: 'Search', bgColor: '#1F40ED' },
         { type: 'gmail', name: 'Send Email', bgColor: '#E0E0E0' },
         { type: 'hubspot', name: 'CRM', bgColor: '#FF7A59' },
+        { type: 'workflow', name: 'Deep Enrich', bgColor: '#6366F1' },
       ],
     },
     {
