@@ -12,7 +12,7 @@ When you run a workflow, Sim works out the order from the [connections](/workflo
 
 ## Independent blocks run in parallel
 
-Two blocks that don't depend on each other run at the same time. There's nothing to configure. If neither block is downstream of the other, Sim runs them together.
+A block never waits on a block it isn't downstream of. So when several blocks become ready at the same moment — all their dependencies finished — they run at the same time. Here, both agents are wired straight to Start, so they run side by side; there's nothing to configure.
 
 <Image src="/static/execution/concurrency.png" alt="Two agent blocks running at the same time after the Start trigger" width={800} height={500} />
 
