@@ -1597,13 +1597,6 @@
       "when": 1780945741000,
       "tag": "0228_order_key_binary_collation",
       "breakpoints": true
-    },
-    {
-      "idx": 229,
-      "version": "7",
-      "when": 1780974609745,
-      "tag": "0229_puzzling_masked_marvel",
-      "breakpoints": true
     }
   ]
 }
