@@ -240,6 +240,8 @@ export function useTableEventStream({
       // file when an export this session kicked off completes. The initiated-set guard is what
       // keeps replayed `ready` events (SSE re-delivers up to 1h on reconnect) from re-downloading.
       if (type === 'export') {
+        // Keep the tray's export list fresh between its polls.
+        void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
         if (status === 'ready' && jobId && consumeInitiatedExport(jobId)) {
           void downloadExportResult(workspaceId, tableId, jobId)
             .then(() => toast.success('Export ready — downloading'))

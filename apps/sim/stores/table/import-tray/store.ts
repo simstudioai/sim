@@ -25,6 +25,12 @@ interface ImportTrayState {
   notified: Record<string, true>
   /** Ids (upload or table) canceled so callbacks/derivation don't resurrect them. */
   canceledIds: Record<string, true>
+  /**
+   * Server-listed rows the user dismissed (export jobIds). Unlike `notified` — an allow-list for
+   * table-derived terminals — export terminals are listed by the server for a visibility window,
+   * so dismissal needs a deny-list.
+   */
+  dismissedIds: Record<string, true>
   menuOpen: boolean
 
   startUpload: (upload: ImportUpload) => void
@@ -34,6 +40,8 @@ interface ImportTrayState {
   notify: (tableId: string) => void
   /** Remove a terminal card (manual dismiss or auto-clear). */
   dismiss: (tableId: string) => void
+  /** Hide a server-listed job row (export) for the rest of the session. */
+  dismissJob: (jobId: string) => void
   /** Flag an id canceled and drop any optimistic upload for it. */
   cancel: (id: string) => void
   isCanceled: (id: string) => boolean
@@ -47,6 +55,7 @@ const initialState = {
   uploads: {} as Record<string, ImportUpload>,
   notified: {} as Record<string, true>,
   canceledIds: {} as Record<string, true>,
+  dismissedIds: {} as Record<string, true>,
   menuOpen: false,
 }
 
@@ -80,6 +89,9 @@ export const useImportTrayStore = create<ImportTrayState>()(
           const { [tableId]: _removed, ...rest } = state.notified
           return { notified: rest }
         }),
+
+      dismissJob: (jobId) =>
+        set((state) => ({ dismissedIds: { ...state.dismissedIds, [jobId]: true } })),
 
       cancel: (id) =>
         set((state) => {

@@ -48,6 +48,7 @@ import {
   importIntoTableAsyncContract,
   importTableAsyncContract,
   listActiveDispatchesContract,
+  listTableJobsContract,
   listTableRowsContract,
   listTablesContract,
   type RunLimit,
@@ -57,6 +58,7 @@ import {
   runColumnContract,
   type TableFindMatch,
   type TableIdParamsInput,
+  type TableJobSummary,
   type TableRowParamsInput,
   type TableRowsQueryInput,
   type UpdateTableColumnBodyInput,
@@ -101,6 +103,8 @@ export const tableKeys = {
     [...tableKeys.lists(), workspaceId ?? '', scope] as const,
   details: () => [...tableKeys.all, 'detail'] as const,
   detail: (tableId: string) => [...tableKeys.details(), tableId] as const,
+  exportJobs: (workspaceId?: string) =>
+    [...tableKeys.all, 'export-jobs', workspaceId ?? ''] as const,
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
   infiniteRows: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
@@ -1533,6 +1537,33 @@ export async function cancelTableJob(
   await requestJson(cancelTableJobContract, {
     params: { tableId },
     body: { workspaceId, jobId },
+  })
+}
+
+async function fetchWorkspaceExportJobs(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<TableJobSummary[]> {
+  const response = await requestJson(listTableJobsContract, {
+    query: { workspaceId, type: 'export' },
+    signal,
+  })
+  return response.data.jobs
+}
+
+/**
+ * Export jobs for the header tray: running ones plus recent terminals (re-downloadable). Polls
+ * while any export is in flight; otherwise the SSE job stream invalidates this key on export
+ * events, so the list stays fresh without a steady poll.
+ */
+export function useWorkspaceExportJobs(workspaceId?: string) {
+  return useQuery({
+    queryKey: tableKeys.exportJobs(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceExportJobs(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 5 * 1000,
+    refetchInterval: (query) =>
+      query.state.data?.some((j) => j.status === 'running') ? 2000 : false,
   })
 }
 

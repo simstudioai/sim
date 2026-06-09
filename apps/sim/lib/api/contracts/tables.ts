@@ -747,6 +747,39 @@ export const exportTableAsyncContract = defineRouteContract({
   },
 })
 
+export const tableJobSummarySchema = z.object({
+  jobId: z.string(),
+  tableId: z.string(),
+  tableName: z.string(),
+  status: z.enum(['running', 'ready', 'failed', 'canceled']),
+  rowsProcessed: z.number(),
+  format: z.enum(['csv', 'json']),
+  hasResult: z.boolean(),
+  error: z.string().nullable(),
+})
+
+export type TableJobSummary = z.output<typeof tableJobSummarySchema>
+
+export const listTableJobsQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  type: z.literal('export'),
+})
+
+/**
+ * Workspace-scoped job listing the header tray polls. Export-only today: exports are excluded
+ * from the table-level job derivation (they run concurrently with other jobs), so this is their
+ * dedicated read path — running jobs plus recently-finished ones for re-download.
+ */
+export const listTableJobsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/jobs',
+  query: listTableJobsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ jobs: z.array(tableJobSummarySchema) })),
+  },
+})
+
 export const exportDownloadQuerySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   jobId: z.string().min(1, 'Job ID is required'),

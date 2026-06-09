@@ -1,17 +1,21 @@
 'use client'
 
+import { createLogger } from '@sim/logger'
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
   ProgressItem,
+  toast,
 } from '@/components/emcn'
 import { Upload } from '@/components/emcn/icons'
-import { cancelTableJob } from '@/hooks/queries/tables'
+import { cancelTableJob, downloadExportResult } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'
 import { type ImportRow, useWorkspaceImports } from './use-workspace-imports'
+
+const logger = createLogger('ImportProgressMenu')
 
 interface ImportProgressMenuProps {
   workspaceId: string | undefined
@@ -20,13 +24,15 @@ interface ImportProgressMenuProps {
 }
 
 /**
- * Header affordance for background CSV imports: a clickable `{done}/{total}` count that opens a
- * dropdown of per-import progress rows. Renders nothing when there are no imports. The single
- * import-progress surface for both the tables list and the in-table view.
+ * Header affordance for background table jobs: a clickable `{done}/{total}` count that opens a
+ * dropdown of per-job progress rows — CSV imports and exports (a ready export row carries a
+ * Download action). Renders nothing when there are no jobs. The single job-progress surface for
+ * both the tables list and the in-table view.
  */
 export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuProps) {
   const imports = useWorkspaceImports(workspaceId, tableId)
   const dismiss = useImportTrayStore((state) => state.dismiss)
+  const dismissJob = useImportTrayStore((state) => state.dismissJob)
   const cancelId = useImportTrayStore((state) => state.cancel)
   const menuOpen = useImportTrayStore((state) => state.menuOpen)
   const setMenuOpen = useImportTrayStore((state) => state.setMenuOpen)
@@ -41,8 +47,16 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
     // Worker already running — cancel it server-side now. (An upload still mid-flight is canceled by
     // the kickoff handler once its jobId is known; see the `consumeCanceled` branches.)
     if (row.jobId) {
-      void cancelTableJob(row.workspaceId, row.id, row.jobId).catch(() => {})
+      void cancelTableJob(row.workspaceId, row.tableId, row.jobId).catch(() => {})
     }
+  }
+
+  const download = (row: ImportRow) => {
+    if (!row.jobId) return
+    void downloadExportResult(row.workspaceId, row.tableId, row.jobId).catch((err) => {
+      logger.error('Export download failed', { jobId: row.jobId, err })
+      toast.error('Download failed — the export may have expired')
+    })
   }
 
   return (
@@ -58,15 +72,32 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
       <DropdownMenuContent align='end' className='min-w-[320px] max-w-[420px] gap-0 p-1'>
         {imports.map((row) => {
           const stage = getImportStage(row)
+          const isReadyExport = row.jobType === 'export' && row.phase === 'ready' && row.hasResult
           return (
             <ProgressItem
               key={row.id}
               status={stage.status}
               title={stage.title}
               meta={stage.meta}
-              detail={stage.detail}
+              detail={
+                isReadyExport ? (
+                  <button
+                    type='button'
+                    className='text-[var(--brand-primary)] hover-hover:underline'
+                    onClick={() => download(row)}
+                  >
+                    Download
+                  </button>
+                ) : (
+                  stage.detail
+                )
+              }
               onCancel={row.phase === 'importing' ? () => cancel(row) : undefined}
-              onDismiss={stage.dismissible ? () => dismiss(row.id) : undefined}
+              onDismiss={
+                stage.dismissible
+                  ? () => (row.jobType === 'export' ? dismissJob(row.id) : dismiss(row.id))
+                  : undefined
+              }
             />
           )
         })}

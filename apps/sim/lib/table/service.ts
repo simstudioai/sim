@@ -26,6 +26,7 @@ import {
   lte,
   ne,
   notInArray,
+  or,
   type SQL,
   sql,
 } from 'drizzle-orm'
@@ -71,6 +72,7 @@ import type {
   Sort,
   TableDefinition,
   TableDeleteJobPayload,
+  TableExportJobPayload,
   TableJobType,
   TableMetadata,
   TableRow,
@@ -2043,6 +2045,62 @@ export async function updateJobProgress(
     .where(ownsActiveJob(tableId, jobId))
     .returning({ id: tableJobs.id })
   return updated.length > 0
+}
+
+/** How long a terminal export stays listable (and re-downloadable from the tray). */
+const EXPORT_JOB_VISIBILITY_MS = 10 * 60 * 1000
+
+export interface WorkspaceExportJob {
+  jobId: string
+  tableId: string
+  tableName: string
+  status: string
+  rowsProcessed: number
+  format: 'csv' | 'json'
+  hasResult: boolean
+  error: string | null
+}
+
+/**
+ * Export jobs the tray surfaces for a workspace: everything running, plus terminals from the last
+ * {@link EXPORT_JOB_VISIBILITY_MS} so a just-finished export stays re-downloadable. Exports live
+ * outside the table-level job derivation (which excludes them), so this is their read path.
+ */
+export async function listWorkspaceExportJobs(workspaceId: string): Promise<WorkspaceExportJob[]> {
+  const visibilityCutoff = new Date(Date.now() - EXPORT_JOB_VISIBILITY_MS)
+  const rows = await db
+    .select({
+      jobId: tableJobs.id,
+      tableId: tableJobs.tableId,
+      tableName: userTableDefinitions.name,
+      status: tableJobs.status,
+      rowsProcessed: tableJobs.rowsProcessed,
+      payload: tableJobs.payload,
+      error: tableJobs.error,
+    })
+    .from(tableJobs)
+    .innerJoin(userTableDefinitions, eq(userTableDefinitions.id, tableJobs.tableId))
+    .where(
+      and(
+        eq(tableJobs.workspaceId, workspaceId),
+        eq(tableJobs.type, 'export'),
+        or(eq(tableJobs.status, 'running'), gt(tableJobs.updatedAt, visibilityCutoff))
+      )
+    )
+    .orderBy(desc(tableJobs.startedAt))
+  return rows.map((r) => {
+    const payload = r.payload as TableExportJobPayload | null
+    return {
+      jobId: r.jobId,
+      tableId: r.tableId,
+      tableName: r.tableName,
+      status: r.status,
+      rowsProcessed: r.rowsProcessed,
+      format: payload?.format ?? 'csv',
+      hasResult: Boolean(payload?.resultKey),
+      error: r.error,
+    }
+  })
 }
 
 /** Reads one job row (type/status/payload) scoped to its table. Null when absent. */
