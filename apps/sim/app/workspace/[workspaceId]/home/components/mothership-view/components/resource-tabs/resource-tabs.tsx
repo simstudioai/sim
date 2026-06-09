@@ -10,8 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, Tooltip } from '@/components/emcn'
-import { Columns3, Eye, Pencil } from '@/components/emcn/icons'
+import { Button, chipVariants, Tooltip } from '@/components/emcn'
+import { Columns3, Eye, Pencil, X } from '@/components/emcn/icons'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
@@ -179,8 +179,8 @@ const ResourceTabItem = memo(function ResourceTabItem({
       {showGapBefore && (
         <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
       )}
-      <Button
-        variant='subtle'
+      <button
+        type='button'
         draggable
         data-resource-tab-id={resource.id}
         onDragStart={(e) => onDragStart(e, idx)}
@@ -197,14 +197,14 @@ const ResourceTabItem = memo(function ResourceTabItem({
         onMouseEnter={() => setHoveredTabId(resource.id)}
         onMouseLeave={() => setHoveredTabId(null)}
         className={cn(
-          'group relative shrink-0 bg-transparent px-2 py-[3px] pr-[22px] text-caption transition-colors duration-150',
-          isActive && 'bg-[var(--surface-4)]',
-          isSelected && !isActive && 'bg-[var(--surface-3)]',
+          chipVariants({ variant: 'ghost', active: isActive, flush: true }),
+          'relative shrink-0 pr-[24px] text-[var(--text-body)]',
+          isSelected && !isActive && 'bg-[var(--surface-active)]',
           isDragging && 'opacity-30'
         )}
       >
-        {config.renderTabIcon(resource, 'mr-1.5 size-[14px]')}
-        {displayName}
+        {config.renderTabIcon(resource, 'size-[16px] shrink-0')}
+        <span className='truncate'>{displayName}</span>
         {(isHovered || isActive) && chatId && (
           <span
             role='button'
@@ -213,23 +213,13 @@ const ResourceTabItem = memo(function ResourceTabItem({
             onKeyDown={(e) => {
               if (e.key === 'Enter') onRemove(e, resource)
             }}
-            className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
+            className='-translate-y-1/2 absolute top-1/2 right-[5px] flex items-center justify-center rounded-sm p-[2px] hover-hover:bg-[var(--surface-6)]'
             aria-label={`Close ${displayName}`}
           >
-            <svg
-              className='size-[10px] text-[var(--text-icon)]'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke='currentColor'
-              strokeWidth='2.5'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            >
-              <path d='M18 6 6 18M6 6l12 12' />
-            </svg>
+            <X strokeWidth={2.5} className='size-[10px] text-[var(--text-icon)]' />
           </span>
         )}
-      </Button>
+      </button>
       {showGapAfter && (
         <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
       )}
@@ -249,6 +239,11 @@ interface ResourceTabsProps {
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
+  /**
+   * Controls rendered before the tab strip (e.g. the sidebar toggle and
+   * compact chat switcher while the chat pane is hidden).
+   */
+  leading?: ReactNode
 }
 
 export function ResourceTabs({
@@ -263,6 +258,7 @@ export function ResourceTabs({
   previewMode,
   onCyclePreviewMode,
   actions,
+  leading,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
@@ -544,11 +540,21 @@ export function ResourceTabs({
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center border-[var(--border)] border-b px-4 py-[8.5px]',
+        'flex h-[44px] shrink-0 items-center border-[var(--border)] border-b px-4',
         RESOURCE_TAB_GAP_CLASS
       )}
     >
-      <div className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
+      {leading}
+      {/* Without leading controls, the tab strip starts at the bar's left edge —
+          pull it out 9px so the first tab pill sits 7px from the edge, matching
+          the edge icon buttons' equal-distance rhythm. */}
+      <div
+        className={cn(
+          'flex min-w-0 flex-1 items-center',
+          RESOURCE_TAB_GAP_CLASS,
+          !leading && '-ml-[9px]'
+        )}
+      >
         <div
           ref={scrollNodeRef}
           className={cn(
@@ -633,8 +639,10 @@ export function ResourceTabs({
         )}
         {/* Inert spacer reserving the toggle's exact footprint at the far right.
             The real, interactive toggle is rendered absolutely in home.tsx and
-            overlays this spot, so it never moves when the panel collapses. */}
-        <ResourcePanelToggle placeholder />
+            overlays this spot, so it never moves when the panel collapses. Pulled
+            out 9px so the hover pill sits 7px from the edge (equal to its 7px
+            top/bottom gap in the bar). */}
+        <ResourcePanelToggle placeholder className='-mr-[9px]' />
       </div>
     </div>
   )

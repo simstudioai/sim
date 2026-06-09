@@ -59,6 +59,8 @@ interface MothershipChatProps {
   initialScrollBlocked?: boolean
   animateInput?: boolean
   onInputAnimationEnd?: () => void
+  /** Shows the title bar's close (×) control that hides the chat pane. */
+  onCloseChat?: () => void
   className?: string
 }
 
@@ -215,6 +217,7 @@ export function MothershipChat({
   initialScrollBlocked = false,
   animateInput = false,
   onInputAnimationEnd,
+  onCloseChat,
   className,
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
@@ -294,7 +297,7 @@ export function MothershipChat({
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
-      {layout === 'mothership-view' && <ChatTitleBar chatId={chatId} />}
+      {layout === 'mothership-view' && <ChatTitleBar chatId={chatId} onClose={onCloseChat} />}
       <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>
         {isLoading && !hasMessages ? (
           <MothershipChatSkeleton layout={layout} />

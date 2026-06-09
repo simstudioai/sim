@@ -24,12 +24,35 @@ function applySidebarWidth(width: number) {
   document.documentElement.style.setProperty('--sidebar-width', `${value}px`)
 }
 
+/** Grace period before the hover flyout hides, so the cursor can cross gaps. */
+const FLYOUT_CLOSE_DELAY_MS = 180
+
+let flyoutCloseTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * While true, hover-leave is ignored — set when a popup (e.g. the workspace
+ * menu) opened from inside the flyout renders in a portal outside it, so
+ * moving the cursor into that popup doesn't dismiss the flyout underneath.
+ */
+let flyoutPinned = false
+
+/** Last hover state of the flyout/trigger, so unpinning knows whether to close. */
+let flyoutPointerInside = false
+
+function clearFlyoutCloseTimer() {
+  if (flyoutCloseTimer !== null) {
+    clearTimeout(flyoutCloseTimer)
+    flyoutCloseTimer = null
+  }
+}
+
 export const useSidebarStore = create<SidebarState>()(
   persist(
     (set, get) => ({
       workspaceDropdownOpen: false,
       sidebarWidth: SIDEBAR_WIDTH.DEFAULT,
       isCollapsed: false,
+      isFlyoutOpen: false,
       _hasHydrated: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
       setSidebarWidth: (width) => {
@@ -41,8 +64,37 @@ export const useSidebarStore = create<SidebarState>()(
       toggleCollapsed: () => {
         const { isCollapsed, sidebarWidth } = get()
         const nextCollapsed = !isCollapsed
-        set({ isCollapsed: nextCollapsed })
+        clearFlyoutCloseTimer()
+        flyoutPinned = false
+        set({ isCollapsed: nextCollapsed, isFlyoutOpen: false })
         applySidebarWidth(nextCollapsed ? SIDEBAR_WIDTH.COLLAPSED : clampSidebarWidth(sidebarWidth))
+      },
+      openFlyout: () => {
+        flyoutPointerInside = true
+        clearFlyoutCloseTimer()
+        set({ isFlyoutOpen: true })
+      },
+      scheduleFlyoutClose: () => {
+        flyoutPointerInside = false
+        clearFlyoutCloseTimer()
+        if (flyoutPinned) return
+        flyoutCloseTimer = setTimeout(() => set({ isFlyoutOpen: false }), FLYOUT_CLOSE_DELAY_MS)
+      },
+      closeFlyout: () => {
+        clearFlyoutCloseTimer()
+        flyoutPinned = false
+        set({ isFlyoutOpen: false })
+      },
+      setFlyoutPinned: (pinned) => {
+        flyoutPinned = pinned
+        if (pinned) {
+          clearFlyoutCloseTimer()
+          return
+        }
+        if (!flyoutPointerInside && get().isFlyoutOpen) {
+          clearFlyoutCloseTimer()
+          flyoutCloseTimer = setTimeout(() => set({ isFlyoutOpen: false }), FLYOUT_CLOSE_DELAY_MS)
+        }
       },
       syncWidth: () => {
         const { isCollapsed, sidebarWidth } = get()

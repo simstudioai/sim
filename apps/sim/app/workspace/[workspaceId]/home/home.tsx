@@ -11,12 +11,15 @@ import {
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
+import { cn } from '@/lib/core/utils/cn'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
+import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 import {
   useMarkMothershipChatRead,
   useMothershipChatHistory,
@@ -32,6 +35,7 @@ import {
   UserInput,
   type UserInputHandle,
 } from './components'
+import { ChatTitleBar } from './components/mothership-chat/components/chat-title-bar'
 import { ResourcePanelToggle } from './components/mothership-view/components/resource-tabs/resource-panel-toggle'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
@@ -130,6 +134,15 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     clearWidth()
     setIsResourceCollapsed(true)
   }, [clearWidth])
+
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false)
+
+  const closeChatPane = useCallback(() => {
+    clearWidth()
+    setIsChatCollapsed(true)
+  }, [clearWidth])
+
+  const reopenChatPane = useCallback(() => setIsChatCollapsed(false), [])
 
   function handleResourceEvent() {
     if (isResourceCollapsedRef.current) {
@@ -323,44 +336,62 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   // it (not just the prop) lets an inline-opened chat render its skeleton + view
   // before its history finishes loading.
   const activeChatId = resolvedChatId ?? chatId
-  const { isPending: isActiveChatHistoryPending } = useChatHistory(activeChatId)
+  const { isPending: isActiveChatHistoryPending } = useMothershipChatHistory(activeChatId)
   const hasMessages = messages.length > 0
   const showChatSkeleton = Boolean(activeChatId) && !hasMessages && isActiveChatHistoryPending
   const showChatView = hasMessages || showChatSkeleton || Boolean(resolvedChatId)
   const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
+  const canCloseChat = resources.length > 0 && !isResourceCollapsed
+
+  // The chat pane can only hide while the resource panel is visible; restore it
+  // when the panel collapses or the last resource closes so the view never blanks.
+  useEffect(() => {
+    if (isChatCollapsed && (resources.length === 0 || isResourceCollapsed)) {
+      setIsChatCollapsed(false)
+    }
+  }, [isChatCollapsed, resources, isResourceCollapsed])
+
+  // Opening a different chat from anywhere (title-bar dropdown, search, deep
+  // link) is an explicit "open this chat" — always show its conversation pane.
+  useEffect(() => {
+    setIsChatCollapsed(false)
+  }, [activeChatId])
 
   if (!showChatView) {
     return (
-      <div className='relative h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
+      <div className='relative flex h-full flex-col bg-[var(--bg)]'>
+        <ChatTitleBar />
         <div className='absolute top-[8.5px] right-[16px] z-10'>
           <CreditsChip />
         </div>
-        <div className='flex min-h-full flex-col items-center px-6 pt-[24vh] pb-[2vh]'>
-          <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
-            What should we get done{firstName ? `, ${firstName}` : ''}?
-          </h1>
-          <div ref={initialViewInputRef} className='w-full'>
-            {/* Stacked card (Figma node 1-3): grey tray sits behind the input
+        <div className='relative flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
+          <div className='flex min-h-full flex-col items-center px-6 pt-[calc(24vh-44px)] pb-[2vh]'>
+            <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
+              What should we get done{firstName ? `, ${firstName}` : ''}?
+            </h1>
+            <div ref={initialViewInputRef} className='w-full'>
+              {/* Stacked card (Figma node 1-3): grey tray sits behind the input
                 with a 1px frame on top/sides. The docked "All Chats" launcher
                 lives in the shelf below and animates the chat list open inside
                 the grey tray — growing downward as the input rides up. */}
-            <div className='mx-auto w-full max-w-[48rem] overflow-hidden rounded-[18px] bg-[var(--surface-3)] p-px'>
-              <UserInput
-                ref={initialViewUserInputRef}
-                defaultValue={initialPrompt}
-                draftScopeKey={draftScopeKey}
-                onSubmit={handleSubmit}
-                isSending={isSending}
-                onStopGeneration={handleStopGeneration}
-                userId={userId}
-                onContextAdd={handleContextAdd}
-                onContextRemove={handleInitialContextRemove}
+              <div className='mx-auto w-full max-w-[48rem] overflow-hidden rounded-[18px] bg-[var(--surface-3)] p-px'>
+                <UserInput
+                  ref={initialViewUserInputRef}
+                  defaultValue={initialPrompt}
+                  draftScopeKey={draftScopeKey}
+                  onSubmit={handleSubmit}
+                  isSending={isSending}
+                  onStopGeneration={handleStopGeneration}
+                  userId={userId}
+                  onContextAdd={handleContextAdd}
+                  onContextRemove={handleInitialContextRemove}
+                />
+                <ChatHistory onSelectChat={handleOpenExistingChat} />
+              </div>
+              <SuggestedActions
+                onSelectPrompt={(prompt) => initialViewUserInputRef.current?.populatePrompt(prompt)}
               />
-              <ChatHistory onSelectChat={handleOpenExistingChat} />
             </div>
-            <SuggestedActions
-              onSelectPrompt={(prompt) => initialViewUserInputRef.current?.populatePrompt(prompt)}
-            />
           </div>
         </div>
       </div>
@@ -368,61 +399,79 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   }
 
   return (
-    <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='flex h-full min-w-[320px] flex-1 flex-col'>
-        <MothershipChat
-          messages={messages}
-          isSending={isSending}
-          isReconnecting={isReconnecting}
-          isLoading={showChatSkeleton}
-          onSubmit={handleSubmit}
-          onStopGeneration={handleStopGeneration}
-          messageQueue={messageQueue}
-          editingQueuedId={editingQueuedId}
-          dispatchingHeadId={dispatchingHeadId}
-          onRemoveQueuedMessage={removeFromQueue}
-          onSendQueuedMessage={sendNow}
-          onEditQueuedMessage={editQueuedMessage}
-          onCancelQueueEdit={cancelQueueEdit}
-          userId={userId}
+    <div className='relative flex h-full flex-col bg-[var(--bg)]'>
+      <div className='relative flex min-h-0 flex-1'>
+        {!isChatCollapsed && (
+          <div className='flex h-full min-w-[320px] flex-1 flex-col'>
+            <MothershipChat
+              messages={messages}
+              isSending={isSending}
+              isReconnecting={isReconnecting}
+              isLoading={showChatSkeleton}
+              onSubmit={handleSubmit}
+              onStopGeneration={handleStopGeneration}
+              messageQueue={messageQueue}
+              editingQueuedId={editingQueuedId}
+              dispatchingHeadId={dispatchingHeadId}
+              onRemoveQueuedMessage={removeFromQueue}
+              onSendQueuedMessage={sendNow}
+              onEditQueuedMessage={editQueuedMessage}
+              onCancelQueueEdit={cancelQueueEdit}
+              userId={userId}
+              chatId={resolvedChatId}
+              onContextAdd={handleContextAdd}
+              onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
+              draftScopeKey={draftScopeKey}
+              animateInput={isInputEntering}
+              onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
+              initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
+              onCloseChat={canCloseChat ? closeChatPane : undefined}
+            />
+          </div>
+        )}
+
+        {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
+        {!isChatCollapsed && !isResourceCollapsed && (
+          <div className='relative z-20 w-0 flex-none'>
+            <div
+              className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
+              role='separator'
+              aria-orientation='vertical'
+              aria-label='Resize resource panel'
+              onPointerDown={handleResizePointerDown}
+            />
+          </div>
+        )}
+
+        <MothershipView
+          ref={mothershipRef}
+          workspaceId={workspaceId}
           chatId={resolvedChatId}
-          onContextAdd={handleContextAdd}
-          onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
-          draftScopeKey={draftScopeKey}
-          animateInput={isInputEntering}
-          onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
-          initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
+          resources={resources}
+          activeResourceId={activeResourceId}
+          onSelectResource={setActiveResourceId}
+          onAddResource={addResource}
+          onRemoveResource={removeResource}
+          onReorderResources={reorderResources}
+          isCollapsed={isResourceCollapsed}
+          previewSession={previewSession}
+          genericResourceData={genericResourceData ?? undefined}
+          tabsLeading={
+            isChatCollapsed ? (
+              <>
+                {/* With the chat pane hidden, the tabs bar doubles as the title
+                    bar: sidebar toggle + compact chat switcher, no second row. */}
+                <SidebarToggle className='-ml-[9px]' />
+                <ChatSwitcher chatId={activeChatId} onSelectChat={reopenChatPane} />
+              </>
+            ) : undefined
+          }
+          className={cn(
+            skipResourceTransition && '!transition-none',
+            isChatCollapsed && 'w-full flex-1 border-l-0'
+          )}
         />
       </div>
-
-      {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
-      {!isResourceCollapsed && (
-        <div className='relative z-20 w-0 flex-none'>
-          <div
-            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
-            role='separator'
-            aria-orientation='vertical'
-            aria-label='Resize resource panel'
-            onPointerDown={handleResizePointerDown}
-          />
-        </div>
-      )}
-
-      <MothershipView
-        ref={mothershipRef}
-        workspaceId={workspaceId}
-        chatId={resolvedChatId}
-        resources={resources}
-        activeResourceId={activeResourceId}
-        onSelectResource={setActiveResourceId}
-        onAddResource={addResource}
-        onRemoveResource={removeResource}
-        onReorderResources={reorderResources}
-        isCollapsed={isResourceCollapsed}
-        previewSession={previewSession}
-        genericResourceData={genericResourceData ?? undefined}
-        className={skipResourceTransition ? '!transition-none' : undefined}
-      />
 
       {/* Single, stationary collapse/expand toggle. Lives OUTSIDE the animating
           panel and is always rendered at the fixed top-right corner, overlaying
@@ -430,7 +479,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
       <ResourcePanelToggle
         isCollapsed={isResourceCollapsed}
         onToggle={() => (isResourceCollapsed ? setIsResourceCollapsed(false) : collapseResource())}
-        className='absolute top-[8.5px] right-[16px] z-30'
+        className='absolute top-[7px] right-[7px] z-30'
       />
     </div>
   )

@@ -1,72 +1,52 @@
 'use client'
 
-import { useParams } from 'next/navigation'
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { Link, MoreHorizontal, SquareArrowUpRight } from '@/components/emcn/icons'
-import { useTasks } from '@/hooks/queries/tasks'
-
-const FALLBACK_TITLE = 'New chat'
+import { Tooltip } from '@/components/emcn'
+import { X } from '@/components/emcn/icons'
+import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
+import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 
 interface ChatTitleBarProps {
-  /** The open chat's id. Resolves the title from the task list and powers the actions. */
+  /** The open chat's id — resolves the title and highlights the active row. */
   chatId?: string
+  /**
+   * Called with the picked chat id before navigation. The chat view uses this
+   * to reopen a hidden chat pane (including re-picking the current chat).
+   */
+  onSelectChat?: (chatId: string) => void
+  /** Renders a close (×) control at the bar's right edge that hides the chat pane. */
+  onClose?: () => void
 }
 
 /**
- * A Codex-style title bar pinned to the top of an open Mothership chat: the
- * chat title on the left, an action menu (kebab) on the right. The action set
- * is intentionally minimal for now — non-destructive, no-backend affordances —
- * and is the natural home for future per-chat actions (rename, pin, delete).
+ * A Codex-style title bar for an open Mothership chat. The title is a chip with
+ * a chevron that opens the workspace's chat list inline, letting the user jump
+ * straight between chats without returning to the new-chat view. Selecting a
+ * chat navigates to it.
  */
-export function ChatTitleBar({ chatId }: ChatTitleBarProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { data: tasks = [] } = useTasks(workspaceId)
-
-  const title = tasks.find((task) => task.id === chatId)?.name ?? FALLBACK_TITLE
-  const taskPath = chatId ? `/workspace/${workspaceId}/task/${chatId}` : null
-
-  const handleOpenInNewTab = () => {
-    if (taskPath) window.open(taskPath, '_blank', 'noopener,noreferrer')
-  }
-
-  const handleCopyLink = () => {
-    if (taskPath) void navigator.clipboard?.writeText(`${window.location.origin}${taskPath}`)
-  }
-
+export function ChatTitleBar({ chatId, onSelectChat, onClose }: ChatTitleBarProps) {
   return (
-    <div className='flex h-[44px] flex-shrink-0 items-center gap-1 border-[var(--border)] border-b px-[24px]'>
-      <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-        {title}
-      </span>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant='ghost'
-            size={null}
-            type='button'
-            aria-label='Chat actions'
-            className='size-[28px] flex-shrink-0 rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-          >
-            <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' side='bottom' sideOffset={4}>
-          <DropdownMenuItem disabled={!taskPath} onSelect={handleOpenInNewTab}>
-            <SquareArrowUpRight />
-            Open in new tab
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={!taskPath} onSelect={handleCopyLink}>
-            <Link />
-            Copy link
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+    <div className='flex h-[44px] flex-shrink-0 items-center gap-1 border-[var(--border)] border-b px-4'>
+      {/* Edge controls pull out by 9px so their 30px hover pills sit 7px from
+          the panel edge — matching the pill's 7px top/bottom gap in the bar. */}
+      <SidebarToggle className='-ml-[9px]' />
+      <ChatSwitcher chatId={chatId} onSelectChat={onSelectChat} />
+      {onClose && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              onClick={onClose}
+              aria-label='Close chat'
+              className='-mr-[9px] ml-auto flex size-[30px] flex-shrink-0 items-center justify-center rounded-lg transition-colors hover-hover:bg-[var(--surface-active)]'
+            >
+              <X className='size-[14px] text-[var(--text-icon)]' />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Close chat</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
     </div>
   )
 }

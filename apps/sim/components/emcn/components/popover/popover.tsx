@@ -400,6 +400,11 @@ interface PopoverContentProps
   /** Offset from anchor. Defaults to 20px for top, 14px for other sides. */
   sideOffset?: number
   /**
+   * Offset along the alignment axis, in pixels
+   * @default 0
+   */
+  alignOffset?: number
+  /**
    * Padding from viewport edges
    * @default 8
    */
@@ -447,6 +452,7 @@ const PopoverContent = React.forwardRef<
       side = 'bottom',
       align = 'start',
       sideOffset,
+      alignOffset = 0,
       collisionPadding = 8,
       border = false,
       avoidCollisions = true,
@@ -596,6 +602,7 @@ const PopoverContent = React.forwardRef<
         side={side}
         align={align}
         sideOffset={effectiveSideOffset}
+        alignOffset={alignOffset}
         collisionPadding={collisionPadding}
         avoidCollisions={avoidCollisions}
         sticky='partial'

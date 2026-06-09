@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -40,6 +41,12 @@ function isFullscreenPath(pathname: string | null): boolean {
  *
  * On a direct load of a fullscreen route the wrapper mounts already collapsed,
  * so no slide plays (CSS transitions don't run on mount).
+ *
+ * The sidebar's single control is the `SidebarToggle` at the top-left of page
+ * title bars. While the sidebar is hidden, hovering that toggle opens the
+ * floating menu panel this chrome owns, anchored underneath the title bar so
+ * the toggle stays visible; an invisible left-edge hover zone opens it on
+ * pages without a title-bar toggle. Clicking the toggle pins the sidebar open.
  */
 export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
   const pathname = usePathname()
@@ -49,6 +56,16 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
 
   const hasHydrated = useSidebarStore((s) => s._hasHydrated)
   const syncSidebarWidth = useSidebarStore((s) => s.syncWidth)
+  const isCollapsed = useSidebarStore((s) => s.isCollapsed)
+  const isFlyoutOpen = useSidebarStore((s) => s.isFlyoutOpen)
+  const openFlyout = useSidebarStore((s) => s.openFlyout)
+  const scheduleFlyoutClose = useSidebarStore((s) => s.scheduleFlyoutClose)
+  const closeFlyout = useSidebarStore((s) => s.closeFlyout)
+
+  // Hide the flyout after navigating from it.
+  useEffect(() => {
+    closeFlyout()
+  }, [pathname, closeFlyout])
 
   // Remember the last non-fullscreen page so a fullscreen route's Back control
   // can return there, deterministically and for any trigger.
@@ -86,14 +103,14 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
   }, [syncSidebarWidth])
 
   return (
-    <div className='flex min-h-0 flex-1'>
+    <div className='relative flex min-h-0 flex-1'>
       <div
         className={cn(
           'sidebar-shell-outer shrink-0 overflow-hidden transition-[width]',
           SLIDE_TRANSITION,
           isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]'
         )}
-        aria-hidden={isFullscreen || undefined}
+        aria-hidden={isFullscreen || isCollapsed || undefined}
         suppressHydrationWarning
       >
         <div
@@ -103,20 +120,58 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
             isFullscreen && '-translate-x-full'
           )}
         >
-          <Sidebar />
+          {!isCollapsed && <Sidebar />}
         </div>
       </div>
+      {/* Sidebar hidden → content goes full-bleed to the browser edge; sidebar
+          visible (or fullscreen route) → framed card with the 8px gutter. */}
       <div
         className={cn(
-          'flex min-w-0 flex-1 flex-col p-[8px] transition-[padding]',
+          'flex min-w-0 flex-1 flex-col transition-[padding]',
           SLIDE_TRANSITION,
-          !isFullscreen && 'pl-0'
+          isFullscreen ? 'p-[8px]' : isCollapsed ? 'p-0' : 'p-[8px] pl-0'
         )}
       >
-        <div className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
+        <div
+          className={cn(
+            'flex-1 overflow-hidden bg-[var(--bg)]',
+            (isFullscreen || !isCollapsed) && 'rounded-[8px] border border-[var(--border)]'
+          )}
+        >
           {children}
         </div>
       </div>
+      {isCollapsed && !isFullscreen && (
+        <>
+          {/* Invisible hover zone so the flyout is reachable from the screen
+              edge on pages whose header has no SidebarFlyoutTrigger. */}
+          <div
+            className='absolute top-0 bottom-0 left-0 z-40 w-[10px]'
+            onMouseEnter={openFlyout}
+            onMouseLeave={scheduleFlyoutClose}
+          />
+          {/* Anchored below the page title bar so the SidebarToggle that opened
+              it stays visible above the panel. Chrome mirrors the canonical
+              popover surface (rounded-xl, --border-1, --bg, shadow-sm) and enter
+              motion (fade + zoom + slide from top, 150ms ease-out). Content-fit
+              like a dropdown: height tracks the menu, capped so it scrolls
+              internally instead of overflowing the viewport. */}
+          <div
+            onMouseEnter={openFlyout}
+            onMouseLeave={scheduleFlyoutClose}
+            className={cn(
+              'absolute top-[50px] left-[8px] z-50 flex max-h-[calc(100%-58px)] w-[var(--sidebar-width)] flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm',
+              'origin-top-left transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none',
+              isFlyoutOpen
+                ? 'translate-y-0 scale-100 opacity-100'
+                : '-translate-y-2 pointer-events-none scale-95 opacity-0'
+            )}
+            style={{ '--sidebar-width': `${SIDEBAR_WIDTH.DEFAULT}px` } as React.CSSProperties}
+          >
+            <Sidebar variant='flyout' />
+          </div>
+        </>
+      )}
     </div>
   )
 }

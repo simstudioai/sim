@@ -23,6 +23,7 @@ import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/creden
 import type { OAuthProvider } from '@/lib/oauth'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { ChatSwitcher, SidebarToggle } from '@/app/workspace/[workspaceId]/components'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -4221,6 +4222,15 @@ const WorkflowContent = React.memo(
             )}
 
             {!embedded && <DiffControls />}
+
+            {/* Workspace chrome over the canvas: sidebar toggle + chat switcher
+                at the top-left, matching the title-bar rhythm on other pages. */}
+            {!embedded && (
+              <div className='absolute top-[7px] left-[7px] z-10 flex items-center gap-1'>
+                <SidebarToggle />
+                <ChatSwitcher />
+              </div>
+            )}
           </div>
 
           <Terminal />

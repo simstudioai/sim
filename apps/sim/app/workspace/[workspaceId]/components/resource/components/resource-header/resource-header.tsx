@@ -21,8 +21,10 @@ import {
   useIsOverflowing,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 
 const HEADER_PLUS_ICON = <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
 
@@ -117,6 +119,8 @@ export const ResourceHeader = memo(function ResourceHeader({
     >
       <div className='flex min-w-0 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
+          <SidebarToggle />
+          <ChatSwitcher />
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => {
               const segmentClassName = getBreadcrumbSegmentClassName(

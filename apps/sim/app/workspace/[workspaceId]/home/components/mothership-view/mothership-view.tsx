@@ -1,9 +1,10 @@
 'use client'
 
-import { forwardRef, memo, useState } from 'react'
+import { forwardRef, memo, type ReactNode, useState } from 'react'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { SidebarToggleHidden } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
@@ -52,6 +53,8 @@ interface MothershipViewProps {
   className?: string
   previewSession?: FilePreviewSession | null
   genericResourceData?: GenericResourceData
+  /** Controls rendered before the tab strip (see {@link ResourceTabs}). */
+  tabsLeading?: ReactNode
 }
 
 export const MothershipView = memo(
@@ -69,6 +72,7 @@ export const MothershipView = memo(
       className,
       previewSession,
       genericResourceData,
+      tabsLeading,
     }: MothershipViewProps,
     ref
   ) {
@@ -107,6 +111,7 @@ export const MothershipView = memo(
           <ResourceTabs
             workspaceId={workspaceId}
             chatId={chatId}
+            leading={tabsLeading}
             resources={resources}
             activeId={active?.id ?? null}
             onSelect={onSelectResource}
@@ -121,15 +126,18 @@ export const MothershipView = memo(
           />
           <div className='min-h-0 flex-1 overflow-hidden'>
             {active ? (
-              <ResourceContent
-                workspaceId={workspaceId}
-                resource={active}
-                previewMode={isActivePreviewable ? previewMode : undefined}
-                previewSession={previewForActive}
-                genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
-                previewContextKey={chatId}
-                onNotFound={(resourceId) => onRemoveResource('log', resourceId)}
-              />
+              <SidebarToggleHidden>
+                <ResourceContent
+                  workspaceId={workspaceId}
+                  resource={active}
+                  previewMode={isActivePreviewable ? previewMode : undefined}
+                  previewSession={previewForActive}
+                  genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
+                  previewContextKey={chatId}
+                  onNotFound={(resourceId) => onRemoveResource('log', resourceId)}
+                  onAddResource={onAddResource}
+                />
+              </SidebarToggleHidden>
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
                 Click "+" above to add a resource
