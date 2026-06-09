@@ -11,8 +11,8 @@
     "./workflows/connections",
     "./workflows/variables",
     "deployment",
-    "blocks",
     "triggers",
+    "blocks",
     "---Tables---",
     "./tables/index",
     "./tables/using-in-workflows",
@@ -63,7 +63,8 @@
     "---Reference---",
     "./quick-reference/index",
     "./keyboard-shortcuts/index",
-    "tools"
+    "tools",
+    "integration-triggers"
   ],
   "defaultOpen": false
 }
