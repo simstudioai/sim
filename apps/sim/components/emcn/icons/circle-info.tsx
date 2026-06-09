@@ -1,10 +1,12 @@
 import type { SVGProps } from 'react'
 
 /**
- * Info icon component - circular info used for info intent.
+ * CircleInfo icon — a circled "i", used for the info intent. Named for its
+ * shape to match its siblings (`CircleAlert`, `CircleCheck`) and to avoid
+ * colliding with the `Info` component re-exported from the emcn barrel.
  * @param props - SVG properties including className, fill, etc.
  */
-export function Info(props: SVGProps<SVGSVGElement>) {
+export function CircleInfo(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns='http://www.w3.org/2000/svg'

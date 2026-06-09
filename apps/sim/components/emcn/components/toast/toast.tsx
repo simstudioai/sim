@@ -22,7 +22,7 @@ import { Chip } from '@/components/emcn/components/chip/chip'
 import { Bell } from '@/components/emcn/icons/bell'
 import { CircleAlert } from '@/components/emcn/icons/circle-alert'
 import { CircleCheck } from '@/components/emcn/icons/circle-check'
-import { Info } from '@/components/emcn/icons/info'
+import { CircleInfo } from '@/components/emcn/icons/circle-info'
 import { TriangleAlert } from '@/components/emcn/icons/triangle-alert'
 import { X } from '@/components/emcn/icons/x'
 import { cn } from '@/lib/core/utils/cn'
@@ -88,7 +88,7 @@ type ToastVariant = 'default' | 'info' | 'success' | 'warning' | 'error'
  */
 const VARIANT_ICON: Record<ToastVariant, ComponentType<SVGProps<SVGSVGElement>>> = {
   default: Bell,
-  info: Info,
+  info: CircleInfo,
   success: CircleCheck,
   warning: TriangleAlert,
   error: CircleAlert,
