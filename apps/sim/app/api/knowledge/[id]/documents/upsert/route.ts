@@ -10,6 +10,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { upsertKnowledgeDocumentContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createDocumentRecords,
@@ -72,6 +73,21 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
+      // Gate usage before any create/delete so an over-limit upsert is rejected up
+      // front and never deletes the existing (already-indexed) document. Runs even
+      // for legacy KBs with no workspace — the uploader's pooled/frozen status is
+      // still enforced (per-member is skipped when there's no org workspace).
+      const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
+      const usage = await checkActorUsageLimits(userId, kbWorkspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          {
+            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          },
+          { status: 402 }
+        )
+      }
+
       let existingDocumentId: string | null = null
       let isUpdate = false
 
@@ -129,7 +145,8 @@ export const POST = withRouteHandler(
           },
         ],
         knowledgeBaseId,
-        requestId
+        requestId,
+        userId
       )
 
       const firstDocument = createdDocuments[0]

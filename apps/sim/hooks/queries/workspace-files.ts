@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
 import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
@@ -151,10 +152,42 @@ export function useWorkspaceFileContent(
   })
 }
 
-async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
+/**
+ * Thrown when the serve route returns 409 — a generated document (pptx/docx/pdf/
+ * xlsx) whose source is still being written/compiled. Distinct from a real fetch
+ * failure so the binary query can keep retrying (and the preview keeps showing
+ * its loading state) until the compiled artifact is ready.
+ */
+export class DocNotReadyError extends Error {
+  constructor() {
+    super('Document is still being generated')
+    this.name = 'DocNotReadyError'
+  }
+}
+
+/**
+ * Fetch compiled/binary file content via the serve URL.
+ *
+ * A `version` (the file record's `updatedAt`) makes the URL content-immutable: the
+ * serve route marks versioned responses `immutable`, so the browser HTTP cache
+ * resolves re-opens and focus refetches with no round trip. Generated docs are
+ * edited in place (same storage key), so an unversioned caller cannot assume
+ * immutability and instead busts + bypasses the cache to always read fresh. A 409
+ * means a generated doc is still compiling — surfaced as {@link DocNotReadyError}
+ * so the query keeps polling.
+ */
+async function fetchWorkspaceFileBinary(
+  key: string,
+  version: string | number | undefined,
+  signal?: AbortSignal
+): Promise<ArrayBuffer> {
+  const cacheParam =
+    version != null ? `v=${encodeURIComponent(String(version))}` : `t=${Date.now()}`
+  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&${cacheParam}`
+  const init: RequestInit = version != null ? { signal } : { signal, cache: 'no-store' }
   // boundary-raw-fetch: binary download consumed as ArrayBuffer
-  const response = await fetch(serveUrl, { signal, cache: 'no-store' })
+  const response = await fetch(serveUrl, init)
+  if (response.status === 409) throw new DocNotReadyError()
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
 }
@@ -163,14 +196,48 @@ async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Prom
  * Hook to fetch workspace file content as binary (ArrayBuffer).
  * `key` (the storage object key) is forwarded into the query key factory so that a new
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
+ *
+ * `options.version` is a content version (the record's `updatedAt`) folded into the
+ * query key. Generated docs are edited IN PLACE — `edit_content` keeps the SAME
+ * storage key — so without a version the cache is never busted and the open
+ * preview keeps showing the stale binary after a regenerate. Versioning the key
+ * makes the preview refetch whenever the file's content changes (and on first
+ * open, keyed to the current content rather than a stale cached entry).
  */
-export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key: string) {
+export function useWorkspaceFileBinary(
+  workspaceId: string,
+  fileId: string,
+  key: string,
+  options?: { enabled?: boolean; version?: string | number }
+) {
   return useQuery({
-    queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
-    queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
-    enabled: !!workspaceId && !!fileId && !!key,
+    queryKey:
+      options?.version != null
+        ? [...workspaceFilesKeys.content(workspaceId, fileId, 'binary', key), options.version]
+        : workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
+    queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, options?.version, signal),
+    // Callers gate this on a readiness signal (e.g. the file has committed
+    // content) so we don't 409-poll the serve route for a generated doc whose
+    // compiled artifact hasn't been written yet — the doc is fetched once, when
+    // it's actually ready, instead of hammering the serve URL through generation.
+    enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
     staleTime: 30 * 1000,
     refetchOnWindowFocus: 'always',
+    placeholderData: keepPreviousData,
+    // While a generated doc is still compiling, serve returns 409. Poll (stay in
+    // the loading state) until the artifact is ready instead of surfacing an
+    // error. The artifact is written before the source commits, so a fresh serve
+    // normally hits immediately; this only bridges S3 read-after-write lag and the
+    // brief mid-generation window. Poll on a short jittered backoff (~0.6s rising
+    // to ~2.5s, ~30s budget) so the common case recovers fast without hammering the
+    // serve URL on the long tail. SSE content invalidation also re-fetches when the
+    // file actually updates.
+    retry: (failureCount, error) =>
+      error instanceof DocNotReadyError ? failureCount < 14 : failureCount < 2,
+    retryDelay: (failureCount, error) =>
+      error instanceof DocNotReadyError
+        ? backoffWithJitter(failureCount, null, { baseMs: 600, maxMs: 2500 })
+        : Math.min(1000 * 2 ** failureCount, 5000),
   })
 }
 

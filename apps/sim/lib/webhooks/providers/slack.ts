@@ -21,6 +21,201 @@ const SLACK_MAX_FILES = 15
 
 const SLACK_REACTION_EVENTS = new Set(['reaction_added', 'reaction_removed'])
 
+/**
+ * Interactivity payload types Slack POSTs to the request URL as a form-encoded
+ * `payload` field (button clicks, selects, shortcuts, modal submits). These have
+ * no Events-API `event` envelope, so they need their own mapping.
+ * See https://api.slack.com/interactivity/handling#payloads
+ */
+const SLACK_INTERACTIVE_TYPES = new Set([
+  'block_actions',
+  'interactive_message',
+  'message_action',
+  'shortcut',
+  'view_submission',
+  'view_closed',
+  'block_suggestion',
+])
+
+interface SlackDownloadedFile {
+  name: string
+  data: string
+  mimeType: string
+  size: number
+}
+
+/**
+ * Unified output shape for the Slack trigger across all three payload families
+ * (Events API, interactivity, slash commands). Every key is always present so
+ * downstream blocks never resolve to `undefined`.
+ */
+interface SlackTriggerEvent {
+  event_type: string
+  subtype: string
+  channel: string
+  channel_name: string
+  channel_type: string
+  user: string
+  user_name: string
+  bot_id: string
+  text: string
+  timestamp: string
+  thread_ts: string
+  team_id: string
+  event_id: string
+  reaction: string
+  item_user: string
+  command: string
+  action_id: string
+  action_value: string
+  actions: unknown[]
+  response_url: string
+  trigger_id: string
+  callback_id: string
+  api_app_id: string
+  message_ts: string
+  hasFiles: boolean
+  files: SlackDownloadedFile[]
+}
+
+function createSlackEvent(): SlackTriggerEvent {
+  return {
+    event_type: 'unknown',
+    subtype: '',
+    channel: '',
+    channel_name: '',
+    channel_type: '',
+    user: '',
+    user_name: '',
+    bot_id: '',
+    text: '',
+    timestamp: '',
+    thread_ts: '',
+    team_id: '',
+    event_id: '',
+    reaction: '',
+    item_user: '',
+    command: '',
+    action_id: '',
+    action_value: '',
+    actions: [],
+    response_url: '',
+    trigger_id: '',
+    callback_id: '',
+    api_app_id: '',
+    message_ts: '',
+    hasFiles: false,
+    files: [],
+  }
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+/**
+ * Normalize the "value" carried by a Slack interactive action across the
+ * different element types (button, static/multi/external select, datepicker,
+ * timepicker, overflow, radio/checkbox, conversations/channels/users select).
+ */
+function extractActionValue(action: Record<string, unknown> | undefined): string {
+  if (!action) return ''
+  if (typeof action.value === 'string') return action.value
+
+  const selectedOption = action.selected_option as Record<string, unknown> | undefined
+  if (selectedOption && typeof selectedOption.value === 'string') {
+    return selectedOption.value
+  }
+
+  const selectedOptions = action.selected_options as Array<Record<string, unknown>> | undefined
+  if (Array.isArray(selectedOptions)) {
+    return selectedOptions
+      .map((o) => (typeof o?.value === 'string' ? o.value : ''))
+      .filter(Boolean)
+      .join(',')
+  }
+
+  for (const key of [
+    'selected_date',
+    'selected_time',
+    'selected_date_time',
+    'selected_conversation',
+    'selected_channel',
+    'selected_user',
+  ] as const) {
+    if (typeof action[key] === 'string') {
+      return action[key] as string
+    }
+  }
+
+  return ''
+}
+
+/**
+ * Slash commands arrive as flat `application/x-www-form-urlencoded` fields
+ * (no JSON `payload`, no `event` envelope), identified by a leading-slash
+ * `command`. See https://api.slack.com/interactivity/slash-commands
+ */
+function formatSlackSlashCommand(b: Record<string, unknown>): SlackTriggerEvent {
+  const event = createSlackEvent()
+  event.event_type = 'slash_command'
+  event.command = asString(b.command)
+  event.text = asString(b.text)
+  event.channel = asString(b.channel_id)
+  event.channel_name = asString(b.channel_name)
+  event.user = asString(b.user_id)
+  event.user_name = asString(b.user_name)
+  event.team_id = asString(b.team_id)
+  event.response_url = asString(b.response_url)
+  event.trigger_id = asString(b.trigger_id)
+  event.api_app_id = asString(b.api_app_id)
+  return event
+}
+
+/**
+ * Interactivity payloads (button clicks, selects, shortcuts, modal submits).
+ * The actionable data lives in `actions[]` / `view`, plus `response_url` and
+ * `trigger_id` which are needed to respond to or follow up on the interaction.
+ */
+function formatSlackInteractive(b: Record<string, unknown>): SlackTriggerEvent {
+  const event = createSlackEvent()
+  event.event_type = asString(b.type) || 'block_actions'
+
+  const actions = Array.isArray(b.actions) ? (b.actions as Array<Record<string, unknown>>) : []
+  event.actions = actions
+  const firstAction = actions[0]
+  event.action_id = asString(firstAction?.action_id)
+  event.action_value = extractActionValue(firstAction)
+
+  const channel = b.channel as Record<string, unknown> | undefined
+  event.channel = asString(channel?.id)
+  event.channel_name = asString(channel?.name)
+
+  const user = b.user as Record<string, unknown> | undefined
+  event.user = asString(user?.id)
+  event.user_name = asString(user?.username) || asString(user?.name)
+
+  const team = b.team as Record<string, unknown> | undefined
+  event.team_id = asString(team?.id) || asString(user?.team_id)
+
+  const container = b.container as Record<string, unknown> | undefined
+  const message = b.message as Record<string, unknown> | undefined
+  event.message_ts = asString(message?.ts) || asString(container?.message_ts)
+  event.timestamp = event.message_ts || asString(firstAction?.action_ts)
+  event.thread_ts = asString(message?.thread_ts)
+  // Prefer the source message text; fall back to the triggering action's value
+  // so a blocks-only message still surfaces something useful in `text`.
+  event.text = asString(message?.text) || event.action_value
+
+  event.response_url = asString(b.response_url)
+  event.trigger_id = asString(b.trigger_id)
+  const view = b.view as Record<string, unknown> | undefined
+  event.callback_id = asString(b.callback_id) || asString(view?.callback_id)
+  event.api_app_id = asString(b.api_app_id)
+
+  return event
+}
+
 async function resolveSlackFileInfo(
   fileId: string,
   botToken: string
@@ -282,6 +477,12 @@ export const slackHandler: WebhookProviderHandler = {
       return `${obj.team_id}:${event.ts}`
     }
 
+    // Interactivity and slash-command payloads carry a unique `trigger_id`
+    // per interaction, which Slack reuses across retries of the same payload.
+    if (obj.trigger_id) {
+      return String(obj.trigger_id)
+    }
+
     return null
   },
 
@@ -299,6 +500,22 @@ export const slackHandler: WebhookProviderHandler = {
     const botToken = providerConfig.botToken as string | undefined
     const includeFiles = Boolean(providerConfig.includeFiles)
 
+    // Slash commands: flat form fields identified by a leading-slash `command`.
+    if (typeof b?.command === 'string' && b.command.startsWith('/')) {
+      return { input: { event: formatSlackSlashCommand(b) } }
+    }
+
+    // Interactivity (button clicks, selects, shortcuts, modal submits): a JSON
+    // `payload` with an interactive `type` and no Events-API `event` envelope.
+    if (
+      !b?.event &&
+      ((typeof b?.type === 'string' && SLACK_INTERACTIVE_TYPES.has(b.type)) ||
+        Array.isArray(b?.actions))
+    ) {
+      return { input: { event: formatSlackInteractive(b) } }
+    }
+
+    // Events API (app_mention, message, reaction_added, ...).
     const rawEvent = b?.event as Record<string, unknown> | undefined
 
     if (!rawEvent) {
@@ -328,35 +545,31 @@ export const slackHandler: WebhookProviderHandler = {
     const rawFiles: unknown[] = (rawEvent?.files as unknown[]) ?? []
     const hasFiles = rawFiles.length > 0
 
-    let files: Array<{ name: string; data: string; mimeType: string; size: number }> = []
+    let files: SlackDownloadedFile[] = []
     if (hasFiles && includeFiles && botToken) {
       files = await downloadSlackFiles(rawFiles, botToken)
     } else if (hasFiles && includeFiles && !botToken) {
       logger.warn('Slack message has files and includeFiles is enabled, but no bot token provided')
     }
 
-    return {
-      input: {
-        event: {
-          event_type: eventType,
-          subtype: (rawEvent?.subtype as string) ?? '',
-          channel,
-          channel_name: '',
-          channel_type: (rawEvent?.channel_type as string) ?? '',
-          user: (rawEvent?.user as string) || '',
-          user_name: '',
-          bot_id: (rawEvent?.bot_id as string) ?? '',
-          text,
-          timestamp: messageTs,
-          thread_ts: (rawEvent?.thread_ts as string) || '',
-          team_id: (b?.team_id as string) || (rawEvent?.team as string) || '',
-          event_id: (b?.event_id as string) || '',
-          reaction: (rawEvent?.reaction as string) || '',
-          item_user: (rawEvent?.item_user as string) || '',
-          hasFiles,
-          files,
-        },
-      },
-    }
+    const event = createSlackEvent()
+    event.event_type = eventType
+    event.subtype = asString(rawEvent?.subtype)
+    event.channel = channel
+    event.channel_type = asString(rawEvent?.channel_type)
+    event.user = asString(rawEvent?.user)
+    event.bot_id = asString(rawEvent?.bot_id)
+    event.text = text
+    event.timestamp = messageTs
+    event.thread_ts = asString(rawEvent?.thread_ts)
+    event.team_id = asString(b?.team_id) || asString(rawEvent?.team)
+    event.event_id = asString(b?.event_id)
+    event.reaction = asString(rawEvent?.reaction)
+    event.item_user = asString(rawEvent?.item_user)
+    event.message_ts = messageTs
+    event.hasFiles = hasFiles
+    event.files = files
+
+    return { input: { event } }
   },
 }

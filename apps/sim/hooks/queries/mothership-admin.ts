@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 export type MothershipEnv = 'default' | 'dev' | 'staging' | 'prod'
 
@@ -52,6 +52,24 @@ async function mothershipGet(
   return res.json()
 }
 
+// Enterprise BYOK does NOT use the cross-env admin proxy. It talks to the
+// workspace's own copilot (SIM_AGENT_API_URL — local in dev, prod copilot in
+// prod) via a dedicated same-origin route that authenticates with the hosted
+// internal key. So it always targets the copilot the mothership actually runs
+// on, never a deployed dev/staging URL.
+const BYOK_BASE = '/api/copilot/byok'
+
+async function byokFetch(url: string, init?: RequestInit) {
+  // boundary-raw-fetch: thin same-origin proxy to copilot; response shape is the
+  // upstream copilot JSON.
+  const res = await fetch(url, init)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.message || err.error || `Request failed (${res.status})`)
+  }
+  return res.json()
+}
+
 export const mothershipKeys = {
   all: ['mothership-admin'] as const,
   requests: (env: MothershipEnv, start: string, end: string, userId?: string) =>
@@ -61,10 +79,58 @@ export const mothershipKeys = {
   licenses: (env: MothershipEnv) => [...mothershipKeys.all, 'licenses', env] as const,
   licenseDetails: (env: MothershipEnv, id?: string, name?: string) =>
     [...mothershipKeys.all, 'license-details', env, id, name] as const,
-  enterpriseStats: (env: MothershipEnv, customerType: string, start: string, end: string) =>
-    [...mothershipKeys.all, 'enterprise-stats', env, customerType, start, end] as const,
-  trace: (env: MothershipEnv, requestId: string) =>
-    [...mothershipKeys.all, 'trace', env, requestId] as const,
+  byok: (workspaceId: string) => [...mothershipKeys.all, 'byok', workspaceId] as const,
+}
+
+export interface MothershipByokKey {
+  provider: string
+  keyLastFour: string
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** List the enterprise BYOK keys stored for a workspace (metadata only). */
+export function useMothershipByokKeys(workspaceId: string) {
+  return useQuery({
+    queryKey: mothershipKeys.byok(workspaceId),
+    queryFn: ({ signal }) =>
+      byokFetch(`${BYOK_BASE}?workspaceId=${encodeURIComponent(workspaceId)}`, { signal }),
+    enabled: !!workspaceId,
+    staleTime: 30 * 1000,
+  })
+}
+
+/** Store (or replace) a workspace's enterprise BYOK key for a provider. */
+export function useUpsertMothershipByok() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { workspaceId: string; provider: string; apiKey: string }) =>
+      byokFetch(BYOK_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      }),
+    onSuccess: (_data, params) =>
+      queryClient.invalidateQueries({ queryKey: mothershipKeys.byok(params.workspaceId) }),
+  })
+}
+
+/** Delete a workspace's enterprise BYOK key for a provider. */
+export function useDeleteMothershipByok() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (params: { workspaceId: string; provider: string }) =>
+      byokFetch(
+        `${BYOK_BASE}?${new URLSearchParams({
+          workspaceId: params.workspaceId,
+          provider: params.provider,
+        }).toString()}`,
+        { method: 'DELETE' }
+      ),
+    onSuccess: (_data, params) =>
+      queryClient.invalidateQueries({ queryKey: mothershipKeys.byok(params.workspaceId) }),
+  })
 }
 
 export function useMothershipRequests(
@@ -136,30 +202,5 @@ export function useGenerateLicense(environment: MothershipEnv) {
   return useMutation({
     mutationFn: (params: { name: string; expirationDate?: string }) =>
       mothershipPost('licenses/generate', environment, params),
-  })
-}
-
-export function useMothershipEnterpriseStats(
-  environment: MothershipEnv,
-  customerType: string,
-  start: string,
-  end: string
-) {
-  return useQuery({
-    queryKey: mothershipKeys.enterpriseStats(environment, customerType, start, end),
-    queryFn: ({ signal }) =>
-      mothershipPost('enterprise-stats', environment, { customerType, start, end }, signal),
-    enabled: !!customerType && !!start && !!end,
-    staleTime: 60 * 1000,
-    placeholderData: keepPreviousData,
-  })
-}
-
-export function useMothershipTrace(environment: MothershipEnv, requestId: string) {
-  return useQuery({
-    queryKey: mothershipKeys.trace(environment, requestId),
-    queryFn: ({ signal }) => mothershipGet('traces', environment, { requestId }, signal),
-    enabled: !!requestId,
-    staleTime: 60 * 1000,
   })
 }

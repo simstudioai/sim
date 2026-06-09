@@ -334,6 +334,10 @@ export interface WorkflowGroupCellPayload {
    *  on a hard stop (e.g. usage limit). Absent for cascade/auto-fire payloads
    *  that aren't driven by a dispatch. */
   dispatchId?: string
+  /** User who triggered the run, for per-member usage attribution. Absent for
+   *  auto-fire (row writes, CSV import) → billing falls back to the workspace
+   *  billed account. */
+  triggeredByUserId?: string
 }
 
 /** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
@@ -590,8 +594,12 @@ export async function runWorkflowColumn(opts: {
    *  cells as terminal — appropriate for auto-fire after row writes or
    *  schema changes. Defaults to true (user-initiated "Run column"). */
   isManualRun?: boolean
+  /** User who triggered the run, for usage attribution. Omitted by auto-fire
+   *  callers (row writes, CSV import) → falls back to the workspace billed
+   *  account at billing time. */
+  triggeredByUserId?: string | null
 }): Promise<{ dispatchId: string | null }> {
-  const { tableId, workspaceId, mode, requestId, groupIds, rowIds, limit } = opts
+  const { tableId, workspaceId, mode, requestId, groupIds, rowIds, limit, triggeredByUserId } = opts
   const isManualRun = opts.isManualRun ?? true
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
   // (CSV import on zero matches, etc.) end up here. Skip the dispatch entirely
@@ -675,6 +683,7 @@ export async function runWorkflowColumn(opts: {
     },
     limit,
     isManualRun,
+    triggeredByUserId,
   })
 
   logger.info(

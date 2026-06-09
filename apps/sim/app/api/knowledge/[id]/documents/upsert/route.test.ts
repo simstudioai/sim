@@ -27,6 +27,10 @@ vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@sim/audit', () => auditMock)
 
+vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
+  checkActorUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
+}))
+
 vi.mock('@/lib/knowledge/documents/service', () => ({
   createDocumentRecords: vi.fn(),
   deleteDocument: vi.fn(),

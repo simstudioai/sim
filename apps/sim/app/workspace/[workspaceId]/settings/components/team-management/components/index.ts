@@ -1,3 +1,4 @@
+export { ManageCreditsModal } from './manage-credits-modal'
 export { NoOrganizationView } from './no-organization-view'
 export { OrganizationInviteModal } from './organization-invite-modal'
 export { OrganizationMemberLists } from './organization-member-lists'

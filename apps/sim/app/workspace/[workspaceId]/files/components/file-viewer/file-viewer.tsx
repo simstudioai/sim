@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -10,6 +9,7 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
 import { resolveFileCategory } from './file-category'
 import type { StreamingMode } from './text-editor-state'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 export type { StreamingMode } from './text-editor-state'
 
@@ -89,14 +89,7 @@ export function FileViewer({
   }
 
   if (category === 'iframe-previewable') {
-    return (
-      <IframePreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <IframePreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'image-previewable') {
@@ -112,37 +105,15 @@ export function FileViewer({
   }
 
   if (category === 'docx-previewable') {
-    return (
-      <DocxPreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <DocxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'pptx-previewable') {
-    return (
-      <PptxPreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <PptxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'xlsx-previewable') {
-    return (
-      <XlsxPreview
-        file={file}
-        workspaceId={workspaceId}
-        canEdit={canEdit}
-        onSaveStatusChange={onSaveStatusChange}
-        saveRef={saveRef}
-      />
-    )
+    return <XlsxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   return <UnsupportedPreview file={file} />
@@ -151,91 +122,31 @@ export function FileViewer({
 const IframePreview = memo(function IframePreview({
   file,
   workspaceId,
-  streamingContent,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
-  streamingContent?: string
 }) {
-  const [streamingBuffer, setStreamingBuffer] = useState<ArrayBuffer | null>(null)
-  const streamingBufferRef = useRef<ArrayBuffer | null>(null)
-  const streamingBufferSeqRef = useRef(0)
-  const [streamingBufferSeq, setStreamingBufferSeq] = useState(0)
-  const [rendering, setRendering] = useState(false)
+  const preview = useDocPreviewBinary(workspaceId, file)
 
-  useEffect(() => {
-    if (streamingContent === undefined) return
-
-    let cancelled = false
-    const controller = new AbortController()
-
-    const debounceTimer = setTimeout(async () => {
-      if (cancelled) return
-
-      try {
-        setRendering(true)
-
-        // boundary-raw-fetch: route returns binary PDF (read via response.arrayBuffer()), not JSON
-        const response = await fetch(`/api/workspaces/${workspaceId}/pdf/preview`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: streamingContent }),
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({ error: 'Preview failed' }))
-          throw new Error(err.error || 'Preview failed')
-        }
-
-        const buf = await response.arrayBuffer()
-        if (cancelled) return
-
-        streamingBufferRef.current = buf
-        streamingBufferSeqRef.current += 1
-        setStreamingBuffer(buf)
-        setStreamingBufferSeq(streamingBufferSeqRef.current)
-      } catch (err) {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          const msg = toError(err).message || 'Failed to render PDF'
-          logger.info('Transient PDF streaming preview error (suppressed)', { error: msg })
-        }
-      } finally {
-        if (!cancelled) setRendering(false)
-      }
-    }, 500)
-
-    return () => {
-      cancelled = true
-      clearTimeout(debounceTimer)
-      controller.abort()
-    }
-  }, [streamingContent, workspaceId])
-
-  const staticSource = useMemo<PdfDocumentSource>(
-    () => ({
-      kind: 'url',
-      url: `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`,
-    }),
-    [file.key]
+  const bufferSource = useMemo<PdfDocumentSource | null>(
+    () => (preview.data ? { kind: 'buffer', buffer: preview.data } : null),
+    [preview.data]
   )
 
-  const streamingSource = useMemo<PdfDocumentSource | null>(
-    () => (streamingBuffer ? { kind: 'buffer', buffer: streamingBuffer } : null),
-    [streamingBuffer]
-  )
+  const error = resolvePreviewError(preview.error, null)
+  if (error) return <PreviewError label='PDF' error={error} />
 
-  if (streamingContent !== undefined) {
-    if (
-      !streamingSource ||
-      streamingSource.kind !== 'buffer' ||
-      streamingSource.buffer.byteLength === 0
-    ) {
-      return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
-    }
-    return <PdfViewerCore key={streamingBufferSeq} source={streamingSource} filename={file.name} />
+  if (!bufferSource) {
+    return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
   }
 
-  return <PdfViewerCore source={staticSource} filename={file.name} />
+  return (
+    <PdfViewerCore
+      key={`${file.id}:${preview.dataUpdatedAt}`}
+      source={bufferSource}
+      filename={file.name}
+    />
+  )
 })
 
 function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {

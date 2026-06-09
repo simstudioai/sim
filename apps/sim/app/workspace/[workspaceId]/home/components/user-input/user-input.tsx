@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Button, Paperclip, Slash, Tooltip } from '@/components/emcn'
+import { Button, Paperclip, Slash, Tooltip, toast } from '@/components/emcn'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
@@ -402,8 +402,20 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     valueRef.current = converted
   }
 
-  function handleUsageLimitExceeded() {
-    navigateToSettings({ section: 'billing' })
+  function handleUsageLimitExceeded(message?: string, isMemberLimit?: boolean) {
+    // A per-member cap can only be raised by an org admin, so don't offer Upgrade
+    // (the member can't act on it) — the message already tells them to ask an admin.
+    toast.error(
+      message || 'You are out of credits.',
+      isMemberLimit
+        ? undefined
+        : {
+            action: {
+              label: 'Upgrade',
+              onClick: () => navigateToSettings({ section: 'billing' }),
+            },
+          }
+    )
   }
 
   const {
@@ -414,6 +426,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   } = useSpeechToText({
     onTranscript: handleTranscript,
     onUsageLimitExceeded: handleUsageLimitExceeded,
+    workspaceId,
   })
 
   const toggleListening = useCallback(() => {
