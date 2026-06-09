@@ -8,7 +8,7 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runTableImport } from '@/lib/table/import-runner'
-import { markTableImporting } from '@/lib/table/service'
+import { markTableJobRunning } from '@/lib/table/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportIntoAsync')
@@ -56,13 +56,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   }
   const delimiter = ext === 'tsv' ? '\t' : ','
 
-  // Atomically claim the table — the single concurrency gate. If another import already holds it,
-  // this returns false (no overlapping workers writing colliding row positions).
+  // Atomically claim the table's job slot — the single concurrency gate. If another job (import
+  // or delete) already holds it, this returns false (no overlapping workers).
   const importId = generateId()
-  const claimed = await markTableImporting(tableId, importId)
+  const claimed = await markTableJobRunning(tableId, importId, 'import')
   if (!claimed) {
     return NextResponse.json(
-      { error: 'An import is already in progress for this table' },
+      { error: 'A job is already in progress for this table' },
       { status: 409 }
     )
   }

@@ -33,6 +33,7 @@ import {
   downloadTableExport,
   useCancelTableRuns,
   useDeleteTable,
+  useDeleteTableRowsAsync,
   useRenameTable,
   useRunColumn,
 } from '@/hooks/queries/tables'
@@ -146,6 +147,10 @@ export function Table({
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
+  const [deletingAll, setDeletingAll] = useState<{
+    excludeRowIds: string[]
+    estimatedCount: number
+  } | null>(null)
   const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
   const [selection, setSelection] = useState<SelectionSnapshot>({
     actionBarRowIds: [],
@@ -188,6 +193,12 @@ export function Table({
   const onRequestDeleteRows = useCallback((snapshots: DeletedRowSnapshot[]) => {
     setDeletingRows(snapshots)
   }, [])
+  const onRequestDeleteAllByFilter = useCallback(
+    (params: { excludeRowIds: string[]; estimatedCount: number }) => {
+      setDeletingAll(params)
+    },
+    []
+  )
   const onRequestDeleteColumns = useCallback((names: string[]) => {
     setDeletingColumns(names)
   }, [])
@@ -208,6 +219,9 @@ export function Table({
    * mutation succeeds.
    */
   const afterDeleteRowsSinkRef = useRef<((snapshots: DeletedRowSnapshot[]) => void) | null>(null)
+
+  /** Sink the grid populates with its post-select-all-delete cleanup (clear selection). */
+  const afterDeleteAllSinkRef = useRef<(() => void) | null>(null)
 
   /**
    * Sink the grid populates with its full delete-columns cascade (per-column
@@ -493,6 +507,7 @@ export function Table({
         : 0
 
   const deleteTableMutation = useDeleteTable(workspaceId)
+  const deleteRowsAsyncMutation = useDeleteTableRowsAsync({ workspaceId, tableId })
   const handleDeleteTable = async () => {
     try {
       await deleteTableMutation.mutateAsync(tableId)
@@ -570,6 +585,7 @@ export function Table({
         onOpenExecutionDetails={onOpenExecutionDetails}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
+        onRequestDeleteAllByFilter={onRequestDeleteAllByFilter}
         onRequestDeleteColumns={onRequestDeleteColumns}
         onRunColumn={onRunColumn}
         onRunRow={onRunRow}
@@ -580,6 +596,7 @@ export function Table({
         queryOptions={queryOptions}
         columnRenameSinkRef={columnRenameSinkRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
+        afterDeleteAllSinkRef={afterDeleteAllSinkRef}
         confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}
         pushTableRenameUndoSinkRef={pushTableRenameUndoSinkRef}
       />
@@ -697,6 +714,44 @@ export function Table({
           }}
         />
       )}
+      <Modal
+        open={deletingAll !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingAll(null)
+        }}
+      >
+        <ModalContent size='sm'>
+          <ModalHeader>Delete rows</ModalHeader>
+          <ModalBody>
+            <ModalDescription className='text-[var(--text-secondary)]'>
+              {`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
+                deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
+              }${queryOptions.filter ? ' matching the current filter' : ''}? This runs in the background and can't be undone.`}
+            </ModalDescription>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setDeletingAll(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              disabled={deleteRowsAsyncMutation.isPending}
+              onClick={() => {
+                if (!deletingAll) return
+                const { excludeRowIds } = deletingAll
+                deleteRowsAsyncMutation.mutate({
+                  filter: queryOptions.filter ?? undefined,
+                  excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
+                })
+                afterDeleteAllSinkRef.current?.()
+                setDeletingAll(null)
+              }}
+            >
+              Delete
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
       <Modal
         open={deletingColumns !== null}
         onOpenChange={(open) => {

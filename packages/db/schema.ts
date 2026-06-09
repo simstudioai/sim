@@ -3269,16 +3269,6 @@ export const userTableDefinitions = pgTable(
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
     archivedAt: timestamp('archived_at'),
-    /**
-     * Async-import state. NULL = a normal table (never imported in the background).
-     * `'importing'` hides rows until the load completes; `'ready'` reveals them;
-     * `'failed'` surfaces a partial import. See `apps/sim/lib/table/import-runner.ts`.
-     */
-    importStatus: text('import_status'),
-    importId: text('import_id'),
-    importError: text('import_error'),
-    importRowsProcessed: integer('import_rows_processed').notNull().default(0),
-    importStartedAt: timestamp('import_started_at'),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -3336,6 +3326,48 @@ export const userTableRows = pgTable(
       table.orderKey,
       table.id
     ),
+  })
+)
+
+/**
+ * Background data-mutation jobs on a user table (CSV import, bulk filtered delete). One row per
+ * job. A detached worker streams progress into `rows_processed` and flips `status` to a terminal
+ * state; cancel flips `status` to `'canceled'` and the worker bails at its next ownership check.
+ *
+ * The partial-unique index on `table_id WHERE status = 'running'` is the concurrency gate: at most
+ * one running job per table, so a second import, or an import + delete, can't write into the same
+ * table at once. Distinct from `table_run_dispatches` — that fans workflow runs across rows via
+ * trigger.dev; this mutates row data directly.
+ */
+export const tableJobs = pgTable(
+  'table_jobs',
+  {
+    id: text('id').primaryKey(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** `'import'` | `'delete'`. */
+    type: text('type').notNull(),
+    /** `'running'` → `'ready'` | `'failed'` | `'canceled'`. */
+    status: text('status').notNull().default('running'),
+    /** Type-specific descriptor (e.g. delete filter/exclusions). Nullable; reserved for future
+     *  resumability — today's workers carry their payload in-process via `runDetached`. */
+    payload: jsonb('payload'),
+    rowsProcessed: integer('rows_processed').notNull().default(0),
+    error: text('error'),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    oneActivePerTable: uniqueIndex('table_jobs_one_active_per_table')
+      .on(table.tableId)
+      .where(sql`${table.status} = 'running'`),
+    watchdogIdx: index('table_jobs_watchdog_idx').on(table.status, table.updatedAt),
+    tableStartedIdx: index('table_jobs_table_started_idx').on(table.tableId, table.startedAt),
   })
 )
 

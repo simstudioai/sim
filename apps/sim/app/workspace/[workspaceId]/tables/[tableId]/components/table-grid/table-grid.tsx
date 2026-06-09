@@ -151,6 +151,11 @@ interface TableGridProps {
   onOpenRowModal: (row: TableRowType) => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
   onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
+  /**
+   * Request a background "select all" delete: the active filter (held by the wrapper) plus the
+   * deselected `excludeRowIds`. The wrapper confirms and kicks off the async delete job.
+   */
+  onRequestDeleteAllByFilter: (params: { excludeRowIds: string[]; estimatedCount: number }) => void
   /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
   onRequestDeleteColumns: (names: string[]) => void
   /** Fire run for a single column (meta-cell Run menu). */
@@ -182,6 +187,12 @@ interface TableGridProps {
    * mutation succeeds.
    */
   afterDeleteRowsSinkRef: React.MutableRefObject<((snapshots: DeletedRowSnapshot[]) => void) | null>
+  /**
+   * Ref the grid populates with its post-select-all-delete cleanup (clear selection). The wrapper
+   * invokes it after the async delete job is kicked off. No undo — the deleted set isn't
+   * materialized client-side.
+   */
+  afterDeleteAllSinkRef: React.MutableRefObject<(() => void) | null>
   /**
    * Ref the grid populates with its full delete-columns cascade (per-column
    * mutation, undo push, columnOrder + columnWidths cleanup). The wrapper's
@@ -251,6 +262,7 @@ export function TableGrid({
   onOpenExecutionDetails,
   onOpenRowModal,
   onRequestDeleteRows,
+  onRequestDeleteAllByFilter,
   onRequestDeleteColumns,
   onRunColumn,
   onRunRow,
@@ -261,6 +273,7 @@ export function TableGrid({
   queryOptions,
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
+  afterDeleteAllSinkRef,
   confirmDeleteColumnsSinkRef,
   pushTableRenameUndoSinkRef,
 }: TableGridProps) {
@@ -794,19 +807,14 @@ export function TableGrid({
 
     const contextRowInRows = currentRows.some((r) => r.id === contextRow.id)
 
-    // Select-all delete covers every row matching the active filter, which may
-    // not all be loaded — drain pages first so the (chunked) delete spans the
-    // full set rather than only the loaded window.
+    // Select-all delete covers every row matching the active filter — including rows not loaded by
+    // the virtualized grid. Send the filter + exclusion set to a background job instead of draining
+    // and materializing every id; the wrapper confirms and kicks it off.
     if (rowSel.kind === 'all' && contextRowInRows) {
       closeContextMenu()
-      void (async () => {
-        const allRows = await ensureAllRowsLoadedRef.current()
-        const snapshots = collectRowSnapshots(allRows)
-        if (snapshots.length > 0) onRequestDeleteRows(snapshots)
-      })().catch((error) => {
-        logger.error('Failed to load rows for delete', { error })
-        toast.error('Failed to delete rows — please try again')
-      })
+      const excludeRowIds = rowSel.excluded ? [...rowSel.excluded] : []
+      const estimatedCount = Math.max(0, tableRowCountRef.current - excludeRowIds.length)
+      onRequestDeleteAllByFilter({ excludeRowIds, estimatedCount })
       return
     }
 
@@ -1039,6 +1047,15 @@ export function TableGrid({
         : -1
 
     setRowSelection((prev) => {
+      // Deselecting a single row out of a select-all keeps the "all matching the filter" semantics
+      // by tracking an exclusion set — collapsing to the loaded ids would silently drop every
+      // unloaded matching row from the selection (and from a subsequent delete).
+      if (prev.kind === 'all' && lastIdx === -1) {
+        const excluded = new Set(prev.excluded ?? [])
+        if (excluded.has(targetId)) excluded.delete(targetId)
+        else excluded.add(targetId)
+        return { kind: 'all', excluded: excluded.size === 0 ? undefined : excluded }
+      }
       const next = rowSelectionMaterialize(prev, currentRows)
       if (lastIdx !== -1) {
         const from = Math.min(lastIdx, rowIndex)
@@ -1070,6 +1087,12 @@ export function TableGrid({
   // grid cleanup (push undo + clear selection) once its mutation succeeds.
   afterDeleteRowsSinkRef.current = (snapshots: DeletedRowSnapshot[]) => {
     pushUndoRef.current({ type: 'delete-rows', rows: snapshots })
+    handleClearSelection()
+  }
+
+  // Select-all delete runs as a background job (no client-side snapshots), so the only cleanup is
+  // clearing the now-stale selection once the wrapper has kicked it off.
+  afterDeleteAllSinkRef.current = () => {
     handleClearSelection()
   }
 

@@ -82,8 +82,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         userId,
         maxRows: planLimits.maxRowsPerTable,
         maxTables: planLimits.maxTables,
-        importStatus: 'importing',
-        importId,
+        jobStatus: 'running',
+        jobType: 'import',
+        jobId: importId,
       },
       requestId
     )

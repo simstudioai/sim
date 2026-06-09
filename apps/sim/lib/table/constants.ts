@@ -26,6 +26,10 @@ export const TABLE_LIMITS = {
   MAX_BULK_OPERATION_SIZE: 1000,
   /** Maximum rows a single clipboard copy/cut serializes; beyond this the user is steered to Export. */
   MAX_COPY_ROWS: 50000,
+  /** Rows selected + deleted per page in the async background delete-job loop. */
+  DELETE_PAGE_SIZE: 1000,
+  /** Cap on the exclusion set ("select all, minus these") sent to an async delete job. */
+  MAX_EXCLUDE_ROW_IDS: 10000,
 } as const
 
 /**

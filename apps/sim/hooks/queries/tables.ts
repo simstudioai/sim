@@ -29,13 +29,15 @@ import {
   batchUpdateTableRowsContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
-  cancelTableImportContract,
+  cancelTableJobContract,
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
+  type DeleteTableRowsAsyncBody,
   deleteTableColumnContract,
   deleteTableContract,
   deleteTableRowContract,
+  deleteTableRowsAsyncContract,
   deleteTableRowsContract,
   deleteWorkflowGroupContract,
   getTableContract,
@@ -910,6 +912,75 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
   })
 }
 
+interface DeleteTableRowsAsyncVariables {
+  /** Active filter; omit for a whole-table "select all". */
+  filter?: DeleteTableRowsAsyncBody['filter']
+  /** Rows deselected after "select all" — spared by the job. */
+  excludeRowIds?: string[]
+}
+
+/**
+ * Kicks off a background "select all" delete (filter + optional exclusion set) instead of sending
+ * every row id. Optimistically removes the loaded matching rows — which are exactly the active
+ * filter view — so the table empties instantly while the worker deletes in the background. The SSE
+ * job stream reconciles on completion (and restores rows on failure/cancel).
+ */
+export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ filter, excludeRowIds }: DeleteTableRowsAsyncVariables) => {
+      return requestJson(deleteTableRowsAsyncContract, {
+        params: { tableId },
+        body: { workspaceId, filter, excludeRowIds },
+      })
+    },
+    onMutate: async ({ excludeRowIds }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
+        queryKey: tableKeys.rowsRoot(tableId),
+      })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      const keep = new Set(excludeRowIds ?? [])
+      queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
+        { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+        (old) =>
+          old
+            ? {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  rows: page.rows.filter((r) => keep.has(r.id)),
+                })),
+              }
+            : old
+      )
+      return { previousQueries, previousDetail }
+    },
+    onSuccess: ({ data }) => {
+      // Lock the SSE job consumer onto this run so its running/terminal events are accepted, and
+      // flip the list-driven tray into "deleting" without waiting for a poll.
+      queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), (p) =>
+        p ? { ...p, jobStatus: 'running', jobId: data.jobId, jobType: 'delete' } : p
+      )
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+    onError: (error, _vars, context) => {
+      // Restore the optimistically-removed rows — the kickoff failed, nothing was deleted.
+      if (context?.previousQueries) {
+        for (const [queryKey, data] of context.previousQueries) {
+          queryClient.setQueryData(queryKey, data)
+        }
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+  })
+}
+
 type UpdateColumnParams = Omit<UpdateTableColumnBodyInput, 'workspaceId'>
 
 /**
@@ -1329,17 +1400,18 @@ export function useImportCsvIntoTable() {
  * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
  */
 /**
- * Cancels an in-flight async import. Plain function (not a hook) because the import dropdown lists
- * multiple tables and cancels a chosen one by id rather than binding to a single table.
+ * Cancels an in-flight async table job (import or delete). Plain function (not a hook) because the
+ * job tray lists multiple tables and cancels a chosen one by id rather than binding to a single
+ * table.
  */
-export async function cancelTableImport(
+export async function cancelTableJob(
   workspaceId: string,
   tableId: string,
-  importId: string
+  jobId: string
 ): Promise<void> {
-  await requestJson(cancelTableImportContract, {
+  await requestJson(cancelTableJobContract, {
     params: { tableId },
-    body: { workspaceId, importId },
+    body: { workspaceId, jobId },
   })
 }
 

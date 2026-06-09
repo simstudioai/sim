@@ -793,6 +793,36 @@ export const deleteTableRowsContract = defineRouteContract({
   },
 })
 
+/**
+ * Kickoff body for an asynchronous "select all" delete. Sends the active filter (and an optional
+ * exclusion set for "select all then deselect a few") instead of every row id, so the background
+ * worker deletes in paginated batches. Omitting `filter` deletes the whole table (at the cutoff).
+ */
+export const deleteTableRowsAsyncBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  filter: nonEmptyFilterSchema.optional(),
+  excludeRowIds: z
+    .array(z.string().min(1))
+    .max(
+      TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+      `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+    )
+    .optional(),
+})
+
+export type DeleteTableRowsAsyncBody = z.input<typeof deleteTableRowsAsyncBodySchema>
+
+export const deleteTableRowsAsyncContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/delete-async',
+  params: tableIdParamsSchema,
+  body: deleteTableRowsAsyncBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ tableId: z.string(), jobId: z.string() })),
+  },
+})
+
 // ============================================================================
 // Workflow group contracts (`/api/table/[tableId]/groups`, `/cancel-runs`,
 // `/columns/run`, `/rows/run`, `/rows/[rowId]/cells/[groupId]/run`)
@@ -982,23 +1012,26 @@ export const cancelTableRunsContract = defineRouteContract({
   },
 })
 
-export const cancelTableImportBodySchema = z.object({
+export const cancelTableJobBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  importId: z.string().min(1, 'Import ID is required'),
+  jobId: z.string().min(1, 'Job ID is required'),
 })
 
-/** Cancel an in-flight async CSV import. The worker stops; committed rows are left in place. */
-export const cancelTableImportContract = defineRouteContract({
+/**
+ * Cancel an in-flight async table job (import or delete). The worker stops at its next ownership
+ * check; committed work (inserted/deleted rows) is left in place.
+ */
+export const cancelTableJobContract = defineRouteContract({
   method: 'POST',
-  path: '/api/table/[tableId]/import/cancel',
+  path: '/api/table/[tableId]/job/cancel',
   params: tableIdParamsSchema,
-  body: cancelTableImportBodySchema,
+  body: cancelTableJobBodySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(z.object({ canceled: z.boolean() })),
   },
 })
-export type CancelTableImportBody = z.input<typeof cancelTableImportBodySchema>
+export type CancelTableJobBody = z.input<typeof cancelTableJobBodySchema>
 
 /**
  * Run modes for `POST /api/table/[tableId]/columns/run`:

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { toast } from '@/components/emcn'
+import type { TableJobType } from '@/lib/table'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
@@ -11,18 +12,20 @@ const POLL_INTERVAL_MS = 2000
 
 export type ImportPhase = 'importing' | 'ready' | 'failed'
 
-/** A row rendered in the import tray. Importing rows come live from the table list; uploads are
- *  client-only until their server row exists. */
+/** A row rendered in the job tray. Running rows come live from the table list; uploads are
+ *  client-only (import jobs only) until their server row exists. */
 export interface ImportRow {
   id: string
   workspaceId: string
   title: string
   phase: ImportPhase
+  /** Which job this row tracks — drives the tray wording (Importing vs Deleting). */
+  jobType: TableJobType
   rowsProcessed: number
   /** Upload byte percent (upload phase only). */
   percent?: number
   error?: string
-  importId?: string
+  jobId?: string
 }
 
 /**
@@ -37,7 +40,7 @@ export function useWorkspaceImports(
 ): ImportRow[] {
   const { data: tables } = useTablesList(workspaceId, 'active', {
     refetchInterval: (list) =>
-      list?.some((t) => t.importStatus === 'importing') ? POLL_INTERVAL_MS : false,
+      list?.some((t) => t.jobStatus === 'running') ? POLL_INTERVAL_MS : false,
   })
 
   const prevStatus = useRef<Map<string, string>>(new Map())
@@ -46,17 +49,25 @@ export function useWorkspaceImports(
     const store = useImportTrayStore.getState()
     for (const table of tables) {
       const before = prevStatus.current.get(table.id)
-      const now = table.importStatus ?? 'none'
-      if (before === 'importing' && now === 'ready') {
-        const rows = (table.importRowsProcessed ?? 0).toLocaleString()
-        toast.success(`Imported ${rows} rows into "${table.name}"`)
+      const now = table.jobStatus ?? 'none'
+      if (before === 'running' && now === 'ready') {
+        const rows = (table.jobRowsProcessed ?? 0).toLocaleString()
+        const message =
+          table.jobType === 'delete'
+            ? `Deleted ${rows} rows from "${table.name}"`
+            : `Imported ${rows} rows into "${table.name}"`
+        toast.success(message)
         store.notify(table.id)
         setTimeout(() => useImportTrayStore.getState().dismiss(table.id), READY_AUTO_CLEAR_MS)
-      } else if (before === 'importing' && now === 'failed') {
-        toast.error(table.importError || `Import failed for "${table.name}"`)
+      } else if (before === 'running' && now === 'failed') {
+        const fallback =
+          table.jobType === 'delete'
+            ? `Delete failed for "${table.name}"`
+            : `Import failed for "${table.name}"`
+        toast.error(table.jobError || fallback)
         store.notify(table.id)
       }
-      if (now !== 'importing' && store.isCanceled(table.id)) store.consumeCanceled(table.id)
+      if (now !== 'running' && store.isCanceled(table.id)) store.consumeCanceled(table.id)
       prevStatus.current.set(table.id, now)
     }
   }, [tables])
@@ -71,28 +82,31 @@ export function useWorkspaceImports(
 
     for (const table of tables ?? []) {
       if (scopeTableId && table.id !== scopeTableId) continue
-      if (table.importStatus === 'importing') {
+      const jobType: TableJobType = table.jobType === 'delete' ? 'delete' : 'import'
+      if (table.jobStatus === 'running') {
         if (canceledIds[table.id]) continue
         rows.push({
           id: table.id,
           workspaceId: table.workspaceId,
           title: table.name,
           phase: 'importing',
-          rowsProcessed: table.importRowsProcessed ?? 0,
-          importId: table.importId ?? undefined,
+          jobType,
+          rowsProcessed: table.jobRowsProcessed ?? 0,
+          jobId: table.jobId ?? undefined,
         })
         seen.add(table.id)
       } else if (
-        (table.importStatus === 'ready' || table.importStatus === 'failed') &&
+        (table.jobStatus === 'ready' || table.jobStatus === 'failed') &&
         notified[table.id]
       ) {
         rows.push({
           id: table.id,
           workspaceId: table.workspaceId,
           title: table.name,
-          phase: table.importStatus,
-          rowsProcessed: table.importRowsProcessed ?? 0,
-          error: table.importError ?? undefined,
+          phase: table.jobStatus,
+          jobType,
+          rowsProcessed: table.jobRowsProcessed ?? 0,
+          error: table.jobError ?? undefined,
         })
         seen.add(table.id)
       }
@@ -107,6 +121,7 @@ export function useWorkspaceImports(
         workspaceId: upload.workspaceId,
         title: upload.title,
         phase: 'importing',
+        jobType: 'import',
         rowsProcessed: 0,
         percent: upload.percent,
       })

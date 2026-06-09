@@ -94,11 +94,11 @@ export function useTableEventStream({
 
     // Live-fill: import progress ticks arrive every N rows; coalesce the row
     // refetches into one per debounce window instead of refetching per tick.
-    let importInvalidateTimer: ReturnType<typeof setTimeout> | null = null
+    let jobInvalidateTimer: ReturnType<typeof setTimeout> | null = null
     const scheduleRowsInvalidate = (): void => {
-      if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
-      importInvalidateTimer = setTimeout(() => {
-        importInvalidateTimer = null
+      if (jobInvalidateTimer !== null) clearTimeout(jobInvalidateTimer)
+      jobInvalidateTimer = setTimeout(() => {
+        jobInvalidateTimer = null
         void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
       }, DISPATCH_INVALIDATE_DEBOUNCE_MS)
     }
@@ -224,37 +224,40 @@ export function useTableEventStream({
       scheduleDispatchInvalidate()
     }
 
-    const applyImport = (event: Extract<TableEvent, { kind: 'import' }>): void => {
-      const { status, progress, error, importId } = event
+    const applyJob = (event: Extract<TableEvent, { kind: 'job' }>): void => {
+      const { type, status, progress, error, jobId } = event
       const isTerminal = status === 'ready' || status === 'failed' || status === 'canceled'
 
-      // The SSE buffer replays on (re)connect and can hold a *prior* import's events for this
-      // table. Ignore anything from a superseded run, and don't trust a replayed terminal before
-      // we know the active run's id.
+      // The SSE buffer replays on (re)connect and can hold a *prior* job's events for this table.
+      // Ignore anything from a superseded run, and don't trust a replayed terminal before we know
+      // the active run's id.
       const prev = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
-      const lockedId = prev?.importId
-      if (lockedId && importId && importId !== lockedId) return
+      const lockedId = prev?.jobId
+      if (lockedId && jobId && jobId !== lockedId) return
       if (!lockedId && isTerminal) return
 
       queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), (p) =>
         p
           ? {
               ...p,
-              importStatus: status,
-              importId: importId ?? p.importId,
-              importRowsProcessed: progress ?? p.importRowsProcessed,
-              importError: error ?? null,
+              jobStatus: status,
+              jobId: jobId ?? p.jobId,
+              jobType: type,
+              jobRowsProcessed: progress ?? p.jobRowsProcessed,
+              jobError: error ?? null,
             }
           : p
       )
-      // The header tray + completion toast are owned by `useImportTrayPoll`. Here we only keep the
-      // detail cache + grid in sync: live-fill rows per batch (debounced), and on the terminal
-      // event refetch rows + the definition (the worker may have rewritten the schema).
+      // The header tray + completion toast are owned by the tray poll. Here we keep the detail
+      // cache + grid in sync. On terminal, refetch rows + the definition (import may have rewritten
+      // the schema; delete failure/cancel restores optimistically-hidden rows). While running, an
+      // import live-fills rows per batch; a delete has already optimistically removed its rows, so
+      // we don't refetch mid-run (that would flicker not-yet-deleted rows back in).
       if (isTerminal) {
-        if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
+        if (jobInvalidateTimer !== null) clearTimeout(jobInvalidateTimer)
         void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
         void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
-      } else {
+      } else if (type === 'import') {
         scheduleRowsInvalidate()
       }
     }
@@ -329,7 +332,7 @@ export function useTableEventStream({
           savePointer(tableId, lastEventId)
           if (entry.event?.kind === 'cell') applyCell(entry.event)
           else if (entry.event?.kind === 'dispatch') applyDispatch(entry.event)
-          else if (entry.event?.kind === 'import') applyImport(entry.event)
+          else if (entry.event?.kind === 'job') applyJob(entry.event)
           else if (entry.event?.kind === 'usageLimitReached') applyUsageLimit(entry.event)
         } catch (err) {
           logger.warn('Failed to parse table event', { tableId, err })
@@ -364,7 +367,7 @@ export function useTableEventStream({
       cancelled = true
       if (reconnectTimer !== null) clearTimeout(reconnectTimer)
       if (dispatchInvalidateTimer !== null) clearTimeout(dispatchInvalidateTimer)
-      if (importInvalidateTimer !== null) clearTimeout(importInvalidateTimer)
+      if (jobInvalidateTimer !== null) clearTimeout(jobInvalidateTimer)
       eventSource?.close()
       eventSource = null
     }

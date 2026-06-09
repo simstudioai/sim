@@ -165,8 +165,11 @@ export interface TableMetadata {
   pinnedColumns?: string[]
 }
 
-/** Async-import lifecycle state for a table. NULL/undefined = normal (no async import). */
-export type TableImportStatus = 'importing' | 'ready' | 'failed' | 'canceled'
+/** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */
+export type TableJobStatus = 'running' | 'ready' | 'failed' | 'canceled'
+
+/** Which kind of background job occupies the table's single job slot. */
+export type TableJobType = 'import' | 'delete'
 
 export interface TableDefinition {
   id: string
@@ -181,12 +184,15 @@ export interface TableDefinition {
   archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
-  /** Async-import state (see `apps/sim/lib/table/import-runner.ts`). */
-  importStatus?: TableImportStatus | null
-  importId?: string | null
-  importError?: string | null
-  importRowsProcessed?: number
-  importStartedAt?: Date | string | null
+  /**
+   * Async background-job state, derived from the table's latest `table_jobs` row (running if any,
+   * else the most recent terminal). See `import-runner.ts` / `delete-runner.ts`.
+   */
+  jobStatus?: TableJobStatus | null
+  jobId?: string | null
+  jobType?: TableJobType | null
+  jobError?: string | null
+  jobRowsProcessed?: number
 }
 
 /** Minimal table info for UI components. */
@@ -329,10 +335,12 @@ export interface CreateTableData {
   maxTables?: number
   /** Number of empty rows to create with the table. Defaults to 0. */
   initialRowCount?: number
-  /** When set, the table is created in this async-import state (rows hidden until ready). */
-  importStatus?: TableImportStatus
-  /** Async-import id stamped on the table when `importStatus` is set. */
-  importId?: string
+  /** When set, the table is created with this job already running (rows hidden until ready). */
+  jobStatus?: TableJobStatus
+  /** Job kind, paired with `jobStatus` (create-mode import sets `'import'`). */
+  jobType?: TableJobType
+  /** Async job id stamped on the table when `jobStatus` is set. */
+  jobId?: string
 }
 
 export interface InsertRowData {

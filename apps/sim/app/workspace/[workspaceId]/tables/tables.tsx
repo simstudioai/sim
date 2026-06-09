@@ -37,7 +37,7 @@ import {
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
-  cancelTableImport,
+  cancelTableJob,
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
@@ -437,9 +437,7 @@ export function Tables() {
                 // If canceled mid-upload, flag the real id so it's not shown and cancel server-side.
                 if (result?.tableId && useImportTrayStore.getState().consumeCanceled(pendingId)) {
                   useImportTrayStore.getState().cancel(result.tableId)
-                  void cancelTableImport(workspaceId, result.tableId, result.importId).catch(
-                    () => {}
-                  )
+                  void cancelTableJob(workspaceId, result.tableId, result.importId).catch(() => {})
                 }
               } catch (err) {
                 useImportTrayStore.getState().endUpload(pendingId)

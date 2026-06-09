@@ -8,7 +8,7 @@ import {
   ProgressItem,
 } from '@/components/emcn'
 import { Upload } from '@/components/emcn/icons'
-import { cancelTableImport } from '@/hooks/queries/tables'
+import { cancelTableJob } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'
 import { type ImportRow, useWorkspaceImports } from './use-workspace-imports'
@@ -39,9 +39,9 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
   const cancel = (row: ImportRow) => {
     cancelId(row.id)
     // Worker already running — cancel it server-side now. (An upload still mid-flight is canceled by
-    // the kickoff handler once its importId is known; see the `consumeCanceled` branches.)
-    if (row.importId) {
-      void cancelTableImport(row.workspaceId, row.id, row.importId).catch(() => {})
+    // the kickoff handler once its jobId is known; see the `consumeCanceled` branches.)
+    if (row.jobId) {
+      void cancelTableJob(row.workspaceId, row.id, row.jobId).catch(() => {})
     }
   }
 

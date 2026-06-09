@@ -26,6 +26,7 @@ export function getImportStage(entry: ImportRow): ImportStageView {
   const rows = entry.rowsProcessed.toLocaleString()
   const name = entry.title
   const meta = typeof entry.percent === 'number' ? `${entry.percent}%` : undefined
+  const isDelete = entry.jobType === 'delete'
 
   if (entry.phase === 'failed') {
     return {
@@ -39,13 +40,22 @@ export function getImportStage(entry: ImportRow): ImportStageView {
   if (entry.phase === 'ready') {
     return {
       status: 'success',
-      title: `Imported ${name}`,
+      title: `${isDelete ? 'Deleted from' : 'Imported'} ${name}`,
       detail: `${rows} rows`,
       dismissible: true,
     }
   }
 
-  // importing: rows only start arriving once the worker is processing; before that it's the upload.
+  // running: a delete reports its deleted-row count from the start; an import only starts
+  // reporting rows once the worker is processing (before that it's the upload).
+  if (isDelete) {
+    return {
+      status: 'pending',
+      title: `Deleting from ${name}`,
+      detail: `${rows} rows`,
+      dismissible: false,
+    }
+  }
   if (entry.rowsProcessed > 0) {
     return {
       status: 'pending',

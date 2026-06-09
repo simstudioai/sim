@@ -9,6 +9,7 @@
 
 import { db } from '@sim/db'
 import {
+  tableJobs,
   tableRowExecutions,
   userTableDefinitions,
   userTableRows,
@@ -27,8 +28,7 @@ import {
   gte,
   inArray,
   isNull,
-  ne,
-  or,
+  lte,
   type SQL,
   sql,
 } from 'drizzle-orm'
@@ -66,6 +66,7 @@ import type {
   RowExecutionMetadata,
   RowExecutions,
   TableDefinition,
+  TableJobType,
   TableMetadata,
   TableRow,
   TableSchema,
@@ -242,6 +243,73 @@ function applyColumnOrderToSchema(
   return { ...schema, columns: ordered }
 }
 
+/** Job fields projected onto a {@link TableDefinition}, derived from its latest `table_jobs` row. */
+interface DerivedJobFields {
+  jobStatus: TableDefinition['jobStatus']
+  jobId: string | null
+  jobType: TableDefinition['jobType']
+  jobError: string | null
+  jobRowsProcessed: number
+}
+
+const EMPTY_JOB_FIELDS: DerivedJobFields = {
+  jobStatus: null,
+  jobId: null,
+  jobType: null,
+  jobError: null,
+  jobRowsProcessed: 0,
+}
+
+function mapJobRow(
+  row:
+    | { id: string; type: string; status: string; rowsProcessed: number; error: string | null }
+    | undefined
+): DerivedJobFields {
+  if (!row) return EMPTY_JOB_FIELDS
+  return {
+    jobStatus: row.status as TableDefinition['jobStatus'],
+    jobId: row.id,
+    jobType: row.type as TableDefinition['jobType'],
+    jobError: row.error,
+    jobRowsProcessed: row.rowsProcessed,
+  }
+}
+
+const JOB_PROJECTION = {
+  id: tableJobs.id,
+  type: tableJobs.type,
+  status: tableJobs.status,
+  rowsProcessed: tableJobs.rowsProcessed,
+  error: tableJobs.error,
+} as const
+
+/** The latest job for one table (the running one if present, else the most recent terminal). */
+async function latestJobForTable(
+  tableId: string,
+  executor: DbOrTx = db
+): Promise<DerivedJobFields> {
+  const [row] = await executor
+    .select(JOB_PROJECTION)
+    .from(tableJobs)
+    .where(eq(tableJobs.tableId, tableId))
+    .orderBy(desc(tableJobs.startedAt))
+    .limit(1)
+  return mapJobRow(row)
+}
+
+/** Latest job per table for a batch of ids, via `DISTINCT ON (table_id) … ORDER BY started_at DESC`. */
+async function latestJobsForTables(tableIds: string[]): Promise<Map<string, DerivedJobFields>> {
+  const map = new Map<string, DerivedJobFields>()
+  if (tableIds.length === 0) return map
+  const rows = await db
+    .selectDistinctOn([tableJobs.tableId], { tableId: tableJobs.tableId, ...JOB_PROJECTION })
+    .from(tableJobs)
+    .where(inArray(tableJobs.tableId, tableIds))
+    .orderBy(tableJobs.tableId, desc(tableJobs.startedAt))
+  for (const row of rows) map.set(row.tableId, mapJobRow(row))
+  return map
+}
+
 export async function getTableById(
   tableId: string,
   options?: { includeArchived?: boolean; tx?: DbOrTx }
@@ -262,11 +330,6 @@ export async function getTableById(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
-      importStatus: userTableDefinitions.importStatus,
-      importId: userTableDefinitions.importId,
-      importError: userTableDefinitions.importError,
-      importRowsProcessed: userTableDefinitions.importRowsProcessed,
-      importStartedAt: userTableDefinitions.importStartedAt,
     })
     .from(userTableDefinitions)
     .where(
@@ -293,11 +356,7 @@ export async function getTableById(
     archivedAt: table.archivedAt,
     createdAt: table.createdAt,
     updatedAt: table.updatedAt,
-    importStatus: table.importStatus as TableDefinition['importStatus'],
-    importId: table.importId,
-    importError: table.importError,
-    importRowsProcessed: table.importRowsProcessed,
-    importStartedAt: table.importStartedAt,
+    ...(await latestJobForTable(tableId, executor)),
   }
 }
 
@@ -339,11 +398,6 @@ export async function listTables(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
-      importStatus: userTableDefinitions.importStatus,
-      importId: userTableDefinitions.importId,
-      importError: userTableDefinitions.importError,
-      importRowsProcessed: userTableDefinitions.importRowsProcessed,
-      importStartedAt: userTableDefinitions.importStartedAt,
     })
     .from(userTableDefinitions)
     .where(
@@ -361,6 +415,8 @@ export async function listTables(
     )
     .orderBy(userTableDefinitions.createdAt)
 
+  const jobsByTable = await latestJobsForTables(tables.map((t) => t.id))
+
   return tables.map((t) => {
     const metadata = (t.metadata as TableMetadata) ?? null
     return {
@@ -376,11 +432,7 @@ export async function listTables(
       archivedAt: t.archivedAt,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
-      importStatus: t.importStatus as TableDefinition['importStatus'],
-      importId: t.importId,
-      importError: t.importError,
-      importRowsProcessed: t.importRowsProcessed,
-      importStartedAt: t.importStartedAt,
+      ...(jobsByTable.get(t.id) ?? EMPTY_JOB_FIELDS),
     }
   })
 }
@@ -427,10 +479,13 @@ export async function createTable(
     archivedAt: null,
     createdAt: now,
     updatedAt: now,
-    importStatus: data.importStatus ?? null,
-    importId: data.importId ?? null,
-    importStartedAt: data.importStatus ? now : null,
   }
+
+  // Create-mode CSV import is born with a running job so its rows stay hidden until ready.
+  const initialJob =
+    data.jobStatus === 'running' && data.jobId
+      ? { id: data.jobId, type: data.jobType ?? 'import', startedAt: now }
+      : null
 
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
   // to prevent TOCTOU race on the table count limit
@@ -470,6 +525,18 @@ export async function createTable(
       }
 
       await trx.insert(userTableDefinitions).values(newTable)
+
+      if (initialJob) {
+        await trx.insert(tableJobs).values({
+          id: initialJob.id,
+          tableId,
+          workspaceId: data.workspaceId,
+          type: initialJob.type,
+          status: 'running',
+          startedAt: initialJob.startedAt,
+          updatedAt: initialJob.startedAt,
+        })
+      }
 
       const initialRowCount = data.initialRowCount ?? 0
       if (initialRowCount > 0) {
@@ -512,10 +579,11 @@ export async function createTable(
     archivedAt: newTable.archivedAt,
     createdAt: newTable.createdAt,
     updatedAt: newTable.updatedAt,
-    importStatus: newTable.importStatus as TableDefinition['importStatus'],
-    importId: newTable.importId,
-    importRowsProcessed: 0,
-    importStartedAt: newTable.importStartedAt,
+    jobStatus: initialJob ? 'running' : null,
+    jobId: initialJob?.id ?? null,
+    jobType: initialJob?.type ?? null,
+    jobError: null,
+    jobRowsProcessed: 0,
   }
 }
 
@@ -1458,8 +1526,11 @@ async function deleteOrderedRowsByIds(params: {
   tableId: string
   workspaceId: string
   rowIds: string[]
+  /** Skip the post-delete position recompaction (the paginated delete worker compacts once at
+   *  the end instead of per page — per-page compaction is O(N) each, O(N²) over a full delete). */
+  skipCompaction?: boolean
 }): Promise<{ id: string; position: number }[]> {
-  const { tableId, workspaceId, rowIds } = params
+  const { tableId, workspaceId, rowIds, skipCompaction = false } = params
   if (rowIds.length === 0) return []
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
@@ -1479,7 +1550,7 @@ async function deleteOrderedRowsByIds(params: {
       deleted.push(...rows)
     }
     // Fractional ordering: deletes leave order_key untouched, so no recompaction.
-    if (!isTablesFractionalOrderingEnabled && deleted.length > 0) {
+    if (!isTablesFractionalOrderingEnabled && !skipCompaction && deleted.length > 0) {
       const minDeletedPos = deleted.reduce(
         (min, r) => (r.position < min ? r.position : min),
         deleted[0].position
@@ -1488,6 +1559,59 @@ async function deleteOrderedRowsByIds(params: {
     }
     return deleted
   })
+}
+
+/**
+ * Selects one page of row ids to delete for the async delete-job worker: base scope plus a
+ * `created_at <= cutoff` floor (so rows inserted after the job started are never selected) and
+ * the caller's optional filter clause. Keyset paginated on `id` via `afterId` so excluded rows
+ * (which are skipped, not deleted) still advance the cursor — no OFFSET, no risk of looping on a
+ * fully-excluded page.
+ */
+export async function selectRowIdPage(params: {
+  tableId: string
+  workspaceId: string
+  cutoff: Date
+  filterClause?: SQL
+  afterId?: string
+  limit: number
+}): Promise<string[]> {
+  const { tableId, workspaceId, cutoff, filterClause, afterId, limit } = params
+  const rows = await db
+    .select({ id: userTableRows.id })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        lte(userTableRows.createdAt, cutoff),
+        afterId ? gt(userTableRows.id, afterId) : undefined,
+        filterClause
+      )
+    )
+    .orderBy(asc(userTableRows.id))
+    .limit(limit)
+  return rows.map((r) => r.id)
+}
+
+/**
+ * Deletes one page of rows by id (the statement-level row_count trigger fires once). Skips legacy
+ * position compaction: under fractional ordering it's unnecessary (order keys are authoritative),
+ * and in the legacy path a bulk delete leaving `position` gaps is harmless — rows still order by
+ * position. (Compacting per page would be O(N²) over a full delete.) Returns the count deleted.
+ */
+export async function deletePageByIds(
+  tableId: string,
+  workspaceId: string,
+  rowIds: string[]
+): Promise<number> {
+  const deleted = await deleteOrderedRowsByIds({
+    tableId,
+    workspaceId,
+    rowIds,
+    skipCompaction: true,
+  })
+  return deleted.length
 }
 
 /**
@@ -1823,131 +1947,115 @@ export async function setTableSchemaForImport(tableId: string, schema: TableSche
 }
 
 /**
- * Atomically claims a table for an async import. The `import_status != 'importing'` guard makes
- * this the single concurrency gate: of two racing kickoffs only one row-update matches, so only
- * one wins (no TOCTOU between a separate status check and this write). Returns whether it claimed
- * the table — the caller returns 409 when it didn't.
+ * Atomically claims a table's single background-job slot by inserting a `running` row into
+ * `table_jobs`. The partial-unique index on `table_id WHERE status = 'running'` is the
+ * concurrency gate: a second insert while a job runs hits `ON CONFLICT DO NOTHING` and returns no
+ * row, so import and delete (and two imports) are mutually exclusive for free. Returns whether it
+ * claimed the slot; the caller returns 409 when it didn't.
  */
-export async function markTableImporting(tableId: string, importId: string): Promise<boolean> {
-  const updated = await db
-    .update(userTableDefinitions)
-    .set({
-      importStatus: 'importing',
-      importId,
-      importError: null,
-      importRowsProcessed: 0,
-      importStartedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        or(
-          isNull(userTableDefinitions.importStatus),
-          ne(userTableDefinitions.importStatus, 'importing')
-        )
-      )
-    )
-    .returning({ id: userTableDefinitions.id })
-  return updated.length > 0
+export async function markTableJobRunning(
+  tableId: string,
+  jobId: string,
+  type: TableJobType
+): Promise<boolean> {
+  // workspace_id is immutable; the atomic gate is the INSERT's conflict, not this read.
+  const [def] = await db
+    .select({ workspaceId: userTableDefinitions.workspaceId })
+    .from(userTableDefinitions)
+    .where(eq(userTableDefinitions.id, tableId))
+    .limit(1)
+  if (!def) return false
+  const inserted = await db
+    .insert(tableJobs)
+    .values({ id: jobId, tableId, workspaceId: def.workspaceId, type, status: 'running' })
+    .onConflictDoNothing()
+    .returning({ id: tableJobs.id })
+  return inserted.length > 0
 }
 
 /**
- * Releases a claim taken by {@link markTableImporting} for a synchronous import — clears the
- * import state back to idle. Scoped to `importId` so it only clears its own claim, never a newer
- * run that may have taken over. A sync route claims, writes, then releases here in a `finally`.
+ * Releases a claim taken by {@link markTableJobRunning} for a synchronous job — deletes the
+ * transient claim row. Scoped to `jobId` + still-running so it only clears its own claim, never a
+ * newer run. A sync route claims, writes, then releases here in a `finally`.
  */
-export async function releaseImportClaim(tableId: string, importId: string): Promise<void> {
+export async function releaseJobClaim(tableId: string, jobId: string): Promise<void> {
   await db
-    .update(userTableDefinitions)
-    .set({ importStatus: null, importId: null, importStartedAt: null, updatedAt: new Date() })
+    .delete(tableJobs)
     .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        eq(userTableDefinitions.importId, importId),
-        eq(userTableDefinitions.importStatus, 'importing')
-      )
+      and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId), eq(tableJobs.status, 'running'))
     )
 }
 
 /**
- * Records import progress (rows processed so far). Also bumps `updatedAt` so the
- * stale-import janitor (`cleanup-stale-executions`) sees a live heartbeat and doesn't mark a
- * still-running import as failed.
+ * Records job progress (rows processed so far) and bumps `updated_at` so the stale-job janitor
+ * (`cleanup-stale-executions`) sees a live heartbeat.
  *
- * Scoped to `importId` AND `import_status = 'importing'`: a stale/superseded worker no longer
- * matches (its write is a no-op), and once the import is terminal (e.g. canceled) the match fails
- * too — so this returning `false` is also the worker's signal to stop. Returns whether this worker
- * still owns an in-flight import.
+ * Scoped to `jobId` AND `status = 'running'`: a stale/superseded worker no longer matches (its
+ * write is a no-op), and once the job is terminal (e.g. canceled) the match fails too — so this
+ * returning `false` is the worker's signal to stop. Returns whether this worker still owns an
+ * in-flight job.
  */
-export async function updateImportProgress(
+export async function updateJobProgress(
   tableId: string,
   rowsProcessed: number,
-  importId: string
+  jobId: string
 ): Promise<boolean> {
   const updated = await db
-    .update(userTableDefinitions)
-    .set({ importRowsProcessed: rowsProcessed, updatedAt: new Date() })
-    .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        eq(userTableDefinitions.importId, importId),
-        eq(userTableDefinitions.importStatus, 'importing')
-      )
-    )
-    .returning({ id: userTableDefinitions.id })
+    .update(tableJobs)
+    .set({ rowsProcessed, updatedAt: new Date() })
+    .where(ownsActiveJob(tableId, jobId))
+    .returning({ id: tableJobs.id })
   return updated.length > 0
 }
 
-/** Shared WHERE for terminal transitions: this import run, and still in-flight (write-once). */
-function ownsActiveImport(tableId: string, importId: string) {
+/** Shared WHERE for terminal transitions: this job run, and still in-flight (write-once). */
+function ownsActiveJob(tableId: string, jobId: string) {
   return and(
-    eq(userTableDefinitions.id, tableId),
-    eq(userTableDefinitions.importId, importId),
-    eq(userTableDefinitions.importStatus, 'importing')
+    eq(tableJobs.id, jobId),
+    eq(tableJobs.tableId, tableId),
+    eq(tableJobs.status, 'running')
   )
 }
 
 /**
- * Marks an import complete; rows become visible. No-op unless it's still this in-flight run.
- * Returns whether it transitioned, so the worker only emits the `ready` event when it actually
- * won (and not after a cancel / supersede).
+ * Marks a job complete. No-op unless it's still this in-flight run. Returns whether it
+ * transitioned, so the worker only emits the `ready` event when it actually won (and not after a
+ * cancel / supersede).
  */
-export async function markImportReady(tableId: string, importId: string): Promise<boolean> {
+export async function markJobReady(tableId: string, jobId: string): Promise<boolean> {
+  const now = new Date()
   const updated = await db
-    .update(userTableDefinitions)
-    .set({ importStatus: 'ready', importError: null, updatedAt: new Date() })
-    .where(ownsActiveImport(tableId, importId))
-    .returning({ id: userTableDefinitions.id })
+    .update(tableJobs)
+    .set({ status: 'ready', error: null, completedAt: now, updatedAt: now })
+    .where(ownsActiveJob(tableId, jobId))
+    .returning({ id: tableJobs.id })
   return updated.length > 0
 }
 
 /**
- * Marks an import failed, leaving any already-committed rows in place. No-op unless it's still
- * this in-flight run (so a stale worker can't clobber a newer import or a cancel).
+ * Marks a job failed, leaving any already-committed work in place. No-op unless it's still this
+ * in-flight run (so a stale worker can't clobber a newer job or a cancel).
  */
-export async function markImportFailed(
-  tableId: string,
-  importId: string,
-  error: string
-): Promise<void> {
+export async function markJobFailed(tableId: string, jobId: string, error: string): Promise<void> {
+  const now = new Date()
   await db
-    .update(userTableDefinitions)
-    .set({ importStatus: 'failed', importError: error.slice(0, 2000), updatedAt: new Date() })
-    .where(ownsActiveImport(tableId, importId))
+    .update(tableJobs)
+    .set({ status: 'failed', error: error.slice(0, 2000), completedAt: now, updatedAt: now })
+    .where(ownsActiveJob(tableId, jobId))
 }
 
 /**
- * Marks an in-flight import canceled (user-initiated). No-op unless it's still importing. The
- * worker's next ownership check then returns `false` and it stops; committed rows are left in
- * place (no rollback). Returns whether a running import was actually canceled.
+ * Marks an in-flight job canceled (user-initiated). No-op unless it's still running. The
+ * worker's next ownership check then returns `false` and it stops; committed work is left in
+ * place (no rollback). Returns whether a running job was actually canceled.
  */
-export async function markImportCanceled(tableId: string, importId: string): Promise<boolean> {
+export async function markJobCanceled(tableId: string, jobId: string): Promise<boolean> {
+  const now = new Date()
   const updated = await db
-    .update(userTableDefinitions)
-    .set({ importStatus: 'canceled', updatedAt: new Date() })
-    .where(ownsActiveImport(tableId, importId))
-    .returning({ id: userTableDefinitions.id })
+    .update(tableJobs)
+    .set({ status: 'canceled', completedAt: now, updatedAt: now })
+    .where(ownsActiveJob(tableId, jobId))
+    .returning({ id: tableJobs.id })
   return updated.length > 0
 }
 
