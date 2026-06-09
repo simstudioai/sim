@@ -7391,3 +7391,22 @@ export function WizaIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function ResembleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.6'
+      role='img'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path d='M12 2.5l7 2.4v5c0 4.3-2.9 8.2-7 9.6-4.1-1.4-7-5.3-7-9.6v-5l7-2.4z' strokeLinejoin='round' />
+      <line x1='9' y1='10.5' x2='9' y2='13.5' strokeLinecap='round' />
+      <line x1='12' y1='8.5' x2='12' y2='15.5' strokeLinecap='round' />
+      <line x1='15' y1='10' x2='15' y2='14' strokeLinecap='round' />
+    </svg>
+  )
+}

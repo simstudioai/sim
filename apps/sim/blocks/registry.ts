@@ -189,6 +189,7 @@ import { SearchBlock } from '@/blocks/blocks/search'
 import { SecretsManagerBlock } from '@/blocks/blocks/secrets_manager'
 import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
+import { ResembleBlock } from '@/blocks/blocks/resemble'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import { SESBlock } from '@/blocks/blocks/ses'
@@ -461,6 +462,7 @@ export const registry: Record<string, BlockConfig> = {
   search: SearchBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
+  resemble: ResembleBlock,
   serper: SerperBlock,
   servicenow: ServiceNowBlock,
   sftp: SftpBlock,
