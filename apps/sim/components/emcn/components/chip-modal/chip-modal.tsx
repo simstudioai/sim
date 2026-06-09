@@ -740,7 +740,7 @@ function ChipModalFileControl({
  * A single footer action button. Rendered internally as a {@link Chip} so every
  * modal footer stays visually identical — callers describe intent (label,
  * handler, optional variant), never JSX or chrome. Encode pending state in the
- * `label` and `disabled` (e.g. `saving ? 'Saving…' : 'Save'`).
+ * `label` and `disabled` (e.g. `saving ? 'Saving...' : 'Save'`).
  */
 export interface ChipModalFooterAction {
   /** Button label. */
@@ -883,7 +883,7 @@ export interface ChipConfirmAction {
    * of `label`.
    */
   pending?: boolean
-  /** Label shown while `pending` (e.g. `'Deleting…'`). Falls back to `label`. */
+  /** Label shown while `pending` (e.g. `'Deleting...'`). Falls back to `label`. */
   pendingLabel?: string
   /** Additional disable condition independent of `pending` (e.g. an unmet "type to confirm"). */
   disabled?: boolean
@@ -950,7 +950,7 @@ export interface ChipConfirmModalProps {
  *   onOpenChange={(next) => { if (!next) setTarget(null); setOpen(next) }}
  *   title='Delete API key'
  *   description={<>Deleting <strong>{target?.name}</strong> revokes access immediately.</>}
- *   confirm={{ label: 'Delete', onClick: handleDelete, pending: isDeleting, pendingLabel: 'Deleting…' }}
+ *   confirm={{ label: 'Delete', onClick: handleDelete, pending: isDeleting, pendingLabel: 'Deleting...' }}
  * />
  * ```
  */

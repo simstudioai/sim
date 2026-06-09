@@ -40,7 +40,7 @@ export function DeleteChunkModal({
         label: 'Delete',
         onClick: handleDeleteChunk,
         pending: isDeleting,
-        pendingLabel: 'Deleting…',
+        pendingLabel: 'Deleting...',
       }}
     />
   )
