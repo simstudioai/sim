@@ -3,6 +3,12 @@ import { settings, user } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  deleteCopilotByokKeyContract,
+  listCopilotByokKeysContract,
+  upsertCopilotByokKeyContract,
+} from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
@@ -36,34 +42,24 @@ async function getAuthorizedSuperUserId(): Promise<string | null> {
   return authorized ? session.user.id : null
 }
 
-async function proxyToCopilot(req: NextRequest, method: 'GET' | 'POST' | 'DELETE') {
-  const userId = await getAuthorizedSuperUserId()
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function forwardToCopilot(
+  method: 'GET' | 'POST' | 'DELETE',
+  query: URLSearchParams,
+  body?: string
+) {
   const headers: Record<string, string> = { ...getMothershipSourceEnvHeaders() }
   if (env.COPILOT_API_KEY) headers['x-api-key'] = env.COPILOT_API_KEY
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
 
-  let body: string | undefined
-  if (method === 'POST') {
-    const raw = await req.text()
-    // Bind the audit field to the authenticated superuser, ignoring any
-    // client-supplied createdBy so provisioning is always attributable.
-    try {
-      const parsed = raw ? JSON.parse(raw) : {}
-      body = JSON.stringify({ ...parsed, createdBy: userId })
-    } catch {
-      body = raw
-    }
-    headers['Content-Type'] = 'application/json'
-  }
-
-  const { search } = new URL(req.url)
-  const targetUrl = `${SIM_AGENT_API_URL}/api/admin/byok${search}`
+  const qs = query.toString()
+  const targetUrl = `${SIM_AGENT_API_URL}/api/admin/byok${qs ? `?${qs}` : ''}`
 
   try {
-    const upstream = await fetch(targetUrl, { method, headers, ...(body ? { body } : {}) })
+    const upstream = await fetch(targetUrl, {
+      method,
+      headers,
+      ...(body !== undefined ? { body } : {}),
+    })
     const text = await upstream.text()
     // boundary-raw-fetch: copilot returns JSON; tolerate an empty body.
     const data = text ? JSON.parse(text) : {}
@@ -76,6 +72,47 @@ async function proxyToCopilot(req: NextRequest, method: 'GET' | 'POST' | 'DELETE
   }
 }
 
-export const GET = withRouteHandler((req: NextRequest) => proxyToCopilot(req, 'GET'))
-export const POST = withRouteHandler((req: NextRequest) => proxyToCopilot(req, 'POST'))
-export const DELETE = withRouteHandler((req: NextRequest) => proxyToCopilot(req, 'DELETE'))
+export const GET = withRouteHandler(async (req: NextRequest) => {
+  const userId = await getAuthorizedSuperUserId()
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const parsed = await parseRequest(listCopilotByokKeysContract, req, {})
+  if (!parsed.success) return parsed.response
+
+  return forwardToCopilot('GET', new URLSearchParams({ workspaceId: parsed.data.query.workspaceId }))
+})
+
+export const POST = withRouteHandler(async (req: NextRequest) => {
+  const userId = await getAuthorizedSuperUserId()
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const parsed = await parseRequest(upsertCopilotByokKeyContract, req, {})
+  if (!parsed.success) return parsed.response
+
+  // Bind the audit field to the authenticated superuser, ignoring any
+  // client-supplied createdBy so provisioning is always attributable.
+  const body = JSON.stringify({ ...parsed.data.body, createdBy: userId })
+  return forwardToCopilot('POST', new URLSearchParams(), body)
+})
+
+export const DELETE = withRouteHandler(async (req: NextRequest) => {
+  const userId = await getAuthorizedSuperUserId()
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const parsed = await parseRequest(deleteCopilotByokKeyContract, req, {})
+  if (!parsed.success) return parsed.response
+
+  return forwardToCopilot(
+    'DELETE',
+    new URLSearchParams({
+      workspaceId: parsed.data.query.workspaceId,
+      provider: parsed.data.query.provider,
+    })
+  )
+})

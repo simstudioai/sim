@@ -26,6 +26,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     queryClient: {
       invalidateQueries: vi.fn(),
       setQueryData: vi.fn(),
+      // double-cast-allowed: minimal QueryClient stub for stream-loop unit fixtures
     } as unknown as QueryClient,
     assistantId: 'assistant-1',
     expectedGen: 1,
@@ -51,6 +52,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
       content,
       contentBlocks,
       ...(requestId ? { requestId } : {}),
+      // double-cast-allowed: vi.fn wrapper loses the exact snapshot-builder signature in this test fixture
     })) as unknown as StreamLoopDeps['buildAssistantSnapshotMessage'],
     hasTerminalPersistedAssistantForStream: vi.fn(() => false),
     reconcileLiveAssistantTurn: vi.fn(

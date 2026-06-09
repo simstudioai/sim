@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { validateCopilotByokContract } from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -29,18 +31,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     return new NextResponse(null, { status: 401 })
   }
 
-  let body: { workspaceId?: unknown; userId?: unknown }
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
+  const parsed = await parseRequest(validateCopilotByokContract, req, {})
+  if (!parsed.success) return parsed.response
 
-  const workspaceId = typeof body.workspaceId === 'string' ? body.workspaceId : ''
-  const userId = typeof body.userId === 'string' ? body.userId : ''
-  if (!workspaceId || !userId) {
-    return NextResponse.json({ error: 'workspaceId and userId are required' }, { status: 400 })
-  }
+  const { workspaceId, userId } = parsed.data.body
 
   try {
     // Superuser admins may use BYOK on any workspace (management/testing).

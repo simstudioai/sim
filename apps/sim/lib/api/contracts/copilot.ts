@@ -469,6 +469,79 @@ export const validateCopilotApiKeyContract = defineRouteContract({
   response: { mode: 'empty' },
 })
 
+export const validateCopilotByokBodySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  userId: z.string().min(1, 'userId is required'),
+})
+export type ValidateCopilotByokBody = z.input<typeof validateCopilotByokBodySchema>
+
+/**
+ * Server-to-server entitlement gate called by the mothership (Go) before it
+ * uses a workspace's own provider key. Empty 200/401/403 responses signal the
+ * outcome; the Go caller fails closed to hosted keys on anything but a 200.
+ */
+export const validateCopilotByokContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/byok/validate',
+  body: validateCopilotByokBodySchema,
+  response: { mode: 'empty' },
+})
+
+export const listCopilotByokKeysQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+})
+export type ListCopilotByokKeysQuery = z.input<typeof listCopilotByokKeysQuerySchema>
+
+export const upsertCopilotByokKeyBodySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  provider: z.string().min(1, 'provider is required'),
+  apiKey: z.string().min(1, 'apiKey is required'),
+})
+export type UpsertCopilotByokKeyBody = z.input<typeof upsertCopilotByokKeyBodySchema>
+
+export const deleteCopilotByokKeyQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  provider: z.string().min(1, 'provider is required'),
+})
+export type DeleteCopilotByokKeyQuery = z.input<typeof deleteCopilotByokKeyQuerySchema>
+
+/**
+ * Superuser-gated proxies to the copilot's `/api/admin/byok` endpoints. The
+ * responses are owned by the copilot service and forwarded verbatim.
+ */
+export const listCopilotByokKeysContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/copilot/byok',
+  query: listCopilotByokKeysQuerySchema,
+  response: {
+    mode: 'json',
+    // untyped-response: forwards the copilot /api/admin/byok response unchanged; shape is owned by the copilot service
+    schema: z.unknown(),
+  },
+})
+
+export const upsertCopilotByokKeyContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/byok',
+  body: upsertCopilotByokKeyBodySchema,
+  response: {
+    mode: 'json',
+    // untyped-response: forwards the copilot /api/admin/byok response unchanged; shape is owned by the copilot service
+    schema: z.unknown(),
+  },
+})
+
+export const deleteCopilotByokKeyContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/copilot/byok',
+  query: deleteCopilotByokKeyQuerySchema,
+  response: {
+    mode: 'json',
+    // untyped-response: forwards the copilot /api/admin/byok response unchanged; shape is owned by the copilot service
+    schema: z.unknown(),
+  },
+})
+
 export const createWorkflowCopilotChatContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chats',

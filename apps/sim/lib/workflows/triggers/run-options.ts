@@ -223,7 +223,7 @@ function buildTriggerRunOption(
 
   switch (inputKind) {
     case 'fields': {
-      inputSchema = generateToolInputSchema(inputFormat) as unknown as Record<string, unknown>
+      inputSchema = generateToolInputSchema(inputFormat)
       mockPayload = buildFieldsSample(inputFormat)
       break
     }
