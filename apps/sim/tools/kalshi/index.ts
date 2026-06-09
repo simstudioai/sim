@@ -4,7 +4,19 @@ export { kalshiCreateOrderTool, kalshiCreateOrderV2Tool } from './create_order'
 export { kalshiGetBalanceTool, kalshiGetBalanceV2Tool } from './get_balance'
 export { kalshiGetCandlesticksTool, kalshiGetCandlesticksV2Tool } from './get_candlesticks'
 export { kalshiGetEventTool, kalshiGetEventV2Tool } from './get_event'
+export {
+  kalshiGetEventCandlesticksTool,
+  kalshiGetEventCandlesticksV2Tool,
+} from './get_event_candlesticks'
 export { kalshiGetEventsTool, kalshiGetEventsV2Tool } from './get_events'
+export {
+  kalshiGetExchangeAnnouncementsTool,
+  kalshiGetExchangeAnnouncementsV2Tool,
+} from './get_exchange_announcements'
+export {
+  kalshiGetExchangeScheduleTool,
+  kalshiGetExchangeScheduleV2Tool,
+} from './get_exchange_schedule'
 export { kalshiGetExchangeStatusTool, kalshiGetExchangeStatusV2Tool } from './get_exchange_status'
 export { kalshiGetFillsTool, kalshiGetFillsV2Tool } from './get_fills'
 export { kalshiGetMarketTool, kalshiGetMarketV2Tool } from './get_market'
@@ -14,4 +26,6 @@ export { kalshiGetOrderbookTool, kalshiGetOrderbookV2Tool } from './get_orderboo
 export { kalshiGetOrdersTool, kalshiGetOrdersV2Tool } from './get_orders'
 export { kalshiGetPositionsTool, kalshiGetPositionsV2Tool } from './get_positions'
 export { kalshiGetSeriesByTickerTool, kalshiGetSeriesByTickerV2Tool } from './get_series_by_ticker'
+export { kalshiGetSeriesListTool, kalshiGetSeriesListV2Tool } from './get_series_list'
+export { kalshiGetSettlementsTool, kalshiGetSettlementsV2Tool } from './get_settlements'
 export { kalshiGetTradesTool, kalshiGetTradesV2Tool } from './get_trades'

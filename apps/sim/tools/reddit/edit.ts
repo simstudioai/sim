@@ -61,7 +61,16 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
   transformResponse: async (response: Response, requestParams?: RedditEditParams) => {
     const data = await response.json()
 
-    // Reddit API returns errors in json.errors array
+    if (!response.ok) {
+      return {
+        success: false,
+        output: {
+          success: false,
+          message: `Failed to edit: HTTP error ${response.status}`,
+        },
+      }
+    }
+
     if (data.json?.errors && data.json.errors.length > 0) {
       const errors = data.json.errors.map((err: any) => err.join(': ')).join(', ')
       return {
@@ -73,7 +82,6 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
       }
     }
 
-    // Success response
     const thingData = data.json?.data?.things?.[0]?.data
     return {
       success: true,
@@ -103,8 +111,16 @@ export const editTool: ToolConfig<RedditEditParams, RedditWriteResponse> = {
       description: 'Updated content data',
       properties: {
         id: { type: 'string', description: 'Edited thing ID' },
-        body: { type: 'string', description: 'Updated comment body (for comments)' },
-        selftext: { type: 'string', description: 'Updated post text (for self posts)' },
+        body: {
+          type: 'string',
+          description: 'Updated comment body (for comments)',
+          optional: true,
+        },
+        selftext: {
+          type: 'string',
+          description: 'Updated post text (for self posts)',
+          optional: true,
+        },
       },
     },
   },

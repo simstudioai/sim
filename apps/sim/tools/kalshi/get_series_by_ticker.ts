@@ -33,7 +33,7 @@ export const kalshiGetSeriesByTickerTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return buildKalshiUrl(`/series/${params.seriesTicker}`)
+      return buildKalshiUrl(`/series/${params.seriesTicker.trim()}`)
     },
     method: 'GET',
     headers: () => ({
@@ -132,7 +132,7 @@ export const kalshiGetSeriesByTickerV2Tool: ToolConfig<
       if (params.includeVolume) queryParams.append('include_volume', params.includeVolume)
 
       const query = queryParams.toString()
-      const url = buildKalshiUrl(`/series/${params.seriesTicker}`)
+      const url = buildKalshiUrl(`/series/${params.seriesTicker.trim()}`)
       return query ? `${url}?${query}` : url
     },
     method: 'GET',

@@ -49,7 +49,6 @@ export const voteTool: ToolConfig<RedditVoteParams, RedditWriteResponse> = {
       }
     },
     body: (params: RedditVoteParams) => {
-      // Validate dir parameter
       if (![1, 0, -1].includes(params.dir)) {
         throw new Error('dir must be 1 (upvote), 0 (unvote), or -1 (downvote)')
       }
@@ -64,8 +63,7 @@ export const voteTool: ToolConfig<RedditVoteParams, RedditWriteResponse> = {
   },
 
   transformResponse: async (response: Response, requestParams?: RedditVoteParams) => {
-    // Reddit vote API returns empty JSON {} on success
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}))
 
     if (response.ok) {
       const action =
