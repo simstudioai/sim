@@ -85,7 +85,7 @@ export const slackInviteToConversationTool: ToolConfig<
       if (data.error === 'channel_not_found') {
         throw new Error('Channel not found. Please verify the channel ID.')
       }
-      if (data.error === 'user_not_found') {
+      if (data.error === 'no_user' || data.error === 'user_not_found') {
         throw new Error('One or more user IDs were not found.')
       }
       if (data.error === 'cant_invite_self') {

@@ -702,6 +702,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
+          'assistant:write',
           'im:write',
           'im:read',
           'users:read',
