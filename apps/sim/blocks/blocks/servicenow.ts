@@ -314,9 +314,9 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       required: true,
       description: 'sys_id of the record the attachment belongs to',
     },
-    // List attachments: limit
+    // List attachments: limit (unique id to avoid sharing the Read Records `limit` value)
     {
-      id: 'limit',
+      id: 'attachmentLimit',
       title: 'Limit',
       type: 'short-input',
       placeholder: '10',
@@ -385,10 +385,11 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        const { operation, fields, file, ...rest } = params
+        const { operation, fields, file, attachmentLimit, ...rest } = params
         const isCreateOrUpdate =
           operation === 'servicenow_create_record' || operation === 'servicenow_update_record'
 
+        if (attachmentLimit != null && attachmentLimit !== '') rest.limit = Number(attachmentLimit)
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
         if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)
 
@@ -423,6 +424,10 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     number: { type: 'string', description: 'Record number' },
     query: { type: 'string', description: 'Query string' },
     limit: { type: 'number', description: 'Result limit' },
+    attachmentLimit: {
+      type: 'number',
+      description: 'Max attachments to return (list attachments)',
+    },
     offset: { type: 'number', description: 'Pagination offset' },
     fields: { type: 'json', description: 'Fields object or JSON string' },
     displayValue: { type: 'string', description: 'Display value mode for reference fields' },
