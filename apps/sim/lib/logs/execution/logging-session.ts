@@ -268,11 +268,8 @@ export class LoggingSession {
       status: params.status,
     })
 
-    // Release the admission reservation taken at preprocessing (STEP 7) so the
-    // entity's in-flight slot is freed. Skip on pause: a paused execution may
-    // still resume and should keep holding its slot until it terminates (or the
-    // reservation TTL-expires). Best-effort — never let a Redis hiccup turn a
-    // successful completion into a failure.
+    // Release the admission reservation from preprocessing. Skipped on pause: a
+    // paused execution keeps its slot until it terminates (or the TTL expires).
     if (params.finalizationPath !== 'paused') {
       try {
         await releaseExecutionSlot(this.executionId)

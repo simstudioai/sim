@@ -39,6 +39,14 @@ export interface PreprocessExecutionOptions {
   checkRateLimit?: boolean // Default: false for manual/chat, true for others
   checkDeployment?: boolean // Default: true for non-manual triggers
   skipUsageLimits?: boolean // Default: false (only use for test mode)
+  /**
+   * Skip the atomic in-flight concurrency reservation while still enforcing the
+   * usage-cost cap. Default: false. Set by surfaces that already bound and pace
+   * their own fan-out (e.g. table-cell dispatch, which is row-bounded, async
+   * rate-limited, and surfaces a graceful "wait/upgrade" state) so the
+   * reservation's 429 can't surface as a hard error there.
+   */
+  skipConcurrencyReservation?: boolean
   logPreprocessingErrors?: boolean // Default: true. When false, skip writing workflow_execution_logs error rows (caller surfaces failures itself, e.g. table cells)
 
   // Context information
@@ -94,6 +102,7 @@ export async function preprocessExecution(
     checkRateLimit = triggerType !== 'manual' && triggerType !== 'chat',
     checkDeployment = triggerType !== 'manual',
     skipUsageLimits = false,
+    skipConcurrencyReservation = false,
     logPreprocessingErrors = true,
     workspaceId: providedWorkspaceId,
     loggingSession: providedLoggingSession,
@@ -316,9 +325,7 @@ export async function preprocessExecution(
   const userSubscription = await getHighestPrioritySubscription(actorUserId)
 
   // ========== STEP 5: Check Usage Limits ==========
-  // Recorded-usage snapshot captured here and reused by the admission
-  // reservation (STEP 7) so concurrent executions can't all pass the cap before
-  // any of their costs are recorded.
+  // Snapshot reused by the STEP 7 admission reservation.
   let usageSnapshot: { currentUsage: number; limit: number } | null = null
   if (!skipUsageLimits) {
     try {
@@ -502,14 +509,15 @@ export async function preprocessExecution(
     }
   }
 
-  // ========== STEP 7: Reserve Admission Slot ==========
-  // Atomic check-then-reserve that closes the usage-cap race: cost is only
-  // recorded when an execution finishes, so without a reservation a burst of
-  // concurrent executions all observe the same pre-burst usage and all pass the
-  // gate above. Reserving here bounds in-flight (un-costed) executions per
-  // billing entity. Done last so an earlier rejection never leaves a slot held;
-  // the slot is released at execution completion (see LoggingSession).
-  if (!skipUsageLimits && usageSnapshot) {
+  /**
+   * STEP 7: Atomic admission reservation. Cost is only recorded once an
+   * execution finishes, so without this a burst of concurrent executions all
+   * observe the same pre-burst usage and all pass the gate above. Reserving
+   * bounds in-flight (un-costed) executions per billing entity. Done last so an
+   * earlier rejection never leaves a slot held; the slot is released at
+   * execution completion (see {@link LoggingSession}).
+   */
+  if (!skipUsageLimits && !skipConcurrencyReservation && usageSnapshot) {
     try {
       const { reserved } = await reserveExecutionSlot({
         userId: actorUserId,
@@ -550,8 +558,6 @@ export async function preprocessExecution(
         }
       }
     } catch (error) {
-      // reserveExecutionSlot fails open internally; a throw here is unexpected.
-      // Don't block execution the recorded-usage gate already admitted.
       logger.error(`[${requestId}] Unexpected error reserving admission slot`, {
         error,
         actorUserId,

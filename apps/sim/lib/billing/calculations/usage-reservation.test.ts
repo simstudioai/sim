@@ -72,8 +72,8 @@ describe('usage-reservation', () => {
       // eval(script, numKeys, inflightKey, pointerKey, now, expiry, maxConc, headroomSlots, member, entityKey, pttl)
       expect(args[2]).toBe('usage:inflight:user:user-1')
       expect(args[3]).toBe('usage:reservation:exec-1')
-      expect(args[6]).toBe('15') // free maxConcurrency
-      expect(args[7]).toBe('1000') // floor((5 - 0) / 0.005)
+      expect(args[6]).toBe('15')
+      expect(args[7]).toBe('1000')
       expect(args[8]).toBe('exec-1')
       expect(args[9]).toBe('user:user-1')
     })
@@ -86,7 +86,7 @@ describe('usage-reservation', () => {
       })
       const args = evalMock.mock.calls[0]
       expect(args[2]).toBe('usage:inflight:org:org-9')
-      expect(args[6]).toBe('150') // team maxConcurrency
+      expect(args[6]).toBe('150')
     })
 
     it('clamps negative headroom to zero slots', async () => {
