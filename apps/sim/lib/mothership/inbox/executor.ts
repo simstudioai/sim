@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import { getActivelyBannedUserIds, isEmailDomainBlocked } from '@/lib/auth/ban'
+import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
@@ -95,13 +95,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     }
 
     // Blocked senders and banned accounts must not drive the agent; the sender
-    // email is checked directly because non-members resolve to the workspace
-    // owner. Fails closed on lookup errors. No email response in any of these
-    // paths — never mail a suspended account.
+    // email is checked directly (domain list + the sender's own account ban)
+    // because non-members resolve to the workspace owner. Fails closed on
+    // lookup errors. No email response in any of these paths — never mail a
+    // suspended account.
     let blockReason: string | null = null
     try {
       const [senderBlocked, [bannedUserId]] = await Promise.all([
-        isEmailDomainBlocked(inboxTask.fromEmail),
+        isEmailBlocked(inboxTask.fromEmail),
         getActivelyBannedUserIds([userId]),
       ])
       if (senderBlocked || bannedUserId) {

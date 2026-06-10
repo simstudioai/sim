@@ -12,7 +12,7 @@ vi.mock('@sim/db', () => ({
   db: { select: vi.fn(() => ({ from: vi.fn(() => ({ where: mockWhere })) })) },
   user: { id: 'id', email: 'email', banned: 'banned', banExpires: 'banExpires' },
 }))
-vi.mock('drizzle-orm', () => ({ inArray: vi.fn() }))
+vi.mock('drizzle-orm', () => ({ inArray: vi.fn(), sql: vi.fn() }))
 vi.mock('@/lib/core/config/appconfig', () => ({ fetchAppConfigProfile: vi.fn() }))
 vi.mock('@/lib/core/config/env', () => ({
   get env() {
@@ -21,7 +21,7 @@ vi.mock('@/lib/core/config/env', () => ({
 }))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isAppConfigEnabled: false }))
 
-import { getActivelyBannedUserIds, isBanActive, isEmailDomainBlocked } from '@/lib/auth/ban'
+import { getActivelyBannedUserIds, isBanActive, isEmailBlocked } from '@/lib/auth/ban'
 
 describe('isBanActive', () => {
   it('returns true for a permanent ban', () => {
@@ -42,20 +42,28 @@ describe('isBanActive', () => {
   })
 })
 
-describe('isEmailDomainBlocked', () => {
+describe('isEmailBlocked', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     envRef.BLOCKED_SIGNUP_DOMAINS = 'bad.com'
+    mockWhere.mockResolvedValue([])
   })
 
-  it('returns true for blocked domains and subdomains', async () => {
-    expect(await isEmailDomainBlocked('a@bad.com')).toBe(true)
-    expect(await isEmailDomainBlocked('a@mail.bad.com')).toBe(true)
+  it('returns true for blocked domains and subdomains without querying users', async () => {
+    expect(await isEmailBlocked('a@bad.com')).toBe(true)
+    expect(await isEmailBlocked('a@mail.bad.com')).toBe(true)
+    expect(mockWhere).not.toHaveBeenCalled()
   })
 
-  it('returns false for clean domains and missing emails', async () => {
-    expect(await isEmailDomainBlocked('a@good.com')).toBe(false)
-    expect(await isEmailDomainBlocked(null)).toBe(false)
-    expect(await isEmailDomainBlocked(undefined)).toBe(false)
+  it('returns true when the email belongs to an actively banned account', async () => {
+    mockWhere.mockResolvedValue([{ banned: true, banExpires: null }])
+    expect(await isEmailBlocked('a@good.com')).toBe(true)
+  })
+
+  it('returns false for clean accounts and missing emails', async () => {
+    expect(await isEmailBlocked('a@good.com')).toBe(false)
+    expect(await isEmailBlocked(null)).toBe(false)
+    expect(await isEmailBlocked(undefined)).toBe(false)
   })
 })
 

@@ -1,5 +1,5 @@
 import { db, user } from '@sim/db'
-import { inArray } from 'drizzle-orm'
+import { inArray, sql } from 'drizzle-orm'
 import { getAccessControlConfig, isEmailInDenylist } from '@/lib/auth/access-control'
 
 /**
@@ -13,13 +13,19 @@ export function isBanActive(row: { banned: boolean | null; banExpires: Date | nu
 }
 
 /**
- * True when the email's domain is in the appconfig blocked-domains list.
- * For gating raw emails (e.g. inbound senders) that have no user row.
+ * True when a raw email (e.g. an inbound sender) is blocked: its domain is in
+ * the appconfig blocked-domains list, or it belongs to an account with an
+ * active ban. Covers senders that don't resolve to a known user id.
  */
-export async function isEmailDomainBlocked(email: string | null | undefined): Promise<boolean> {
+export async function isEmailBlocked(email: string | null | undefined): Promise<boolean> {
   if (!email) return false
   const accessControl = await getAccessControlConfig()
-  return isEmailInDenylist(email, accessControl.blockedSignupDomains)
+  if (isEmailInDenylist(email, accessControl.blockedSignupDomains)) return true
+  const rows = await db
+    .select({ banned: user.banned, banExpires: user.banExpires })
+    .from(user)
+    .where(sql`lower(${user.email}) = ${email.toLowerCase()}`)
+  return rows.some(isBanActive)
 }
 
 /**
