@@ -28,6 +28,7 @@ export type BYOKProviderId =
   | 'prospeo'
   | 'wiza'
   | 'zerobounce'
+  | 'you'
   | 'neverbounce'
   | 'millionverifier'
   | 'datagma'

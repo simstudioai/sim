@@ -17192,6 +17192,41 @@
       "tags": ["marketing", "messaging"]
     },
     {
+      "type": "you",
+      "slug": "you-com",
+      "name": "You.com",
+      "description": "Web search and research with You.com",
+      "longDescription": "Search the web for real-time, LLM-ready results, extract clean content from any URL, and run web or finance research that returns grounded, well-cited answers.",
+      "bgColor": "#0B0B0F",
+      "iconName": "YouIcon",
+      "docsUrl": "https://docs.sim.ai/tools/you",
+      "operations": [
+        {
+          "name": "Search",
+          "description": "Search the web with You.com. Returns LLM-ready web and news results with titles, URLs, descriptions, and query-relevant snippets."
+        },
+        {
+          "name": "Get Contents",
+          "description": "Extract clean page content from one or more URLs with You.com. Returns Markdown and/or HTML plus structured metadata for each page."
+        },
+        {
+          "name": "Research",
+          "description": "Run agentic web research with You.com. Takes a complex question, autonomously runs multiple searches, reads sources, and returns a synthesized, well-cited Markdown answer."
+        },
+        {
+          "name": "Finance Research",
+          "description": "Run agentic financial research with You.com. Returns a synthesized, well-cited answer drawn from SEC filings, earnings reports, and company financials."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "agentic", "llm"]
+    },
+    {
       "type": "youtube",
       "slug": "youtube",
       "name": "YouTube",

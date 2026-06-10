@@ -33,6 +33,7 @@ import {
   SerperIcon,
   TogetherIcon,
   WizaIcon,
+  YouIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
 import { MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
@@ -143,6 +144,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: ParallelIcon,
     description: 'Web search, extraction, and deep research',
     placeholder: 'Enter your Parallel AI API key',
+  },
+  {
+    id: 'you',
+    name: 'You.com',
+    icon: YouIcon,
+    description: 'Web search, content extraction, and research',
+    placeholder: 'Enter your You.com API key',
   },
   {
     id: 'perplexity',
@@ -293,6 +301,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'serper',
       'linkup',
       'parallel_ai',
+      'you',
       'perplexity',
       'jina',
       'google_cloud',

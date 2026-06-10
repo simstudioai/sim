@@ -1,0 +1,150 @@
+---
+title: You.com
+description: Web search and research with You.com
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="you"
+  color="#0B0B0F"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[You.com](https://you.com) provides web search APIs built for AI, letting agents search the web, extract clean content, and generate grounded, well-cited answers from real-time results. Its APIs go beyond a single query, returning clean web and news results, full-page content extraction, and multi-step research with cited sources, including a dedicated mode for financial topics.
+
+With You.com, you can:
+
+- **Search the web and news**: Retrieve fresh, ranked web and news results with titles, URLs, descriptions, and query-relevant snippets
+- **Extract clean page content**: Pull Markdown, HTML, and structured metadata from one or many URLs in a single call
+- **Run agentic research**: Pose a complex question and get a synthesized, well-cited answer that autonomously runs multiple searches and reads across sources
+- **Research financial topics**: Generate cited answers grounded in SEC filings, earnings reports, and company financials
+- **Target and filter results**: Constrain by domain allowlists or blocklists, freshness windows, country, and language, and use search operators like `site:`, `filetype:`, and boolean logic
+- **Tune depth versus speed**: Pick a research effort level (lite, standard, deep, or exhaustive) to balance latency against thoroughness
+
+In Sim, the You.com integration lets your agents search, read, and research the web programmatically. This powers automations such as real-time market and competitor monitoring, lead and account enrichment, content extraction pipelines, and cited research briefs, all as part of your workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Search the web for real-time, LLM-ready results, extract clean content from any URL, and run web or finance research that returns grounded, well-cited answers.
+
+
+
+## Actions
+
+### `you_search`
+
+Search the web with You.com. Returns LLM-ready web and news results with titles, URLs, descriptions, and query-relevant snippets.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query. Supports operators: site:domain.com, filetype:pdf, +term, -term, AND/OR/NOT, lang:en |
+| `count` | number | No | Maximum number of results per section \(1-100, default: 10\) |
+| `offset` | number | No | Pagination offset \(0-9, default: 0\) |
+| `freshness` | string | No | Freshness filter: day, week, month, year, or a YYYY-MM-DDtoYYYY-MM-DD range |
+| `country` | string | No | Two-letter country code to localize results \(e.g., US, GB, JP\) |
+| `language` | string | No | BCP 47 language code \(e.g., EN, FR, DE\). Default: EN |
+| `safesearch` | string | No | Safe search filter level: off, moderate, or strict |
+| `livecrawl` | string | No | Live-crawl sections for full page content: web, news, or all |
+| `include_domains` | string | No | Comma-separated allowlist of domains \(mutually exclusive with exclude_domains\) |
+| `exclude_domains` | string | No | Comma-separated blocklist of domains to exclude from results |
+| `apiKey` | string | Yes | You.com API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `search_uuid` | string | Unique identifier for this search request |
+| `web` | array | Web search results |
+|   ↳ `url` | string | The URL of the result |
+|   ↳ `title` | string | The title of the result |
+|   ↳ `description` | string | Brief summary of the page |
+|   ↳ `snippets` | array | Query-relevant text excerpts from the page |
+|   ↳ `page_age` | string | Publication timestamp \(ISO 8601\) |
+|   ↳ `author` | string | Primary content author |
+|   ↳ `favicon_url` | string | URL of the site's favicon |
+|   ↳ `thumbnail_url` | string | Preview image URL |
+|   ↳ `contents` | json | Full page content \(only when livecrawl is enabled\) |
+| `news` | array | News search results |
+|   ↳ `url` | string | The URL of the article |
+|   ↳ `title` | string | The article headline |
+|   ↳ `description` | string | Content summary |
+|   ↳ `page_age` | string | Publication timestamp \(UTC\) |
+|   ↳ `thumbnail_url` | string | Preview image URL |
+|   ↳ `contents` | json | Full page content \(only when livecrawl is enabled\) |
+
+### `you_contents`
+
+Extract clean page content from one or more URLs with You.com. Returns Markdown and/or HTML plus structured metadata for each page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Yes | Comma-separated list of webpage URLs to extract content from \(up to 100\) |
+| `format` | string | No | Output format: markdown \(default\), html, or both |
+| `crawl_timeout` | number | No | Maximum seconds to wait per page \(1-60, default: 10\) |
+| `apiKey` | string | Yes | You.com API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Extracted content for each requested URL |
+|   ↳ `url` | string | The webpage URL |
+|   ↳ `title` | string | The page title |
+|   ↳ `markdown` | string | Markdown content \(if requested\) |
+|   ↳ `html` | string | HTML content \(if requested\) |
+|   ↳ `metadata` | json | Structured metadata \(site_name, favicon_url\) for each page |
+
+### `you_research`
+
+Run agentic web research with You.com. Takes a complex question, autonomously runs multiple searches, reads sources, and returns a synthesized, well-cited Markdown answer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | The research question or complex query \(up to 40,000 characters\) |
+| `research_effort` | string | No | Depth of research: lite \(fastest\), standard \(default\), deep, or exhaustive \(most thorough\) |
+| `apiKey` | string | Yes | You.com API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | The synthesized research answer \(Markdown with inline citations\) |
+| `content_type` | string | Type of the content field: text or object |
+| `sources` | array | Web sources used to generate the answer |
+|   ↳ `url` | string | The source URL |
+|   ↳ `title` | string | The source title |
+|   ↳ `snippets` | array | Relevant snippets extracted from the source |
+
+### `you_finance`
+
+Run agentic financial research with You.com. Returns a synthesized, well-cited answer drawn from SEC filings, earnings reports, and company financials.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | The finance research question \(up to 40,000 characters\) |
+| `research_effort` | string | No | Depth of research: deep \(default\) or exhaustive \(most thorough\) |
+| `apiKey` | string | Yes | You.com API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | The synthesized finance research answer \(Markdown with inline citations\) |
+| `content_type` | string | Type of the content field: text or object |
+| `sources` | array | Financial sources used to generate the answer |
+|   ↳ `url` | string | The source URL |
+|   ↳ `title` | string | The source title |
+|   ↳ `snippets` | array | Relevant snippets extracted from the source |
+
+

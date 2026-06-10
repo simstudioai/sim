@@ -34,6 +34,7 @@ export const byokProviderIdSchema = z.enum([
   'leadmagic',
   'icypeas',
   'enrow',
+  'you',
 ])
 
 /** Maximum number of keys a workspace may store per provider. */

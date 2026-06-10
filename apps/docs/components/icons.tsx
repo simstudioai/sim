@@ -940,6 +940,34 @@ export function YouTubeIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+export function YouIcon(props: React.SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const gradientId = `you_gradient_${id}`
+
+  return (
+    <svg viewBox='0 0 500 500' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        fill={`url(#${gradientId})`}
+        d='M497.7,265.6v64.3c0,30.9-17.1,59.2-44.4,73.5l-165.2,86.4c-7.4,3.8-15.3,6.5-23.3,8v-113h0c0-65.8,53.2-119.3,118.9-119.3h114,0ZM211.8,11.6c23.9-12.5,52.4-12.5,76.3,0l165.2,86.3c27.3,14.3,44.4,42.6,44.4,73.5v64.3h-114c-65.7,0-118.9-53.4-118.9-119.3v-54.7h-29.7v54.7c0,65.9-53.2,119.3-118.9,119.3h-54.5v29.8h54.5c65.7,0,118.9,53.4,118.9,119.3v113c-8-1.5-15.9-4.2-23.3-8l-165.2-86.4c-27.3-14.3-44.4-42.6-44.4-73.5v-158.4c0-30.9,17.1-59.2,44.4-73.5L211.8,11.6Z'
+      />
+      <defs>
+        <linearGradient
+          id={gradientId}
+          x1='498.1'
+          y1='350.6'
+          x2='2.6'
+          y2='846.3'
+          gradientTransform='translate(0 -348.1)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='.2' stopColor='#a0a4ee' />
+          <stop offset='.8' stopColor='#596ced' />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
 export function PeopleDataLabsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

@@ -319,6 +319,7 @@ import { WorkdayBlock, WorkdayBlockMeta } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock, XBlockMeta } from '@/blocks/blocks/x'
+import { YouBlock, YouBlockMeta } from '@/blocks/blocks/you'
 import { YouTubeBlock, YouTubeBlockMeta } from '@/blocks/blocks/youtube'
 import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
@@ -627,6 +628,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   workflow: WorkflowBlock,
   workflow_input: WorkflowInputBlock,
   x: XBlock,
+  you: YouBlock,
   youtube: YouTubeBlock,
   zendesk: ZendeskBlock,
   zep: ZepBlock,
@@ -871,6 +873,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   wordpress: WordPressBlockMeta,
   workday: WorkdayBlockMeta,
   x: XBlockMeta,
+  you: YouBlockMeta,
   youtube: YouTubeBlockMeta,
   zendesk: ZendeskBlockMeta,
   zep: ZepBlockMeta,

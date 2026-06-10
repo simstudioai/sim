@@ -3700,6 +3700,12 @@ import {
   xWriteTool,
 } from '@/tools/x'
 import {
+  youContentsTool,
+  youFinanceTool,
+  youResearchTool,
+  youSearchTool,
+} from '@/tools/you'
+import {
   youtubeChannelInfoTool,
   youtubeChannelPlaylistsTool,
   youtubeChannelVideosTool,
@@ -4495,6 +4501,10 @@ export const tools: Record<string, ToolConfig> = {
   typeform_create_form: typeformCreateFormTool,
   typeform_update_form: typeformUpdateFormTool,
   typeform_delete_form: typeformDeleteFormTool,
+  you_search: youSearchTool,
+  you_contents: youContentsTool,
+  you_research: youResearchTool,
+  you_finance: youFinanceTool,
   youtube_channel_info: youtubeChannelInfoTool,
   youtube_channel_playlists: youtubeChannelPlaylistsTool,
   youtube_channel_videos: youtubeChannelVideosTool,
