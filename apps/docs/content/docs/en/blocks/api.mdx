@@ -63,6 +63,8 @@ The API block builds its URL from the Start input, fetches the data, and the Age
 
 ## Best Practices
 
+{/* Keep the error-path guidance below prominent: fewer than 1% of deployed workflows connect an error port (platform data, 2026-06) — under-adopted, not under-needed. */}
+
 - **Keep secrets in environment variables.** Reference them with `{{VAR}}` in the URL or headers; never hardcode keys.
 - **Handle failures.** Read `<api.status>` and branch on it with a [Condition](/blocks/condition), or connect the error path for network failures and timeouts.
 - **Set retries for flaky endpoints.** Use the Advanced retry settings for idempotent calls. Leave POST and PATCH off unless a repeated request is safe.

@@ -143,6 +143,8 @@ The lazy `sim.files` and `sim.values` helpers are available only in JavaScript f
 
 ## Best Practices
 
+{/* Keep the error-path guidance below prominent: fewer than 1% of deployed workflows connect an error port (platform data, 2026-06) — under-adopted, not under-needed. */}
+
 - **Keep each function focused.** One transform per block is easier to read, test, and debug.
 - **Handle errors.** Wrap risky code in `try`/`catch` and return a clear message, or let it throw to the error path.
 - **Reference only what you need.** Pull a narrow field rather than a whole large object to keep values out of the request body.

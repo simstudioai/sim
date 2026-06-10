@@ -4,6 +4,7 @@ description: Build your first agent in 10 minutes — a people researcher with w
 pageType: guide
 ---
 
+import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Video } from '@/components/ui/video'
@@ -48,6 +49,11 @@ Build a people research agent in 10 minutes. It takes a name through a chat inte
     Open the **Chat panel**, select `agent1.content` as the output to display, and send: *"John is a software engineer from San Francisco who studied Computer Science at Stanford University."*
 
     The agent searches, then returns what it found.
+
+    {/* Why this callout exists: the largest funnel drop in platform data (2026-06) is created-a-workflow -> first-successful-run, 92% -> 49% — this is the stall point it targets. */}
+    <Callout type="info">
+    If the run doesn't go green, open the output dropdown and read what each block returned — the failure is almost always visible there. The two most common causes are a missing API key on a tool and a reference pointing at a value that isn't there. For the full method, see [tracing a failure backward](/logs-debugging).
+    </Callout>
 
     <div className="mx-auto w-full overflow-hidden rounded-lg">
       <Video src="getting-started/started-4.mp4" width={700} height={450} />
