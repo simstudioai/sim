@@ -246,3 +246,54 @@ export const registerWorkspaceFileContract = defineRouteContract({
     schema: registerWorkspaceFileResponseSchema,
   },
 })
+
+const MAX_EXPORT_TO_DRIVE_FILES = 50
+
+export const exportWorkspaceFilesToDriveBodySchema = z.object({
+  fileIds: z
+    .array(z.string().min(1, 'File ID cannot be empty'))
+    .min(1, 'Select at least one file to export')
+    .max(
+      MAX_EXPORT_TO_DRIVE_FILES,
+      `Cannot export more than ${MAX_EXPORT_TO_DRIVE_FILES} files at once`
+    ),
+  credentialId: z
+    .string({ error: 'Google Drive account is required' })
+    .min(1, 'Google Drive account is required'),
+})
+
+export type ExportWorkspaceFilesToDriveBody = z.input<typeof exportWorkspaceFilesToDriveBodySchema>
+
+const exportedDriveFileSchema = z.object({
+  fileId: z.string(),
+  name: z.string(),
+  driveFileId: z.string(),
+  webViewLink: z.string().optional(),
+})
+
+const failedDriveExportSchema = z.object({
+  fileId: z.string(),
+  name: z.string().optional(),
+  error: z.string(),
+})
+
+const exportWorkspaceFilesToDriveResponseSchema = z.object({
+  success: z.boolean(),
+  exported: z.array(exportedDriveFileSchema),
+  failed: z.array(failedDriveExportSchema),
+})
+
+export type ExportWorkspaceFilesToDriveResponse = z.output<
+  typeof exportWorkspaceFilesToDriveResponseSchema
+>
+
+export const exportWorkspaceFilesToDriveContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/export-to-drive',
+  params: workspaceFilesParamsSchema,
+  body: exportWorkspaceFilesToDriveBodySchema,
+  response: {
+    mode: 'json',
+    schema: exportWorkspaceFilesToDriveResponseSchema,
+  },
+})

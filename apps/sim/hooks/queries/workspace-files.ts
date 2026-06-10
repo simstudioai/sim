@@ -9,6 +9,8 @@ import { requestJson } from '@/lib/api/client/request'
 import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   deleteWorkspaceFileContract,
+  type ExportWorkspaceFilesToDriveResponse,
+  exportWorkspaceFilesToDriveContract,
   listWorkspaceFilesContract,
   registerWorkspaceFileContract,
   renameWorkspaceFileContract,
@@ -569,6 +571,30 @@ export function useDeleteWorkspaceFile() {
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+    },
+  })
+}
+
+/**
+ * Export workspace files to the user's Google Drive (My Drive root) using a
+ * connected Google Drive OAuth credential. Does not mutate workspace files, so
+ * no cache invalidation is needed — the result carries the created Drive links.
+ */
+interface ExportFilesToDriveParams {
+  workspaceId: string
+  fileIds: string[]
+  credentialId: string
+}
+
+export function useExportWorkspaceFilesToDrive() {
+  return useMutation<ExportWorkspaceFilesToDriveResponse, Error, ExportFilesToDriveParams>({
+    mutationFn: ({ workspaceId, fileIds, credentialId }: ExportFilesToDriveParams) =>
+      requestJson(exportWorkspaceFilesToDriveContract, {
+        params: { id: workspaceId },
+        body: { fileIds, credentialId },
+      }),
+    onError: (error) => {
+      logger.error('Failed to export files to Google Drive:', error)
     },
   })
 }

@@ -148,6 +148,7 @@ type ConnectOAuthModalConnectProps = ConnectOAuthModalBaseProps & {
     | { origin: 'workflow'; workflowId: string }
     | { origin: 'kb-connectors'; knowledgeBaseId: string; connectorType?: string }
     | { origin: 'integrations' }
+    | { origin: 'files' }
   )
 
 /**
@@ -319,6 +320,8 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           }
         } else if (props.origin === 'workflow') {
           returnContext = { ...baseContext, origin: 'workflow', workflowId: props.workflowId }
+        } else if (props.origin === 'files') {
+          returnContext = { ...baseContext, origin: 'files' }
         } else {
           returnContext = { ...baseContext, origin: 'integrations' }
         }

@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { googleDriveUploadContract } from '@/lib/api/contracts/tools/google'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { DriveUploadError, uploadBufferToDrive } from '@/lib/google-drive/upload-to-drive'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -19,35 +19,6 @@ import {
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleDriveUploadAPI')
-
-const GOOGLE_DRIVE_API_BASE = 'https://www.googleapis.com/upload/drive/v3/files'
-
-/**
- * Build multipart upload body for Google Drive API
- */
-function buildMultipartBody(
-  metadata: Record<string, any>,
-  fileBuffer: Buffer,
-  mimeType: string,
-  boundary: string
-): string {
-  const parts: string[] = []
-
-  parts.push(`--${boundary}`)
-  parts.push('Content-Type: application/json; charset=UTF-8')
-  parts.push('')
-  parts.push(JSON.stringify(metadata))
-
-  parts.push(`--${boundary}`)
-  parts.push(`Content-Type: ${mimeType}`)
-  parts.push('Content-Transfer-Encoding: base64')
-  parts.push('')
-  parts.push(fileBuffer.toString('base64'))
-
-  parts.push(`--${boundary}--`)
-
-  return parts.join('\r\n')
-}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -159,23 +130,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    const metadata: {
-      name: string
-      mimeType: string
-      parents?: string[]
-    } = {
-      name: validatedData.fileName,
-      mimeType: requestedMimeType,
-    }
-
-    if (validatedData.folderId && validatedData.folderId.trim() !== '') {
-      metadata.parents = [validatedData.folderId.trim()]
-    }
-
-    const boundary = `boundary_${Date.now()}_${generateShortId(7)}`
-
-    const multipartBody = buildMultipartBody(metadata, fileBuffer, uploadMimeType, boundary)
-
     logger.info(`[${requestId}] Uploading to Google Drive via multipart upload`, {
       fileName: validatedData.fileName,
       size: fileBuffer.length,
@@ -183,74 +137,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       requestedMimeType,
     })
 
-    const uploadResponse = await fetch(
-      `${GOOGLE_DRIVE_API_BASE}?uploadType=multipart&supportsAllDrives=true`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${validatedData.accessToken}`,
-          'Content-Type': `multipart/related; boundary=${boundary}`,
-          'Content-Length': Buffer.byteLength(multipartBody, 'utf-8').toString(),
-        },
-        body: multipartBody,
-      }
-    )
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text()
-      logger.error(`[${requestId}] Google Drive API error:`, {
-        status: uploadResponse.status,
-        statusText: uploadResponse.statusText,
-        error: errorText,
+    let finalFile
+    try {
+      finalFile = await uploadBufferToDrive({
+        accessToken: validatedData.accessToken,
+        name: validatedData.fileName,
+        mimeType: requestedMimeType,
+        uploadMimeType,
+        buffer: fileBuffer,
+        folderId: validatedData.folderId ?? undefined,
       })
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Google Drive API error: ${uploadResponse.statusText}`,
-        },
-        { status: uploadResponse.status }
-      )
-    }
-
-    const uploadData = await uploadResponse.json()
-    const fileId = uploadData.id
-
-    logger.info(`[${requestId}] File uploaded successfully`, { fileId })
-
-    if (GOOGLE_WORKSPACE_MIME_TYPES.includes(requestedMimeType)) {
-      logger.info(`[${requestId}] Updating file name to ensure it persists after conversion`)
-
-      const updateNameResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${validatedData.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: validatedData.fileName,
-          }),
-        }
-      )
-
-      if (!updateNameResponse.ok) {
-        logger.warn(
-          `[${requestId}] Failed to update filename after conversion, but content was uploaded`
-        )
+    } catch (error) {
+      if (error instanceof DriveUploadError) {
+        logger.error(`[${requestId}] Google Drive API error:`, {
+          status: error.status,
+          error: error.message,
+        })
+        return NextResponse.json({ success: false, error: error.message }, { status: error.status })
       }
+      throw error
     }
-
-    const finalFileResponse = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents`,
-      {
-        headers: {
-          Authorization: `Bearer ${validatedData.accessToken}`,
-        },
-      }
-    )
-
-    const finalFile = await finalFileResponse.json()
 
     logger.info(`[${requestId}] Upload complete`, {
       fileId: finalFile.id,

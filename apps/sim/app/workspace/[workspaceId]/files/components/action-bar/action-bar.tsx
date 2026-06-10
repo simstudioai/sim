@@ -13,6 +13,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { Download } from '@/components/emcn/icons'
+import { GoogleDriveIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
@@ -20,6 +21,7 @@ import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-optio
 interface FilesActionBarProps {
   selectedCount: number
   onDownload?: () => void
+  onExportToDrive?: () => void
   onMove?: (optionValue: string) => void
   moveOptions?: MoveOptionNode[]
   onDelete?: () => void
@@ -30,6 +32,7 @@ interface FilesActionBarProps {
 export function FilesActionBar({
   selectedCount,
   onDownload,
+  onExportToDrive,
   onMove,
   moveOptions,
   onDelete,
@@ -55,21 +58,49 @@ export function FilesActionBar({
                 {selectedCount} selected
               </span>
               <div className='flex items-center gap-[5px]'>
-                {onDownload && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={onDownload}
-                        disabled={isLoading}
-                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                      >
-                        <Download className='size-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>Download</Tooltip.Content>
-                  </Tooltip.Root>
-                )}
+                {onDownload &&
+                  (onExportToDrive ? (
+                    <DropdownMenu>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              disabled={isLoading}
+                              className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                            >
+                              <Download className='size-[12px]' />
+                            </Button>
+                          </DropdownMenuTrigger>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>Export</Tooltip.Content>
+                      </Tooltip.Root>
+                      <DropdownMenuContent side='top' align='center'>
+                        <DropdownMenuItem onSelect={onDownload}>
+                          <Download />
+                          Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={onExportToDrive}>
+                          <GoogleDriveIcon />
+                          Google Drive
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <Button
+                          variant='ghost'
+                          onClick={onDownload}
+                          disabled={isLoading}
+                          className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                        >
+                          <Download className='size-[12px]' />
+                        </Button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top'>Download</Tooltip.Content>
+                    </Tooltip.Root>
+                  ))}
                 {onMove && moveOptions && (
                   <DropdownMenu>
                     <Tooltip.Root>
