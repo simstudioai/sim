@@ -55,7 +55,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
     const { tableId, rowId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'read')
@@ -124,7 +124,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     const { tableId, rowId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'write')
@@ -221,7 +221,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     const { tableId, rowId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'write')

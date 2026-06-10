@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import {
@@ -303,6 +304,11 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
             jobId,
             error: errorMessage,
           })
+          // Release the reserved slot in case the job never reached
+          // executeWorkflowJob (e.g. startJob threw) and thus never finalized a
+          // LoggingSession to free it. Idempotent: a no-op when the job already
+          // finalized and released.
+          await releaseExecutionSlot(executionId)
           try {
             await jobQueue.markJobFailed(jobId, errorMessage)
           } catch (markFailedError) {
@@ -328,6 +334,9 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     )
   } catch (error: any) {
     asyncLogger.error('Failed to queue async execution', error)
+    // Enqueue failed: no background job will run or finalize a session, so
+    // release the admission slot reserved during preprocessing.
+    await releaseExecutionSlot(executionId)
     return NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 })
   }
 }
@@ -373,6 +382,10 @@ async function handleExecutePost(
     return NextResponse.json({ error: callChainError }, { status: 409 })
   }
   const callChain = buildNextCallChain(incomingCallChain, workflowId)
+
+  // Hoisted so the outer catch can release a reserved billing slot when a throw
+  // after preprocessExecution exits before the stream takes over its release.
+  let executionId = ''
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
@@ -633,8 +646,7 @@ async function handleExecutePost(
       )
     }
 
-    const executionId =
-      isClientSession && requestedExecutionId ? requestedExecutionId : generateId()
+    executionId = isClientSession && requestedExecutionId ? requestedExecutionId : generateId()
     reqLogger = reqLogger.withMetadata({ userId, executionId })
 
     reqLogger.info('Starting server-side execution', {
@@ -703,7 +715,11 @@ async function handleExecutePost(
       )
     }
 
+    // Preprocessing reserved an admission slot (released when the LoggingSession
+    // finalizes). Any path that exits before execution starts must release it
+    // here, or the slot leaks until its TTL and wrongly throttles later runs.
     if (req.signal.aborted) {
+      await releaseExecutionSlot(executionId)
       return clientCancelledResponse()
     }
 
@@ -712,12 +728,14 @@ async function handleExecutePost(
 
     if (!workflow.workspaceId) {
       reqLogger.error('Workflow has no workspaceId')
+      await releaseExecutionSlot(executionId)
       return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
     }
     const workspaceId = workflow.workspaceId
     reqLogger = reqLogger.withMetadata({ workspaceId, userId: actorUserId })
 
     if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workspaceId) {
+      await releaseExecutionSlot(executionId)
       return NextResponse.json(
         { error: 'API key is not authorized for this workspace' },
         { status: 403 }
@@ -751,6 +769,7 @@ async function handleExecutePost(
     let processedInput = input
     try {
       if (req.signal.aborted) {
+        await releaseExecutionSlot(executionId)
         return clientCancelledResponse()
       }
       const workflowData = shouldUseDraftState
@@ -758,6 +777,7 @@ async function handleExecutePost(
         : await loadDeployedWorkflowState(workflowId, workspaceId)
 
       if (req.signal.aborted) {
+        await releaseExecutionSlot(executionId)
         return clientCancelledResponse()
       }
 
@@ -1154,6 +1174,7 @@ async function handleExecutePost(
     })
     if (!metaInitialized) {
       timeoutController.cleanup()
+      await releaseExecutionSlot(executionId)
       return NextResponse.json(
         { error: 'Run buffer temporarily unavailable' },
         { status: 503, headers: { 'X-Execution-Id': executionId } }
@@ -1712,6 +1733,9 @@ async function handleExecutePost(
     })
   } catch (error: any) {
     reqLogger.error('Failed to start workflow execution:', error)
+    // Release a reserved billing slot if a throw exited before the stream took
+    // over its release (idempotent; no-op when never reserved).
+    if (executionId) await releaseExecutionSlot(executionId)
     return NextResponse.json(
       { error: error.message || 'Failed to start workflow execution' },
       { status: 500 }
