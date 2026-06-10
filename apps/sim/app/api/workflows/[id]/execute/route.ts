@@ -378,6 +378,10 @@ async function handleExecutePost(
   }
   const callChain = buildNextCallChain(incomingCallChain, workflowId)
 
+  // Hoisted so the outer catch can release a reserved billing slot when a throw
+  // after preprocessExecution exits before the stream takes over its release.
+  let executionId = ''
+
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
     const isMcpBridgeRequest =
@@ -637,8 +641,7 @@ async function handleExecutePost(
       )
     }
 
-    const executionId =
-      isClientSession && requestedExecutionId ? requestedExecutionId : generateId()
+    executionId = isClientSession && requestedExecutionId ? requestedExecutionId : generateId()
     reqLogger = reqLogger.withMetadata({ userId, executionId })
 
     reqLogger.info('Starting server-side execution', {
@@ -1166,6 +1169,7 @@ async function handleExecutePost(
     })
     if (!metaInitialized) {
       timeoutController.cleanup()
+      await releaseExecutionSlot(executionId)
       return NextResponse.json(
         { error: 'Run buffer temporarily unavailable' },
         { status: 503, headers: { 'X-Execution-Id': executionId } }
@@ -1724,6 +1728,9 @@ async function handleExecutePost(
     })
   } catch (error: any) {
     reqLogger.error('Failed to start workflow execution:', error)
+    // Release a reserved billing slot if a throw exited before the stream took
+    // over its release (idempotent; no-op when never reserved).
+    if (executionId) await releaseExecutionSlot(executionId)
     return NextResponse.json(
       { error: error.message || 'Failed to start workflow execution' },
       { status: 500 }
