@@ -9,6 +9,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
 } from '@/components/emcn'
 import {
   useGenerateVersionDescription,
@@ -98,36 +99,31 @@ export function VersionDescriptionModal({
           <ChipModalField
             type='custom'
             title={
-              <div className='flex items-center justify-between'>
-                <span>
-                  {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
-                  <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
-                </span>
-                <Chip
-                  variant='filled'
-                  flush
-                  onClick={handleGenerateDescription}
-                  disabled={isGenerating || updateMutation.isPending}
-                >
-                  {isGenerating ? 'Generating...' : 'Generate'}
-                </Chip>
-              </div>
+              <span>
+                {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
+                <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
+              </span>
             }
-            flush
+            hint={`${description.length}/2000`}
           >
-            <div className='flex flex-col gap-1.5'>
-              <textarea
-                placeholder='Describe the changes in this deployment version...'
-                className='min-h-[120px] w-full resize-none rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-2 font-medium font-sans text-[var(--text-primary)] text-sm outline-none transition-colors placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]'
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                maxLength={2000}
-                disabled={isGenerating}
-              />
-              <p className='text-right text-[var(--text-tertiary)] text-xs'>
-                {description.length}/2000
-              </p>
+            <div className='flex justify-end'>
+              <Chip
+                flush
+                onClick={handleGenerateDescription}
+                disabled={isGenerating || updateMutation.isPending}
+              >
+                {isGenerating ? 'Generating...' : 'Generate'}
+              </Chip>
             </div>
+            <ChipTextarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder='Describe the changes in this deployment version...'
+              maxLength={2000}
+              disabled={isGenerating}
+              className='min-h-[120px]'
+              aria-label='Version description'
+            />
           </ChipModalField>
           <ChipModalError>
             {updateMutation.error?.message || generateMutation.error?.message}
@@ -135,7 +131,6 @@ export function VersionDescriptionModal({
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={handleCloseAttempt}
             disabled={updateMutation.isPending || isGenerating}
@@ -165,7 +160,7 @@ export function VersionDescriptionModal({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowUnsavedChangesAlert(false)}>
+          <Chip flush onClick={() => setShowUnsavedChangesAlert(false)}>
             Keep Editing
           </Chip>
           <Chip variant='destructive' flush onClick={handleDiscardChanges}>

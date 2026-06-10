@@ -378,7 +378,7 @@ export function SettingsSidebar({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleCancelDiscard}>
+          <Chip flush onClick={handleCancelDiscard}>
             Keep editing
           </Chip>
           <Chip variant='destructive' flush onClick={handleConfirmDiscard}>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Info, Plus } from 'lucide-react'
+import { ArrowLeft, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   ArrowRight,
@@ -14,12 +14,12 @@ import {
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
-  Label,
   Search,
-  Tooltip,
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { cn } from '@/lib/core/utils/cn'
@@ -31,19 +31,17 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
+import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
-import type { ConfigFieldValue } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { getBlock } from '@/blocks'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
-import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
+import type { ConnectorConfig } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import type { SelectorKey } from '@/hooks/selectors/types'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_REGISTRY)
@@ -250,12 +248,10 @@ export function AddConnectorModal({
         </ChipModalHeader>
 
         <ChipModalBody
-          className={
-            step === 'select-type' ? 'max-h-[520px] pt-2 pb-3' : 'h-[80vh] max-h-[560px] pb-3'
-          }
+          className={step === 'select-type' ? 'max-h-[520px] pb-0' : 'h-[80vh] max-h-[560px]'}
         >
           {step === 'select-type' ? (
-            <div className='flex min-h-0 flex-col gap-2.5'>
+            <div className='flex min-h-0 flex-col px-2'>
               <ChipInput
                 icon={Search}
                 placeholder='Search sources...'
@@ -263,7 +259,7 @@ export function AddConnectorModal({
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <div className='max-h-[390px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
-                <div className='flex flex-col gap-0.5 pr-1'>
+                <div className='flex flex-col gap-0.5 pt-2.5 pr-1 pb-4.5'>
                   {filteredEntries.map(([type, config]) => (
                     <ConnectorTypeCard
                       key={type}
@@ -283,14 +279,16 @@ export function AddConnectorModal({
               </div>
             </div>
           ) : connectorConfig ? (
-            <div className='flex flex-col gap-3'>
+            <>
               {isApiKeyMode ? (
-                <div className='flex flex-col gap-2'>
-                  <Label>
-                    {connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
+                <ChipModalField
+                  type='custom'
+                  title={
+                    connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
                       ? connectorConfig.auth.label
-                      : 'API Key'}
-                  </Label>
+                      : 'API Key'
+                  }
+                >
                   <ChipInput
                     type={apiKeyFocused ? 'text' : 'password'}
                     autoComplete='new-password'
@@ -304,10 +302,9 @@ export function AddConnectorModal({
                         : 'Enter API key'
                     }
                   />
-                </div>
+                </ChipModalField>
               ) : (
-                <div className='flex flex-col gap-2'>
-                  <Label>Account</Label>
+                <ChipModalField type='custom' title='Account'>
                   <ChipCombobox
                     options={[
                       ...credentials.map(
@@ -335,144 +332,65 @@ export function AddConnectorModal({
                     placeholder={`Select ${connectorConfig.name} account`}
                     isLoading={credentialsLoading}
                   />
-                </div>
+                </ChipModalField>
               )}
 
-              {connectorConfig.configFields.map((field) => {
-                if (!isFieldVisible(field)) return null
-
-                const canonicalId = field.canonicalParamId
-                const hasCanonicalPair =
-                  canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
-
-                return (
-                  <div key={field.id} className='flex flex-col gap-2'>
-                    <div className='flex items-center justify-between'>
-                      <div className='flex items-center gap-1'>
-                        <Label>
-                          {field.title}
-                          {field.required && <span className='ml-0.5'>*</span>}
-                        </Label>
-                        {field.description && (
-                          <Tooltip.Root>
-                            <Tooltip.Trigger asChild>
-                              <Button
-                                type='button'
-                                variant='ghost'
-                                className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
-                                aria-label={`About ${field.title}`}
-                              >
-                                <Info className='size-[12px]' />
-                              </Button>
-                            </Tooltip.Trigger>
-                            <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
-                          </Tooltip.Root>
-                        )}
-                      </div>
-                      {hasCanonicalPair && canonicalId && (
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <Button
-                              type='button'
-                              variant='ghost'
-                              className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
-                              onClick={() => toggleCanonicalMode(canonicalId)}
-                            >
-                              <ArrowLeftRight className='size-[12px]' />
-                            </Button>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content side='top'>
-                            {field.mode === 'basic'
-                              ? 'Switch to manual input'
-                              : 'Switch to selector'}
-                          </Tooltip.Content>
-                        </Tooltip.Root>
-                      )}
-                    </div>
-                    {field.type === 'selector' && field.selectorKey ? (
-                      <ConnectorSelectorField
-                        field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
-                        value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
-                        onChange={(value: ConfigFieldValue) => handleFieldChange(field.id, value)}
-                        credentialId={effectiveCredentialId}
-                        sourceConfig={sourceConfig}
-                        configFields={connectorConfig.configFields}
-                        canonicalModes={canonicalModes}
-                        disabled={isCreating}
-                      />
-                    ) : field.type === 'dropdown' && field.options ? (
-                      <ChipCombobox
-                        options={field.options.map((opt) => ({
-                          label: opt.label,
-                          value: opt.id,
-                        }))}
-                        value={
-                          typeof sourceConfig[field.id] === 'string'
-                            ? (sourceConfig[field.id] as string) || undefined
-                            : undefined
-                        }
-                        onChange={(value) => handleFieldChange(field.id, value)}
-                        placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
-                      />
-                    ) : (
-                      <ChipInput
-                        value={
-                          Array.isArray(sourceConfig[field.id])
-                            ? (sourceConfig[field.id] as string[]).join(', ')
-                            : (sourceConfig[field.id] as string) || ''
-                        }
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
-                      />
-                    )}
-                  </div>
-                )
-              })}
+              <ConnectorConfigFields
+                connectorConfig={connectorConfig}
+                sourceConfig={sourceConfig}
+                credentialId={effectiveCredentialId}
+                canonicalGroups={canonicalGroups}
+                canonicalModes={canonicalModes}
+                isFieldVisible={isFieldVisible}
+                onFieldChange={handleFieldChange}
+                onToggleCanonicalMode={toggleCanonicalMode}
+                disabled={isCreating}
+              />
 
               {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
-                <div className='flex flex-col gap-2'>
-                  <Label>Metadata Tags</Label>
-                  {connectorConfig.tagDefinitions.map((tagDef) => (
-                    <div
-                      key={tagDef.id}
-                      role='checkbox'
-                      aria-checked={!disabledTagIds.has(tagDef.id)}
-                      tabIndex={0}
-                      className='flex cursor-pointer items-center gap-2 rounded-sm p-0.5 text-small'
-                      onClick={() => toggleTagDefinition(tagDef.id)}
-                      onKeyDown={(event) => {
-                        if (event.target !== event.currentTarget) return
-                        handleKeyboardActivation(event, () => toggleTagDefinition(tagDef.id))
-                      }}
-                    >
-                      <Checkbox
-                        checked={!disabledTagIds.has(tagDef.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        onCheckedChange={(checked) => {
-                          setDisabledTagIds((prev) => {
-                            const next = new Set(prev)
-                            if (checked) {
-                              next.delete(tagDef.id)
-                            } else {
-                              next.add(tagDef.id)
-                            }
-                            return next
-                          })
+                <ChipModalField type='custom' title='Metadata Tags'>
+                  <div className='flex flex-col gap-2'>
+                    {connectorConfig.tagDefinitions.map((tagDef) => (
+                      <div
+                        key={tagDef.id}
+                        role='checkbox'
+                        aria-checked={!disabledTagIds.has(tagDef.id)}
+                        tabIndex={0}
+                        className='flex cursor-pointer items-center gap-2 rounded-sm p-0.5 text-small'
+                        onClick={() => toggleTagDefinition(tagDef.id)}
+                        onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget) return
+                          handleKeyboardActivation(event, () => toggleTagDefinition(tagDef.id))
                         }}
-                      />
-                      <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
-                        {tagDef.displayName}
-                      </span>
-                      <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
-                        ({tagDef.fieldType})
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                      >
+                        <Checkbox
+                          checked={!disabledTagIds.has(tagDef.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={(checked) => {
+                            setDisabledTagIds((prev) => {
+                              const next = new Set(prev)
+                              if (checked) {
+                                next.delete(tagDef.id)
+                              } else {
+                                next.add(tagDef.id)
+                              }
+                              return next
+                            })
+                          }}
+                        />
+                        <span className='min-w-0 flex-1 truncate text-[var(--text-primary)]'>
+                          {tagDef.displayName}
+                        </span>
+                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                          ({tagDef.fieldType})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </ChipModalField>
               )}
 
-              <div className='flex flex-col gap-2'>
-                <Label>Sync Frequency</Label>
+              <ChipModalField type='custom' title='Sync Frequency'>
                 <ButtonGroup
                   value={String(syncInterval)}
                   onValueChange={(val) => setSyncInterval(Number(val))}
@@ -488,18 +406,16 @@ export function AddConnectorModal({
                     </ButtonGroupItem>
                   ))}
                 </ButtonGroup>
-              </div>
+              </ChipModalField>
 
-              {error && (
-                <p className='text-[var(--text-error)] text-caption leading-tight'>{error}</p>
-              )}
-            </div>
+              <ChipModalError>{error}</ChipModalError>
+            </>
           ) : null}
         </ChipModalBody>
 
         {step === 'configure' && (
           <ChipModalFooter>
-            <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isCreating}>
+            <Chip flush onClick={() => onOpenChange(false)} disabled={isCreating}>
               Cancel
             </Chip>
             <Chip
@@ -570,8 +486,8 @@ function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
         </div>
       </div>
       <div className='flex min-w-0 flex-1 flex-col'>
-        <span className='truncate text-[14px] text-[var(--text-body)]'>{config.name}</span>
-        <span className='truncate text-[12px] text-[var(--text-muted)]'>{config.description}</span>
+        <span className='truncate text-[var(--text-body)] text-sm'>{config.name}</span>
+        <span className='truncate text-[var(--text-muted)] text-caption'>{config.description}</span>
       </div>
       <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
     </button>

@@ -241,7 +241,7 @@ export const MessageActions = memo(function MessageActions({
       >
         <ChipModalHeader onClose={() => handleModalClose(false)}>Give feedback</ChipModalHeader>
         <ChipModalBody>
-          <div className='flex items-start justify-between gap-2 px-2 pt-1'>
+          <div className='flex items-start justify-between gap-2 px-2'>
             <p className='font-medium text-[var(--text-secondary)] text-sm'>
               {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
             </p>
@@ -280,7 +280,7 @@ export const MessageActions = memo(function MessageActions({
           />
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => handleModalClose(false)}>
+          <Chip flush onClick={() => handleModalClose(false)}>
             Cancel
           </Chip>
           <Chip variant='primary' flush onClick={handleSubmitFeedback}>

@@ -25,7 +25,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Loader,
-  Skeleton,
   Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -190,22 +189,7 @@ export function ConnectorsSection({
       {error && <p className='mt-2 text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
 
       {isLoading ? (
-        <div className='mt-2 flex flex-col gap-1'>
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className='rounded-lg px-2 py-2'>
-              <div className='flex items-center gap-2.5'>
-                <Skeleton className='size-9 flex-shrink-0 rounded-lg' />
-                <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                  <div className='flex items-center gap-2'>
-                    <Skeleton className='h-[14px] w-[100px]' />
-                    <Skeleton className='h-[18px] w-[52px] rounded-full' />
-                  </div>
-                  <Skeleton className='h-[12px] w-[180px]' />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className='mt-2' />
       ) : connectors.length === 0 ? (
         <p className='mt-2 text-[var(--text-muted)] text-small'>
           No connected sources yet. Connect an external source to automatically sync documents.
@@ -266,7 +250,7 @@ export function ConnectorsSection({
           </div>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={closeDeleteModal} disabled={isDeleting}>
+          <Chip flush onClick={closeDeleteModal} disabled={isDeleting}>
             Cancel
           </Chip>
           <Chip

@@ -201,7 +201,7 @@ export function CustomTools() {
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowDeleteDialog(false)}>
+          <Chip flush onClick={() => setShowDeleteDialog(false)}>
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={handleDeleteTool}>

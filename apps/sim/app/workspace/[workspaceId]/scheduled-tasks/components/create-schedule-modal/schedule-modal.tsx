@@ -11,9 +11,10 @@ import {
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  ChipTextarea,
   DatePicker,
   TimePicker,
 } from '@/components/emcn'
@@ -216,10 +217,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
     ]
   )
 
-  const showTimezone = useMemo(
-    () => scheduleType !== 'minutes' && scheduleType !== 'hourly',
-    [scheduleType]
-  )
+  const showTimezone = scheduleType !== 'minutes' && scheduleType !== 'hourly'
 
   const resolvedTimezone = showTimezone ? timezone : 'UTC'
 
@@ -233,14 +231,12 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
     }
   }, [computedCron, resolvedTimezone])
 
-  const isFormValid = useMemo(
-    () =>
-      title.trim() &&
+  const isFormValid = Boolean(
+    title.trim() &&
       prompt.trim() &&
       computedCron &&
       schedulePreview &&
-      !('error' in schedulePreview),
-    [title, prompt, computedCron, schedulePreview]
+      !('error' in schedulePreview)
   )
 
   const resetForm = () => {
@@ -262,9 +258,19 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
     setSubmitError(null)
   }
 
+  /**
+   * Single close/open handler for every close path (footer Cancel, header X,
+   * Esc, and overlay click). The create-mode instance stays mounted between
+   * opens, so any close must also reset the draft to avoid stale values
+   * reappearing on the next open.
+   */
+  const handleOpenChange = (nextOpen: boolean) => {
+    onOpenChange(nextOpen)
+    if (!nextOpen) resetForm()
+  }
+
   const handleClose = () => {
-    onOpenChange(false)
-    resetForm()
+    handleOpenChange(false)
   }
 
   const handleSubmit = async () => {
@@ -306,213 +312,205 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
   const modalTitle = isEditing ? 'Edit scheduled task' : 'Create new scheduled task'
 
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle={modalTitle} size='lg'>
-      <ChipModalHeader onClose={() => onOpenChange(false)}>{modalTitle}</ChipModalHeader>
-      <ChipModalBody className='max-h-[70vh] overflow-y-auto'>
-        <div className='flex flex-col gap-4.5'>
-          <div className='flex flex-col gap-2'>
-            <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>
+    <ChipModal open={open} onOpenChange={handleOpenChange} srTitle={modalTitle} size='lg'>
+      <ChipModalHeader onClose={handleClose}>{modalTitle}</ChipModalHeader>
+      <ChipModalBody>
+        <ChipModalField
+          type='input'
+          title='Title'
+          value={title}
+          onChange={(value) => {
+            setTitle(value)
+            if (submitError) setSubmitError(null)
+          }}
+          placeholder='e.g., Daily report generation'
+          autoComplete='off'
+          onSubmit={handleSubmit}
+        />
+
+        <ChipModalField
+          type='textarea'
+          title='Task description'
+          value={prompt}
+          onChange={(value) => {
+            setPrompt(value)
+            if (submitError) setSubmitError(null)
+          }}
+          placeholder='Describe what this scheduled task should do...'
+          minHeight={80}
+        />
+
+        <ChipModalField type='custom' title='Run frequency'>
+          <ChipCombobox
+            options={SCHEDULE_TYPE_OPTIONS}
+            value={scheduleType}
+            onChange={(v) => setScheduleType(v as ScheduleType)}
+            placeholder='Select frequency'
+          />
+        </ChipModalField>
+
+        {scheduleType === 'minutes' && (
+          <ChipModalField type='custom' title='Interval (minutes)'>
             <ChipInput
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value)
-                if (submitError) setSubmitError(null)
-              }}
-              placeholder='e.g., Daily report generation'
+              type='number'
+              value={minutesInterval}
+              onChange={(e) => setMinutesInterval(e.target.value)}
+              placeholder='15'
+              min={1}
+              max={1440}
+            />
+          </ChipModalField>
+        )}
+
+        {scheduleType === 'hourly' && (
+          <ChipModalField type='custom' title='Minute of hour'>
+            <ChipInput
+              type='number'
+              value={hourlyMinute}
+              onChange={(e) => setHourlyMinute(e.target.value)}
+              placeholder='0'
+              min={0}
+              max={59}
+            />
+          </ChipModalField>
+        )}
+
+        {scheduleType === 'daily' && (
+          <ChipModalField type='custom' title='Time'>
+            <TimePicker value={dailyTime} onChange={setDailyTime} />
+          </ChipModalField>
+        )}
+
+        {scheduleType === 'weekly' && (
+          <div className='flex gap-3'>
+            <ChipModalField type='custom' title='Day of week' className='flex-1'>
+              <ChipCombobox options={WEEKDAY_OPTIONS} value={weeklyDay} onChange={setWeeklyDay} />
+            </ChipModalField>
+            <ChipModalField type='custom' title='Time' className='flex-1'>
+              <TimePicker value={weeklyDayTime} onChange={setWeeklyDayTime} />
+            </ChipModalField>
+          </div>
+        )}
+
+        {scheduleType === 'monthly' && (
+          <div className='flex gap-3'>
+            <ChipModalField type='custom' title='Day of month' className='flex-1'>
+              <ChipInput
+                type='number'
+                value={monthlyDay}
+                onChange={(e) => setMonthlyDay(e.target.value)}
+                placeholder='1'
+                min={1}
+                max={31}
+              />
+            </ChipModalField>
+            <ChipModalField type='custom' title='Time' className='flex-1'>
+              <TimePicker value={monthlyTime} onChange={setMonthlyTime} />
+            </ChipModalField>
+          </div>
+        )}
+
+        {scheduleType === 'custom' && (
+          <ChipModalField type='custom' title='Cron expression'>
+            <ChipInput
+              value={cronExpression}
+              onChange={(e) => setCronExpression(e.target.value)}
+              placeholder='0 9 * * *'
+              inputClassName='font-mono'
               autoComplete='off'
             />
-          </div>
+          </ChipModalField>
+        )}
 
-          <div className='flex flex-col gap-2'>
-            <p className='font-medium text-[var(--text-secondary)] text-sm'>Task description</p>
-            <ChipTextarea
-              value={prompt}
-              onChange={(e) => {
-                setPrompt(e.target.value)
-                if (submitError) setSubmitError(null)
-              }}
-              placeholder='Describe what this scheduled task should do...'
-              className='min-h-[80px]'
-            />
-          </div>
-
-          <div className='flex flex-col gap-2'>
-            <p className='font-medium text-[var(--text-secondary)] text-sm'>Run frequency</p>
+        {showTimezone && (
+          <ChipModalField type='custom' title='Timezone'>
             <ChipCombobox
-              options={SCHEDULE_TYPE_OPTIONS}
-              value={scheduleType}
-              onChange={(v) => setScheduleType(v as ScheduleType)}
-              placeholder='Select frequency'
+              options={TIMEZONE_OPTIONS}
+              value={timezone}
+              onChange={setTimezone}
+              searchable
+              searchPlaceholder='Search timezones...'
+              maxHeight={240}
             />
-          </div>
+          </ChipModalField>
+        )}
 
-          {scheduleType === 'minutes' && (
-            <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Interval (minutes)</p>
-              <ChipInput
-                type='number'
-                value={minutesInterval}
-                onChange={(e) => setMinutesInterval(e.target.value)}
-                placeholder='15'
-                min={1}
-                max={1440}
-              />
-            </div>
-          )}
-
-          {scheduleType === 'hourly' && (
-            <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Minute of hour</p>
-              <ChipInput
-                type='number'
-                value={hourlyMinute}
-                onChange={(e) => setHourlyMinute(e.target.value)}
-                placeholder='0'
-                min={0}
-                max={59}
-              />
-            </div>
-          )}
-
-          {scheduleType === 'daily' && (
-            <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
-              <TimePicker value={dailyTime} onChange={setDailyTime} />
-            </div>
-          )}
-
-          {scheduleType === 'weekly' && (
-            <div className='flex gap-3'>
-              <div className='flex flex-1 flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of week</p>
-                <ChipCombobox options={WEEKDAY_OPTIONS} value={weeklyDay} onChange={setWeeklyDay} />
-              </div>
-              <div className='flex flex-1 flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
-                <TimePicker value={weeklyDayTime} onChange={setWeeklyDayTime} />
-              </div>
-            </div>
-          )}
-
-          {scheduleType === 'monthly' && (
-            <div className='flex gap-3'>
-              <div className='flex flex-1 flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of month</p>
-                <ChipInput
-                  type='number'
-                  value={monthlyDay}
-                  onChange={(e) => setMonthlyDay(e.target.value)}
-                  placeholder='1'
-                  min={1}
-                  max={31}
-                />
-              </div>
-              <div className='flex flex-1 flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
-                <TimePicker value={monthlyTime} onChange={setMonthlyTime} />
-              </div>
-            </div>
-          )}
-
-          {scheduleType === 'custom' && (
-            <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Cron expression</p>
-              <ChipInput
-                value={cronExpression}
-                onChange={(e) => setCronExpression(e.target.value)}
-                placeholder='0 9 * * *'
-                inputClassName='font-mono'
-                autoComplete='off'
-              />
-            </div>
-          )}
-
-          {showTimezone && (
-            <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>Timezone</p>
-              <ChipCombobox
-                options={TIMEZONE_OPTIONS}
-                value={timezone}
-                onChange={setTimezone}
-                searchable
-                searchPlaceholder='Search timezones...'
-                maxHeight={240}
-              />
-            </div>
-          )}
-
-          {!isEditing && (
-            <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>
+        {!isEditing && (
+          <ChipModalField
+            type='custom'
+            title={
+              <>
                 Start date
                 <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
-              </p>
-              <DatePicker
-                value={startDate}
-                onChange={setStartDate}
-                placeholder='Starts immediately'
-              />
-            </div>
-          )}
+              </>
+            }
+          >
+            <DatePicker
+              value={startDate}
+              onChange={setStartDate}
+              placeholder='Starts immediately'
+            />
+          </ChipModalField>
+        )}
 
-          <div className='flex flex-col gap-2'>
-            <p className='font-medium text-[var(--text-secondary)] text-sm'>Lifecycle</p>
-            <ButtonGroup
-              value={lifecycle}
-              onValueChange={(value) => setLifecycle(value as 'persistent' | 'until_complete')}
-            >
-              <ButtonGroupItem value='persistent'>Recurring</ButtonGroupItem>
-              <ButtonGroupItem value='until_complete'>Number of runs</ButtonGroupItem>
-            </ButtonGroup>
-          </div>
+        <ChipModalField type='custom' title='Lifecycle'>
+          <ButtonGroup
+            value={lifecycle}
+            onValueChange={(value) => setLifecycle(value as 'persistent' | 'until_complete')}
+          >
+            <ButtonGroupItem value='persistent'>Recurring</ButtonGroupItem>
+            <ButtonGroupItem value='until_complete'>Number of runs</ButtonGroupItem>
+          </ButtonGroup>
+        </ChipModalField>
 
-          {lifecycle === 'until_complete' && (
-            <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>
+        {lifecycle === 'until_complete' && (
+          <ChipModalField
+            type='custom'
+            title={
+              <>
                 Max runs
                 <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
-              </p>
-              <ChipInput
-                type='number'
-                value={maxRuns}
-                onChange={(e) => setMaxRuns(e.target.value)}
-                placeholder='No limit'
-                min={1}
-              />
-            </div>
-          )}
+              </>
+            }
+          >
+            <ChipInput
+              type='number'
+              value={maxRuns}
+              onChange={(e) => setMaxRuns(e.target.value)}
+              placeholder='No limit'
+              min={1}
+            />
+          </ChipModalField>
+        )}
 
-          {computedCron && schedulePreview && (
-            <div>
-              {'error' in schedulePreview ? (
-                <p className='text-[var(--text-error)] text-small'>{schedulePreview.error}</p>
-              ) : (
-                <div className='flex flex-col gap-1'>
-                  <p className='text-[var(--text-secondary)] text-small'>
-                    {schedulePreview.humanReadable}
+        {computedCron && schedulePreview && (
+          <div className='px-2'>
+            {'error' in schedulePreview ? (
+              <p className='text-[var(--text-error)] text-caption'>{schedulePreview.error}</p>
+            ) : (
+              <div className='flex flex-col gap-1'>
+                <p className='text-[var(--text-secondary)] text-small'>
+                  {schedulePreview.humanReadable}
+                </p>
+                {schedulePreview.nextRun && (
+                  <p className='text-[var(--text-muted)] text-caption'>
+                    Next run:{' '}
+                    {schedulePreview.nextRun.toLocaleString(undefined, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
                   </p>
-                  {schedulePreview.nextRun && (
-                    <p className='text-[var(--text-muted)] text-caption'>
-                      Next run:{' '}
-                      {schedulePreview.nextRun.toLocaleString(undefined, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
-          {submitError && (
-            <p className='text-[var(--text-error)] text-small leading-tight'>{submitError}</p>
-          )}
-        </div>
+        <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
 
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={handleClose}>
+        <Chip flush onClick={handleClose}>
           Cancel
         </Chip>
         <Chip

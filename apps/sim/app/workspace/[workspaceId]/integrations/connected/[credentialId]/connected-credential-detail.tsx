@@ -306,7 +306,7 @@ export function ConnectedCredentialDetail({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowDeleteConfirmDialog(false)}>
+          <Chip flush onClick={() => setShowDeleteConfirmDialog(false)}>
             Cancel
           </Chip>
           <Chip

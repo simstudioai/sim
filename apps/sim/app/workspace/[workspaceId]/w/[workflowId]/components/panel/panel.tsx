@@ -951,12 +951,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setIsDeleteModalOpen(false)}
-            disabled={isDeleting}
-          >
+          <Chip flush onClick={() => setIsDeleteModalOpen(false)} disabled={isDeleting}>
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={handleDeleteWorkflow} disabled={isDeleting}>

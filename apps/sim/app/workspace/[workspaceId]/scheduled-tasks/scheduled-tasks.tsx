@@ -5,17 +5,19 @@ import { createLogger } from '@sim/logger'
 import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import {
+  Calendar,
   Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  Plus,
 } from '@/components/emcn'
-import { Calendar } from '@/components/emcn/icons'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type {
   FilterTag,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SortConfig,
@@ -362,6 +364,18 @@ export function ScheduledTasks() {
     ]
   )
 
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      {
+        text: 'New scheduled task',
+        icon: Plus,
+        onSelect: () => setIsCreateModalOpen(true),
+        variant: 'primary',
+      },
+    ],
+    []
+  )
+
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
     if (scheduleTypeFilter.length > 0) {
@@ -386,27 +400,26 @@ export function ScheduledTasks() {
 
   return (
     <>
-      <Resource
-        icon={Calendar}
-        title='Scheduled Tasks'
-        create={{
-          label: 'New scheduled task',
-          onClick: () => setIsCreateModalOpen(true),
-        }}
-        search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
-          placeholder: 'Search scheduled tasks...',
-        }}
-        sort={sortConfig}
-        filter={filterContent}
-        filterTags={filterTags}
-        columns={COLUMNS}
-        rows={rows}
-        onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading}
-        onContextMenu={handleContentContextMenu}
-      />
+      <Resource onContextMenu={handleContentContextMenu}>
+        <Resource.Header icon={Calendar} title='Scheduled Tasks' actions={headerActions} />
+        <Resource.Options
+          search={{
+            value: searchQuery,
+            onChange: setSearchQuery,
+            placeholder: 'Search scheduled tasks...',
+          }}
+          sort={sortConfig}
+          filter={{ content: filterContent }}
+          filterTags={filterTags}
+        />
+        <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
+          sort={sortConfig}
+          onRowContextMenu={handleRowContextMenu}
+          isLoading={isLoading}
+        />
+      </Resource>
 
       <ScheduleListContextMenu
         isOpen={isListContextMenuOpen}
@@ -460,7 +473,6 @@ export function ScheduledTasks() {
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => {
               setIsDeleteDialogOpen(false)

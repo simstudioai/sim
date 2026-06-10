@@ -104,11 +104,7 @@ export function OrganizationMemberLists({
   const buildActionsMenu = (children: React.ReactNode) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type='button'
-          aria-label='Member actions'
-          className={chipVariants({ variant: 'ghost', flush: true })}
-        >
+        <button type='button' aria-label='Member actions' className={chipVariants({ flush: true })}>
           <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         </button>
       </DropdownMenuTrigger>

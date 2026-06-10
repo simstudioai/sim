@@ -634,7 +634,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setToolToDelete(null)}>
+          <Chip flush onClick={() => setToolToDelete(null)}>
             Cancel
           </Chip>
           <Chip
@@ -723,7 +723,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           </ChipModalField>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setToolToView(null)}>
+          <Chip flush onClick={() => setToolToView(null)}>
             Cancel
           </Chip>
           <Chip
@@ -824,6 +824,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               searchPlaceholder='Search workflows...'
               disabled={addToolMutation.isPending}
               fullWidth
+              dropdownWidth='trigger'
               align='start'
               displayLabel={selectedWorkflow?.name}
             />
@@ -836,7 +837,6 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => {
               setShowAddWorkflow(false)
@@ -901,7 +901,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           </ChipModalField>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowEditServer(false)}>
+          <Chip flush onClick={() => setShowEditServer(false)}>
             Cancel
           </Chip>
           <Chip
@@ -1104,7 +1104,7 @@ export function WorkflowMcpServers() {
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setServerToDelete(null)}>
+          <Chip flush onClick={() => setServerToDelete(null)}>
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={handleDeleteServer}>

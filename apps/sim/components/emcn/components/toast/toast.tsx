@@ -229,7 +229,6 @@ function ToastItem({ toast: t, depth, isPaused, onPause, onDismiss }: ToastItemP
         </div>
         {t.action ? (
           <Chip
-            variant='filled'
             fullWidth
             flush
             onClick={() => {

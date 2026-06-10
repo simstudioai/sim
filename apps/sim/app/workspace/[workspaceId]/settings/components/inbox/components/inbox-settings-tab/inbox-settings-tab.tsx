@@ -193,7 +193,6 @@ export function InboxSettingsTab() {
                         )}
                       </div>
                       <Chip
-                        variant='ghost'
                         flush
                         className='text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                         leftIcon={Trash2}
@@ -220,7 +219,6 @@ export function InboxSettingsTab() {
             )}
 
             <Chip
-              variant='ghost'
               className='mt-1 w-fit'
               leftIcon={Plus}
               onClick={() => {
@@ -266,7 +264,7 @@ export function InboxSettingsTab() {
           <ChipModalError>{addSenderError}</ChipModalError>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setIsAddSenderOpen(false)}>
+          <Chip flush onClick={() => setIsAddSenderOpen(false)}>
             Cancel
           </Chip>
           <Chip
@@ -293,26 +291,21 @@ export function InboxSettingsTab() {
               The old address will stop receiving emails immediately.
             </span>
           </p>
-          <div className='mt-4 flex flex-col gap-1 px-2'>
-            <p className='font-medium text-[var(--text-secondary)] text-sm'>New email prefix</p>
-            <ChipInput
-              value={newUsername}
-              onChange={(e) => {
-                setNewUsername(e.target.value)
-                if (editAddressError) setEditAddressError(null)
-              }}
-              placeholder='e.g., new-acme'
-            />
-            {editAddressError && (
-              <p className='text-[var(--text-error)] text-small leading-tight'>
-                {editAddressError}
-              </p>
-            )}
-          </div>
+          <ChipModalField
+            type='input'
+            title='New email prefix'
+            value={newUsername}
+            onChange={(value) => {
+              setNewUsername(value)
+              if (editAddressError) setEditAddressError(null)
+            }}
+            onSubmit={handleEditAddress}
+            placeholder='e.g., new-acme'
+            error={editAddressError}
+          />
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             disabled={updateAddress.isPending}
             onClick={() => setIsEditAddressOpen(false)}

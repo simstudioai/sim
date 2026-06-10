@@ -96,7 +96,7 @@ export function InboxEnableToggle() {
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setIsEnableOpen(false)}>
+          <Chip flush onClick={() => setIsEnableOpen(false)}>
             Cancel
           </Chip>
           <Chip variant='primary' flush onClick={handleEnable} disabled={toggleInbox.isPending}>
@@ -119,17 +119,12 @@ export function InboxEnableToggle() {
             ? Any emails sent to this address after disabling will not be delivered. This action
             cannot be undone.
           </p>
-          <p className='mt-2 px-2 text-[var(--text-secondary)] text-sm'>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Your existing conversations and task history will be preserved.
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            disabled={toggleInbox.isPending}
-            onClick={() => setIsDisableOpen(false)}
-          >
+          <Chip flush disabled={toggleInbox.isPending} onClick={() => setIsDisableOpen(false)}>
             Cancel
           </Chip>
           <Chip

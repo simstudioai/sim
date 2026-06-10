@@ -145,12 +145,7 @@ export function RequestIntegrationModal() {
             </Chip>
           ) : (
             <>
-              <Chip
-                variant='filled'
-                flush
-                onClick={() => setOpen(false)}
-                disabled={status === 'submitting'}
-              >
+              <Chip flush onClick={() => setOpen(false)} disabled={status === 'submitting'}>
                 Cancel
               </Chip>
               <Chip

@@ -357,7 +357,6 @@ export function ApiKeys() {
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => {
               setShowDeleteDialog(false)

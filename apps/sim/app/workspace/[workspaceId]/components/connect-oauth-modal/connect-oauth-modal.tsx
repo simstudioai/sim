@@ -443,7 +443,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='ghost' onClick={handleClose} disabled={isPending}>
+        <Chip onClick={handleClose} disabled={isPending}>
           Cancel
         </Chip>
         <Chip variant='primary' onClick={handleConnect} disabled={isDisabled}>

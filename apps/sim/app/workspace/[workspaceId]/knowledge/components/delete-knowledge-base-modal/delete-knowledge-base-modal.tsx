@@ -64,7 +64,7 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
         </p>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={onClose} disabled={isDeleting}>
+        <Chip flush onClick={onClose} disabled={isDeleting}>
           Cancel
         </Chip>
         <Chip variant='destructive' flush onClick={onConfirm} disabled={isDeleting}>

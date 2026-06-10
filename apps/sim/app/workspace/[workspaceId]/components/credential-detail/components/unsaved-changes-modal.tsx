@@ -22,7 +22,7 @@ export function UnsavedChangesModal({ open, onOpenChange, onDiscard }: UnsavedCh
         </p>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
+        <Chip flush onClick={() => onOpenChange(false)}>
           Keep Editing
         </Chip>
         <Chip variant='destructive' flush onClick={onDiscard}>

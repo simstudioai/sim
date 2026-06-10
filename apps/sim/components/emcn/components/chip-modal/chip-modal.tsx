@@ -314,6 +314,13 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps {
   /** Native input type override. Defaults to `'text'`. */
   inputType?: 'text' | 'password' | 'url' | 'tel' | 'search' | 'number'
   /**
+   * Renders the value in the monospace stack (`font-mono`). Use for
+   * code-like values (identifiers, keys, snippets) where the proportional
+   * stack hurts legibility.
+   * @default false
+   */
+  mono?: boolean
+  /**
    * Called when the user presses Enter in the field. Wire this to the
    * modal's primary action so the field behaves like a form submit.
    */
@@ -348,6 +355,13 @@ interface ChipModalTextareaFieldProps extends ChipModalFieldBaseProps {
    * the user benefits from controlling height.
    */
   resizable?: boolean
+  /**
+   * Renders the value in the monospace stack (`font-mono`). Use for
+   * code-like content (JSON payloads, env blobs) where alignment and
+   * character distinction matter.
+   * @default false
+   */
+  mono?: boolean
 }
 
 interface ChipModalDropdownFieldProps extends ChipModalFieldBaseProps {
@@ -507,6 +521,7 @@ function renderChipModalControl(
           maxLength={props.type === 'input' ? props.maxLength : undefined}
           autoComplete={props.autoComplete}
           disabled={props.disabled}
+          inputClassName={props.type === 'input' && props.mono ? 'font-mono' : undefined}
           {...aria}
         />
       )
@@ -521,6 +536,7 @@ function renderChipModalControl(
           rows={props.rows}
           disabled={props.disabled}
           resizable={props.resizable}
+          className={props.mono ? 'font-mono' : undefined}
           style={props.minHeight ? { minHeight: props.minHeight } : undefined}
           {...aria}
         />

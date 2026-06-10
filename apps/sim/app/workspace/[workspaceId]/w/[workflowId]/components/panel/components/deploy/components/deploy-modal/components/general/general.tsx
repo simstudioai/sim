@@ -293,7 +293,7 @@ export function GeneralDeploy({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowLoadDialog(false)}>
+          <Chip flush onClick={() => setShowLoadDialog(false)}>
             Cancel
           </Chip>
           <Chip
@@ -326,7 +326,7 @@ export function GeneralDeploy({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowPromoteDialog(false)}>
+          <Chip flush onClick={() => setShowPromoteDialog(false)}>
             Cancel
           </Chip>
           <Chip

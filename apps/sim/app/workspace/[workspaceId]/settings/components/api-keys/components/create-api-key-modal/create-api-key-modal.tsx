@@ -156,7 +156,7 @@ export function CreateApiKeyModal({
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleClose}>
+          <Chip flush onClick={handleClose}>
             Cancel
           </Chip>
           <Chip

@@ -277,9 +277,7 @@ function GoogleServiceAccountModal({
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='ghost' onClick={() => onOpenChange(false)}>
-          Cancel
-        </Chip>
+        <Chip onClick={() => onOpenChange(false)}>Cancel</Chip>
         <Chip variant='primary' onClick={handleSubmit} disabled={isDisabled}>
           {isPending ? 'Adding...' : 'Add service account'}
         </Chip>
@@ -410,9 +408,7 @@ function AtlassianServiceAccountModal({
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='ghost' onClick={() => onOpenChange(false)}>
-          Cancel
-        </Chip>
+        <Chip onClick={() => onOpenChange(false)}>Cancel</Chip>
         <Chip variant='primary' onClick={handleSubmit} disabled={isDisabled}>
           {isPending ? 'Adding...' : 'Add service account'}
         </Chip>

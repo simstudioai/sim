@@ -12,6 +12,7 @@ import {
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  Plus,
   Trash,
 } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
@@ -21,19 +22,15 @@ import { formatTokenCount } from '@/lib/tokenization'
 import type {
   BreadcrumbItem,
   FilterTag,
-  HeaderAction,
   PaginationConfig,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  Resource,
-  ResourceHeader,
-} from '@/app/workspace/[workspaceId]/components'
+import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/app/workspace/[workspaceId]/components'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import {
   ChunkContextMenu,
@@ -83,7 +80,7 @@ function UnsavedChangesModal({
         </p>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={onKeepEditing}>
+        <Chip flush onClick={onKeepEditing}>
           Keep Editing
         </Chip>
         <Chip variant='destructive' flush onClick={onDiscard}>
@@ -491,6 +488,7 @@ export function Document({
                     onChange: docRename.setEditValue,
                     onSubmit: docRename.submitRename,
                     onCancel: docRename.cancelRename,
+                    disabled: docRename.isSaving,
                   }
                 : undefined,
               dropdownItems: [
@@ -516,6 +514,7 @@ export function Document({
       docRename.setEditValue,
       docRename.submitRename,
       docRename.cancelRename,
+      docRename.isSaving,
       userPermissions.canEdit,
       handleStartDocRename,
       handleShowTags,
@@ -1023,36 +1022,36 @@ export function Document({
     [handleNavigateChunk]
   )
 
-  const createActions = useMemo<HeaderAction[]>(
+  const createActions = useMemo<ResourceAction[]>(
     () => [
       {
-        label: saveLabel,
-        onClick: handleSaveClick,
+        text: saveLabel,
+        onSelect: handleSaveClick,
         disabled: !isDirty || saveStatus === 'saving',
       },
     ],
     [saveLabel, handleSaveClick, isDirty, saveStatus]
   )
 
-  const editorActions = useMemo<HeaderAction[]>(() => {
-    const actions: HeaderAction[] = [
+  const editorActions = useMemo<ResourceAction[]>(() => {
+    const actions: ResourceAction[] = [
       {
-        label: 'Previous chunk',
+        text: 'Previous chunk',
         icon: ChevronUp,
-        onClick: handleNavigatePrev,
+        onSelect: handleNavigatePrev,
         disabled: !canNavigatePrev,
       },
       {
-        label: 'Next chunk',
+        text: 'Next chunk',
         icon: ChevronDown,
-        onClick: handleNavigateNextChunk,
+        onSelect: handleNavigateNextChunk,
         disabled: !canNavigateNext,
       },
     ]
     if (canEdit && !isConnectorDocument) {
       actions.push({
-        label: saveLabel,
-        onClick: handleSaveClick,
+        text: saveLabel,
+        onSelect: handleSaveClick,
         disabled: !isDirty || saveStatus === 'saving',
       })
     }
@@ -1074,7 +1073,7 @@ export function Document({
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-          <ResourceHeader
+          <Resource.Header
             icon={FileText}
             breadcrumbs={newChunkBreadcrumbs}
             actions={createActions}
@@ -1110,7 +1109,7 @@ export function Document({
     if (!selectedChunk || !documentData) {
       return (
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-          <ResourceHeader icon={FileText} breadcrumbs={loadingBreadcrumbs} />
+          <Resource.Header icon={FileText} breadcrumbs={loadingBreadcrumbs} />
           <div className='flex flex-1 items-center justify-center'>
             <span className='text-[var(--text-muted)] text-sm'>Loading chunk…</span>
           </div>
@@ -1121,7 +1120,7 @@ export function Document({
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-          <ResourceHeader
+          <Resource.Header
             icon={FileText}
             breadcrumbs={editChunkBreadcrumbs}
             actions={editorActions}
@@ -1154,25 +1153,39 @@ export function Document({
 
   return (
     <>
-      <Resource
-        icon={FileText}
-        title={effectiveDocumentName}
-        breadcrumbs={breadcrumbs}
-        create={createAction}
-        search={combinedError ? undefined : searchConfig}
-        columns={CHUNK_COLUMNS}
-        rows={combinedError ? [] : chunkRows}
-        selectable={combinedError ? undefined : selectableConfig}
-        onRowClick={isCompleted ? handleChunkClick : undefined}
-        onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
-        onContextMenu={handleEmptyContextMenu}
-        isLoading={isLoadingDocument || isFetchingNewDoc}
-        pagination={paginationConfig}
-        emptyMessage={emptyMessage}
-        filter={combinedError ? undefined : filterContent}
-        filterTags={combinedError ? undefined : filterTags}
-        sort={combinedError ? undefined : sortConfig}
-      />
+      <Resource onContextMenu={handleEmptyContextMenu}>
+        <Resource.Header
+          icon={FileText}
+          title={effectiveDocumentName}
+          breadcrumbs={breadcrumbs}
+          actions={[
+            {
+              text: createAction.label,
+              icon: Plus,
+              onSelect: createAction.onClick,
+              disabled: createAction.disabled,
+              variant: 'primary',
+            },
+          ]}
+        />
+        <Resource.Options
+          search={combinedError ? undefined : searchConfig}
+          sort={combinedError ? undefined : sortConfig}
+          filterTags={combinedError ? undefined : filterTags}
+          filter={combinedError ? undefined : { content: filterContent }}
+        />
+        <Resource.Table
+          columns={CHUNK_COLUMNS}
+          rows={combinedError ? [] : chunkRows}
+          sort={combinedError ? undefined : sortConfig}
+          selectable={combinedError ? undefined : selectableConfig}
+          onRowClick={isCompleted ? handleChunkClick : undefined}
+          onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
+          isLoading={isLoadingDocument || isFetchingNewDoc}
+          pagination={paginationConfig}
+          emptyMessage={emptyMessage}
+        />
+      </Resource>
 
       <DocumentTagsModal
         open={showTagsModal}
@@ -1228,7 +1241,6 @@ export function Document({
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => setShowDeleteDocumentDialog(false)}
             disabled={isDeletingDocument}

@@ -11,11 +11,11 @@ import {
   ChipCombobox,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
-  Label,
   Table,
   TableBody,
   TableCell,
@@ -328,7 +328,6 @@ export function ImportCsvDialog({
         {!parsed ? (
           <ChipModalField
             type='file'
-            flush
             title='Import CSV'
             accept='.csv,.tsv'
             disabled={parsing}
@@ -338,38 +337,38 @@ export function ImportCsvDialog({
             error={parseError ?? undefined}
           />
         ) : (
-          <div className='flex flex-col gap-4'>
-            <div className='flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] p-2'>
-              <div className='flex min-w-0 flex-col'>
-                <span className='truncate text-[var(--text-primary)] text-caption'>
-                  {parsed.file.name}
-                </span>
-                <span className='text-[var(--text-tertiary)] text-xs'>
-                  {parsed.totalRows.toLocaleString()} rows · {parsed.headers.length} columns
-                </span>
+          <>
+            <ChipModalField type='custom' title='File'>
+              <div className='flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] p-2'>
+                <div className='flex min-w-0 flex-col'>
+                  <span className='truncate text-[var(--text-primary)] text-caption'>
+                    {parsed.file.name}
+                  </span>
+                  <span className='text-[var(--text-tertiary)] text-xs'>
+                    {parsed.totalRows.toLocaleString()} rows · {parsed.headers.length} columns
+                  </span>
+                </div>
+                <Button variant='ghost' size='sm' onClick={resetState}>
+                  Change file
+                </Button>
               </div>
-              <Button variant='ghost' size='sm' onClick={resetState}>
-                Change file
-              </Button>
-            </div>
+            </ChipModalField>
 
-            <div className='flex flex-col gap-2'>
-              <Label>Mode</Label>
+            <ChipModalField type='custom' title='Mode'>
               <ButtonGroup value={mode} onValueChange={handleModeChange}>
                 <ButtonGroupItem value='append'>Append</ButtonGroupItem>
                 <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>
               </ButtonGroup>
-            </div>
+            </ChipModalField>
 
-            <div className='flex flex-col gap-2'>
-              <div className='flex items-center justify-between'>
-                <Label>Column mapping</Label>
-                {skipCount > 0 && (
+            <ChipModalField type='custom' title='Column mapping'>
+              {skipCount > 0 && (
+                <div className='flex justify-end'>
                   <Button variant='ghost' size='sm' onClick={handleCreateAllUnmapped}>
                     Create columns for {skipCount} unmapped
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
               <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
                 <div className='max-h-[320px] overflow-auto'>
                   <Table>
@@ -429,62 +428,44 @@ export function ImportCsvDialog({
                 {' · '}
                 {skipCount} skipped
               </span>
-            </div>
+            </ChipModalField>
 
-            {hasWarning && (
-              <div className='flex flex-col gap-1'>
-                {missingRequired.length > 0 && (
-                  <p className='text-[var(--text-error)] text-caption leading-tight'>
-                    Missing required column(s): {missingRequired.join(', ')}
-                  </p>
-                )}
-                {duplicateTargets.length > 0 && (
-                  <p className='text-[var(--text-error)] text-caption leading-tight'>
-                    Multiple CSV columns target: {duplicateTargets.join(', ')} (pick one)
-                  </p>
-                )}
-                {appendCapacityDeficit > 0 && (
-                  <p className='text-[var(--text-error)] text-caption leading-tight'>
-                    Append would exceed the row limit ({table.maxRows.toLocaleString()}) by{' '}
-                    {appendCapacityDeficit.toLocaleString()} row(s). Remove rows or switch to
-                    Replace.
-                  </p>
-                )}
-                {replaceCapacityDeficit > 0 && (
-                  <p className='text-[var(--text-error)] text-caption leading-tight'>
-                    CSV has {parsed.totalRows.toLocaleString()} rows, which exceeds the table limit
-                    of {table.maxRows.toLocaleString()} by {replaceCapacityDeficit.toLocaleString()}
-                    .
-                  </p>
-                )}
-              </div>
+            {missingRequired.length > 0 && (
+              <ChipModalError>
+                Missing required column(s): {missingRequired.join(', ')}
+              </ChipModalError>
+            )}
+            {duplicateTargets.length > 0 && (
+              <ChipModalError>
+                Multiple CSV columns target: {duplicateTargets.join(', ')} (pick one)
+              </ChipModalError>
+            )}
+            {appendCapacityDeficit > 0 && (
+              <ChipModalError>
+                Append would exceed the row limit ({table.maxRows.toLocaleString()}) by{' '}
+                {appendCapacityDeficit.toLocaleString()} row(s). Remove rows or switch to Replace.
+              </ChipModalError>
+            )}
+            {replaceCapacityDeficit > 0 && (
+              <ChipModalError>
+                CSV has {parsed.totalRows.toLocaleString()} rows, which exceeds the table limit of{' '}
+                {table.maxRows.toLocaleString()} by {replaceCapacityDeficit.toLocaleString()}.
+              </ChipModalError>
             )}
 
             {mode === 'replace' && !hasWarning && (
-              <p className='text-[var(--text-error)] text-caption leading-tight'>
+              <ChipModalError>
                 Replace will permanently delete the {table.rowCount.toLocaleString()} existing
                 row(s) before inserting the new rows.
-              </p>
+              </ChipModalError>
             )}
 
-            {submitError && (
-              <p
-                className='text-[var(--text-error)] text-caption leading-tight'
-                title={submitError}
-              >
-                {submitError}
-              </p>
-            )}
-          </div>
+            <ChipModalError title={submitError ?? undefined}>{submitError}</ChipModalError>
+          </>
         )}
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip
-          variant='filled'
-          flush
-          onClick={() => onOpenChange(false)}
-          disabled={importMutation.isPending}
-        >
+        <Chip flush onClick={() => onOpenChange(false)} disabled={importMutation.isPending}>
           Cancel
         </Chip>
         <Chip

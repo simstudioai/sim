@@ -529,7 +529,6 @@ export function BYOK() {
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => {
               setEditingProvider(null)
@@ -572,7 +571,7 @@ export function BYOK() {
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setDeleteConfirmProvider(null)}>
+          <Chip flush onClick={() => setDeleteConfirmProvider(null)}>
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={handleDelete} disabled={deleteKey.isPending}>

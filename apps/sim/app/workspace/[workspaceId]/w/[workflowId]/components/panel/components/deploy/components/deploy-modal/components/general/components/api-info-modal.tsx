@@ -274,7 +274,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
           <ChipModalError>{saveError}</ChipModalError>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleCloseAttempt} disabled={isSaving}>
+          <Chip flush onClick={handleCloseAttempt} disabled={isSaving}>
             Cancel
           </Chip>
           <Chip variant='primary' flush onClick={handleSave} disabled={!hasChanges || isSaving}>
@@ -295,7 +295,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowUnsavedChangesAlert(false)}>
+          <Chip flush onClick={() => setShowUnsavedChangesAlert(false)}>
             Keep Editing
           </Chip>
           <Chip variant='destructive' flush onClick={handleDiscardChanges}>

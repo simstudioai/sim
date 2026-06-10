@@ -561,12 +561,7 @@ export default function LoginPage({
           </ChipModalError>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setForgotPasswordOpen(false)}
-            disabled={isSubmittingReset}
-          >
+          <Chip flush onClick={() => setForgotPasswordOpen(false)} disabled={isSubmittingReset}>
             Cancel
           </Chip>
           <Chip

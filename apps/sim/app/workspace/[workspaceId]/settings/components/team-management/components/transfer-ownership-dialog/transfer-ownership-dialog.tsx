@@ -205,7 +205,7 @@ export function TransferOwnershipDialog({
         )}
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => handleClose(false)} disabled={isSubmitting}>
+        <Chip flush onClick={() => handleClose(false)} disabled={isSubmitting}>
           Cancel
         </Chip>
         <Chip

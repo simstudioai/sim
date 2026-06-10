@@ -50,7 +50,7 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
         </p>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isPending}>
+        <Chip flush onClick={() => onOpenChange(false)} disabled={isPending}>
           Cancel
         </Chip>
         <Chip variant='destructive' flush onClick={onDelete} disabled={isPending}>

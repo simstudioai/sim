@@ -850,12 +850,7 @@ export function DeployModal({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setUndeployTargetWorkflowId(null)}
-            disabled={isUndeploying}
-          >
+          <Chip flush onClick={() => setUndeployTargetWorkflowId(null)} disabled={isUndeploying}>
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={handleUndeploy} disabled={isUndeploying}>
@@ -884,12 +879,7 @@ export function DeployModal({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowA2aDeleteConfirm(false)}
-            disabled={a2aSubmitting}
-          >
+          <Chip flush onClick={() => setShowA2aDeleteConfirm(false)} disabled={a2aSubmitting}>
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={handleA2aDelete} disabled={a2aSubmitting}>

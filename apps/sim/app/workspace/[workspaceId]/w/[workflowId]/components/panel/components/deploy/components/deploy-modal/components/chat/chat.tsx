@@ -436,7 +436,6 @@ export function ChatDeploy({
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => setShowDeleteConfirmation(false)}
             disabled={deleteChatMutation.isPending}

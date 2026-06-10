@@ -277,7 +277,6 @@ export function Copilot() {
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => {
               setIsCreateDialogOpen(false)
@@ -357,7 +356,6 @@ export function Copilot() {
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => {
               setShowDeleteDialog(false)

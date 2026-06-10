@@ -708,7 +708,7 @@ export function MCP({ initialServerId }: MCPProps) {
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setServerToDeleteId(null)}>
+          <Chip flush onClick={() => setServerToDeleteId(null)}>
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={confirmDeleteServer}>

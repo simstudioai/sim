@@ -143,7 +143,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
-        <Chip variant='ghost' leftIcon={ArrowLeft} onClick={handleBack}>
+        <Chip leftIcon={ArrowLeft} onClick={handleBack}>
           Back
         </Chip>
       </div>
@@ -211,7 +211,6 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
               {/* Show / Hide all features */}
               <div className='flex flex-col items-center gap-6'>
                 <Chip
-                  variant='ghost'
                   onClick={() => setShowAllFeatures((prev) => !prev)}
                   aria-expanded={showAllFeatures}
                 >

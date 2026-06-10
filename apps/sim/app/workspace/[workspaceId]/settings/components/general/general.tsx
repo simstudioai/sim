@@ -532,7 +532,6 @@ export function General() {
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => setShowResetPasswordModal(false)}
             disabled={resetPassword.isPending || resetPassword.isSuccess}

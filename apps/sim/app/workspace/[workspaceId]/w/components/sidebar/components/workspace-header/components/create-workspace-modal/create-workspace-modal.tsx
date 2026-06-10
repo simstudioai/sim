@@ -66,7 +66,7 @@ export function CreateWorkspaceModal({
         <ChipModalError>{undefined}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isCreating}>
+        <Chip flush onClick={() => onOpenChange(false)} disabled={isCreating}>
           Cancel
         </Chip>
         <Chip

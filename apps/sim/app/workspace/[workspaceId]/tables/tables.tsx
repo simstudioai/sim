@@ -11,6 +11,7 @@ import {
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  Plus,
   toast,
   Upload,
 } from '@/components/emcn'
@@ -19,17 +20,13 @@ import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
 import type {
   FilterTag,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import {
-  InlineRenameInput,
-  ownerCell,
-  Resource,
-  timeCell,
-} from '@/app/workspace/[workspaceId]/components'
+import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
@@ -174,20 +171,15 @@ export function Tables() {
           name: {
             icon: <TableIcon className='size-[14px]' />,
             label: table.name,
-            content:
-              tableRename.editingId === table.id ? (
-                <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
-                  <span className='flex-shrink-0 text-[var(--text-icon)]'>
-                    <TableIcon className='size-[14px]' />
-                  </span>
-                  <InlineRenameInput
-                    value={tableRename.editValue}
-                    onChange={tableRename.setEditValue}
-                    onSubmit={tableRename.submitRename}
-                    onCancel={tableRename.cancelRename}
-                  />
-                </span>
-              ) : undefined,
+            editing:
+              tableRename.editingId === table.id
+                ? {
+                    value: tableRename.editValue,
+                    onChange: tableRename.setEditValue,
+                    onSubmit: tableRename.submitRename,
+                    onCancel: tableRename.cancelRename,
+                  }
+                : undefined,
           },
           columns: {
             icon: <Columns3 className='size-[14px]' />,
@@ -503,35 +495,49 @@ export function Tables() {
     }
   }, [tables, createTable, router, workspaceId])
 
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      {
+        text: uploadButtonLabel,
+        icon: Upload,
+        onSelect: () => csvInputRef.current?.click(),
+        disabled: uploading || userPermissions.canEdit !== true,
+      },
+      {
+        text: 'New table',
+        icon: Plus,
+        onSelect: handleCreateTable,
+        disabled: uploading || userPermissions.canEdit !== true || createTable.isPending,
+        variant: 'primary',
+      },
+    ],
+    [
+      uploadButtonLabel,
+      uploading,
+      userPermissions.canEdit,
+      handleCreateTable,
+      createTable.isPending,
+    ]
+  )
+
   return (
     <>
-      <Resource
-        icon={TableIcon}
-        title='Tables'
-        create={{
-          label: 'New table',
-          onClick: handleCreateTable,
-          disabled: uploading || userPermissions.canEdit !== true || createTable.isPending,
-        }}
-        search={searchConfig}
-        sort={sortConfig}
-        filter={filterContent}
-        filterTags={filterTags}
-        headerActions={[
-          {
-            label: uploadButtonLabel,
-            icon: Upload,
-            onClick: () => csvInputRef.current?.click(),
-            disabled: uploading || userPermissions.canEdit !== true,
-          },
-        ]}
-        columns={COLUMNS}
-        rows={rows}
-        onRowClick={handleRowClick}
-        onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading}
-        onContextMenu={handleContentContextMenu}
-      />
+      <Resource onContextMenu={handleContentContextMenu}>
+        <Resource.Header icon={TableIcon} title='Tables' actions={headerActions} />
+        <Resource.Options
+          search={searchConfig}
+          sort={sortConfig}
+          filterTags={filterTags}
+          filter={{ content: filterContent }}
+        />
+        <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
+          onRowClick={handleRowClick}
+          onRowContextMenu={handleRowContextMenu}
+          isLoading={isLoading}
+        />
+      </Resource>
 
       <input
         ref={csvInputRef}
@@ -609,7 +615,6 @@ export function Tables() {
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => {
               setIsDeleteDialogOpen(false)

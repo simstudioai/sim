@@ -232,7 +232,7 @@ export function Teammates() {
                       <button
                         type='button'
                         aria-label='Teammate actions'
-                        className={chipVariants({ variant: 'ghost', flush: true })}
+                        className={chipVariants({ flush: true })}
                       >
                         <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                       </button>

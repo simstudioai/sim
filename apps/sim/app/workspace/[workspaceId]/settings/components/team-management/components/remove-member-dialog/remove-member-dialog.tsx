@@ -67,7 +67,7 @@ export function RemoveMemberDialog({
         </ChipModalError>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush disabled={isSubmitting} onClick={onCancel}>
+        <Chip flush disabled={isSubmitting} onClick={onCancel}>
           Cancel
         </Chip>
         <Chip variant='destructive' flush disabled={isSubmitting} onClick={() => onConfirmRemove()}>

@@ -266,8 +266,9 @@ export function DeleteModal({
             type='input'
             title={
               <>
-                Type <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>{' '}
-                to confirm
+                Type&nbsp;
+                <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>
+                &nbsp;to confirm
               </>
             }
             value={confirmationText}
@@ -277,7 +278,7 @@ export function DeleteModal({
         )}
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={handleClose} disabled={isDeleting}>
+        <Chip flush onClick={handleClose} disabled={isDeleting}>
           Cancel
         </Chip>
         <Chip variant='destructive' flush onClick={onConfirm} disabled={isDeleting || !isConfirmed}>

@@ -230,7 +230,7 @@ export function SkillModal({
             ) : undefined
           }
         >
-          <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
+          <Chip flush onClick={() => onOpenChange(false)}>
             Cancel
           </Chip>
           <Chip variant='primary' flush onClick={handleSave} disabled={saving || !hasChanges}>

@@ -782,7 +782,7 @@ export function CredentialSets() {
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleCloseCreateModal}>
+          <Chip flush onClick={handleCloseCreateModal}>
             Cancel
           </Chip>
           <Chip
@@ -812,7 +812,7 @@ export function CredentialSets() {
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setLeavingMembership(null)}>
+          <Chip flush onClick={() => setLeavingMembership(null)}>
             Cancel
           </Chip>
           <Chip
@@ -840,7 +840,7 @@ export function CredentialSets() {
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setDeletingSet(null)}>
+          <Chip flush onClick={() => setDeletingSet(null)}>
             Cancel
           </Chip>
           <Chip

@@ -699,12 +699,7 @@ function WorkspaceHeaderImpl({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setIsLeaveModalOpen(false)}
-            disabled={isLeavingWorkspace}
-          >
+          <Chip flush onClick={() => setIsLeaveModalOpen(false)} disabled={isLeavingWorkspace}>
             Cancel
           </Chip>
           <Chip

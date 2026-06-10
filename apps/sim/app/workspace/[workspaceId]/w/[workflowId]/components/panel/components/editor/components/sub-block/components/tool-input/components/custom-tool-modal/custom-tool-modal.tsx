@@ -1152,7 +1152,7 @@ try {
               ) : undefined
             }
           >
-            <Chip variant='filled' flush onClick={handleClose}>
+            <Chip flush onClick={handleClose}>
               Cancel
             </Chip>
             <Chip
@@ -1174,13 +1174,13 @@ try {
                   Delete
                 </Chip>
               ) : (
-                <Chip variant='filled' flush onClick={() => setActiveSection('schema')}>
+                <Chip flush onClick={() => setActiveSection('schema')}>
                   Back
                 </Chip>
               )
             }
           >
-            <Chip variant='filled' flush onClick={handleClose}>
+            <Chip flush onClick={handleClose}>
               Cancel
             </Chip>
             <Chip
@@ -1212,7 +1212,6 @@ try {
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => setShowDeleteConfirm(false)}
             disabled={deleteToolMutation.isPending}
@@ -1242,7 +1241,7 @@ try {
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowDiscardAlert(false)}>
+          <Chip flush onClick={() => setShowDiscardAlert(false)}>
             Keep Editing
           </Chip>
           <Chip variant='destructive' flush onClick={handleConfirmDiscard}>

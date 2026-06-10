@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Skeleton, toast, useToast } from '@/components/emcn'
+import { toast, useToast } from '@/components/emcn'
 import { Loader, TableX } from '@/components/emcn/icons'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
@@ -43,16 +43,11 @@ import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
-import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH, SELECTION_TINT_BG } from './constants'
+import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import { TableFind } from './table-find'
-import {
-  AddRowButton,
-  SelectAllCheckbox,
-  TableBodySkeleton,
-  TableColGroup,
-} from './table-primitives'
+import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
 import {
   buildHeaderGroups,
@@ -80,11 +75,7 @@ const EMPTY_FIND_MATCHES: readonly TableFindMatch[] = Object.freeze([])
 
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
-const SKELETON_COL_COUNT = 4
 const ROW_HEIGHT_ESTIMATE = 35
-
-const CELL_HEADER =
-  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 
 /**
  * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
@@ -668,13 +659,13 @@ export function TableGrid({
     [selectionAnchor, selectionFocus]
   )
 
-  const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : displayColumns.length
   const tableWidth = useMemo(() => {
-    const colsWidth = isLoadingTable
-      ? displayColCount * COL_WIDTH
-      : displayColumns.reduce((sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH), 0)
+    const colsWidth = displayColumns.reduce(
+      (sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH),
+      0
+    )
     return checkboxColWidth + colsWidth + ADD_COL_WIDTH
-  }, [isLoadingTable, displayColCount, displayColumns, columnWidths, checkboxColWidth])
+  }, [displayColumns, columnWidths, checkboxColWidth])
 
   const resizeIndicatorLeft = useMemo(() => {
     if (!resizingColumn) return 0
@@ -1241,7 +1232,7 @@ export function TableGrid({
     handleClearSelection()
   }
 
-  // Populate the wrapper's table-rename undo sink. The wrapper's <ResourceHeader>
+  // Populate the wrapper's table-rename undo sink. The wrapper's <Resource.Header>
   // breadcrumb rename calls back here so the rename is part of the grid's undo
   // stack (Cmd-Z restores the previous name).
   pushTableRenameUndoSinkRef.current = (previousName: string, newName: string) => {
@@ -3492,45 +3483,13 @@ export function TableGrid({
               className='table-fixed border-separate border-spacing-0 text-small'
               style={{ width: `${tableWidth}px` }}
             >
-              {isLoadingTable ? (
-                <colgroup>
-                  <col style={{ width: checkboxColWidth }} />
-                  {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                    <col key={i} style={{ width: COL_WIDTH }} />
-                  ))}
-                  <col style={{ width: ADD_COL_WIDTH }} />
-                </colgroup>
-              ) : (
-                <TableColGroup
-                  columns={displayColumns}
-                  columnWidths={columnWidths}
-                  checkboxColWidth={checkboxColWidth}
-                />
-              )}
+              <TableColGroup
+                columns={displayColumns}
+                columnWidths={columnWidths}
+                checkboxColWidth={checkboxColWidth}
+              />
               <thead ref={theadRef} className='sticky top-0 z-10'>
-                {isLoadingTable ? (
-                  <tr>
-                    <th className={CELL_HEADER_CHECKBOX}>
-                      <div className='flex items-center justify-center'>
-                        <Skeleton className='size-[14px] rounded-xs' />
-                      </div>
-                    </th>
-                    {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                      <th key={i} className={CELL_HEADER}>
-                        <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
-                          <Skeleton className='size-[14px] shrink-0 rounded-xs' />
-                          <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
-                        </div>
-                      </th>
-                    ))}
-                    <th className={CELL_HEADER}>
-                      <div className='flex h-[20px] items-center gap-2'>
-                        <Skeleton className='size-[14px] shrink-0 rounded-xs' />
-                        <Skeleton className='h-[14px] w-[72px]' />
-                      </div>
-                    </th>
-                  </tr>
-                ) : (
+                {isLoadingTable ? null : (
                   <>
                     {hasWorkflowGroup && (
                       <tr>
@@ -3688,103 +3647,101 @@ export function TableGrid({
                 )}
               </thead>
               <tbody ref={tbodyRef}>
-                {isLoadingTable || isLoadingRows ? (
-                  <TableBodySkeleton colCount={displayColCount} />
-                ) : (
-                  (() => {
-                    const virtualItems = rowVirtualizer.getVirtualItems()
-                    // `item.start`/`item.end` include `scrollMargin` (the sticky-header
-                    // offset) but `getTotalSize()` already nets it out, so both spacer
-                    // heights are computed relative to `scrollMargin`.
-                    const scrollMargin = rowVirtualizer.options.scrollMargin
-                    const paddingTop =
-                      virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
-                    const paddingBottom =
-                      virtualItems.length > 0
-                        ? rowVirtualizer.getTotalSize() -
-                          (virtualItems[virtualItems.length - 1].end - scrollMargin)
-                        : 0
-                    return (
-                      <>
-                        {paddingTop > 0 && (
-                          <tr aria-hidden>
-                            <td
-                              colSpan={displayColumns.length + 1}
-                              style={{ height: paddingTop }}
-                            />
-                          </tr>
-                        )}
-                        {virtualItems.map((virtualRow) => {
-                          const index = virtualRow.index
-                          const row = rows[index]
-                          if (!row) return null
-                          return (
-                            <DataRow
-                              key={row.id}
-                              row={row}
-                              columns={displayColumns}
-                              workspaceId={workspaceId}
-                              rowIndex={index}
-                              isFirstRow={index === 0}
-                              editingColumnName={
-                                editingCell?.rowId === row.id ? editingCell.columnName : null
-                              }
-                              initialCharacter={
-                                editingCell?.rowId === row.id ? initialCharacter : null
-                              }
-                              pendingCellValue={
-                                pendingUpdate && pendingUpdate.rowId === row.id
-                                  ? pendingUpdate.data
-                                  : null
-                              }
-                              normalizedSelection={normalizedSelection}
-                              onClick={handleCellClick}
-                              onDoubleClick={handleCellDoubleClick}
-                              onSave={handleInlineSave}
-                              onCancel={handleInlineCancel}
-                              onContextMenu={handleRowContextMenu}
-                              onCellMouseDown={handleCellMouseDown}
-                              onCellMouseEnter={handleCellMouseEnter}
-                              isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
-                              onRowToggle={handleRowToggle}
-                              onRowMouseDown={handleRowMouseDown}
-                              onRowMouseEnter={handleRowMouseEnter}
-                              runningCount={runningByRowId[row.id] ?? 0}
-                              hasWorkflowColumns={hasWorkflowColumns}
-                              numRegionWidth={numRegionWidth}
-                              onStopRow={onStopRow}
-                              onRunRow={onRunRow}
-                              workflowGroups={tableWorkflowGroups}
-                              activeDispatches={activeDispatches}
-                              pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
-                              lastPinnedColKey={lastPinnedColKey}
-                            />
-                          )
-                        })}
-                        {paddingBottom > 0 && (
-                          <tr aria-hidden>
-                            <td
-                              colSpan={displayColumns.length + 1}
-                              style={{ height: paddingBottom }}
-                            />
-                          </tr>
-                        )}
-                        {isFetchingNextPage && (
-                          <tr>
-                            <td colSpan={displayColumns.length + 1} className='h-[35px] p-0'>
-                              <div className='flex items-center justify-center'>
-                                <Loader
-                                  animate
-                                  className='size-[14px] shrink-0 text-[var(--text-tertiary)]'
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    )
-                  })()
-                )}
+                {isLoadingTable || isLoadingRows
+                  ? null
+                  : (() => {
+                      const virtualItems = rowVirtualizer.getVirtualItems()
+                      // `item.start`/`item.end` include `scrollMargin` (the sticky-header
+                      // offset) but `getTotalSize()` already nets it out, so both spacer
+                      // heights are computed relative to `scrollMargin`.
+                      const scrollMargin = rowVirtualizer.options.scrollMargin
+                      const paddingTop =
+                        virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
+                      const paddingBottom =
+                        virtualItems.length > 0
+                          ? rowVirtualizer.getTotalSize() -
+                            (virtualItems[virtualItems.length - 1].end - scrollMargin)
+                          : 0
+                      return (
+                        <>
+                          {paddingTop > 0 && (
+                            <tr aria-hidden>
+                              <td
+                                colSpan={displayColumns.length + 1}
+                                style={{ height: paddingTop }}
+                              />
+                            </tr>
+                          )}
+                          {virtualItems.map((virtualRow) => {
+                            const index = virtualRow.index
+                            const row = rows[index]
+                            if (!row) return null
+                            return (
+                              <DataRow
+                                key={row.id}
+                                row={row}
+                                columns={displayColumns}
+                                workspaceId={workspaceId}
+                                rowIndex={index}
+                                isFirstRow={index === 0}
+                                editingColumnName={
+                                  editingCell?.rowId === row.id ? editingCell.columnName : null
+                                }
+                                initialCharacter={
+                                  editingCell?.rowId === row.id ? initialCharacter : null
+                                }
+                                pendingCellValue={
+                                  pendingUpdate && pendingUpdate.rowId === row.id
+                                    ? pendingUpdate.data
+                                    : null
+                                }
+                                normalizedSelection={normalizedSelection}
+                                onClick={handleCellClick}
+                                onDoubleClick={handleCellDoubleClick}
+                                onSave={handleInlineSave}
+                                onCancel={handleInlineCancel}
+                                onContextMenu={handleRowContextMenu}
+                                onCellMouseDown={handleCellMouseDown}
+                                onCellMouseEnter={handleCellMouseEnter}
+                                isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
+                                onRowToggle={handleRowToggle}
+                                onRowMouseDown={handleRowMouseDown}
+                                onRowMouseEnter={handleRowMouseEnter}
+                                runningCount={runningByRowId[row.id] ?? 0}
+                                hasWorkflowColumns={hasWorkflowColumns}
+                                numRegionWidth={numRegionWidth}
+                                onStopRow={onStopRow}
+                                onRunRow={onRunRow}
+                                workflowGroups={tableWorkflowGroups}
+                                activeDispatches={activeDispatches}
+                                pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
+                                lastPinnedColKey={lastPinnedColKey}
+                              />
+                            )
+                          })}
+                          {paddingBottom > 0 && (
+                            <tr aria-hidden>
+                              <td
+                                colSpan={displayColumns.length + 1}
+                                style={{ height: paddingBottom }}
+                              />
+                            </tr>
+                          )}
+                          {isFetchingNextPage && (
+                            <tr>
+                              <td colSpan={displayColumns.length + 1} className='h-[35px] p-0'>
+                                <div className='flex items-center justify-center'>
+                                  <Loader
+                                    animate
+                                    className='size-[14px] shrink-0 text-[var(--text-tertiary)]'
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      )
+                    })()}
               </tbody>
             </table>
             {resizingColumn && (

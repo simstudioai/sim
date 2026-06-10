@@ -6,7 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
-import { PDF_PAGE_SKELETON, PreviewError, resolvePreviewError } from './preview-shared'
+import { PREVIEW_LOADING_OVERLAY, PreviewError, resolvePreviewError } from './preview-shared'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
 
@@ -299,7 +299,7 @@ export const DocxPreview = memo(function DocxPreview({
   const error = streamingContent !== undefined ? null : resolvePreviewError(fetchError, renderError)
   if (error) return <PreviewError label='document' error={error} />
 
-  const showSkeleton =
+  const showLoadingFrame =
     !hasRenderedPreview && (streamingContent !== undefined || isLoading || rendering)
 
   const scrollToPage = (page: number) => {
@@ -369,10 +369,11 @@ export const DocxPreview = memo(function DocxPreview({
         ref={scrollContainerRef}
         className='relative min-h-0 flex-1 overflow-auto bg-[var(--surface-1)]'
       >
-        {showSkeleton && (
-          <div className='absolute inset-0 z-10 bg-[var(--surface-1)]'>{PDF_PAGE_SKELETON}</div>
-        )}
-        <div ref={containerRef} className={cn('min-h-full w-full', showSkeleton && 'opacity-0')} />
+        {showLoadingFrame && PREVIEW_LOADING_OVERLAY}
+        <div
+          ref={containerRef}
+          className={cn('min-h-full w-full', showLoadingFrame && 'opacity-0')}
+        />
       </div>
     </div>
   )

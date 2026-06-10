@@ -40,7 +40,7 @@ export function DeleteChunkModal({
         </p>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush disabled={isDeleting} onClick={onClose}>
+        <Chip flush disabled={isDeleting} onClick={onClose}>
           Cancel
         </Chip>
         <Chip variant='destructive' flush onClick={handleDeleteChunk} disabled={isDeleting}>

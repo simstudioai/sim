@@ -103,7 +103,7 @@ export function RenameDocumentModal({
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+        <Chip flush onClick={() => onOpenChange(false)} disabled={isSubmitting}>
           Cancel
         </Chip>
         <Chip

@@ -20,6 +20,9 @@ import {
   ChipModalBody,
   ChipModalFooter,
   ChipModalHeader,
+  cellIconNodeClass,
+  chipContentGap,
+  chipContentLabelClass,
   chipVariants,
   Loader,
   Tooltip,
@@ -38,7 +41,7 @@ import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import type {
   BreadcrumbItem,
   FilterTag,
-  HeaderAction,
+  ResourceAction,
   ResourceCell,
   ResourceColumn,
   ResourceRow,
@@ -810,6 +813,7 @@ export function KnowledgeBase({
             onChange: kbRename.setEditValue,
             onSubmit: kbRename.submitRename,
             onCancel: kbRename.cancelRename,
+            disabled: kbRename.isSaving,
           }
         : undefined,
       dropdownItems: [
@@ -839,14 +843,14 @@ export function KnowledgeBase({
     },
   ]
 
-  const headerActions: HeaderAction[] = [
+  const headerActions: ResourceAction[] = [
     ...(userPermissions.canEdit || userPermissions.isLoading
       ? [
           {
-            label: 'New connector',
+            text: 'New connector',
             icon: Plus,
             disabled: !userPermissions.canEdit,
-            onClick: () => setShowAddConnectorModal(true),
+            onSelect: () => setShowAddConnectorModal(true),
           },
         ]
       : []),
@@ -1066,11 +1070,14 @@ export function KnowledgeBase({
           cells: {
             name: {
               content: (
-                <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
-                  <span className='flex-shrink-0 text-[var(--text-icon)]'>
+                <span className={cn('flex min-w-0 items-center', chipContentGap)}>
+                  <span className={cellIconNodeClass}>
                     <DocIcon className='size-[14px]' />
                   </span>
-                  <FloatingOverflowText label={doc.filename} className='block truncate'>
+                  <FloatingOverflowText
+                    label={doc.filename}
+                    className={cn('block', chipContentLabelClass)}
+                  >
                     <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
                   </FloatingOverflowText>
                 </span>
@@ -1134,61 +1141,71 @@ export function KnowledgeBase({
 
   return (
     <>
-      <Resource
-        icon={Database}
-        title='Knowledge Base'
-        breadcrumbs={breadcrumbs}
-        create={{
-          label: 'New documents',
-          onClick: handleAddDocuments,
-          disabled: userPermissions.canEdit !== true,
-        }}
-        headerActions={headerActions}
-        sort={sortConfig}
-        search={{
-          value: searchQuery,
-          onChange: handleSearchChange,
-          placeholder: 'Search documents...',
-        }}
-        filter={filterContent}
-        filterTags={filterTags}
-        extras={connectorBadges}
-        columns={DOCUMENT_COLUMNS}
-        rows={documentRows}
-        selectable={selectableConfig}
-        onRowClick={handleDocumentClick}
-        onRowContextMenu={handleDocumentContextMenu}
-        onContextMenu={handleEmptyContextMenu}
-        isLoading={
-          isInitialLoad || isFetchingNewKB || (isLoadingDocuments && documents.length === 0)
-        }
-        pagination={{
-          currentPage,
-          totalPages,
-          onPageChange: (page) => setCurrentPage(page),
-        }}
-        emptyMessage={emptyMessage}
-        overlay={
-          <ActionBar
-            className={totalPages > 1 ? 'bottom-[72px]' : undefined}
-            selectedCount={selectedDocuments.size}
-            onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
-            onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
-            onDelete={handleBulkDelete}
-            enabledCount={enabledCount}
-            disabledCount={disabledCount}
-            isLoading={isBulkOperating}
-            totalCount={pagination.total}
-            isAllPageSelected={isAllSelected}
-            isAllSelected={isSelectAllMode}
-            onSelectAll={() => setIsSelectAllMode(true)}
-            onClearSelectAll={() => {
-              setIsSelectAllMode(false)
-              setSelectedDocuments(new Set())
-            }}
-          />
-        }
-      />
+      <Resource onContextMenu={handleEmptyContextMenu}>
+        <Resource.Header
+          icon={Database}
+          title='Knowledge Base'
+          breadcrumbs={breadcrumbs}
+          actions={[
+            ...headerActions,
+            {
+              text: 'New documents',
+              icon: Plus,
+              onSelect: handleAddDocuments,
+              disabled: userPermissions.canEdit !== true,
+              variant: 'primary',
+            },
+          ]}
+        />
+        <Resource.Options
+          search={{
+            value: searchQuery,
+            onChange: handleSearchChange,
+            placeholder: 'Search documents...',
+          }}
+          sort={sortConfig}
+          filter={filterContent ? { content: filterContent } : undefined}
+          filterTags={filterTags}
+          aside={connectorBadges}
+        />
+        <Resource.Table
+          columns={DOCUMENT_COLUMNS}
+          rows={documentRows}
+          sort={sortConfig}
+          selectable={selectableConfig}
+          onRowClick={handleDocumentClick}
+          onRowContextMenu={handleDocumentContextMenu}
+          isLoading={
+            isInitialLoad || isFetchingNewKB || (isLoadingDocuments && documents.length === 0)
+          }
+          pagination={{
+            currentPage,
+            totalPages,
+            onPageChange: (page) => setCurrentPage(page),
+          }}
+          emptyMessage={emptyMessage}
+          overlay={
+            <ActionBar
+              className={totalPages > 1 ? 'bottom-[72px]' : undefined}
+              selectedCount={selectedDocuments.size}
+              onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
+              onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
+              onDelete={handleBulkDelete}
+              enabledCount={enabledCount}
+              disabledCount={disabledCount}
+              isLoading={isBulkOperating}
+              totalCount={pagination.total}
+              isAllPageSelected={isAllSelected}
+              isAllSelected={isSelectAllMode}
+              onSelectAll={() => setIsSelectAllMode(true)}
+              onClearSelectAll={() => {
+                setIsSelectAllMode(false)
+                setSelectedDocuments(new Set())
+              }}
+            />
+          }
+        />
+      </Resource>
 
       <BaseTagsModal open={showTagsModal} onOpenChange={setShowTagsModal} knowledgeBaseId={id} />
 
@@ -1210,12 +1227,7 @@ export function KnowledgeBase({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteDialog(false)}
-            disabled={isDeleting}
-          >
+          <Chip flush onClick={() => setShowDeleteDialog(false)} disabled={isDeleting}>
             Cancel
           </Chip>
           <Chip
@@ -1264,7 +1276,6 @@ export function KnowledgeBase({
         </ChipModalBody>
         <ChipModalFooter>
           <Chip
-            variant='filled'
             flush
             onClick={() => {
               setShowDeleteDocumentModal(false)
@@ -1297,7 +1308,7 @@ export function KnowledgeBase({
           </p>
         </ChipModalBody>
         <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setShowBulkDeleteModal(false)}>
+          <Chip flush onClick={() => setShowBulkDeleteModal(false)}>
             Cancel
           </Chip>
           <Chip variant='destructive' flush onClick={confirmBulkDelete} disabled={isBulkOperating}>

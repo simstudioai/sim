@@ -104,6 +104,7 @@ export function CreateWorkflowMcpServerModal({
               searchPlaceholder='Search workflows...'
               disabled={createServerMutation.isPending}
               fullWidth
+              dropdownWidth='trigger'
               align='start'
               displayLabel={
                 selectedWorkflowIds.length > 0
@@ -130,7 +131,7 @@ export function CreateWorkflowMcpServerModal({
         <ChipModalError>{createServerMutation.error?.message}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)}>
+        <Chip flush onClick={() => onOpenChange(false)}>
           Cancel
         </Chip>
         <Chip

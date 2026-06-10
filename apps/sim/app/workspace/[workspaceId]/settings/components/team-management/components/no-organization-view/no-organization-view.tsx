@@ -165,12 +165,7 @@ export function NoOrganizationView({
             <ChipModalError>{error}</ChipModalError>
           </ChipModalBody>
           <ChipModalFooter>
-            <Chip
-              variant='filled'
-              flush
-              onClick={() => setCreateOrgDialogOpen(false)}
-              disabled={isCreatingOrg}
-            >
+            <Chip flush onClick={() => setCreateOrgDialogOpen(false)} disabled={isCreatingOrg}>
               Cancel
             </Chip>
             <Chip
