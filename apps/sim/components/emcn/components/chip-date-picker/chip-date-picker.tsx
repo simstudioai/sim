@@ -3,7 +3,7 @@
 import { forwardRef, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Calendar, formatDateLabel } from '@/components/emcn/components/calendar/calendar'
-import { chipVariants } from '@/components/emcn/components/chip/chip'
+import { chipVariants, TRIGGER_BORDER_CLASS } from '@/components/emcn/components/chip/chip'
 import { POPOVER_ANIMATION_CLASSES } from '@/components/emcn/components/popover/popover-animation'
 import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -58,7 +58,11 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(functi
           ref={ref}
           type='button'
           disabled={disabled}
-          className={cn(chipVariants({ variant: 'filled', fullWidth, flush }), className)}
+          className={cn(
+            chipVariants({ variant: 'filled', fullWidth, flush }),
+            TRIGGER_BORDER_CLASS,
+            className
+          )}
         >
           <span
             className={cn(

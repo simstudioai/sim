@@ -103,6 +103,7 @@ export function CreateWorkflowMcpServerModal({
               searchPlaceholder='Search workflows...'
               disabled={createServerMutation.isPending}
               fullWidth
+              dropdownWidth='trigger'
               align='start'
               displayLabel={
                 selectedWorkflowIds.length > 0

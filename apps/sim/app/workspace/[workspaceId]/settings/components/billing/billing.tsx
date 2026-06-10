@@ -517,7 +517,6 @@ export function Billing() {
                 <div className='flex items-center justify-between'>
                   <span className='text-[var(--text-body)] text-small'>Payment method</span>
                   <Chip
-                    variant='filled'
                     flush
                     disabled={!canManageBilling || openBillingPortal.isPending}
                     onClick={handleOpenBillingPortal}
