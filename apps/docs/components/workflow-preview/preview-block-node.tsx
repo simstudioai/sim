@@ -177,15 +177,15 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                       return (
                         <div
                           key={tool.type}
-                          className='flex items-center gap-[5px] rounded-[5px] border border-[var(--wp-border-1)] bg-[var(--wp-header)] px-[6px] py-[3px]'
+                          className='inline-flex h-5 items-center gap-1.5 rounded-md bg-[var(--wp-chip-bg)] px-1 shadow-[inset_0_0_0_1px_var(--wp-border-1)]'
                         >
                           <div
-                            className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                            className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
                             style={{ background: tool.bgColor }}
                           >
-                            {ToolIcon && <ToolIcon className='size-[10px] text-white' />}
+                            {ToolIcon && <ToolIcon className='size-[9px] text-white' />}
                           </div>
-                          <span className='font-normal text-[12px] text-[var(--wp-text)]'>
+                          <span className='font-normal text-[12px] text-[var(--wp-chip-text)] leading-5'>
                             {tool.name}
                           </span>
                         </div>

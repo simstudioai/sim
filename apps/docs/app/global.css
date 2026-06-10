@@ -1867,6 +1867,8 @@ html.dark main article blockquote {
   /* borders */
   --wp-border: #dedede; /* --border */
   --wp-border-1: #e0e0e0; /* --border-1 */
+  --wp-chip-bg: #f3f3f3; /* --surface-5: ChipTag surface (light) */
+  --wp-chip-text: #3b3b3b; /* --text-body */
   --wp-divider: #ededed; /* --divider */
   --wp-edge: #e0e0e0; /* --workflow-edge */
 
@@ -1902,6 +1904,8 @@ html.dark main article blockquote {
 
   --wp-border: #333333;
   --wp-border-1: #3d3d3d;
+  --wp-chip-bg: #292929; /* --surface-4: ChipTag surface (dark) */
+  --wp-chip-text: #cdcdcd; /* --text-body */
   --wp-divider: #393939;
   --wp-edge: #454545;
 
