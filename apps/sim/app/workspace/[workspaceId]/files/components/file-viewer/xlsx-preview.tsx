@@ -4,11 +4,11 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
-import { Button, Skeleton } from '@/components/emcn'
+import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { DataTable } from './data-table'
-import { PreviewError, resolvePreviewError } from './preview-shared'
+import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 const logger = createLogger('XlsxPreview')
@@ -21,31 +21,6 @@ interface XlsxSheet {
   rows: string[][]
   truncated: boolean
 }
-
-const XLSX_SKELETON = (
-  <div className='flex flex-1 flex-col overflow-hidden'>
-    <div className='flex shrink-0 items-center gap-2 border-[var(--border)] border-b bg-[var(--surface-1)] px-3 py-2'>
-      <Skeleton className='h-[22px] w-[60px] rounded' />
-      <Skeleton className='h-[22px] w-[48px] rounded' />
-    </div>
-    <div className='flex-1 overflow-auto p-6'>
-      <div className='overflow-hidden rounded-md border border-[var(--border)]'>
-        <div className='flex gap-4 bg-[var(--surface-2)] px-3 py-2'>
-          {[1, 1, 1, 1].map((_, i) => (
-            <Skeleton key={i} className='h-[12px] flex-1' />
-          ))}
-        </div>
-        {[...Array(7)].map((_, i) => (
-          <div key={i} className='flex gap-4 border-[var(--border)] border-t px-3 py-2'>
-            {[1, 1, 1, 1].map((_, j) => (
-              <Skeleton key={j} className='h-[12px] flex-1' />
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-)
 
 export const XlsxPreview = memo(function XlsxPreview({
   file,
@@ -134,7 +109,9 @@ export const XlsxPreview = memo(function XlsxPreview({
 
   const error = resolvePreviewError(preview.error, renderError)
   if (error) return <PreviewError label='spreadsheet' error={error} />
-  if (!fileData || currentSheet === null) return XLSX_SKELETON
+  if (!fileData || currentSheet === null) {
+    return <PreviewLoadingFrame className='flex flex-1 flex-col overflow-hidden' />
+  }
 
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>

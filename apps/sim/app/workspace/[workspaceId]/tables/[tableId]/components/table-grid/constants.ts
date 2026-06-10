@@ -12,9 +12,6 @@ export const ADD_COL_WIDTH = 120
  *  and the table's reserved padding-right while a sidebar is open. */
 export const COLUMN_SIDEBAR_WIDTH = 400
 
-/** Number of skeleton rows shown while the table body is loading. */
-export const SKELETON_ROW_COUNT = 10
-
 export const CELL =
   'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 export const CELL_CHECKBOX =

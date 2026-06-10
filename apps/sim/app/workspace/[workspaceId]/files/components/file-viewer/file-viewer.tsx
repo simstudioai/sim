@@ -3,7 +3,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import dynamic from 'next/dynamic'
-import { Skeleton } from '@/components/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
@@ -18,7 +17,12 @@ import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PptxPreview } from './pptx-preview'
 import { resolvePreviewType } from './preview-panel'
-import { PDF_PAGE_SKELETON, PreviewError, resolvePreviewError } from './preview-shared'
+import {
+  PREVIEW_LOADING_OVERLAY,
+  PreviewError,
+  PreviewLoadingFrame,
+  resolvePreviewError,
+} from './preview-shared'
 import { TextEditor } from './text-editor'
 import { XlsxPreview } from './xlsx-preview'
 
@@ -137,7 +141,7 @@ const IframePreview = memo(function IframePreview({
   if (error) return <PreviewError label='PDF' error={error} />
 
   if (!bufferSource) {
-    return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
+    return <div className='relative flex flex-1 overflow-hidden'>{PREVIEW_LOADING_OVERLAY}</div>
   }
 
   return (
@@ -197,13 +201,7 @@ const AudioPreview = memo(function AudioPreview({
   if (error) return <PreviewError label='audio' error={error} />
 
   if (isLoading && !blobUrl) {
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
-        <Skeleton className='size-[40px] rounded-full' />
-        <Skeleton className='h-[14px] w-[160px]' />
-        <Skeleton className='h-[40px] w-full max-w-[480px] rounded-lg' />
-      </div>
-    )
+    return <PreviewLoadingFrame className='h-full' tone='surface' />
   }
 
   return (
@@ -244,11 +242,7 @@ const VideoPreview = memo(function VideoPreview({
   if (error) return <PreviewError label='video' error={error} />
 
   if (isLoading && !blobUrl) {
-    return (
-      <div className='flex h-full items-center justify-center bg-[var(--surface-1)] p-8'>
-        <Skeleton className='w-full max-w-[720px]' style={{ aspectRatio: '16 / 9' }} />
-      </div>
-    )
+    return <PreviewLoadingFrame className='h-full' tone='surface' />
   }
 
   return (

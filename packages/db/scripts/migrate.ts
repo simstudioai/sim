@@ -38,18 +38,58 @@ if (!url) {
 
 const client = postgres(url, { max: 1, connect_timeout: 10 })
 
+/**
+ * Cross-process migration lock key (a stable, app-wide 64-bit constant).
+ *
+ * drizzle's `migrate()` has no built-in lock, so when a deployment starts N app
+ * replicas at once — each with a migration sidecar — all N read
+ * `__drizzle_migrations`, all see the same migration pending, and all try to apply
+ * it concurrently. One wins; the losers run the same DDL against already-mutated
+ * state and die (e.g. `DROP TABLE "form"` → `table "form" does not exist`,
+ * exit 1 / TaskFailedToStart).
+ *
+ * A session-level `pg_advisory_lock` serializes runners: the first to acquire it
+ * migrates while the rest block, then each loser acquires the lock, re-reads
+ * `__drizzle_migrations`, finds nothing pending, and exits cleanly. Session locks
+ * auto-release if the connection drops, so a crashed runner never wedges the lock.
+ */
+const MIGRATION_LOCK_KEY = 4_961_002_270n
+
 try {
   // statement_timeout=0: index builds (esp. CONCURRENTLY on large tables) can run
   // far longer than the app default; a migration must never be killed mid-build.
   await client`SET statement_timeout = 0`
-  await migrate(drizzle(client), { migrationsFolder: './migrations' })
-  console.log('Migrations applied successfully.')
+  await client`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`
+  try {
+    await migrate(drizzle(client), { migrationsFolder: './migrations' })
+    console.log('Migrations applied successfully.')
+  } finally {
+    await releaseMigrationLock()
+  }
 } catch (error) {
   console.error('ERROR: Migration failed.')
   printMigrationError(error)
   process.exit(1)
 } finally {
   await client.end()
+}
+
+/**
+ * Release the advisory lock without ever failing the process. The session-level
+ * lock auto-releases when the connection closes, so a thrown unlock — e.g. the
+ * connection dropped right after `migrate()` committed — must be swallowed.
+ * Letting it reach the outer `catch` would exit 1 and falsely report a
+ * successful migration as failed to the deploy orchestrator.
+ */
+async function releaseMigrationLock(): Promise<void> {
+  try {
+    await client`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`
+  } catch (unlockError) {
+    console.error(
+      'WARN: pg_advisory_unlock failed; the session lock will auto-release on disconnect.',
+      unlockError
+    )
+  }
 }
 
 /**

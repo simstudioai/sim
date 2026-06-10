@@ -13,7 +13,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
   docsLink: 'https://docs.sim.ai/tools/brightdata',
   category: 'tools',
   integrationType: IntegrationType.Search,
-  bgColor: '#0F4C81',
+  bgColor: '#FFFFFF',
   icon: BrightDataIcon,
   subBlocks: [
     {

@@ -8,9 +8,12 @@ import { slackDownloadTool } from '@/tools/slack/download'
 import { slackEditCanvasTool } from '@/tools/slack/edit_canvas'
 import { slackEphemeralMessageTool } from '@/tools/slack/ephemeral_message'
 import { slackGetCanvasTool } from '@/tools/slack/get_canvas'
+import { slackGetChannelHistoryTool } from '@/tools/slack/get_channel_history'
 import { slackGetChannelInfoTool } from '@/tools/slack/get_channel_info'
 import { slackGetMessageTool } from '@/tools/slack/get_message'
+import { slackGetPermalinkTool } from '@/tools/slack/get_permalink'
 import { slackGetThreadTool } from '@/tools/slack/get_thread'
+import { slackGetThreadRepliesTool } from '@/tools/slack/get_thread_replies'
 import { slackGetUserTool } from '@/tools/slack/get_user'
 import { slackGetUserPresenceTool } from '@/tools/slack/get_user_presence'
 import { slackInviteToConversationTool } from '@/tools/slack/invite_to_conversation'
@@ -25,6 +28,9 @@ import { slackOpenViewTool } from '@/tools/slack/open_view'
 import { slackPublishViewTool } from '@/tools/slack/publish_view'
 import { slackPushViewTool } from '@/tools/slack/push_view'
 import { slackRemoveReactionTool } from '@/tools/slack/remove_reaction'
+import { slackSetStatusTool } from '@/tools/slack/set_status'
+import { slackSetSuggestedPromptsTool } from '@/tools/slack/set_suggested_prompts'
+import { slackSetTitleTool } from '@/tools/slack/set_title'
 import { slackUpdateMessageTool } from '@/tools/slack/update_message'
 import { slackUpdateViewTool } from '@/tools/slack/update_view'
 
@@ -57,6 +63,12 @@ export {
   slackPublishViewTool,
   slackGetMessageTool,
   slackGetThreadTool,
+  slackGetThreadRepliesTool,
+  slackGetChannelHistoryTool,
+  slackGetPermalinkTool,
+  slackSetStatusTool,
+  slackSetTitleTool,
+  slackSetSuggestedPromptsTool,
   slackInviteToConversationTool,
 }
 

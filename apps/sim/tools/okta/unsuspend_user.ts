@@ -41,7 +41,7 @@ export const oktaUnsuspendUserTool: ToolConfig<OktaUnsuspendUserParams, OktaUnsu
     request: {
       url: (params) => {
         const domain = validateOktaDomain(params.domain)
-        return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/unsuspend`
+        return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/unsuspend`
       },
       method: 'POST',
       headers: (params) => ({

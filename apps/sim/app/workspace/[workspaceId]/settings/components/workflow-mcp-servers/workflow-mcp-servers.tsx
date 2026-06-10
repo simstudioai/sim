@@ -814,6 +814,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               searchPlaceholder='Search workflows...'
               disabled={addToolMutation.isPending}
               fullWidth
+              dropdownWidth='trigger'
               align='start'
               displayLabel={selectedWorkflow?.name}
             />
