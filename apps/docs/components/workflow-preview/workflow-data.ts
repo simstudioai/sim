@@ -19,6 +19,10 @@ export interface PreviewBlock {
   type: string
   bgColor: string
   rows: Array<{ title: string; value: string }>
+  /** Branch rows, each with its own right-edge source handle (id `branch-<id>`). */
+  branches?: Array<{ id: string; label: string; value?: string }>
+  /** Render an error row with a red source handle (id `error`). */
+  showError?: boolean
   tools?: PreviewTool[]
   position: { x: number; y: number }
   hideTargetHandle?: boolean
@@ -91,6 +95,8 @@ export function toReactFlowElements(
         blockType: block.type,
         bgColor: block.bgColor,
         rows: block.rows,
+        branches: block.branches,
+        showError: block.showError,
         tools: block.tools,
         hideTargetHandle: block.hideTargetHandle,
         hideSourceHandle: block.hideSourceHandle,

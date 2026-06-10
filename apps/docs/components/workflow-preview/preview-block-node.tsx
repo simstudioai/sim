@@ -21,6 +21,8 @@ interface PreviewBlockData {
   blockType: string
   bgColor: string
   rows: Array<{ title: string; value: string }>
+  branches?: Array<{ id: string; label: string; value?: string }>
+  showError?: boolean
   tools?: PreviewTool[]
   hideTargetHandle?: boolean
   hideSourceHandle?: boolean
@@ -37,6 +39,10 @@ interface PreviewBlockData {
 const HANDLE_BASE = '!z-[10] !border-none !bg-[var(--wp-edge)]'
 const HANDLE_LEFT = `${HANDLE_BASE} !left-[-8px] !h-5 !w-[7px] !rounded-r-none !rounded-l-[2px]`
 const HANDLE_RIGHT = `${HANDLE_BASE} !right-[-8px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px]`
+const HANDLE_BRANCH =
+  '!z-[10] !border-none !right-[-16px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px] !bg-[var(--wp-edge)]'
+const HANDLE_ERROR =
+  '!z-[10] !border-none !right-[-16px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px] !bg-[#ef4444]'
 
 /**
  * Static preview block node matching the real WorkflowBlock styling.
@@ -53,6 +59,8 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
     blockType,
     bgColor,
     rows,
+    branches,
+    showError,
     tools,
     hideTargetHandle,
     hideSourceHandle,
@@ -63,7 +71,11 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
   } = data
   const Icon = resolveIcon(blockType)
   const delay = animate ? index * BLOCK_STAGGER : 0
-  const hasContent = rows.length > 0 || (tools && tools.length > 0)
+  const hasBranches = Boolean(branches && branches.length > 0)
+  const hasContent =
+    rows.length > 0 || hasBranches || Boolean(showError) || (tools && tools.length > 0)
+  /* A block with branch handles emits from them, not from the header handle. */
+  const showHeaderSource = !hideSourceHandle && !hasBranches
 
   return (
     <LazyMotion features={domAnimation}>
@@ -119,6 +131,41 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                 </div>
               ))}
 
+              {branches?.map((branch) => (
+                <div key={branch.id} className='relative flex items-center gap-2'>
+                  <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
+                    {branch.label}
+                  </span>
+                  <span className='flex min-w-0 flex-1 items-center justify-end font-normal text-[14px] text-[var(--wp-text)]'>
+                    <span className='truncate'>{branch.value ?? '-'}</span>
+                  </span>
+                  <Handle
+                    type='source'
+                    position={Position.Right}
+                    id={`branch-${branch.id}`}
+                    className={HANDLE_BRANCH}
+                    isConnectableStart={false}
+                    isConnectableEnd={false}
+                  />
+                </div>
+              ))}
+
+              {showError && (
+                <div className='relative flex items-center gap-2'>
+                  <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
+                    error
+                  </span>
+                  <Handle
+                    type='source'
+                    position={Position.Right}
+                    id='error'
+                    className={HANDLE_ERROR}
+                    isConnectableStart={false}
+                    isConnectableEnd={false}
+                  />
+                </div>
+              )}
+
               {tools && tools.length > 0 && (
                 <div className='flex items-center gap-2'>
                   <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)]'>
@@ -150,7 +197,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
             </div>
           )}
 
-          {!hideSourceHandle && (
+          {showHeaderSource && (
             <Handle
               type='source'
               position={Position.Right}

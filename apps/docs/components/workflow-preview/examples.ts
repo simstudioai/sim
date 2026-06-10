@@ -251,7 +251,11 @@ export const CONDITION_ROUTE_WORKFLOW: PreviewWorkflow = {
       type: 'condition',
       bgColor: '#FF752F',
       position: { x: 330, y: 60 },
-      rows: [{ title: 'If', value: "<start.priority> === 'high'" }],
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: "<start.priority> === 'high'" },
+        { id: 'else', label: 'else' },
+      ],
     },
     {
       id: 'escalate',
@@ -274,8 +278,13 @@ export const CONDITION_ROUTE_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-condition', source: 'start', target: 'condition' },
-    { id: 'condition-escalate', source: 'condition', target: 'escalate' },
-    { id: 'condition-reply', source: 'condition', target: 'reply' },
+    {
+      id: 'condition-escalate',
+      source: 'condition',
+      target: 'escalate',
+      sourceHandle: 'branch-if',
+    },
+    { id: 'condition-reply', source: 'condition', target: 'reply', sourceHandle: 'branch-else' },
   ],
 }
 
@@ -299,7 +308,11 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
       type: 'condition',
       bgColor: '#FF752F',
       position: { x: 330, y: 60 },
-      rows: [{ title: 'If', value: '<moderate.toxicity> > 0.7' }],
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: '<moderate.toxicity> > 0.7' },
+        { id: 'else', label: 'else' },
+      ],
     },
     {
       id: 'block',
@@ -322,8 +335,13 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'moderate-condition', source: 'moderate', target: 'condition' },
-    { id: 'condition-block', source: 'condition', target: 'block' },
-    { id: 'condition-publish', source: 'condition', target: 'publish' },
+    { id: 'condition-block', source: 'condition', target: 'block', sourceHandle: 'branch-if' },
+    {
+      id: 'condition-publish',
+      source: 'condition',
+      target: 'publish',
+      sourceHandle: 'branch-else',
+    },
   ],
 }
 
@@ -347,7 +365,11 @@ export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
       type: 'condition',
       bgColor: '#FF752F',
       position: { x: 330, y: 60 },
-      rows: [{ title: 'If', value: "<plan.result.tier> === 'enterprise'" }],
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: "<plan.result.tier> === 'enterprise'" },
+        { id: 'else', label: 'else' },
+      ],
     },
     {
       id: 'guided',
@@ -370,8 +392,13 @@ export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'plan-condition', source: 'plan', target: 'condition' },
-    { id: 'condition-guided', source: 'condition', target: 'guided' },
-    { id: 'condition-quickstart', source: 'condition', target: 'quickstart' },
+    { id: 'condition-guided', source: 'condition', target: 'guided', sourceHandle: 'branch-if' },
+    {
+      id: 'condition-quickstart',
+      source: 'condition',
+      target: 'quickstart',
+      sourceHandle: 'branch-else',
+    },
   ],
 }
 
@@ -487,6 +514,11 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
         { title: 'Context', value: '<start.input>' },
         { title: 'Model', value: 'claude-sonnet-4-6' },
       ],
+      branches: [
+        { id: 'sales', label: 'Sales' },
+        { id: 'support', label: 'Support' },
+        { id: 'billing', label: 'Billing' },
+      ],
     },
     {
       id: 'sales',
@@ -518,9 +550,9 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-router', source: 'start', target: 'router' },
-    { id: 'router-sales', source: 'router', target: 'sales' },
-    { id: 'router-support', source: 'router', target: 'support' },
-    { id: 'router-billing', source: 'router', target: 'billing' },
+    { id: 'router-sales', source: 'router', target: 'sales', sourceHandle: 'branch-sales' },
+    { id: 'router-support', source: 'router', target: 'support', sourceHandle: 'branch-support' },
+    { id: 'router-billing', source: 'router', target: 'billing', sourceHandle: 'branch-billing' },
   ],
 }
 
@@ -586,6 +618,10 @@ export const ROUTER_CLASSIFY_WORKFLOW: PreviewWorkflow = {
       bgColor: '#28C43F',
       position: { x: 320, y: 50 },
       rows: [{ title: 'Context', value: '<start.input>' }],
+      branches: [
+        { id: 'product', label: 'Product' },
+        { id: 'bug', label: 'Bug report' },
+      ],
     },
     {
       id: 'product',
@@ -608,8 +644,8 @@ export const ROUTER_CLASSIFY_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-router', source: 'start', target: 'router' },
-    { id: 'router-product', source: 'router', target: 'product' },
-    { id: 'router-bug', source: 'router', target: 'bug' },
+    { id: 'router-product', source: 'router', target: 'product', sourceHandle: 'branch-product' },
+    { id: 'router-bug', source: 'router', target: 'bug', sourceHandle: 'branch-bug' },
   ],
 }
 
@@ -634,6 +670,10 @@ export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
       bgColor: '#28C43F',
       position: { x: 320, y: 50 },
       rows: [{ title: 'Context', value: '<start.input>' }],
+      branches: [
+        { id: 'enterprise', label: 'Enterprise' },
+        { id: 'selfserve', label: 'Self-serve' },
+      ],
     },
     {
       id: 'enterprise',
@@ -656,8 +696,18 @@ export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-router', source: 'start', target: 'router' },
-    { id: 'router-enterprise', source: 'router', target: 'enterprise' },
-    { id: 'router-selfserve', source: 'router', target: 'selfserve' },
+    {
+      id: 'router-enterprise',
+      source: 'router',
+      target: 'enterprise',
+      sourceHandle: 'branch-enterprise',
+    },
+    {
+      id: 'router-selfserve',
+      source: 'router',
+      target: 'selfserve',
+      sourceHandle: 'branch-selfserve',
+    },
   ],
 }
 
@@ -722,7 +772,11 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
       type: 'condition',
       bgColor: '#FF752F',
       position: { x: 320, y: 60 },
-      rows: [{ title: 'If', value: '<start.valid>' }],
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: '<start.valid>' },
+        { id: 'else', label: 'else' },
+      ],
     },
     {
       id: 'ok',
@@ -745,8 +799,8 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-condition', source: 'start', target: 'condition' },
-    { id: 'condition-ok', source: 'condition', target: 'ok' },
-    { id: 'condition-bad', source: 'condition', target: 'bad' },
+    { id: 'condition-ok', source: 'condition', target: 'ok', sourceHandle: 'branch-if' },
+    { id: 'condition-bad', source: 'condition', target: 'bad', sourceHandle: 'branch-else' },
   ],
 }
 
@@ -779,7 +833,11 @@ export const VARIABLES_RETRY_WORKFLOW: PreviewWorkflow = {
       bgColor: '#FF752F',
       position: { x: 640, y: 0 },
       hideSourceHandle: true,
-      rows: [{ title: 'If', value: '<variable.retryCount> < 3' }],
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: '<variable.retryCount> < 3' },
+        { id: 'else', label: 'else' },
+      ],
     },
   ],
   edges: [
@@ -940,7 +998,11 @@ export const EVALUATOR_GATE_WORKFLOW: PreviewWorkflow = {
       bgColor: '#FF752F',
       position: { x: 640, y: 0 },
       hideSourceHandle: true,
-      rows: [{ title: 'If', value: '<evaluator.accuracy> >= 4' }],
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: '<evaluator.accuracy> >= 4' },
+        { id: 'else', label: 'else' },
+      ],
     },
   ],
   edges: [
@@ -1021,7 +1083,11 @@ export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
       type: 'condition',
       bgColor: '#FF752F',
       position: { x: 330, y: 60 },
-      rows: [{ title: 'If', value: "<variable.env> === 'prod'" }],
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: "<variable.env> === 'prod'" },
+        { id: 'else', label: 'else' },
+      ],
     },
     {
       id: 'prod',
@@ -1044,8 +1110,13 @@ export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'pick-condition', source: 'pick', target: 'condition' },
-    { id: 'condition-prod', source: 'condition', target: 'prod' },
-    { id: 'condition-staging', source: 'condition', target: 'staging' },
+    { id: 'condition-prod', source: 'condition', target: 'prod', sourceHandle: 'branch-if' },
+    {
+      id: 'condition-staging',
+      source: 'condition',
+      target: 'staging',
+      sourceHandle: 'branch-else',
+    },
   ],
 }
 
@@ -1081,7 +1152,14 @@ export const GUARDRAILS_JSON_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 0 },
       rows: [{ title: 'Validation', value: 'Valid JSON' }],
     },
-    { ...GUARDRAILS_GATE, rows: [{ title: 'If', value: '<guardrails.passed>' }] },
+    {
+      ...GUARDRAILS_GATE,
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: '<guardrails.passed>' },
+        { id: 'else', label: 'else' },
+      ],
+    },
   ],
   edges: [
     { id: 'start-guardrails', source: 'start', target: 'guardrails' },
@@ -1106,7 +1184,14 @@ export const GUARDRAILS_HALLUCINATION_WORKFLOW: PreviewWorkflow = {
         { title: 'Knowledge Base', value: 'docs' },
       ],
     },
-    { ...GUARDRAILS_GATE, rows: [{ title: 'If', value: '<guardrails.score> >= 3' }] },
+    {
+      ...GUARDRAILS_GATE,
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: '<guardrails.score> >= 3' },
+        { id: 'else', label: 'else' },
+      ],
+    },
   ],
   edges: [
     { id: 'start-guardrails', source: 'start', target: 'guardrails' },
@@ -1139,7 +1224,14 @@ export const GUARDRAILS_PII_WORKFLOW: PreviewWorkflow = {
         { title: 'Action', value: 'Block' },
       ],
     },
-    { ...GUARDRAILS_GATE, rows: [{ title: 'If', value: '<guardrails.passed>' }] },
+    {
+      ...GUARDRAILS_GATE,
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: '<guardrails.passed>' },
+        { id: 'else', label: 'else' },
+      ],
+    },
   ],
   edges: [
     { id: 'start-guardrails', source: 'start', target: 'guardrails' },
@@ -1331,7 +1423,11 @@ export const WEBHOOK_TRIGGER_WORKFLOW: PreviewWorkflow = {
       type: 'condition',
       bgColor: '#FF752F',
       position: { x: 320, y: 0 },
-      rows: [{ title: 'If', value: "<start.status> === 'done'" }],
+      rows: [],
+      branches: [
+        { id: 'if', label: 'If', value: "<start.status> === 'done'" },
+        { id: 'else', label: 'else' },
+      ],
     },
     {
       id: 'webhook',
