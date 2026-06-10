@@ -8,12 +8,12 @@ type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null'
 
 /** Dark-theme equivalents of the app's type badges (string=green, number=blue, …). */
 const BADGE_COLORS: Record<ValueType, { bg: string; text: string }> = {
-  string: { bg: '#1d3528', text: '#63d489' },
-  number: { bg: '#232c4d', text: '#93a8f7' },
-  boolean: { bg: '#3a2a16', text: '#f0a35e' },
-  array: { bg: '#2e2347', text: '#b794f6' },
-  object: { bg: '#2e2e2e', text: '#b3b3b3' },
-  null: { bg: '#2e2e2e', text: '#b3b3b3' },
+  string: { bg: 'var(--wp-badge-success-bg)', text: 'var(--wp-badge-success-text)' },
+  number: { bg: 'var(--wp-badge-blue-bg)', text: 'var(--wp-badge-blue-text)' },
+  boolean: { bg: 'var(--wp-badge-orange-bg)', text: 'var(--wp-badge-orange-text)' },
+  array: { bg: 'var(--wp-badge-purple-bg)', text: 'var(--wp-badge-purple-text)' },
+  object: { bg: 'var(--wp-badge-gray-bg)', text: 'var(--wp-badge-gray-text)' },
+  null: { bg: 'var(--wp-badge-gray-bg)', text: 'var(--wp-badge-gray-text)' },
 }
 
 interface OutputNode {
@@ -71,23 +71,26 @@ function TreeNode({ node, depth = 0 }: { node: OutputNode; depth?: number }) {
   return (
     <div className='flex min-w-0 flex-col'>
       <div className='flex min-h-[26px] items-center gap-2 rounded-[6px] px-1'>
-        <span className='text-[13px]' style={{ color: node.highlight ? '#33b4ff' : '#e6e6e6' }}>
+        <span
+          className='text-[13px]'
+          style={{ color: node.highlight ? '#33b4ff' : 'var(--wp-text)' }}
+        >
           {node.key}
         </span>
         <TypeBadge type={type} />
         <ChevronDown
-          className='h-[7px] w-[9px] flex-shrink-0 text-[#7a7a7a]'
+          className='h-[7px] w-[9px] flex-shrink-0 text-[var(--wp-text-muted)]'
           style={expanded ? undefined : { transform: 'rotate(-90deg)' }}
         />
       </div>
       {expanded && (node.children || node.value !== undefined) && (
-        <div className='mt-0.5 ml-[5px] flex min-w-0 flex-col gap-0.5 border-[#2e2e2e] border-l pl-[10px]'>
+        <div className='mt-0.5 ml-[5px] flex min-w-0 flex-col gap-0.5 border-[var(--wp-divider)] border-l pl-[10px]'>
           {node.children
             ? node.children.map((child) => (
                 <TreeNode key={child.key} node={child} depth={depth + 1} />
               ))
             : node.value !== undefined && (
-                <div className='py-0.5 text-[#cfcfcf] text-[13px]'>{node.value}</div>
+                <div className='py-0.5 text-[13px] text-[var(--wp-text-2)]'>{node.value}</div>
               )}
         </div>
       )}
@@ -114,27 +117,29 @@ export function OutputBundle({
   ]
 
   return (
-    <div className='not-prose my-6 flex w-full max-w-[640px] flex-col gap-3'>
-      <div className='flex overflow-hidden rounded-xl border border-[#2a2a2a] bg-[#141414]'>
-        <div className='flex w-[210px] flex-shrink-0 flex-col border-[#2a2a2a] border-r px-2 py-2'>
-          <div className='px-2 pb-2 text-[#7a7a7a] text-[12px]'>Logs</div>
+    <div className='wp-scope not-prose my-6 flex w-full max-w-[640px] flex-col gap-3'>
+      <div className='flex overflow-hidden rounded-xl border border-[var(--wp-border)] bg-[var(--wp-panel)]'>
+        <div className='flex w-[210px] flex-shrink-0 flex-col border-[var(--wp-border)] border-r px-2 py-2'>
+          <div className='px-2 pb-2 text-[12px] text-[var(--wp-text-muted)]'>Logs</div>
           {logRows.map((row) => {
             const Icon = row.type ? resolveIcon(row.type) : null
             return (
               <div
                 key={row.name}
                 className='flex h-[30px] items-center gap-2 rounded-[6px] px-2'
-                style={row.selected ? { background: '#262626' } : undefined}
+                style={row.selected ? { background: 'var(--wp-active)' } : undefined}
               >
                 <div
                   className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-[5px]'
-                  style={{ background: row.color ?? '#3d3d3d' }}
+                  style={{ background: row.color ?? 'var(--wp-border-1)' }}
                 >
                   {Icon && <Icon className='size-[10px] text-white' />}
                 </div>
-                <span className='truncate text-[#e6e6e6] text-[13px]'>{row.name}</span>
+                <span className='truncate text-[13px] text-[var(--wp-text)]'>{row.name}</span>
                 {row.duration && (
-                  <span className='ml-auto text-[#9a9a9a] text-[12px]'>{row.duration}</span>
+                  <span className='ml-auto text-[12px] text-[var(--wp-text-muted)]'>
+                    {row.duration}
+                  </span>
                 )}
               </div>
             )
@@ -143,9 +148,9 @@ export function OutputBundle({
 
         <div className='flex min-w-0 flex-1 flex-col px-3 py-2'>
           <div className='flex items-center gap-3 pb-2'>
-            <span className='text-[#e6e6e6] text-[13px]'>Output</span>
-            <span className='text-[#7a7a7a] text-[13px]'>Input</span>
-            <span className='ml-auto flex items-center gap-2 text-[#5a5a5a]'>
+            <span className='text-[13px] text-[var(--wp-text)]'>Output</span>
+            <span className='text-[13px] text-[var(--wp-text-muted)]'>Input</span>
+            <span className='ml-auto flex items-center gap-2 text-[var(--wp-text-subtle)]'>
               <Search className='size-[12px]' />
               <Clipboard className='size-[12px]' />
               <Download className='size-[12px]' />

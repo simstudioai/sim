@@ -13,7 +13,7 @@ interface PreviewContainerData {
   hideSourceHandle?: boolean
 }
 
-const HANDLE_BASE = '!z-[10] !border-none !bg-[#454545]'
+const HANDLE_BASE = '!z-[10] !border-none !bg-[var(--wp-edge)]'
 const HANDLE_LEFT = `${HANDLE_BASE} !left-[-8px] !h-5 !w-[7px] !rounded-r-none !rounded-l-[2px]`
 const HANDLE_RIGHT = `${HANDLE_BASE} !right-[-8px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px]`
 const HANDLE_START = `${HANDLE_BASE} !right-[-8px] !h-4 !w-[7px] !rounded-l-none !rounded-r-[2px]`
@@ -42,7 +42,7 @@ export const PreviewContainerNode = memo(function PreviewContainerNode({
   const Icon = BLOCK_ICONS[blockType]
 
   return (
-    <div className='relative h-full w-full select-none rounded-[8px] border border-[#3d3d3d] bg-white/[0.02]'>
+    <div className='relative h-full w-full select-none rounded-[8px] border border-[var(--wp-border-1)] bg-[var(--wp-container-fill)]'>
       {!hideTargetHandle && (
         <Handle
           type='target'
@@ -55,18 +55,18 @@ export const PreviewContainerNode = memo(function PreviewContainerNode({
         />
       )}
 
-      <div className='flex items-center gap-2.5 rounded-t-[8px] border-[#3d3d3d] border-b bg-[#2a2a2a] py-2 pr-3 pl-2'>
+      <div className='flex items-center gap-2.5 rounded-t-[8px] border-[var(--wp-border-1)] border-b bg-[var(--wp-header)] py-2 pr-3 pl-2'>
         <div
           className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
           style={{ background: bgColor }}
         >
           {Icon && <Icon className={`size-[16px] ${iconClassFor(bgColor)}`} />}
         </div>
-        <span className='truncate font-medium text-[#e6e6e6] text-[16px]'>{name}</span>
+        <span className='truncate font-medium text-[16px] text-[var(--wp-text)]'>{name}</span>
       </div>
 
-      <div className='absolute top-[56px] left-4 flex items-center justify-center rounded-lg border border-[#3d3d3d] bg-[#2a2a2a] px-3 py-1.5'>
-        <span className='font-medium text-[#e6e6e6] text-[13px]'>Start</span>
+      <div className='absolute top-[56px] left-4 flex items-center justify-center rounded-lg border border-[var(--wp-border-1)] bg-[var(--wp-header)] px-3 py-1.5'>
+        <span className='font-medium text-[13px] text-[var(--wp-text)]'>Start</span>
         <Handle
           type='source'
           position={Position.Right}

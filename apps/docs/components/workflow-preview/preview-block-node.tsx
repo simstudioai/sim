@@ -31,10 +31,10 @@ interface PreviewBlockData {
 }
 
 /**
- * Handle styling matching the real WorkflowBlock handles.
- * --workflow-edge in dark mode: #454545
+ * Handle styling matching the real WorkflowBlock handles (--wp-edge mirrors
+ * the app's --workflow-edge in both modes).
  */
-const HANDLE_BASE = '!z-[10] !border-none !bg-[#454545]'
+const HANDLE_BASE = '!z-[10] !border-none !bg-[var(--wp-edge)]'
 const HANDLE_LEFT = `${HANDLE_BASE} !left-[-8px] !h-5 !w-[7px] !rounded-r-none !rounded-l-[2px]`
 const HANDLE_RIGHT = `${HANDLE_BASE} !right-[-8px] !h-5 !w-[7px] !rounded-l-none !rounded-r-[2px]`
 
@@ -42,8 +42,8 @@ const HANDLE_RIGHT = `${HANDLE_BASE} !right-[-8px] !h-5 !w-[7px] !rounded-l-none
  * Static preview block node matching the real WorkflowBlock styling.
  * Renders a header (icon + name), sub-block rows, and tool chips.
  *
- * Dark-theme colors mirror the app canvas:
- * surface #232323, border #3d3d3d, text #e6e6e6 / #b3b3b3.
+ * Colors come from preview-theme.module.css, mirroring the app's tokens in
+ * both light and dark mode.
  */
 export const PreviewBlockNode = memo(function PreviewBlockNode({
   data,
@@ -74,9 +74,9 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
         animate={{ opacity: isDimmed ? 0.35 : 1 }}
         transition={{ duration: 0.45, delay, ease: EASE_OUT }}
       >
-        <div className='relative z-[20] w-[250px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
+        <div className='relative z-[20] w-[250px] select-none rounded-[8px] border border-[var(--wp-border-1)] bg-[var(--wp-surface)]'>
           {isHighlighted && (
-            <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[#33b4ff] ring-2' />
+            <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-2 ring-[#33b4ff]' />
           )}
           {!hideTargetHandle && (
             <Handle
@@ -91,7 +91,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
           )}
 
           <div
-            className={`flex items-center justify-between p-2 ${hasContent ? 'border-[#3d3d3d] border-b' : ''}`}
+            className={`flex items-center justify-between p-2 ${hasContent ? 'border-[var(--wp-border-1)] border-b' : ''}`}
           >
             <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
               <div
@@ -100,7 +100,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
               >
                 {Icon && <Icon className='size-[16px] text-white' />}
               </div>
-              <span className='truncate font-medium text-[#e6e6e6] text-[16px]'>{name}</span>
+              <span className='truncate font-medium text-[16px] text-[var(--wp-text)]'>{name}</span>
             </div>
           </div>
 
@@ -108,11 +108,11 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
             <div className='flex flex-col gap-2 p-2'>
               {rows.map((row) => (
                 <div key={row.title} className='flex items-center gap-2'>
-                  <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px] capitalize'>
+                  <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)] capitalize'>
                     {row.title}
                   </span>
                   {row.value && (
-                    <span className='flex min-w-0 flex-1 items-center justify-end gap-2 font-normal text-[#e6e6e6] text-[14px]'>
+                    <span className='flex min-w-0 flex-1 items-center justify-end gap-2 font-normal text-[14px] text-[var(--wp-text)]'>
                       <span className='truncate'>{row.value}</span>
                     </span>
                   )}
@@ -121,7 +121,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
 
               {tools && tools.length > 0 && (
                 <div className='flex items-center gap-2'>
-                  <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px]'>
+                  <span className='flex-shrink-0 font-normal text-[14px] text-[var(--wp-text-3)]'>
                     Tools
                   </span>
                   <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
@@ -130,7 +130,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                       return (
                         <div
                           key={tool.type}
-                          className='flex items-center gap-[5px] rounded-[5px] border border-[#3d3d3d] bg-[#2a2a2a] px-[6px] py-[3px]'
+                          className='flex items-center gap-[5px] rounded-[5px] border border-[var(--wp-border-1)] bg-[var(--wp-header)] px-[6px] py-[3px]'
                         >
                           <div
                             className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
@@ -138,7 +138,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                           >
                             {ToolIcon && <ToolIcon className='size-[10px] text-white' />}
                           </div>
-                          <span className='font-normal text-[#e6e6e6] text-[12px]'>
+                          <span className='font-normal text-[12px] text-[var(--wp-text)]'>
                             {tool.name}
                           </span>
                         </div>
