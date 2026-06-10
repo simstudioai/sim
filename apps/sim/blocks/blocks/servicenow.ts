@@ -248,13 +248,6 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       placeholder: 'category,priority',
       condition: { field: 'operation', value: 'servicenow_aggregate' },
       description: 'Comma-separated fields to group results by',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Generate a comma-separated list of ServiceNow field names to group aggregate results by, based on the user request. Use lowercase field names. Return ONLY the comma-separated field names - no explanations, no extra text.',
-        placeholder: 'Describe how to group the results...',
-        generationType: 'custom',
-      },
     },
     {
       id: 'avgFields',
