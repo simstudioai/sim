@@ -13572,6 +13572,30 @@
         "description": "Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context."
       },
       {
+        "name": "Get Thread Replies",
+        "description": "Fetch every message in a Slack thread, automatically following pagination across all pages. Returns the parent message and the full set of replies."
+      },
+      {
+        "name": "Get Channel History",
+        "description": "Fetch message history from a Slack channel, automatically following pagination. Optionally filter by a time range to scrape messages since a given timestamp."
+      },
+      {
+        "name": "Get Message Permalink",
+        "description": "Get a stable permalink URL to a specific Slack message."
+      },
+      {
+        "name": "Set Assistant Status",
+        "description": "Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it."
+      },
+      {
+        "name": "Set Assistant Title",
+        "description": "Set the title of a Slack assistant thread (shown in the AI app thread header)."
+      },
+      {
+        "name": "Set Suggested Prompts",
+        "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
+      },
+      {
         "name": "List Channels",
         "description": "List all channels in a Slack workspace. Returns public and private channels the bot has access to."
       },
@@ -13664,7 +13688,7 @@
         "description": "Publish a static view to a user"
       }
     ],
-    "operationCount": 29,
+    "operationCount": 35,
     "triggers": [
       {
         "id": "slack_webhook",
