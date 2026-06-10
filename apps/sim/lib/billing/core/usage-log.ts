@@ -406,6 +406,16 @@ export interface RecordCumulativeUsageResult {
 }
 
 /**
+ * Bounds the wait for the per-event-key advisory lock (and any row/index lock
+ * waits inside the critical section). The Go mothership gives each UpdateCost
+ * POST a 5s deadline, retries 3x with backoff, then dead-letters the charge
+ * keyed on the same idempotency key — so a stuck lock holder must surface as
+ * a fast, retryable failure (SQLSTATE 55P03) within that budget rather than
+ * an unbounded wait that pins pooled connections.
+ */
+const CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS = 3_000
+
+/**
  * Record a request's CUMULATIVE cost idempotently with monotonic top-up.
  *
  * Keeps exactly ONE usage_log row per `eventKey` holding the MAX cumulative
@@ -413,6 +423,9 @@ export interface RecordCumulativeUsageResult {
  * each flush. A per-key transactional advisory lock serializes concurrent
  * flushes so the read-then-write — including the first insert — is race-free
  * (no two flushes can both believe they are first and clobber each other).
+ * The billing context is resolved BEFORE the transaction and the lock wait is
+ * bounded by `lock_timeout`, keeping the critical section to one SELECT plus
+ * one INSERT/UPDATE on a single pooled connection.
  *
  * Because every leg flushes its cumulative and this converges to the max,
  * there is no under-billing if the request recovers after a partial flush, no
@@ -424,9 +437,22 @@ export async function recordCumulativeUsage(
 ): Promise<RecordCumulativeUsageResult> {
   const { userId, workspaceId, source, model, cost, eventKey, metadata } = params
 
+  // Resolved before the locked transaction on purpose: resolving inside it
+  // ran the subscription lookups on the global pool while this tx already
+  // held a pooled connection plus the advisory lock, so under load N
+  // first-flush transactions each pinned a connection while waiting for one
+  // more — starving the pool and queueing every same-key flush (and the Go
+  // side's retries) behind the stall.
+  const billingContext = await resolveBillingContext(userId)
+
   return db.transaction(async (tx) => {
-    // Serialize all flushes for this request (lock auto-releases at tx end).
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${eventKey}))`)
+    // Serialize all flushes for this request (lock auto-releases at tx end),
+    // with a bounded wait so a pathological holder fails this flush fast and
+    // lets the caller retry instead of hanging the connection.
+    await tx.execute(
+      sql`select set_config('lock_timeout', ${`${CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS}ms`}, true)`
+    )
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${eventKey}, 0))`)
 
     const [existing] = await tx
       .select({ id: usageLog.id, cost: usageLog.cost })
@@ -449,12 +475,14 @@ export async function recordCumulativeUsage(
         .set({ cost: newTotal.toString(), metadata: metadata ?? null })
         .where(eq(usageLog.id, existing.id))
     } else {
-      // First flush for this request: insert the canonical row (recordUsage
-      // resolves billing entity/period). Runs in the same tx + advisory lock.
+      // First flush for this request: insert the canonical row with the
+      // pre-resolved billing context. Runs in the same tx + advisory lock.
       await recordUsage({
         userId,
         workspaceId,
         tx,
+        billingEntity: billingContext.billingEntity,
+        billingPeriod: billingContext.billingPeriod,
         entries: [
           {
             category: 'model',
