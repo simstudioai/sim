@@ -21,8 +21,8 @@
   --auth-primary-btn-hover-border: #e0e0e0;
   --auth-primary-btn-hover-text: #000000;
 
-  /* z-index scale for layered UI
-     Popover must be above modal so dropdowns inside modals render correctly */
+  /* z-index scale. Transient poppers (menus, selects, popovers, tooltips, toasts)
+     sit above --z-modal so they stay clickable over the semi-transparent overlay. */
   --z-dropdown: 100;
   --z-modal: 200;
   --z-popover: 300;
