@@ -1,4 +1,7 @@
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type { GrafanaUpdateDashboardParams } from '@/tools/grafana/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -184,8 +187,9 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       headers['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const urlValidation = validateExternalUrl(params.baseUrl, 'baseUrl')
-    if (!urlValidation.isValid) {
+    const updateUrl = `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`
+    const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
+    if (!urlValidation.isValid || !urlValidation.resolvedIP) {
       return {
         success: false,
         output: {},
@@ -193,7 +197,7 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       }
     }
 
-    const updateResponse = await fetch(`${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`, {
+    const updateResponse = await secureFetchWithPinnedIP(updateUrl, urlValidation.resolvedIP, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),

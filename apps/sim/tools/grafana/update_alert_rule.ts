@@ -1,4 +1,7 @@
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { ALERT_RULE_OUTPUT_FIELDS, type GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
 import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -270,8 +273,9 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       headers['X-Disable-Provenance'] = 'true'
     }
 
-    const urlValidation = validateExternalUrl(params.baseUrl, 'baseUrl')
-    if (!urlValidation.isValid) {
+    const updateUrl = `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`
+    const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
+    if (!urlValidation.isValid || !urlValidation.resolvedIP) {
       return {
         success: false,
         output: {},
@@ -279,14 +283,11 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       }
     }
 
-    const updateResponse = await fetch(
-      `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
-      {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(updatedRule),
-      }
-    )
+    const updateResponse = await secureFetchWithPinnedIP(updateUrl, urlValidation.resolvedIP, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(updatedRule),
+    })
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text()

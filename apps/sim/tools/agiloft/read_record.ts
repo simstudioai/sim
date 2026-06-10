@@ -1,5 +1,6 @@
 import type { AgiloftReadRecordParams, AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildReadRecordUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildReadRecordUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftReadRecordTool: ToolConfig<AgiloftReadRecordParams, AgiloftRecordResponse> = {
