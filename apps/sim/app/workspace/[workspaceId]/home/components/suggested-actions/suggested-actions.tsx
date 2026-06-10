@@ -382,7 +382,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
           aria-hidden={!expanded}
           tabIndex={expanded ? undefined : -1}
           className={cn(
-            chipVariants({ variant: 'ghost', flush: true }),
+            chipVariants({ flush: true }),
             '-mr-2 gap-1.5 transition-opacity duration-150 ease-out motion-reduce:transition-none',
             expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
           )}

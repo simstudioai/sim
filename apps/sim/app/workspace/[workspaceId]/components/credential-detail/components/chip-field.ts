@@ -10,10 +10,7 @@
  * to the canonical chip input instead of each re-deriving the tokens.
  */
 
-import {
-  chipFieldSurfaceClass,
-  chipFieldTextClass,
-} from '@/components/emcn/components/chip-input/chip-field-chrome'
+import { chipFieldSurfaceClass, chipFieldTextClass } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 /** Pill wrapper. Override height/alignment (e.g. a textarea) via `cn`. */
