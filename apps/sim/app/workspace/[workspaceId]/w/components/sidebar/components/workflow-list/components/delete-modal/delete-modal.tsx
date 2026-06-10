@@ -271,8 +271,9 @@ export function DeleteModal({
           type='input'
           title={
             <span>
-              Type <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>{' '}
-              to confirm
+              Type&nbsp;
+              <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>
+              &nbsp;to confirm
             </span>
           }
           value={confirmationText}

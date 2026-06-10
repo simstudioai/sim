@@ -40,7 +40,7 @@ export const oktaSuspendUserTool: ToolConfig<OktaSuspendUserParams, OktaSuspendU
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/suspend`
+      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/suspend`
     },
     method: 'POST',
     headers: (params) => ({

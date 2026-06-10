@@ -299,6 +299,13 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps {
   /** Native input type override. Defaults to `'text'`. */
   inputType?: 'text' | 'password' | 'url' | 'tel' | 'search' | 'number'
   /**
+   * Renders the value in the monospace stack (`font-mono`). Use for
+   * code-like values (identifiers, keys, snippets) where the proportional
+   * stack hurts legibility.
+   * @default false
+   */
+  mono?: boolean
+  /**
    * Called when the user presses Enter in the field. Wire this to the
    * modal's primary action so the field behaves like a form submit.
    */
@@ -333,6 +340,13 @@ interface ChipModalTextareaFieldProps extends ChipModalFieldBaseProps {
    * the user benefits from controlling height.
    */
   resizable?: boolean
+  /**
+   * Renders the value in the monospace stack (`font-mono`). Use for
+   * code-like content (JSON payloads, env blobs) where alignment and
+   * character distinction matter.
+   * @default false
+   */
+  mono?: boolean
 }
 
 interface ChipModalDropdownFieldProps extends ChipModalFieldBaseProps {
@@ -492,6 +506,7 @@ function renderChipModalControl(
           maxLength={props.type === 'input' ? props.maxLength : undefined}
           autoComplete={props.autoComplete}
           disabled={props.disabled}
+          inputClassName={props.type === 'input' && props.mono ? 'font-mono' : undefined}
           {...aria}
         />
       )
@@ -506,6 +521,7 @@ function renderChipModalControl(
           rows={props.rows}
           disabled={props.disabled}
           resizable={props.resizable}
+          className={props.mono ? 'font-mono' : undefined}
           style={props.minHeight ? { minHeight: props.minHeight } : undefined}
           {...aria}
         />
@@ -750,11 +766,11 @@ export interface ChipModalFooterAction {
   /** Disables the button. */
   disabled?: boolean
   /**
-   * Chip variant, restricted to the three footer-appropriate options so a
+   * Chip variant, restricted to the footer-appropriate options so a
    * footer can never drift from the design system.
-   * @default 'primary' for `primaryAction`, 'filled' for `secondaryAction`
+   * @default 'primary' for `primaryAction`, the bare default chip for `secondaryAction`
    */
-  variant?: Extract<ChipProps['variant'], 'primary' | 'destructive' | 'filled'>
+  variant?: Extract<ChipProps['variant'], 'primary' | 'destructive'>
 }
 
 export interface ChipModalFooterProps {
@@ -832,7 +848,7 @@ function ChipModalFooter({
       leftSlot={
         secondaryAction ? (
           <Chip
-            variant={secondaryAction.variant ?? 'filled'}
+            variant={secondaryAction.variant}
             flush
             onClick={secondaryAction.onClick}
             disabled={secondaryAction.disabled}
@@ -842,7 +858,7 @@ function ChipModalFooter({
         ) : undefined
       }
     >
-      <Chip variant='filled' flush onClick={onCancel} disabled={cancelDisabled}>
+      <Chip flush onClick={onCancel} disabled={cancelDisabled}>
         Cancel
       </Chip>
       <Chip
@@ -876,7 +892,7 @@ export interface ChipConfirmAction {
    * "Promote to live").
    * @default 'destructive'
    */
-  variant?: Extract<ChipProps['variant'], 'primary' | 'destructive' | 'filled'>
+  variant?: Extract<ChipProps['variant'], 'primary' | 'destructive'>
   /**
    * Marks the action in-flight: disables both the confirm and dismiss buttons
    * and, when {@link ChipConfirmAction.pendingLabel} is set, shows it in place
@@ -986,7 +1002,7 @@ function ChipConfirmModal({
         {children}
       </ChipModalBody>
       <ChipModalFooterShell>
-        <Chip variant='filled' flush onClick={dismiss} disabled={confirm.pending}>
+        <Chip flush onClick={dismiss} disabled={confirm.pending}>
           {dismissLabel}
         </Chip>
         <Chip

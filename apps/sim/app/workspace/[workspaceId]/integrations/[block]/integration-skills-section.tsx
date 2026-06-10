@@ -32,7 +32,7 @@ function SkillRow({ skill, added, pending, disabled, onAdd }: SkillRowProps) {
         <span className='truncate text-[12px] text-[var(--text-muted)]'>{skill.description}</span>
       </div>
       {added ? (
-        <Chip variant='filled' leftIcon={Check} disabled flush>
+        <Chip leftIcon={Check} disabled flush>
           Added
         </Chip>
       ) : (

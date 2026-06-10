@@ -21,7 +21,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { Checkbox, highlight, languages, Skeleton } from '@/components/emcn'
+import { Checkbox, highlight, languages } from '@/components/emcn'
 import '@/components/emcn/components/code/code.css'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -37,6 +37,7 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useScrollAnchor } from '@/hooks/use-scroll-anchor'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { DataTable } from './data-table'
+import { PreviewLoadingFrame } from './preview-shared'
 import { ZoomablePreview } from './zoomable-preview'
 
 interface HastNode {
@@ -328,19 +329,15 @@ function MermaidSourcePreview({
   )
 }
 
-function MermaidCodeBlockSkeleton() {
+function MermaidCodeBlockFallback() {
   return (
     <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
       <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
         <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
         <span className='text-[11px] text-[var(--text-muted)]'>Rendering…</span>
       </div>
-      <div className='code-editor-theme bg-[var(--surface-5)]'>
-        <div className='space-y-2 p-4'>
-          <div className='h-3 w-5/6 animate-pulse rounded bg-[var(--surface-2)]' />
-          <div className='h-3 w-2/3 animate-pulse rounded bg-[var(--surface-2)]' />
-          <div className='h-3 w-3/4 animate-pulse rounded bg-[var(--surface-2)]' />
-        </div>
+      <div className='code-editor-theme min-h-[96px] bg-[var(--surface-5)]'>
+        <div className='p-4' />
       </div>
     </div>
   )
@@ -469,13 +466,9 @@ const MermaidDiagram = memo(function MermaidDiagram({
 
   if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
     if (zoomable) {
-      return (
-        <div className='h-full p-6'>
-          <Skeleton className='h-full w-full rounded-lg' />
-        </div>
-      )
+      return <PreviewLoadingFrame className='h-full' />
     }
-    return <MermaidCodeBlockSkeleton />
+    return <MermaidCodeBlockFallback />
   }
   return null
 })

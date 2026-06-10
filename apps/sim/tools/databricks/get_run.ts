@@ -42,7 +42,10 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
 
   request: {
     url: (params) => {
-      const host = params.host.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const host = params.host
+        .trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '')
       const url = new URL(`https://${host}/api/2.1/jobs/runs/get`)
       url.searchParams.set('run_id', String(params.runId))
       if (params.includeHistory) url.searchParams.set('include_history', 'true')

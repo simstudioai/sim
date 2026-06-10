@@ -48,7 +48,10 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
 
   request: {
     url: (params) => {
-      const host = params.host.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const host = params.host
+        .trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '')
       const url = new URL(`https://${host}/api/2.1/jobs/list`)
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       if (params.offset) url.searchParams.set('offset', String(params.offset))

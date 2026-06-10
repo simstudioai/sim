@@ -12,7 +12,7 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
   docsLink: 'https://docs.sim.ai/tools/zerobounce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  bgColor: '#330D49',
+  bgColor: '#FFFFFF',
   icon: ZeroBounceIcon,
   subBlocks: [
     {

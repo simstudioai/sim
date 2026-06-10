@@ -158,6 +158,7 @@ export function InviteModal({
           onChange={handleEmailsChange}
           validate={validateEmail}
           error={errorMessage}
+          hint={fieldHint}
           placeholder={
             !canInviteMembers
               ? inviteDisabledReason || 'Only administrators can invite new teammates'
@@ -165,9 +166,6 @@ export function InviteModal({
           }
           disabled={isSubmitting || !canInviteMembers}
         />
-        {fieldHint && (
-          <p className='-mt-1 px-2 text-[var(--text-muted)] text-caption'>{fieldHint}</p>
-        )}
         <ChipModalField
           type='dropdown'
           title='Invite as'

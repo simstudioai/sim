@@ -273,8 +273,6 @@ Retrieve a paginated list of short links for the authenticated workspace. Suppor
 | `search` | string | No | Search query matched against the short link slug and destination URL |
 | `tagIds` | string | No | Comma-separated tag IDs to filter by |
 | `showArchived` | boolean | No | Whether to include archived links \(defaults to false\) |
-| `sortBy` | string | No | Sort by field: createdAt, clicks, saleAmount, or lastClicked |
-| `sortOrder` | string | No | Sort order: asc or desc |
 | `page` | number | No | Page number \(default: 1\) |
 | `pageSize` | number | No | Number of links per page \(default: 100, max: 100\) |
 
@@ -284,6 +282,86 @@ Retrieve a paginated list of short links for the authenticated workspace. Suppor
 | --------- | ---- | ----------- |
 | `links` | json | Array of link objects \(id, domain, key, url, shortLink, clicks, tags, createdAt\) |
 | `count` | number | Number of links returned |
+
+### `dub_get_links_count`
+
+Retrieve the number of short links for the authenticated workspace, optionally filtered and grouped by domain, tag, user, or folder.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `domain` | string | No | Filter by domain |
+| `search` | string | No | Search query matched against the short link slug and destination URL |
+| `tagIds` | string | No | Comma-separated tag IDs to filter by |
+| `tagNames` | string | No | Comma-separated tag names to filter by \(case-insensitive\) |
+| `folderId` | string | No | Filter by folder ID |
+| `showArchived` | boolean | No | Whether to include archived links \(defaults to false\) |
+| `groupBy` | string | No | Group counts by: domain, tagId, userId, or folderId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Total number of links matching the filters |
+| `groups` | json | Per-group counts when groupBy is set \(e.g. \[\{ domain, count \}\]\) |
+
+### `dub_bulk_create_links`
+
+Create up to 100 short links in a single request. Returns the created links alongside any per-link errors.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `links` | json | Yes | JSON array of link objects to create. Each object requires a "url" and may include domain, key, tagIds, and other link fields \(max 100\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `created` | json | Array of successfully created link objects |
+| `errors` | json | Array of per-link errors \(\{ link, error, code \}\) for links that failed |
+| `count` | number | Number of links successfully created |
+
+### `dub_bulk_update_links`
+
+Apply the same set of field updates to up to 100 links at once, selected by link IDs or external IDs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `linkIds` | string | No | Comma-separated link IDs to update \(max 100, takes precedence over externalIds\) |
+| `externalIds` | string | No | Comma-separated external IDs to update \(max 100\) |
+| `data` | json | Yes | JSON object of fields to apply to every selected link \(e.g. \{ "archived": true, "tagIds": \["..."\] \}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | json | Array of updated link objects |
+| `count` | number | Number of links updated |
+
+### `dub_bulk_delete_links`
+
+Delete up to 100 short links in a single request by their link IDs. Non-existing IDs are ignored.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `linkIds` | string | Yes | Comma-separated link IDs to delete \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deletedCount` | number | Number of links that were deleted |
 
 ### `dub_get_analytics`
 
@@ -314,5 +392,58 @@ Retrieve analytics for links including clicks, leads, and sales. Supports filter
 | `sales` | number | Total number of sales |
 | `saleAmount` | number | Total sale amount in cents |
 | `data` | json | Grouped analytics data \(timeseries, countries, devices, etc.\) |
+
+### `dub_get_events`
+
+Retrieve a paginated stream of individual click, lead, and sale events for links, with filtering by link, time range, and location.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `event` | string | No | Event type: clicks \(default\), leads, or sales |
+| `linkId` | string | No | Filter by link ID |
+| `externalId` | string | No | Filter by external ID \(prefix with ext_\) |
+| `domain` | string | No | Filter by domain |
+| `interval` | string | No | Time interval: 24h \(default\), 7d, 30d, 90d, 1y, mtd, qtd, ytd, or all |
+| `start` | string | No | Start date/time in ISO 8601 format \(overrides interval\) |
+| `end` | string | No | End date/time in ISO 8601 format \(defaults to now\) |
+| `country` | string | No | Filter by country \(ISO 3166-1 alpha-2 code\) |
+| `timezone` | string | No | IANA timezone for event timestamps \(defaults to UTC\) |
+| `page` | number | No | Page number \(default: 1\) |
+| `limit` | number | No | Number of events per page \(default: 100, max: 1000\) |
+| `sortOrder` | string | No | Sort order: desc \(default\) or asc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | json | Array of event objects \(event, timestamp, click, link, and customer/sale data when applicable\) |
+| `count` | number | Number of events returned |
+
+### `dub_get_qr_code`
+
+Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Dub API key |
+| `url` | string | Yes | The short link URL to encode in the QR code |
+| `size` | number | No | QR code size in pixels \(default: 600\) |
+| `level` | string | No | Error correction level: L \(default\), M, Q, or H |
+| `fgColor` | string | No | Foreground color in hex \(default: #000000\) |
+| `bgColor` | string | No | Background color in hex \(default: #FFFFFF\) |
+| `hideLogo` | boolean | No | Whether to hide the logo in the center of the QR code \(default: false\) |
+| `margin` | number | No | Margin \(quiet zone\) around the QR code \(default: 2\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Generated QR code image stored in execution files |
+| `content` | string | Base64-encoded PNG image data |
 
 

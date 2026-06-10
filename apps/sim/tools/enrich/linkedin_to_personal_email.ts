@@ -30,8 +30,8 @@ export const linkedInToPersonalEmailTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL('https://api.enrich.so/v2/api/linkedin-to-email')
-      url.searchParams.append('linkedin_profile', params.linkedinProfile.trim())
+      const url = new URL('https://api.enrich.so/v1/api/find-personal-email')
+      url.searchParams.append('profile_url', params.linkedinProfile.trim())
       return url.toString()
     },
     method: 'GET',
@@ -44,6 +44,19 @@ export const linkedInToPersonalEmailTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
+    // Handle queued response (202)
+    if (data.status === 'in_progress' || data.message?.includes('queued')) {
+      return {
+        success: true,
+        output: {
+          email: null,
+          found: false,
+          status: 'in_progress',
+        },
+      }
+    }
+
     const resultData = data.data ?? data
 
     return {
@@ -51,7 +64,7 @@ export const linkedInToPersonalEmailTool: ToolConfig<
       output: {
         email: resultData.email ?? resultData.personal_email ?? null,
         found: resultData.found ?? Boolean(resultData.email ?? resultData.personal_email),
-        status: resultData.status ?? null,
+        status: resultData.status ?? 'completed',
       },
     }
   },

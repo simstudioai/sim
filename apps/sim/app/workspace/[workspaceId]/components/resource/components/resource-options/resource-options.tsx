@@ -4,7 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  Button,
+  Chip,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -19,7 +19,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 const SEARCH_ICON = (
-  <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-icon)]' />
+  <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-muted)]' />
 )
 
 const RESOURCE_MENU_EDGE_OFFSET = 6
@@ -66,33 +66,39 @@ export interface SearchConfig {
   dropdownRef?: React.RefObject<HTMLDivElement | null>
 }
 
-interface ResourceOptionsBarProps {
+/**
+ * The Filter control has two shapes, picked by `mode`:
+ * - `popover` (default): list pages pass the filter controls as `content`; the
+ *   button opens them in a popover. `active` highlights the button.
+ * - `toggle`: detail views (e.g. the table editor) that render their filter as a
+ *   separate panel toggle the button instead of opening a popover.
+ */
+export type FilterConfig =
+  | { mode?: 'popover'; content: ReactNode; active?: boolean }
+  | { mode: 'toggle'; active: boolean; onToggle: () => void }
+
+interface ResourceOptionsProps {
   search?: SearchConfig
   sort?: SortConfig
-  /** Popover content — renders inside a Popover (used by logs, etc.) */
-  filter?: ReactNode
-  /** When provided, Filter button acts as a toggle instead of opening a Popover */
-  onFilterToggle?: () => void
-  /** Whether the filter is currently active (highlights the toggle button) */
-  filterActive?: boolean
+  filter?: FilterConfig
   filterTags?: FilterTag[]
-  extras?: ReactNode
-  /** Right-aligned slot. Unlike `extras` (which sits with the left controls),
-   *  `trailing` is pushed to the far right via `justify-between` — used for the
-   *  table's run/stop control opposite the left-aligned filter/sort. */
-  trailing?: ReactNode
+  /**
+   * Supplementary right-aligned slot (pushed opposite the left-aligned
+   * filter/sort via `justify-between`) for lightweight status content — e.g.
+   * the knowledge list's connector badges or the table editor's run/stop
+   * control in embedded mode. Keep it to badges/status widgets; primary
+   * actions belong in the header's `actions`, not here.
+   */
+  aside?: ReactNode
 }
 
-export const ResourceOptionsBar = memo(function ResourceOptionsBar({
+export const ResourceOptions = memo(function ResourceOptions({
   search,
   sort,
   filter,
-  onFilterToggle,
-  filterActive,
   filterTags,
-  extras,
-  trailing,
-}: ResourceOptionsBarProps) {
+  aside,
+}: ResourceOptionsProps) {
   /**
    * Coordinates the Filter popover and Sort menu as a single menu bar: clicking
    * one while the other is open switches to it in a single click. Functional
@@ -101,51 +107,27 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
    */
   const [openMenu, setOpenMenu] = useState<'filter' | 'sort' | null>(null)
 
-  const hasContent =
-    search ||
-    sort ||
-    filter ||
-    onFilterToggle ||
-    extras ||
-    trailing ||
-    (filterTags && filterTags.length > 0)
+  const isToggleFilter = filter?.mode === 'toggle'
+  const popoverFilter = filter && filter.mode !== 'toggle' ? filter : null
+
+  const hasContent = search || sort || filter || aside || (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
     <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
       <div className='flex items-center justify-between'>
         {search && <SearchSection search={search} />}
-        <div className='flex items-center gap-1.5'>
-          {extras}
+        <div className='flex items-center'>
           {filterTags?.map((tag) => (
-            <Button
-              key={tag.label}
-              variant='subtle'
-              className='max-w-[280px] px-2 py-1 text-caption'
-              onClick={tag.onRemove}
-            >
-              <FloatingOverflowText label={tag.label} className='block truncate' />
-              <span className='ml-1 shrink-0 text-[var(--text-icon)] text-micro'>✕</span>
-            </Button>
+            <Chip key={tag.label} rightIcon={X} onClick={tag.onRemove}>
+              {tag.label}
+            </Chip>
           ))}
-          {onFilterToggle ? (
-            <Button
-              variant='subtle'
-              className={cn(
-                'px-2 py-1 text-caption',
-                filterActive && 'bg-[var(--surface-3)] text-[var(--text-primary)]'
-              )}
-              onClick={onFilterToggle}
-            >
-              <ListFilter
-                className={cn(
-                  'mr-1.5 size-[14px]',
-                  filterActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-icon)]'
-                )}
-              />
+          {isToggleFilter && filter.mode === 'toggle' ? (
+            <Chip active={filter.active} leftIcon={ListFilter} onClick={filter.onToggle}>
               Filter
-            </Button>
-          ) : filter ? (
+            </Chip>
+          ) : popoverFilter ? (
             <PopoverPrimitive.Root
               open={openMenu === 'filter'}
               onOpenChange={(open) =>
@@ -153,12 +135,11 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
               }
             >
               <PopoverPrimitive.Anchor asChild>
-                <div className='flex items-center gap-1.5'>
+                <div className='flex items-center'>
                   <PopoverPrimitive.Trigger asChild>
-                    <Button variant='subtle' className='px-2 py-1 text-caption'>
-                      <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+                    <Chip active={popoverFilter.active} leftIcon={ListFilter}>
                       Filter
-                    </Button>
+                    </Chip>
                   </PopoverPrimitive.Trigger>
                   {sort && (
                     <SortDropdown
@@ -184,14 +165,14 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
                     'z-50 w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-sm'
                   )}
                 >
-                  {filter}
+                  {popoverFilter.content}
                 </PopoverPrimitive.Content>
               </PopoverPrimitive.Portal>
             </PopoverPrimitive.Root>
           ) : null}
-          {sort && (onFilterToggle || !filter) && <SortDropdown config={sort} />}
+          {sort && (isToggleFilter || !popoverFilter) && <SortDropdown config={sort} />}
         </div>
-        {trailing && <div className='flex shrink-0 items-center gap-1.5'>{trailing}</div>}
+        {aside && <div className='flex shrink-0 items-center gap-1.5'>{aside}</div>}
       </div>
     </div>
   )
@@ -199,24 +180,21 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
 
 const SearchSection = memo(function SearchSection({ search }: { search: SearchConfig }) {
   return (
-    <div className='relative flex flex-1 items-center'>
+    <div className='relative flex flex-1 items-center gap-1.5'>
       {SEARCH_ICON}
-      <div className='flex flex-1 items-center gap-1.5 overflow-x-auto pl-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+      <div className='flex flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {search.tags?.map((tag, i) => (
-          <Button
+          <Chip
             key={`${tag.label}-${tag.value}`}
-            variant='subtle'
-            className={cn(
-              'max-w-[280px] shrink-0 px-2 py-1 text-caption',
-              search.highlightedTagIndex === i && 'ring-1 ring-[var(--text-subtle)] ring-offset-1'
-            )}
+            rightIcon={X}
             onClick={tag.onRemove}
+            active={search.highlightedTagIndex === i}
+            className='max-w-[280px] shrink-0'
           >
             <FloatingOverflowText label={`${tag.label}: ${tag.value}`} className='block truncate'>
               {tag.label}: {tag.value}
             </FloatingOverflowText>
-            <span className='ml-1 text-[var(--text-icon)] text-micro'>✕</span>
-          </Button>
+          </Chip>
         ))}
         <input
           ref={search.inputRef}
@@ -227,13 +205,13 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
           onFocus={search.onFocus}
           onBlur={search.onBlur}
           placeholder={search.tags?.length ? '' : (search.placeholder ?? 'Search...')}
-          className='min-w-[80px] flex-1 bg-transparent py-1 text-[var(--text-secondary)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
+          className='min-w-[80px] flex-1 bg-transparent py-1 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
         />
       </div>
       {search.tags?.length || search.value ? (
         <button
           type='button'
-          className='mr-0.5 flex size-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
+          className='mr-0.5 flex size-[14px] shrink-0 items-center justify-center text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-body)]'
           onClick={search.onClearAll ?? (() => search.onChange(''))}
         >
           <span className='text-caption'>✕</span>
@@ -269,21 +247,9 @@ export const SortDropdown = memo(function SortDropdown({
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant='subtle'
-          className={cn(
-            'px-2 py-1 text-caption',
-            active && 'bg-[var(--surface-3)] text-[var(--text-primary)]'
-          )}
-        >
-          <ArrowUpDown
-            className={cn(
-              'mr-1.5 size-[14px]',
-              active ? 'text-[var(--text-primary)]' : 'text-[var(--text-icon)]'
-            )}
-          />
+        <Chip active={Boolean(active)} leftIcon={ArrowUpDown}>
           Sort
-        </Button>
+        </Chip>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align='end'

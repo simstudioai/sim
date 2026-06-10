@@ -1,5 +1,4 @@
 export * from './components'
-export { Calendar } from './components/calendar/calendar'
 export {
   Table,
   TableBody,

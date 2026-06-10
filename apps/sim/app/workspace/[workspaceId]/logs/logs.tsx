@@ -46,17 +46,13 @@ import {
 } from '@/lib/logs/search-suggestions'
 import type {
   FilterTag,
-  HeaderAction,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import {
-  ResourceHeader,
-  ResourceOptionsBar,
-  ResourceTable,
-} from '@/app/workspace/[workspaceId]/components'
+import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -759,7 +755,6 @@ export default function Logs() {
           id: log.id,
           cells: {
             workflow: {
-              icon: <Workflow className='size-[14px] text-[var(--text-icon)]' />,
               label: workflowName,
             },
             date: { label: `${formattedDate.compactDate} ${formattedDate.compactTime}` },
@@ -1076,33 +1071,33 @@ export default function Logs() {
 
   const refreshIcon = isVisuallyRefreshing ? SpinningRefreshCw : RefreshCw
 
-  const headerActions = useMemo<HeaderAction[]>(
+  const headerActions = useMemo<ResourceAction[]>(
     () => [
       {
-        label: 'Export',
+        text: 'Export',
         icon: Download,
-        onClick: handleExport,
+        onSelect: handleExport,
         disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
       },
       {
-        label: 'Notifications',
+        text: 'Notifications',
         icon: Bell,
-        onClick: handleOpenNotificationSettings,
+        onSelect: handleOpenNotificationSettings,
       },
       {
-        label: 'Refresh',
+        text: 'Refresh',
         icon: refreshIcon,
-        onClick: handleRefresh,
+        onSelect: handleRefresh,
         disabled: isVisuallyRefreshing,
       },
       {
-        label: 'Logs',
-        onClick: () => setViewMode('logs'),
+        text: 'Logs',
+        onSelect: () => setViewMode('logs'),
         active: !isDashboardView,
       },
       {
-        label: 'Dashboard',
-        onClick: () => setViewMode('dashboard'),
+        text: 'Dashboard',
+        onSelect: () => setViewMode('dashboard'),
         active: isDashboardView,
       },
     ],
@@ -1122,14 +1117,16 @@ export default function Logs() {
 
   return (
     <>
-      <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-        <ResourceHeader icon={Library} title='Logs' actions={headerActions} />
-        <ResourceOptionsBar
+      <Resource>
+        <Resource.Header icon={Library} title='Logs' actions={headerActions} />
+        <Resource.Options
           search={searchConfig}
           sort={sortConfig}
-          filter={
-            <LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
-          }
+          filter={{
+            content: (
+              <LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
+            ),
+          }}
           filterTags={filterTags}
         />
         {isDashboardView ? (
@@ -1144,7 +1141,7 @@ export default function Logs() {
             {sidebarOverlay}
           </div>
         ) : (
-          <ResourceTable
+          <Resource.Table
             columns={LOG_COLUMNS}
             rows={rows}
             selectedRowId={selectedLogId}
@@ -1159,7 +1156,7 @@ export default function Logs() {
             overlay={sidebarOverlay}
           />
         )}
-      </div>
+      </Resource>
 
       <NotificationSettings
         workspaceId={workspaceId}
@@ -1371,9 +1368,9 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   }
 
   return (
-    <div className='flex w-[240px] flex-col gap-3 p-3'>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+    <div className='flex w-[240px] flex-col gap-4 p-3'>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Status</span>
         <ChipCombobox
           options={statusOptions}
           multiSelect
@@ -1397,8 +1394,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
         />
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Workflow</span>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Workflow</span>
         <ChipCombobox
           options={workflowOptions}
           multiSelect
@@ -1421,8 +1418,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
         />
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Folder</span>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Folder</span>
         <ChipCombobox
           options={folderOptions}
           multiSelect
@@ -1440,8 +1437,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
         />
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Trigger</span>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Trigger</span>
         <ChipCombobox
           options={triggerOptions}
           multiSelect
@@ -1459,8 +1456,8 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
         />
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Time Range</span>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Time Range</span>
         <div className='relative'>
           <ChipCombobox
             options={TIME_RANGE_OPTIONS}

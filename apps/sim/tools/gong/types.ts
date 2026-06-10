@@ -297,6 +297,91 @@ export interface GongInteractionStatsResponse extends ToolResponse {
   }
 }
 
+/** Day-by-Day Activity */
+export interface GongDayByDayActivityParams extends GongBaseParams {
+  userIds?: string
+  fromDate: string
+  toDate: string
+  cursor?: string
+}
+
+interface GongDailyActivity {
+  fromDate: string | null
+  toDate: string | null
+  callsAsHost: string[]
+  callsAttended: string[]
+  callsGaveFeedback: string[]
+  callsReceivedFeedback: string[]
+  callsRequestedFeedback: string[]
+  callsScorecardsFilled: string[]
+  callsScorecardsReceived: string[]
+  ownCallsListenedTo: string[]
+  othersCallsListenedTo: string[]
+  callsSharedInternally: string[]
+  callsSharedExternally: string[]
+  callsCommentsGiven: string[]
+  callsCommentsReceived: string[]
+  callsMarkedAsFeedbackGiven: string[]
+  callsMarkedAsFeedbackReceived: string[]
+}
+
+interface GongUserDayByDayActivity {
+  userId: string
+  userEmailAddress: string | null
+  userDailyActivityStats: GongDailyActivity[]
+}
+
+export interface GongDayByDayActivityResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    usersDetailedActivities: GongUserDayByDayActivity[]
+    cursor: string | null
+  }
+}
+
+/** Aggregate by Period */
+export interface GongAggregateByPeriodParams extends GongBaseParams {
+  aggregationPeriod: string
+  userIds?: string
+  fromDate: string
+  toDate: string
+  cursor?: string
+}
+
+interface GongPeriodActivity {
+  fromDate: string | null
+  toDate: string | null
+  callsAsHost: number | null
+  callsAttended: number | null
+  callsGaveFeedback: number | null
+  callsReceivedFeedback: number | null
+  callsRequestedFeedback: number | null
+  callsScorecardsFilled: number | null
+  callsScorecardsReceived: number | null
+  ownCallsListenedTo: number | null
+  othersCallsListenedTo: number | null
+  callsSharedInternally: number | null
+  callsSharedExternally: number | null
+  callsCommentsGiven: number | null
+  callsCommentsReceived: number | null
+  callsMarkedAsFeedbackGiven: number | null
+  callsMarkedAsFeedbackReceived: number | null
+}
+
+interface GongUserAggregateByPeriod {
+  userId: string
+  userEmailAddress: string | null
+  userAggregateActivity: GongPeriodActivity[]
+}
+
+export interface GongAggregateByPeriodResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    usersAggregateActivity: GongUserAggregateByPeriod[]
+    cursor: string | null
+  }
+}
+
 /** Answered Scorecards */
 export interface GongAnsweredScorecardsParams extends GongBaseParams {
   callFromDate?: string
@@ -620,6 +705,8 @@ export type GongResponse =
   | GongListUsersResponse
   | GongGetUserResponse
   | GongAggregateActivityResponse
+  | GongDayByDayActivityResponse
+  | GongAggregateByPeriodResponse
   | GongInteractionStatsResponse
   | GongAnsweredScorecardsResponse
   | GongListLibraryFoldersResponse

@@ -9,6 +9,7 @@ import {
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   DatePicker,
@@ -389,10 +390,8 @@ export function DocumentTagsModal({
       </ChipModalHeader>
 
       <ChipModalBody>
-        <div className='min-h-0 flex-1 overflow-y-auto'>
+        <ChipModalField type='custom' title='Tags'>
           <div className='space-y-2'>
-            <Label>Tags</Label>
-
             {documentTags.map((tag, index) => (
               <div key={tag.displayName} className='space-y-2'>
                 <div
@@ -738,7 +737,7 @@ export function DocumentTagsModal({
               </div>
             )}
           </div>
-        </div>
+        </ChipModalField>
       </ChipModalBody>
 
       <ChipModalFooter

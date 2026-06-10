@@ -690,6 +690,41 @@ Advanced people search with complex filters for location, company size, seniorit
 |   ↳ `start` | number | Start position |
 |   ↳ `limit` | number | Limit |
 
+### `enrich_search_jobs`
+
+Search LinkedIn job postings by keywords with filters for location, job type, workplace type, experience level, and company.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enrich API key |
+| `keywords` | string | Yes | Search keywords \(e.g., "software engineer"\) |
+| `location` | string | No | Location filter \(e.g., London\) |
+| `jobTypes` | string | No | Comma-separated job types \(e.g., "full time, part time"\) |
+| `workplaceTypes` | string | No | Comma-separated workplace types \(e.g., "on site, remote"\) |
+| `experienceLevels` | string | No | Comma-separated experience levels \(e.g., "internship, associate"\) |
+| `companyIds` | string | No | Comma-separated LinkedIn company IDs to filter by \(e.g., "2048, 3050"\) |
+| `timePosted` | string | No | Time filter \(e.g., past_24hrs, past_week, past_month\) |
+| `start` | number | No | Number of records to skip for pagination \(default: 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of job postings returned |
+| `jobs` | array | Job postings |
+|   ↳ `title` | string | Job title |
+|   ↳ `companyName` | string | Hiring company name |
+|   ↳ `companyLink` | string | Company LinkedIn URL |
+|   ↳ `companyLogo` | string | Company logo URL |
+|   ↳ `location` | string | Job location |
+|   ↳ `url` | string | Job posting URL |
+|   ↳ `postedDate` | string | Date the job was posted |
+|   ↳ `postedTimestamp` | string | Timestamp the job was posted |
+|   ↳ `hiringStatus` | string | Hiring status |
+|   ↳ `criteria` | object | Employment criteria \(seniority, type, function\) |
+
 ### `enrich_search_posts`
 
 Search LinkedIn posts by keywords with date filtering.
@@ -780,6 +815,35 @@ Get reactions on a LinkedIn post with filtering by reaction type.
 |     ↳ `profilePicture` | string | Profile picture URL |
 |     ↳ `linkedInUrl` | string | LinkedIn URL |
 
+### `enrich_search_post_reactions_by_url`
+
+Get reactions on a LinkedIn post by its URL, filtered by reaction type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enrich API key |
+| `postUrl` | string | Yes | LinkedIn post URL \(e.g., https://www.linkedin.com/posts/...\) |
+| `reactionType` | string | Yes | Reaction type filter: all, like, love, celebrate, insightful, or funny \(default: all\) |
+| `page` | number | Yes | Page number \(starts at 1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | number | Current page number |
+| `totalPage` | number | Total number of pages |
+| `count` | number | Number of reactions returned |
+| `reactions` | array | Reactions |
+|   ↳ `reactionType` | string | Type of reaction |
+|   ↳ `reactor` | object | Person who reacted |
+|     ↳ `name` | string | Name |
+|     ↳ `subTitle` | string | Job title |
+|     ↳ `profileId` | string | Profile ID |
+|     ↳ `profilePicture` | string | Profile picture URL |
+|     ↳ `linkedInUrl` | string | LinkedIn URL |
+
 ### `enrich_search_post_comments`
 
 Get comments on a LinkedIn post.
@@ -790,6 +854,44 @@ Get comments on a LinkedIn post.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Enrich API key |
 | `postUrn` | string | Yes | LinkedIn activity URN \(e.g., urn:li:activity:7191163324208705536\) |
+| `page` | number | No | Page number \(starts at 1, default: 1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | number | Current page number |
+| `totalPage` | number | Total number of pages |
+| `count` | number | Number of comments returned |
+| `comments` | array | Comments |
+|   ↳ `activityId` | string | Comment activity ID |
+|   ↳ `commentary` | string | Comment text |
+|   ↳ `linkedInUrl` | string | Link to comment |
+|   ↳ `commenter` | object | Commenter info |
+|     ↳ `profileId` | string | Profile ID |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `subTitle` | string | Subtitle/headline |
+|     ↳ `profilePicture` | string | Profile picture URL |
+|     ↳ `backgroundImage` | string | Background image URL |
+|     ↳ `entityUrn` | string | Entity URN |
+|     ↳ `objectUrn` | string | Object URN |
+|     ↳ `profileType` | string | Profile type |
+|   ↳ `reactionBreakdown` | object | Reactions on the comment |
+|     ↳ `likes` | number | Number of likes |
+|     ↳ `empathy` | number | Number of empathy reactions |
+|     ↳ `other` | number | Number of other reactions |
+
+### `enrich_search_post_comments_by_url`
+
+Get comments on a LinkedIn post by its URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enrich API key |
+| `postUrl` | string | Yes | LinkedIn post URL \(e.g., https://www.linkedin.com/posts/...\) |
 | `page` | number | No | Page number \(starts at 1, default: 1\) |
 
 #### Output
