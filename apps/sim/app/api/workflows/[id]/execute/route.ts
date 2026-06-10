@@ -304,6 +304,11 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
             jobId,
             error: errorMessage,
           })
+          // Release the reserved slot in case the job never reached
+          // executeWorkflowJob (e.g. startJob threw) and thus never finalized a
+          // LoggingSession to free it. Idempotent: a no-op when the job already
+          // finalized and released.
+          await releaseExecutionSlot(executionId)
           try {
             await jobQueue.markJobFailed(jobId, errorMessage)
           } catch (markFailedError) {
