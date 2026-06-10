@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { account, credential, credentialMember, workspace } from '@sim/db/schema'
+import { account, credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -22,7 +22,7 @@ import {
   normalizeAtlassianDomain,
   validateAtlassianServiceAccount,
 } from '@/lib/credentials/atlassian-service-account'
-import { getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
+import { getWorkspaceMembership } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
@@ -498,11 +498,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const now = new Date()
     const credentialId = generateId()
-    const [workspaceRow] = await db
-      .select({ ownerId: workspace.ownerId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
+    const {
+      ownerId: workspaceOwnerId,
+      memberUserIds: workspaceMemberUserIds,
+      adminUserIds: workspaceAdminUserIds,
+    } = await getWorkspaceMembership(workspaceId)
 
     await db.transaction(async (tx) => {
       // service_account has no DB-level unique index on (workspaceId, providerId,
@@ -534,18 +534,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         updatedAt: now,
       })
 
-      if ((type === 'env_workspace' || type === 'service_account') && workspaceRow?.ownerId) {
-        const workspaceUserIds = await getWorkspaceMemberUserIds(workspaceId)
-        if (workspaceUserIds.length > 0) {
-          for (const memberUserId of workspaceUserIds) {
+      if ((type === 'env_workspace' || type === 'service_account') && workspaceOwnerId) {
+        if (workspaceMemberUserIds.length > 0) {
+          for (const memberUserId of workspaceMemberUserIds) {
+            const isAdmin =
+              memberUserId === session.user.id || workspaceAdminUserIds.has(memberUserId)
             await tx.insert(credentialMember).values({
               id: generateId(),
               credentialId,
               userId: memberUserId,
-              role:
-                memberUserId === workspaceRow.ownerId || memberUserId === session.user.id
-                  ? 'admin'
-                  : 'member',
+              role: isAdmin ? 'admin' : 'member',
               status: 'active',
               joinedAt: now,
               invitedBy: session.user.id,

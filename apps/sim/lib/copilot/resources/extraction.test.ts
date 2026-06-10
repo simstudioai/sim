@@ -108,4 +108,37 @@ describe('extractResourcesFromToolResult', () => {
 
     expect(resources).toEqual([])
   })
+
+  it.each([
+    ['generate_video', 'ad-clip.mp4'],
+    ['generate_audio', 'voiceover.mp3'],
+    ['ffmpeg', 'final-ad.mp4'],
+  ])('auto-opens the generated file from %s results', (toolName, fileName) => {
+    const resources = extractResourcesFromToolResult(
+      toolName,
+      {},
+      {
+        success: true,
+        message: `Saved at "files/${fileName}"`,
+        fileId: 'file_media_123',
+        fileName,
+      }
+    )
+
+    expect(resources).toEqual([{ type: 'file', id: 'file_media_123', title: fileName }])
+  })
+
+  it('does not create a resource for ffmpeg probe (no file written)', () => {
+    const resources = extractResourcesFromToolResult(
+      'ffmpeg',
+      { operation: 'probe' },
+      {
+        success: true,
+        message: 'Probed media',
+        probe: { durationSeconds: 12.5, width: 1080, height: 1920 },
+      }
+    )
+
+    expect(resources).toEqual([])
+  })
 })

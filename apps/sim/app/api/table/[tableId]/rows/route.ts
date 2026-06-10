@@ -284,6 +284,7 @@ export const GET = withRouteHandler(
             data: r.data,
             executions: r.executions,
             position: r.position,
+            orderKey: r.orderKey ?? undefined,
             createdAt:
               r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
             updatedAt:
@@ -357,6 +358,7 @@ export const PUT = withRouteHandler(
           filter: validated.filter as Filter,
           data: validated.data as RowData,
           limit: validated.limit,
+          actorUserId: authResult.userId,
         },
         requestId
       )
@@ -543,6 +545,7 @@ export const PATCH = withRouteHandler(
           tableId,
           updates: validated.updates as Array<{ rowId: string; data: RowData }>,
           workspaceId: validated.workspaceId,
+          actorUserId: authResult.userId,
         },
         table,
         requestId

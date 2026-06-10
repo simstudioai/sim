@@ -108,6 +108,18 @@ describe('authenticateApiKeyFromHeader', () => {
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
   })
 
+  it('returns invalid when the key belongs to a banned user', async () => {
+    const record = personalKeyRecord({ userBanned: true })
+    dbChainMockFns.where.mockResolvedValueOnce([record])
+
+    const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {
+      userId: 'user-1',
+    })
+
+    expect(result).toEqual({ success: false, error: 'Invalid API key' })
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+  })
+
   it('returns invalid when the hash lookup finds no row', async () => {
     dbChainMockFns.where.mockResolvedValueOnce([])
 

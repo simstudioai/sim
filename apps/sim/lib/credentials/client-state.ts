@@ -13,35 +13,12 @@ interface PendingOAuthCredentialDraft {
   requestedAt: number
 }
 
-interface PendingOAuthCredentialCreateRequest {
-  workspaceId: string
-  type: 'oauth'
-  providerId: string
-  displayName: string
-  serviceId: string
-  requiredScopes: string[]
-  requestedAt: number
-  returnOrigin?:
-    | {
-        type: 'workflow'
-        workflowId: string
-      }
-    | {
-        type: 'kb-connectors'
-        knowledgeBaseId: string
-      }
-}
-
-interface PendingSecretCredentialCreateRequest {
+export interface PendingCredentialCreateRequest {
   workspaceId: string
   type: 'env_personal' | 'env_workspace'
   envKey?: string
   requestedAt: number
 }
-
-export type PendingCredentialCreateRequest =
-  | PendingOAuthCredentialCreateRequest
-  | PendingSecretCredentialCreateRequest
 
 function parseJson<T>(raw: string | null): T | null {
   if (!raw) return null

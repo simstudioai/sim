@@ -1,13 +1,13 @@
 ---
 title: Railway
-description: Manage Railway projects, deployments, and variables
+description: Manage Railway projects, services, deployments, and variables
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="railway"
-  color="#FFFFFF"
+  color="#000000"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -26,7 +26,7 @@ In Sim, the Railway integration lets your agents work with Railway's public Grap
 
 ## Usage Instructions
 
-Integrate Railway into workflows to list projects, inspect services and environments, monitor deployments, trigger service deployments, and manage environment variables.
+Integrate Railway into workflows to list projects, manage services and environments, monitor deployments, trigger and roll back service deployments, and manage environment variables.
 
 
 
@@ -41,7 +41,7 @@ List Railway projects visible to the provided token
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `workspaceId` | string | No | Workspace ID to list projects from |
 | `first` | number | No | Maximum number of projects to return |
 | `after` | string | No | Cursor for pagination |
@@ -70,7 +70,7 @@ Get a Railway project with its services and environments
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 
 #### Output
@@ -82,6 +82,7 @@ Get a Railway project with its services and environments
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
 |   ↳ `createdAt` | string | Project creation timestamp |
+|   ↳ `updatedAt` | string | Project update timestamp |
 |   ↳ `services` | array | Project services |
 |     ↳ `id` | string | Service ID |
 |     ↳ `name` | string | Service name |
@@ -99,7 +100,7 @@ Create a Railway project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `name` | string | Yes | Project name |
 | `description` | string | No | Project description |
 | `workspaceId` | string | No | Workspace ID to create the project in |
@@ -124,7 +125,7 @@ Update a Railway project name or description
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 | `name` | string | No | Updated project name |
 | `description` | string | No | Updated project description |
@@ -149,7 +150,7 @@ Delete a Railway project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 
 #### Output
@@ -167,7 +168,7 @@ Transfer a Railway project to another workspace
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 | `workspaceId` | string | Yes | Destination workspace ID |
 
@@ -186,7 +187,7 @@ List members for a Railway project
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 
 #### Output
@@ -194,12 +195,11 @@ List members for a Railway project
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `members` | array | Project members |
-|   ↳ `id` | string | Project membership ID |
+|   ↳ `id` | string | Member user ID |
 |   ↳ `role` | string | Project role |
-|   ↳ `user` | object | Railway user |
-|     ↳ `id` | string | User ID |
-|     ↳ `name` | string | User name |
-|     ↳ `email` | string | User email |
+|   ↳ `name` | string | Member name |
+|   ↳ `email` | string | Member email |
+|   ↳ `avatar` | string | Member avatar URL |
 | `count` | number | Number of members returned |
 
 ### `railway_create_environment`
@@ -211,7 +211,7 @@ Create a Railway project environment
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 | `name` | string | Yes | Environment name |
 | `sourceEnvironmentId` | string | No | Environment ID to clone from |
@@ -236,7 +236,7 @@ Delete a Railway project environment
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `environmentId` | string | Yes | Railway environment ID |
 
 #### Output
@@ -244,6 +244,48 @@ Delete a Railway project environment
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the environment was deleted |
+
+### `railway_create_service`
+
+Create a Railway service from a GitHub repo or Docker image
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
+| `projectId` | string | Yes | Railway project ID |
+| `name` | string | Yes | Service name |
+| `repo` | string | No | GitHub repository in owner/name format to deploy from |
+| `image` | string | No | Docker image to deploy, for example redis:7-alpine |
+| `branch` | string | No | Git branch to deploy when using a repository source |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `service` | object | Created service |
+|   ↳ `id` | string | Service ID |
+|   ↳ `name` | string | Service name |
+
+### `railway_delete_service`
+
+Delete a Railway service and all of its deployments
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
+| `serviceId` | string | Yes | Railway service ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the service was deleted |
 
 ### `railway_list_deployments`
 
@@ -254,7 +296,7 @@ List deployments for a Railway service in an environment
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 | `serviceId` | string | Yes | Railway service ID |
 | `environmentId` | string | Yes | Railway environment ID |
@@ -271,10 +313,37 @@ List deployments for a Railway service in an environment
 |   ↳ `createdAt` | string | Deployment creation timestamp |
 |   ↳ `url` | string | Deployment URL |
 |   ↳ `staticUrl` | string | Static deployment URL |
+|   ↳ `canRollback` | boolean | Whether this deployment can be rolled back to |
+|   ↳ `canRedeploy` | boolean | Whether this deployment can be redeployed |
 | `count` | number | Number of deployments returned |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether more deployments are available |
 |   ↳ `endCursor` | string | Cursor for the next page |
+
+### `railway_get_deployment`
+
+Get details for a single Railway deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
+| `deploymentId` | string | Yes | Railway deployment ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deployment` | object | Deployment details |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `status` | string | Deployment status |
+|   ↳ `createdAt` | string | Deployment creation timestamp |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `staticUrl` | string | Static deployment URL |
+|   ↳ `canRollback` | boolean | Whether the deployment can be rolled back to |
+|   ↳ `canRedeploy` | boolean | Whether the deployment can be redeployed |
 
 ### `railway_deploy_service`
 
@@ -285,7 +354,7 @@ Trigger a deployment for a Railway service in an environment
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `serviceId` | string | Yes | Railway service ID |
 | `environmentId` | string | Yes | Railway environment ID |
 | `commitSha` | string | No | Specific Git commit SHA to deploy |
@@ -296,6 +365,65 @@ Trigger a deployment for a Railway service in an environment
 | --------- | ---- | ----------- |
 | `deploymentId` | string | Created deployment ID |
 
+### `railway_restart_deployment`
+
+Restart a running Railway deployment without rebuilding
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
+| `deploymentId` | string | Yes | Railway deployment ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deployment was restarted |
+
+### `railway_rollback_deployment`
+
+Roll a Railway service back to a previous deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
+| `deploymentId` | string | Yes | Railway deployment ID to roll back to \(must have canRollback\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the rollback was triggered |
+
+### `railway_get_deployment_logs`
+
+Retrieve runtime logs for a Railway deployment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
+| `deploymentId` | string | Yes | Railway deployment ID |
+| `limit` | number | No | Maximum number of log lines to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `logs` | array | Deployment log entries |
+|   ↳ `timestamp` | string | Log timestamp |
+|   ↳ `message` | string | Log message |
+|   ↳ `severity` | string | Log severity |
+| `count` | number | Number of log entries returned |
+
 ### `railway_list_variables`
 
 List Railway environment variables for a service or shared environment
@@ -305,7 +433,7 @@ List Railway environment variables for a service or shared environment
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 | `environmentId` | string | Yes | Railway environment ID |
 | `serviceId` | string | No | Railway service ID. Omit for shared environment variables. |
@@ -326,7 +454,7 @@ Create or update a Railway environment variable
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Railway API token |
-| `tokenType` | string | No | Railway token type: account, workspace, project, or oauth |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
 | `projectId` | string | Yes | Railway project ID |
 | `environmentId` | string | Yes | Railway environment ID |
 | `serviceId` | string | No | Railway service ID. Omit to create or update a shared variable. |
@@ -339,5 +467,26 @@ Create or update a Railway environment variable
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the variable was created or updated |
+
+### `railway_delete_variable`
+
+Delete a Railway environment variable
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Railway API token |
+| `tokenType` | string | No | Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens. |
+| `projectId` | string | Yes | Railway project ID |
+| `environmentId` | string | Yes | Railway environment ID |
+| `name` | string | Yes | Variable name to delete |
+| `serviceId` | string | No | Railway service ID. Omit to delete a shared variable. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the variable was deleted |
 
 

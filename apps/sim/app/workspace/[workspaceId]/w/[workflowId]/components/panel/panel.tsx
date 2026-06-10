@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus } from 'lucide-react'
+import { History, Plus, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -12,18 +12,13 @@ import {
   BubbleChatClose,
   BubbleChatPreview,
   Button,
-  Copy,
+  ChipConfirmModal,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Duplicate,
   Layout,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   MoreHorizontal,
   Play,
   Popover,
@@ -33,8 +28,9 @@ import {
   PopoverSection,
   PopoverTrigger,
   Trash,
+  toast,
 } from '@/components/emcn'
-import { Lock, Square, Unlock, Upload } from '@/components/emcn/icons'
+import { Download, Lock, Unlock } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -43,6 +39,10 @@ import {
 } from '@/lib/api/contracts/copilot'
 import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
+import {
+  MOTHERSHIP_SEND_MESSAGE_EVENT,
+  type MothershipSendMessageDetail,
+} from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
@@ -80,7 +80,6 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
-import { useNotificationStore } from '@/stores/notifications/store'
 import type { ChatContext, PanelTab } from '@/stores/panel'
 import { usePanelStore } from '@/stores/panel'
 import { useVariablesModalStore } from '@/stores/variables/modal'
@@ -202,7 +201,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
    * Opens subscription settings modal
    */
   const openSubscriptionSettings = () => {
-    navigateToSettings({ section: 'subscription' })
+    navigateToSettings({ section: 'billing' })
   }
 
   /**
@@ -350,7 +349,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     cancelQueueEdit: copilotCancelQueueEdit,
     editingQueuedId: copilotEditingQueuedId,
     dispatchingHeadId: copilotDispatchingHeadId,
-    getCurrentRequestId: getCopilotCurrentRequestId,
   } = useChat(
     workspaceId,
     copilotChatId,
@@ -426,10 +424,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
       view: 'copilot',
-      request_id: getCopilotCurrentRequestId(),
     })
     copilotStopGeneration()
-  }, [copilotStopGeneration, getCopilotCurrentRequestId, workspaceId])
+  }, [copilotStopGeneration, workspaceId])
 
   const handleCopilotSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -450,13 +447,13 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const message = (e as CustomEvent<{ message: string }>).detail?.message
+      const message = (e as CustomEvent<MothershipSendMessageDetail>).detail?.message
       if (!message) return
       setActiveTab('copilot')
       copilotSendMessage(message)
     }
-    window.addEventListener('mothership-send-message', handler)
-    return () => window.removeEventListener('mothership-send-message', handler)
+    window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
+    return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
   }, [setActiveTab, copilotSendMessage])
 
   useEffect(() => {
@@ -508,16 +505,12 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     try {
       const result = await autoLayoutWithFitView()
       if (!result.success && result.error) {
-        useNotificationStore.getState().addNotification({
-          level: 'info',
-          message: result.error,
-          workflowId: activeWorkflowId || undefined,
-        })
+        toast({ message: result.error })
       }
     } finally {
       setIsAutoLayouting(false)
     }
-  }, [isExecuting, canMutateWorkflow, isAutoLayouting, autoLayoutWithFitView, activeWorkflowId])
+  }, [isExecuting, canMutateWorkflow, isAutoLayouting, autoLayoutWithFitView])
 
   /**
    * Handles exporting workflow as JSON
@@ -581,7 +574,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         sourceId: activeWorkflowId,
         name: `${sourceWorkflow.name} (Copy)`,
         description: sourceWorkflow.description,
-        color: sourceWorkflow.color ?? '',
         folderId: sourceWorkflow.folderId,
       })
       if (result?.id) {
@@ -612,11 +604,12 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const hasValidationErrors = false // TODO: Add validation logic if needed
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
+
   /**
    * Register global keyboard shortcuts using the central commands registry.
    *
    * - Mod+Enter: Run / cancel workflow (matches the Run button behavior)
-   * - Mod+Alt+F: Focus Toolbar tab and search input
+   * - Mod+F: Focus Toolbar tab and search input
    */
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -660,7 +653,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button className='size-[30px] rounded-[5px]' data-tour='panel-menu'>
+                  <Button className='size-[30px] rounded-[5px]'>
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
@@ -697,14 +690,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     onSelect={handleExportJson}
                     disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
                   >
-                    <Upload />
+                    <Download />
                     Export workflow
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={handleDuplicateWorkflow}
                     disabled={!userPermissions.canEdit || isDuplicating}
                   >
-                    <Copy animate={isDuplicating} />
+                    <Duplicate />
                     Duplicate workflow
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -728,7 +721,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
             </div>
 
             {/* Deploy and Run */}
-            <div className='flex gap-1.5' data-tour='deploy-run'>
+            <div className='flex gap-1.5'>
               <Deploy
                 activeWorkflowId={activeWorkflowId}
                 userPermissions={userPermissions}
@@ -736,15 +729,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
               />
               <Button
                 className='h-[30px] gap-2 px-2.5'
-                data-tour='run-button'
                 variant={isExecuting ? 'active' : 'tertiary'}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
                 disabled={!isExecuting && isButtonDisabled}
               >
                 {isExecuting ? (
-                  <Square className='size-[11.5px] fill-current' />
+                  <Square className='h-[11.5px] w-[11.5px] fill-current' />
                 ) : (
-                  <Play className='size-[11.5px]' />
+                  <Play className='h-[11.5px] w-[11.5px]' />
                 )}
                 {isExecuting ? 'Stop' : 'Run'}
               </Button>
@@ -764,7 +756,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
-                  data-tour='tab-copilot'
                 >
                   Copilot
                 </Button>
@@ -778,7 +769,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
-                data-tour='tab-toolbar'
               >
                 Toolbar
               </Button>
@@ -791,7 +781,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
-                data-tour='tab-editor'
               >
                 Editor
               </Button>
@@ -938,36 +927,31 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       </aside>
 
       {/* Delete Confirmation Modal */}
-      <Modal open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Workflow</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {currentWorkflow?.name ?? 'this workflow'}
-              </span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>
-                All associated blocks, executions, and configuration will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setIsDeleteModalOpen(false)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDeleteWorkflow} disabled={isDeleting}>
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={isDeleteModalOpen}
+        onOpenChange={setIsDeleteModalOpen}
+        srTitle='Delete Workflow'
+        title='Delete Workflow'
+        description={
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {currentWorkflow?.name ?? 'this workflow'}
+            </span>
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              All associated blocks, executions, and configuration will be removed.
+            </span>{' '}
+            You can restore it from Recently Deleted in Settings.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDeleteWorkflow,
+          pending: isDeleting,
+          pendingLabel: 'Deleting...',
+        }}
+      />
 
       {/* Floating Variables Modal */}
       <Variables readOnly={workflowLocked} />

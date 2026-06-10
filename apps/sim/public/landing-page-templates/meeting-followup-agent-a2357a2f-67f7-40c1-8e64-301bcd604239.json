@@ -805,7 +805,6 @@
     "metadata": {
       "name": "meeting-followup-agent",
       "description": "New workflow",
-      "color": "#2ed96a",
       "exportedAt": "2026-03-09T21:40:19.013Z"
     },
     "variables": {}

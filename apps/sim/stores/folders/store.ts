@@ -9,8 +9,8 @@ interface FolderState {
   selectedWorkflows: Set<string>
   selectedFolders: Set<string>
   lastSelectedFolderId: string | null
-  selectedTasks: Set<string>
-  lastSelectedTaskId: string | null
+  selectedChats: Set<string>
+  lastSelectedChatId: string | null
 
   toggleExpanded: (folderId: string) => void
   setExpanded: (folderId: string, expanded: boolean) => void
@@ -33,15 +33,15 @@ interface FolderState {
   selectFolderRange: (folderIds: string[], fromId: string, toId: string) => void
   isFolderSelected: (folderId: string) => boolean
 
-  // Task selection actions
-  selectTaskOnly: (taskId: string) => void
-  toggleTaskSelection: (taskId: string) => void
-  selectTaskRange: (taskIds: string[], fromId: string, toId: string) => void
-  clearTaskSelection: () => void
-  isTaskSelected: (taskId: string) => boolean
+  // Chat selection actions
+  selectChatOnly: (chatId: string) => void
+  toggleChatSelection: (chatId: string) => void
+  selectChatRange: (chatIds: string[], fromId: string, toId: string) => void
+  clearChatSelection: () => void
+  isChatSelected: (chatId: string) => boolean
 
   // Unified selection helpers
-  getFullSelection: () => { workflowIds: string[]; folderIds: string[]; taskIds: string[] }
+  getFullSelection: () => { workflowIds: string[]; folderIds: string[]; chatIds: string[] }
   hasAnySelection: () => boolean
   isMixedSelection: () => boolean
   clearAllSelection: () => void
@@ -54,8 +54,8 @@ export const useFolderStore = create<FolderState>()(
       selectedWorkflows: new Set(),
       selectedFolders: new Set(),
       lastSelectedFolderId: null,
-      selectedTasks: new Set(),
-      lastSelectedTaskId: null,
+      selectedChats: new Set(),
+      lastSelectedChatId: null,
 
       toggleExpanded: (folderId) =>
         set((state) => {
@@ -104,9 +104,9 @@ export const useFolderStore = create<FolderState>()(
           }
           return {
             selectedWorkflows: newSelected,
-            ...(state.selectedTasks.size > 0 && {
-              selectedTasks: new Set<string>(),
-              lastSelectedTaskId: null,
+            ...(state.selectedChats.size > 0 && {
+              selectedChats: new Set<string>(),
+              lastSelectedChatId: null,
             }),
           }
         }),
@@ -118,8 +118,8 @@ export const useFolderStore = create<FolderState>()(
           selectedWorkflows: new Set([workflowId]),
           selectedFolders: new Set(),
           lastSelectedFolderId: null,
-          selectedTasks: new Set(),
-          lastSelectedTaskId: null,
+          selectedChats: new Set(),
+          lastSelectedChatId: null,
         }),
 
       selectRange: (workflowIds, fromId, toId) => {
@@ -175,9 +175,9 @@ export const useFolderStore = create<FolderState>()(
           return {
             selectedFolders: newSelected,
             lastSelectedFolderId: newLastSelected,
-            ...(state.selectedTasks.size > 0 && {
-              selectedTasks: new Set<string>(),
-              lastSelectedTaskId: null,
+            ...(state.selectedChats.size > 0 && {
+              selectedChats: new Set<string>(),
+              lastSelectedChatId: null,
             }),
           }
         }),
@@ -188,8 +188,8 @@ export const useFolderStore = create<FolderState>()(
         set({
           selectedFolders: new Set([folderId]),
           lastSelectedFolderId: folderId,
-          selectedTasks: new Set(),
-          lastSelectedTaskId: null,
+          selectedChats: new Set(),
+          lastSelectedChatId: null,
         }),
 
       selectFolderRange: (folderIds, fromId, toId) => {
@@ -201,17 +201,16 @@ export const useFolderStore = create<FolderState>()(
         const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex]
         const rangeIds = folderIds.slice(start, end + 1)
 
-        // Keep the anchor as the "from" folder, update to "to" as the new last selected
-        set({ selectedFolders: new Set(rangeIds), lastSelectedFolderId: toId })
+        set({ selectedFolders: new Set(rangeIds), lastSelectedFolderId: fromId })
       },
 
       isFolderSelected: (folderId) => get().selectedFolders.has(folderId),
 
-      // Task selection actions
-      selectTaskOnly: (taskId) =>
+      // Chat selection actions
+      selectChatOnly: (chatId) =>
         set((state) => ({
-          selectedTasks: new Set([taskId]),
-          lastSelectedTaskId: taskId,
+          selectedChats: new Set([chatId]),
+          lastSelectedChatId: chatId,
           ...(state.selectedWorkflows.size > 0 && { selectedWorkflows: new Set<string>() }),
           ...(state.selectedFolders.size > 0 && {
             selectedFolders: new Set<string>(),
@@ -219,23 +218,23 @@ export const useFolderStore = create<FolderState>()(
           }),
         })),
 
-      toggleTaskSelection: (taskId) =>
+      toggleChatSelection: (chatId) =>
         set((state) => {
-          const newSelected = new Set(state.selectedTasks)
+          const newSelected = new Set(state.selectedChats)
           let newLastSelected: string | null
-          if (newSelected.has(taskId)) {
-            newSelected.delete(taskId)
+          if (newSelected.has(chatId)) {
+            newSelected.delete(chatId)
             newLastSelected =
-              state.lastSelectedTaskId === taskId
+              state.lastSelectedChatId === chatId
                 ? (Array.from(newSelected)[0] ?? null)
-                : state.lastSelectedTaskId
+                : state.lastSelectedChatId
           } else {
-            newSelected.add(taskId)
-            newLastSelected = taskId
+            newSelected.add(chatId)
+            newLastSelected = chatId
           }
           return {
-            selectedTasks: newSelected,
-            lastSelectedTaskId: newLastSelected,
+            selectedChats: newSelected,
+            lastSelectedChatId: newLastSelected,
             ...(state.selectedWorkflows.size > 0 && { selectedWorkflows: new Set<string>() }),
             ...(state.selectedFolders.size > 0 && {
               selectedFolders: new Set<string>(),
@@ -244,19 +243,19 @@ export const useFolderStore = create<FolderState>()(
           }
         }),
 
-      selectTaskRange: (taskIds, fromId, toId) => {
-        const fromIndex = taskIds.indexOf(fromId)
-        const toIndex = taskIds.indexOf(toId)
+      selectChatRange: (chatIds, fromId, toId) => {
+        const fromIndex = chatIds.indexOf(fromId)
+        const toIndex = chatIds.indexOf(toId)
 
         if (fromIndex === -1 || toIndex === -1) return
 
         const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex]
-        const rangeIds = taskIds.slice(start, end + 1)
+        const rangeIds = chatIds.slice(start, end + 1)
 
         const state = get()
         set({
-          selectedTasks: new Set(rangeIds),
-          lastSelectedTaskId: toId,
+          selectedChats: new Set(rangeIds),
+          lastSelectedChatId: fromId,
           ...(state.selectedWorkflows.size > 0 && { selectedWorkflows: new Set<string>() }),
           ...(state.selectedFolders.size > 0 && {
             selectedFolders: new Set<string>(),
@@ -265,21 +264,21 @@ export const useFolderStore = create<FolderState>()(
         })
       },
 
-      clearTaskSelection: () => set({ selectedTasks: new Set(), lastSelectedTaskId: null }),
+      clearChatSelection: () => set({ selectedChats: new Set(), lastSelectedChatId: null }),
 
-      isTaskSelected: (taskId) => get().selectedTasks.has(taskId),
+      isChatSelected: (chatId) => get().selectedChats.has(chatId),
 
       // Unified selection helpers
       getFullSelection: () => ({
         workflowIds: Array.from(get().selectedWorkflows),
         folderIds: Array.from(get().selectedFolders),
-        taskIds: Array.from(get().selectedTasks),
+        chatIds: Array.from(get().selectedChats),
       }),
 
       hasAnySelection: () =>
         get().selectedWorkflows.size > 0 ||
         get().selectedFolders.size > 0 ||
-        get().selectedTasks.size > 0,
+        get().selectedChats.size > 0,
 
       isMixedSelection: () => get().selectedWorkflows.size > 0 && get().selectedFolders.size > 0,
 
@@ -288,8 +287,8 @@ export const useFolderStore = create<FolderState>()(
           selectedWorkflows: new Set(),
           selectedFolders: new Set(),
           lastSelectedFolderId: null,
-          selectedTasks: new Set(),
-          lastSelectedTaskId: null,
+          selectedChats: new Set(),
+          lastSelectedChatId: null,
         }),
     }),
     { name: 'folder-store' }

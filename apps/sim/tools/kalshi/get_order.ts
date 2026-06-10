@@ -41,10 +41,10 @@ export const kalshiGetOrderTool: ToolConfig<KalshiGetOrderParams, KalshiGetOrder
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId}`),
+    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
     method: 'GET',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId}`
+      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'GET', path)
     },
   },
@@ -145,10 +145,10 @@ export const kalshiGetOrderV2Tool: ToolConfig<KalshiGetOrderV2Params, KalshiGetO
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId}`),
+    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}`),
     method: 'GET',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId}`
+      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'GET', path)
     },
   },

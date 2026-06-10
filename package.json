@@ -74,5 +74,8 @@
   },
   "trustedDependencies": [
     "sharp"
-  ]
+  ],
+  "dependencies": {
+    "@aws-sdk/client-appconfig": "3.1032.0"
+  }
 }

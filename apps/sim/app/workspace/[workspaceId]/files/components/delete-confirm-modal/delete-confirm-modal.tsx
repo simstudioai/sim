@@ -1,15 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn'
+import { ChipConfirmModal } from '@/components/emcn'
 
 interface DeleteConfirmModalProps {
   open: boolean
@@ -42,29 +34,28 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
       : 'You can restore it from Recently Deleted in Settings.'
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='sm'>
-        <ModalHeader>{title}</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='text-[var(--text-secondary)]'>
-            Are you sure you want to delete{' '}
-            {fileName ? (
-              <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>
-            ) : (
-              `${totalCount} item${totalCount === 1 ? '' : 's'}`
-            )}
-            ? {consequence}
-          </ModalDescription>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => onOpenChange(false)} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button variant='destructive' onClick={onDelete} disabled={isPending}>
-            {isPending ? 'Deleting...' : 'Delete'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle={title}
+      title={title}
+      description={
+        <>
+          Are you sure you want to delete{' '}
+          {fileName ? (
+            <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>
+          ) : (
+            `${totalCount} item${totalCount === 1 ? '' : 's'}`
+          )}
+          ? {consequence}
+        </>
+      }
+      confirm={{
+        label: 'Delete',
+        onClick: onDelete,
+        pending: isPending,
+        pendingLabel: 'Deleting...',
+      }}
+    />
   )
 })

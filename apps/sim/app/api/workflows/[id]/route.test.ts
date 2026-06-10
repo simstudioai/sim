@@ -20,6 +20,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getWorkflowResponseDataSchema } from '@/lib/api/contracts/workflows'
 
 const mockLoadWorkflowFromNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
@@ -92,7 +93,6 @@ describe('Workflow By ID API Route', () => {
         id: params.workflowId,
         name: params.name ?? params.currentName,
         description: params.description ?? null,
-        color: params.color ?? null,
         workspaceId: params.workspaceId,
         folderId: params.folderId ?? params.currentFolderId ?? null,
         sortOrder: params.sortOrder ?? null,
@@ -181,6 +181,55 @@ describe('Workflow By ID API Route', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.data.id).toBe('workflow-123')
+    })
+
+    it('omits null workflow description from state metadata so response validates', async () => {
+      const mockWorkflow = {
+        id: 'workflow-null-description',
+        userId: 'user-123',
+        name: 'No Description Workflow',
+        description: null,
+        workspaceId: 'workspace-456',
+        folderId: null,
+        sortOrder: 0,
+        color: '#3972F6',
+        lastSynced: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isDeployed: false,
+        deployedAt: null,
+        isPublicApi: false,
+        locked: false,
+        runCount: 0,
+        lastRunAt: null,
+        archivedAt: null,
+        variables: {},
+      }
+
+      mockGetSession({ user: { id: 'user-123' } })
+      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+        allowed: true,
+        status: 200,
+        workflow: mockWorkflow,
+        workspacePermission: 'admin',
+      })
+      mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-null-description')
+      const params = Promise.resolve({ id: 'workflow-null-description' })
+
+      const response = await GET(req, { params })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data.state.metadata).toEqual({ name: 'No Description Workflow' })
+      expect(getWorkflowResponseDataSchema.safeParse(data.data).success).toBe(true)
     })
 
     it.concurrent('should allow access when user has workspace permissions', async () => {
@@ -833,7 +882,11 @@ describe('Workflow By ID API Route', () => {
         workspaceId: 'workspace-456',
       }
 
-      const updatedWorkflow = { ...mockWorkflow, color: '#FF0000', updatedAt: new Date() }
+      const updatedWorkflow = {
+        ...mockWorkflow,
+        description: 'Updated description',
+        updatedAt: new Date(),
+      }
 
       mockGetSession({ user: { id: 'user-123' } })
       mockGetWorkflowById.mockResolvedValue(mockWorkflow)
@@ -854,7 +907,7 @@ describe('Workflow By ID API Route', () => {
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'PUT',
-        body: JSON.stringify({ color: '#FF0000' }),
+        body: JSON.stringify({ description: 'Updated description' }),
       })
       const params = Promise.resolve({ id: 'workflow-123' })
 

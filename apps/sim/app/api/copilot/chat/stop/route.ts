@@ -10,6 +10,7 @@ import {
   withStoppedContentBlock,
 } from '@/lib/copilot/chat/persisted-message'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   CopilotChatFinalizeOutcome,
   CopilotStopOutcome,
@@ -17,7 +18,6 @@ import {
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatStopAPI')
@@ -83,7 +83,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
         result.updated || result.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
 
       if (shouldPublishCompleted && result.workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId: result.workspaceId,
           chatId,
           type: 'completed',

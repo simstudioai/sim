@@ -1,7 +1,10 @@
 import type { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
-import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import {
+  checkOrgMemberUsageLimit,
+  checkServerSideUsageLimits,
+} from '@/lib/billing/calculations/usage-monitor'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
@@ -27,7 +30,7 @@ export interface PreprocessExecutionOptions {
   // Required fields
   workflowId: string
   userId: string // The authenticated user ID
-  triggerType: CoreTriggerType | 'form'
+  triggerType: CoreTriggerType
   executionId: string
   requestId: string
 
@@ -345,6 +348,48 @@ export async function preprocessExecution(
           error: {
             message:
               usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            statusCode: 402,
+            logCreated: true,
+          },
+        }
+      }
+
+      // Per-member org-workspace cap (hosted-only). Independent, additive gate:
+      // blocks an individual member's executions in org-owned workspaces once
+      // their personal credit limit for the org is reached, even if the pooled
+      // org limit still has room.
+      const memberUsageCheck = await checkOrgMemberUsageLimit(actorUserId, workspaceId)
+      if (memberUsageCheck.isExceeded) {
+        const memberLimitMessage =
+          memberUsageCheck.message ||
+          'Member usage limit exceeded for this organization. Ask an organization admin to raise your credit limit to continue.'
+
+        logger.warn(
+          `[${requestId}] User ${actorUserId} exceeded their per-member org usage limit. Blocking execution.`,
+          {
+            currentUsage: memberUsageCheck.currentUsage,
+            limit: memberUsageCheck.limit,
+            workflowId,
+            triggerType,
+          }
+        )
+
+        await recordPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: actorUserId,
+          workspaceId,
+          errorMessage: memberLimitMessage,
+          loggingSession: providedLoggingSession,
+          triggerData,
+        })
+
+        return {
+          success: false,
+          error: {
+            message: memberLimitMessage,
             statusCode: 402,
             logCreated: true,
           },

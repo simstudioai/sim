@@ -37,6 +37,63 @@ describe('resolveToolDisplay', () => {
     ).toBe('Read RET XYZ')
   })
 
+  it('decodes percent-encoded VFS path segments for display', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'files/My%20Report.txt',
+      })?.text
+    ).toBe('Reading My Report.txt')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'workflows/My%20Workflow/meta.json',
+      })?.text
+    ).toBe('Read My Workflow')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'files/caf%C3%A9.txt',
+      })?.text
+    ).toBe('Reading café.txt')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'files/Quarterly%20Report.docx/content',
+      })?.text
+    ).toBe('Read Quarterly Report.docx')
+  })
+
+  it('shows only the file name for file reads, dropping the folder path and content qualifier', () => {
+    // Bare file leaf inside a folder → just the file name (with extension).
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'files/Skills/Skill%20%E2%80%94%20PostHog%20Analytics.md',
+      })?.text
+    ).toBe('Read Skill — PostHog Analytics.md')
+
+    // Explicit content facet → no "the content of", folder dropped too.
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'files/Skills/Skill%20%E2%80%94%20PostHog%20Analytics.md/content',
+      })?.text
+    ).toBe('Read Skill — PostHog Analytics.md')
+
+    // Non-content facets keep their descriptive label but still show only the name.
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'files/Reports/brief.docx/meta.json',
+      })?.text
+    ).toBe('Reading metadata for brief.docx')
+  })
+
+  it('falls back to the raw segment when it is not valid percent-encoding', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'files/100%done.txt',
+      })?.text
+    ).toBe('Reading 100%done.txt')
+  })
+
   it('formats special workspace file reads as natural language', () => {
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.error, {
@@ -46,15 +103,9 @@ describe('resolveToolDisplay', () => {
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
-        path: 'files/by-id/87c18b84-2f83-43a4-bed8-8a86f7d42022/compiled-check',
+        path: 'files/Reports/brief.docx/content',
       })?.text
-    ).toBe('Read the final file check for this file')
-
-    expect(
-      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
-        path: 'files/by-id/625094cc-2f64-4de9-a39c-452cb8283bb1/content',
-      })?.text
-    ).toBe('Read the content of this file')
+    ).toBe('Read brief.docx')
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {

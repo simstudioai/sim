@@ -78,6 +78,7 @@ export const launchDarklyToggleFlagTool: ToolConfig<
           tags: [],
           variations: [],
           maintainerId: null,
+          maintainerEmail: null,
           on: null,
         },
         error: error.message,
@@ -109,6 +110,7 @@ export const launchDarklyToggleFlagTool: ToolConfig<
         tags: data.tags ?? [],
         variations: data.variations ?? [],
         maintainerId: data.maintainerId ?? null,
+        maintainerEmail: data._maintainer?.email ?? null,
         on,
       },
     }

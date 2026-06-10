@@ -8,7 +8,8 @@ export const getExtensiveCallsTool: ToolConfig<
 > = {
   id: 'gong_get_extensive_calls',
   name: 'Gong Get Extensive Calls',
-  description: 'Retrieve detailed call data including trackers, topics, and highlights from Gong.',
+  description:
+    'Retrieve detailed call data including trackers, topics, highlights, and AI spotlight content (brief, outline, key points, call outcome) from Gong.',
   version: '1.0.0',
 
   params: {
@@ -89,6 +90,10 @@ export const getExtensiveCallsTool: ToolConfig<
               trackers: true,
               trackerOccurrences: true,
               highlights: true,
+              brief: true,
+              outline: true,
+              keyPoints: true,
+              callOutcome: true,
             },
             collaboration: { publicComments: true },
             interaction: {
@@ -194,6 +199,45 @@ export const getExtensiveCallsTool: ToolConfig<
             type: 'object',
             description: 'Call content data',
             properties: {
+              brief: {
+                type: 'string',
+                description: 'AI-generated brief summary of the call (Call Spotlight)',
+              },
+              outline: {
+                type: 'array',
+                description: 'AI-generated call outline sections',
+                items: {
+                  type: 'object',
+                  properties: {
+                    section: { type: 'string', description: 'Outline section name' },
+                    startTime: {
+                      type: 'number',
+                      description: 'Section start in seconds from call start',
+                    },
+                    duration: { type: 'number', description: 'Section duration in seconds' },
+                    items: { type: 'array', description: 'Bullet items within the section' },
+                  },
+                },
+              },
+              keyPoints: {
+                type: 'array',
+                description: 'AI-generated key points of the call',
+                items: {
+                  type: 'object',
+                  properties: {
+                    text: { type: 'string', description: 'Key point text' },
+                  },
+                },
+              },
+              callOutcome: {
+                type: 'object',
+                description: 'AI-determined call outcome (Call Spotlight)',
+                properties: {
+                  id: { type: 'string', description: 'Outcome category ID' },
+                  category: { type: 'string', description: 'Outcome category name' },
+                  name: { type: 'string', description: 'Outcome name' },
+                },
+              },
               structure: {
                 type: 'array',
                 description: 'Call agenda parts',

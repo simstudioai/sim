@@ -26,10 +26,7 @@ import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
-import {
-  resolveSkillContent,
-  resolveSkillContentById,
-} from '@/executor/handlers/agent/skills-resolver'
+import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
@@ -931,7 +928,7 @@ export async function executeTool(
     const scope = resolveToolScope(params, executionContext)
 
     const toolKind: 'skill' | 'custom' | 'mcp' | undefined =
-      normalizedToolId === 'load_skill' || toolId.startsWith('load_skill_')
+      normalizedToolId === 'load_skill' || normalizedToolId === 'load_user_skill'
         ? 'skill'
         : isCustomTool(normalizedToolId)
           ? 'custom'
@@ -948,30 +945,7 @@ export async function executeTool(
       })
     }
 
-    if (toolId.startsWith('load_skill_')) {
-      const skillId = toolId.slice('load_skill_'.length)
-      if (!skillId || !scope.workspaceId) {
-        return {
-          success: false,
-          output: { error: 'Missing skill id or workspace context' },
-          error: 'Missing skill id or workspace context',
-        }
-      }
-      const loadedSkill = await resolveSkillContentById(skillId, scope.workspaceId)
-      if (!loadedSkill) {
-        return {
-          success: false,
-          output: { error: `Skill "${skillId}" not found` },
-          error: `Skill "${skillId}" not found`,
-        }
-      }
-      return {
-        success: true,
-        output: { name: loadedSkill.name, content: loadedSkill.content },
-      }
-    }
-
-    if (normalizedToolId === 'load_skill') {
+    if (normalizedToolId === 'load_skill' || normalizedToolId === 'load_user_skill') {
       const skillName = params.skill_name
       if (!skillName || !scope.workspaceId) {
         return {

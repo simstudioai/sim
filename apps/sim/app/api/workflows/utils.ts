@@ -31,6 +31,19 @@ export function createSuccessResponse(data: any) {
  * This is the single source of truth for redeployment detection — used by
  * both the /deploy and /status endpoints to ensure consistent results.
  */
+/**
+ * Pure redeployment-change comparison shared by checkNeedsRedeployment and the
+ * VFS deployment serializer so both surfaces agree. Returns false when either
+ * side is missing.
+ */
+export function computeNeedsRedeployment(
+  currentSnapshot: WorkflowState | null | undefined,
+  activeState: WorkflowState | null | undefined
+): boolean {
+  if (!activeState || !currentSnapshot) return false
+  return hasWorkflowChanged(currentSnapshot, activeState)
+}
+
 export async function checkNeedsRedeployment(workflowId: string): Promise<boolean> {
   const [active] = await db
     .select({ state: workflowDeploymentVersion.state })
@@ -44,12 +57,8 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
     .orderBy(desc(workflowDeploymentVersion.createdAt))
     .limit(1)
 
-  if (!active?.state) return false
-
   const currentState = await loadWorkflowDeploymentSnapshot(workflowId)
-  if (!currentState) return false
-
-  return hasWorkflowChanged(currentState, active.state as WorkflowState)
+  return computeNeedsRedeployment(currentState, (active?.state as WorkflowState) ?? null)
 }
 
 /**

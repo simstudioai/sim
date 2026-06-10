@@ -29,7 +29,7 @@ export const kalshiGetMarketTool: ToolConfig<KalshiGetMarketParams, KalshiGetMar
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/markets/${params.ticker}`),
+    url: (params) => buildKalshiUrl(`/markets/${params.ticker.trim()}`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -138,7 +138,7 @@ export const kalshiGetMarketV2Tool: ToolConfig<KalshiGetMarketParams, KalshiGetM
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/markets/${params.ticker}`),
+    url: (params) => buildKalshiUrl(`/markets/${params.ticker.trim()}`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

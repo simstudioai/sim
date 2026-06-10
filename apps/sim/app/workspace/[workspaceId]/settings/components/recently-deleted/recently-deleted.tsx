@@ -3,21 +3,12 @@
 import { useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
-import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  Button,
-  Combobox,
-  Input,
-  SModalTabs,
-  SModalTabsList,
-  SModalTabsTrigger,
-} from '@/components/emcn'
-import { Folder } from '@/components/emcn/icons'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
+import { Button, ChipInput, ChipModalTabs } from '@/components/emcn'
+import { Folder, Search, Workflow } from '@/components/emcn/icons'
+import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
-import { DeletedItemSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/deleted-item-skeleton'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
@@ -70,10 +61,10 @@ interface SortConfig {
 
 const DEFAULT_SORT: SortConfig = { column: 'deleted', direction: 'desc' }
 
-const SORT_OPTIONS: { column: SortColumn; direction: 'asc' | 'desc'; label: string }[] = [
-  { column: 'deleted', direction: 'desc', label: 'Deleted (newest first)' },
-  { column: 'name', direction: 'asc', label: 'Name (A–Z)' },
-  { column: 'type', direction: 'asc', label: 'Type (A–Z)' },
+const SORT_OPTIONS: ColumnOption[] = [
+  { id: 'deleted', label: 'Deleted' },
+  { id: 'name', label: 'Name' },
+  { id: 'type', label: 'Type' },
 ]
 
 const ICON_CLASS = 'size-[14px]'
@@ -121,17 +112,7 @@ const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
 
 function ResourceIcon({ resource }: { resource: DeletedResource }) {
   if (resource.type === 'workflow') {
-    const color = resource.color ?? '#888'
-    return (
-      <div
-        className='size-[14px] shrink-0 rounded-[3px] border-[2px]'
-        style={{
-          backgroundColor: color,
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box',
-        }}
-      />
-    )
+    return <Workflow className={`${ICON_CLASS} shrink-0 text-[var(--text-icon)]`} />
   }
 
   if (resource.type === 'folder' || resource.type === 'workspace_folder') {
@@ -205,7 +186,6 @@ export function RecentlyDeleted() {
         type: 'workflow',
         deletedAt: wf.archivedAt ? new Date(wf.archivedAt) : new Date(wf.lastModified),
         workspaceId: wf.workspaceId ?? workspaceId,
-        color: wf.color,
       })
     }
 
@@ -312,7 +292,6 @@ export function RecentlyDeleted() {
   }, [resources, activeTab, searchTerm, activeSort, restoredItems])
 
   const showNoResults = searchTerm.trim() && filtered.length === 0 && resources.length > 0
-  const selectedSort = activeSort ?? DEFAULT_SORT
 
   function handleView(resource: DeletedResource) {
     if (resource.type === 'folder') {
@@ -386,123 +365,102 @@ export function RecentlyDeleted() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-          <Search
-            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-            strokeWidth={2}
-          />
-          <Input
-            placeholder='Search deleted items...'
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            disabled={isLoading}
-            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-        </div>
-        <div className='w-[190px] shrink-0'>
-          <Combobox
-            size='sm'
-            align='end'
-            disabled={isLoading}
-            value={`${selectedSort.column}:${selectedSort.direction}`}
-            onChange={(value) => {
-              const option = SORT_OPTIONS.find(
-                (sortOption) => `${sortOption.column}:${sortOption.direction}` === value
-              )
-              if (option) {
-                setActiveSort({ column: option.column, direction: option.direction })
-              }
-            }}
-            options={SORT_OPTIONS.map((option) => ({
-              label: option.label,
-              value: `${option.column}:${option.direction}`,
-            }))}
-            className='h-[30px] rounded-lg border-[var(--border)] bg-transparent px-2.5 text-small dark:bg-[var(--surface-4)]'
-          />
-        </div>
-      </div>
-
-      <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
-        <SModalTabsList activeValue={activeTab} className='border-[var(--border)] border-b'>
-          {TABS.map((tab) => (
-            <SModalTabsTrigger key={tab.id} value={tab.id}>
-              {tab.label}
-            </SModalTabsTrigger>
-          ))}
-        </SModalTabsList>
-      </SModalTabs>
-
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        {error ? (
-          <div className='flex h-full flex-col items-center justify-center gap-2'>
-            <p className='text-[var(--text-error)] text-xs leading-tight'>
-              {toError(error).message || 'Failed to load deleted items'}
-            </p>
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
+          <div className='flex items-center gap-2'>
+            <ChipInput
+              icon={Search}
+              placeholder='Search deleted items...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isLoading}
+              className='min-w-0 flex-1'
+            />
+            <SortDropdown
+              config={{
+                options: SORT_OPTIONS,
+                active: activeSort,
+                onSort: (column, direction) =>
+                  setActiveSort({ column: column as SortColumn, direction }),
+                onClear: () => setActiveSort(null),
+              }}
+            />
           </div>
-        ) : isLoading ? (
-          <div className='flex flex-col gap-2'>
-            <DeletedItemSkeleton />
-            <DeletedItemSkeleton />
-            <DeletedItemSkeleton />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-            {showNoResults
-              ? `No items found matching \u201c${searchTerm}\u201d`
-              : 'No deleted items'}
-          </div>
-        ) : (
-          <div className='flex flex-col gap-2'>
-            {filtered.map((resource) => {
-              const isRestoring = restoringIds.has(resource.id)
-              const isRestored = restoredItems.has(resource.id)
 
-              return (
-                <div
-                  key={resource.id}
-                  className='flex items-center gap-3 rounded-md px-2 py-2 hover-hover:bg-[var(--bg-hover)]'
-                >
-                  <ResourceIcon resource={resource} />
+          <ChipModalTabs
+            tabs={TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
+            value={activeTab}
+            onChange={(v) => setActiveTab(v as ResourceType)}
+          />
 
-                  <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                      {resource.name}
-                    </span>
-                    <span className='text-[var(--text-tertiary)] text-caption'>
-                      {TYPE_LABEL[resource.type]}
-                      {' \u00b7 '}
-                      Deleted {formatDate(resource.deletedAt)}
-                    </span>
-                  </div>
+          {error ? (
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[var(--text-error)] text-sm leading-tight'>
+                {toError(error).message || 'Failed to load deleted items'}
+              </p>
+            </div>
+          ) : isLoading ? null : filtered.length === 0 ? (
+            showNoResults ? (
+              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                {`No items found matching \u201c${searchTerm}\u201d`}
+              </div>
+            ) : (
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                No deleted items
+              </div>
+            )
+          ) : (
+            <div className='flex flex-col gap-2'>
+              {filtered.map((resource) => {
+                const isRestoring = restoringIds.has(resource.id)
+                const isRestored = restoredItems.has(resource.id)
 
-                  {isRestoring ? (
-                    <Button variant='primary' size='sm' disabled className='shrink-0'>
-                      Restoring...
-                    </Button>
-                  ) : isRestored ? (
-                    <div className='flex shrink-0 items-center gap-2'>
-                      <span className='text-[var(--text-tertiary)] text-small'>Restored</span>
-                      <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
-                        View
-                      </Button>
+                return (
+                  <div
+                    key={resource.id}
+                    className='flex items-center gap-2.5 rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                  >
+                    <ResourceIcon resource={resource} />
+
+                    <div className='flex min-w-0 flex-1 flex-col'>
+                      <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                        {resource.name}
+                      </span>
+                      <span className='text-[var(--text-muted)] text-small'>
+                        {TYPE_LABEL[resource.type]}
+                        {' \u00b7 '}
+                        Deleted {formatDate(resource.deletedAt)}
+                      </span>
                     </div>
-                  ) : (
-                    <Button
-                      variant='primary'
-                      size='sm'
-                      onClick={() => void handleRestore(resource)}
-                      className='shrink-0'
-                    >
-                      Restore
-                    </Button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+
+                    {isRestoring ? (
+                      <Button variant='primary' size='sm' disabled className='shrink-0'>
+                        Restoring...
+                      </Button>
+                    ) : isRestored ? (
+                      <div className='flex shrink-0 items-center gap-2'>
+                        <span className='text-[var(--text-muted)] text-small'>Restored</span>
+                        <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
+                          View
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant='primary'
+                        size='sm'
+                        onClick={() => void handleRestore(resource)}
+                        className='shrink-0'
+                      >
+                        Restore
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

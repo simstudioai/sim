@@ -23,6 +23,7 @@ import {
 } from '@/lib/copilot/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import {
   CopilotChatFinalizeOutcome,
@@ -41,10 +42,9 @@ import {
 } from '@/lib/copilot/request/session'
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
+import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
   getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
@@ -54,7 +54,7 @@ import type { ChatContext } from '@/stores/panel'
 export const maxDuration = 3600
 
 const logger = createLogger('UnifiedChatAPI')
-const DEFAULT_MODEL = 'claude-opus-4-6'
+const DEFAULT_MODEL = 'claude-opus-4-8'
 
 const FileAttachmentSchema = z.object({
   id: z.string(),
@@ -103,12 +103,13 @@ const ChatContextSchema = z.object({
     'logs',
     'workflow_block',
     'knowledge',
-    'templates',
     'docs',
     'table',
     'file',
     'folder',
     'filefolder',
+    'integration',
+    'skill',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -116,12 +117,12 @@ const ChatContextSchema = z.object({
   knowledgeId: z.string().optional(),
   blockId: z.string().optional(),
   blockIds: z.array(z.string()).optional(),
-  templateId: z.string().optional(),
   executionId: z.string().optional(),
   tableId: z.string().optional(),
   fileId: z.string().optional(),
   folderId: z.string().optional(),
   fileFolderId: z.string().optional(),
+  skillId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({
@@ -151,6 +152,7 @@ type UnifiedChatBranch =
       workflowId: string
       workflowName?: string
       workspaceId?: string
+      effectiveModel: string
       selectedModel: string
       mode: UnifiedChatRequest['mode']
       provider?: string
@@ -163,10 +165,11 @@ type UnifiedChatBranch =
         userId: string
         userMessageId: string
         chatId?: string
-        contexts: Array<{ type: string; content: string }>
+        contexts: Array<{ type: string; content: string; tag?: string; path?: string }>
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
+        userMetadata?: { name?: string; timezone?: string }
         workflowId: string
         workflowName?: string
         workspaceId?: string
@@ -175,6 +178,7 @@ type UnifiedChatBranch =
         commands?: string[]
         prefetch?: boolean
         implicitFeedback?: string
+        workspaceContext?: string
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -186,6 +190,7 @@ type UnifiedChatBranch =
   | {
       kind: 'workspace'
       workspaceId: string
+      effectiveModel: string
       goRoute: '/api/mothership'
       titleModel: string
       titleProvider?: undefined
@@ -195,10 +200,11 @@ type UnifiedChatBranch =
         userId: string
         userMessageId: string
         chatId?: string
-        contexts: Array<{ type: string; content: string }>
+        contexts: Array<{ type: string; content: string; tag?: string; path?: string }>
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
+        userMetadata?: { name?: string; timezone?: string }
         workspaceContext?: string
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
@@ -230,10 +236,10 @@ async function resolveAgentContexts(params: {
   workspaceId?: string
   chatId?: string
   requestId: string
-}): Promise<Array<{ type: string; content: string }>> {
+}): Promise<Array<{ type: string; content: string; tag?: string; path?: string }>> {
   const { contexts, resourceAttachments, userId, message, workspaceId, chatId, requestId } = params
 
-  let agentContexts: Array<{ type: string; content: string }> = []
+  let agentContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
 
   if (Array.isArray(contexts) && contexts.length > 0) {
     try {
@@ -353,7 +359,7 @@ async function persistUserMessage(params: {
       )
 
       if (notifyWorkspaceStatus && updated && workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
           type: 'started',
@@ -452,7 +458,7 @@ function buildOnComplete(params: {
           finalization.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
 
         if (notifyWorkspaceStatus && workspaceId && shouldPublishCompletion) {
-          taskPubSub?.publishStatusChanged({
+          chatPubSub?.publishStatusChanged({
             workspaceId,
             chatId,
             type: 'completed',
@@ -462,16 +468,23 @@ function buildOnComplete(params: {
         return
       }
 
+      // On a non-success terminal (e.g. a transient provider error like
+      // "overloaded"), persist whatever streamed before the failure — same as
+      // the cancelled path — instead of dropping the partial assistant output.
+      const assistantMessage = buildPersistedAssistantMessage(result, requestId)
+      const hasPartial =
+        !!assistantMessage.content?.trim() || (assistantMessage.contentBlocks?.length ?? 0) > 0
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
-        ...(result.success
-          ? { assistantMessage: buildPersistedAssistantMessage(result, requestId) }
-          : {}),
+        ...(result.success || hasPartial ? { assistantMessage } : {}),
+        // Match the cancelled path so the partial still persists if onError
+        // raced ahead and already cleared the stream marker.
+        ...(result.success ? {} : { streamMarkerPolicy: 'active-or-cleared' as const }),
       })
 
       if (notifyWorkspaceStatus && workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
           type: 'completed',
@@ -496,14 +509,28 @@ function buildOnError(params: {
 }) {
   const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus } = params
 
-  return async () => {
+  return async (_error: Error, result?: OrchestratorResult) => {
     if (!chatId) return
 
     try {
-      await finalizeAssistantTurn({ chatId, userMessageId })
+      // Persist whatever streamed before a thrown backend error, mirroring the
+      // cancelled / non-success completion path, so the partial assistant turn
+      // (text + tool calls + subagent work) survives the refetch instead of the
+      // chat collapsing to an empty assistant row.
+      const assistantMessage = result
+        ? buildPersistedAssistantMessage(result, requestId)
+        : undefined
+      const hasPartial =
+        !!assistantMessage?.content?.trim() || (assistantMessage?.contentBlocks?.length ?? 0) > 0
+      await finalizeAssistantTurn({
+        chatId,
+        userMessageId,
+        ...(hasPartial ? { assistantMessage } : {}),
+        streamMarkerPolicy: 'active-or-cleared',
+      })
 
       if (notifyWorkspaceStatus && workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
           type: 'completed',
@@ -550,13 +577,7 @@ async function resolveBranch(params: {
     }
 
     const resolvedWorkflowId = resolved.workflowId
-    let resolvedWorkspaceId: string | undefined
-    try {
-      const workflow = await getWorkflowById(resolvedWorkflowId)
-      resolvedWorkspaceId = workflow?.workspaceId ?? requestedWorkspaceId
-    } catch {
-      resolvedWorkspaceId = requestedWorkspaceId
-    }
+    const resolvedWorkspaceId = resolved.workspaceId
 
     const selectedModel = model || DEFAULT_MODEL
     return {
@@ -564,6 +585,7 @@ async function resolveBranch(params: {
       workflowId: resolvedWorkflowId,
       workflowName: resolved.workflowName,
       workspaceId: resolvedWorkspaceId,
+      effectiveModel: selectedModel,
       selectedModel,
       mode: mode ?? 'agent',
       provider,
@@ -589,8 +611,10 @@ async function resolveBranch(params: {
             chatId: payloadParams.chatId,
             prefetch: payloadParams.prefetch,
             implicitFeedback: payloadParams.implicitFeedback,
+            workspaceContext: payloadParams.workspaceContext,
             userPermission: payloadParams.userPermission,
             userTimezone: payloadParams.userTimezone,
+            userMetadata: payloadParams.userMetadata,
           },
           { selectedModel }
         ),
@@ -630,6 +654,7 @@ async function resolveBranch(params: {
   return {
     kind: 'workspace',
     workspaceId: requestedWorkspaceId,
+    effectiveModel: DEFAULT_MODEL,
     goRoute: '/api/mothership',
     titleModel: DEFAULT_MODEL,
     notifyWorkspaceStatus: true,
@@ -648,6 +673,7 @@ async function resolveBranch(params: {
           workspaceContext: payloadParams.workspaceContext,
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
+          userMetadata: payloadParams.userMetadata,
           includeMothershipTools: true,
         },
         { selectedModel: '' }
@@ -690,8 +716,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
     const authenticatedUserId = session.user.id
     const authenticatedUserEmail = session.user.email
+    const authenticatedUserName =
+      typeof session.user.name === 'string' ? session.user.name : undefined
 
     const body = ChatMessageSchema.parse(await req.json())
+    const userMetadata = {
+      ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
+      ...(body.userTimezone ? { timezone: body.userTimezone } : {}),
+    }
     const normalizedContexts = normalizeContexts(body.contexts) ?? []
     userMessageId = body.userMessageId || generateId()
 
@@ -831,7 +863,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       activeOtelRoot.setRequestShape({
         branchKind: branch.kind,
         mode: body.mode,
-        model: body.model,
+        model: branch.effectiveModel,
         provider: body.provider,
         createNewChat: body.createNewChat,
         prefetch: body.prefetch,
@@ -857,15 +889,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // opens". Previously these ran bare under the root and inflated the
       // apparent "gap" before the model call. Each promise is its own
       // span; they run concurrently under Promise.all below.
-      const workspaceContextPromise =
-        branch.kind === 'workspace'
-          ? withCopilotSpan(
-              TraceSpan.CopilotChatBuildWorkspaceContext,
-              { [TraceAttr.WorkspaceId]: branch.workspaceId },
-              () => generateWorkspaceContext(branch.workspaceId, authenticatedUserId),
-              activeOtelRoot.context
-            )
-          : Promise.resolve(undefined)
+      const workspaceContextPromise = workspaceId
+        ? withCopilotSpan(
+            TraceSpan.CopilotChatBuildWorkspaceContext,
+            { [TraceAttr.WorkspaceId]: workspaceId },
+            () => generateWorkspaceContext(workspaceId, authenticatedUserId),
+            activeOtelRoot.context
+          )
+        : Promise.resolve(undefined)
       const agentContextsPromise = withCopilotSpan(
         TraceSpan.CopilotChatResolveAgentContexts,
         {
@@ -941,6 +972,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
+                userMetadata,
                 workflowId: branch.workflowId,
                 workflowName: branch.workflowName,
                 workspaceId: branch.workspaceId,
@@ -949,6 +981,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 commands: body.commands,
                 prefetch: body.prefetch,
                 implicitFeedback: body.implicitFeedback,
+                workspaceContext,
               })
             : branch.buildPayload({
                 message: body.message,
@@ -959,6 +992,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 fileAttachments: body.fileAttachments,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
+                userMetadata,
                 workspaceContext,
               }),
         activeOtelRoot.context
@@ -989,7 +1023,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         orchestrateOptions: {
           userId: authenticatedUserId,
           ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
-          ...(branch.kind === 'workspace' ? { workspaceId: branch.workspaceId } : {}),
+          ...(workspaceId ? { workspaceId } : {}),
           chatId: actualChatId,
           executionId,
           runId,

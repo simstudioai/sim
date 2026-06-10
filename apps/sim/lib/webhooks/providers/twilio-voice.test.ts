@@ -1,0 +1,85 @@
+/**
+ * @vitest-environment node
+ */
+import crypto from 'crypto'
+import { createMockRequest } from '@sim/testing'
+import { describe, expect, it } from 'vitest'
+import { twilioVoiceHandler } from '@/lib/webhooks/providers/twilio-voice'
+
+/** Twilio canonical signature: HMAC-SHA1(authToken, url + sorted(key+value)) base64. */
+function signTwilio(authToken: string, url: string, params: Record<string, string>): string {
+  const data = Object.keys(params)
+    .sort()
+    .reduce((acc, key) => acc + key + params[key], url)
+  return crypto.createHmac('sha1', authToken).update(Buffer.from(data, 'utf8')).digest('base64')
+}
+
+describe('twilioVoiceHandler', () => {
+  describe('verifyAuth', () => {
+    const authToken = 'voice-auth-token'
+    const url = 'http://localhost:3000/api/test'
+    const params = { CallSid: 'CA123', From: '+15551234567', To: '+15557654321' }
+    const rawBody = new URLSearchParams(params).toString()
+    const signature = signTwilio(authToken, url, params)
+
+    it('skips verification when no auth token is configured', async () => {
+      const request = createMockRequest('POST', undefined, {})
+      const res = await twilioVoiceHandler.verifyAuth!({
+        request: request as any,
+        rawBody,
+        requestId: 'r1',
+        providerConfig: {},
+        webhook: {},
+        workflow: {},
+      })
+      expect(res).toBeNull()
+    })
+
+    it('returns 401 when the signature header is missing', async () => {
+      const request = createMockRequest('POST', undefined, {})
+      const res = await twilioVoiceHandler.verifyAuth!({
+        request: request as any,
+        rawBody,
+        requestId: 'r1',
+        providerConfig: { authToken },
+        webhook: {},
+        workflow: {},
+      })
+      expect(res?.status).toBe(401)
+    })
+
+    it('returns 401 when the signature is invalid', async () => {
+      const request = createMockRequest('POST', undefined, { 'x-twilio-signature': 'bad' })
+      const res = await twilioVoiceHandler.verifyAuth!({
+        request: request as any,
+        rawBody,
+        requestId: 'r1',
+        providerConfig: { authToken },
+        webhook: {},
+        workflow: {},
+      })
+      expect(res?.status).toBe(401)
+    })
+
+    it('returns null when the signature is valid', async () => {
+      const request = createMockRequest('POST', undefined, { 'x-twilio-signature': signature })
+      const res = await twilioVoiceHandler.verifyAuth!({
+        request: request as any,
+        rawBody,
+        requestId: 'r1',
+        providerConfig: { authToken },
+        webhook: {},
+        workflow: {},
+      })
+      expect(res).toBeNull()
+    })
+  })
+
+  describe('extractIdempotencyId', () => {
+    it('prefers MessageSid, falls back to CallSid', () => {
+      expect(twilioVoiceHandler.extractIdempotencyId!({ MessageSid: 'SM1' })).toBe('SM1')
+      expect(twilioVoiceHandler.extractIdempotencyId!({ CallSid: 'CA1' })).toBe('CA1')
+      expect(twilioVoiceHandler.extractIdempotencyId!({})).toBeNull()
+    })
+  })
+})

@@ -1,7 +1,8 @@
 'use client'
 
-import { Combobox, Label } from '@/components/emcn'
+import { ChipCombobox, Label } from '@/components/emcn'
 import type { ColumnDefinition } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 
 interface RunSettingsSectionProps {
   /** All columns the group can depend on (left-of-current scalar + workflow
@@ -26,17 +27,16 @@ export function RunSettingsSection({
   onChangeDeps,
   error,
 }: RunSettingsSectionProps) {
-  const options = depOptions.map((c) => ({ label: c.name, value: c.name }))
+  const options = depOptions.map((c) => ({ label: c.name, value: getColumnId(c) }))
 
   return (
     <div className='flex flex-col gap-[9.5px]'>
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>Run after</Label>
-      <Combobox
+      <ChipCombobox
         multiSelect
         searchable
         searchPlaceholder='Search…'
-        size='sm'
-        className='h-[32px] w-full rounded-md'
+        className='w-full'
         dropdownWidth='trigger'
         maxHeight={240}
         disabled={depOptions.length === 0}

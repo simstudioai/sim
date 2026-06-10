@@ -80,8 +80,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   docsLink: 'https://docs.sim.ai/blocks/agent',
   category: 'blocks',
   integrationType: IntegrationType.AI,
-  tags: ['llm', 'agentic', 'automation'],
-  bgColor: 'var(--brand-agent)',
+  bgColor: 'var(--brand)',
   icon: AgentIcon,
   subBlocks: [
     {
@@ -551,7 +550,7 @@ Return ONLY the JSON array.`,
     conversationId: {
       type: 'string',
       description:
-        'Specific conversation ID to retrieve memories from (when memoryType is conversation_id)',
+        'Specific conversation ID to retrieve memories from (used when memoryType is conversation, sliding_window, or sliding_window_tokens)',
     },
     slidingWindowSize: {
       type: 'string',

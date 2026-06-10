@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 791,
-  zodRoutes: 791,
+  totalRoutes: 804,
+  zodRoutes: 804,
   nonZodRoutes: 0,
 } as const
 
@@ -53,12 +53,6 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // client-supplied input"; query params from external callers are not
   // consumed.
   'apps/sim/app/api/schedules/execute/route.ts',
-  // Document preview routes delegate validation to
-  // `createDocumentPreviewRoute(...)`, which calls `safeParse` on the
-  // contract-owned `routeParamsSchema` and `previewBodySchema`.
-  'apps/sim/app/api/workspaces/[id]/pdf/preview/route.ts',
-  'apps/sim/app/api/workspaces/[id]/pptx/preview/route.ts',
-  'apps/sim/app/api/workspaces/[id]/docx/preview/route.ts',
   // Routes with no client-supplied input. Auth is handled via session/cron/internal
   // tokens and there are no params, query, or body to validate. Previously had
   // no-op `validateSchema(noInputSchema, {})` guards.
@@ -70,6 +64,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-soft-deletes/route.ts',
   'apps/sim/app/api/cron/cleanup-stale-executions/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
+  'apps/sim/app/api/cron/reconcile-billing-seats/route.ts',
   'apps/sim/app/api/cron/run-data-drains/route.ts',
   'apps/sim/app/api/logs/cleanup/route.ts',
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
@@ -111,7 +106,6 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
   'apps/sim/app/api/copilot/api-keys/generate/route.ts',
   'apps/sim/app/api/copilot/api-keys/validate/route.ts',
   'apps/sim/app/api/copilot/chat/abort/route.ts',
-  'apps/sim/app/api/copilot/stats/route.ts',
   'apps/sim/app/api/folders/[id]/restore/route.ts',
   'apps/sim/app/api/invitations/[id]/accept/route.ts',
   'apps/sim/app/api/invitations/[id]/reject/route.ts',

@@ -5,23 +5,13 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
-import {
-  Button,
-  Combobox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  toast,
-  Upload,
-} from '@/components/emcn'
+import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import type {
   FilterTag,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
@@ -42,11 +32,13 @@ import {
   useCreateTable,
   useDeleteTable,
   useImportCsvAsync,
+  useRenameTable,
   useTablesList,
   useUploadCsvToTable,
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
@@ -82,9 +74,14 @@ export function Tables() {
     logger.error('Failed to load tables:', error)
   }
   const deleteTable = useDeleteTable(workspaceId)
+  const renameTable = useRenameTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
   const uploadCsv = useUploadCsvToTable()
   const importCsvAsync = useImportCsvAsync()
+
+  const tableRename = useInlineRename({
+    onSave: (tableId, name) => renameTable.mutateAsync({ tableId, name }),
+  })
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -97,6 +94,8 @@ export function Tables() {
   } | null>(null)
   const [rowCountFilter, setRowCountFilter] = useState<string[]>([])
   const [ownerFilter, setOwnerFilter] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const csvInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -168,6 +167,15 @@ export function Tables() {
           name: {
             icon: <TableIcon className='size-[14px]' />,
             label: table.name,
+            editing:
+              tableRename.editingId === table.id
+                ? {
+                    value: tableRename.editValue,
+                    onChange: tableRename.setEditValue,
+                    onSubmit: tableRename.submitRename,
+                    onCancel: tableRename.cancelRename,
+                  }
+                : undefined,
           },
           columns: {
             icon: <Columns3 className='size-[14px]' />,
@@ -182,7 +190,15 @@ export function Tables() {
           updated: timeCell(table.updatedAt),
         },
       })),
-    [processedTables, members]
+    [
+      processedTables,
+      members,
+      tableRename.editingId,
+      tableRename.editValue,
+      tableRename.setEditValue,
+      tableRename.submitRename,
+      tableRename.cancelRename,
+    ]
   )
 
   const searchConfig: SearchConfig = useMemo(
@@ -260,7 +276,7 @@ export function Tables() {
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
               { value: 'small', label: 'Small (1–100 rows)' },
@@ -274,14 +290,13 @@ export function Tables() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
             <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
-            <Combobox
+            <ChipCombobox
               options={memberOptions}
               multiSelect
               multiSelectValues={ownerFilter}
@@ -293,8 +308,7 @@ export function Tables() {
               searchPlaceholder='Search members...'
               showAllOption
               allOptionLabel='All'
-              size='sm'
-              className='h-[32px] w-full rounded-md'
+              className='w-full'
             />
           </div>
         )}
@@ -390,86 +404,116 @@ export function Tables() {
       const list = e.target.files
       if (!list || list.length === 0 || !workspaceId) return
 
-      // Reset the input up front so the user can immediately pick another CSV (even the same
-      // file) while this batch is still uploading in the background — imports never block.
       const csvFiles = Array.from(list).filter((f) => {
         const ext = f.name.split('.').pop()?.toLowerCase()
         return ext === 'csv' || ext === 'tsv'
       })
-      if (e.target) e.target.value = ''
 
       if (csvFiles.length === 0) {
         toast.error('No CSV or TSV files selected')
+        if (csvInputRef.current) csvInputRef.current.value = ''
         return
       }
 
-      try {
-        for (let i = 0; i < csvFiles.length; i++) {
-          const file = csvFiles[i]
-          try {
-            // Large files can't be POSTed through the server (request-body cap) — upload
-            // them straight to storage and import in the background instead. Show the
-            // indicator immediately under a temporary id (the real table id doesn't exist
-            // until kickoff returns), then swap to the real id. Don't redirect — the table
-            // is still empty/importing, so stay on the list and let the indicator track it.
-            if (file.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES) {
-              const pendingId = `pending_${generateId()}`
-              useImportTrayStore
-                .getState()
-                .startUpload({ uploadId: pendingId, workspaceId, title: file.name })
-              toast({
-                message: `Importing "${file.name}"…`,
-                action: {
-                  label: 'View',
-                  onClick: () => useImportTrayStore.getState().setMenuOpen(true),
-                },
-              })
-              try {
-                const result = await importCsvAsync.mutateAsync({
-                  workspaceId,
-                  file,
-                  onProgress: (percent) => {
-                    useImportTrayStore.getState().setUploadPercent(pendingId, percent)
-                  },
-                })
-                useImportTrayStore.getState().endUpload(pendingId)
-                // The server row drives the tray once the list refetches (mutation invalidates it).
-                // If canceled mid-upload, flag the real id so it's not shown and cancel server-side.
-                if (result?.tableId && useImportTrayStore.getState().consumeCanceled(pendingId)) {
-                  useImportTrayStore.getState().cancel(result.tableId)
-                  void cancelTableImport(workspaceId, result.tableId, result.importId).catch(
-                    () => {}
-                  )
-                }
-              } catch (err) {
-                useImportTrayStore.getState().endUpload(pendingId)
-                throw err
-              }
-              continue
-            }
+      // Large files can't be POSTed through the server (request-body cap) — upload them
+      // straight to storage and import in the background. These are tracked by the import
+      // tray, never the header upload button, so don't touch uploading/uploadProgress here.
+      const asyncFiles = csvFiles.filter((f) => f.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES)
+      const syncFiles = csvFiles.filter((f) => f.size < CSV_ASYNC_IMPORT_THRESHOLD_BYTES)
 
+      try {
+        for (const file of asyncFiles) {
+          // Show the indicator immediately under a temporary id (the real table id doesn't
+          // exist until kickoff returns), then let the tray track it. Don't redirect — the
+          // table is still empty/importing, so stay on the list.
+          const pendingId = `pending_${generateId()}`
+          useImportTrayStore
+            .getState()
+            .startUpload({ uploadId: pendingId, workspaceId, title: file.name })
+          toast.success(`Importing "${file.name}" in the background`)
+          try {
+            const result = await importCsvAsync.mutateAsync({
+              workspaceId,
+              file,
+              onProgress: (percent) => {
+                useImportTrayStore.getState().setUploadPercent(pendingId, percent)
+              },
+            })
+            useImportTrayStore.getState().endUpload(pendingId)
+            // The server row drives the tray once the list refetches (mutation invalidates it).
+            // If canceled mid-upload, flag the real id so it's not shown and cancel server-side.
+            if (
+              result?.tableId &&
+              result.importId &&
+              useImportTrayStore.getState().consumeCanceled(pendingId)
+            ) {
+              useImportTrayStore.getState().cancel(result.tableId)
+              void cancelTableImport(workspaceId, result.tableId, result.importId).catch(() => {})
+            }
+          } catch {
+            // The hook's onError surfaces the toast; just clear the tray indicator here.
+            useImportTrayStore.getState().endUpload(pendingId)
+          }
+        }
+
+        if (syncFiles.length === 0) return
+
+        setUploading(true)
+        setUploadProgress({ completed: 0, total: syncFiles.length })
+        const failed: string[] = []
+
+        for (let i = 0; i < syncFiles.length; i++) {
+          const file = syncFiles[i]
+          try {
             const result = await uploadCsv.mutateAsync({ workspaceId, file })
-            if (csvFiles.length === 1) {
+
+            if (syncFiles.length === 1 && asyncFiles.length === 0) {
               const tableId = result?.data?.table?.id
               if (tableId) {
                 router.push(`/workspace/${workspaceId}/tables/${tableId}`)
               }
             }
           } catch (err) {
+            failed.push(file.name)
             logger.error('Error uploading CSV:', err)
+          } finally {
+            setUploadProgress({ completed: i + 1, total: syncFiles.length })
           }
+        }
+
+        if (failed.length > 0) {
+          toast.error(
+            failed.length === 1
+              ? `Failed to import ${failed[0]}`
+              : `Failed to import ${failed.length} file${failed.length > 1 ? 's' : ''}: ${failed.join(', ')}`
+          )
         }
       } catch (err) {
         logger.error('Error uploading CSV:', err)
+        toast.error('Failed to import CSV')
+      } finally {
+        setUploading(false)
+        setUploadProgress({ completed: 0, total: 0 })
+        if (csvInputRef.current) {
+          csvInputRef.current.value = ''
+        }
       }
     },
-    [workspaceId, router, uploadCsv, importCsvAsync]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
+    [workspaceId, router]
   )
 
   const handleListUploadCsv = useCallback(() => {
     csvInputRef.current?.click()
     closeListContextMenu()
   }, [closeListContextMenu])
+
+  const uploadButtonLabel =
+    uploading && uploadProgress.total > 0
+      ? `${uploadProgress.completed}/${uploadProgress.total}`
+      : uploading
+        ? 'Uploading...'
+        : 'Import CSV'
 
   const handleCreateTable = useCallback(async () => {
     const existingNames = tables.map((t) => t.name)
@@ -491,42 +535,61 @@ export function Tables() {
     }
   }, [tables, createTable, router, workspaceId])
 
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      {
+        text: uploadButtonLabel,
+        icon: Upload,
+        onSelect: () => csvInputRef.current?.click(),
+        disabled: uploading || userPermissions.canEdit !== true,
+      },
+      {
+        text: 'New table',
+        icon: Plus,
+        onSelect: handleCreateTable,
+        disabled: uploading || userPermissions.canEdit !== true || createTable.isPending,
+        variant: 'primary',
+      },
+    ],
+    [
+      uploadButtonLabel,
+      uploading,
+      userPermissions.canEdit,
+      handleCreateTable,
+      createTable.isPending,
+    ]
+  )
+
   return (
     <>
-      <Resource
-        icon={TableIcon}
-        title='Tables'
-        create={{
-          label: 'New table',
-          onClick: handleCreateTable,
-          disabled: userPermissions.canEdit !== true || createTable.isPending,
-        }}
-        search={searchConfig}
-        sort={sortConfig}
-        filter={filterContent}
-        filterTags={filterTags}
-        headerActions={[
-          {
-            label: 'Import CSV',
-            icon: Upload,
-            onClick: () => csvInputRef.current?.click(),
-            disabled: userPermissions.canEdit !== true,
-          },
-        ]}
-        leadingActions={<ImportProgressMenu workspaceId={workspaceId} />}
-        columns={COLUMNS}
-        rows={rows}
-        onRowClick={handleRowClick}
-        onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading}
-        onContextMenu={handleContentContextMenu}
-      />
+      <Resource onContextMenu={handleContentContextMenu}>
+        <Resource.Header
+          icon={TableIcon}
+          title='Tables'
+          actions={headerActions}
+          aside={<ImportProgressMenu workspaceId={workspaceId} />}
+        />
+        <Resource.Options
+          search={searchConfig}
+          sort={sortConfig}
+          filterTags={filterTags}
+          filter={{ content: filterContent }}
+        />
+        <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
+          onRowClick={handleRowClick}
+          onRowContextMenu={handleRowContextMenu}
+          isLoading={isLoading}
+        />
+      </Resource>
 
       <input
         ref={csvInputRef}
         type='file'
         className='hidden'
         onChange={handleCsvChange}
+        disabled={uploading}
         accept='.csv,.tsv'
         multiple
       />
@@ -538,7 +601,7 @@ export function Tables() {
         onCreateTable={handleCreateTable}
         onUploadCsv={handleListUploadCsv}
         disableCreate={userPermissions.canEdit !== true || createTable.isPending}
-        disableUpload={userPermissions.canEdit !== true}
+        disableUpload={uploading || userPermissions.canEdit !== true}
       />
 
       <TableContextMenu
@@ -549,6 +612,9 @@ export function Tables() {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
+        onRename={() => {
+          if (activeTable) tableRename.startRename(activeTable.id, activeTable.name)
+        }}
         onImportCsv={() => setIsImportDialogOpen(true)}
         onExportCsv={async () => {
           if (!activeTable) return
@@ -576,36 +642,31 @@ export function Tables() {
         />
       )}
 
-      <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Table</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>
-                All {activeTable?.rowCount} rows will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setIsDeleteDialogOpen(false)
-                setActiveTable(null)
-              }}
-              disabled={deleteTable.isPending}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={deleteTable.isPending}>
-              {deleteTable.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open)
+          if (!open) setActiveTable(null)
+        }}
+        srTitle='Delete Table'
+        title='Delete Table'
+        description={
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All {activeTable?.rowCount} rows will be removed.
+            </span>{' '}
+            You can restore it from Recently Deleted in Settings.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteTable.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

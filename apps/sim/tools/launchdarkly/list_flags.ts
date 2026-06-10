@@ -81,6 +81,7 @@ export const launchDarklyListFlagsTool: ToolConfig<
       tags: (item.tags as string[]) ?? [],
       variations: (item.variations as Array<Record<string, unknown>>) ?? [],
       maintainerId: item.maintainerId ?? null,
+      maintainerEmail: (item._maintainer as Record<string, unknown> | undefined)?.email ?? null,
     }))
 
     return {

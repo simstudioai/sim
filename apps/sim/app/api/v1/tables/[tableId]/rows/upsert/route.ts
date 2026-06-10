@@ -5,8 +5,14 @@ import { v1UpsertTableRowContract } from '@/lib/api/contracts/v1/tables'
 import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { RowData } from '@/lib/table'
-import { upsertRow } from '@/lib/table'
+import type { RowData, TableSchema } from '@/lib/table'
+import {
+  buildIdByName,
+  buildNameById,
+  rowDataIdToName,
+  rowDataNameToId,
+  upsertRow,
+} from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -51,11 +57,13 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    const idByName = buildIdByName(table.schema as TableSchema)
+    const nameById = buildNameById(table.schema as TableSchema)
     const upsertResult = await upsertRow(
       {
         tableId,
         workspaceId: validated.workspaceId,
-        data: validated.data as RowData,
+        data: rowDataNameToId(validated.data as RowData, idByName),
         userId,
         conflictTarget: validated.conflictTarget,
       },
@@ -68,7 +76,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       data: {
         row: {
           id: upsertResult.row.id,
-          data: upsertResult.row.data,
+          data: rowDataIdToName(upsertResult.row.data, nameById),
           createdAt:
             upsertResult.row.createdAt instanceof Date
               ? upsertResult.row.createdAt.toISOString()

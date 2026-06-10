@@ -171,6 +171,13 @@ Delete a transcript from Fireflies.ai
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the transcript was successfully deleted |
+| `transcript` | object | The deleted transcript |
+|   ↳ `id` | string | Transcript ID |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `date` | number | Meeting timestamp |
+|   ↳ `duration` | number | Meeting duration |
+|   ↳ `host_email` | string | Host email address |
+|   ↳ `organizer_email` | string | Organizer email address |
 
 ### `fireflies_add_to_live_meeting`
 

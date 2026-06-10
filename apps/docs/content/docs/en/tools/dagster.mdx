@@ -364,7 +364,7 @@ List assets tracked by a Dagster instance, optionally filtered by key prefix.
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `prefix` | string | No | Slash-delimited asset key prefix to filter by, e.g. "raw" or "raw/events" \(optional\) |
 | `cursor` | string | No | Asset key cursor from a previous response, for pagination \(optional\) |
-| `limit` | number | No | Maximum number of assets to return \(optional\) |
+| `limit` | number | No | Maximum number of assets to return per page \(default 100\) |
 
 #### Output
 

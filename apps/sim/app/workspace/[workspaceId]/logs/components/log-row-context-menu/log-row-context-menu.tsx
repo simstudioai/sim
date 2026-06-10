@@ -2,12 +2,12 @@
 
 import { memo } from 'react'
 import {
-  Copy,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Duplicate,
   Eye,
   Link,
   ListFilter,
@@ -103,7 +103,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           </>
         )}
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
-          <Copy />
+          <Duplicate />
           Copy Run ID
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>

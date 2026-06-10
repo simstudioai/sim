@@ -44,13 +44,6 @@ export const TERMINAL_HEIGHT = {
   MAX_PERCENTAGE: 0.7,
 } as const
 
-/** Toolbar triggers section height constraints */
-export const TOOLBAR_TRIGGERS_HEIGHT = {
-  DEFAULT: 300,
-  MIN: 30,
-  MAX: 800,
-} as const
-
 /** Editor connections section height constraints */
 export const EDITOR_CONNECTIONS_HEIGHT = {
   DEFAULT: 172,

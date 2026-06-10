@@ -7,11 +7,13 @@ import { generateId } from '@sim/utils/id'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { withCascadeLock } from '@/lib/table/cascade-lock'
+import { getColumnId } from '@/lib/table/column-keys'
 import { isExecCancelled } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
 import type {
@@ -21,6 +23,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table/types'
 import type { WorkflowGroupCellPayload } from '@/lib/table/workflow-columns'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 export type { WorkflowGroupCellPayload }
 
@@ -227,6 +230,60 @@ async function runWorkflowAndWriteTerminal(
 
       if (cancelledBeforeRun(row.executions?.[groupId])) return 'error'
 
+      // Resolve the billing/enforcement actor: the user who triggered the run,
+      // else the workspace billed account (automated/auto-fire). Enrichment must
+      // never run unattributed — if neither resolves, fail the cell rather than
+      // running free and ungated.
+      const enrichmentActorUserId =
+        payload.triggeredByUserId ?? (await getWorkspaceBilledAccountUserId(workspaceId))
+      if (!enrichmentActorUserId) {
+        logger.error(
+          `No billing actor for enrichment — failing cell (table=${tableId} row=${rowId} group=${groupId})`
+        )
+        await writeState({
+          status: 'error',
+          executionId,
+          jobId: null,
+          workflowId: statusId,
+          error: 'Unable to resolve a billing account for this enrichment.',
+        })
+        return 'error'
+      }
+
+      // Gate per-member + pooled usage before incurring hosted-key cost. Mirrors
+      // the workflow-group gate below: clear the cell's pre-stamp and signal the
+      // client to upgrade rather than marking the cell errored.
+      const usage = await checkActorUsageLimits(enrichmentActorUserId, workspaceId)
+      if (usage.isExceeded) {
+        logger.warn(
+          `Usage limit reached — halting enrichment (table=${tableId} row=${rowId} group=${groupId})`
+        )
+        const { updateRow } = await import('@/lib/table/service')
+        await updateRow(
+          { tableId, rowId, data: {}, workspaceId, executionsPatch: { [groupId]: null } },
+          table,
+          requestId
+        ).catch((err) =>
+          logger.warn(`Failed to clear cell pre-stamp on usage limit`, {
+            error: toError(err).message,
+          })
+        )
+        let shouldEmit = true
+        if (dispatchId) {
+          const { completeDispatchIfActive } = await import('@/lib/table/dispatcher')
+          shouldEmit = await completeDispatchIfActive(dispatchId)
+        }
+        if (shouldEmit) {
+          await appendTableEvent({
+            kind: 'usageLimitReached',
+            tableId,
+            ...(dispatchId ? { dispatchId } : {}),
+            message: usage.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
+          })
+        }
+        return 'blocked'
+      }
+
       const pickedUp = await markWorkflowGroupPickedUp(cellCtx, {
         workflowId: statusId,
         jobId: null,
@@ -310,13 +367,14 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        // Bill the table owner for any hosted-key cost the providers incurred.
-        // Billing failures must not error an otherwise-successful cell.
-        if (cost > 0 && table.createdBy) {
+        // Bill the run's actor (triggerer, else workspace billed account) for any
+        // hosted-key cost the providers incurred. Billing failures must not error
+        // an otherwise-successful cell.
+        if (cost > 0) {
           try {
             const { recordUsage } = await import('@/lib/billing/core/usage-log')
             await recordUsage({
-              userId: table.createdBy,
+              userId: enrichmentActorUserId,
               workspaceId,
               executionId,
               entries: [
@@ -438,13 +496,18 @@ async function runWorkflowAndWriteTerminal(
       // retry doesn't re-run the (stable) billing/usage/subscription lookups.
       // Failures are surfaced via cell state / SSE / dispatch halt, so suppress
       // preprocessing's own execution-log writes.
+      // Attribute the run to the member who triggered it (manual run, row edit, or
+      // auto-fire from their own write) so the gate + cost land on their per-member
+      // meter — mirroring the enrichment branch. Falls back to the workspace billed
+      // account for genuinely actor-less runs.
       const preprocess = await preprocessExecution({
         workflowId,
         executionId,
         requestId,
         workspaceId,
         workflowRecord,
-        userId: workflowRecord.userId,
+        userId: payload.triggeredByUserId ?? workflowRecord.userId,
+        useAuthenticatedUserAsActor: Boolean(payload.triggeredByUserId),
         triggerType: 'workflow',
         checkDeployment: false,
         checkRateLimit: false,
@@ -559,26 +622,30 @@ async function runWorkflowAndWriteTerminal(
       // populated by the run we're starting. Other group's outputs ARE
       // included (they're plain primitives in `row.data` thanks to the
       // flattened schema).
-      const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
+      // `inputRow` is name-keyed: the workflow author references columns by name
+      // in the Start block and downstream blocks, while stored `row.data` is
+      // id-keyed. Translate, skipping this group's own output columns.
+      const ownOutputColumnIds = new Set(group.outputs.map((o) => o.columnName))
       const inputRow: Record<string, unknown> = {}
-      for (const key of Object.keys(row.data)) {
-        if (ownOutputColumns.has(key)) continue
-        inputRow[key] = row.data[key]
+      for (const col of table.schema.columns) {
+        const id = getColumnId(col)
+        if (ownOutputColumnIds.has(id)) continue
+        inputRow[col.name] = row.data[id]
       }
 
       const headers = table.schema.columns
-        .filter((c) => !ownOutputColumns.has(c.name))
+        .filter((c) => !ownOutputColumnIds.has(getColumnId(c)))
         .map((c) => c.name)
 
       // When the group has explicit input mappings, feed the workflow's
-      // Start-block fields from the mapped columns (`inputName ← row[columnName]`).
+      // Start-block fields from the mapped columns (`inputName ← row[columnId]`).
       // Otherwise fall back to spreading every non-output column by name, so a
       // Start field still resolves when it matches a column name. `row`/`rawRow`
-      // always carry the full row for downstream reference.
+      // always carry the full (name-keyed) row for downstream reference.
       const inputMappings = group.inputMappings ?? []
       const mappedInputs: Record<string, unknown> = {}
       for (const m of inputMappings) {
-        mappedInputs[m.inputName] = inputRow[m.columnName]
+        mappedInputs[m.inputName] = row.data[m.columnName]
       }
 
       const input = {

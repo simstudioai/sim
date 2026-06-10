@@ -3,6 +3,7 @@ import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { eq } from 'drizzle-orm'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
@@ -11,6 +12,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
+  getExecutionInputForWorkflow,
   getExecutionStateForWorkflow,
   getLatestExecutionStateWithExecutionId,
 } from '@/lib/workflows/executor/execution-state'
@@ -23,10 +25,15 @@ import {
   performUpdateWorkflow,
 } from '@/lib/workflows/orchestration'
 import {
+  loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import {
+  resolveTriggerRunOptions,
+  validateTriggerInput,
+} from '@/lib/workflows/triggers/run-options'
 import { listFolders, setWorkflowVariables, verifyFolderWorkspace } from '@/lib/workflows/utils'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
@@ -121,6 +128,111 @@ function resolveRunTriggerBlockId(params: { triggerBlockId?: unknown }): string 
   return typeof params.triggerBlockId === 'string' && params.triggerBlockId.trim().length > 0
     ? params.triggerBlockId
     : undefined
+}
+
+interface PreparedTriggerRun {
+  triggerBlockId: string
+  input: unknown
+}
+
+/**
+ * Resolves which trigger a copilot run targets and validates the input against
+ * it. There are no fallbacks: an invalid trigger id, an ambiguous workflow, or
+ * input that doesn't match the trigger's schema returns an error string so the
+ * agent fixes it and retries. The resolved triggerBlockId is returned so the
+ * caller pins the executed entry to the validated one.
+ */
+async function resolveValidatedTriggerRun(
+  workflowId: string,
+  useDraftState: boolean,
+  params: {
+    triggerBlockId?: unknown
+    workflow_input?: unknown
+    input?: unknown
+    useMockPayload?: unknown
+    inputFromExecutionId?: unknown
+  }
+): Promise<PreparedTriggerRun | { error: string }> {
+  const state = useDraftState
+    ? await loadWorkflowFromNormalizedTables(workflowId)
+    : await loadDeployedWorkflowState(workflowId)
+
+  if (!state?.blocks) {
+    return {
+      error: `Workflow ${workflowId} has no ${useDraftState ? 'saved draft' : 'deployed'} state to run.`,
+    }
+  }
+
+  const merged = mergeSubblockStateWithValues(state.blocks)
+  const options = resolveTriggerRunOptions(merged, state.edges)
+
+  if (options.length === 0) {
+    return {
+      error:
+        'No runnable trigger found. Add a Start/API/Input/Chat trigger or an external (webhook/integration) trigger before running.',
+    }
+  }
+
+  const listTriggers = () =>
+    options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
+
+  const requestedId = resolveRunTriggerBlockId(params)
+  let option = options[0]
+  if (requestedId) {
+    const match = options.find((o) => o.triggerBlockId === requestedId)
+    if (!match) {
+      return {
+        error: `triggerBlockId "${requestedId}" is not a runnable trigger in this workflow. Valid triggers: ${listTriggers()}. Call get_workflow_run_options to inspect them.`,
+      }
+    }
+    option = match
+  } else if (options.length > 1) {
+    return {
+      error: `This workflow has multiple triggers — pass triggerBlockId to choose one: ${listTriggers()}. Call get_workflow_run_options for each trigger's input shape.`,
+    }
+  }
+
+  const providedInput = resolveRunWorkflowInput(params)
+  const hasProvidedInput = providedInput !== undefined
+  const useMock = params.useMockPayload === true
+  const fromExecutionId =
+    typeof params.inputFromExecutionId === 'string' && params.inputFromExecutionId.trim().length > 0
+      ? params.inputFromExecutionId.trim()
+      : undefined
+
+  const sourceCount = (hasProvidedInput ? 1 : 0) + (useMock ? 1 : 0) + (fromExecutionId ? 1 : 0)
+  if (sourceCount > 1) {
+    return {
+      error:
+        'Provide only one input source: workflow_input, useMockPayload: true, or inputFromExecutionId.',
+    }
+  }
+
+  // Mock payload is generated to match the trigger, so it bypasses validation.
+  if (useMock) {
+    return { triggerBlockId: option.triggerBlockId, input: option.mockPayload }
+  }
+
+  let inputToValidate = providedInput
+  if (fromExecutionId) {
+    const past = await getExecutionInputForWorkflow(fromExecutionId, workflowId)
+    if (!past.found) {
+      return {
+        error: `No execution "${fromExecutionId}" found for this workflow to reuse input from.`,
+      }
+    }
+    if (past.input === undefined) {
+      return { error: `Execution "${fromExecutionId}" has no recorded input to reuse.` }
+    }
+    inputToValidate = past.input
+  }
+
+  const validation = validateTriggerInput(option, inputToValidate)
+  if (!validation.ok) {
+    return { error: validation.error || 'workflow_input is invalid for the target trigger.' }
+  }
+
+  return { triggerBlockId: option.triggerBlockId, input: inputToValidate }
 }
 
 function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
@@ -354,6 +466,11 @@ export async function executeRunWorkflow(
 
     const useDraftState = !params.useDeployedState
 
+    const prepared = await resolveValidatedTriggerRun(workflowId, useDraftState, params)
+    if ('error' in prepared) {
+      return { success: false, error: prepared.error }
+    }
+
     const result = await executeWorkflow(
       {
         id: workflowRecord.id,
@@ -362,13 +479,13 @@ export async function executeRunWorkflow(
         variables: workflowRecord.variables || {},
       },
       generateRequestId(),
-      resolveRunWorkflowInput(params),
+      prepared.input,
       context.userId,
       {
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
-        triggerBlockId: resolveRunTriggerBlockId(params),
+        triggerBlockId: prepared.triggerBlockId,
       }
     )
 
@@ -656,6 +773,11 @@ export async function executeRunWorkflowUntilBlock(
 
     const useDraftState = !params.useDeployedState
 
+    const prepared = await resolveValidatedTriggerRun(workflowId, useDraftState, params)
+    if ('error' in prepared) {
+      return { success: false, error: prepared.error }
+    }
+
     const result = await executeWorkflow(
       {
         id: workflowRecord.id,
@@ -664,14 +786,14 @@ export async function executeRunWorkflowUntilBlock(
         variables: workflowRecord.variables || {},
       },
       generateRequestId(),
-      resolveRunWorkflowInput(params),
+      prepared.input,
       context.userId,
       {
         enabled: true,
         useDraftState,
         stopAfterBlockId: params.stopAfterBlockId,
         workflowTriggerType: 'copilot',
-        triggerBlockId: resolveRunTriggerBlockId(params),
+        triggerBlockId: prepared.triggerBlockId,
       }
     )
 

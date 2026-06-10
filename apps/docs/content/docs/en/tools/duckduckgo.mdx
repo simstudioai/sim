@@ -54,10 +54,14 @@ Search the web using DuckDuckGo Instant Answers API. Returns instant answers, ab
 | `abstractText` | string | Plain text version of the abstract |
 | `abstractSource` | string | The source of the abstract \(e.g., Wikipedia\) |
 | `abstractURL` | string | URL to the source of the abstract |
+| `definition` | string | Dictionary-style definition if available |
+| `definitionSource` | string | The source of the definition |
+| `definitionURL` | string | URL to the source of the definition |
 | `image` | string | URL to an image related to the topic |
 | `answer` | string | Direct answer if available \(e.g., for calculations\) |
 | `answerType` | string | Type of the answer \(e.g., calc, ip, etc.\) |
 | `type` | string | Response type: A \(article\), D \(disambiguation\), C \(category\), N \(name\), E \(exclusive\) |
+| `redirect` | string | !bang redirect URL, populated only for bang queries |
 | `relatedTopics` | array | Array of related topics with URLs and descriptions |
 |   ↳ `FirstURL` | string | URL to the related topic |
 |   ↳ `Text` | string | Description of the related topic |

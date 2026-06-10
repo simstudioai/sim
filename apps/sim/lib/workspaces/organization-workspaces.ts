@@ -35,14 +35,26 @@ export class WorkspaceOrganizationMembershipConflictError extends Error {
   }
 }
 
+/**
+ * How to treat workspace members that already belong to a *different*
+ * organization when attaching workspaces:
+ *   - `reject` (default): throw a conflict — used by manual org creation.
+ *   - `keep-external`: skip them (they stay external workspace members) and
+ *     attach anyway — used by the Pro→Team conversion, which must not abort
+ *     just because a personal workspace already has an external collaborator.
+ */
+type ExternalMemberPolicy = 'reject' | 'keep-external'
+
 interface AttachOwnedWorkspacesToOrganizationParams {
   ownerUserId: string
   organizationId: string
+  externalMemberPolicy?: ExternalMemberPolicy
 }
 
 export async function attachOwnedWorkspacesToOrganization({
   ownerUserId,
   organizationId,
+  externalMemberPolicy = 'reject',
 }: AttachOwnedWorkspacesToOrganizationParams): Promise<AttachOwnedWorkspacesToOrganizationResult> {
   const ownedWorkspaces = await db
     .select({ id: workspace.id })
@@ -59,11 +71,28 @@ export async function attachOwnedWorkspacesToOrganization({
   }
   const ownedWorkspaceIds = ownedWorkspaces.map((ownedWorkspace) => ownedWorkspace.id)
   const uniqueWorkspaceMemberIds = await getWorkspaceMemberIds(ownedWorkspaceIds)
-  await assertWorkspaceMembersCanJoinOrganization(uniqueWorkspaceMemberIds, organizationId)
+  const { joinableUserIds, externalConflicts } = await partitionWorkspaceMembersByOrg(
+    uniqueWorkspaceMemberIds,
+    organizationId
+  )
+
+  if (externalMemberPolicy === 'reject' && externalConflicts.length > 0) {
+    logger.warn('Workspace attachment blocked by members in another organization', {
+      organizationId,
+      conflictCount: externalConflicts.length,
+      conflictingUserIds: externalConflicts.map((conflict) => conflict.userId),
+    })
+    throw new WorkspaceOrganizationMembershipConflictError(externalConflicts)
+  }
+
+  const skippedMembers = externalConflicts.map((conflict) => ({
+    userId: conflict.userId,
+    reason: 'Already a member of another organization; kept as external workspace member',
+  }))
 
   const addedMemberIds: string[] = []
 
-  for (const userId of uniqueWorkspaceMemberIds) {
+  for (const userId of joinableUserIds) {
     const result = await ensureUserInOrganization({
       userId,
       organizationId,
@@ -134,12 +163,13 @@ export async function attachOwnedWorkspacesToOrganization({
     organizationId,
     attachedWorkspaceCount: attachedWorkspaceIds.length,
     addedMemberCount: addedMemberIds.length,
+    skippedMemberCount: skippedMembers.length,
   })
 
   return {
     attachedWorkspaceIds,
     addedMemberIds,
-    skippedMembers: [],
+    skippedMembers,
   }
 }
 
@@ -218,12 +248,21 @@ export async function detachOrganizationWorkspaces(
   }
 }
 
-async function assertWorkspaceMembersCanJoinOrganization(
+/**
+ * Split workspace members into those who can join the target organization
+ * (members of no org, or already members of this org) and those who already
+ * belong to a different org (external conflicts). Single-org membership means
+ * each user has at most one membership row, so the split is unambiguous.
+ */
+async function partitionWorkspaceMembersByOrg(
   userIds: string[],
   organizationId: string
-): Promise<void> {
+): Promise<{
+  joinableUserIds: string[]
+  externalConflicts: Array<{ userId: string; organizationId: string }>
+}> {
   if (userIds.length === 0) {
-    return
+    return { joinableUserIds: [], externalConflicts: [] }
   }
 
   const memberships = await db
@@ -234,19 +273,13 @@ async function assertWorkspaceMembersCanJoinOrganization(
     .from(member)
     .where(inArray(member.userId, userIds))
 
-  const conflicts = memberships.filter((membership) => membership.organizationId !== organizationId)
+  const externalConflicts = memberships.filter(
+    (membership) => membership.organizationId !== organizationId
+  )
+  const externalUserIds = new Set(externalConflicts.map((conflict) => conflict.userId))
+  const joinableUserIds = userIds.filter((userId) => !externalUserIds.has(userId))
 
-  if (conflicts.length === 0) {
-    return
-  }
-
-  logger.warn('Workspace attachment blocked by members in another organization', {
-    organizationId,
-    conflictCount: conflicts.length,
-    conflictingUserIds: conflicts.map((conflict) => conflict.userId),
-  })
-
-  throw new WorkspaceOrganizationMembershipConflictError(conflicts)
+  return { joinableUserIds, externalConflicts }
 }
 
 async function getWorkspaceMemberIds(workspaceIds: string[]): Promise<string[]> {

@@ -1,25 +1,49 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { Badge, Button, Input as EmcnInput, Label, Skeleton } from '@/components/emcn'
+import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
+  BYOKKeyManager,
+  type BYOKManagerProvider,
+} from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
+import {
+  type MothershipByokKey,
   type MothershipEnv,
+  useDeleteMothershipByok,
   useGenerateLicense,
-  useMothershipEnterpriseStats,
+  useMothershipByokKeys,
   useMothershipLicenses,
   useMothershipRequests,
-  useMothershipTrace,
   useMothershipUserBreakdown,
+  useUpsertMothershipByok,
 } from '@/hooks/queries/mothership-admin'
 
-type Tab = 'overview' | 'licenses' | 'enterprise' | 'traces'
+const ENTERPRISE_BYOK_PROVIDERS: BYOKManagerProvider[] = [
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    icon: OpenAIIcon,
+    description: 'Enterprise mothership LLM calls',
+    placeholder: 'sk-...',
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic',
+    icon: AnthropicIcon,
+    description: 'Enterprise mothership LLM calls',
+    placeholder: 'sk-ant-...',
+  },
+]
+
+type Tab = 'overview' | 'licenses' | 'byok'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'licenses', label: 'Licenses' },
-  { id: 'enterprise', label: 'Enterprise' },
-  { id: 'traces', label: 'Traces' },
+  { id: 'byok', label: 'BYOK' },
 ]
 
 const ENV_OPTIONS: { id: MothershipEnv; label: string }[] = [
@@ -68,84 +92,119 @@ export function Mothership() {
   const [end, setEnd] = useState(defaults.end)
 
   return (
-    <div className='flex h-full flex-col gap-5'>
-      {/* Environment selector */}
-      <div className='flex items-center gap-2'>
-        <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
-        <div className='flex gap-1'>
-          {ENV_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type='button'
-              onClick={() => setEnvironment(opt.id)}
-              className={cn(
-                'rounded-md px-3 py-1 font-medium text-sm transition-colors',
-                environment === opt.id
-                  ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-6 pt-6 pb-6'>
+          {/* Environment selector */}
+          <div className='flex items-center gap-2'>
+            <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
+            <div className='flex gap-1'>
+              {ENV_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type='button'
+                  onClick={() => setEnvironment(opt.id)}
+                  className={cn(
+                    'rounded-md px-3 py-1 font-medium text-sm transition-colors',
+                    environment === opt.id
+                      ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab bar */}
+          <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type='button'
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'relative px-3 py-2 font-medium text-sm transition-colors',
+                  activeTab === tab.id
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+                )}
+              >
+                {tab.label}
+                {activeTab === tab.id && (
+                  <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Time range (shared across tabs) */}
+          <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-2'>
+              <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
+              <EmcnInput
+                type='datetime-local'
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className='h-[30px] text-caption'
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
+              <EmcnInput
+                type='datetime-local'
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                className='h-[30px] text-caption'
+              />
+            </div>
+          </div>
+
+          <Divider />
+
+          {activeTab === 'overview' && (
+            <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
+          )}
+          {activeTab === 'licenses' && <LicensesTab environment={environment} />}
+          {activeTab === 'byok' && <ByokTab />}
         </div>
       </div>
-
-      {/* Tab bar */}
-      <div className='flex gap-1 border-[var(--border-secondary)] border-b pb-px'>
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type='button'
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'relative px-3 py-2 font-medium text-sm transition-colors',
-              activeTab === tab.id
-                ? 'text-[var(--text-primary)]'
-                : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-            )}
-          >
-            {tab.label}
-            {activeTab === tab.id && (
-              <span className='absolute right-0 bottom-0 left-0 h-[2px] bg-[var(--text-primary)]' />
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Time range (shared across tabs) */}
-      <div className='flex items-center gap-3'>
-        <div className='flex items-center gap-2'>
-          <Label className='text-[var(--text-secondary)] text-caption'>From</Label>
-          <EmcnInput
-            type='datetime-local'
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className='h-[30px] text-caption'
-          />
-        </div>
-        <div className='flex items-center gap-2'>
-          <Label className='text-[var(--text-secondary)] text-caption'>To</Label>
-          <EmcnInput
-            type='datetime-local'
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className='h-[30px] text-caption'
-          />
-        </div>
-      </div>
-
-      <Divider />
-
-      {activeTab === 'overview' && (
-        <OverviewTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
-      )}
-      {activeTab === 'licenses' && <LicensesTab environment={environment} />}
-      {activeTab === 'enterprise' && (
-        <EnterpriseTab environment={environment} start={toRFC3339(start)} end={toRFC3339(end)} />
-      )}
-      {activeTab === 'traces' && <TracesTab environment={environment} />}
     </div>
+  )
+}
+
+/* ─── BYOK Tab ─── */
+
+function ByokTab() {
+  const params = useParams()
+  const workspaceId = (params?.workspaceId as string) || ''
+
+  const { data, isLoading } = useMothershipByokKeys(workspaceId)
+  const upsert = useUpsertMothershipByok()
+  const del = useDeleteMothershipByok()
+
+  const configuredProviderIds = useMemo(
+    () => new Set(((data?.keys as MothershipByokKey[]) ?? []).map((k) => k.provider)),
+    [data]
+  )
+
+  return (
+    <BYOKKeyManager
+      providers={ENTERPRISE_BYOK_PROVIDERS}
+      configuredProviderIds={configuredProviderIds}
+      isLoading={isLoading}
+      isSaving={upsert.isPending}
+      isDeleting={del.isPending}
+      showSearch={false}
+      description="Store a customer-provided Anthropic or OpenAI key for this workspace. It is encrypted at rest in the mothership and used only for this workspace's enterprise requests."
+      onSave={async (provider, apiKey) => {
+        await upsert.mutateAsync({ workspaceId, provider, apiKey })
+      }}
+      onDelete={async (provider) => {
+        await del.mutateAsync({ workspaceId, provider })
+      }}
+    />
   )
 }
 
@@ -465,397 +524,6 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
   )
 }
 
-/* ─── Enterprise Tab ─── */
-
-function EnterpriseTab({
-  environment,
-  start,
-  end,
-}: {
-  environment: MothershipEnv
-  start: string
-  end: string
-}) {
-  const [customerType, setCustomerType] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const { data, isLoading, error } = useMothershipEnterpriseStats(
-    environment,
-    customerType,
-    start,
-    end
-  )
-
-  const handleSearch = () => {
-    setCustomerType(searchInput.trim())
-  }
-
-  return (
-    <div className='flex flex-col gap-5'>
-      <div className='flex items-center gap-2'>
-        <EmcnInput
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder='Enter customer type (e.g. enterprise name)...'
-        />
-        <Button variant='primary' onClick={handleSearch} disabled={!searchInput.trim()}>
-          Search
-        </Button>
-      </div>
-
-      {error && <p className='text-[var(--text-error)] text-small'>{error.message}</p>}
-
-      {isLoading && customerType && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className='h-[60px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
-
-      {data && (
-        <>
-          <div className='grid grid-cols-4 gap-3'>
-            <StatCard label='Total Requests' value={data.total_requests} />
-            <StatCard label='Unique Users' value={data.unique_users} />
-            <StatCard label='Total Cost' value={formatCost(data.total_cost ?? 0)} />
-            <StatCard
-              label='Total Tokens'
-              value={(
-                (data.total_input_tokens ?? 0) + (data.total_output_tokens ?? 0)
-              ).toLocaleString()}
-            />
-          </div>
-
-          {data.top_models && (
-            <>
-              <Divider />
-              <SectionLabel>Top Models</SectionLabel>
-              <div className='flex flex-wrap gap-2'>
-                {data.top_models.map((m: { model: string; count: number }) => (
-                  <Badge key={m.model} variant='gray'>
-                    {m.model} ({m.count})
-                  </Badge>
-                ))}
-              </div>
-            </>
-          )}
-
-          {data.users && (
-            <>
-              <Divider />
-              <SectionLabel>User Breakdown</SectionLabel>
-              <div className='flex flex-col gap-0.5'>
-                <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
-                  <span className='flex-1'>User ID</span>
-                  <span className='w-[100px] text-right'>Requests</span>
-                  <span className='w-[100px] text-right'>Cost</span>
-                  <span className='w-[160px] text-right'>Last Request</span>
-                </div>
-                {data.users.map(
-                  (u: {
-                    user_id: string
-                    request_count: number
-                    total_cost: number
-                    last_request: string
-                  }) => (
-                    <div
-                      key={u.user_id}
-                      className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-small last:border-b-0'
-                    >
-                      <span className='flex-1 truncate font-mono text-[12px] text-[var(--text-primary)]'>
-                        {u.user_id}
-                      </span>
-                      <span className='w-[100px] text-right text-[var(--text-secondary)]'>
-                        {u.request_count}
-                      </span>
-                      <span className='w-[100px] text-right text-[var(--text-secondary)]'>
-                        {formatCost(u.total_cost)}
-                      </span>
-                      <span className='w-[160px] text-right text-[var(--text-tertiary)] text-caption'>
-                        {formatDate(u.last_request)}
-                      </span>
-                    </div>
-                  )
-                )}
-              </div>
-            </>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-/* ─── Traces Tab ─── */
-
-function TracesTab({ environment }: { environment: MothershipEnv }) {
-  const [requestIdInput, setRequestIdInput] = useState('')
-  const [activeRequestId, setActiveRequestId] = useState('')
-  const { data: trace, isLoading, error } = useMothershipTrace(environment, activeRequestId)
-
-  const handleLookup = () => {
-    setActiveRequestId(requestIdInput.trim())
-  }
-
-  return (
-    <div className='flex flex-col gap-5'>
-      <div className='flex items-center gap-2'>
-        <EmcnInput
-          value={requestIdInput}
-          onChange={(e) => setRequestIdInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-          placeholder='Paste a request ID (sim_request_id)...'
-          className='font-mono text-[13px]'
-        />
-        <Button variant='primary' onClick={handleLookup} disabled={!requestIdInput.trim()}>
-          Lookup
-        </Button>
-      </div>
-
-      {error && <p className='text-[var(--text-error)] text-small'>{error.message}</p>}
-
-      {isLoading && activeRequestId && (
-        <div className='flex flex-col gap-2'>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className='h-[50px] w-full rounded-md' />
-          ))}
-        </div>
-      )}
-
-      {trace && <TraceDetail trace={trace} />}
-    </div>
-  )
-}
-
-/* ─── Trace Detail ─── */
-
-interface TraceSpan {
-  name: string
-  kind?: string
-  startMs: number
-  endMs?: number
-  durationMs?: number
-  status: string
-  parentName?: string
-  source?: string
-  attributes?: Record<string, unknown>
-}
-
-interface TraceData {
-  id: string
-  simRequestId: string
-  goTraceId: string
-  streamId?: string
-  chatId?: string
-  userId?: string
-  startMs: number
-  endMs: number
-  durationMs: number
-  outcome: string
-  spans: TraceSpan[]
-  model?: string
-  provider?: string
-  mode?: string
-  source?: string
-  message?: string
-  inputTokens?: number
-  outputTokens?: number
-  cacheReadTokens?: number
-  cacheWriteTokens?: number
-  rawTotalCost?: number
-  billedTotalCost?: number
-  toolCallCount?: number
-  error?: boolean
-  aborted?: boolean
-  errorMsg?: string
-}
-
-function TraceDetail({ trace }: { trace: TraceData }) {
-  const rootSpans = trace.spans.filter((s) => !s.parentName)
-  const childMap = new Map<string, TraceSpan[]>()
-  for (const span of trace.spans) {
-    if (span.parentName) {
-      const existing = childMap.get(span.parentName) || []
-      existing.push(span)
-      childMap.set(span.parentName, existing)
-    }
-  }
-
-  return (
-    <div className='flex flex-col gap-4'>
-      {/* Trace metadata */}
-      <div className='grid grid-cols-2 gap-x-6 gap-y-2 rounded-md border border-[var(--border-secondary)] p-4'>
-        <MetaRow label='Go Trace ID' value={trace.goTraceId} mono />
-        <MetaRow label='Sim Request ID' value={trace.simRequestId} mono />
-        <MetaRow label='Outcome'>
-          <Badge
-            variant={
-              trace.outcome === 'success'
-                ? 'green'
-                : trace.outcome === 'cancelled'
-                  ? 'amber'
-                  : 'red'
-            }
-          >
-            {trace.outcome}
-          </Badge>
-        </MetaRow>
-        <MetaRow label='Duration' value={`${(trace.durationMs / 1000).toFixed(2)}s`} />
-        <MetaRow label='Model' value={trace.model || '—'} />
-        <MetaRow label='Provider' value={trace.provider || '—'} />
-        <MetaRow label='Source' value={trace.source || '—'} />
-        <MetaRow label='Mode' value={trace.mode || '—'} />
-        {trace.userId && <MetaRow label='User ID' value={trace.userId} mono />}
-        {trace.chatId && <MetaRow label='Chat ID' value={trace.chatId} mono />}
-        <MetaRow
-          label='Tokens'
-          value={`${(trace.inputTokens ?? 0).toLocaleString()} in / ${(trace.outputTokens ?? 0).toLocaleString()} out`}
-        />
-        <MetaRow label='Billed Cost' value={formatCost(trace.billedTotalCost ?? 0)} />
-        {trace.toolCallCount != null && trace.toolCallCount > 0 && (
-          <MetaRow label='Tool Calls' value={String(trace.toolCallCount)} />
-        )}
-        {trace.message && (
-          <div className='col-span-2'>
-            <MetaRow label='Message' value={trace.message} />
-          </div>
-        )}
-        {trace.errorMsg && (
-          <div className='col-span-2'>
-            <MetaRow label='Error'>
-              <span className='text-[var(--text-error)]'>{trace.errorMsg}</span>
-            </MetaRow>
-          </div>
-        )}
-      </div>
-
-      {/* Span tree */}
-      <SectionLabel>Spans ({trace.spans.length})</SectionLabel>
-      <div className='flex flex-col gap-1'>
-        {rootSpans
-          .sort((a, b) => a.startMs - b.startMs)
-          .map((span) => (
-            <SpanNode
-              key={span.name + span.startMs}
-              span={span}
-              childMap={childMap}
-              traceStartMs={trace.startMs}
-              traceDurationMs={trace.durationMs}
-              depth={0}
-            />
-          ))}
-      </div>
-    </div>
-  )
-}
-
-function SpanNode({
-  span,
-  childMap,
-  traceStartMs,
-  traceDurationMs,
-  depth,
-}: {
-  span: TraceSpan
-  childMap: Map<string, TraceSpan[]>
-  traceStartMs: number
-  traceDurationMs: number
-  depth: number
-}) {
-  const [expanded, setExpanded] = useState(depth < 2)
-  const children = childMap.get(span.name) || []
-  const hasChildren = children.length > 0
-  const durationMs = span.durationMs ?? (span.endMs ? span.endMs - span.startMs : 0)
-  const offsetPct =
-    traceDurationMs > 0 ? ((span.startMs - traceStartMs) / traceDurationMs) * 100 : 0
-  const widthPct = traceDurationMs > 0 ? (durationMs / traceDurationMs) * 100 : 0
-
-  const statusColor =
-    span.status === 'ok'
-      ? 'bg-emerald-500/70'
-      : span.status === 'error'
-        ? 'bg-red-500/70'
-        : span.status === 'cancelled'
-          ? 'bg-yellow-500/70'
-          : 'bg-[var(--text-tertiary)]'
-
-  const attrs = span.attributes || {}
-  const attrEntries = Object.entries(attrs).filter(
-    ([, v]) => v !== null && v !== undefined && v !== ''
-  )
-
-  return (
-    <div style={{ marginLeft: depth * 16 }}>
-      <button
-        type='button'
-        onClick={() => setExpanded((e) => !e)}
-        className='flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover-hover:hover:bg-[var(--surface-hover)]'
-      >
-        {hasChildren ? (
-          <span className='w-[14px] text-center text-[10px] text-[var(--text-tertiary)]'>
-            {expanded ? '▼' : '▶'}
-          </span>
-        ) : (
-          <span className='w-[14px]' />
-        )}
-
-        <span className='min-w-0 flex-1'>
-          <span className='block truncate text-[13px] text-[var(--text-primary)]'>{span.name}</span>
-          {/* Waterfall bar */}
-          <span className='mt-0.5 block h-[4px] w-full rounded-full bg-[var(--border-secondary)]'>
-            <span
-              className={cn('block h-full rounded-full', statusColor)}
-              style={{
-                marginLeft: `${Math.max(0, Math.min(offsetPct, 100))}%`,
-                width: `${Math.max(0.5, Math.min(widthPct, 100 - offsetPct))}%`,
-              }}
-            />
-          </span>
-        </span>
-
-        <Badge variant={span.source === 'go' ? 'blue' : 'gray'} className='shrink-0'>
-          {span.source || '?'}
-        </Badge>
-
-        <span className='w-[70px] shrink-0 text-right font-mono text-[11px] text-[var(--text-secondary)]'>
-          {durationMs >= 1000 ? `${(durationMs / 1000).toFixed(2)}s` : `${durationMs}ms`}
-        </span>
-      </button>
-
-      {expanded && attrEntries.length > 0 && (
-        <div
-          className='mb-1 ml-[30px] rounded border border-[var(--border-secondary)] bg-[var(--surface-hover)] px-3 py-2'
-          style={{ marginLeft: 30 + depth * 16 }}
-        >
-          {attrEntries.map(([key, val]) => (
-            <div key={key} className='flex gap-2 py-0.5 text-[11px]'>
-              <span className='shrink-0 text-[var(--text-tertiary)]'>{key}:</span>
-              <span className='min-w-0 break-all text-[var(--text-secondary)]'>
-                {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {expanded &&
-        children
-          .sort((a, b) => a.startMs - b.startMs)
-          .map((child) => (
-            <SpanNode
-              key={child.name + child.startMs}
-              span={child}
-              childMap={childMap}
-              traceStartMs={traceStartMs}
-              traceDurationMs={traceDurationMs}
-              depth={depth + 1}
-            />
-          ))}
-    </div>
-  )
-}
-
 /* ─── Shared components ─── */
 
 function StatCard({
@@ -874,34 +542,6 @@ function StatCard({
         <Skeleton className='mt-1 h-[24px] w-[80px] rounded-sm' />
       ) : (
         <p className='mt-1 font-medium text-[18px] text-[var(--text-primary)]'>{value ?? '—'}</p>
-      )}
-    </div>
-  )
-}
-
-function MetaRow({
-  label,
-  value,
-  mono,
-  children,
-}: {
-  label: string
-  value?: string
-  mono?: boolean
-  children?: React.ReactNode
-}) {
-  return (
-    <div className='flex items-baseline gap-2'>
-      <span className='shrink-0 text-[var(--text-tertiary)] text-caption'>{label}</span>
-      {children || (
-        <span
-          className={cn(
-            'min-w-0 break-all text-[13px] text-[var(--text-primary)]',
-            mono && 'font-mono text-[12px]'
-          )}
-        >
-          {value}
-        </span>
       )}
     </div>
   )

@@ -1368,7 +1368,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               </Tooltip.Root>
             )}
             {/* {isActive && (
-              <div className='mr-0.5 ml-2 flex h-[16px] w-[16px] items-center justify-center'>
+              <div className='mr-0.5 ml-2 flex size-[16px] items-center justify-center'>
                 <div
                   className='h-full w-full animate-spin-slow rounded-full border-[2.5px] border-[rgba(255,102,0,0.25)] border-t-[var(--warning)]'
                   aria-hidden='true'

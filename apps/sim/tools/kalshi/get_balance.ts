@@ -138,6 +138,6 @@ export const kalshiGetBalanceV2Tool: ToolConfig<
   outputs: {
     balance: { type: 'number', description: 'Account balance in cents' },
     portfolio_value: { type: 'number', description: 'Portfolio value in cents' },
-    updated_ts: { type: 'number', description: 'Unix timestamp of last update (milliseconds)' },
+    updated_ts: { type: 'number', description: 'Unix timestamp of last update (seconds)' },
   },
 }

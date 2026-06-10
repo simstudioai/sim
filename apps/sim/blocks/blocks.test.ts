@@ -10,14 +10,13 @@ import {
   getBlockByToolName,
   getBlocksByCategory,
   isValidBlockType,
-  registry,
 } from '@/blocks/registry'
 import { AuthMode } from '@/blocks/types'
 
 describe.concurrent('Blocks Module', () => {
   describe('Registry', () => {
     it('should have a non-empty registry of blocks', () => {
-      expect(Object.keys(registry).length).toBeGreaterThan(0)
+      expect(getAllBlocks().length).toBeGreaterThan(0)
     })
 
     it('should have all blocks with required properties', () => {
@@ -110,11 +109,11 @@ describe.concurrent('Blocks Module', () => {
       expect(block?.tools.config?.tool({ operation: 'file_get' })).toBe('file_get')
     })
 
-    it('should expose v4 with read and fetch routed to the expected tools', () => {
+    it('should keep v4 read and fetch routed to the expected tools', () => {
       const block = getBlock('file_v4')
 
       expect(block).toBeDefined()
-      expect(block?.hideFromToolbar).toBe(false)
+      expect(block?.hideFromToolbar).toBe(true)
       expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
         'file_read',
         'file_fetch',
@@ -138,6 +137,70 @@ describe.concurrent('Blocks Module', () => {
         block?.tools.config?.params?.({
           operation: 'file_read',
           readFileInput: [
+            {
+              key: 'workspace/workspace-1/example.md',
+              name: 'example.md',
+              path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+              size: 123,
+              type: 'text/markdown',
+            },
+          ],
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileInput: [
+          {
+            key: 'workspace/workspace-1/example.md',
+            name: 'example.md',
+            path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+            size: 123,
+            type: 'text/markdown',
+          },
+        ],
+        workspaceId: 'workspace-1',
+      })
+    })
+
+    it('should expose v5 with read (files only) and a get content operation', () => {
+      const block = getBlock('file_v5')
+
+      expect(block).toBeDefined()
+      expect(block?.hideFromToolbar).toBe(false)
+      expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_read',
+        'file_get_content',
+        'file_fetch',
+        'file_write',
+        'file_append',
+      ])
+      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.multiple).toBe(true)
+      expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
+      expect(block?.tools.config?.tool({ operation: 'file_get_content' })).toBe('file_get_content')
+      expect(block?.tools.config?.tool({ operation: 'file_fetch' })).toBe('file_fetch')
+
+      // Read exposes files only; the redundant single-file output is gone
+      expect(block?.outputs.files).toBeDefined()
+      expect(block?.outputs.file).toBeUndefined()
+      // Get content exposes a contents array
+      expect(block?.outputs.contents).toBeDefined()
+
+      // Get content resolves canonical IDs
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_get_content',
+          getContentInput: '["file-1","file-2"]',
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileId: ['file-1', 'file-2'],
+        workspaceId: 'workspace-1',
+      })
+
+      // Get content resolves selected file objects
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_get_content',
+          getContentInput: [
             {
               key: 'workspace/workspace-1/example.md',
               name: 'example.md',
@@ -797,8 +860,8 @@ describe.concurrent('Blocks Module', () => {
 
   describe('Block Consistency', () => {
     it('should have consistent registry keys matching block types', () => {
-      for (const [key, block] of Object.entries(registry)) {
-        expect(key).toBe(block.type)
+      for (const block of getAllBlocks()) {
+        expect(getBlock(block.type)).toBe(block)
       }
     })
 

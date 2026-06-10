@@ -9,8 +9,8 @@ import {
   performDeleteWorkflowMcpTool,
   performUpdateWorkflowMcpTool,
 } from '@/lib/mcp/orchestration'
-import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { getDeployedWorkflowInputFormat } from '@/lib/mcp/workflow-mcp-sync'
+import { generateParameterSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import {
   performChatDeploy,
   performChatUndeploy,
@@ -159,10 +159,30 @@ export async function executeDeployApi(
       }
     }
 
+    const versionDescription = params.versionDescription?.trim()
+    if (!versionDescription) {
+      return {
+        success: false,
+        error:
+          'versionDescription is required when deploying. Provide a concise summary of what changed in this deployment version (call diff_workflows with ref1 "live" and ref2 "draft" if unsure what changed).',
+      }
+    }
+
+    const versionName = params.versionName?.trim()
+    if (!versionName) {
+      return {
+        success: false,
+        error:
+          'versionName is required when deploying. Provide a short human-readable label for this deployment version.',
+      }
+    }
+
     const result = await performFullDeploy({
       workflowId,
       userId: context.userId,
       workflowName: workflowRecord.name || undefined,
+      versionDescription,
+      versionName,
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to deploy workflow' }
@@ -310,6 +330,24 @@ export async function executeDeployChat(
       return { success: false, error: 'Chat identifier and title are required' }
     }
 
+    const versionDescription = params.versionDescription?.trim()
+    if (!versionDescription) {
+      return {
+        success: false,
+        error:
+          'versionDescription is required when deploying. Provide a concise summary of what changed in this deployment version (distinct from the chat-facing description; call diff_workflows with ref1 "live" and ref2 "draft" if unsure).',
+      }
+    }
+
+    const versionName = params.versionName?.trim()
+    if (!versionName) {
+      return {
+        success: false,
+        error:
+          'versionName is required when deploying. Provide a short human-readable label for this deployment version (distinct from the chat title).',
+      }
+    }
+
     const identifierPattern = /^[a-z0-9-]+$/
     if (!identifierPattern.test(identifier)) {
       return {
@@ -360,6 +398,8 @@ export async function executeDeployChat(
       identifier,
       title,
       description: resolvedDescription,
+      versionDescription,
+      versionName,
       customizations: {
         primaryColor:
           params.customizations?.primaryColor ||
@@ -566,10 +606,19 @@ export async function executeDeployMcp(
       params.toolDescription ||
       workflowRecord.description ||
       `Execute ${workflowRecord.name} workflow`
-    const parameterSchema =
-      params.parameterSchema && Object.keys(params.parameterSchema).length > 0
-        ? params.parameterSchema
-        : await generateParameterSchemaForWorkflow(workflowId)
+    /**
+     * Build the parameter schema exactly as the deploy modal does: overlay the
+     * caller-supplied per-parameter descriptions onto the workflow's deployed
+     * input format, then generate the schema. Names/types/required come from the
+     * workflow's input trigger — this tool only sets descriptions.
+     */
+    const inputFormat = await getDeployedWorkflowInputFormat(workflowId)
+    const parameterDescriptions = Object.fromEntries(
+      (params.parameterDescriptions ?? [])
+        .filter((entry) => entry && typeof entry.name === 'string' && entry.name.trim() !== '')
+        .map((entry) => [entry.name, entry.description ?? ''])
+    )
+    const parameterSchema = generateParameterSchema(inputFormat, parameterDescriptions)
     const baseUrl = getBaseUrl()
     const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
@@ -706,7 +755,7 @@ export async function executeDeployMcp(
 }
 
 export async function executeRedeploy(
-  params: { workflowId?: string },
+  params: { workflowId?: string; versionDescription?: string; versionName?: string },
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -714,9 +763,30 @@ export async function executeRedeploy(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
+    const versionDescription = params.versionDescription?.trim()
+    if (!versionDescription) {
+      return {
+        success: false,
+        error:
+          'versionDescription is required. Provide a concise summary of what changed in this deployment version (call diff_workflows with ref1 "live" and ref2 "draft" if unsure what changed).',
+      }
+    }
+    const versionName = params.versionName?.trim()
+    if (!versionName) {
+      return {
+        success: false,
+        error:
+          'versionName is required. Provide a short human-readable label for this deployment version.',
+      }
+    }
     await ensureWorkflowAccess(workflowId, context.userId, 'admin')
 
-    const result = await performFullDeploy({ workflowId, userId: context.userId })
+    const result = await performFullDeploy({
+      workflowId,
+      userId: context.userId,
+      versionDescription,
+      versionName,
+    })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to redeploy workflow' }
     }

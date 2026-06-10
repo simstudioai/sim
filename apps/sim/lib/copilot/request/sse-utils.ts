@@ -55,12 +55,19 @@ export function wasToolResultSeen(toolCallId: string): boolean {
 
 export function shouldSkipToolCallEvent(event: StreamEvent): boolean {
   if (!isToolCallStreamEvent(event)) return false
+  if (isPathlessVfsGeneratingEvent(event)) return true
   if (event.payload.status === TOOL_CALL_STATUS.generating) return false
   const toolCallId = getToolCallIdFromCallEvent(event)
   if (event.payload.partial === true) return false
   if (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId)) return true
   markToolCallSeen(toolCallId)
   return false
+}
+
+function isPathlessVfsGeneratingEvent(event: ToolCallStreamEvent): boolean {
+  if (event.payload.status !== TOOL_CALL_STATUS.generating) return false
+  if (event.payload.toolName !== 'read' && event.payload.toolName !== 'glob') return false
+  return event.payload.arguments === undefined
 }
 
 export function shouldSkipToolResultEvent(event: StreamEvent): boolean {

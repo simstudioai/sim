@@ -86,10 +86,12 @@ export const vercelAddProjectDomainTool: ToolConfig<
       output: {
         name: data.name,
         apexName: data.apexName,
+        projectId: data.projectId,
         verified: data.verified,
         gitBranch: data.gitBranch ?? null,
         redirect: data.redirect ?? null,
         redirectStatusCode: data.redirectStatusCode ?? null,
+        verification: data.verification ?? [],
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
       },
@@ -99,6 +101,7 @@ export const vercelAddProjectDomainTool: ToolConfig<
   outputs: {
     name: { type: 'string', description: 'Domain name' },
     apexName: { type: 'string', description: 'Apex domain name' },
+    projectId: { type: 'string', description: 'Project ID the domain belongs to' },
     verified: { type: 'boolean', description: 'Whether the domain is verified' },
     gitBranch: { type: 'string', description: 'Git branch for the domain', optional: true },
     redirect: { type: 'string', description: 'Redirect target domain', optional: true },
@@ -106,6 +109,20 @@ export const vercelAddProjectDomainTool: ToolConfig<
       type: 'number',
       description: 'HTTP status code for redirect (301, 302, 307, 308)',
       optional: true,
+    },
+    verification: {
+      type: 'array',
+      description: 'Domain verification challenges (type, domain, value, reason)',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', description: 'Challenge type' },
+          domain: { type: 'string', description: 'Domain to add the record to' },
+          value: { type: 'string', description: 'Expected record value' },
+          reason: { type: 'string', description: 'Why verification is needed' },
+        },
+      },
     },
     createdAt: { type: 'number', description: 'Creation timestamp' },
     updatedAt: { type: 'number', description: 'Last updated timestamp' },

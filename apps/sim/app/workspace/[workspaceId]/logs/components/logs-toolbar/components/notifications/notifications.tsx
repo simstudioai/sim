@@ -4,26 +4,20 @@ import type { ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Plus, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import {
   Badge,
   Button,
-  Combobox,
-  Input as EmcnInput,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
+  ChipCombobox,
+  ChipConfirmModal,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalTabs,
   Skeleton,
-  TagInput,
-  type TagItem,
 } from '@/components/emcn'
 import { SlackIcon } from '@/components/icons'
 import type {
@@ -33,7 +27,6 @@ import type {
 } from '@/lib/api/contracts/notifications'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
-import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import {
   type NotificationSubscription,
   useCreateNotification,
@@ -205,8 +198,6 @@ export const NotificationSettings = memo(function NotificationSettings({
     errorCountThreshold: 10,
   })
 
-  const [emailItems, setEmailItems] = useState<TagItem[]>([])
-
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   const { data: subscriptions = [], isLoading } = useNotifications(open ? workspaceId : undefined)
@@ -271,7 +262,6 @@ export const NotificationSettings = memo(function NotificationSettings({
     })
     setFormErrors({})
     setEditingId(null)
-    setEmailItems([])
   }, [])
 
   const handleClose = useCallback(() => {
@@ -281,45 +271,10 @@ export const NotificationSettings = memo(function NotificationSettings({
     onOpenChange(false)
   }, [onOpenChange, resetForm])
 
-  const addEmail = useCallback(
-    (email: string): boolean => {
-      if (!email.trim()) return false
-
-      const normalized = email.trim().toLowerCase()
-      const validation = quickValidateEmail(normalized)
-
-      if (emailItems.some((item) => item.value === normalized)) {
-        return false
-      }
-
-      setEmailItems((prev) => [...prev, { value: normalized, isValid: validation.isValid }])
-
-      if (validation.isValid) {
-        setFormErrors((prev) => ({ ...prev, emailRecipients: '' }))
-        setFormData((prev) => ({
-          ...prev,
-          emailRecipients: [...prev.emailRecipients, normalized],
-        }))
-      }
-
-      return validation.isValid
-    },
-    [emailItems]
-  )
-
-  const handleRemoveEmailItem = useCallback(
-    (_value: string, index: number, isValid: boolean) => {
-      const itemToRemove = emailItems[index]
-      setEmailItems((prev) => prev.filter((_, i) => i !== index))
-      if (isValid && itemToRemove) {
-        setFormData((prev) => ({
-          ...prev,
-          emailRecipients: prev.emailRecipients.filter((e) => e !== itemToRemove.value),
-        }))
-      }
-    },
-    [emailItems]
-  )
+  const handleEmailRecipientsChange = useCallback((next: string[]) => {
+    setFormData((prev) => ({ ...prev, emailRecipients: next }))
+    setFormErrors((prev) => ({ ...prev, emailRecipients: '' }))
+  }, [])
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {}
@@ -356,12 +311,6 @@ export const NotificationSettings = memo(function NotificationSettings({
         errors.emailRecipients = 'At least one email address is required'
       } else if (formData.emailRecipients.length > 10) {
         errors.emailRecipients = 'Maximum 10 email recipients allowed'
-      }
-      const invalidEmailValues = emailItems
-        .filter((item) => !item.isValid)
-        .map((item) => item.value)
-      if (invalidEmailValues.length > 0) {
-        errors.emailRecipients = `Invalid email addresses: ${invalidEmailValues.join(', ')}`
       }
     }
 
@@ -512,6 +461,16 @@ export const NotificationSettings = memo(function NotificationSettings({
     }
   }
 
+  const handleBackToList = () => {
+    resetForm()
+    setShowForm(false)
+  }
+
+  const handleAddNew = () => {
+    resetForm()
+    setShowForm(true)
+  }
+
   const handleEdit = (subscription: NotificationSubscription) => {
     setActiveTab(subscription.notificationType)
     setEditingId(subscription.id)
@@ -540,9 +499,6 @@ export const NotificationSettings = memo(function NotificationSettings({
       inactivityHours: subscription.alertConfig?.inactivityHours || 24,
       errorCountThreshold: subscription.alertConfig?.errorCountThreshold || 10,
     })
-    setEmailItems(
-      (subscription.emailRecipients || []).map((email) => ({ value: email, isValid: true }))
-    )
     setShowForm(true)
   }
 
@@ -667,57 +623,53 @@ export const NotificationSettings = memo(function NotificationSettings({
 
           {activeTab === 'webhook' && (
             <>
-              <div className='flex flex-col gap-2'>
-                <Label>Webhook URL</Label>
-                <EmcnInput
-                  type='url'
-                  placeholder='https://your-app.com/webhook'
-                  autoComplete='off'
-                  value={formData.webhookUrl}
-                  onChange={(e) => {
-                    setFormData({ ...formData, webhookUrl: e.target.value })
-                    setFormErrors({ ...formErrors, webhookUrl: '' })
-                  }}
-                />
-                {formErrors.webhookUrl && (
-                  <p className='text-[var(--text-error)] text-caption'>{formErrors.webhookUrl}</p>
-                )}
-              </div>
-              <div className='flex flex-col gap-2'>
-                <Label>Secret (optional)</Label>
-                <EmcnInput
-                  type='password'
-                  placeholder='Webhook secret for signature verification'
-                  autoComplete='new-password'
-                  value={formData.webhookSecret}
-                  onChange={(e) => setFormData({ ...formData, webhookSecret: e.target.value })}
-                />
-              </div>
+              <ChipModalField
+                flush
+                type='input'
+                inputType='url'
+                title='Webhook URL'
+                placeholder='https://your-app.com/webhook'
+                autoComplete='off'
+                value={formData.webhookUrl}
+                onChange={(value) => {
+                  setFormData({ ...formData, webhookUrl: value })
+                  setFormErrors({ ...formErrors, webhookUrl: '' })
+                }}
+                error={formErrors.webhookUrl}
+              />
+              <ChipModalField
+                flush
+                type='input'
+                inputType='password'
+                title='Secret (optional)'
+                placeholder='Webhook secret for signature verification'
+                autoComplete='new-password'
+                value={formData.webhookSecret}
+                onChange={(value) => setFormData({ ...formData, webhookSecret: value })}
+              />
             </>
           )}
 
           {activeTab === 'email' && (
-            <div className='flex flex-col gap-2'>
-              <Label>Email Recipients</Label>
-              <TagInput
-                items={emailItems}
-                onAdd={(value) => addEmail(value)}
-                onRemove={handleRemoveEmailItem}
-                placeholder='Enter emails'
-                placeholderWithTags='Add email'
-              />
-              {formErrors.emailRecipients && (
-                <p className='text-[var(--text-error)] text-caption'>
-                  {formErrors.emailRecipients}
-                </p>
-              )}
-            </div>
+            <ChipModalField
+              flush
+              type='emails'
+              title='Email Recipients'
+              placeholder='Enter emails'
+              value={formData.emailRecipients}
+              onChange={handleEmailRecipientsChange}
+              error={formErrors.emailRecipients}
+            />
           )}
 
           {activeTab === 'slack' && (
             <>
-              <div className='flex flex-col gap-2'>
-                <Label>Slack Account</Label>
+              <ChipModalField
+                flush
+                type='custom'
+                title='Slack Account'
+                error={formErrors.slackAccountId}
+              >
                 {isLoadingSlackAccounts ? (
                   <Skeleton className='h-[34px] w-full rounded-md' />
                 ) : slackAccounts.length === 0 ? (
@@ -738,7 +690,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                     </Button>
                   </div>
                 ) : (
-                  <Combobox
+                  <ChipCombobox
                     options={slackAccounts.map((acc) => ({
                       value: acc.id,
                       label: acc.displayName || 'Slack Workspace',
@@ -755,15 +707,9 @@ export const NotificationSettings = memo(function NotificationSettings({
                     placeholder='Select account...'
                   />
                 )}
-                {formErrors.slackAccountId && (
-                  <p className='text-[var(--text-error)] text-caption'>
-                    {formErrors.slackAccountId}
-                  </p>
-                )}
-              </div>
+              </ChipModalField>
               {slackAccounts.length > 0 && (
-                <div className='flex flex-col gap-2'>
-                  <Label>Channel</Label>
+                <ChipModalField flush type='custom' title='Channel'>
                   <SlackChannelSelector
                     accountId={formData.slackAccountId}
                     value={formData.slackChannelId}
@@ -778,14 +724,18 @@ export const NotificationSettings = memo(function NotificationSettings({
                     disabled={!formData.slackAccountId}
                     error={formErrors.slackChannelId}
                   />
-                </div>
+                </ChipModalField>
               )}
             </>
           )}
 
-          <div className='flex flex-col gap-2'>
-            <Label>Log Level Filters</Label>
-            <Combobox
+          <ChipModalField
+            flush
+            type='custom'
+            title='Log Level Filters'
+            error={formErrors.levelFilter}
+          >
+            <ChipCombobox
               options={LOG_LEVELS.map((level) => ({
                 label: level.charAt(0).toUpperCase() + level.slice(1),
                 value: level,
@@ -824,14 +774,15 @@ export const NotificationSettings = memo(function NotificationSettings({
               showAllOption
               allOptionLabel='All levels'
             />
-            {formErrors.levelFilter && (
-              <p className='text-[var(--text-error)] text-caption'>{formErrors.levelFilter}</p>
-            )}
-          </div>
+          </ChipModalField>
 
-          <div className='flex flex-col gap-2'>
-            <Label>Trigger Type Filters</Label>
-            <Combobox
+          <ChipModalField
+            flush
+            type='custom'
+            title='Trigger Type Filters'
+            error={formErrors.triggerFilter}
+          >
+            <ChipCombobox
               options={TRIGGER_OPTIONS.map((t) => ({
                 label: t.label,
                 value: t.value,
@@ -875,14 +826,10 @@ export const NotificationSettings = memo(function NotificationSettings({
               showAllOption
               allOptionLabel='All triggers'
             />
-            {formErrors.triggerFilter && (
-              <p className='text-[var(--text-error)] text-caption'>{formErrors.triggerFilter}</p>
-            )}
-          </div>
+          </ChipModalField>
 
-          <div className='flex flex-col gap-2'>
-            <Label>Include in Payload</Label>
-            <Combobox
+          <ChipModalField flush type='custom' title='Include in Payload'>
+            <ChipCombobox
               options={[
                 { label: 'Final Output', value: 'includeFinalOutput' },
                 // Trace spans only available for webhooks (too large for email/Slack)
@@ -955,11 +902,15 @@ export const NotificationSettings = memo(function NotificationSettings({
               showAllOption
               allOptionLabel='None'
             />
-          </div>
+          </ChipModalField>
 
-          <div className='flex flex-col gap-2'>
-            <Label>Rule</Label>
-            <Combobox
+          <ChipModalField
+            flush
+            type='custom'
+            title='Rule'
+            hint={ALERT_RULES.find((r) => r.value === formData.alertRule)?.description}
+          >
+            <ChipCombobox
               options={ALERT_RULES.map((rule) => ({
                 value: rule.value,
                 label: rule.label,
@@ -968,18 +919,20 @@ export const NotificationSettings = memo(function NotificationSettings({
               onChange={(value) => setFormData({ ...formData, alertRule: value as AlertRule })}
               placeholder='Select rule'
             />
-            <p className='text-[var(--text-muted)] text-caption'>
-              {ALERT_RULES.find((r) => r.value === formData.alertRule)?.description}
-            </p>
-          </div>
+          </ChipModalField>
 
           {formData.alertRule === 'consecutive_failures' && (
-            <div className='flex flex-col gap-2'>
-              <Label>Failure Count</Label>
-              <EmcnInput
+            <ChipModalField
+              flush
+              type='custom'
+              title='Failure Count'
+              error={formErrors.consecutiveFailures}
+            >
+              <ChipInput
                 type='number'
                 min={1}
                 max={100}
+                error={Boolean(formErrors.consecutiveFailures)}
                 value={formData.consecutiveFailures}
                 onChange={(e) =>
                   setFormData({
@@ -988,22 +941,23 @@ export const NotificationSettings = memo(function NotificationSettings({
                   })
                 }
               />
-              {formErrors.consecutiveFailures && (
-                <p className='text-[var(--text-error)] text-caption'>
-                  {formErrors.consecutiveFailures}
-                </p>
-              )}
-            </div>
+            </ChipModalField>
           )}
 
           {formData.alertRule === 'failure_rate' && (
-            <div className='flex gap-2'>
-              <div className='flex flex-1 flex-col gap-2'>
-                <Label>Failure Rate (%)</Label>
-                <EmcnInput
+            <div className='flex gap-4'>
+              <ChipModalField
+                flush
+                type='custom'
+                title='Failure Rate (%)'
+                error={formErrors.failureRatePercent}
+                className='flex-1'
+              >
+                <ChipInput
                   type='number'
                   min={1}
                   max={100}
+                  error={Boolean(formErrors.failureRatePercent)}
                   value={formData.failureRatePercent}
                   onChange={(e) =>
                     setFormData({
@@ -1012,18 +966,19 @@ export const NotificationSettings = memo(function NotificationSettings({
                     })
                   }
                 />
-                {formErrors.failureRatePercent && (
-                  <p className='text-[var(--text-error)] text-caption'>
-                    {formErrors.failureRatePercent}
-                  </p>
-                )}
-              </div>
-              <div className='flex flex-1 flex-col gap-2'>
-                <Label>Window (hours)</Label>
-                <EmcnInput
+              </ChipModalField>
+              <ChipModalField
+                flush
+                type='custom'
+                title='Window (hours)'
+                error={formErrors.windowHours}
+                className='flex-1'
+              >
+                <ChipInput
                   type='number'
                   min={1}
                   max={168}
+                  error={Boolean(formErrors.windowHours)}
                   value={formData.windowHours}
                   onChange={(e) =>
                     setFormData({
@@ -1032,20 +987,22 @@ export const NotificationSettings = memo(function NotificationSettings({
                     })
                   }
                 />
-                {formErrors.windowHours && (
-                  <p className='text-[var(--text-error)] text-caption'>{formErrors.windowHours}</p>
-                )}
-              </div>
+              </ChipModalField>
             </div>
           )}
 
           {formData.alertRule === 'latency_threshold' && (
-            <div className='flex flex-col gap-2'>
-              <Label>Duration Threshold (seconds)</Label>
-              <EmcnInput
+            <ChipModalField
+              flush
+              type='custom'
+              title='Duration Threshold (seconds)'
+              error={formErrors.durationThresholdMs}
+            >
+              <ChipInput
                 type='number'
                 min={1}
                 max={3600}
+                error={Boolean(formErrors.durationThresholdMs)}
                 value={Math.round(formData.durationThresholdMs / 1000)}
                 onChange={(e) =>
                   setFormData({
@@ -1054,22 +1011,23 @@ export const NotificationSettings = memo(function NotificationSettings({
                   })
                 }
               />
-              {formErrors.durationThresholdMs && (
-                <p className='text-[var(--text-error)] text-caption'>
-                  {formErrors.durationThresholdMs}
-                </p>
-              )}
-            </div>
+            </ChipModalField>
           )}
 
           {formData.alertRule === 'latency_spike' && (
-            <div className='flex gap-2'>
-              <div className='flex flex-1 flex-col gap-2'>
-                <Label>Above Average (%)</Label>
-                <EmcnInput
+            <div className='flex gap-4'>
+              <ChipModalField
+                flush
+                type='custom'
+                title='Above Average (%)'
+                error={formErrors.latencySpikePercent}
+                className='flex-1'
+              >
+                <ChipInput
                   type='number'
                   min={10}
                   max={1000}
+                  error={Boolean(formErrors.latencySpikePercent)}
                   value={formData.latencySpikePercent}
                   onChange={(e) =>
                     setFormData({
@@ -1078,18 +1036,19 @@ export const NotificationSettings = memo(function NotificationSettings({
                     })
                   }
                 />
-                {formErrors.latencySpikePercent && (
-                  <p className='text-[var(--text-error)] text-caption'>
-                    {formErrors.latencySpikePercent}
-                  </p>
-                )}
-              </div>
-              <div className='flex flex-1 flex-col gap-2'>
-                <Label>Window (hours)</Label>
-                <EmcnInput
+              </ChipModalField>
+              <ChipModalField
+                flush
+                type='custom'
+                title='Window (hours)'
+                error={formErrors.windowHours}
+                className='flex-1'
+              >
+                <ChipInput
                   type='number'
                   min={1}
                   max={168}
+                  error={Boolean(formErrors.windowHours)}
                   value={formData.windowHours}
                   onChange={(e) =>
                     setFormData({
@@ -1098,21 +1057,23 @@ export const NotificationSettings = memo(function NotificationSettings({
                     })
                   }
                 />
-                {formErrors.windowHours && (
-                  <p className='text-[var(--text-error)] text-caption'>{formErrors.windowHours}</p>
-                )}
-              </div>
+              </ChipModalField>
             </div>
           )}
 
           {formData.alertRule === 'cost_threshold' && (
-            <div className='flex flex-col gap-2'>
-              <Label>Cost Threshold ($)</Label>
-              <EmcnInput
+            <ChipModalField
+              flush
+              type='custom'
+              title='Cost Threshold ($)'
+              error={formErrors.costThresholdDollars}
+            >
+              <ChipInput
                 type='number'
                 min={0.01}
                 max={1000}
                 step={0.01}
+                error={Boolean(formErrors.costThresholdDollars)}
                 value={formData.costThresholdDollars}
                 onChange={(e) =>
                   setFormData({
@@ -1121,21 +1082,21 @@ export const NotificationSettings = memo(function NotificationSettings({
                   })
                 }
               />
-              {formErrors.costThresholdDollars && (
-                <p className='text-[var(--text-error)] text-caption'>
-                  {formErrors.costThresholdDollars}
-                </p>
-              )}
-            </div>
+            </ChipModalField>
           )}
 
           {formData.alertRule === 'no_activity' && (
-            <div className='flex flex-col gap-2'>
-              <Label>Inactivity Period (hours)</Label>
-              <EmcnInput
+            <ChipModalField
+              flush
+              type='custom'
+              title='Inactivity Period (hours)'
+              error={formErrors.inactivityHours}
+            >
+              <ChipInput
                 type='number'
                 min={1}
                 max={168}
+                error={Boolean(formErrors.inactivityHours)}
                 value={formData.inactivityHours}
                 onChange={(e) =>
                   setFormData({
@@ -1144,22 +1105,23 @@ export const NotificationSettings = memo(function NotificationSettings({
                   })
                 }
               />
-              {formErrors.inactivityHours && (
-                <p className='text-[var(--text-error)] text-caption'>
-                  {formErrors.inactivityHours}
-                </p>
-              )}
-            </div>
+            </ChipModalField>
           )}
 
           {formData.alertRule === 'error_count' && (
-            <div className='flex gap-2'>
-              <div className='flex flex-1 flex-col gap-2'>
-                <Label>Error Count</Label>
-                <EmcnInput
+            <div className='flex gap-4'>
+              <ChipModalField
+                flush
+                type='custom'
+                title='Error Count'
+                error={formErrors.errorCountThreshold}
+                className='flex-1'
+              >
+                <ChipInput
                   type='number'
                   min={1}
                   max={1000}
+                  error={Boolean(formErrors.errorCountThreshold)}
                   value={formData.errorCountThreshold}
                   onChange={(e) =>
                     setFormData({
@@ -1168,18 +1130,19 @@ export const NotificationSettings = memo(function NotificationSettings({
                     })
                   }
                 />
-                {formErrors.errorCountThreshold && (
-                  <p className='text-[var(--text-error)] text-caption'>
-                    {formErrors.errorCountThreshold}
-                  </p>
-                )}
-              </div>
-              <div className='flex flex-1 flex-col gap-2'>
-                <Label>Window (hours)</Label>
-                <EmcnInput
+              </ChipModalField>
+              <ChipModalField
+                flush
+                type='custom'
+                title='Window (hours)'
+                error={formErrors.windowHours}
+                className='flex-1'
+              >
+                <ChipInput
                   type='number'
                   min={1}
                   max={168}
+                  error={Boolean(formErrors.windowHours)}
                   value={formData.windowHours}
                   onChange={(e) =>
                     setFormData({
@@ -1188,10 +1151,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                     })
                   }
                 />
-                {formErrors.windowHours && (
-                  <p className='text-[var(--text-error)] text-caption'>{formErrors.windowHours}</p>
-                )}
-              </div>
+              </ChipModalField>
             </div>
           )}
         </div>
@@ -1201,135 +1161,90 @@ export const NotificationSettings = memo(function NotificationSettings({
 
   return (
     <>
-      <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent size='lg'>
-          <ModalHeader>Notifications</ModalHeader>
+      <ChipModal open={open} onOpenChange={handleClose} srTitle='Notifications' size='lg'>
+        <ChipModalHeader onClose={() => handleClose()}>Notifications</ChipModalHeader>
 
-          <ModalDescription className='sr-only'>
-            Manage webhook, email, and Slack notification subscriptions for this workflow
-          </ModalDescription>
-          <ModalTabs
+        <ChipModalBody className='max-h-[60vh] min-h-0 overflow-y-auto'>
+          <ChipModalTabs
+            tabs={[
+              { value: 'webhook', label: 'Webhook' },
+              { value: 'email', label: 'Email' },
+              { value: 'slack', label: 'Slack' },
+            ]}
             value={activeTab}
-            onValueChange={(value: string) => {
-              const newTab = value as NotificationType
-              const tabHasSubscriptions = getSubscriptionsForTab(newTab).length > 0
+            onChange={(value) => {
+              const tab = value as NotificationType
+              const tabHasSubscriptions = getSubscriptionsForTab(tab).length > 0
               resetForm()
-              setActiveTab(newTab)
+              setActiveTab(tab)
               setShowForm(!tabHasSubscriptions)
             }}
-            className='flex min-h-0 flex-1 flex-col'
-          >
-            <ModalTabsList activeValue={activeTab}>
-              <ModalTabsTrigger value='webhook'>Webhook</ModalTabsTrigger>
-              <ModalTabsTrigger value='email'>Email</ModalTabsTrigger>
-              <ModalTabsTrigger value='slack'>Slack</ModalTabsTrigger>
-            </ModalTabsList>
+          />
 
-            <ModalBody className='min-h-0 pt-4'>
-              <ModalTabsContent value='webhook'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-              <ModalTabsContent value='email'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-              <ModalTabsContent value='slack'>
-                <TabContent
-                  displayForm={displayForm}
-                  renderForm={renderForm}
-                  isLoading={isLoading}
-                  filteredSubscriptions={filteredSubscriptions}
-                  renderSubscriptionItem={renderSubscriptionItem}
-                />
-              </ModalTabsContent>
-            </ModalBody>
-          </ModalTabs>
+          <div className='min-h-0 px-2'>
+            <TabContent
+              displayForm={displayForm}
+              renderForm={renderForm}
+              isLoading={isLoading}
+              filteredSubscriptions={filteredSubscriptions}
+              renderSubscriptionItem={renderSubscriptionItem}
+            />
+          </div>
+        </ChipModalBody>
 
-          <ModalFooter>
-            {displayForm ? (
-              <>
-                {hasSubscriptions && (
-                  <Button
-                    variant='default'
-                    onClick={() => {
-                      resetForm()
-                      setShowForm(false)
-                    }}
-                  >
-                    Back
-                  </Button>
-                )}
-                <Button
-                  variant='primary'
-                  onClick={handleSave}
-                  disabled={createNotification.isPending || updateNotification.isPending}
-                >
-                  {createNotification.isPending || updateNotification.isPending
-                    ? editingId
-                      ? 'Updating...'
-                      : 'Creating...'
-                    : editingId
-                      ? 'Update'
-                      : 'Create'}
-                </Button>
-              </>
-            ) : (
-              <Button
-                onClick={() => {
-                  resetForm()
-                  setShowForm(true)
-                }}
-                variant='primary'
-                disabled={isLoading}
-              >
-                <Plus className='mr-1.5 size-[13px]' />
-                Add
-              </Button>
-            )}
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+        <ChipModalFooter
+          onCancel={handleClose}
+          secondaryAction={
+            displayForm && hasSubscriptions
+              ? { label: 'Back', onClick: handleBackToList }
+              : undefined
+          }
+          primaryAction={
+            displayForm
+              ? {
+                  label:
+                    createNotification.isPending || updateNotification.isPending
+                      ? editingId
+                        ? 'Updating...'
+                        : 'Creating...'
+                      : editingId
+                        ? 'Update'
+                        : 'Create',
+                  onClick: handleSave,
+                  disabled: createNotification.isPending || updateNotification.isPending,
+                }
+              : {
+                  label: 'Add',
+                  onClick: handleAddNew,
+                  disabled: isLoading,
+                }
+          }
+        />
+      </ChipModal>
 
-      <Modal open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Notification</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              <span className='text-[var(--text-error)]'>
-                This will permanently remove the notification and stop all deliveries.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              disabled={deleteNotification.isPending}
-              onClick={() => setShowDeleteDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={deleteNotification.isPending}
-            >
-              {deleteNotification.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={showDeleteDialog}
+        onOpenChange={(next) => {
+          if (!next) setDeletingId(null)
+          setShowDeleteDialog(next)
+        }}
+        srTitle='Delete Notification'
+        title='Delete Notification'
+        description={
+          <>
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove the notification and stop all deliveries.
+            </span>{' '}
+            This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteNotification.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 })

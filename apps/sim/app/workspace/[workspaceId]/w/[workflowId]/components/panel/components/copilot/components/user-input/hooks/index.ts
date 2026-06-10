@@ -1,6 +1,7 @@
 export { useCaretViewport } from './use-caret-viewport'
 export { useContextManagement } from './use-context-management'
 export { useFileAttachments } from './use-file-attachments'
+export { useIntegrationAutoMention } from './use-integration-auto-mention'
 export { useMentionData } from './use-mention-data'
 export { useMentionInsertHandlers } from './use-mention-insert-handlers'
 export { useMentionKeyboard } from './use-mention-keyboard'

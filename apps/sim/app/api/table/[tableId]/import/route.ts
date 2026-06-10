@@ -24,6 +24,7 @@ import {
   coerceRowsForTable,
   createCsvParser,
   dispatchAfterBatchInsert,
+  generateColumnId,
   importAppendRows,
   importReplaceRows,
   inferColumnType,
@@ -176,7 +177,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     let effectiveMapping = mapping ?? buildAutoMapping(headers, table.schema)
     let prospectiveTable: TableDefinition = table
-    const additions: { name: string; type: string }[] = []
+    const additions: { id?: string; name: string; type: string }[] = []
 
     if (createColumns && createColumns.length > 0) {
       const headerSet = new Set(headers)
@@ -204,8 +205,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         }
         usedNames.add(columnName.toLowerCase())
         const inferredType = inferColumnType(rows.map((r) => r[header]))
-        additions.push({ name: columnName, type: inferredType })
+        // Pre-assign the id so the prospective schema (used to coerce rows) and
+        // the persisted column (created in importAppendRows) share the same key.
+        const id = generateColumnId()
+        additions.push({ id, name: columnName, type: inferredType })
         newColumns.push({
+          id,
           name: columnName,
           type: inferredType as TableSchema['columns'][number]['type'],
           required: false,
@@ -280,7 +285,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         const inserted = insertedRows.length
         // Fire trigger + scheduler AFTER the tx commits — both read through the
         // global db connection and would otherwise see no rows.
-        dispatchAfterBatchInsert(finalTable, insertedRows, requestId)
+        dispatchAfterBatchInsert(finalTable, insertedRows, requestId, authResult.userId)
 
         logger.info(`[${requestId}] Append CSV imported`, {
           tableId: table.id,

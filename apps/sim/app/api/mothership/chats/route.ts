@@ -6,16 +6,16 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   createMothershipChatContract,
   listMothershipChatsContract,
-} from '@/lib/api/contracts/mothership-tasks'
+} from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -105,13 +105,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         workspaceId,
         type: 'mothership',
         title: null,
-        model: 'claude-opus-4-6',
+        model: 'claude-opus-4-8',
         updatedAt: now,
         lastSeenAt: now,
       })
       .returning({ id: copilotChats.id })
 
-    taskPubSub?.publishStatusChanged({ workspaceId, chatId: chat.id, type: 'created' })
+    chatPubSub?.publishStatusChanged({ workspaceId, chatId: chat.id, type: 'created' })
 
     captureServerEvent(
       userId,

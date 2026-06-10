@@ -28,7 +28,7 @@ export const polymarketGetMarketTool: ToolConfig<
       type: 'string',
       required: false,
       description:
-        'The market ID (e.g., "0x1234...abcd" condition ID format). Required if slug is not provided.',
+        'The numeric market ID (e.g., "253591"). Required if slug is not provided. Not the condition ID.',
       visibility: 'user-or-llm',
     },
     slug: {
@@ -43,9 +43,9 @@ export const polymarketGetMarketTool: ToolConfig<
   request: {
     url: (params) => {
       if (params.slug) {
-        return buildGammaUrl(`/markets/slug/${params.slug}`)
+        return buildGammaUrl(`/markets/slug/${params.slug.trim()}`)
       }
-      return buildGammaUrl(`/markets/${params.marketId}`)
+      return buildGammaUrl(`/markets/${params.marketId?.trim()}`)
     },
     method: 'GET',
     headers: () => ({

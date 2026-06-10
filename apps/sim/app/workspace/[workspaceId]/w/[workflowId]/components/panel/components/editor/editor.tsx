@@ -480,7 +480,7 @@ export function Editor() {
                   onClick={handleFocusOnBlock}
                   aria-label='Focus on block'
                 >
-                  <Crosshair className='h-[14px] w-[14px]' />
+                  <Crosshair className='size-[14px]' />
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
@@ -667,7 +667,7 @@ export function Editor() {
                           ? 'Hide additional fields'
                           : 'Show additional fields'}
                         <ChevronDown
-                          className={`h-[14px] w-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
+                          className={`size-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
                         />
                       </button>
                       <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
@@ -755,7 +755,7 @@ export function Editor() {
               >
                 <ChevronUp
                   className={
-                    'h-[14px] w-[14px] transition-transform' +
+                    'size-[14px] transition-transform' +
                     (!isConnectionsAtMinHeight ? ' rotate-180' : '')
                   }
                 />

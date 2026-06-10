@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { pdfjs, Document as ReactPdfDocument, Page as ReactPdfPage } from 'react-pdf'
 import 'react-pdf/dist/Page/TextLayer.css'
-import { Skeleton } from '@/components/emcn'
+import { PREVIEW_LOADING_OVERLAY } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
 import { bindPreviewWheelZoom } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
 
@@ -30,28 +30,6 @@ interface PdfViewerCoreProps {
   source: PdfDocumentSource
   filename: string
 }
-
-const PDF_SKELETON = (
-  <div className='absolute inset-0 flex flex-col items-center gap-4 overflow-y-auto bg-[var(--surface-1)] p-6'>
-    {[0, 1].map((i) => (
-      <div
-        key={i}
-        className='w-full max-w-[640px] shrink-0 rounded-md bg-[var(--surface-2)] p-8 shadow-medium'
-        style={{ aspectRatio: '1 / 1.414' }}
-      >
-        <div className='flex flex-col gap-3'>
-          <Skeleton className='h-[14px] w-[60%]' />
-          <Skeleton className='h-[14px] w-[80%]' />
-          <Skeleton className='h-[14px] w-[55%]' />
-          <Skeleton className='mt-2 h-[14px] w-[75%]' />
-          <Skeleton className='h-[14px] w-[65%]' />
-          <Skeleton className='h-[14px] w-[85%]' />
-          <Skeleton className='h-[14px] w-[50%]' />
-        </div>
-      </div>
-    ))}
-  </div>
-)
 
 function PdfError({ error }: { error: string }) {
   return (
@@ -216,7 +194,7 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
         ref={containerRef}
         className='relative flex flex-1 items-start overflow-auto bg-[var(--surface-1)]'
       >
-        {!isDocumentReady && PDF_SKELETON}
+        {!isDocumentReady && PREVIEW_LOADING_OVERLAY}
         <ReactPdfDocument
           file={file}
           onLoadSuccess={({ numPages }) => {

@@ -18,9 +18,15 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Filter, RowData, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
+  buildIdByName,
+  buildNameById,
   deleteRowsByFilter,
   deleteRowsByIds,
+  filterNamesToIds,
   insertRow,
+  rowDataIdToName,
+  rowDataNameToId,
+  sortNamesToIds,
   updateRowsByFilter,
   validateBatchRows,
   validateRowData,
@@ -59,8 +65,13 @@ async function handleBatchInsert(
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
 
+  // External callers key row data by column name; storage keys by id.
+  const idByName = buildIdByName(table.schema as TableSchema)
+  const nameById = buildNameById(table.schema as TableSchema)
+  const rows = (validated.rows as RowData[]).map((r) => rowDataNameToId(r, idByName))
+
   const validation = await validateBatchRows({
-    rows: validated.rows as RowData[],
+    rows,
     schema: table.schema as TableSchema,
     tableId,
   })
@@ -70,7 +81,7 @@ async function handleBatchInsert(
     const insertedRows = await batchInsertRows(
       {
         tableId,
-        rows: validated.rows as RowData[],
+        rows,
         workspaceId: validated.workspaceId,
         userId,
       },
@@ -83,7 +94,7 @@ async function handleBatchInsert(
       data: {
         rows: insertedRows.map((r) => ({
           id: r.id,
-          data: r.data,
+          data: rowDataIdToName(r.data, nameById),
           position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
@@ -150,11 +161,19 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    // Translate name-keyed filter/sort fields → column ids; translate rows back.
+    const idByName = buildIdByName(table.schema as TableSchema)
+    const nameById = buildNameById(table.schema as TableSchema)
+    const filter = validated.filter
+      ? filterNamesToIds(validated.filter as Filter, idByName)
+      : undefined
+    const sort = validated.sort ? sortNamesToIds(validated.sort, idByName) : undefined
+
     const result = await queryRows(
       table,
       {
-        filter: validated.filter as Filter | undefined,
-        sort: validated.sort,
+        filter,
+        sort,
         limit: validated.limit,
         offset: validated.offset,
         includeTotal: validated.includeTotal,
@@ -168,7 +187,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       data: {
         rows: result.rows.map((r) => ({
           id: r.id,
-          data: r.data,
+          data: rowDataIdToName(r.data, nameById),
           position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
@@ -229,7 +248,9 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      const rowData = validated.data as RowData
+      const idByName = buildIdByName(table.schema as TableSchema)
+      const nameById = buildNameById(table.schema as TableSchema)
+      const rowData = rowDataNameToId(validated.data as RowData, idByName)
 
       const validation = await validateRowData({
         rowData,
@@ -254,7 +275,7 @@ export const POST = withRouteHandler(
         data: {
           row: {
             id: row.id,
-            data: row.data,
+            data: rowDataIdToName(row.data, nameById),
             position: row.position,
             createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
             updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
@@ -312,7 +333,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const sizeValidation = validateRowSize(validated.data as RowData)
+    const idByName = buildIdByName(table.schema as TableSchema)
+    const patchData = rowDataNameToId(validated.data as RowData, idByName)
+
+    const sizeValidation = validateRowSize(patchData)
     if (!sizeValidation.valid) {
       return NextResponse.json(
         { error: 'Validation error', details: sizeValidation.errors },
@@ -323,9 +347,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const result = await updateRowsByFilter(
       table,
       {
-        filter: validated.filter as Filter,
-        data: validated.data as RowData,
+        filter: filterNamesToIds(validated.filter as Filter, idByName),
+        data: patchData,
         limit: validated.limit,
+        actorUserId: userId,
       },
       requestId
     )
@@ -424,10 +449,11 @@ export const DELETE = withRouteHandler(
         })
       }
 
+      const idByName = buildIdByName(table.schema as TableSchema)
       const result = await deleteRowsByFilter(
         table,
         {
-          filter: validated.filter as Filter,
+          filter: filterNamesToIds(validated.filter as Filter, idByName),
           limit: validated.limit,
         },
         requestId

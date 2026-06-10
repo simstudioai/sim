@@ -34,7 +34,7 @@ export function EnterpriseSubscriptionEmail({
 
       <Text style={baseStyles.paragraph}>
         <strong>Next steps:</strong>
-        <br />• Invite team members to your organization
+        <br />• Invite teammates to your organization
         <br />• Start building your workflows
       </Text>
 

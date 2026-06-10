@@ -22,6 +22,7 @@ import {
   PinOff,
   PlayOutline,
   Trash,
+  Workflow,
 } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
@@ -30,8 +31,6 @@ import { getEnrichment } from '@/enrichments/registry'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
 import type { DisplayColumn } from '../types'
-
-const WORKFLOW_META_BG_ALPHA = 12 // 0–255
 
 /** Fixed row-cap presets for the "Run N empty rows" shortcuts. Shared by the
  *  group-header options menu and the inline quick-run dropdown so the two
@@ -163,28 +162,28 @@ export function ColumnOptionsMenu({
             View workflow
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onOpenConfig(column.name)}>
+        <DropdownMenuItem onSelect={() => onOpenConfig(column.key)}>
           <Pencil />
           Edit column
         </DropdownMenuItem>
         {onPinToggle && (
-          <DropdownMenuItem onSelect={() => onPinToggle(column.name)}>
+          <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}
             {isPinned ? 'Unpin column' : 'Pin column'}
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
+        <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
           <ArrowLeft />
           Insert column left
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
+        <DropdownMenuItem onSelect={() => onInsertRight(column.key)}>
           <ArrowRight />
           Insert column right
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.name))}
+          onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.key))}
         >
           {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
           {deleteLabel ?? 'Delete column'}
@@ -198,7 +197,7 @@ interface WorkflowGroupMetaCellProps {
   workflowId: string
   groupId: string
   /** When `'enrichment'`, the cell shows the enrichment's name + icon instead
-   *  of a backing workflow's color chip + name. */
+   *  of a backing workflow's skeleton icon + name. */
   groupType?: WorkflowGroupType
   /** Registry id for enrichment groups (resolves name/icon fallback). */
   enrichmentId?: string
@@ -245,7 +244,7 @@ interface WorkflowGroupMetaCellProps {
 
 /**
  * Spans a fanned-out workflow column group in the table's meta header row.
- * Renders the workflow's color chip + name so the grouping across N sibling
+ * Renders the workflow skeleton icon + name so the grouping across N sibling
  * columns reads as one unit.
  */
 export function WorkflowGroupMetaCell({
@@ -283,7 +282,6 @@ export function WorkflowGroupMetaCell({
   const enrichment = isEnrichment ? getEnrichment(enrichmentId) : undefined
   const EnrichmentIcon = enrichment?.icon
   const wf = workflows?.find((w) => w.id === workflowId)
-  const color = wf?.color ?? 'var(--text-muted)'
   const name = isEnrichment
     ? (groupName ?? enrichment?.name ?? 'Enrichment')
     : (wf?.name ?? 'Workflow')
@@ -404,10 +402,6 @@ export function WorkflowGroupMetaCell({
       )}
       style={stickyLeft !== undefined ? { position: 'sticky', left: stickyLeft } : undefined}
     >
-      <div
-        className='pointer-events-none absolute inset-0'
-        style={{ background: `${color}${WORKFLOW_META_BG_ALPHA.toString(16).padStart(2, '0')}` }}
-      />
       {/* Selection tint as a separate overlay so the th's opaque `--bg` stays
           intact — see column-header-menu for the same fix. */}
       {isGroupSelected && (
@@ -416,22 +410,11 @@ export function WorkflowGroupMetaCell({
           aria-hidden='true'
         />
       )}
-      <div
-        className='pointer-events-none absolute inset-x-0 top-0 h-[2px]'
-        style={{ background: color }}
-      />
       <div className='flex h-[18px] min-w-0 items-center gap-1.5'>
         {isEnrichment && EnrichmentIcon ? (
           <EnrichmentIcon className='size-[12px] shrink-0 text-[var(--text-icon)]' />
         ) : (
-          <span
-            className='size-[10px] shrink-0 rounded-sm border-[2px]'
-            style={{
-              backgroundColor: color,
-              borderColor: `${color}60`,
-              backgroundClip: 'padding-box',
-            }}
-          />
+          <Workflow className='size-[12px] shrink-0 text-[var(--text-icon)]' />
         )}
         <span className='min-w-0 truncate font-medium text-[11px] text-[var(--text-secondary)]'>
           {name}

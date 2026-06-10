@@ -15,7 +15,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
@@ -32,7 +32,7 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   if (!baseProviderConfig) {
     return <ExternalLink className='size-3' />
   }
-  return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
+  return createElement(baseProviderConfig.icon, { className: 'size-3' })
 }
 
 const getProviderName = (providerName: OAuthProvider) => {
@@ -264,25 +264,29 @@ export function ToolCredentialSelector({
       )}
 
       {showConnectModal && (
-        <OAuthModal
+        <ConnectOAuthModal
           mode='connect'
-          isOpen={showConnectModal}
-          onClose={() => setShowConnectModal(false)}
+          origin='workflow'
+          open={showConnectModal}
+          onOpenChange={(open) => !open && setShowConnectModal(false)}
           provider={provider}
           serviceId={serviceId}
+          providerId={effectiveProviderId}
+          requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           workspaceId={workspaceId}
           workflowId={effectiveWorkflowId || ''}
-          credentialCount={credentials.length}
         />
       )}
 
       {showOAuthModal && (
-        <OAuthModal
+        <ConnectOAuthModal
           mode='reauthorize'
-          isOpen={showOAuthModal}
-          onClose={() => {
-            consumeOAuthReturnContext()
-            setShowOAuthModal(false)
+          open={showOAuthModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              consumeOAuthReturnContext()
+              setShowOAuthModal(false)
+            }
           }}
           provider={provider}
           toolName={getProviderName(provider)}

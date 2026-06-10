@@ -22,15 +22,15 @@ const DEFAULT_API_ALLOWED_HEADERS =
 const WORKFLOW_EXECUTE_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key'
 
-/** Subpaths under /api/{chat,form}/* that serve the workspace UI, not embeds. */
+/** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
 
-/** True for /api/{chat,form}/[identifier] and any deeper subroute. */
+/** True for /api/chat/[identifier] and any deeper subroute. */
 function isEmbedPath(pathname: string): boolean {
   const segments = pathname.split('/')
   if (segments.length < 4) return false
   if (segments[1] !== 'api') return false
-  if (segments[2] !== 'chat' && segments[2] !== 'form') return false
+  if (segments[2] !== 'chat') return false
   const identifier = segments[3]
   if (!identifier || EMBED_RESERVED_SEGMENTS.has(identifier)) return false
   return true
@@ -263,17 +263,7 @@ export async function proxy(request: NextRequest) {
     return track(request, NextResponse.next())
   }
 
-  // Allow public access to template pages for SEO
-  if (url.pathname.startsWith('/templates')) {
-    return track(request, NextResponse.next())
-  }
-
   if (url.pathname.startsWith('/workspace')) {
-    // Allow public access to workspace template pages - they handle their own redirects
-    if (url.pathname.match(/^\/workspace\/[^/]+\/templates/)) {
-      return track(request, NextResponse.next())
-    }
-
     if (!hasActiveSession) {
       return track(request, NextResponse.redirect(new URL('/login', request.url)))
     }

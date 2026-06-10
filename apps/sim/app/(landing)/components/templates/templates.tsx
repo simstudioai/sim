@@ -287,7 +287,6 @@ export default function Templates() {
         LandingWorkflowSeedStorage.store({
           templateId: activeWorkflow.id,
           workflowName: activeWorkflow.name,
-          color: activeWorkflow.color,
           workflowJson,
         })
       }
@@ -305,14 +304,7 @@ export default function Templates() {
       })
       router.push('/signup')
     }
-  }, [
-    activeWorkflow.color,
-    activeWorkflow.id,
-    activeWorkflow.name,
-    activeWorkflow.seedPath,
-    isPreparingTemplate,
-    router,
-  ])
+  }, [activeWorkflow.id, activeWorkflow.name, activeWorkflow.seedPath, isPreparingTemplate, router])
 
   return (
     <LazyMotion features={domAnimation}>
