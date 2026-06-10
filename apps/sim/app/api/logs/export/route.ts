@@ -5,6 +5,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
@@ -16,7 +17,7 @@ export const revalidate = 0
 
 function escapeCsv(value: any): string {
   if (value === null || value === undefined) return ''
-  const str = String(value)
+  const str = typeof value === 'string' ? neutralizeCsvFormula(value) : String(value)
   if (/[",\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`
   }
