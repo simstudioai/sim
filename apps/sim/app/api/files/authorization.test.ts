@@ -177,7 +177,6 @@ describe('public-context access (profile-pictures / og-images / workspace-logos)
   })
 
   it('denies a cross-tenant delete that names a workspace key under a public context', async () => {
-    // Reported attack: a workspace key passed under a public context to dodge the ownership check.
     await expect(write('workspace/victim-ws/123-report.pdf', 'og-images')).resolves.toBe(false)
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })

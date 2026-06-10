@@ -110,7 +110,7 @@ export const deployedChatAuthBodySchema = z.object({
 })
 export type DeployedChatAuthBody = z.input<typeof deployedChatAuthBodySchema>
 
-const MAX_CHAT_INPUT_CHARS = 100_000
+const MAX_CHAT_INPUT_CHARS = 1_000_000
 const MAX_CHAT_FILE_DATA_CHARS = 14 * 1024 * 1024
 const MAX_CHAT_FILES = 15
 

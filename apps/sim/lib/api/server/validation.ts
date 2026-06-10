@@ -20,8 +20,11 @@ import {
  * and parse into memory. Next.js App Router imposes no body cap, so without
  * this an unauthenticated caller could buffer an arbitrarily large body before
  * schema validation runs. Override per-route via `ParseRequestOptions.maxBodyBytes`.
+ * Falls back to 50 MB if the env value is missing or non-numeric so a misconfig
+ * can never silently disable the cap (a NaN limit would never reject).
  */
-export const DEFAULT_MAX_JSON_BODY_BYTES = Number.parseInt(env.API_MAX_JSON_BODY_BYTES, 10)
+export const DEFAULT_MAX_JSON_BODY_BYTES =
+  Number.parseInt(env.API_MAX_JSON_BODY_BYTES, 10) || 50 * 1024 * 1024
 
 export interface ValidationErrorBody {
   error: string

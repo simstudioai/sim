@@ -200,7 +200,6 @@ describe('File Delete API Route', () => {
   })
 
   it('rejects a client context that disagrees with the key prefix', async () => {
-    // Reported attack: a workspace key passed under a public context to dodge the ownership check.
     const req = createMockRequest('POST', {
       filePath: '/api/files/serve/s3/workspace/victim-ws/1234-report.pdf',
       context: 'og-images',

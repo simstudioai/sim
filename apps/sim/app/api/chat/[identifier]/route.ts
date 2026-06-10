@@ -42,7 +42,7 @@ function toChatConfigResponse(deployment: ChatConfigSource) {
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const CHAT_MAX_REQUEST_BYTES = Number.parseInt(env.CHAT_MAX_REQUEST_BYTES, 10)
+const CHAT_MAX_REQUEST_BYTES = Number.parseInt(env.CHAT_MAX_REQUEST_BYTES, 10) || 220 * 1024 * 1024
 
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
