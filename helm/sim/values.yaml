@@ -1192,11 +1192,11 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
-    inactivityAlertPoll:
+    workspaceEventsPoll:
       enabled: true
-      name: inactivity-alert-poll
+      name: workspace-events-poll
       schedule: "*/15 * * * *"
-      path: "/api/notifications/poll"
+      path: "/api/workspace-events/poll"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

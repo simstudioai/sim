@@ -223,6 +223,20 @@ export function MothershipChat({
     }
     return out
   }, [messages])
+  const assistantTurnKeyByIndex = useMemo(() => {
+    const out: string[] = []
+    let lastUserId: string | undefined
+    let ordinal = 0
+    for (const [index, message] of messages.entries()) {
+      if (message.role === 'user') {
+        lastUserId = message.id
+        ordinal = 0
+      } else {
+        out[index] = lastUserId ? `assistant:${lastUserId}:${ordinal++}` : message.id
+      }
+    }
+    return out
+  }, [messages])
   const initialScrollDoneRef = useRef(false)
   const userInputRef = useRef<UserInputHandle>(null)
 
@@ -297,7 +311,7 @@ export function MothershipChat({
               const isLast = index === messages.length - 1
               return (
                 <AssistantMessageRow
-                  key={msg.id}
+                  key={assistantTurnKeyByIndex[index] ?? msg.id}
                   message={msg}
                   isStreaming={isStreamActive && isLast}
                   precedingUserContent={precedingUserContentByIndex[index]}

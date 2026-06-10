@@ -5,8 +5,16 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import type { AgiloftBaseParams } from '@/tools/agiloft/types'
+import type { HttpMethod, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgiloftAuthServer')
+
+interface AgiloftRequestConfig {
+  url: string
+  method: HttpMethod
+  headers?: Record<string, string>
+  body?: string
+}
 
 /**
  * Validates the Agiloft instance URL and resolves its DNS once, returning the
@@ -73,6 +81,51 @@ export async function agiloftLogoutPinned(
     })
   } catch (error) {
     logger.warn('Agiloft logout failed (best-effort)', { error })
+  }
+}
+
+/**
+ * Shared wrapper that handles the full Agiloft auth lifecycle behind the
+ * codebase's SSRF-safe fetch path. The instance URL is validated and resolved
+ * to a concrete IP once via `validateUrlWithDNS` (which rejects hostnames that
+ * resolve to private/reserved addresses), and every hop — login, the operation
+ * request, and logout — is issued through `secureFetchWithPinnedIP` so the
+ * connection is pinned to that validated IP. This defeats DNS-rebinding (TOCTOU)
+ * SSRF where a hostname could resolve to an internal address on a later lookup.
+ *
+ * 1. Validate + resolve the instance URL once.
+ * 2. Login to obtain a Bearer token.
+ * 3. Execute the operation request with the token.
+ * 4. Logout to clean up the session (best-effort).
+ *
+ * The `buildRequest` callback receives the base URL and returns the request
+ * config. The `transformResponse` callback converts the raw response into the
+ * tool's output format.
+ *
+ * Server-only — uses node:dns/promises and node:http(s) via the pinned fetch.
+ */
+export async function executeAgiloftRequest<R extends ToolResponse>(
+  params: AgiloftBaseParams,
+  buildRequest: (base: string) => AgiloftRequestConfig,
+  transformResponse: (response: SecureFetchResponse) => Promise<R>
+): Promise<R> {
+  const resolvedIP = await resolveAgiloftInstance(params.instanceUrl)
+  const token = await agiloftLoginPinned(params, resolvedIP)
+  const base = params.instanceUrl.replace(/\/$/, '')
+
+  try {
+    const req = buildRequest(base)
+    const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
+      method: req.method,
+      headers: {
+        ...req.headers,
+        Authorization: `Bearer ${token}`,
+      },
+      body: req.body,
+    })
+    return await transformResponse(response)
+  } finally {
+    await agiloftLogoutPinned(params.instanceUrl, params.knowledgeBase, token, resolvedIP)
   }
 }
 

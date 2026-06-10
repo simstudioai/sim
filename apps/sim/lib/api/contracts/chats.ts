@@ -105,25 +105,36 @@ export const deployedChatConfigSchema = z.object({
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>
 
 export const deployedChatAuthBodySchema = z.object({
-  password: z.string().optional(),
+  password: z.string().max(1024, 'Password is too long').optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
 })
 export type DeployedChatAuthBody = z.input<typeof deployedChatAuthBodySchema>
 
+const MAX_CHAT_INPUT_CHARS = 1_000_000
+const MAX_CHAT_FILE_DATA_CHARS = 14 * 1024 * 1024
+const MAX_CHAT_FILES = 15
+
 export const deployedChatFileSchema = z.object({
-  name: z.string().min(1, 'File name is required'),
-  type: z.string().min(1, 'File type is required'),
+  name: z.string().min(1, 'File name is required').max(255, 'File name is too long'),
+  type: z.string().min(1, 'File type is required').max(255, 'File type is too long'),
   size: z.number().positive('File size must be positive'),
-  data: z.string().min(1, 'File data is required'),
+  data: z
+    .string()
+    .min(1, 'File data is required')
+    .max(MAX_CHAT_FILE_DATA_CHARS, 'File data exceeds the maximum allowed size'),
   lastModified: z.number().optional(),
 })
 
 export const deployedChatPostBodySchema = z.object({
-  input: z.string().optional(),
-  password: z.string().optional(),
+  input: z.string().max(MAX_CHAT_INPUT_CHARS, 'Input is too long').optional(),
+  password: z.string().max(1024, 'Password is too long').optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
-  conversationId: z.string().optional(),
-  files: z.array(deployedChatFileSchema).optional().default([]),
+  conversationId: z.string().max(256, 'Conversation ID is too long').optional(),
+  files: z
+    .array(deployedChatFileSchema)
+    .max(MAX_CHAT_FILES, `A maximum of ${MAX_CHAT_FILES} files is allowed`)
+    .optional()
+    .default([]),
 })
 export type DeployedChatPostBody = z.input<typeof deployedChatPostBodySchema>
 

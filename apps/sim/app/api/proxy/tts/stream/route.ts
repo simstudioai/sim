@@ -92,7 +92,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return new Response('ElevenLabs service not configured', { status: 503 })
     }
 
-    const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`
+    const query = new URLSearchParams({ output_format: 'mp3_44100_128' })
+    const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?${query.toString()}`
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -104,17 +105,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       body: JSON.stringify({
         text,
         model_id: modelId,
-        optimize_streaming_latency: 4,
-        output_format: 'mp3_22050_32', // Fastest format
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.8,
           style: 0.0,
           use_speaker_boost: false,
         },
-        enable_ssml_parsing: false,
-        apply_text_normalization: 'off',
-        use_pvc_as_ivc: false,
+        apply_text_normalization: 'auto',
       }),
     })
 
