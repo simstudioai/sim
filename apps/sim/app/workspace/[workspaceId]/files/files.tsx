@@ -274,23 +274,19 @@ export function Files() {
     onSave: (rowId, name) => {
       const parsed = parseRowId(rowId)
       if (parsed.kind === 'folder') {
-        updateFolder.mutate({ workspaceId, folderId: parsed.id, updates: { name } })
-        return
+        return updateFolder.mutateAsync({ workspaceId, folderId: parsed.id, updates: { name } })
       }
-      renameFile.mutate({ workspaceId, fileId: parsed.id, name })
+      return renameFile.mutateAsync({ workspaceId, fileId: parsed.id, name })
     },
   })
 
   const headerRename = useInlineRename({
-    onSave: (fileId, name) => {
-      renameFile.mutate({ workspaceId, fileId, name })
-    },
+    onSave: (fileId, name) => renameFile.mutateAsync({ workspaceId, fileId, name }),
   })
 
   const breadcrumbRename = useInlineRename({
-    onSave: (folderId, name) => {
-      updateFolder.mutate({ workspaceId, folderId, updates: { name } })
-    },
+    onSave: (folderId, name) =>
+      updateFolder.mutateAsync({ workspaceId, folderId, updates: { name } }),
   })
 
   const selectedFile = useMemo(

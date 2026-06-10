@@ -343,7 +343,7 @@ export function Table({
     onSave: (_id, name) => {
       const data = tableDataRef.current
       if (data) pushTableRenameUndoSinkRef.current?.(data.name, name)
-      renameTableMutation.mutate({ tableId, name })
+      return renameTableMutation.mutateAsync({ tableId, name })
     },
   })
 

@@ -80,7 +80,7 @@ export function Tables() {
   const importCsvAsync = useImportCsvAsync()
 
   const tableRename = useInlineRename({
-    onSave: (tableId, name) => renameTable.mutate({ tableId, name }),
+    onSave: (tableId, name) => renameTable.mutateAsync({ tableId, name }),
   })
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)

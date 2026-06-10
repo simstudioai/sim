@@ -254,7 +254,7 @@ export function Document({
   const { mutate: updateChunkMutation } = useUpdateChunk()
   const { mutate: deleteDocumentMutation, isPending: isDeletingDocument } = useDeleteDocument()
   const { mutate: bulkChunkMutation, isPending: isBulkOperating } = useBulkChunkOperation()
-  const { mutate: updateDocumentMutation } = useUpdateDocument()
+  const { mutateAsync: updateDocumentMutation } = useUpdateDocument()
 
   const docRename = useInlineRename({
     onSave: (docId, filename) =>

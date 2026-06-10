@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react'
 import {
-  Chip,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -10,7 +9,6 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  ChipTextarea,
 } from '@/components/emcn'
 import {
   useGenerateVersionDescription,
@@ -98,34 +96,21 @@ export function VersionDescriptionModal({
         <ChipModalHeader onClose={() => handleCloseAttempt()}>Version Description</ChipModalHeader>
         <ChipModalBody>
           <ChipModalField
-            type='custom'
+            type='textarea'
             title={
               <span>
                 {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
               </span>
             }
+            value={description}
+            onChange={setDescription}
+            placeholder='Describe the changes in this deployment version...'
+            maxLength={2000}
+            minHeight={120}
+            disabled={isGenerating}
             hint={`${description.length}/2000`}
-          >
-            <div className='flex justify-end'>
-              <Chip
-                flush
-                onClick={handleGenerateDescription}
-                disabled={isGenerating || updateMutation.isPending}
-              >
-                {isGenerating ? 'Generating...' : 'Generate'}
-              </Chip>
-            </div>
-            <ChipTextarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder='Describe the changes in this deployment version...'
-              maxLength={2000}
-              disabled={isGenerating}
-              className='min-h-[120px]'
-              aria-label='Version description'
-            />
-          </ChipModalField>
+          />
           <ChipModalError>
             {updateMutation.error?.message || generateMutation.error?.message}
           </ChipModalError>
@@ -133,6 +118,11 @@ export function VersionDescriptionModal({
         <ChipModalFooter
           onCancel={handleCloseAttempt}
           cancelDisabled={updateMutation.isPending || isGenerating}
+          secondaryAction={{
+            label: isGenerating ? 'Generating...' : 'Generate',
+            onClick: handleGenerateDescription,
+            disabled: isGenerating || updateMutation.isPending,
+          }}
           primaryAction={{
             label: updateMutation.isPending ? 'Saving...' : 'Save',
             onClick: handleSave,

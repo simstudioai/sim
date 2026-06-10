@@ -228,7 +228,7 @@ export function KnowledgeBase({
   const { mutate: deleteDocumentMutation } = useDeleteDocument()
   const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } =
     useDeleteKnowledgeBase(workspaceId)
-  const { mutate: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
+  const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
 
   const kbRename = useInlineRename({
     onSave: (kbId, name) =>

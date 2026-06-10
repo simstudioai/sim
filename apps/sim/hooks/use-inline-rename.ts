@@ -1,7 +1,15 @@
 import { useCallback, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('useInlineRename')
 
 interface UseInlineRenameProps {
-  onSave: (id: string, newName: string) => void | Promise<void>
+  /**
+   * Persists the new name. Return the mutation promise (e.g. React Query's
+   * `mutateAsync(...)`) — NOT a fire-and-forget `mutate(...)` — so `isSaving`
+   * spans the in-flight request and a rejection can revive the edit session.
+   */
+  onSave: (id: string, newName: string) => undefined | Promise<unknown>
 }
 
 /**
@@ -56,7 +64,6 @@ export function useInlineRename({ onSave }: UseInlineRenameProps) {
     setIsSaving(true)
     try {
       await onSaveRef.current(id, trimmed)
-    } finally {
       /**
        * Only clear editing state if this submit still owns the edit session.
        * Without the guard, a slow save for row A would tear down a rename of
@@ -65,8 +72,22 @@ export function useInlineRename({ onSave }: UseInlineRenameProps) {
        * new session, and the new session's own submit handles its lifecycle.
        */
       if (editingIdRef.current === id) {
-        setIsSaving(false)
         setEditingId(null)
+      }
+    } catch (error) {
+      logger.error('Failed to rename item', { error, id, newName: trimmed })
+      /**
+       * Mirror `useItemRename`'s failure path: stay in edit mode with the
+       * original name restored (no silent data loss, no unhandled rejection)
+       * and re-arm `doneRef` so the revived session can submit or cancel again.
+       */
+      if (editingIdRef.current === id) {
+        setEditValue(originalNameRef.current)
+        doneRef.current = false
+      }
+    } finally {
+      if (editingIdRef.current === id) {
+        setIsSaving(false)
       }
     }
   }, [])
