@@ -12,7 +12,7 @@ export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
   docsLink: 'https://docs.sim.ai/tools/millionverifier',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  bgColor: '#00B67A',
+  bgColor: '#FFFFFF',
   icon: MillionVerifierIcon,
   subBlocks: [
     {

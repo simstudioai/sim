@@ -433,12 +433,11 @@ Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Stat
     worker: {
       type: 'json',
       description:
-        'Worker profile (id, descriptor, primaryWorkEmail, primaryWorkPhone, businessTitle, supervisoryOrganization, hireDate, workerType, isActive)',
+        'Worker profile (id, descriptor, personalData, employmentData, compensationData, organizationData)',
     },
     workers: {
       type: 'json',
-      description:
-        'Array of worker profiles (id, descriptor, primaryWorkEmail, businessTitle, supervisoryOrganization, hireDate, workerType, isActive)',
+      description: 'Array of worker profiles (id, descriptor, personalData, employmentData)',
     },
     total: { type: 'number', description: 'Total count of results' },
     preHireId: { type: 'string', description: 'Created pre-hire ID' },

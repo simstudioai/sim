@@ -1,6 +1,7 @@
 import { ServiceNowIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import type { ServiceNowResponse } from '@/tools/servicenow/types'
 import { getTrigger } from '@/triggers'
 
@@ -13,6 +14,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
   docsLink: 'https://docs.sim.ai/tools/servicenow',
   category: 'tools',
   integrationType: IntegrationType.Support,
+  authMode: AuthMode.ApiKey,
   bgColor: '#032D42',
   icon: ServiceNowIcon,
   subBlocks: [
@@ -26,6 +28,10 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         { label: 'Read Records', id: 'servicenow_read_record' },
         { label: 'Update Record', id: 'servicenow_update_record' },
         { label: 'Delete Record', id: 'servicenow_delete_record' },
+        { label: 'Aggregate Records', id: 'servicenow_aggregate' },
+        { label: 'List Attachments', id: 'servicenow_list_attachments' },
+        { label: 'Download Attachment', id: 'servicenow_download_attachment' },
+        { label: 'Upload Attachment', id: 'servicenow_upload_attachment' },
       ],
       value: () => 'servicenow_read_record',
     },
@@ -57,12 +63,13 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
       required: true,
       description: 'Password for the ServiceNow user',
     },
-    // Table Name
+    // Table Name (not needed for download attachment, which is addressed by attachment sys_id)
     {
       id: 'tableName',
       title: 'Table Name',
       type: 'short-input',
       placeholder: 'incident, task, sys_user, etc.',
+      condition: { field: 'operation', value: 'servicenow_download_attachment', not: true },
       required: true,
       description: 'ServiceNow table name',
     },
@@ -120,7 +127,10 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       title: 'Query String',
       type: 'short-input',
       placeholder: 'active=true^priority=1',
-      condition: { field: 'operation', value: 'servicenow_read_record' },
+      condition: {
+        field: 'operation',
+        value: ['servicenow_read_record', 'servicenow_aggregate'],
+      },
       description: 'ServiceNow encoded query string',
       mode: 'advanced',
     },
@@ -152,7 +162,10 @@ Output: {"short_description": "Network outage", "description": "Network connecti
         { label: 'All (both)', id: 'all' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: 'servicenow_read_record' },
+      condition: {
+        field: 'operation',
+        value: ['servicenow_read_record', 'servicenow_aggregate'],
+      },
       description: 'Return display values for reference fields instead of sys_ids',
       mode: 'advanced',
     },
@@ -215,6 +228,143 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       condition: { field: 'operation', value: 'servicenow_delete_record' },
       required: true,
     },
+    // Aggregate-specific
+    {
+      id: 'count',
+      title: 'Return Count',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'servicenow_aggregate' },
+      description: 'Return the count of matching records',
+    },
+    {
+      id: 'groupBy',
+      title: 'Group By',
+      type: 'short-input',
+      placeholder: 'category,priority',
+      condition: { field: 'operation', value: 'servicenow_aggregate' },
+      description: 'Comma-separated fields to group results by',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a comma-separated list of ServiceNow field names to group aggregate results by, based on the user request. Use lowercase field names. Return ONLY the comma-separated field names - no explanations, no extra text.',
+        placeholder: 'Describe how to group the results...',
+        generationType: 'custom',
+      },
+    },
+    {
+      id: 'avgFields',
+      title: 'Average Fields',
+      type: 'short-input',
+      placeholder: 'reassignment_count',
+      condition: { field: 'operation', value: 'servicenow_aggregate' },
+      description: 'Comma-separated numeric fields to average',
+      mode: 'advanced',
+    },
+    {
+      id: 'sumFields',
+      title: 'Sum Fields',
+      type: 'short-input',
+      placeholder: 'business_duration',
+      condition: { field: 'operation', value: 'servicenow_aggregate' },
+      description: 'Comma-separated numeric fields to sum',
+      mode: 'advanced',
+    },
+    {
+      id: 'minFields',
+      title: 'Min Fields',
+      type: 'short-input',
+      placeholder: 'opened_at',
+      condition: { field: 'operation', value: 'servicenow_aggregate' },
+      description: 'Comma-separated fields to compute the minimum of',
+      mode: 'advanced',
+    },
+    {
+      id: 'maxFields',
+      title: 'Max Fields',
+      type: 'short-input',
+      placeholder: 'closed_at',
+      condition: { field: 'operation', value: 'servicenow_aggregate' },
+      description: 'Comma-separated fields to compute the maximum of',
+      mode: 'advanced',
+    },
+    {
+      id: 'having',
+      title: 'Having',
+      type: 'short-input',
+      placeholder: 'count>5',
+      condition: { field: 'operation', value: 'servicenow_aggregate' },
+      description: 'Filter on aggregate results',
+      mode: 'advanced',
+    },
+    // Attachment record sys_id (list + upload)
+    {
+      id: 'recordSysId',
+      title: 'Record sys_id',
+      type: 'short-input',
+      placeholder: 'sys_id of the record',
+      condition: {
+        field: 'operation',
+        value: ['servicenow_list_attachments', 'servicenow_upload_attachment'],
+      },
+      required: true,
+      description: 'sys_id of the record the attachment belongs to',
+    },
+    // List attachments: limit
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '10',
+      condition: { field: 'operation', value: 'servicenow_list_attachments' },
+      description: 'Maximum number of attachments to return',
+      mode: 'advanced',
+    },
+    // Download attachment: attachment sys_id
+    {
+      id: 'attachmentSysId',
+      title: 'Attachment sys_id',
+      type: 'short-input',
+      placeholder: 'sys_id of the attachment',
+      condition: { field: 'operation', value: 'servicenow_download_attachment' },
+      required: true,
+      description: 'sys_id of the attachment to download (from List Attachments)',
+    },
+    // Upload attachment: file name + file
+    {
+      id: 'fileName',
+      title: 'File Name',
+      type: 'short-input',
+      placeholder: 'logs.txt',
+      condition: { field: 'operation', value: 'servicenow_upload_attachment' },
+      required: true,
+      description: 'Name to give the uploaded file',
+    },
+    {
+      id: 'uploadFile',
+      title: 'File',
+      type: 'file-upload',
+      canonicalParamId: 'file',
+      placeholder: 'Upload a file',
+      condition: { field: 'operation', value: 'servicenow_upload_attachment' },
+      mode: 'basic',
+      multiple: false,
+      required: true,
+    },
+    {
+      id: 'fileReference',
+      title: 'File',
+      type: 'short-input',
+      canonicalParamId: 'file',
+      placeholder: 'Reference a file from previous blocks (e.g., {{block_1.output.file}})',
+      condition: { field: 'operation', value: 'servicenow_upload_attachment' },
+      mode: 'advanced',
+      required: true,
+    },
     ...getTrigger('servicenow_incident_created').subBlocks,
     ...getTrigger('servicenow_incident_updated').subBlocks,
     ...getTrigger('servicenow_change_request_created').subBlocks,
@@ -227,20 +377,36 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       'servicenow_read_record',
       'servicenow_update_record',
       'servicenow_delete_record',
+      'servicenow_aggregate',
+      'servicenow_list_attachments',
+      'servicenow_download_attachment',
+      'servicenow_upload_attachment',
     ],
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        const { operation, fields, ...rest } = params
+        const { operation, fields, file, ...rest } = params
         const isCreateOrUpdate =
           operation === 'servicenow_create_record' || operation === 'servicenow_update_record'
 
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
         if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)
 
-        if (fields && isCreateOrUpdate) {
-          const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
-          return { ...rest, fields: parsedFields }
+        if (operation === 'servicenow_aggregate') {
+          rest.count = rest.count === true || rest.count === 'true'
+        }
+
+        if (operation === 'servicenow_upload_attachment') {
+          const normalizedFile = normalizeFileInput(file, { single: true })
+          return normalizedFile ? { ...rest, file: normalizedFile } : rest
+        }
+
+        if (fields) {
+          if (isCreateOrUpdate) {
+            const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
+            return { ...rest, fields: parsedFields }
+          }
+          return { ...rest, fields }
         }
 
         return rest
@@ -260,12 +426,32 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     offset: { type: 'number', description: 'Pagination offset' },
     fields: { type: 'json', description: 'Fields object or JSON string' },
     displayValue: { type: 'string', description: 'Display value mode for reference fields' },
+    count: { type: 'boolean', description: 'Return record count (aggregate)' },
+    groupBy: { type: 'string', description: 'Comma-separated fields to group by (aggregate)' },
+    avgFields: { type: 'string', description: 'Comma-separated fields to average (aggregate)' },
+    sumFields: { type: 'string', description: 'Comma-separated fields to sum (aggregate)' },
+    minFields: { type: 'string', description: 'Comma-separated fields to minimize (aggregate)' },
+    maxFields: { type: 'string', description: 'Comma-separated fields to maximize (aggregate)' },
+    having: { type: 'string', description: 'Aggregate result filter (aggregate)' },
+    recordSysId: { type: 'string', description: 'Record sys_id for attachment operations' },
+    attachmentSysId: { type: 'string', description: 'Attachment sys_id to download' },
+    fileName: { type: 'string', description: 'Name of the file to upload' },
+    file: { type: 'json', description: 'File to upload (canonical param)' },
   },
   outputs: {
     record: { type: 'json', description: 'Single ServiceNow record' },
     records: { type: 'json', description: 'Array of ServiceNow records' },
     success: { type: 'boolean', description: 'Operation success status' },
     metadata: { type: 'json', description: 'Operation metadata' },
+    result: { type: 'json', description: 'Aggregate result (stats or grouped array)' },
+    count: { type: 'number', description: 'Aggregate matching record count' },
+    attachments: {
+      type: 'json',
+      description: 'Attachment metadata list (sys_id, file_name, content_type, download_link)',
+    },
+    file: { type: 'file', description: 'Downloaded attachment file' },
+    content: { type: 'string', description: 'Base64-encoded downloaded file content' },
+    attachment: { type: 'json', description: 'Uploaded attachment metadata' },
   },
   triggers: {
     enabled: true,

@@ -49,7 +49,12 @@ export const firefliesDeleteTranscriptTool: ToolConfig<
         query: `
           mutation DeleteTranscript($id: String!) {
             deleteTranscript(id: $id) {
-              success
+              id
+              title
+              date
+              duration
+              host_email
+              organizer_email
             }
           }
         `,
@@ -71,11 +76,27 @@ export const firefliesDeleteTranscriptTool: ToolConfig<
       }
     }
 
-    const result = data.data?.deleteTranscript
+    const deleted = data.data?.deleteTranscript
+    if (!deleted) {
+      return {
+        success: false,
+        error: 'Failed to delete transcript',
+        output: { success: false },
+      }
+    }
+
     return {
-      success: result?.success ?? false,
+      success: true,
       output: {
-        success: result?.success ?? false,
+        success: true,
+        transcript: {
+          id: deleted.id,
+          title: deleted.title ?? null,
+          date: deleted.date ?? null,
+          duration: deleted.duration ?? null,
+          host_email: deleted.host_email ?? null,
+          organizer_email: deleted.organizer_email ?? null,
+        },
       },
     }
   },
@@ -84,6 +105,19 @@ export const firefliesDeleteTranscriptTool: ToolConfig<
     success: {
       type: 'boolean',
       description: 'Whether the transcript was successfully deleted',
+    },
+    transcript: {
+      type: 'object',
+      description: 'The deleted transcript',
+      optional: true,
+      properties: {
+        id: { type: 'string', description: 'Transcript ID' },
+        title: { type: 'string', description: 'Meeting title' },
+        date: { type: 'number', description: 'Meeting timestamp' },
+        duration: { type: 'number', description: 'Meeting duration' },
+        host_email: { type: 'string', description: 'Host email address' },
+        organizer_email: { type: 'string', description: 'Organizer email address' },
+      },
     },
   },
 }

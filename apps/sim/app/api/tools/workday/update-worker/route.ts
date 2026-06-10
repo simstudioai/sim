@@ -38,7 +38,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         Auto_Complete: true,
         Run_Now: true,
       },
-      Change_Personal_Information_Data: {
+      Change_Personal_Information_Business_Process_Data: {
         Person_Reference: wdRef('Employee_ID', data.workerId),
         Personal_Information_Data: data.fields,
       },

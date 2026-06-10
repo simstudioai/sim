@@ -84,16 +84,16 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.replace(/\/$/, '')
+      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
       if (!baseUrl) {
         throw new Error('ServiceNow instance URL is required')
       }
-      let url = `${baseUrl}/api/now/table/${params.tableName}`
+      let url = `${baseUrl}/api/now/table/${params.tableName.trim()}`
 
       const queryParams = new URLSearchParams()
 
       if (params.sysId) {
-        url = `${url}/${params.sysId}`
+        url = `${url}/${params.sysId.trim()}`
       } else if (params.number) {
         const numberQuery = `number=${params.number}`
         const existingQuery = params.query
