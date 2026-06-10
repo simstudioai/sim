@@ -39,18 +39,6 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
       visibility: 'user-or-llm',
       description: 'Whether to include archived links (defaults to false)',
     },
-    sortBy: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Sort by field: createdAt, clicks, saleAmount, or lastClicked',
-    },
-    sortOrder: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Sort order: asc or desc',
-    },
     page: {
       type: 'number',
       required: false,
@@ -73,8 +61,6 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
       if (params.tagIds) url.searchParams.set('tagIds', params.tagIds)
       if (params.showArchived !== undefined)
         url.searchParams.set('showArchived', String(params.showArchived))
-      if (params.sortBy) url.searchParams.set('sortBy', params.sortBy)
-      if (params.sortOrder) url.searchParams.set('sortOrder', params.sortOrder)
       if (params.page) url.searchParams.set('page', String(params.page))
       if (params.pageSize) url.searchParams.set('pageSize', String(params.pageSize))
       return url.toString()

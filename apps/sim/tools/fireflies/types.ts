@@ -229,6 +229,14 @@ export interface FirefliesUploadAudioResponse extends ToolResponse {
 export interface FirefliesDeleteTranscriptResponse extends ToolResponse {
   output: {
     success?: boolean
+    transcript?: {
+      id: string
+      title: string | null
+      date: number | null
+      duration: number | null
+      host_email: string | null
+      organizer_email: string | null
+    }
   }
 }
 

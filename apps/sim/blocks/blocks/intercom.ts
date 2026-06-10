@@ -15,7 +15,7 @@ export const IntercomBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.Support,
-  bgColor: '#1F8DED',
+  bgColor: '#FFFFFF',
   icon: IntercomIcon,
   subBlocks: [
     {
