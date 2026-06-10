@@ -9,6 +9,7 @@ import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
+import { type DbExecutor, withSeqscanOff } from '@/lib/table/planner'
 import { buildFilterClause } from '@/lib/table/sql'
 import type { Filter, RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
 import {
@@ -399,6 +400,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     eq(userTableRows.tableId, dispatch.tableId),
     gt(userTableRows.position, dispatch.cursor),
   ]
+  let hasJsonbFilter = false
   if (dispatch.scope.rowIds && dispatch.scope.rowIds.length > 0) {
     filters.push(inArray(userTableRows.id, dispatch.scope.rowIds))
   } else if (dispatch.scope.filter) {
@@ -409,7 +411,10 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       USER_TABLE_ROWS_SQL_NAME,
       table.schema.columns
     )
-    if (filterClause) filters.push(filterClause)
+    if (filterClause) {
+      filters.push(filterClause)
+      hasJsonbFilter = true
+    }
   }
   // `'new'` mode targets only rows whose targeted groups haven't been
   // attempted. Exclude a row only when EVERY targeted group already has a
@@ -431,12 +436,18 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     )
   }
 
-  const chunk = await db
-    .select()
-    .from(userTableRows)
-    .where(and(...filters))
-    .orderBy(asc(userTableRows.position))
-    .limit(WINDOW_SIZE)
+  const windowQuery = (executor: DbExecutor) =>
+    executor
+      .select()
+      .from(userTableRows)
+      .where(and(...filters))
+      .orderBy(asc(userTableRows.position))
+      .limit(WINDOW_SIZE)
+  // Filtered scopes carry a jsonb predicate the planner can't estimate — left alone it
+  // seq-scans the whole shared relation per window; keep it on the tenant's position index.
+  const chunk = hasJsonbFilter
+    ? await withSeqscanOff(async (trx) => windowQuery(trx))
+    : await windowQuery(db)
 
   if (chunk.length === 0) {
     await markDispatchComplete(dispatchId)

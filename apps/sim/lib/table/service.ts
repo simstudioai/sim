@@ -44,6 +44,7 @@ import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } fr
 import { areGroupDepsSatisfied } from './deps'
 import { CSV_MAX_BATCH_SIZE } from './import'
 import { keyBetween, nKeysBetween } from './order-key'
+import { withSeqscanOff } from './planner'
 import { buildFilterClause, buildSortClause, escapeLikePattern } from './sql'
 import { fireTableTrigger } from './trigger'
 import type {
@@ -1606,20 +1607,26 @@ export async function selectRowIdPage(params: {
   limit: number
 }): Promise<string[]> {
   const { tableId, workspaceId, cutoff, filterClause, afterId, limit } = params
-  const rows = await db
-    .select({ id: userTableRows.id })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, tableId),
-        eq(userTableRows.workspaceId, workspaceId),
-        lte(userTableRows.createdAt, cutoff),
-        afterId ? gt(userTableRows.id, afterId) : undefined,
-        filterClause
+  const selectPage = (executor: typeof db | DbTransaction) =>
+    executor
+      .select({ id: userTableRows.id })
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, tableId),
+          eq(userTableRows.workspaceId, workspaceId),
+          lte(userTableRows.createdAt, cutoff),
+          afterId ? gt(userTableRows.id, afterId) : undefined,
+          filterClause
+        )
       )
-    )
-    .orderBy(asc(userTableRows.id))
-    .limit(limit)
+      .orderBy(asc(userTableRows.id))
+      .limit(limit)
+  // A jsonb filter is unestimatable, so the planner would seq-scan the whole shared relation
+  // per page (12.6s measured) — keep it on the tenant's (table_id, id) index.
+  const rows = filterClause
+    ? await withSeqscanOff(async (trx) => selectPage(trx))
+    : await selectPage(db)
   return rows.map((r) => r.id)
 }
 
@@ -2845,16 +2852,12 @@ async function pendingDeleteMask(table: TableDefinition): Promise<SQL | undefine
 }
 
 /**
- * `COUNT(*)` for a filtered view, kept inside the tenant's rows. JSONB predicates
- * (`->>` ILIKE/range casts) are opaque to the planner — it estimates a handful of
- * matches and picks a parallel seq scan over the entire shared relation (every
- * tenant's rows) instead of the table's index. `SET LOCAL enable_seqscan = off`
- * forces the tenant-bounded bitmap plan: measured 12.7s → 1.0s counting a rare
- * filter on a 1M-row table inside a 12M-row relation.
+ * `COUNT(*)` for a filtered view, kept inside the tenant's rows: measured
+ * 12.7s → 1.0s counting a rare ILIKE filter on a 1M-row table inside a 12M-row
+ * relation (see {@link withSeqscanOff} for why the planner gets this wrong).
  */
 async function countRowsTenantBounded(whereClause: SQL | undefined): Promise<number> {
-  return db.transaction(async (trx) => {
-    await trx.execute(sql`SET LOCAL enable_seqscan = off`)
+  return withSeqscanOff(async (trx) => {
     const [result] = await trx.select({ count: count() }).from(userTableRows).where(whereClause)
     return Number(result.count)
   })
@@ -2908,18 +2911,25 @@ export async function queryRows(
         )
       : whereClause
 
-  const query = db
-    .select()
-    .from(userTableRows)
-    .where(pageWhere ?? baseConditions)
-    .orderBy(buildRowOrderBySql(sort, tableName, columns))
+  const buildPageQuery = (executor: typeof db | DbTransaction) => {
+    const query = executor
+      .select()
+      .from(userTableRows)
+      .where(pageWhere ?? baseConditions)
+      .orderBy(buildRowOrderBySql(sort, tableName, columns))
+    return after ? query.limit(limit) : query.limit(limit).offset(offset)
+  }
 
   // Count and page fetch are independent reads — run them concurrently so the
   // `includeTotal` hot path doesn't pay two serial round-trips. Filtered counts
   // go through the tenant-bounded variant (see countRowsTenantBounded); the
   // unfiltered count already plans an index-only scan on the table_id prefix.
+  // Custom column sorts order by `data->>'col'` — unestimatable, so left alone
+  // the planner seq-scans and sorts the whole shared relation on every page
+  // (9.7s measured on a 1M-row table; 0.76s tenant-bounded). Default-order
+  // pages already stream the `(table_id, order_key, id)` index.
   const hasFilter = Boolean(filter && Object.keys(filter).length > 0)
-  const rowsPromise = after ? query.limit(limit) : query.limit(limit).offset(offset)
+  const rowsPromise = sort ? withSeqscanOff(async (trx) => buildPageQuery(trx)) : buildPageQuery(db)
   const countPromise = includeTotal
     ? hasFilter
       ? countRowsTenantBounded(whereClause)
@@ -3468,16 +3478,18 @@ export async function updateRowsByFilter(
     eq(userTableRows.workspaceId, table.workspaceId)
   )
 
-  let query = db
-    .select({ id: userTableRows.id, data: userTableRows.data })
-    .from(userTableRows)
-    .where(and(baseConditions, filterClause))
-
-  if (data.limit) {
-    query = query.limit(data.limit) as typeof query
-  }
-
-  const matchingRows = await query
+  // Tenant-bounded: the jsonb filter is unestimatable and otherwise sends the planner to a
+  // whole-shared-relation seq scan (14.4s measured on a 1M-row table).
+  const matchingRows = await withSeqscanOff(async (trx) => {
+    let query = trx
+      .select({ id: userTableRows.id, data: userTableRows.data })
+      .from(userTableRows)
+      .where(and(baseConditions, filterClause))
+    if (data.limit) {
+      query = query.limit(data.limit) as typeof query
+    }
+    return query
+  })
 
   if (matchingRows.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
@@ -3809,16 +3821,17 @@ export async function deleteRowsByFilter(
     eq(userTableRows.workspaceId, table.workspaceId)
   )
 
-  let query = db
-    .select({ id: userTableRows.id, position: userTableRows.position })
-    .from(userTableRows)
-    .where(and(baseConditions, filterClause))
-
-  if (data.limit) {
-    query = query.limit(data.limit) as typeof query
-  }
-
-  const matchingRows = await query
+  // Tenant-bounded for the same reason as updateRowsByFilter — see withSeqscanOff.
+  const matchingRows = await withSeqscanOff(async (trx) => {
+    let query = trx
+      .select({ id: userTableRows.id, position: userTableRows.position })
+      .from(userTableRows)
+      .where(and(baseConditions, filterClause))
+    if (data.limit) {
+      query = query.limit(data.limit) as typeof query
+    }
+    return query
+  })
 
   if (matchingRows.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
