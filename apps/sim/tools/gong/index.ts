@@ -1,6 +1,8 @@
 import { aggregateActivityTool } from '@/tools/gong/aggregate_activity'
+import { aggregateByPeriodTool } from '@/tools/gong/aggregate_by_period'
 import { answeredScorecardsTool } from '@/tools/gong/answered_scorecards'
 import { createCallTool } from '@/tools/gong/create_call'
+import { dayByDayActivityTool } from '@/tools/gong/day_by_day_activity'
 import { getCallTool } from '@/tools/gong/get_call'
 import { getCallTranscriptTool } from '@/tools/gong/get_call_transcript'
 import { getCoachingTool } from '@/tools/gong/get_coaching'
@@ -26,6 +28,8 @@ export const gongGetExtensiveCallsTool = getExtensiveCallsTool
 export const gongListUsersTool = listUsersTool
 export const gongGetUserTool = getUserTool
 export const gongAggregateActivityTool = aggregateActivityTool
+export const gongDayByDayActivityTool = dayByDayActivityTool
+export const gongAggregateByPeriodTool = aggregateByPeriodTool
 export const gongInteractionStatsTool = interactionStatsTool
 export const gongAnsweredScorecardsTool = answeredScorecardsTool
 export const gongListLibraryFoldersTool = listLibraryFoldersTool

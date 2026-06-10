@@ -14,8 +14,8 @@ interface DuckDuckGoRelatedTopic {
   Result?: string
   Icon?: {
     URL?: string
-    Height?: string
-    Width?: string
+    Height?: number | string
+    Width?: number | string
   }
 }
 
@@ -25,8 +25,8 @@ interface DuckDuckGoResult {
   Result?: string
   Icon?: {
     URL?: string
-    Height?: string
-    Width?: string
+    Height?: number | string
+    Width?: number | string
   }
 }
 
@@ -36,10 +36,14 @@ interface DuckDuckGoSearchOutput {
   abstractText: string
   abstractSource: string
   abstractURL: string
+  definition: string
+  definitionSource: string
+  definitionURL: string
   image: string
   answer: string
   answerType: string
   type: string
+  redirect: string
   relatedTopics: DuckDuckGoRelatedTopic[]
   results: DuckDuckGoResult[]
 }

@@ -26,6 +26,7 @@ import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
 } from '@/lib/copilot/tools/server/files/file-preview'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
 
@@ -64,6 +65,27 @@ function toPreviewTargetKind(kind: string | undefined): FilePreviewTargetKind | 
   return kind === 'new_file' || kind === 'file_id' ? kind : undefined
 }
 
+async function resolvePreviewTarget(args: {
+  workspaceId?: string
+  target: FileIntent['target']
+}): Promise<FileIntent['target']> {
+  if (args.target.kind !== 'path' || !args.workspaceId || !args.target.path) {
+    return args.target
+  }
+
+  const file = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
+  if (!file) {
+    return args.target
+  }
+
+  return {
+    kind: 'file_id',
+    fileId: file.id,
+    fileName: args.target.fileName ?? file.name,
+    path: args.target.path,
+  }
+}
+
 function parseWorkspaceFileArgs(value: unknown): ParsedWorkspaceFileArgs | undefined {
   const args = asJsonRecord(value)
   if (!args) {
@@ -79,6 +101,7 @@ function parseWorkspaceFileArgs(value: unknown): ParsedWorkspaceFileArgs | undef
 
   const fileId = typeof target.fileId === 'string' ? target.fileId : undefined
   const fileName = typeof target.fileName === 'string' ? target.fileName : undefined
+  const path = typeof target.path === 'string' ? target.path : undefined
   const title = typeof args.title === 'string' ? args.title : undefined
   const contentType = typeof args.contentType === 'string' ? args.contentType : undefined
   const edit = asJsonRecord(args.edit)
@@ -89,11 +112,47 @@ function parseWorkspaceFileArgs(value: unknown): ParsedWorkspaceFileArgs | undef
       kind: targetKind,
       ...(fileId ? { fileId } : {}),
       ...(fileName ? { fileName } : {}),
+      ...(path ? { path } : {}),
     },
     ...(title ? { title } : {}),
     ...(contentType ? { contentType } : {}),
     ...(edit ? { edit } : {}),
   }
+}
+
+function extractWorkspaceFileResult(output: unknown): { fileId?: string; fileName?: string } {
+  const candidates: JsonRecord[] = []
+  const root = asJsonRecord(output)
+  if (root) {
+    candidates.push(root)
+    const rootData = asJsonRecord(root.data)
+    if (rootData) candidates.push(rootData)
+    const rootOutput = asJsonRecord(root.output)
+    if (rootOutput) {
+      candidates.push(rootOutput)
+      const outputData = asJsonRecord(rootOutput.data)
+      if (outputData) candidates.push(outputData)
+    }
+  }
+
+  for (const candidate of candidates) {
+    const fileId =
+      typeof candidate.id === 'string'
+        ? candidate.id
+        : typeof candidate.fileId === 'string'
+          ? candidate.fileId
+          : undefined
+    if (!fileId) continue
+
+    const fileName =
+      typeof candidate.name === 'string'
+        ? candidate.name
+        : typeof candidate.fileName === 'string'
+          ? candidate.fileName
+          : undefined
+    return { fileId, fileName }
+  }
+  return {}
 }
 
 export function decodeJsonStringPrefix(input: string): string {
@@ -293,7 +352,11 @@ export async function processFilePreviewStreamEvent(input: {
     const toolCallId = streamEvent.payload.toolCallId
     const parsedArgs = parseWorkspaceFileArgs(streamEvent.payload.arguments)
     if (toolCallId && parsedArgs) {
-      const { operation, target, title, contentType, edit } = parsedArgs
+      const { operation, title, contentType, edit } = parsedArgs
+      const target = await resolvePreviewTarget({
+        workspaceId: execContext.workspaceId,
+        target: parsedArgs.target,
+      })
       const previewTargetKind = toPreviewTargetKind(target.kind)
       const { fileId, fileName } = target
 
@@ -380,6 +443,75 @@ export async function processFilePreviewStreamEvent(input: {
             edit,
           })
         }
+      }
+    }
+  }
+
+  if (
+    isToolResultStreamEvent(streamEvent) &&
+    streamEvent.payload.toolName === 'workspace_file' &&
+    context.activeFileIntent &&
+    isContentOperation(context.activeFileIntent.operation)
+  ) {
+    const result = extractWorkspaceFileResult(streamEvent.payload.output)
+    if (result.fileId && context.activeFileIntent.target.kind === 'path') {
+      context.activeFileIntent = {
+        ...context.activeFileIntent,
+        target: {
+          kind: 'file_id',
+          fileId: result.fileId,
+          fileName: result.fileName ?? context.activeFileIntent.target.fileName,
+          path: context.activeFileIntent.target.path,
+        },
+      }
+
+      let previewBaseContent: string | undefined
+      if (
+        execContext.workspaceId &&
+        (context.activeFileIntent.operation === 'append' ||
+          context.activeFileIntent.operation === 'patch')
+      ) {
+        previewBaseContent = await loadWorkspaceFileTextForPreview(
+          execContext.workspaceId,
+          result.fileId
+        )
+      }
+
+      let session = buildPreviewSessionFromIntent(streamId, context.activeFileIntent)
+      if (previewBaseContent !== undefined) {
+        session = { ...session, baseContent: previewBaseContent }
+      }
+      filePreviewState.set(context.activeFileIntent.toolCallId, {
+        session,
+        lastEmittedPreviewText: '',
+        lastSnapshotAt: 0,
+      })
+      await persistFilePreviewSession(session)
+
+      await emitPreviewEvent(streamEvent, options, {
+        toolCallId: context.activeFileIntent.toolCallId,
+        toolName: 'workspace_file',
+        previewPhase: 'file_preview_start',
+      })
+      await emitPreviewEvent(streamEvent, options, {
+        toolCallId: context.activeFileIntent.toolCallId,
+        toolName: 'workspace_file',
+        previewPhase: 'file_preview_target',
+        operation: context.activeFileIntent.operation,
+        target: {
+          kind: 'file_id',
+          fileId: result.fileId,
+          ...(result.fileName ? { fileName: result.fileName } : {}),
+        },
+        ...(context.activeFileIntent.title ? { title: context.activeFileIntent.title } : {}),
+      })
+      if (context.activeFileIntent.edit) {
+        await emitPreviewEvent(streamEvent, options, {
+          toolCallId: context.activeFileIntent.toolCallId,
+          toolName: 'workspace_file',
+          previewPhase: 'file_preview_edit_meta',
+          edit: context.activeFileIntent.edit,
+        })
       }
     }
   }

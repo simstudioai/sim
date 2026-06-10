@@ -79,10 +79,49 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
   },
 
   outputs: {
-    response: {
-      type: 'json',
-      description:
-        'PageSpeed analysis results including category scores (performanceScore, accessibilityScore, bestPracticesScore, seoScore), Core Web Vitals display values and numeric values (firstContentfulPaint, largestContentfulPaint, totalBlockingTime, cumulativeLayoutShift, speedIndex, interactive), and metadata (finalUrl, overallCategory, analysisTimestamp, lighthouseVersion)',
+    finalUrl: { type: 'string', description: 'The final URL after redirects' },
+    performanceScore: { type: 'number', description: 'Performance category score (0-1)' },
+    accessibilityScore: { type: 'number', description: 'Accessibility category score (0-1)' },
+    bestPracticesScore: { type: 'number', description: 'Best Practices category score (0-1)' },
+    seoScore: { type: 'number', description: 'SEO category score (0-1)' },
+    firstContentfulPaint: {
+      type: 'string',
+      description: 'Time to First Contentful Paint (display value)',
+    },
+    firstContentfulPaintMs: {
+      type: 'number',
+      description: 'Time to First Contentful Paint in milliseconds',
+    },
+    largestContentfulPaint: {
+      type: 'string',
+      description: 'Time to Largest Contentful Paint (display value)',
+    },
+    largestContentfulPaintMs: {
+      type: 'number',
+      description: 'Time to Largest Contentful Paint in milliseconds',
+    },
+    totalBlockingTime: { type: 'string', description: 'Total Blocking Time (display value)' },
+    totalBlockingTimeMs: { type: 'number', description: 'Total Blocking Time in milliseconds' },
+    cumulativeLayoutShift: {
+      type: 'string',
+      description: 'Cumulative Layout Shift (display value)',
+    },
+    cumulativeLayoutShiftValue: {
+      type: 'number',
+      description: 'Cumulative Layout Shift numeric value',
+    },
+    speedIndex: { type: 'string', description: 'Speed Index (display value)' },
+    speedIndexMs: { type: 'number', description: 'Speed Index in milliseconds' },
+    interactive: { type: 'string', description: 'Time to Interactive (display value)' },
+    interactiveMs: { type: 'number', description: 'Time to Interactive in milliseconds' },
+    overallCategory: {
+      type: 'string',
+      description: 'Overall loading experience category (FAST, AVERAGE, SLOW, or NONE)',
+    },
+    analysisTimestamp: { type: 'string', description: 'UTC timestamp of the analysis' },
+    lighthouseVersion: {
+      type: 'string',
+      description: 'Version of Lighthouse used for the analysis',
     },
   },
 }

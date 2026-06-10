@@ -29,6 +29,7 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
         { label: 'Get Project', id: 'sentry_projects_get' },
         { label: 'Create Project', id: 'sentry_projects_create' },
         { label: 'Update Project', id: 'sentry_projects_update' },
+        { label: 'List Teams', id: 'sentry_teams_list' },
         { label: 'List Events', id: 'sentry_events_list' },
         { label: 'Get Event', id: 'sentry_events_get' },
         { label: 'List Releases', id: 'sentry_releases_list' },
@@ -38,15 +39,13 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
       value: () => 'sentry_issues_list',
     },
 
-    // =====================================================================
-    // LIST ISSUES
-    // =====================================================================
     {
       id: 'projectSlug',
-      title: 'Project Slug',
+      title: 'Project ID',
       type: 'short-input',
-      placeholder: 'Filter by project (optional)',
+      placeholder: 'Numeric project ID (optional)',
       condition: { field: 'operation', value: 'sentry_issues_list' },
+      mode: 'advanced',
     },
     {
       id: 'query',
@@ -63,7 +62,7 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
 
 ### GUIDELINES
 - Use Sentry search syntax
-- Common filters: is:unresolved, is:resolved, is:ignored, level:error, level:warning
+- Common filters: is:unresolved, is:resolved, is:archived, level:error, level:warning
 - Time-based: firstSeen:, lastSeen:, age:
 - Assignment: assigned:, assigned_to_team:, bookmarks:
 - Tags: tags[key]:value, browser:, os:, device:
@@ -78,20 +77,6 @@ Return ONLY the search query.`,
       },
     },
     {
-      id: 'statsPeriod',
-      title: 'Stats Period',
-      type: 'short-input',
-      placeholder: '24h, 7d, 30d',
-      condition: { field: 'operation', value: 'sentry_issues_list' },
-    },
-    {
-      id: 'limit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: '25',
-      condition: { field: 'operation', value: 'sentry_issues_list' },
-    },
-    {
       id: 'status',
       title: 'Status',
       type: 'dropdown',
@@ -99,11 +84,26 @@ Return ONLY the search query.`,
         { label: 'All', id: '' },
         { label: 'Unresolved', id: 'unresolved' },
         { label: 'Resolved', id: 'resolved' },
-        { label: 'Ignored', id: 'ignored' },
-        { label: 'Muted', id: 'muted' },
+        { label: 'Archived', id: 'ignored' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'sentry_issues_list' },
+    },
+    {
+      id: 'statsPeriod',
+      title: 'Stats Period',
+      type: 'short-input',
+      placeholder: '24h, 7d, 30d',
+      condition: { field: 'operation', value: 'sentry_issues_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'sentry_issues_list' },
+      mode: 'advanced',
     },
     {
       id: 'sort',
@@ -112,17 +112,15 @@ Return ONLY the search query.`,
       options: [
         { label: 'Date', id: 'date' },
         { label: 'New', id: 'new' },
+        { label: 'Trends', id: 'trends' },
         { label: 'Frequency', id: 'freq' },
-        { label: 'Priority', id: 'priority' },
         { label: 'User Count', id: 'user' },
       ],
       value: () => 'date',
       condition: { field: 'operation', value: 'sentry_issues_list' },
+      mode: 'advanced',
     },
 
-    // =====================================================================
-    // GET ISSUE
-    // =====================================================================
     {
       id: 'issueId',
       title: 'Issue ID',
@@ -132,9 +130,6 @@ Return ONLY the search query.`,
       required: true,
     },
 
-    // =====================================================================
-    // UPDATE ISSUE
-    // =====================================================================
     {
       id: 'issueId',
       title: 'Issue ID',
@@ -161,7 +156,7 @@ Return ONLY the search query.`,
       id: 'assignedTo',
       title: 'Assign To',
       type: 'short-input',
-      placeholder: 'User ID or email (empty to unassign)',
+      placeholder: 'user:<id>, team:<id>, or email (empty to unassign)',
       condition: { field: 'operation', value: 'sentry_issues_update' },
     },
     {
@@ -169,28 +164,25 @@ Return ONLY the search query.`,
       title: 'Bookmark Issue',
       type: 'switch',
       condition: { field: 'operation', value: 'sentry_issues_update' },
+      mode: 'advanced',
     },
     {
       id: 'isSubscribed',
       title: 'Subscribe to Updates',
       type: 'switch',
       condition: { field: 'operation', value: 'sentry_issues_update' },
+      mode: 'advanced',
     },
 
-    // =====================================================================
-    // LIST PROJECTS
-    // =====================================================================
     {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
       placeholder: '25',
       condition: { field: 'operation', value: 'sentry_projects_list' },
+      mode: 'advanced',
     },
 
-    // =====================================================================
-    // GET PROJECT
-    // =====================================================================
     {
       id: 'projectSlug',
       title: 'Project ID or Slug',
@@ -200,9 +192,6 @@ Return ONLY the search query.`,
       required: true,
     },
 
-    // =====================================================================
-    // CREATE PROJECT
-    // =====================================================================
     {
       id: 'name',
       title: 'Project Name',
@@ -220,13 +209,6 @@ Return ONLY the search query.`,
       required: true,
     },
     {
-      id: 'slug',
-      title: 'Project Slug',
-      type: 'short-input',
-      placeholder: 'Auto-generated if not provided',
-      condition: { field: 'operation', value: 'sentry_projects_create' },
-    },
-    {
       id: 'platform',
       title: 'Platform',
       type: 'short-input',
@@ -234,15 +216,21 @@ Return ONLY the search query.`,
       condition: { field: 'operation', value: 'sentry_projects_create' },
     },
     {
+      id: 'slug',
+      title: 'Project Slug',
+      type: 'short-input',
+      placeholder: 'Auto-generated if not provided',
+      condition: { field: 'operation', value: 'sentry_projects_create' },
+      mode: 'advanced',
+    },
+    {
       id: 'defaultRules',
       title: 'Create Default Alert Rules',
       type: 'switch',
       condition: { field: 'operation', value: 'sentry_projects_create' },
+      mode: 'advanced',
     },
 
-    // =====================================================================
-    // UPDATE PROJECT
-    // =====================================================================
     {
       id: 'projectSlug',
       title: 'Project Slug',
@@ -264,6 +252,7 @@ Return ONLY the search query.`,
       type: 'short-input',
       placeholder: 'Leave empty to keep current slug',
       condition: { field: 'operation', value: 'sentry_projects_update' },
+      mode: 'advanced',
     },
     {
       id: 'platform',
@@ -271,17 +260,32 @@ Return ONLY the search query.`,
       type: 'short-input',
       placeholder: 'Leave empty to keep current platform',
       condition: { field: 'operation', value: 'sentry_projects_update' },
+      mode: 'advanced',
     },
     {
       id: 'isBookmarked',
       title: 'Bookmark Project',
       type: 'switch',
       condition: { field: 'operation', value: 'sentry_projects_update' },
+      mode: 'advanced',
     },
 
-    // =====================================================================
-    // LIST EVENTS
-    // =====================================================================
+    {
+      id: 'query',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Filter teams by name or slug (optional)',
+      condition: { field: 'operation', value: 'sentry_teams_list' },
+    },
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'sentry_teams_list' },
+      mode: 'advanced',
+    },
+
     {
       id: 'projectSlug',
       title: 'Project Slug',
@@ -331,6 +335,7 @@ Return ONLY the search query.`,
       type: 'short-input',
       placeholder: '50',
       condition: { field: 'operation', value: 'sentry_events_list' },
+      mode: 'advanced',
     },
     {
       id: 'statsPeriod',
@@ -338,11 +343,9 @@ Return ONLY the search query.`,
       type: 'short-input',
       placeholder: '24h, 7d, 30d, 90d',
       condition: { field: 'operation', value: 'sentry_events_list' },
+      mode: 'advanced',
     },
 
-    // =====================================================================
-    // GET EVENT
-    // =====================================================================
     {
       id: 'projectSlug',
       title: 'Project Slug',
@@ -360,15 +363,13 @@ Return ONLY the search query.`,
       required: true,
     },
 
-    // =====================================================================
-    // LIST RELEASES
-    // =====================================================================
     {
       id: 'projectSlug',
-      title: 'Project Slug',
+      title: 'Project ID',
       type: 'short-input',
-      placeholder: 'Filter by project (optional)',
+      placeholder: 'Numeric project ID (optional)',
       condition: { field: 'operation', value: 'sentry_releases_list' },
+      mode: 'advanced',
     },
     {
       id: 'query',
@@ -402,11 +403,9 @@ Return ONLY the search query.`,
       type: 'short-input',
       placeholder: '25',
       condition: { field: 'operation', value: 'sentry_releases_list' },
+      mode: 'advanced',
     },
 
-    // =====================================================================
-    // CREATE RELEASE
-    // =====================================================================
     {
       id: 'version',
       title: 'Version',
@@ -429,6 +428,7 @@ Return ONLY the search query.`,
       type: 'short-input',
       placeholder: 'Commit SHA, tag, or branch',
       condition: { field: 'operation', value: 'sentry_releases_create' },
+      mode: 'advanced',
     },
     {
       id: 'url',
@@ -436,6 +436,7 @@ Return ONLY the search query.`,
       type: 'long-input',
       placeholder: 'URL to release page (e.g., GitHub release)',
       condition: { field: 'operation', value: 'sentry_releases_create' },
+      mode: 'advanced',
     },
     {
       id: 'dateReleased',
@@ -443,6 +444,7 @@ Return ONLY the search query.`,
       type: 'short-input',
       placeholder: 'ISO 8601 timestamp (defaults to now)',
       condition: { field: 'operation', value: 'sentry_releases_create' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -464,6 +466,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'long-input',
       placeholder: '[{"id":"abc123","message":"Fix bug"}]',
       condition: { field: 'operation', value: 'sentry_releases_create' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a JSON array of commits for a Sentry release based on the user's description.
@@ -492,9 +495,6 @@ Return ONLY the JSON array.`,
       },
     },
 
-    // =====================================================================
-    // CREATE DEPLOY
-    // =====================================================================
     {
       id: 'version',
       title: 'Version',
@@ -517,6 +517,7 @@ Return ONLY the JSON array.`,
       type: 'short-input',
       placeholder: 'Optional deploy name',
       condition: { field: 'operation', value: 'sentry_releases_deploy' },
+      mode: 'advanced',
     },
     {
       id: 'url',
@@ -524,6 +525,7 @@ Return ONLY the JSON array.`,
       type: 'long-input',
       placeholder: 'URL to CI/CD pipeline or deploy',
       condition: { field: 'operation', value: 'sentry_releases_deploy' },
+      mode: 'advanced',
     },
     {
       id: 'dateStarted',
@@ -531,6 +533,7 @@ Return ONLY the JSON array.`,
       type: 'short-input',
       placeholder: 'ISO 8601 timestamp (defaults to now)',
       condition: { field: 'operation', value: 'sentry_releases_deploy' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -552,6 +555,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'ISO 8601 timestamp',
       condition: { field: 'operation', value: 'sentry_releases_deploy' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -568,9 +572,24 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // =====================================================================
-    // COMMON PARAMETERS
-    // =====================================================================
+    {
+      id: 'cursor',
+      title: 'Pagination Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor from a previous response (nextCursor)',
+      condition: {
+        field: 'operation',
+        value: [
+          'sentry_issues_list',
+          'sentry_projects_list',
+          'sentry_events_list',
+          'sentry_releases_list',
+          'sentry_teams_list',
+        ],
+      },
+      mode: 'advanced',
+    },
+
     {
       id: 'apiKey',
       title: 'API Key',
@@ -601,10 +620,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'sentry_releases_list',
       'sentry_releases_create',
       'sentry_releases_deploy',
+      'sentry_teams_list',
     ],
     config: {
       tool: (params) => {
-        // Return the appropriate tool based on operation
         switch (params.operation) {
           case 'sentry_issues_list':
             return 'sentry_issues_list'
@@ -630,6 +649,8 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
             return 'sentry_releases_create'
           case 'sentry_releases_deploy':
             return 'sentry_releases_deploy'
+          case 'sentry_teams_list':
+            return 'sentry_teams_list'
           default:
             return 'sentry_issues_list'
         }
@@ -645,21 +666,17 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Sentry API authentication token' },
     organizationSlug: { type: 'string', description: 'Organization slug' },
-    // Issue fields
     issueId: { type: 'string', description: 'Issue ID' },
     assignedTo: { type: 'string', description: 'User to assign issue to' },
     isBookmarked: { type: 'boolean', description: 'Bookmark state' },
     isSubscribed: { type: 'boolean', description: 'Subscription state' },
-    // Project fields
     projectSlug: { type: 'string', description: 'Project slug' },
     name: { type: 'string', description: 'Project or deploy name' },
     teamSlug: { type: 'string', description: 'Team slug' },
     slug: { type: 'string', description: 'Project slug for creation/update' },
     platform: { type: 'string', description: 'Platform/language' },
     defaultRules: { type: 'boolean', description: 'Create default alert rules' },
-    // Event fields
     eventId: { type: 'string', description: 'Event ID' },
-    // Release fields
     version: { type: 'string', description: 'Release version' },
     projects: { type: 'string', description: 'Comma-separated project slugs' },
     ref: { type: 'string', description: 'Git reference' },
@@ -669,28 +686,27 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     environment: { type: 'string', description: 'Environment name' },
     dateStarted: { type: 'string', description: 'Deploy start time' },
     dateFinished: { type: 'string', description: 'Deploy finish time' },
-    // Common fields
     query: { type: 'string', description: 'Search query' },
     limit: { type: 'number', description: 'Result limit' },
     status: { type: 'string', description: 'Status filter' },
     sort: { type: 'string', description: 'Sort order' },
     statsPeriod: { type: 'string', description: 'Statistics time period' },
+    cursor: { type: 'string', description: 'Pagination cursor' },
   },
   outputs: {
-    // Issue outputs
     issues: { type: 'json', description: 'List of issues' },
     issue: { type: 'json', description: 'Single issue details' },
-    // Project outputs
     projects: { type: 'json', description: 'List of projects' },
     project: { type: 'json', description: 'Single project details' },
-    // Event outputs
+    teams: {
+      type: 'json',
+      description: 'List of teams (id, slug, name, memberCount, projects)',
+    },
     events: { type: 'json', description: 'List of events' },
     event: { type: 'json', description: 'Single event details' },
-    // Release outputs
     releases: { type: 'json', description: 'List of releases' },
     release: { type: 'json', description: 'Single release details' },
     deploy: { type: 'json', description: 'Deploy details' },
-    // Pagination
     nextCursor: { type: 'string', description: 'Pagination cursor' },
     hasMore: { type: 'boolean', description: 'More results available' },
   },

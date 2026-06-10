@@ -1,8 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { COPILOT_STATS_API_PATH } from '@/lib/copilot/constants'
 import { stripWorkflowDiffMarkers, WorkflowDiffEngine } from '@/lib/workflows/diff'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
@@ -307,7 +305,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const afterAccept = cloneWorkflowState(stateToApply)
           const diffAnalysisForUndo = get().diffAnalysis
           const baselineForUndo = get().baselineWorkflow
-          const triggerMessageId = get()._triggerMessageId
 
           // Clear diff state FIRST to prevent flash of colors
           // This must happen synchronously before applying the cleaned state
@@ -334,28 +331,11 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             )
           }
 
-          // Background operations (fire-and-forget) - don't block
-          if (triggerMessageId) {
-            fetch(COPILOT_STATS_API_PATH, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                messageId: triggerMessageId,
-                diffCreated: true,
-                diffAccepted: true,
-              }),
-            }).catch((error) => {
-              logger.warn('Failed to send diff-accepted stats', {
-                error: toError(error).message,
-                messageId: triggerMessageId,
-              })
-            })
-          }
           notifyDiffSettled(activeWorkflowId)
         },
 
         rejectChanges: async (options) => {
-          const { baselineWorkflow, baselineWorkflowId, _triggerMessageId, diffAnalysis } = get()
+          const { baselineWorkflow, baselineWorkflowId, diffAnalysis } = get()
           const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
           if (!baselineWorkflow || !baselineWorkflowId) {
@@ -453,22 +433,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             pendingGenerationBeforePersist
           ) {
             get().clearExternalUpdatePending(baselineWorkflowId)
-          }
-          if (_triggerMessageId) {
-            fetch(COPILOT_STATS_API_PATH, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                messageId: _triggerMessageId,
-                diffCreated: true,
-                diffAccepted: false,
-              }),
-            }).catch((error) => {
-              logger.warn('Failed to send diff-rejected stats', {
-                error: toError(error).message,
-                messageId: _triggerMessageId,
-              })
-            })
           }
           get().setWorkflowReconciliationError(baselineWorkflowId, null)
           get().setWorkflowReconciliationInProgress(baselineWorkflowId, false)

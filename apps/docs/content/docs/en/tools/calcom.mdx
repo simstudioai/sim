@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="calcom"
-  color="#FFFFFE"
+  color="#292929"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -46,7 +46,6 @@ Create a new booking on Cal.com
 | `start` | string | Yes | Start time in UTC ISO 8601 format \(e.g., 2024-01-15T09:00:00Z\) |
 | `attendee` | object | Yes | Attendee information object with name, email, timeZone, and optional phoneNumber \(constructed from individual attendee fields\) |
 | `guests` | array | No | Array of guest email addresses |
-| `items` | string | No | Guest email address |
 | `lengthInMinutes` | number | No | Duration of the booking in minutes \(overrides event type default\) |
 | `metadata` | object | No | Custom metadata to attach to the booking |
 
@@ -594,11 +593,6 @@ Create a new availability schedule in Cal.com
 | `timeZone` | string | Yes | Timezone for the schedule \(e.g., America/New_York\) |
 | `isDefault` | boolean | Yes | Whether this schedule should be the default |
 | `availability` | array | No | Availability intervals for the schedule |
-| `items` | object | No | Availability interval |
-| `properties` | array | No | Days of the week \(Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday\) |
-| `days` | array | No | Days of the week \(Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday\) |
-| `startTime` | string | No | Start time in HH:MM format |
-| `endTime` | string | No | End time in HH:MM format |
 
 #### Output
 
@@ -692,11 +686,6 @@ Update an existing schedule in Cal.com
 | `timeZone` | string | No | New timezone for the schedule \(e.g., America/New_York\) |
 | `isDefault` | boolean | No | Whether this schedule should be the default |
 | `availability` | array | No | New availability intervals for the schedule |
-| `items` | object | No | Availability interval |
-| `properties` | array | No | Days of the week \(Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday\) |
-| `days` | array | No | Days of the week \(Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday\) |
-| `startTime` | string | No | Start time in HH:MM format |
-| `endTime` | string | No | End time in HH:MM format |
 
 #### Output
 

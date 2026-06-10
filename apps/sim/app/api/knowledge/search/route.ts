@@ -4,7 +4,8 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { knowledgeSearchBodySchema } from '@/lib/api/contracts/knowledge'
 import { parseJsonBody, validationErrorResponse } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -37,13 +38,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsedBody = await parseJsonBody(request)
     if (!parsedBody.success) return parsedBody.response
     const body = parsedBody.data as Record<string, unknown>
-    const { workflowId, ...searchParams } = body
+    const { workflowId, skipUsageBilling, ...searchParams } = body
 
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const userId = auth.userId
+
+    // Only the internal workflow tool may suppress route metering (it rolls the
+    // cost into the executor's usage instead). Session/API-key callers cannot set
+    // skipUsageBilling to dodge their own embedding/reranker charge.
+    const shouldMeter = !(skipUsageBilling === true && auth.authType === AuthType.INTERNAL_JWT)
 
     if (workflowId) {
       const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -219,6 +225,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    // Gate the actor before incurring hosted embedding cost, unless this is the
+    // internal workflow tool (already gated at preprocessing, rolls cost up). Tag-only
+    // search is free, so only the query path is gated.
+    if (shouldMeter && hasQuery) {
+      const usage = await checkActorUsageLimits(userId, workspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
+          { status: 402 }
+        )
+      }
+    }
+
     const queryEmbeddingPromise = hasQuery
       ? generateSearchEmbedding(validatedData.query!, queryEmbeddingModel, workspaceId)
       : Promise.resolve(null)
@@ -273,7 +292,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } else if (hasQuery && hasFilters) {
       logger.debug(`[${requestId}] Executing tag + vector search with filters:`, structuredFilters)
       const strategy = getQueryStrategy(accessibleKbIds.length, candidateTopK)
-      const queryVector = JSON.stringify(await queryEmbeddingPromise)
+      const queryVector = JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null)
 
       results = await handleTagAndVectorSearch({
         knowledgeBaseIds: accessibleKbIds,
@@ -284,7 +303,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     } else if (hasQuery && !hasFilters) {
       const strategy = getQueryStrategy(accessibleKbIds.length, candidateTopK)
-      const queryVector = JSON.stringify(await queryEmbeddingPromise)
+      const queryVector = JSON.stringify((await queryEmbeddingPromise)?.embedding ?? null)
 
       results = await handleVectorOnlySearch({
         knowledgeBaseIds: accessibleKbIds,
@@ -359,7 +378,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           validatedData.query!,
           getEmbeddingModelInfo(queryEmbeddingModel).tokenizerProvider
         )
-        cost = calculateCost(queryEmbeddingModel, tokenCount.count, 0, false)
+        // BYOK query embeddings incur no Sim cost, so don't bill (or roll up) them.
+        const queryEmbeddingResult = await queryEmbeddingPromise
+        if (!queryEmbeddingResult?.isBYOK) {
+          cost = calculateCost(queryEmbeddingModel, tokenCount.count, 0, false)
+        }
       } catch (error) {
         logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
           error: getErrorMessage(error, 'Unknown error'),
@@ -391,6 +414,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       } else {
         logger.warn(`[${requestId}] No pricing entry for rerank model ${rerankerModel}`)
       }
+    }
+
+    // Record query-embedding + reranker cost for standalone callers (UI, copilot,
+    // guardrail RAG). The workflow tool sets skipUsageBilling and rolls the cost
+    // up via the executor instead, so this never double-bills; BYOK already
+    // resolved to 0 above.
+    if (shouldMeter && workspaceId && cost && cost.total > 0) {
+      const { recordUsage } = await import('@/lib/billing/core/usage-log')
+      await recordUsage({
+        userId,
+        workspaceId,
+        entries: [
+          {
+            category: 'model',
+            source: 'knowledge-base',
+            description: queryEmbeddingModel,
+            cost: cost.total,
+            sourceReference: `kb-search:${requestId}`,
+          },
+        ],
+      }).catch((billingError) => {
+        logger.error(`[${requestId}] Failed to record KB search usage`, { error: billingError })
+      })
     }
 
     const tagDefsResults = await Promise.all(

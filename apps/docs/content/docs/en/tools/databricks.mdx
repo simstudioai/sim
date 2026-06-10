@@ -64,6 +64,61 @@ Execute a SQL statement against a Databricks SQL warehouse and return results in
 | `totalRows` | number | Total number of rows in the result |
 | `truncated` | boolean | Whether the result set was truncated due to row_limit or byte_limit |
 
+### `databricks_get_statement`
+
+Poll a SQL statement by its ID to retrieve status and results. Use this after Execute SQL when a query runs longer than the wait timeout.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `statementId` | string | Yes | The ID of the statement to fetch \(returned by Execute SQL\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementId` | string | Unique identifier for the statement |
+| `status` | string | Execution status \(SUCCEEDED, PENDING, RUNNING, FAILED, CANCELED, CLOSED\) |
+| `columns` | array | Column schema of the result set |
+|   ↳ `name` | string | Column name |
+|   ↳ `position` | number | Column position \(0-based\) |
+|   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
+| `data` | array | Result rows as a 2D array of strings where each inner array is a row of column values |
+| `totalRows` | number | Total number of rows in the result |
+| `truncated` | boolean | Whether the result set was truncated due to row_limit or byte_limit |
+
+### `databricks_list_warehouses`
+
+List all SQL warehouses in a Databricks workspace including their size, state, and type. Use this to discover the warehouse ID needed for Execute SQL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `warehouses` | array | List of SQL warehouses in the workspace |
+|   ↳ `warehouseId` | string | Unique warehouse identifier |
+|   ↳ `name` | string | Warehouse display name |
+|   ↳ `clusterSize` | string | Warehouse size \(e.g., 2X-Small, Small, Medium, Large\) |
+|   ↳ `state` | string | Current state \(STARTING, RUNNING, STOPPING, STOPPED, DELETING, DELETED\) |
+|   ↳ `warehouseType` | string | Warehouse type \(CLASSIC, PRO\) |
+|   ↳ `creatorName` | string | Email of the warehouse creator |
+|   ↳ `autoStopMinutes` | number | Minutes of inactivity before auto-stop \(0 = disabled\) |
+|   ↳ `numClusters` | number | Current number of running clusters |
+|   ↳ `minNumClusters` | number | Minimum cluster count for scaling |
+|   ↳ `maxNumClusters` | number | Maximum cluster count for scaling |
+|   ↳ `numActiveSessions` | number | Number of active sessions |
+|   ↳ `enableServerlessCompute` | boolean | Whether serverless compute is enabled |
+
 ### `databricks_list_jobs`
 
 List all jobs in a Databricks workspace with optional filtering by name.
@@ -92,6 +147,34 @@ List all jobs in a Databricks workspace with optional filtering by name.
 |   ↳ `format` | string | Job format \(SINGLE_TASK or MULTI_TASK\) |
 | `hasMore` | boolean | Whether more jobs are available for pagination |
 | `nextPageToken` | string | Token for fetching the next page of results |
+
+### `databricks_get_job`
+
+Get the full definition and settings of a single Databricks job by its job ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `jobId` | number | Yes | The canonical identifier of the job to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | number | The job ID |
+| `name` | string | Job name |
+| `creatorUserName` | string | Email of the job creator |
+| `runAsUserName` | string | User the job runs as |
+| `createdTime` | number | Job creation timestamp \(epoch ms\) |
+| `format` | string | Job format \(SINGLE_TASK or MULTI_TASK\) |
+| `maxConcurrentRuns` | number | Maximum number of concurrent runs |
+| `timeoutSeconds` | number | Job-level timeout in seconds \(0 or null means no timeout\) |
+| `schedule` | object | Cron schedule configuration \(quartz_cron_expression, timezone_id, pause_status\) |
+| `tags` | object | Key-value tags applied to the job |
+| `tasks` | array | Task definitions for the job \(empty for single-task jobs\) |
 
 ### `databricks_run_job`
 
@@ -248,6 +331,39 @@ List all clusters in a Databricks workspace including their state, configuration
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `clusters` | array | List of clusters in the workspace |
+|   ↳ `clusterId` | string | Unique cluster identifier |
+|   ↳ `clusterName` | string | Cluster display name |
+|   ↳ `state` | string | Current state \(PENDING, RUNNING, RESTARTING, RESIZING, TERMINATING, TERMINATED, ERROR, UNKNOWN\) |
+|   ↳ `stateMessage` | string | Human-readable state description |
+|   ↳ `creatorUserName` | string | Email of the cluster creator |
+|   ↳ `sparkVersion` | string | Spark runtime version \(e.g., 13.3.x-scala2.12\) |
+|   ↳ `nodeTypeId` | string | Worker node type identifier |
+|   ↳ `driverNodeTypeId` | string | Driver node type identifier |
+|   ↳ `numWorkers` | number | Number of worker nodes \(for fixed-size clusters\) |
+|   ↳ `autoscale` | object | Autoscaling configuration \(null for fixed-size clusters\) |
+|     ↳ `minWorkers` | number | Minimum number of workers |
+|     ↳ `maxWorkers` | number | Maximum number of workers |
+|   ↳ `clusterSource` | string | Origin \(API, UI, JOB, MODELS, PIPELINE, PIPELINE_MAINTENANCE, SQL\) |
+|   ↳ `autoterminationMinutes` | number | Minutes of inactivity before auto-termination \(0 = disabled\) |
+|   ↳ `startTime` | number | Cluster start timestamp \(epoch ms\) |
+
+### `databricks_get_cluster`
+
+Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
+| `apiKey` | string | Yes | Databricks Personal Access Token |
+| `clusterId` | string | Yes | The ID of the cluster to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cluster` | object | Cluster detail |
 |   ↳ `clusterId` | string | Unique cluster identifier |
 |   ↳ `clusterName` | string | Cluster display name |
 |   ↳ `state` | string | Current state \(PENDING, RUNNING, RESTARTING, RESIZING, TERMINATING, TERMINATED, ERROR, UNKNOWN\) |

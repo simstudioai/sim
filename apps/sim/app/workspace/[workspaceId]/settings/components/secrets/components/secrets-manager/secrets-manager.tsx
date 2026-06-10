@@ -181,7 +181,7 @@ function WorkspaceVariableRow({
   return (
     <div className='contents'>
       <ChipInput
-        className={cn(!canRename && 'cursor-not-allowed opacity-50')}
+        className={cn(!canRename && 'cursor-text')}
         value={renamingKey === envKey ? pendingKeyValue : envKey}
         onChange={(e) => {
           if (renamingKey !== envKey) onRenameStart(envKey)
@@ -205,7 +205,6 @@ function WorkspaceVariableRow({
         name={`workspace_env_value_${envKey}_${generateShortId()}`}
       />
       <Chip
-        variant='ghost'
         onClick={() => onViewDetails(envKey)}
         disabled={!hasCredential}
         className={cn('ml-2', !hasCredential && 'opacity-40')}

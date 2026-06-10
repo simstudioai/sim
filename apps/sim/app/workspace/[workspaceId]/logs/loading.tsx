@@ -1,71 +1,39 @@
-import { Skeleton } from '@/components/emcn'
+'use client'
 
-const SKELETON_ROW_COUNT = 5
-const COLUMN_COUNT = 6
+import { Bell, Library, RefreshCw } from '@/components/emcn'
+import { Download } from '@/components/emcn/icons'
+import {
+  type ChromeActionSpec,
+  ResourceChromeFallback,
+} from '@/app/workspace/[workspaceId]/components'
+
+const COLUMNS = [
+  { id: 'workflow', header: 'Workflow' },
+  { id: 'date', header: 'Date' },
+  { id: 'status', header: 'Status' },
+  { id: 'cost', header: 'Cost' },
+  { id: 'trigger', header: 'Trigger' },
+  { id: 'duration', header: 'Duration' },
+]
+
+const ACTIONS: ChromeActionSpec[] = [
+  { text: 'Export', icon: Download },
+  { text: 'Notifications', icon: Bell },
+  { text: 'Refresh', icon: RefreshCw },
+  { text: 'Logs', active: true },
+  { text: 'Dashboard' },
+]
 
 export default function LogsLoading() {
   return (
-    <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-      <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-[12px]'>
-            <Skeleton className='size-[14px] rounded-[2px]' />
-            <Skeleton className='h-[14px] w-[32px] rounded-[4px]' />
-          </div>
-          <div className='flex items-center gap-[6px]'>
-            <Skeleton className='h-[28px] w-[64px] rounded-[6px]' />
-            <Skeleton className='h-[28px] w-[96px] rounded-[6px]' />
-            <Skeleton className='size-[28px] rounded-[6px]' />
-            <Skeleton className='h-[28px] w-[56px] rounded-[6px]' />
-            <Skeleton className='h-[28px] w-[72px] rounded-[6px]' />
-          </div>
-        </div>
-      </div>
-      <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center'>
-            <Skeleton className='size-[14px] rounded-[2px]' />
-            <Skeleton className='ml-[10px] h-[14px] w-[120px] rounded-[4px]' />
-          </div>
-          <div className='flex items-center gap-[6px]'>
-            <Skeleton className='h-[28px] w-[56px] rounded-[6px]' />
-            <Skeleton className='h-[28px] w-[56px] rounded-[6px]' />
-          </div>
-        </div>
-      </div>
-      <div className='min-h-0 flex-1 overflow-auto'>
-        <table className='w-full'>
-          <thead>
-            <tr className='border-[var(--border)] border-b'>
-              <th className='w-[40px] px-[12px] py-[8px]'>
-                <Skeleton className='size-[14px] rounded-[2px]' />
-              </th>
-              {Array.from({ length: COLUMN_COUNT }).map((_, i) => (
-                <th key={i} className='px-[12px] py-[8px] text-left'>
-                  <Skeleton className='h-[12px] w-[56px] rounded-[4px]' />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: SKELETON_ROW_COUNT }).map((_, rowIndex) => (
-              <tr key={rowIndex} className='border-[var(--border)] border-b'>
-                <td className='w-[40px] px-[12px] py-[10px]'>
-                  <Skeleton className='size-[14px] rounded-[2px]' />
-                </td>
-                {Array.from({ length: COLUMN_COUNT }).map((_, colIndex) => (
-                  <td key={colIndex} className='px-[12px] py-[10px]'>
-                    <Skeleton
-                      className='h-[14px] rounded-[4px]'
-                      style={{ width: colIndex === 0 ? '128px' : '80px' }}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ResourceChromeFallback
+      icon={Library}
+      title='Logs'
+      columns={COLUMNS}
+      actions={ACTIONS}
+      searchPlaceholder='Search logs...'
+      hasSort
+      hasFilter
+    />
   )
 }

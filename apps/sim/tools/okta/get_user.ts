@@ -40,7 +40,7 @@ export const oktaGetUserTool: ToolConfig<OktaGetUserParams, OktaGetUserResponse>
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}`
+      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}`
     },
     method: 'GET',
     headers: (params) => ({

@@ -5,10 +5,10 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
-import { PDF_PAGE_SKELETON, PreviewError, resolvePreviewError } from './preview-shared'
+import { PREVIEW_LOADING_OVERLAY, PreviewError, resolvePreviewError } from './preview-shared'
 import { PreviewToolbar } from './preview-toolbar'
 import { bindPreviewWheelZoom } from './preview-wheel-zoom'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 const logger = createLogger('DocxPreview')
 
@@ -62,21 +62,15 @@ function fitDocxToContainer(host: HTMLElement, viewport: HTMLElement, zoomPercen
 export const DocxPreview = memo(function DocxPreview({
   file,
   workspaceId,
-  streamingContent,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
-  streamingContent?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const lastSuccessfulHtmlRef = useRef('')
   const zoomPercentRef = useRef(100)
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  const preview = useDocPreviewBinary(workspaceId, file)
+  const fileData = preview.data
   const [renderError, setRenderError] = useState<string | null>(null)
   const [rendering, setRendering] = useState(false)
   const [hasRenderedPreview, setHasRenderedPreview] = useState(false)
@@ -182,7 +176,7 @@ export const DocxPreview = memo(function DocxPreview({
   }, [pageCount, documentRenderVersion])
 
   useEffect(() => {
-    if (!containerRef.current || !fileData || streamingContent !== undefined) return
+    if (!containerRef.current || !fileData) return
 
     let cancelled = false
 
@@ -200,7 +194,6 @@ export const DocxPreview = memo(function DocxPreview({
         })
         if (!cancelled && containerRef.current) {
           applyPostRenderStyling()
-          lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
           setHasRenderedPreview(true)
           setDocumentRenderVersion((version) => version + 1)
         }
@@ -221,86 +214,12 @@ export const DocxPreview = memo(function DocxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData, streamingContent, applyPostRenderStyling])
+  }, [fileData, applyPostRenderStyling])
 
-  useEffect(() => {
-    if (streamingContent === undefined || !containerRef.current) return
-    if (streamingContent.trim().length === 0) return
-
-    let cancelled = false
-    const controller = new AbortController()
-
-    const debounceTimer = setTimeout(async () => {
-      const container = containerRef.current
-      if (!container || cancelled) return
-
-      const previousHtml = lastSuccessfulHtmlRef.current
-
-      try {
-        setRendering(true)
-
-        // boundary-raw-fetch: route returns binary DOCX (read via response.arrayBuffer()), not JSON
-        const response = await fetch(`/api/workspaces/${workspaceId}/docx/preview`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: streamingContent }),
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({ error: 'Preview failed' }))
-          throw new Error(err.error || 'Preview failed')
-        }
-
-        const arrayBuffer = await response.arrayBuffer()
-        if (cancelled || !containerRef.current) return
-        if (arrayBuffer.byteLength === 0) return
-
-        const { renderAsync } = await import('docx-preview')
-        if (cancelled || !containerRef.current) return
-
-        containerRef.current.innerHTML = ''
-        await renderAsync(new Uint8Array(arrayBuffer), containerRef.current, undefined, {
-          inWrapper: true,
-          ignoreWidth: false,
-          ignoreHeight: false,
-        })
-
-        if (!cancelled && containerRef.current) {
-          applyPostRenderStyling()
-          lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
-          setHasRenderedPreview(true)
-          setDocumentRenderVersion((version) => version + 1)
-        }
-      } catch (err) {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          if (containerRef.current && previousHtml) {
-            containerRef.current.innerHTML = previousHtml
-            applyPostRenderStyling()
-            setHasRenderedPreview(true)
-            setDocumentRenderVersion((version) => version + 1)
-          }
-          const msg = toError(err).message || 'Failed to render document'
-          logger.info('Transient DOCX streaming preview error (suppressed)', { error: msg })
-        }
-      } finally {
-        if (!cancelled) {
-          setRendering(false)
-        }
-      }
-    }, 500)
-
-    return () => {
-      cancelled = true
-      clearTimeout(debounceTimer)
-      controller.abort()
-    }
-  }, [streamingContent, workspaceId, applyPostRenderStyling])
-
-  const error = streamingContent !== undefined ? null : resolvePreviewError(fetchError, renderError)
+  const error = resolvePreviewError(preview.error, renderError)
   if (error) return <PreviewError label='document' error={error} />
 
-  const showSkeleton =
-    !hasRenderedPreview && (streamingContent !== undefined || isLoading || rendering)
+  const showLoadingFrame = !hasRenderedPreview && (!fileData || rendering)
 
   const scrollToPage = (page: number) => {
     const scrollContainer = scrollContainerRef.current
@@ -369,10 +288,11 @@ export const DocxPreview = memo(function DocxPreview({
         ref={scrollContainerRef}
         className='relative min-h-0 flex-1 overflow-auto bg-[var(--surface-1)]'
       >
-        {showSkeleton && (
-          <div className='absolute inset-0 z-10 bg-[var(--surface-1)]'>{PDF_PAGE_SKELETON}</div>
-        )}
-        <div ref={containerRef} className={cn('min-h-full w-full', showSkeleton && 'opacity-0')} />
+        {showLoadingFrame && PREVIEW_LOADING_OVERLAY}
+        <div
+          ref={containerRef}
+          className={cn('min-h-full w-full', showLoadingFrame && 'opacity-0')}
+        />
       </div>
     </div>
   )

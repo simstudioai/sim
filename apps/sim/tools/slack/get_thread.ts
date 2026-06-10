@@ -76,7 +76,7 @@ export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThread
     if (!data.ok) {
       if (data.error === 'missing_scope') {
         throw new Error(
-          'Missing required permissions. Please reconnect your Slack account with the necessary scopes (channels:history, groups:history).'
+          'Missing required permissions. Please reconnect your Slack account with the necessary scopes (channels:history, groups:history, im:history, mpim:history).'
         )
       }
       if (data.error === 'invalid_auth') {

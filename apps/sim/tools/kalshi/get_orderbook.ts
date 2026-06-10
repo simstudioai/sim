@@ -32,7 +32,7 @@ export const kalshiGetOrderbookTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/markets/${params.ticker}/orderbook`),
+    url: (params) => buildKalshiUrl(`/markets/${params.ticker.trim()}/orderbook`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ export const kalshiGetOrderbookV2Tool: ToolConfig<
       if (params.depth) queryParams.append('depth', params.depth.toString())
 
       const query = queryParams.toString()
-      const url = buildKalshiUrl(`/markets/${params.ticker}/orderbook`)
+      const url = buildKalshiUrl(`/markets/${params.ticker.trim()}/orderbook`)
       return query ? `${url}?${query}` : url
     },
     method: 'GET',

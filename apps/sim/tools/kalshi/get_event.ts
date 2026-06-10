@@ -42,7 +42,7 @@ export const kalshiGetEventTool: ToolConfig<KalshiGetEventParams, KalshiGetEvent
         queryParams.append('with_nested_markets', params.withNestedMarkets)
 
       const query = queryParams.toString()
-      const url = buildKalshiUrl(`/events/${params.eventTicker}`)
+      const url = buildKalshiUrl(`/events/${params.eventTicker.trim()}`)
       return query ? `${url}?${query}` : url
     },
     method: 'GET',
@@ -160,7 +160,7 @@ export const kalshiGetEventV2Tool: ToolConfig<KalshiGetEventV2Params, KalshiGetE
         queryParams.append('with_nested_markets', params.withNestedMarkets)
 
       const query = queryParams.toString()
-      const url = buildKalshiUrl(`/events/${params.eventTicker}`)
+      const url = buildKalshiUrl(`/events/${params.eventTicker.trim()}`)
       return query ? `${url}?${query}` : url
     },
     method: 'GET',

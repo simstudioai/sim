@@ -12,7 +12,7 @@ export const launchDarklyUpdateFlagTool: ToolConfig<
   id: 'launchdarkly_update_flag',
   name: 'LaunchDarkly Update Flag',
   description:
-    'Update a feature flag metadata (name, description, tags, temporary, archived) using semantic patch.',
+    'Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch.',
   version: '1.0.0',
 
   params: {
@@ -137,6 +137,7 @@ export const launchDarklyUpdateFlagTool: ToolConfig<
           tags: [],
           variations: [],
           maintainerId: null,
+          maintainerEmail: null,
         },
         error: error.message,
       }
@@ -157,6 +158,7 @@ export const launchDarklyUpdateFlagTool: ToolConfig<
         tags: data.tags ?? [],
         variations: data.variations ?? [],
         maintainerId: data.maintainerId ?? null,
+        maintainerEmail: data._maintainer?.email ?? null,
       },
     }
   },

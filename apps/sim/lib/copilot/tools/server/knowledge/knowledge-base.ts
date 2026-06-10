@@ -5,6 +5,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -22,6 +23,7 @@ import {
   EMBEDDING_DIMENSIONS,
   generateSearchEmbedding,
   getConfiguredEmbeddingModel,
+  recordSearchEmbeddingUsage,
 } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
@@ -222,11 +224,18 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const topK = args.topK || 5
 
-          const queryEmbedding = await generateSearchEmbedding(
-            args.query,
-            kb.embeddingModel,
-            kb.workspaceId
-          )
+          // Gate the actor (usage + frozen) before incurring hosted embedding cost.
+          const usage = await checkActorUsageLimits(context.userId, kb.workspaceId)
+          if (usage.isExceeded) {
+            return {
+              success: false,
+              message:
+                usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            }
+          }
+
+          const { embedding: queryEmbedding, isBYOK: queryEmbeddingIsBYOK } =
+            await generateSearchEmbedding(args.query, kb.embeddingModel, kb.workspaceId)
           const queryVector = JSON.stringify(queryEmbedding)
 
           const strategy = getQueryStrategy(1, topK)
@@ -236,6 +245,15 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             topK,
             queryVector,
             distanceThreshold: strategy.distanceThreshold,
+          })
+
+          await recordSearchEmbeddingUsage({
+            userId: context.userId,
+            workspaceId: kb.workspaceId,
+            embeddingModel: kb.embeddingModel,
+            query: args.query,
+            isBYOK: queryEmbeddingIsBYOK,
+            sourceReference: `copilot-kb-search:${args.knowledgeBaseId}`,
           })
 
           logger.info('Knowledge base queried via copilot', {
@@ -272,13 +290,15 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const fileIds: string[] =
-            args.fileIds ?? (args.fileId ? [args.fileId] : args.filePath ? [args.filePath] : [])
-          if (fileIds.length === 0) {
+          const fileRefs: string[] =
+            args.filePaths ??
+            args.fileIds ??
+            (args.fileId ? [args.fileId] : args.filePath ? [args.filePath] : [])
+          if (fileRefs.length === 0) {
             return {
               success: false,
               message:
-                'fileIds is required for add_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file IDs.',
+                'filePaths is required for add_file. Use canonical VFS file paths from glob("files/**").',
             }
           }
 
@@ -305,7 +325,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
 
-          for (const fileRef of fileIds) {
+          for (const fileRef of fileRefs) {
             const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, fileRef)
             if (!fileRecord) {
               failedFiles.push(fileRef)
@@ -328,7 +348,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 mimeType: fileRecord.type,
               },
               args.knowledgeBaseId,
-              requestId
+              requestId,
+              context.userId
             )
 
             processDocumentAsync(

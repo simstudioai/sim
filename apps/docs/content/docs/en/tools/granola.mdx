@@ -87,8 +87,32 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 | `invitees` | json | Calendar event invitee emails |
 | `transcript` | json | Meeting transcript entries \(only if requested\) |
 |   ↳ `speaker` | string | Speaker source \(microphone or speaker\) |
+|   ↳ `speakerLabel` | string | Diarization label for the speaker \(e.g., Speaker A\) |
 |   ↳ `text` | string | Transcript text |
 |   ↳ `startTime` | string | Segment start time |
 |   ↳ `endTime` | string | Segment end time |
+
+### `granola_list_folders`
+
+Lists folders from Granola, sorted alphabetically, with pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `pageSize` | number | No | Number of folders per page \(1-30, default 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | json | List of folders |
+|   ↳ `id` | string | Folder ID |
+|   ↳ `name` | string | Folder name |
+|   ↳ `parentFolderId` | string | Parent folder ID, or null for top-level folders |
+| `hasMore` | boolean | Whether more folders are available |
+| `cursor` | string | Pagination cursor for the next page |
 
 

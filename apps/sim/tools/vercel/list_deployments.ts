@@ -36,7 +36,8 @@ export const vercelListDeploymentsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by state: BUILDING, ERROR, INITIALIZING, QUEUED, READY, CANCELED',
+      description:
+        'Filter by state: BUILDING, ERROR, INITIALIZING, QUEUED, READY, CANCELED, BLOCKED',
     },
     app: {
       type: 'string',
@@ -82,7 +83,7 @@ export const vercelListDeploymentsTool: ToolConfig<
       if (params.limit) query.set('limit', String(params.limit))
       if (params.teamId) query.set('teamId', params.teamId.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v6/deployments${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v7/deployments${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelListDeploymentsParams) => ({
@@ -103,6 +104,9 @@ export const vercelListDeploymentsTool: ToolConfig<
       projectId: d.projectId ?? '',
       source: d.source ?? '',
       inspectorUrl: d.inspectorUrl ?? '',
+      checksState: d.checksState ?? null,
+      checksConclusion: d.checksConclusion ?? null,
+      errorMessage: d.errorMessage ?? null,
       creator: {
         uid: d.creator?.uid ?? '',
         email: d.creator?.email ?? '',
@@ -134,7 +138,7 @@ export const vercelListDeploymentsTool: ToolConfig<
           state: {
             type: 'string',
             description:
-              'Deployment state: BUILDING, ERROR, INITIALIZING, QUEUED, READY, CANCELED, DELETED',
+              'Deployment state: BUILDING, ERROR, INITIALIZING, QUEUED, READY, CANCELED, DELETED, BLOCKED',
           },
           target: { type: 'string', description: 'Target environment', optional: true },
           created: { type: 'number', description: 'Creation timestamp' },
@@ -145,6 +149,21 @@ export const vercelListDeploymentsTool: ToolConfig<
               'Deployment source: api-trigger-git-deploy, cli, clone/repo, git, import, import/repo, redeploy, v0-web',
           },
           inspectorUrl: { type: 'string', description: 'Vercel inspector URL' },
+          checksState: {
+            type: 'string',
+            description: 'Checks state: completed, registered, running',
+            optional: true,
+          },
+          checksConclusion: {
+            type: 'string',
+            description: 'Checks conclusion: succeeded, failed, skipped, canceled',
+            optional: true,
+          },
+          errorMessage: {
+            type: 'string',
+            description: 'Deployment error message',
+            optional: true,
+          },
           creator: {
             type: 'object',
             description: 'Creator information',

@@ -21,7 +21,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { Checkbox, highlight, languages, Skeleton } from '@/components/emcn'
+import { Checkbox, highlight, languages } from '@/components/emcn'
 import '@/components/emcn/components/code/code.css'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -35,7 +35,9 @@ import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useScrollAnchor } from '@/hooks/use-scroll-anchor'
+import { useSmoothText } from '@/hooks/use-smooth-text'
 import { DataTable } from './data-table'
+import { PreviewLoadingFrame } from './preview-shared'
 import { ZoomablePreview } from './zoomable-preview'
 
 interface HastNode {
@@ -184,6 +186,18 @@ const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMermaid, remarkCallouts]
 const REHYPE_PLUGINS = [rehypeSlug]
 
 /**
+ * Soft per-character fade for newly revealed markdown while streaming. Mirrors
+ * the chat surface so a streamed file preview reveals with the same cadence;
+ * paired with {@link useSmoothText}, which paces the reveal itself.
+ */
+const STREAM_ANIMATION = {
+  animation: 'fadeIn',
+  duration: 220,
+  stagger: 0,
+  sep: 'char',
+} as const
+
+/**
  * Carries the contentRef and toggle handler from MarkdownPreview down to the
  * task-list renderers. Only present when the preview is interactive.
  */
@@ -315,19 +329,15 @@ function MermaidSourcePreview({
   )
 }
 
-function MermaidCodeBlockSkeleton() {
+function MermaidCodeBlockFallback() {
   return (
     <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
       <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
         <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
         <span className='text-[11px] text-[var(--text-muted)]'>Rendering…</span>
       </div>
-      <div className='code-editor-theme bg-[var(--surface-5)]'>
-        <div className='space-y-2 p-4'>
-          <div className='h-3 w-5/6 animate-pulse rounded bg-[var(--surface-2)]' />
-          <div className='h-3 w-2/3 animate-pulse rounded bg-[var(--surface-2)]' />
-          <div className='h-3 w-3/4 animate-pulse rounded bg-[var(--surface-2)]' />
-        </div>
+      <div className='code-editor-theme min-h-[96px] bg-[var(--surface-5)]'>
+        <div className='p-4' />
       </div>
     </div>
   )
@@ -456,13 +466,9 @@ const MermaidDiagram = memo(function MermaidDiagram({
 
   if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
     if (zoomable) {
-      return (
-        <div className='h-full p-6'>
-          <Skeleton className='h-full w-full rounded-lg' />
-        </div>
-      )
+      return <PreviewLoadingFrame className='h-full' />
     }
-    return <MermaidCodeBlockSkeleton />
+    return <MermaidCodeBlockFallback />
   }
   return null
 })
@@ -866,16 +872,20 @@ const MarkdownPreview = memo(function MarkdownPreview({
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { push: navigate } = useRouter()
+  // Pace the reveal so streamed markdown builds at a steady cadence instead of
+  // jumping per server chunk. `snapOnNonAppend` shows in-place rewrites (patch)
+  // in full immediately so a diff never appears to retype from the top.
+  const revealedContent = useSmoothText(content, isStreaming, { snapOnNonAppend: true })
   const { ref: autoScrollRef, spacerRef } = useScrollAnchor(
     isStreaming && !disableAutoScroll,
-    content
+    revealedContent
   )
 
   const contentRef = useRef(content)
   contentRef.current = content
 
   const { frontMatterData, markdownContent } = useMemo(() => {
-    if (isStreaming) return { frontMatterData: null, markdownContent: content }
+    if (isStreaming) return { frontMatterData: null, markdownContent: revealedContent }
     try {
       const parsed = matter(content)
       const hasFrontMatter = Object.keys(parsed.data).length > 0
@@ -886,7 +896,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
     } catch {
       return { frontMatterData: null, markdownContent: content }
     }
-  }, [content, isStreaming])
+  }, [content, revealedContent, isStreaming])
 
   const ctxValue = useMemo(
     () => (onCheckboxToggle ? { contentRef, onToggle: onCheckboxToggle } : null),
@@ -917,6 +927,8 @@ const MarkdownPreview = memo(function MarkdownPreview({
       {frontMatterData && <FrontMatterCard data={frontMatterData} />}
       <Streamdown
         mode={streamdownMode}
+        animated={isStreaming ? STREAM_ANIMATION : false}
+        isAnimating={isStreaming}
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={REHYPE_PLUGINS}
         components={markdownComponents}

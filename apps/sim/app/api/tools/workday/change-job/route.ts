@@ -28,20 +28,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const changeJobDetailData: Record<string, unknown> = {
       Reason_Reference: wdRef('Change_Job_Subcategory_ID', data.reason),
     }
-    if (data.newPositionId) {
-      changeJobDetailData.Position_Reference = wdRef('Position_ID', data.newPositionId)
-    }
-    if (data.newJobProfileId) {
-      changeJobDetailData.Job_Profile_Reference = wdRef('Job_Profile_ID', data.newJobProfileId)
-    }
-    if (data.newLocationId) {
-      changeJobDetailData.Location_Reference = wdRef('Location_ID', data.newLocationId)
-    }
     if (data.newSupervisoryOrgId) {
       changeJobDetailData.Supervisory_Organization_Reference = wdRef(
-        'Supervisory_Organization_ID',
+        'Organization_Reference_ID',
         data.newSupervisoryOrgId
       )
+    }
+    if (data.newPositionId) {
+      changeJobDetailData.Proposed_Position_Reference = wdRef('Position_ID', data.newPositionId)
+    }
+    const jobDetailsData: Record<string, unknown> = {}
+    if (data.newJobProfileId) {
+      jobDetailsData.Job_Profile_Reference = wdRef('Job_Profile_ID', data.newJobProfileId)
+    }
+    if (data.newLocationId) {
+      jobDetailsData.Location_Reference = wdRef('Location_ID', data.newLocationId)
+    }
+    if (Object.keys(jobDetailsData).length > 0) {
+      changeJobDetailData.Job_Details_Data = jobDetailsData
     }
 
     const client = await createWorkdaySoapClient(

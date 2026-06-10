@@ -29,7 +29,7 @@ import * as React from 'react'
 import {
   chipFieldSurfaceClass,
   chipFieldTextClass,
-} from '@/components/emcn/components/chip-input/chip-field-chrome'
+} from '@/components/emcn/components/chip/chip-chrome'
 import { cn } from '@/lib/core/utils/cn'
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>

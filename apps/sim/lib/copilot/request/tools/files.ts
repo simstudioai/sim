@@ -7,13 +7,14 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 
 const logger = createLogger('CopilotToolResultFiles')
 
 export const OUTPUT_PATH_TOOLS: Set<string> = new Set([FunctionExecute.id, UserTable.id])
 
-type OutputFormat = 'json' | 'csv' | 'txt' | 'md' | 'html'
+export type OutputFormat = 'json' | 'csv' | 'txt' | 'md' | 'html'
 
 export const EXT_TO_FORMAT: Record<string, OutputFormat> = {
   '.json': 'json',
@@ -111,17 +112,12 @@ export function convertRowsToCsv(rows: Record<string, unknown>[]): string {
 }
 
 export function normalizeOutputWorkspaceFileName(outputPath: string): string {
-  const trimmed = outputPath.trim().replace(/^\/+/, '')
-  const withoutPrefix = trimmed.startsWith('files/') ? trimmed.slice('files/'.length) : trimmed
-  if (!withoutPrefix) {
-    throw new Error('outputPath must include a file name, e.g. "files/result.json"')
+  const segments = decodeVfsPathSegments(outputPath.trim().replace(/^\/+|\/+$/g, ''))
+  const fileName = segments.at(-1)
+  if (!fileName) {
+    throw new Error('Output path must include a file name')
   }
-  if (withoutPrefix.includes('/')) {
-    throw new Error(
-      'outputPath must target a flat workspace file, e.g. "files/result.json". Nested paths like "files/reports/result.json" are not supported.'
-    )
-  }
-  return withoutPrefix
+  return fileName
 }
 
 export function resolveOutputFormat(fileName: string, explicit?: string): OutputFormat {
@@ -145,6 +141,62 @@ export function serializeOutputForFile(output: unknown, format: OutputFormat): s
   return JSON.stringify(unwrapped, null, 2)
 }
 
+export interface OutputFileDeclaration {
+  path: string
+  mode?: 'create' | 'overwrite'
+  format?: OutputFormat
+  mimeType?: string
+  sandboxPath?: string
+  formatPath?: string
+}
+
+export function getOutputFileDeclarations(
+  params: Record<string, unknown> | undefined
+): OutputFileDeclaration[] {
+  const args = params?.args as Record<string, unknown> | undefined
+  const outputs =
+    (params?.outputs as { files?: unknown[] } | undefined) ??
+    (args?.outputs as { files?: unknown[] } | undefined)
+
+  if (Array.isArray(outputs?.files)) {
+    return outputs.files.flatMap((item): OutputFileDeclaration[] => {
+      if (!item || typeof item !== 'object') return []
+      const file = item as Record<string, unknown>
+      if (typeof file.path !== 'string') return []
+      return [
+        {
+          path: file.path,
+          mode: file.mode === 'overwrite' ? 'overwrite' : 'create',
+          format: typeof file.format === 'string' ? (file.format as OutputFormat) : undefined,
+          mimeType: typeof file.mimeType === 'string' ? file.mimeType : undefined,
+          sandboxPath: typeof file.sandboxPath === 'string' ? file.sandboxPath : undefined,
+        },
+      ]
+    })
+  }
+
+  const outputPath =
+    (params?.outputPath as string | undefined) ?? (args?.outputPath as string | undefined)
+  if (!outputPath) return []
+  const overwriteFileId =
+    (params?.overwriteFileId as string | undefined) ?? (args?.overwriteFileId as string | undefined)
+  return [
+    {
+      path: overwriteFileId || outputPath,
+      mode: overwriteFileId ? 'overwrite' : 'create',
+      formatPath: outputPath,
+      format: ((params?.outputFormat as string | undefined) ??
+        (args?.outputFormat as string | undefined)) as OutputFormat | undefined,
+      mimeType:
+        (params?.outputMimeType as string | undefined) ??
+        (args?.outputMimeType as string | undefined),
+      sandboxPath:
+        (params?.outputSandboxPath as string | undefined) ??
+        (args?.outputSandboxPath as string | undefined),
+    },
+  ]
+}
+
 export async function maybeWriteOutputToFile(
   toolName: string,
   params: Record<string, unknown> | undefined,
@@ -155,17 +207,26 @@ export async function maybeWriteOutputToFile(
   if (!OUTPUT_PATH_TOOLS.has(toolName)) return result
   if (!context.workspaceId || !context.userId) return result
 
-  const args = params?.args as Record<string, unknown> | undefined
-  const outputPath =
-    (params?.outputPath as string | undefined) ?? (args?.outputPath as string | undefined)
-  if (!outputPath) return result
-  const outputSandboxPath =
-    (params?.outputSandboxPath as string | undefined) ??
-    (args?.outputSandboxPath as string | undefined)
-  if (toolName === FunctionExecute.id && outputSandboxPath) return result
+  const outputFiles = getOutputFileDeclarations(params).filter((file) => !file.sandboxPath)
+  if (outputFiles.length === 0) return result
 
-  const explicitFormat =
-    (params?.outputFormat as string | undefined) ?? (args?.outputFormat as string | undefined)
+  const outputObject =
+    result.output && typeof result.output === 'object' && !Array.isArray(result.output)
+      ? (result.output as Record<string, unknown>)
+      : undefined
+  const resultObject =
+    outputObject?.result &&
+    typeof outputObject.result === 'object' &&
+    !Array.isArray(outputObject.result)
+      ? (outputObject.result as Record<string, unknown>)
+      : undefined
+  if (Array.isArray(resultObject?.files)) {
+    logger.warn('Skipping returned-value output write because sandbox export response is active', {
+      toolName,
+      outputCount: outputFiles.length,
+    })
+    return result
+  }
 
   // Only span the actual write path (where we upload to storage). Fast
   // no-op returns above don't need a span — they'd just pad the trace
@@ -178,58 +239,92 @@ export async function maybeWriteOutputToFile(
     },
     async (span) => {
       try {
-        const fileName = normalizeOutputWorkspaceFileName(outputPath)
-        const format = resolveOutputFormat(fileName, explicitFormat)
-        span.setAttributes({
-          [TraceAttr.CopilotOutputFileName]: fileName,
-          [TraceAttr.CopilotOutputFileFormat]: format,
-        })
-        if (context.abortSignal?.aborted) {
-          throw new Error('Request aborted before tool mutation could be applied')
-        }
-        const content = serializeOutputForFile(result.output, format)
-        const contentType = FORMAT_TO_CONTENT_TYPE[format]
+        const writtenFiles = []
+        for (const outputFile of outputFiles) {
+          const fileName = normalizeOutputWorkspaceFileName(
+            outputFile.formatPath ?? outputFile.path
+          )
+          const format = resolveOutputFormat(fileName, outputFile.format)
+          const content = serializeOutputForFile(result.output, format)
+          const contentType = outputFile.mimeType || FORMAT_TO_CONTENT_TYPE[format]
+          const buffer = Buffer.from(content, 'utf-8')
 
-        const buffer = Buffer.from(content, 'utf-8')
-        span.setAttribute(TraceAttr.CopilotOutputFileBytes, buffer.length)
-        if (context.abortSignal?.aborted) {
-          throw new Error('Request aborted before tool mutation could be applied')
+          if (context.abortSignal?.aborted) {
+            throw new Error('Request aborted before tool mutation could be applied')
+          }
+
+          const written = await writeWorkspaceFileByPath({
+            workspaceId: context.workspaceId!,
+            userId: context.userId!,
+            target: {
+              path: outputFile.path,
+              mode: outputFile.mode ?? 'create',
+              mimeType: outputFile.mimeType,
+            },
+            buffer,
+            inferredMimeType: contentType,
+          })
+          writtenFiles.push({
+            ...written,
+            bytes: buffer.length,
+            format,
+            requestedPath: outputFile.path,
+          })
         }
-        const uploaded = await uploadWorkspaceFile(
-          context.workspaceId!,
-          context.userId!,
-          buffer,
-          fileName,
-          contentType
-        )
+
+        const firstWritten = writtenFiles[0]
         span.setAttributes({
-          [TraceAttr.CopilotOutputFileId]: uploaded.id,
+          [TraceAttr.CopilotOutputFileId]: firstWritten.id,
+          [TraceAttr.CopilotOutputFileName]: firstWritten.name,
+          [TraceAttr.CopilotOutputFileFormat]: firstWritten.format,
+          [TraceAttr.CopilotOutputFilePath]: firstWritten.vfsPath,
+          [TraceAttr.CopilotOutputFileMode]: firstWritten.mode,
+          [TraceAttr.CopilotOutputFileBytes]: firstWritten.bytes,
           [TraceAttr.CopilotOutputFileOutcome]: CopilotOutputFileOutcome.Uploaded,
         })
 
         logger.info('Tool output written to file', {
           toolName,
-          fileName,
-          size: buffer.length,
-          fileId: uploaded.id,
+          outputCount: writtenFiles.length,
+          files: writtenFiles.map((file) => ({
+            fileId: file.id,
+            vfsPath: file.vfsPath,
+            size: file.bytes,
+          })),
         })
 
         return {
           success: true,
           output: {
-            message: `Output written to files/${fileName} (${buffer.length} bytes)`,
-            fileId: uploaded.id,
-            fileName,
-            size: buffer.length,
-            downloadUrl: uploaded.url,
+            message:
+              writtenFiles.length === 1
+                ? `Output ${firstWritten.mode === 'overwrite' ? 'updated' : 'written'} at ${firstWritten.vfsPath} (${firstWritten.bytes} bytes)`
+                : `Output written to ${writtenFiles.length} files`,
+            files: writtenFiles.map((file) => ({
+              fileId: file.id,
+              fileName: file.name,
+              vfsPath: file.vfsPath,
+              size: file.bytes,
+              downloadUrl: file.downloadUrl,
+            })),
+            fileId: firstWritten.id,
+            fileName: firstWritten.name,
+            vfsPath: firstWritten.vfsPath,
+            size: firstWritten.bytes,
+            downloadUrl: firstWritten.downloadUrl,
           },
-          resources: [{ type: 'file', id: uploaded.id, title: fileName }],
+          resources: writtenFiles.map((file) => ({
+            type: 'file',
+            id: file.id,
+            title: file.name,
+            path: file.vfsPath,
+          })),
         }
       } catch (err) {
         const message = toError(err).message
         logger.warn('Failed to write tool output to file', {
           toolName,
-          outputPath,
+          outputPaths: outputFiles.map((file) => file.path),
           error: message,
         })
         span.setAttribute(TraceAttr.CopilotOutputFileOutcome, CopilotOutputFileOutcome.Failed)

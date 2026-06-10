@@ -12,6 +12,8 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     runId: undefined,
     messageId: generateId(),
     accumulatedContent: '',
+    finalAssistantContent: '',
+    sawMainToolCall: false,
     contentBlocks: [],
     toolCalls: new Map(),
     pendingToolPromises: new Map(),

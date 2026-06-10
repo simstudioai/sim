@@ -1599,6 +1599,7 @@ export async function insertRow(
     mode: 'new',
     isManualRun: false,
     requestId,
+    triggeredByUserId: data.userId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (insertRow) failed:`, err))
 
   return insertedRow
@@ -1619,7 +1620,7 @@ export async function batchInsertRows(
   requestId: string
 ): Promise<TableRow[]> {
   const result = await db.transaction((trx) => batchInsertRowsWithTx(trx, data, table, requestId))
-  dispatchAfterBatchInsert(table, result, requestId)
+  dispatchAfterBatchInsert(table, result, requestId, data.userId)
   return result
 }
 
@@ -1726,7 +1727,8 @@ export async function batchInsertRowsWithTx(
 export function dispatchAfterBatchInsert(
   table: TableDefinition,
   result: TableRow[],
-  requestId: string
+  requestId: string,
+  actorUserId?: string | null
 ): void {
   void fireTableTrigger(table.id, table.name, 'insert', result, null, table.schema, requestId)
   // Scope to the newly-inserted row ids so the dispatcher doesn't walk every
@@ -1740,6 +1742,7 @@ export function dispatchAfterBatchInsert(
     mode: 'new',
     isManualRun: false,
     requestId,
+    triggeredByUserId: actorUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchInsertRows) failed:`, err))
 }
 
@@ -2393,6 +2396,7 @@ export async function upsertRow(
     mode: 'new',
     isManualRun: false,
     requestId,
+    triggeredByUserId: data.userId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (upsertRow) failed:`, err))
 
   return result
@@ -3042,6 +3046,7 @@ export async function updateRow(
           rowIds: [data.rowId],
           groupIds: inFlightDownstreamGroups,
           requestId,
+          triggeredByUserId: data.actorUserId,
         })
       } catch (err) {
         logger.error(`[${requestId}] cancel+rerun for in-flight downstream groups failed:`, err)
@@ -3055,6 +3060,7 @@ export async function updateRow(
     mode: 'new',
     isManualRun: false,
     requestId,
+    triggeredByUserId: data.actorUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (updateRow) failed:`, err))
 
   return updatedRow
@@ -3212,6 +3218,7 @@ export async function updateRowsByFilter(
     mode: 'new',
     isManualRun: false,
     requestId,
+    triggeredByUserId: data.actorUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (updateRowsByFilter) failed:`, err))
 
   return {
@@ -3392,6 +3399,7 @@ export async function batchUpdateRows(
             rowIds: [rowId],
             groupIds: inFlightDownstreamGroups,
             requestId,
+            triggeredByUserId: data.actorUserId,
           })
         }
       } catch (err) {
@@ -3409,6 +3417,7 @@ export async function batchUpdateRows(
     mode: 'new',
     isManualRun: false,
     requestId,
+    triggeredByUserId: data.actorUserId,
   }).catch((err) => logger.error(`[${requestId}] auto-dispatch (batchUpdateRows) failed:`, err))
 
   return {
@@ -4087,6 +4096,7 @@ export async function addWorkflowGroup(
       isManualRun: false,
       groupIds: [data.group.id],
       requestId,
+      triggeredByUserId: data.actorUserId,
     }).catch((err) => logger.error(`[${requestId}] auto-dispatch (addWorkflowGroup) failed:`, err))
   }
 
@@ -4417,6 +4427,7 @@ export async function updateWorkflowGroup(
         outputs: added,
         overwrite: false,
         requestId,
+        actorUserId: data.actorUserId,
       })
     } catch (err) {
       logger.warn(
@@ -4434,6 +4445,7 @@ export async function updateWorkflowGroup(
         outputs: remappedOutputs,
         overwrite: true,
         requestId,
+        actorUserId: data.actorUserId,
       })
     } catch (err) {
       logger.warn(
@@ -4454,6 +4466,7 @@ export async function updateWorkflowGroup(
       isManualRun: false,
       groupIds: [data.groupId],
       requestId,
+      triggeredByUserId: data.actorUserId,
     }).catch((err) =>
       logger.error(`[${requestId}] auto-dispatch (updateWorkflowGroup autoRun=true) failed:`, err)
     )
@@ -4477,6 +4490,8 @@ export async function addWorkflowGroupOutput(
     path: string
     /** Optional override; defaults to a slug derived from `path`. */
     columnName?: string
+    /** The member adding the output — billed/gated for any backfill-triggered re-run. */
+    actorUserId?: string | null
   },
   requestId: string
 ): Promise<TableDefinition> {
@@ -4689,6 +4704,7 @@ export async function addWorkflowGroupOutput(
       outputs: [newOutput],
       overwrite: false,
       requestId,
+      actorUserId: data.actorUserId,
     })
   } catch (err) {
     logger.warn(
@@ -4873,8 +4889,9 @@ async function backfillGroupOutputsFromLogs(opts: {
   outputs: WorkflowGroupOutput[]
   overwrite: boolean
   requestId: string
+  actorUserId?: string | null
 }): Promise<void> {
-  const { table, groupId, outputs, overwrite, requestId } = opts
+  const { table, groupId, outputs, overwrite, requestId, actorUserId } = opts
   if (outputs.length === 0) return
 
   const { pluckByPath } = await import('./pluck')
@@ -4967,6 +4984,7 @@ async function backfillGroupOutputsFromLogs(opts: {
       tableId: table.id,
       updates,
       workspaceId: table.workspaceId,
+      actorUserId,
     },
     table,
     requestId

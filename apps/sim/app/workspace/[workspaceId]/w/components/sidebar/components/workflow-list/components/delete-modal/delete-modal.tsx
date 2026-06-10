@@ -270,10 +270,11 @@ export function DeleteModal({
         <ChipModalField
           type='input'
           title={
-            <>
-              Type <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>{' '}
-              to confirm
-            </>
+            <span>
+              Type&nbsp;
+              <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>
+              &nbsp;to confirm
+            </span>
           }
           value={confirmationText}
           onChange={setConfirmationText}

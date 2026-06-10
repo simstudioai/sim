@@ -1604,6 +1604,13 @@
       "when": 1780946000000,
       "tag": "0229_backfill_column_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 230,
+      "version": "7",
+      "when": 1781027249389,
+      "tag": "0230_thick_stranger",
+      "breakpoints": true
     }
   ]
 }

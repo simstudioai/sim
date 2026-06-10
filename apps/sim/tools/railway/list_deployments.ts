@@ -41,7 +41,8 @@ export const railwayListDeploymentsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Railway token type: account, workspace, project, or oauth',
+      description:
+        'Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens.',
     },
     projectId: {
       type: 'string',
@@ -90,6 +91,8 @@ export const railwayListDeploymentsTool: ToolConfig<
                 createdAt
                 url
                 staticUrl
+                canRollback
+                canRedeploy
               }
             }
             pageInfo {
@@ -125,6 +128,8 @@ export const railwayListDeploymentsTool: ToolConfig<
         createdAt: deployment.createdAt,
         url: deployment.url ?? null,
         staticUrl: deployment.staticUrl ?? null,
+        canRollback: deployment.canRollback ?? false,
+        canRedeploy: deployment.canRedeploy ?? false,
       }))
 
     return {
@@ -152,6 +157,14 @@ export const railwayListDeploymentsTool: ToolConfig<
           createdAt: { type: 'string', description: 'Deployment creation timestamp' },
           url: { type: 'string', description: 'Deployment URL', optional: true },
           staticUrl: { type: 'string', description: 'Static deployment URL', optional: true },
+          canRollback: {
+            type: 'boolean',
+            description: 'Whether this deployment can be rolled back to',
+          },
+          canRedeploy: {
+            type: 'boolean',
+            description: 'Whether this deployment can be redeployed',
+          },
         },
       },
     },
