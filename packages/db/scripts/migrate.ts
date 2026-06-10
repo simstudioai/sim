@@ -11,7 +11,7 @@ import postgres from 'postgres'
  * drizzle-kit emits plain `CREATE INDEX`, which takes a SHARE lock and blocks all
  * writes for the build duration — on a big, write-hot table (e.g.
  * workflow_execution_logs, usage_log) that stalls every in-flight workflow
- * completion for minutes. drizzle wraps each migration in a transaction, and
+ * completion for minutes. drizzle runs migrations inside a transaction, and
  * `CREATE INDEX CONCURRENTLY` cannot run inside a transaction block.
  *
  * So, after generating a migration that adds an index on a large/hot table, edit
@@ -36,8 +36,8 @@ import postgres from 'postgres'
  *    at a time. This is why EVERY statement in a file using this convention,
  *    and in any file that can follow it in a batch, must be idempotent
  *    (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` / `ADD VALUE IF NOT EXISTS`):
- *    a failure after the COMMIT cannot roll back, and the re-run starts from
- *    the top of the batch.
+ *    a failure after the COMMIT cannot roll back, and the re-run replays every
+ *    file whose journal record has not yet committed.
  *  - CONCURRENTLY only takes a SHARE UPDATE EXCLUSIVE lock (allows reads/writes).
  *  - Always validate on staging before prod; a failed CONCURRENTLY build can
  *    leave an INVALID index that must be dropped and rebuilt — the
@@ -65,7 +65,13 @@ if (!url) {
   process.exit(1)
 }
 
-const client = postgres(url, { max: 1, connect_timeout: 10 })
+/**
+ * `max_lifetime: null` is load-bearing: postgres-js defaults to recycling the
+ * connection after a randomized 30–60 minutes, and a transparent reconnect
+ * silently drops the session advisory lock and session `SET`s. The migration
+ * session must live exactly as long as the run.
+ */
+const client = postgres(url, { max: 1, connect_timeout: 10, max_lifetime: null })
 
 /**
  * Cross-process migration lock key (a stable, app-wide 64-bit constant).
@@ -101,10 +107,15 @@ const DDL_LOCK_TIMEOUT = '5s'
 const MAX_MIGRATE_ATTEMPTS = 8
 const MIGRATE_RETRY_BACKOFF = { baseMs: 2_000, maxMs: 30_000 } as const
 
+/**
+ * Backend pid of the session that acquired the advisory lock. Re-checked at the
+ * top of every migration attempt: if the connection was silently replaced
+ * (server restart, network failure), the new session does NOT hold the lock,
+ * and running migrations on it would break mutual exclusion — abort loudly.
+ */
+let lockSessionPid = 0
+
 try {
-  // statement_timeout=0: index builds (esp. CONCURRENTLY on large tables) can run
-  // far longer than the app default; a migration must never be killed mid-build.
-  await client`SET statement_timeout = 0`
   await acquireMigrationLock()
   try {
     await runMigrationsWithRetry()
@@ -128,8 +139,12 @@ try {
 async function acquireMigrationLock(): Promise<void> {
   const deadline = Date.now() + LOCK_ACQUIRE_DEADLINE_MS
   for (;;) {
-    const [{ locked }] = await client`SELECT pg_try_advisory_lock(${MIGRATION_LOCK_KEY}) AS locked`
-    if (locked) return
+    const [{ locked, pid }] =
+      await client`SELECT pg_try_advisory_lock(${MIGRATION_LOCK_KEY}) AS locked, pg_backend_pid() AS pid`
+    if (locked) {
+      lockSessionPid = pid
+      return
+    }
     if (Date.now() >= deadline) {
       throw new Error(
         `Timed out after ${LOCK_ACQUIRE_DEADLINE_MS}ms waiting for the migration advisory lock; ` +
@@ -145,19 +160,32 @@ async function acquireMigrationLock(): Promise<void> {
  * race (SQLSTATE 55P03, detected anywhere in the error's `cause` chain since
  * drizzle wraps driver failures).
  *
- * The fail-fast `lock_timeout` is (re)asserted at the top of EVERY attempt:
- * `SET` is rejected by Postgres when parameterized, so the constant is inlined
- * via `client.unsafe`, and a prior attempt's migration file may have left the
- * session at `lock_timeout = 0` (the CONCURRENTLY convention above).
+ * Every attempt starts by verifying the session still holds the advisory lock
+ * (backend pid unchanged) and re-asserting the session timeouts:
+ * `statement_timeout = 0` because index builds (esp. CONCURRENTLY on large
+ * tables) can run far longer than any app default and must never be killed
+ * mid-build, and the fail-fast `lock_timeout` because a prior attempt's
+ * migration file may have left the session at `lock_timeout = 0` (the
+ * CONCURRENTLY convention above). `SET` is rejected by Postgres when
+ * parameterized, so the constants are inlined via `client.unsafe`.
  *
  * Retry safety: drizzle wraps the whole pending batch in one transaction, so a
- * lock-timeout failure rolls the batch back and the retry replays it from the
- * top. Files using the embedded-`COMMIT` CONCURRENTLY convention break out of
- * that transaction — their post-COMMIT statements are required to be
- * idempotent (see the convention notes above) precisely so a replay is safe.
+ * lock-timeout failure rolls the batch back and the retry resumes from the
+ * first file whose journal record has not committed. Files using the
+ * embedded-`COMMIT` CONCURRENTLY convention break out of that transaction —
+ * their post-COMMIT statements are required to be idempotent (see the
+ * convention notes above) precisely so a replay is safe.
  */
 async function runMigrationsWithRetry(): Promise<void> {
   for (let attempt = 1; ; attempt++) {
+    const [{ pid }] = await client`SELECT pg_backend_pid() AS pid`
+    if (pid !== lockSessionPid) {
+      throw new Error(
+        `Database session changed mid-run (backend pid ${lockSessionPid} -> ${pid}); ` +
+          'the migration advisory lock was lost. Aborting so a fresh runner can retry safely.'
+      )
+    }
+    await client.unsafe('SET statement_timeout = 0')
     await client.unsafe(`SET lock_timeout = '${DDL_LOCK_TIMEOUT}'`)
     try {
       await migrate(drizzle(client), { migrationsFolder: './migrations' })
