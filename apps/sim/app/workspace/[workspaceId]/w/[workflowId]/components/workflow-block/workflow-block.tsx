@@ -15,14 +15,13 @@ import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/determi
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
   getDisplayValue,
-  isPlainObject,
   resolveDropdownLabel,
+  resolveFilterFieldLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
   resolveVariablesLabel,
   resolveWorkflowMultiSelectLabel,
   resolveWorkflowSelectionLabel,
-  tryParseJson,
 } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
@@ -246,16 +245,26 @@ const SubBlockRow = memo(function SubBlockRow({
   )
   const knowledgeBaseDisplayName = kbForDisplayName?.name ?? null
 
-  const { data: workflowMapForLookup = {}, isPending: workflowMapPending } =
-    useWorkflowMap(workspaceId)
-  /** Hydrates workflow-selector values and multi-select workflow dropdowns to names. */
+  const {
+    data: workflowMapForLookup = {},
+    isSuccess: workflowMapLoaded,
+    isPlaceholderData: workflowMapIsPlaceholder,
+  } = useWorkflowMap(workspaceId)
+  /**
+   * Hydrates workflow-selector values and multi-select workflow dropdowns to
+   * names. Ready only on a successful, non-placeholder load — an errored or
+   * stale-placeholder map must not mislabel valid workflows as deleted.
+   */
   const workflowSelectionName = useMemo(() => {
-    const lookup = { workflowMap: workflowMapForLookup, ready: !workflowMapPending }
+    const lookup = {
+      workflowMap: workflowMapForLookup,
+      ready: workflowMapLoaded && !workflowMapIsPlaceholder,
+    }
     return (
       resolveWorkflowSelectionLabel(subBlock, rawValue, lookup) ??
       resolveWorkflowMultiSelectLabel(subBlock, rawValue, lookup)
     )
-  }, [workflowMapForLookup, workflowMapPending, subBlock, rawValue])
+  }, [workflowMapForLookup, workflowMapLoaded, workflowMapIsPlaceholder, subBlock, rawValue])
 
   const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
   const mcpServerDisplayName = useMemo(() => {
@@ -329,26 +338,10 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, customTools]
   )
 
-  const filterDisplayValue = useMemo(() => {
-    const isFilterField =
-      subBlock?.id === 'filter' || subBlock?.id === 'filterCriteria' || subBlock?.id === 'sort'
-
-    if (!isFilterField || !rawValue) return null
-
-    const parsedValue = tryParseJson(rawValue)
-
-    if (isPlainObject(parsedValue) || Array.isArray(parsedValue)) {
-      try {
-        const jsonStr = JSON.stringify(parsedValue, null, 0)
-        if (jsonStr.length <= 35) return jsonStr
-        return `${jsonStr.slice(0, 32)}...`
-      } catch {
-        return null
-      }
-    }
-
-    return null
-  }, [subBlock?.id, rawValue])
+  const filterDisplayValue = useMemo(
+    () => resolveFilterFieldLabel(subBlock, rawValue),
+    [subBlock, rawValue]
+  )
 
   /** Hydrates skill references to display names. */
   const { data: workspaceSkills = [] } = useSkills(workspaceId || '')

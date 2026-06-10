@@ -69,7 +69,8 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       type: 'short-input',
       placeholder: String(SIM_RULE_DEFAULTS.failureRatePercent),
       defaultValue: String(SIM_RULE_DEFAULTS.failureRatePercent),
-      description: 'Fire when the failure rate exceeds this percentage over the time window.',
+      description:
+        'Fire when the failure rate meets or exceeds this percentage over the time window.',
       required: { field: 'eventType', value: 'failure_rate' },
       mode: 'trigger',
       condition: { field: 'eventType', value: 'failure_rate' },
@@ -114,7 +115,7 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       type: 'short-input',
       placeholder: String(SIM_RULE_DEFAULTS.errorCountThreshold),
       defaultValue: String(SIM_RULE_DEFAULTS.errorCountThreshold),
-      description: 'Fire when this many errors occur within the time window.',
+      description: 'Fire when at least this many errors occur within the time window.',
       required: { field: 'eventType', value: 'error_count' },
       mode: 'trigger',
       condition: { field: 'eventType', value: 'error_count' },

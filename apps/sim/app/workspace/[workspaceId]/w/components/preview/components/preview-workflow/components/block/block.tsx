@@ -113,11 +113,15 @@ const SubBlockRow = memo(function SubBlockRow({
 
   const workflowLookup = { workflowMap, ready: workflowLabelsReady }
   const dropdownLabel = resolveDropdownLabel(subBlock, rawValue)
-  const variablesDisplay = resolveVariablesLabel(
-    subBlock,
-    rawValue,
-    Object.values(useVariablesStore.getState().variables)
-  )
+  // Materialize the variables store only for variables-input rows.
+  const variablesDisplay =
+    subBlock?.type === 'variables-input'
+      ? resolveVariablesLabel(
+          subBlock,
+          rawValue,
+          Object.values(useVariablesStore.getState().variables)
+        )
+      : null
   // The preview is hook-free, so custom tools referenced only by id resolve
   // through their inline schema/registry fallbacks rather than the API.
   const toolsDisplay = resolveToolsLabel(subBlock, rawValue, [])

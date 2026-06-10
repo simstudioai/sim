@@ -60,4 +60,16 @@ describe('parseSubscriptionConfig', () => {
     expect(config?.errorCountThreshold).toBe(1000)
     expect(config?.inactivityHours).toBe(1)
   })
+
+  it('rounds fractional integer fields (counts feed SQL LIMIT) but keeps credits fractional', () => {
+    const config = parseSubscriptionConfig({
+      eventType: 'consecutive_failures',
+      consecutiveFailures: '2.5',
+      windowHours: 12.4,
+      costThresholdCredits: 250.5,
+    })
+    expect(config?.consecutiveFailures).toBe(3)
+    expect(config?.windowHours).toBe(12)
+    expect(config?.costThresholdCredits).toBe(250.5)
+  })
 })

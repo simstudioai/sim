@@ -76,12 +76,12 @@ const isFieldFormatArray = (value: unknown): value is FieldFormat[] => {
 }
 
 /** Checks if a value is a plain object (not array, not null). */
-export const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Type guard for variable assignments arrays (variables-input subblocks). */
-export const isVariableAssignmentsArray = (
+const isVariableAssignmentsArray = (
   value: unknown
 ): value is Array<{ id?: string; variableId?: string; variableName?: string; value: unknown }> => {
   return (
@@ -167,7 +167,7 @@ const isSortConditionArray = (value: unknown): value is SortRule[] => {
  * Attempts to parse a JSON string, returning the parsed value or the
  * original value if parsing fails.
  */
-export const tryParseJson = (value: unknown): unknown => {
+const tryParseJson = (value: unknown): unknown => {
   if (typeof value !== 'string') return value
   try {
     const trimmed = value.trim()
@@ -320,9 +320,33 @@ export const getDisplayValue = (value: unknown): string => {
  * `ready` gates resolution so missing entries only render as deleted once
  * the lookup has actually loaded.
  */
-export interface WorkflowNameLookup {
+interface WorkflowNameLookup {
   workflowMap: Record<string, { name: string }>
   ready: boolean
+}
+
+/**
+ * Resolves filter/sort builder subblocks to a compact single-line JSON
+ * preview. Returns null for other subblocks; callers use a non-null result
+ * to apply monospace styling.
+ */
+export function resolveFilterFieldLabel(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown
+): string | null {
+  const isFilterField =
+    subBlock?.id === 'filter' || subBlock?.id === 'filterCriteria' || subBlock?.id === 'sort'
+  if (!isFilterField || !rawValue) return null
+
+  const parsedValue = tryParseJson(rawValue)
+  if (!isPlainObject(parsedValue) && !Array.isArray(parsedValue)) return null
+
+  try {
+    const jsonStr = JSON.stringify(parsedValue, null, 0)
+    return jsonStr.length <= 35 ? jsonStr : truncate(jsonStr, 32)
+  } catch {
+    return null
+  }
 }
 
 /**

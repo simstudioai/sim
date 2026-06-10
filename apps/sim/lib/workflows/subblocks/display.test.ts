@@ -9,6 +9,8 @@ vi.mock('@/blocks', () => ({
 
 import {
   getDisplayValue,
+  resolveDropdownLabel,
+  resolveFilterFieldLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
   resolveVariablesLabel,
@@ -127,6 +129,37 @@ describe('resolveSkillsLabel', () => {
 
   it('never renders raw skill ids', () => {
     expect(resolveSkillsLabel(skillInput, [{ skillId: 'sk-unknown' }], [])).toBeNull()
+  })
+})
+
+describe('resolveDropdownLabel', () => {
+  const dropdown = {
+    id: 'mode',
+    type: 'dropdown',
+    options: [{ id: 'opt-1', label: 'Option One' }, 'literal'],
+  } as SubBlockConfig
+
+  it('resolves option ids and string options to labels', () => {
+    expect(resolveDropdownLabel(dropdown, 'opt-1')).toBe('Option One')
+    expect(resolveDropdownLabel(dropdown, 'literal')).toBe('literal')
+    expect(resolveDropdownLabel(dropdown, 'missing')).toBeNull()
+  })
+})
+
+describe('resolveFilterFieldLabel', () => {
+  const filterField = { id: 'filter', type: 'short-input' } as SubBlockConfig
+
+  it('renders compact JSON for filter fields and truncates long values', () => {
+    expect(resolveFilterFieldLabel(filterField, '{"a":1}')).toBe('{"a":1}')
+    const long = JSON.stringify({ column: 'status', operator: 'contains', value: 'running' })
+    expect(resolveFilterFieldLabel(filterField, long)).toBe(`${long.slice(0, 32)}...`)
+  })
+
+  it('returns null for non-filter subblocks and non-JSON values', () => {
+    expect(
+      resolveFilterFieldLabel({ id: 'other', type: 'short-input' } as SubBlockConfig, '{"a":1}')
+    ).toBeNull()
+    expect(resolveFilterFieldLabel(filterField, 'plain text')).toBeNull()
   })
 })
 

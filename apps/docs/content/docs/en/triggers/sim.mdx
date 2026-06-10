@@ -20,11 +20,11 @@ Pick one event per Sim trigger block:
   <li><strong>Workflow Deployed</strong>: a watched workflow was deployed (including redeploys and version rollbacks)</li>
 </ul>
 
-**Alert conditions** — evaluated as runs complete, with a cooldown so they fire at most once per window:
+**Alert conditions** — evaluated as runs complete, with a cooldown so they fire at most once per cooldown window:
 
 <ul className="list-disc space-y-1 pl-6">
   <li><strong>Consecutive Failures</strong>: the last N runs all failed</li>
-  <li><strong>Failure Rate</strong>: failure rate exceeds a percentage over a time window (minimum 5 runs)</li>
+  <li><strong>Failure Rate</strong>: failure rate meets or exceeds a percentage over a time window (minimum 5 runs)</li>
   <li><strong>Latency Threshold</strong>: a run took longer than a fixed duration</li>
   <li><strong>Latency Spike</strong>: a run was a configurable percentage slower than the recent average (minimum 5 runs)</li>
   <li><strong>Cost Threshold</strong>: a run cost more than a credit threshold</li>

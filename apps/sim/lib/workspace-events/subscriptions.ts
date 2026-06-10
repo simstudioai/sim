@@ -66,28 +66,31 @@ function parseStringArray(value: unknown): string[] {
  * Per-field bounds ported from the legacy notifications contract. Rule SQL
  * runs on the execution-completion hot path, so windows and counts must stay
  * inside the designed envelope regardless of what the free-text subblocks
- * contain. The credit bounds are the legacy dollar bounds ($0.01-$1000) at
- * 200 credits per dollar.
+ * contain. Integer fields are rounded — counts feed SQL LIMIT, which rejects
+ * fractional values. The credit bounds are the legacy dollar bounds
+ * ($0.01-$1000) at 200 credits per dollar; credits stay fractional like the
+ * legacy dollar threshold.
  */
 const SIM_RULE_BOUNDS = {
-  consecutiveFailures: { min: 1, max: 100 },
-  failureRatePercent: { min: 1, max: 100 },
-  windowHours: { min: 1, max: 168 },
-  durationThresholdMs: { min: 1000, max: 3_600_000 },
-  latencySpikePercent: { min: 10, max: 1000 },
+  consecutiveFailures: { min: 1, max: 100, integer: true },
+  failureRatePercent: { min: 1, max: 100, integer: true },
+  windowHours: { min: 1, max: 168, integer: true },
+  durationThresholdMs: { min: 1000, max: 3_600_000, integer: true },
+  latencySpikePercent: { min: 10, max: 1000, integer: true },
   costThresholdCredits: { min: 2, max: 200_000 },
-  errorCountThreshold: { min: 1, max: 1000 },
-  inactivityHours: { min: 1, max: 168 },
+  errorCountThreshold: { min: 1, max: 1000, integer: true },
+  inactivityHours: { min: 1, max: 168, integer: true },
 } as const
 
 function parseBoundedNumber(
   value: unknown,
   fallback: number,
-  bounds: { min: number; max: number }
+  bounds: { min: number; max: number; integer?: boolean }
 ): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback
-  return Math.min(Math.max(parsed, bounds.min), bounds.max)
+  const clamped = Math.min(Math.max(parsed, bounds.min), bounds.max)
+  return bounds.integer ? Math.round(clamped) : clamped
 }
 
 /**
