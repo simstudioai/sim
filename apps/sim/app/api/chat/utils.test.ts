@@ -31,9 +31,9 @@ const {
 }))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: vi.fn().mockImplementation(() => ({
-    checkRateLimitDirect: mockCheckRateLimitDirect,
-  })),
+  RateLimiter: class {
+    checkRateLimitDirect = mockCheckRateLimitDirect
+  },
 }))
 
 vi.mock('@/lib/auth', () => ({
