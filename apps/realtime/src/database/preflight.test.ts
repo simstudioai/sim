@@ -39,6 +39,11 @@ function pgError(code: string): Error & { code: string } {
   return Object.assign(new Error(`pg error ${code}`), { code })
 }
 
+/** Mirrors how drizzle wraps the driver error: the SQLSTATE lives on `cause`, not the outer error. */
+function wrappedPgError(code: string): Error {
+  return new Error('Failed query', { cause: pgError(code) })
+}
+
 describe('assertSchemaCompatibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -69,6 +74,15 @@ describe('assertSchemaCompatibility', () => {
     expect(mockLimit).toHaveBeenCalledTimes(1)
   })
 
+  it('detects a schema mismatch wrapped in error.cause and fails fast', async () => {
+    mockLimit.mockRejectedValue(wrappedPgError('42703'))
+
+    await expect(assertSchemaCompatibility()).rejects.toThrow(/incompatible with the live database/)
+
+    expect(mockLimit).toHaveBeenCalledTimes(1)
+    expect(sleep).not.toHaveBeenCalled()
+  })
+
   it('retries transient connection errors and resolves once reachable', async () => {
     mockLimit
       .mockRejectedValueOnce(pgError('ECONNREFUSED'))
@@ -87,5 +101,6 @@ describe('assertSchemaCompatibility', () => {
     await expect(assertSchemaCompatibility()).rejects.toThrow(/database unreachable/)
 
     expect(mockLimit).toHaveBeenCalledTimes(5)
+    expect(sleep).toHaveBeenCalledTimes(4)
   })
 })

@@ -20,9 +20,22 @@ const MAX_CONNECT_ATTEMPTS = 5
  */
 const SCHEMA_MISMATCH_CODES = new Set(['42703', '42P01', '42883'])
 
+/**
+ * Walks the `cause` chain so a SQLSTATE code is found even when drizzle wraps the
+ * driver error (the code commonly lives on the inner `cause`, not the outer throw).
+ */
 function isSchemaMismatch(error: unknown): boolean {
-  const code = (error as { code?: unknown })?.code
-  return typeof code === 'string' && SCHEMA_MISMATCH_CODES.has(code)
+  const seen = new Set<unknown>()
+  let current: unknown = error
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current)
+    const code = (current as { code?: unknown }).code
+    if (typeof code === 'string' && SCHEMA_MISMATCH_CODES.has(code)) {
+      return true
+    }
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
 }
 
 /**
@@ -64,6 +77,10 @@ export async function assertSchemaCompatibility(): Promise<void> {
         throw new Error(
           `Deployed image is incompatible with the live database schema: ${getErrorMessage(error)}`
         )
+      }
+
+      if (attempt === MAX_CONNECT_ATTEMPTS) {
+        break
       }
 
       const delay = backoffWithJitter(attempt, null)
