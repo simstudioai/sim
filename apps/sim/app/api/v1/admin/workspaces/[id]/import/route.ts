@@ -97,7 +97,10 @@ export const POST = withRouteHandler(
         const rawBody = await parseJsonBody(request, 'response', ADMIN_IMPORT_MAX_BODY_BYTES)
 
         if (!rawBody.success) {
-          return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+          // Preserve the 413 for an oversized body; only invalid JSON maps to 400.
+          return rawBody.reason === 'too_large'
+            ? rawBody.response
+            : badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
         const validation = adminV1WorkspaceImportBodySchema.safeParse(rawBody.data)

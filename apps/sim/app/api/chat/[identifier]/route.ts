@@ -6,6 +6,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deployedChatPostContract } from '@/lib/api/contracts/chats'
 import { parseRequest } from '@/lib/api/server'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { env } from '@/lib/core/config/env'
 import { validateAuthToken } from '@/lib/core/security/deployment'
@@ -194,6 +195,9 @@ export const POST = withRouteHandler(
       const workspaceId = workflowRecord?.workspaceId
       if (!workspaceId) {
         logger.error(`[${requestId}] Workflow ${deployment.workflowId} has no workspaceId`)
+        // preprocessExecution reserved a billing concurrency slot; release it on
+        // this early exit since no LoggingSession will finalize to free it.
+        await releaseExecutionSlot(executionId)
         return createErrorResponse('Workflow has no associated workspace', 500)
       }
 
@@ -300,6 +304,9 @@ export const POST = withRouteHandler(
         return streamResponse
       } catch (error: any) {
         logger.error(`[${requestId}] Error processing chat request:`, error)
+        // Setup failed before the workflow stream took over slot release;
+        // free the reserved billing slot (idempotent if already released).
+        await releaseExecutionSlot(executionId)
         return createErrorResponse(error.message || 'Failed to process request', 500)
       }
     } catch (error: any) {
