@@ -3,7 +3,9 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, ne } from 'drizzle-orm'
+import * as ipaddr from 'ipaddr.js'
 import { NextResponse } from 'next/server'
+import { getClientIp } from '@/lib/core/utils/request'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -17,28 +19,61 @@ import type {
 
 const logger = createLogger('WebhookProvider:Telegram')
 
+/**
+ * Telegram's published source ranges for webhook delivery.
+ * @see https://core.telegram.org/bots/webhooks
+ */
+const TELEGRAM_WEBHOOK_CIDRS: ReadonlyArray<readonly [string, number]> = [
+  ['149.154.160.0', 20],
+  ['91.108.4.0', 22],
+] as const
+
+/** Whether a client IP falls inside Telegram's documented webhook source ranges. */
+function isTelegramWebhookIp(ip: string): boolean {
+  if (!ip || ip === 'unknown' || !ipaddr.isValid(ip)) {
+    return false
+  }
+  try {
+    const addr = ipaddr.process(ip)
+    if (addr.kind() !== 'ipv4') {
+      return false
+    }
+    return TELEGRAM_WEBHOOK_CIDRS.some(([network, prefix]) =>
+      addr.match([ipaddr.parse(network), prefix])
+    )
+  } catch {
+    return false
+  }
+}
+
 export const telegramHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext): NextResponse | null {
     const secretToken = (providerConfig.secretToken as string | undefined)?.trim()
-    if (!secretToken) {
+
+    if (secretToken) {
+      const providedToken = request.headers.get('x-telegram-bot-api-secret-token')
+      if (!providedToken) {
+        logger.warn(
+          `[${requestId}] Telegram webhook missing secret token header — rejecting request`
+        )
+        return new NextResponse('Unauthorized - Missing Telegram secret token', { status: 401 })
+      }
+
+      if (!safeCompare(providedToken, secretToken)) {
+        logger.warn(`[${requestId}] Telegram secret token verification failed`)
+        return new NextResponse('Unauthorized - Invalid Telegram secret token', { status: 401 })
+      }
+
+      return null
+    }
+
+    const clientIp = getClientIp(request)
+    if (!isTelegramWebhookIp(clientIp)) {
       logger.warn(
-        `[${requestId}] Telegram webhook missing secretToken in providerConfig — rejecting request. Re-save the trigger so a secret token can be registered with Telegram.`
+        `[${requestId}] Telegram webhook without a registered secret token rejected — source IP is not in Telegram's published ranges. Re-save the trigger to enable secret-token verification.`,
+        { clientIp }
       )
-      return new NextResponse(
-        'Unauthorized - Telegram webhook secret token is not configured. Re-save the trigger so a webhook can be registered.',
-        { status: 401 }
-      )
-    }
-
-    const providedToken = request.headers.get('x-telegram-bot-api-secret-token')
-    if (!providedToken) {
-      logger.warn(`[${requestId}] Telegram webhook missing secret token header — rejecting request`)
-      return new NextResponse('Unauthorized - Missing Telegram secret token', { status: 401 })
-    }
-
-    if (!safeCompare(providedToken, secretToken)) {
-      logger.warn(`[${requestId}] Telegram secret token verification failed`)
-      return new NextResponse('Unauthorized - Invalid Telegram secret token', { status: 401 })
+      return new NextResponse('Unauthorized - Untrusted Telegram webhook source', { status: 401 })
     }
 
     return null

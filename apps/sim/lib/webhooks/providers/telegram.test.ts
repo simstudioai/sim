@@ -1,5 +1,6 @@
+import { requestUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { telegramHandler } from '@/lib/webhooks/providers/telegram'
 
 function reqWithHeaders(headers: Record<string, string>): NextRequest {
@@ -7,11 +8,41 @@ function reqWithHeaders(headers: Record<string, string>): NextRequest {
 }
 
 describe('Telegram webhook provider', () => {
-  it('verifyAuth rejects when secretToken is not configured', () => {
+  beforeEach(() => {
+    requestUtilsMockFns.mockGetClientIp.mockReturnValue('203.0.113.7')
+  })
+
+  it('verifyAuth rejects an unconfigured webhook when the source IP is not Telegram', () => {
     const res = telegramHandler.verifyAuth!({
       request: reqWithHeaders({ 'x-telegram-bot-api-secret-token': 'anything' }),
       rawBody: '{}',
       requestId: 't1',
+      providerConfig: {},
+      webhook: {},
+      workflow: {},
+    })
+    expect((res as { status?: number })?.status).toBe(401)
+  })
+
+  it('verifyAuth accepts a legacy webhook (no secret) from a Telegram source IP', () => {
+    requestUtilsMockFns.mockGetClientIp.mockReturnValue('149.154.167.197')
+    const res = telegramHandler.verifyAuth!({
+      request: reqWithHeaders({}),
+      rawBody: '{}',
+      requestId: 't1b',
+      providerConfig: {},
+      webhook: {},
+      workflow: {},
+    })
+    expect(res).toBeNull()
+  })
+
+  it('verifyAuth rejects a legacy webhook (no secret) when the source IP is unknown', () => {
+    requestUtilsMockFns.mockGetClientIp.mockReturnValue('unknown')
+    const res = telegramHandler.verifyAuth!({
+      request: reqWithHeaders({}),
+      rawBody: '{}',
+      requestId: 't1c',
       providerConfig: {},
       webhook: {},
       workflow: {},
