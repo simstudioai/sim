@@ -63,9 +63,10 @@ jobs:
             exit 1
           fi
 
-          echo "Applying versioned migrations (db:migrate)"
-          bun run ./scripts/migrate.ts
           if [ "${ENVIRONMENT}" = "dev" ]; then
-            echo "Dev environment — also pushing unversioned schema drift (db:push)"
+            echo "Dev environment — pushing schema directly (db:push)"
             bun run db:push --force
+          else
+            echo "Applying versioned migrations (db:migrate)"
+            bun run ./scripts/migrate.ts
           fi
