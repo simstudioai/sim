@@ -2622,6 +2622,7 @@ async function generateBlockDoc(blockPath: string) {
       if (
         (blockConfig.category === 'blocks' &&
           !NATIVE_RESOURCE_BLOCK_TYPES.has(stripVersionSuffix(blockConfig.type))) ||
+        blockConfig.type === 'sim_workspace_event' ||
         blockConfig.type === 'evaluator' ||
         blockConfig.type === 'number' ||
         blockConfig.type === 'webhook' ||
@@ -2879,7 +2880,10 @@ async function getCanonicalToolDocNames(): Promise<Set<string>> {
       // blocks (category 'triggers') whose pages the trigger pass writes.
       const stripped = config.type ? stripVersionSuffix(config.type) : ''
       const isDocumentedResource = NATIVE_RESOURCE_BLOCK_TYPES.has(stripped)
-      const isTriggerService = config.category === 'triggers' && !config.hideFromToolbar
+      const isTriggerService =
+        config.category === 'triggers' &&
+        !config.hideFromToolbar &&
+        stripped !== 'sim_workspace_event'
       if (!isIntegrationBlock(config) && !isDocumentedResource && !isTriggerService) continue
       validToolDocs.add(stripped)
     }
