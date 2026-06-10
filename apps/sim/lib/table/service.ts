@@ -2511,6 +2511,10 @@ export async function upsertRow(
   // trigger (migration 0198). The update path doesn't change row_count, so no check needed.
   const result = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
+    // The conflict lookups below match on `data->>key` — unestimatable, and an
+    // insert-path upsert (no existing match) can't exit early, so the planner
+    // would seq-scan the whole shared relation. See withSeqscanOff.
+    await trx.execute(sql`SET LOCAL enable_seqscan = off`)
 
     // Find existing row by single conflict target column
     const [existingRow] = await trx
