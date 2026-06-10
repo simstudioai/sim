@@ -1230,6 +1230,14 @@ export const Sidebar = memo(function Sidebar() {
         className='hidden'
         onChange={handleLogoFileChange}
       />
+      <input
+        ref={fileInputRef}
+        type='file'
+        accept='.json,.zip'
+        multiple
+        className='hidden'
+        onChange={handleImportFileChange}
+      />
       <div className='relative h-full'>
         <aside
           className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)]'
@@ -1594,8 +1602,6 @@ export const Sidebar = memo(function Sidebar() {
                               regularWorkflows={regularWorkflows}
                               isLoading={isLoading}
                               canReorder={canEdit}
-                              handleFileChange={handleImportFileChange}
-                              fileInputRef={fileInputRef}
                               scrollContainerRef={scrollContainerRef}
                               onCreateWorkflow={handleCreateWorkflow}
                               onCreateFolder={handleCreateFolder}

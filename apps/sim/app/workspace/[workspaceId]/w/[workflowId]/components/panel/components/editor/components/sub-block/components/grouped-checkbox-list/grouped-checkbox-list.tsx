@@ -14,7 +14,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 
 interface SelectedCountDisplayProps {
   noneSelected: boolean
@@ -49,7 +49,6 @@ interface GroupedCheckboxListProps {
   subBlockValues: Record<string, any>
   disabled?: boolean
   maxHeight?: number
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function GroupedCheckboxList({
@@ -61,8 +60,8 @@ export function GroupedCheckboxList({
   subBlockValues,
   disabled = false,
   maxHeight = 400,
-  activeSearchTarget,
 }: GroupedCheckboxListProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [open, setOpen] = useState(false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const optionRefs = useRef<Record<number, HTMLDivElement | null>>({})
