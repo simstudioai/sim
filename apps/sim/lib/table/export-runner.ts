@@ -97,15 +97,19 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
 
     const fileName = `${sanitizeExportFilename(table.name)}.${format}`
     const key = `workspace/${workspaceId}/exports/${tableId}/${jobId}/${fileName}`
-    await uploadFile({
+    // `preserveKey` keeps the custom key verbatim (without it the provider rewrites the key to a
+    // timestamped, path-stripped name), and the *returned* key is recorded as the source of truth
+    // either way — the download route presigns exactly what was written.
+    const uploaded = await uploadFile({
       file: Buffer.from(chunks.join(''), 'utf8'),
       fileName,
       contentType: format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json',
       context: 'workspace',
       customKey: key,
+      preserveKey: true,
     })
-    uploadedKey = key
-    await setJobResultKey(tableId, jobId, key)
+    uploadedKey = uploaded.key
+    await setJobResultKey(tableId, jobId, uploaded.key)
 
     await updateJobProgress(tableId, exported, jobId)
     // Only announce success if we still won the transition (not canceled at the wire).
@@ -123,7 +127,7 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     } else {
       // Canceled at the very end — the file is orphaned; remove it (janitor would otherwise
       // only catch it via the pruned job's resultKey).
-      await deleteFile({ key, context: 'workspace' }).catch(() => {})
+      await deleteFile({ key: uploaded.key, context: 'workspace' }).catch(() => {})
       logger.info(`[${requestId}] Export finished but no longer owns the run`, { tableId, jobId })
     }
   } catch (err) {

@@ -58,7 +58,11 @@ describe('runTableExport', () => {
     mockMarkJobReady.mockResolvedValue(true)
     mockMarkJobFailed.mockResolvedValue(undefined)
     mockSetJobResultKey.mockResolvedValue(undefined)
-    mockUploadFile.mockResolvedValue({})
+    // Echo the requested key back like preserveKey-aware providers do; the runner must record
+    // THIS returned key, not its own constructed one.
+    mockUploadFile.mockImplementation((opts: { customKey: string }) =>
+      Promise.resolve({ key: opts.customKey })
+    )
     mockDeleteFile.mockResolvedValue(undefined)
     mockQueryRows.mockResolvedValue({ rows: [{ id: 'r1', data: { col_name: 'Ada' } }] })
   })
@@ -69,6 +73,7 @@ describe('runTableExport', () => {
     expect(mockUploadFile).toHaveBeenCalledTimes(1)
     const upload = mockUploadFile.mock.calls[0][0]
     expect(upload.customKey).toBe('workspace/ws_1/exports/tbl_1/job_1/People.csv')
+    expect(upload.preserveKey).toBe(true)
     expect(upload.contentType).toContain('text/csv')
     expect(upload.file.toString('utf8')).toBe('name\nAda\n')
 

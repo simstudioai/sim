@@ -9,7 +9,7 @@ import {
   ProgressItem,
   toast,
 } from '@/components/emcn'
-import { Upload } from '@/components/emcn/icons'
+import { Loader } from '@/components/emcn/icons'
 import { cancelTableJob, downloadExportResult } from '@/hooks/queries/tables'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 import { getImportStage } from './import-stage'
@@ -41,6 +41,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
 
   const total = imports.length
   const done = imports.filter((e) => e.phase === 'ready').length
+  const anyRunning = imports.some((e) => e.phase === 'importing')
 
   const cancel = (row: ImportRow) => {
     cancelId(row.id)
@@ -63,7 +64,7 @@ export function ImportProgressMenu({ workspaceId, tableId }: ImportProgressMenuP
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant='subtle' className='px-2 py-1 text-caption'>
-          <Upload className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
+          <Loader animate={anyRunning} className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
           <span className='tabular-nums'>
             {done}/{total}
           </span>
