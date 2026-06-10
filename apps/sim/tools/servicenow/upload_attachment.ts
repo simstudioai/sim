@@ -59,12 +59,6 @@ export const uploadAttachmentTool: ToolConfig<
       visibility: 'user-only',
       description: 'File to upload (UserFile object)',
     },
-    fileContent: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Base64-encoded file content (legacy)',
-    },
   },
 
   request: {
@@ -81,7 +75,6 @@ export const uploadAttachmentTool: ToolConfig<
       recordSysId: params.recordSysId,
       fileName: params.fileName,
       file: params.file,
-      fileContent: params.fileContent,
     }),
   },
 

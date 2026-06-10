@@ -10,7 +10,6 @@ export const servicenowUploadAttachmentBodySchema = z.object({
   recordSysId: z.string().min(1, 'Record sys_id is required'),
   fileName: z.string().min(1, 'File name is required'),
   file: RawFileInputSchema.optional().nullable(),
-  fileContent: z.string().optional().nullable(),
 })
 
 export type ServiceNowUploadAttachmentBody = z.input<typeof servicenowUploadAttachmentBodySchema>

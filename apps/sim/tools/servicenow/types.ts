@@ -152,7 +152,6 @@ export interface ServiceNowUploadAttachmentParams {
   recordSysId: string
   fileName: string
   file?: unknown
-  fileContent?: string
 }
 
 export interface ServiceNowUploadAttachmentResponse extends ToolResponse {

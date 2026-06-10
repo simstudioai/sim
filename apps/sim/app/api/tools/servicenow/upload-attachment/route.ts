@@ -35,33 +35,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const body = parsed.data.body
 
-    let fileBuffer: Buffer
-    let contentType = 'application/octet-stream'
+    if (!body.file) {
+      return NextResponse.json({ success: false, error: 'A file is required' }, { status: 400 })
+    }
 
-    if (body.file) {
-      let userFile
-      try {
-        userFile = processSingleFileToUserFile(body.file, requestId, logger)
-      } catch (error) {
-        return NextResponse.json(
-          { success: false, error: getErrorMessage(error, 'Failed to process file') },
-          { status: 400 }
-        )
-      }
-
-      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
-      if (denied) return denied
-
-      if (userFile.type) contentType = userFile.type
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
-    } else if (body.fileContent) {
-      fileBuffer = Buffer.from(body.fileContent, 'base64')
-    } else {
+    let userFile
+    try {
+      userFile = processSingleFileToUserFile(body.file, requestId, logger)
+    } catch (error) {
       return NextResponse.json(
-        { success: false, error: 'Either file or fileContent must be provided' },
+        { success: false, error: getErrorMessage(error, 'Failed to process file') },
         { status: 400 }
       )
     }
+
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
+
+    const contentType = userFile.type || 'application/octet-stream'
+    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
 
     const baseUrl = body.instanceUrl.trim().replace(/\/$/, '')
     const uploadParams = new URLSearchParams({
