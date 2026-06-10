@@ -181,7 +181,7 @@ function WorkspaceVariableRow({
   return (
     <div className='contents'>
       <ChipInput
-        className={cn(!canRename && 'cursor-not-allowed opacity-50')}
+        className={cn(!canRename && 'cursor-text')}
         value={renamingKey === envKey ? pendingKeyValue : envKey}
         onChange={(e) => {
           if (renamingKey !== envKey) onRenameStart(envKey)
