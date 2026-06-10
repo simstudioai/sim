@@ -23,6 +23,11 @@ interface ChatSwitcherProps {
    */
   chatId?: string
   /**
+   * Marks the new-chat empty state (home with no chat open): the chip reads
+   * "New chat" instead of falling back to the most recently updated chat.
+   */
+  isNewChat?: boolean
+  /**
    * Called with the picked chat id before navigation. The chat view uses this
    * to reopen a hidden chat pane (including re-picking the current chat).
    */
@@ -34,7 +39,7 @@ interface ChatSwitcherProps {
  * top-left of every page's title bar. Clicking it opens the workspace's chat
  * list inline; selecting a chat navigates to it from anywhere.
  */
-export function ChatSwitcher({ chatId, onSelectChat }: ChatSwitcherProps) {
+export function ChatSwitcher({ chatId, isNewChat = false, onSelectChat }: ChatSwitcherProps) {
   const isHidden = useSidebarToggleHidden()
   const { workspaceId } = useParams<{ workspaceId?: string }>()
   const router = useRouter()
@@ -54,7 +59,9 @@ export function ChatSwitcher({ chatId, onSelectChat }: ChatSwitcherProps) {
 
   const title = chatId
     ? (tasks.find((task) => task.id === chatId)?.name ?? FALLBACK_TITLE)
-    : (mostRecent?.name ?? FALLBACK_TITLE)
+    : isNewChat
+      ? FALLBACK_TITLE
+      : (mostRecent?.name ?? FALLBACK_TITLE)
 
   const handleSelect = (selectedChatId: string) => {
     setOpen(false)

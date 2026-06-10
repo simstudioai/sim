@@ -29,7 +29,9 @@ export function ChatTitleBar({ chatId, onSelectChat, onClose }: ChatTitleBarProp
       {/* Edge controls pull out by 9px so their 30px hover pills sit 7px from
           the panel edge — matching the pill's 7px top/bottom gap in the bar. */}
       <SidebarToggle className='-ml-[9px]' />
-      <ChatSwitcher chatId={chatId} onSelectChat={onSelectChat} />
+      {/* The title bar only renders on chat surfaces, so no chat id means the
+          new-chat empty state — never fall back to the most recent chat. */}
+      <ChatSwitcher chatId={chatId} isNewChat={!chatId} onSelectChat={onSelectChat} />
       {onClose && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
