@@ -14,9 +14,17 @@ const logger = createLogger('LogsExportAPI')
 
 export const revalidate = 0
 
+/**
+ * Prefixes a single quote to values starting with a spreadsheet formula trigger
+ * (`=`, `+`, `-`, `@`, tab, CR), neutralizing CSV injection in Excel/Sheets.
+ */
+function neutralizeCsvFormula(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+}
+
 function escapeCsv(value: any): string {
   if (value === null || value === undefined) return ''
-  const str = String(value)
+  const str = neutralizeCsvFormula(String(value))
   if (/[",\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`
   }
