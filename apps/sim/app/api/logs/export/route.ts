@@ -17,7 +17,7 @@ export const revalidate = 0
 
 function escapeCsv(value: any): string {
   if (value === null || value === undefined) return ''
-  const str = neutralizeCsvFormula(String(value))
+  const str = typeof value === 'string' ? neutralizeCsvFormula(value) : String(value)
   if (/[",\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`
   }
