@@ -12,7 +12,7 @@ const poolOptions = {
   idle_timeout: 20,
   connect_timeout: 30,
   onnotice: () => {},
-} as const
+}
 
 const postgresClient = postgres(connectionString, { ...poolOptions, max: 15 })
 
@@ -31,6 +31,11 @@ export const db = drizzle(postgresClient, { schema })
  * self-hosted, realtime), so call sites never need to branch.
  */
 const replicaUrl = process.env.DATABASE_REPLICA_URL
+if (replicaUrl && !/^postgres(ql)?:\/\//.test(replicaUrl)) {
+  throw new Error(
+    'DATABASE_REPLICA_URL is set but is not a postgres:// DSN — fix or unset it (reads fall back to the primary when unset)'
+  )
+}
 
 export const dbReplica: typeof db = replicaUrl
   ? drizzle(postgres(replicaUrl, { ...poolOptions, max: 10 }), { schema })

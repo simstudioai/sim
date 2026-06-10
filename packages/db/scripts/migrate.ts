@@ -1,3 +1,4 @@
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -16,19 +17,27 @@ import postgres from 'postgres'
  * So, after generating a migration that adds an index on a large/hot table, edit
  * the generated SQL to end drizzle's transaction first, clear the session
  * `lock_timeout` (set below for fail-fast DDL; it would cancel CONCURRENTLY's
- * legitimate waits on old transactions and leave an INVALID index), then build
- * concurrently and idempotently:
+ * legitimate waits on old transactions and leave an INVALID index), build
+ * concurrently and idempotently, then RESTORE the fail-fast timeout so later
+ * statements and files in the same run keep the protection (the SET is
+ * session-level and would otherwise persist):
  *
  *   COMMIT;--> statement-breakpoint
  *   SET lock_timeout = 0;--> statement-breakpoint
- *   CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_name" ON "table" (...);
+ *   CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_name" ON "table" (...);--> statement-breakpoint
+ *   SET lock_timeout = '5s';
  *
  * Notes:
  *  - Put the `COMMIT` breakpoint AFTER all transactional DDL (ALTER TABLE/TYPE)
  *    in the file and only the concurrent CREATE INDEX statements below it.
- *  - Use `IF NOT EXISTS` (and make sibling DDL idempotent, e.g.
- *    `ADD COLUMN IF NOT EXISTS`, `ADD VALUE IF NOT EXISTS`) so a re-run after a
- *    failed CONCURRENTLY build is safe — fresh DBs and re-applies both work.
+ *  - drizzle's migrate() wraps ALL pending files in ONE transaction, so the
+ *    embedded `COMMIT` ends that batch transaction: everything after it — in
+ *    this file AND any later pending files — runs in autocommit, one statement
+ *    at a time. This is why EVERY statement in a file using this convention,
+ *    and in any file that can follow it in a batch, must be idempotent
+ *    (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` / `ADD VALUE IF NOT EXISTS`):
+ *    a failure after the COMMIT cannot roll back, and the re-run starts from
+ *    the top of the batch.
  *  - CONCURRENTLY only takes a SHARE UPDATE EXCLUSIVE lock (allows reads/writes).
  *  - Always validate on staging before prod; a failed CONCURRENTLY build can
  *    leave an INVALID index that must be dropped and rebuilt — the
@@ -76,7 +85,7 @@ const client = postgres(url, { max: 1, connect_timeout: 10 })
  * the connection drops, so a crashed runner never wedges the lock.
  */
 const MIGRATION_LOCK_KEY = 4_961_002_270n
-const LOCK_ACQUIRE_DEADLINE_MS = 10 * 60_000
+const LOCK_ACQUIRE_DEADLINE_MS = 30 * 60_000
 const LOCK_RETRY_INTERVAL_MS = 5_000
 
 /**
@@ -96,7 +105,6 @@ try {
   // statement_timeout=0: index builds (esp. CONCURRENTLY on large tables) can run
   // far longer than the app default; a migration must never be killed mid-build.
   await client`SET statement_timeout = 0`
-  await client`SET lock_timeout = ${DDL_LOCK_TIMEOUT}`
   await acquireMigrationLock()
   try {
     await runMigrationsWithRetry()
@@ -134,44 +142,37 @@ async function acquireMigrationLock(): Promise<void> {
 
 /**
  * Run pending migrations, retrying when a statement loses the `lock_timeout`
- * race (SQLSTATE 55P03). drizzle wraps each migration file in a transaction, so
- * a lock-timeout failure rolls that file back atomically and the retry re-reads
- * `__drizzle_migrations` and re-runs only what is still unapplied.
+ * race (SQLSTATE 55P03, detected anywhere in the error's `cause` chain since
+ * drizzle wraps driver failures).
+ *
+ * The fail-fast `lock_timeout` is (re)asserted at the top of EVERY attempt:
+ * `SET` is rejected by Postgres when parameterized, so the constant is inlined
+ * via `client.unsafe`, and a prior attempt's migration file may have left the
+ * session at `lock_timeout = 0` (the CONCURRENTLY convention above).
+ *
+ * Retry safety: drizzle wraps the whole pending batch in one transaction, so a
+ * lock-timeout failure rolls the batch back and the retry replays it from the
+ * top. Files using the embedded-`COMMIT` CONCURRENTLY convention break out of
+ * that transaction — their post-COMMIT statements are required to be
+ * idempotent (see the convention notes above) precisely so a replay is safe.
  */
 async function runMigrationsWithRetry(): Promise<void> {
   for (let attempt = 1; ; attempt++) {
+    await client.unsafe(`SET lock_timeout = '${DDL_LOCK_TIMEOUT}'`)
     try {
       await migrate(drizzle(client), { migrationsFolder: './migrations' })
       return
     } catch (error) {
-      if (!isLockNotAvailable(error) || attempt >= MAX_MIGRATE_ATTEMPTS) throw error
-      const delayMs = Math.round(backoffWithJitter(attempt, null, MIGRATE_RETRY_BACKOFF))
+      const isLockTimeout = getPostgresErrorCode(error) === '55P03'
+      if (!isLockTimeout || attempt >= MAX_MIGRATE_ATTEMPTS) throw error
+      const delayMs = backoffWithJitter(attempt, null, MIGRATE_RETRY_BACKOFF)
       console.warn(
         `WARN: migration DDL hit lock_timeout (attempt ${attempt}/${MAX_MIGRATE_ATTEMPTS}); ` +
-          `retrying in ${delayMs}ms.`
+          `retrying in ${Math.round(delayMs)}ms.`
       )
       await sleep(delayMs)
-      // Re-assert: a migration file's post-COMMIT `SET lock_timeout = 0` (the
-      // CONCURRENTLY convention above) is session-level and would otherwise
-      // leak into the retry.
-      await client`SET lock_timeout = ${DDL_LOCK_TIMEOUT}`
     }
   }
-}
-
-/**
- * SQLSTATE 55P03 (`lock_not_available`) — raised when `lock_timeout` expires
- * while a statement queues for a lock. drizzle's `migrate()` wraps driver
- * failures (e.g. `DrizzleQueryError` with the Postgres error on `cause`), so
- * walk the whole cause chain looking for the code.
- */
-function isLockNotAvailable(error: unknown): boolean {
-  let current: unknown = error
-  for (let depth = 0; depth < 10 && current instanceof Error; depth++) {
-    if ((current as { code?: string }).code === '55P03') return true
-    current = current.cause
-  }
-  return false
 }
 
 /**

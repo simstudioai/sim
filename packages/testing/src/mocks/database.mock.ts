@@ -248,7 +248,7 @@ const dbChainInstance = {
 
 export const dbChainMock = {
   db: dbChainInstance,
-  // Same instance as `db` so per-test chain overrides cover both clients.
+  /** Same instance as `db` so per-test chain overrides cover both clients. */
   dbReplica: dbChainInstance,
 }
 
@@ -317,7 +317,7 @@ const mockDbInstance = createMockDb()
 
 export const databaseMock = {
   db: mockDbInstance,
-  // Same instance as `db` so per-test overrides cover both clients.
+  /** Same instance as `db` so per-test overrides cover both clients. */
   dbReplica: mockDbInstance,
   sql: createMockSql(),
   ...createMockSqlOperators(),

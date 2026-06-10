@@ -1,5 +1,5 @@
 import { AuditResourceType } from '@sim/audit'
-import { dbReplica } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
@@ -71,9 +71,13 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
 
 /**
  * Returns the IDs of all workspaces attached to the organization.
+ *
+ * Reads the primary, not the replica: this list is the tenant/authz boundary
+ * for the audit-log API, and a lagging replica could briefly include a
+ * workspace that was just detached from the org.
  */
 export async function getOrgWorkspaceIds(organizationId: string): Promise<string[]> {
-  const rows = await dbReplica
+  const rows = await db
     .select({ id: workspace.id })
     .from(workspace)
     .where(eq(workspace.organizationId, organizationId))
