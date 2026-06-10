@@ -3216,7 +3216,20 @@ export const userTableRows = pgTable(
   },
   (table) => ({
     tableIdIdx: index('user_table_rows_table_id_idx').on(table.tableId),
-    dataGinIdx: index('user_table_rows_data_gin_idx').using('gin', table.data),
+    /**
+     * Tenant-scoped containment index (requires the `btree_gin` extension,
+     * created in migration 0232). A plain GIN on `data` matches `@>` candidates
+     * across every tenant sharing this relation — a hot value in someone else's
+     * table inflates everyone's scans (measured 1.07M candidates fetched for a
+     * 33k-row match). Leading with `table_id` intersects inside the index, and
+     * `jsonb_path_ops` indexes only containment paths: rare-equality probe
+     * 326ms → 17ms, and the index is smaller than the one it replaces.
+     */
+    dataGinIdx: index('user_table_rows_tenant_data_gin_idx').using(
+      'gin',
+      table.tableId,
+      sql`${table.data} jsonb_path_ops`
+    ),
     workspaceTableIdx: index('user_table_rows_workspace_table_idx').on(
       table.workspaceId,
       table.tableId
