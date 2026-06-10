@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { upsertTableRowContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
@@ -9,7 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { upsertRow } from '@/lib/table'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableUpsertAPI')
 
@@ -77,19 +76,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       return validationErrorResponse(error)
     }
 
-    const errorMessage = toError(error).message
-
-    if (
-      errorMessage.includes('unique column') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('conflictTarget') ||
-      errorMessage.includes('row limit') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('Upsert requires') ||
-      errorMessage.includes('Row size exceeds')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const response = rowWriteErrorResponse(error)
+    if (response) return response
 
     logger.error(`[${requestId}] Error upserting row:`, error)
     return NextResponse.json({ error: 'Failed to upsert row' }, { status: 500 })
