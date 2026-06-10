@@ -1234,6 +1234,8 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
 interface CancelRunsParams {
   scope: 'all' | 'row'
   rowId?: string
+  /** Scope-`all` only: cancel just the cells on rows matching this filter (filtered select-all Stop). */
+  filter?: Filter
 }
 
 /**
@@ -1248,10 +1250,10 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ scope, rowId }: CancelRunsParams) => {
+    mutationFn: async ({ scope, rowId, filter }: CancelRunsParams) => {
       return requestJson(cancelTableRunsContract, {
         params: { tableId },
-        body: { workspaceId, scope, rowId },
+        body: { workspaceId, scope, rowId, filter },
       })
     },
     onMutate: async ({ scope, rowId }) => {

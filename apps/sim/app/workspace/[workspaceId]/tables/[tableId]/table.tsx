@@ -339,7 +339,9 @@ export function Table({
     })
   }
 
-  // useCallback because <RunStatusControl> is memo-wrapped.
+  // useCallback because <RunStatusControl> is memo-wrapped. Zero-arg on
+  // purpose — RunStatusControl passes it straight to onClick, which would
+  // otherwise leak the MouseEvent into `filter`.
   const onStopAll = useCallback(() => {
     cancelRunsMutate({ scope: 'all' })
     captureEvent(posthogRef.current, 'table_workflow_stopped', {
@@ -349,6 +351,17 @@ export function Table({
       row_count: null,
     })
   }, [cancelRunsMutate, tableId, workspaceId])
+
+  /** Filtered select-all Stop: cancels only cells on rows matching the filter. */
+  const onStopFiltered = (filter: Filter) => {
+    cancelRunsMutate({ scope: 'all', filter })
+    captureEvent(posthogRef.current, 'table_workflow_stopped', {
+      table_id: tableId,
+      workspace_id: workspaceId,
+      scope: 'all',
+      row_count: null,
+    })
+  }
 
   const onSelectionChange = (next: SelectionSnapshot) => {
     setSelection(next)
@@ -662,7 +675,11 @@ export function Table({
           onStopWorkflows={() => {
             const scope = selection.selectedRunScope
             if (!scope) return
-            scope.allRows ? onStopAll() : onStopRows(scope.rowIds)
+            if (scope.allRows) {
+              scope.filter ? onStopFiltered(scope.filter) : onStopAll()
+            } else {
+              onStopRows(scope.rowIds)
+            }
           }}
           onViewExecution={
             selection.singleWorkflowCell?.canViewExecution &&
@@ -758,12 +775,19 @@ export function Table({
           onClick: () => {
             if (!deletingAll) return
             const { excludeRowIds } = deletingAll
-            deleteRowsAsyncMutation.mutate({
-              filter: queryOptions.filter ?? undefined,
-              sort: queryOptions.sort,
-              excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
-            })
-            afterDeleteAllSinkRef.current?.()
+            deleteRowsAsyncMutation.mutate(
+              {
+                filter: queryOptions.filter ?? undefined,
+                sort: queryOptions.sort,
+                excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
+              },
+              {
+                // Clear the selection only once the kickoff succeeds — on
+                // failure the optimistic row clear rolls back and the user's
+                // selection should still be intact.
+                onSuccess: () => afterDeleteAllSinkRef.current?.(),
+              }
+            )
             setDeletingAll(null)
           },
         }}

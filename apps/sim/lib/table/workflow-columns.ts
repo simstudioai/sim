@@ -6,7 +6,11 @@
  */
 
 import { db } from '@sim/db'
-import { pausedExecutions, tableRowExecutions, type userTableRows } from '@sim/db/schema'
+import {
+  pausedExecutions,
+  tableRowExecutions,
+  userTableRows as userTableRowsTable,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -28,8 +32,10 @@ import type {
 const logger = createLogger('WorkflowGroupScheduler')
 
 import { getColumnId } from './column-keys'
+import { USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
 import type { DispatchLimit, DispatchMode } from './dispatcher'
+import { buildFilterClause } from './sql'
 
 export {
   getUnmetGroupDeps,
@@ -307,7 +313,7 @@ export async function cancelCellRunsByTags(tags: string[]): Promise<void> {
 }
 
 export function toTableRow(
-  r: typeof userTableRows.$inferSelect,
+  r: typeof userTableRowsTable.$inferSelect,
   executions: RowExecutions = {}
 ): TableRow {
   return {
@@ -351,12 +357,15 @@ export const TABLE_CONCURRENCY_LIMIT = 20
  * whether the trigger.dev cancel reaches the worker before its terminal
  * write. Pass `groupIds` to restrict the cancel to a subset of groups on
  * the row (used by `updateRow` to cancel only the downstream groups whose
- * deps just changed).
+ * deps just changed). Pass `filter` (table-wide form only) to cancel just
+ * the cells on rows matching it — a filtered "select all" must not stop
+ * work on rows outside its scope, so like the per-row form it leaves
+ * active dispatches running (their in-flight checks skip cancelled cells).
  */
 export async function cancelWorkflowGroupRuns(
   tableId: string,
   rowId?: string,
-  options?: { groupIds?: string[] }
+  options?: { groupIds?: string[]; filter?: Filter }
 ): Promise<number> {
   const { getTableById, updateRow } = await import('@/lib/table/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
@@ -371,8 +380,11 @@ export async function cancelWorkflowGroupRuns(
   // Per-row cancel leaves the dispatcher alone — other rows in the same
   // dispatch keep running. Table-wide cancel must stop it, else the cursor
   // marches on and re-enqueues fresh cells past what we just cancelled.
+  // Filter-scoped cancel stops only dispatches with that exact filter scope
+  // (its own run); whole-table or differently-scoped dispatches keep running —
+  // their cells cancelled below are skipped via `cancelledAt > requestedAt`.
   if (!rowId) {
-    await markActiveDispatchesCancelled(tableId)
+    await markActiveDispatchesCancelled(tableId, options?.filter)
   }
 
   const allGroups = table.schema.workflowGroups ?? []
@@ -423,6 +435,26 @@ export async function cancelWorkflowGroupRuns(
   ]
   if (rowId) {
     inFlightFilters.push(eq(tableRowExecutions.rowId, rowId))
+  } else if (options?.filter) {
+    // Filter-scoped cancel: only cells on rows matching the filter. Semi-join
+    // against the tenant's rows — the in-flight sidecar set is small, so the
+    // jsonb predicate is evaluated on few rows.
+    const filterClause = buildFilterClause(
+      options.filter,
+      USER_TABLE_ROWS_SQL_NAME,
+      table.schema.columns
+    )
+    if (filterClause) {
+      inFlightFilters.push(
+        inArray(
+          tableRowExecutions.rowId,
+          db
+            .select({ id: userTableRowsTable.id })
+            .from(userTableRowsTable)
+            .where(and(eq(userTableRowsTable.tableId, tableId), filterClause))
+        )
+      )
+    }
   }
   const inFlightRows = await db
     .select()
@@ -655,7 +687,9 @@ export async function runWorkflowColumn(opts: {
   const cancelPriorRuns = isManualRun && (mode === 'all' || mode === 'incomplete')
   if (cancelPriorRuns) {
     if (!rowIds || rowIds.length === 0) {
-      await cancelWorkflowGroupRuns(tableId, undefined, { groupIds: targetGroupIds })
+      // Filtered runs cancel only their own scope — a table-wide cancel here
+      // would stop unrelated work on rows outside the filter.
+      await cancelWorkflowGroupRuns(tableId, undefined, { groupIds: targetGroupIds, filter })
     } else {
       // Per-row cancel — sequential so we don't fan out N parallel
       // markActiveDispatchesCancelled calls (it's a no-op when rowId is set,

@@ -724,15 +724,23 @@ export async function markDispatchCancelled(dispatchId: string): Promise<void> {
  *  UPDATE so the dispatcher's next iteration observes the cancel. Returns the
  *  dispatches that were cancelled so the caller can emit per-dispatch SSE
  *  events — without those the client's overlay would hang on "queued" until
- *  the next refresh. */
-export async function markActiveDispatchesCancelled(tableId: string): Promise<DispatchRow[]> {
+ *  the next refresh. Pass `scopeFilter` to cancel only dispatches whose scope
+ *  is that exact filter (a filtered "select all" Stop must not halt
+ *  whole-table or differently-filtered runs). */
+export async function markActiveDispatchesCancelled(
+  tableId: string,
+  scopeFilter?: Filter
+): Promise<DispatchRow[]> {
   const cancelled = await db
     .update(tableRunDispatches)
     .set({ status: 'cancelled', cancelledAt: new Date() })
     .where(
       and(
         eq(tableRunDispatches.tableId, tableId),
-        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
+        scopeFilter
+          ? sql`${tableRunDispatches.scope}->'filter' = ${JSON.stringify(scopeFilter)}::jsonb`
+          : undefined
       )
     )
     .returning()

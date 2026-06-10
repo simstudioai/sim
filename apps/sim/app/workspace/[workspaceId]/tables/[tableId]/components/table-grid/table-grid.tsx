@@ -388,8 +388,6 @@ export function TableGrid({
   const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
   const hasActiveDispatch = (activeDispatches?.length ?? 0) > 0
 
-  const tableRowCountRef = useRef(tableData?.rowCount ?? 0)
-  tableRowCountRef.current = tableData?.rowCount ?? 0
   // True "select all" total: the filter-scoped COUNT(*) when a filter is active, else the whole
   // table. Drives the delete-confirm count and the action-bar cell count.
   const selectAllTotalRef = useRef(0)
@@ -2513,7 +2511,7 @@ export function TableGrid({
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
           buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
           verb: 'Copied',
-          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : tableRowCountRef.current,
+          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
         })
         return
       }
@@ -2537,7 +2535,7 @@ export function TableGrid({
           selectRow: () => true,
           buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
           verb: 'Copied',
-          estimatedCount: tableRowCountRef.current,
+          estimatedCount: selectAllTotalRef.current,
         })
         return
       }
@@ -2575,7 +2573,7 @@ export function TableGrid({
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
           buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
           verb: 'Cut',
-          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : tableRowCountRef.current,
+          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
           afterCopy: (copied) =>
             clearCutRows(
               copied,
@@ -2604,7 +2602,7 @@ export function TableGrid({
           selectRow: () => true,
           buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
           verb: 'Cut',
-          estimatedCount: tableRowCountRef.current,
+          estimatedCount: selectAllTotalRef.current,
           afterCopy: (copied) => clearCutRows(copied, colNames),
         })
         return

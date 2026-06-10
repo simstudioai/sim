@@ -1109,7 +1109,8 @@ export const deleteWorkflowGroupContract = defineRouteContract({
 
 /**
  * Cancel scopes:
- *  - `all`     — every running/pending cell in the table
+ *  - `all`     — every running/pending cell in the table; with `filter`, only
+ *                cells on rows matching it (filtered "select all" Stop)
  *  - `row`     — every running/pending cell for a specific row (`rowId` required)
  */
 export const cancelTableRunsBodySchema = z
@@ -1117,6 +1118,7 @@ export const cancelTableRunsBodySchema = z
     workspaceId: z.string().min(1, 'Workspace ID is required'),
     scope: z.enum(['all', 'row']),
     rowId: z.string().min(1).optional(),
+    filter: domainObjectSchema<Filter>().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.scope === 'row' && !value.rowId) {
@@ -1124,6 +1126,13 @@ export const cancelTableRunsBodySchema = z
         code: 'custom',
         path: ['rowId'],
         message: 'rowId is required when scope is "row"',
+      })
+    }
+    if (value.scope === 'row' && value.filter) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filter'],
+        message: 'filter only applies to scope "all"',
       })
     }
   })
@@ -1190,17 +1199,21 @@ export const runLimitSchema = z.object({
     .max(1_000_000, 'max cannot exceed 1,000,000'),
 })
 
-export const runColumnBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  groupIds: z.array(z.string().min(1)).min(1),
-  runMode: z.enum(['all', 'incomplete']).default('all'),
-  rowIds: z.array(z.string().min(1)).min(1).optional(),
-  /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
-   *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
-  filter: nonEmptyFilterSchema.optional(),
-  /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
-  limit: runLimitSchema.optional(),
-})
+export const runColumnBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    groupIds: z.array(z.string().min(1)).min(1),
+    runMode: z.enum(['all', 'incomplete']).default('all'),
+    rowIds: z.array(z.string().min(1)).min(1).optional(),
+    /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
+     *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
+    filter: nonEmptyFilterSchema.optional(),
+    /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
+    limit: runLimitSchema.optional(),
+  })
+  .refine((data) => !(data.rowIds && data.filter), {
+    message: 'Provide either filter or rowIds, but not both',
+  })
 
 export const runColumnContract = defineRouteContract({
   method: 'POST',
