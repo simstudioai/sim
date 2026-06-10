@@ -315,11 +315,24 @@ async function verifyPublicAssetWriteAccess(
       if (metadata.userId && metadata.userId === userId) {
         return true
       }
-      logger.warn('profile-pictures delete denied: caller does not own the file', {
-        userId,
-        fileUserId: metadata.userId,
-        cloudKey,
-      })
+      // Fail closed when the owner cannot be established. Distinguish a missing
+      // owner record (no `userId` metadata — e.g. an object predating owner
+      // tagging) from a genuine ownership mismatch so the denial is diagnosable.
+      if (!metadata.userId) {
+        logger.warn(
+          'profile-pictures delete denied: file has no owner metadata to verify against',
+          {
+            userId,
+            cloudKey,
+          }
+        )
+      } else {
+        logger.warn('profile-pictures delete denied: caller does not own the file', {
+          userId,
+          fileUserId: metadata.userId,
+          cloudKey,
+        })
+      }
       return false
     }
 
