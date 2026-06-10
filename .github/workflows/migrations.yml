@@ -62,6 +62,12 @@ jobs:
             echo "ERROR: no database URL secret resolved for environment '${ENVIRONMENT}'" >&2
             exit 1
           fi
+          case "$DATABASE_URL" in
+            *:6432*)
+              echo "ERROR: '${ENVIRONMENT}' database URL targets PgBouncer (port 6432); migrations need a direct connection (port 5432) — session advisory locks and SET don't survive transaction pooling" >&2
+              exit 1
+              ;;
+          esac
 
           if [ "${ENVIRONMENT}" = "dev" ]; then
             echo "Dev environment — pushing schema directly (db:push)"
