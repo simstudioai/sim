@@ -33,8 +33,8 @@ To let an agent do something in the world, give it **tools**. A tool is an actio
 Tools come from a few places:
 
 - **[Integrations](/integrations)** are the catalog of external services: Gmail, Slack, Airtable, Linear, and hundreds more.
-- **[Custom tools](/building-agents/custom-tools)** are tools you define once with a schema and a snippet of code, then reuse.
-- **[MCP tools](/mcp)** come from an external provider you connect through the Model Context Protocol.
+- **[Custom tools](/agents/custom-tools)** are tools you define once with a schema and a snippet of code, then reuse.
+- **[MCP tools](/agents/mcp)** come from an external provider you connect through the Model Context Protocol.
 - **[Workflow-as-tool](/workflows)** makes another workflow callable, so the agent runs a whole procedure as one step.
 
 <Callout type="info">
@@ -43,7 +43,7 @@ The same integration can run two ways. As a [block](/workflows#blocks) it runs b
 
 ### Follow a procedure: skills
 
-To give an agent instructions it can follow, write a [skill](/skills). A skill is a reusable playbook with a short name and description the agent always sees, plus a longer body it loads only when the skill applies. In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqualifiers, and the agent reads the full rubric only when a lead is ambiguous. A tool is an action the agent takes; a skill is guidance it reads.
+To give an agent instructions it can follow, write a [skill](/agents/skills). A skill is a reusable playbook with a short name and description the agent always sees, plus a longer body it loads only when the skill applies. In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqualifiers, and the agent reads the full rubric only when a lead is ambiguous. A tool is an action the agent takes; a skill is guidance it reads.
 
 ### Use your documents: knowledge
 
@@ -61,13 +61,13 @@ To make an agent's result something later blocks can act on, give it a **structu
 
 Start with one Agent block and a prompt, then add only what the task needs: a tool when the agent should act, a skill when it needs written guidance, a knowledge base when it should answer from your documents, memory when it should remember, and a structured output when a later block has to read its result.
 
-<Card title="Choosing what to use" href="/building-agents/choosing" description="A side-by-side guide to tools, skills, knowledge, and the rest, with one worked example." />
+<Card title="Choosing what to use" href="/agents/choosing" description="A side-by-side guide to tools, skills, knowledge, and the rest, with one worked example." />
 
 ## Next
 
 <Cards>
   <Card title="Agent block reference" href="/blocks/agent" description="Every model, setting, and output field of the Agent block." />
-  <Card title="Choosing what to use" href="/building-agents/choosing" description="Pick the right feature for each task." />
-  <Card title="Custom tools" href="/building-agents/custom-tools" description="Define a reusable tool with a schema and code." />
-  <Card title="Using MCP tools" href="/mcp" description="Connect an external MCP server to your agents." />
+  <Card title="Choosing what to use" href="/agents/choosing" description="Pick the right feature for each task." />
+  <Card title="Custom tools" href="/agents/custom-tools" description="Define a reusable tool with a schema and code." />
+  <Card title="Using MCP tools" href="/agents/mcp" description="Connect an external MCP server to your agents." />
 </Cards>

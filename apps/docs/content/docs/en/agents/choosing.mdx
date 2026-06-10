@@ -48,7 +48,7 @@ In the lead scorer, a `normalizeCompanyDomain` custom tool cleans a raw website 
 
 ## MCP server
 
-**MCP** (Model Context Protocol) is a standard for connecting an external tool provider. Connect an [MCP server](/mcp) and its tools appear in the agent's tool list as a set. Use it to bring in a complete toolset that Sim does not provide natively, rather than wiring each action by hand.
+**MCP** (Model Context Protocol) is a standard for connecting an external tool provider. Connect an [MCP server](/agents/mcp) and its tools appear in the agent's tool list as a set. Use it to bring in a complete toolset that Sim does not provide natively, rather than wiring each action by hand.
 
 In the lead scorer, your CRM vendor ships an MCP server. After you connect it once, the agent can read accounts and update records through the vendor's own tools. The difference from a custom tool is who maintains it: a custom tool is code you wrote, while an MCP server is a toolbox someone else maintains.
 
@@ -68,7 +68,7 @@ A workflow can also run as a fixed step: the [Workflow](/blocks/workflow) block 
 
 A **skill** is reusable instructions, a written playbook an agent can follow. Each skill has a short name and description that are always visible to the agent, plus a longer body the agent loads only when it decides the skill applies. Use one to capture how something should be done, separate from the tools that do it.
 
-In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqualifiers. The agent sees the skill's name and description on every run, and when a lead is ambiguous it loads the full rubric and applies it. The distinction is simple: a tool is an action the agent takes, and a skill is guidance the agent reads. Manage skills in your [workspace](/skills).
+In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqualifiers. The agent sees the skill's name and description on every run, and when a lead is ambiguous it loads the full rubric and applies it. The distinction is simple: a tool is an action the agent takes, and a skill is guidance the agent reads. Manage skills in your [workspace](/agents/skills).
 
 | | Who decides it runs | Where it lives | How you author it |
 | --- | --- | --- | --- |
@@ -86,8 +86,8 @@ The lead scorer uses six kinds at once: blocks for the steps that must always ru
 ## Next
 
 <Cards>
-  <Card title="Building agents" href="/building-agents" description="The features that let an agent act, follow instructions, and use your data." />
+  <Card title="Building agents" href="/agents" description="The features that let an agent act, follow instructions, and use your data." />
   <Card title="Agent block reference" href="/blocks/agent" description="Every model, setting, and output field." />
-  <Card title="Using MCP tools" href="/mcp" description="Connect an external MCP server to your agents." />
-  <Card title="Skills" href="/skills" description="Write reusable instructions agents can load." />
+  <Card title="Using MCP tools" href="/agents/mcp" description="Connect an external MCP server to your agents." />
+  <Card title="Skills" href="/agents/skills" description="Write reusable instructions agents can load." />
 </Cards>

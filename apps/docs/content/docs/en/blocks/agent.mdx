@@ -9,7 +9,7 @@ import { FAQ } from '@/components/ui/faq'
 
 The **Agent block** runs a model inside a workflow. You give it instructions, context, and tools; the model reasons over the input, calls tools as needed, and returns plain text or structured JSON that later blocks read by reference. Most workflows are built around one or more Agent blocks.
 
-An *agent* and an *Agent block* are related but distinct. An agent is a whole workflow that reasons and acts on its own; an Agent block is one reasoning step inside it. The simplest agent is a single Agent block with tools, and larger ones wire several together with other blocks. See [Building agents](/building-agents).
+An *agent* and an *Agent block* are related but distinct. An agent is a whole workflow that reasons and acts on its own; an Agent block is one reasoning step inside it. The simplest agent is a single Agent block with tools, and larger ones wire several together with other blocks. See [Agents](/agents).
 
 <BlockPreview type="agent" />
 
@@ -42,7 +42,7 @@ Capabilities the agent can call while it runs: search a knowledge base, send a S
 
 ### Skills
 
-[Agent skills](/skills) the agent can load on demand: reusable instruction packages like a coding standard or a support playbook. Only the skill names sit in context up front, and the agent loads the full instructions when it decides a skill is relevant.
+[Agent skills](/agents/skills) the agent can load on demand: reusable instruction packages like a coding standard or a support playbook. Only the skill names sit in context up front, and the agent loads the full instructions when it decides a skill is relevant.
 
 ### Memory
 

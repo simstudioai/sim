@@ -20,7 +20,7 @@ const config: NextConfig = {
         permanent: true,
       },
       // building-agents/agents merged into the building-agents overview
-      { source: '/building-agents/agents', destination: '/building-agents', permanent: true },
+      { source: '/building-agents/agents', destination: '/agents', permanent: true },
       // form deployment removed
       { source: '/deployment/form', destination: '/deployment', permanent: true },
       // copilot deprecated and removed
@@ -32,11 +32,11 @@ const config: NextConfig = {
       { source: '/variables', destination: '/workflows/variables', permanent: true },
       { source: '/variables/:path*', destination: '/workflows/variables', permanent: true },
       // capabilities/* renamed to building-agents/*
-      { source: '/capabilities', destination: '/building-agents', permanent: true },
-      { source: '/capabilities/agents', destination: '/building-agents/agents', permanent: true },
+      { source: '/capabilities', destination: '/agents', permanent: true },
+      { source: '/capabilities/agents', destination: '/agents', permanent: true },
       {
         source: '/capabilities/choosing',
-        destination: '/building-agents/choosing',
+        destination: '/agents/choosing',
         permanent: true,
       },
       // execution/* was broken up; redirect old URLs to their new homes
@@ -51,11 +51,16 @@ const config: NextConfig = {
       { source: '/execution/chat', destination: '/deployment/chat', permanent: true },
       { source: '/execution/form', destination: '/deployment/form', permanent: true },
       { source: '/mcp/deploy-workflows', destination: '/deployment/mcp', permanent: true },
+      // building-agents section renamed to agents; mcp and skills folded into it
+      { source: '/building-agents', destination: '/agents', permanent: true },
+      { source: '/building-agents/:path*', destination: '/agents/:path*', permanent: true },
+      { source: '/mcp', destination: '/agents/mcp', permanent: true },
+      { source: '/skills', destination: '/agents/skills', permanent: true },
       // tools/ + triggers/<service> unified into per-service integrations/ pages.
       // Specific moves first (Next applies the first matching redirect):
       {
         source: '/tools/custom-tools',
-        destination: '/building-agents/custom-tools',
+        destination: '/agents/custom-tools',
         permanent: true,
       },
       { source: '/tools', destination: '/integrations', permanent: true },
