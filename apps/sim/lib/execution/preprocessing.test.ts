@@ -38,6 +38,7 @@ vi.mock('@/lib/workspaces/utils', () => ({
 vi.mock('@sim/workflow-authz', () => ({
   getActiveWorkflowRecord: vi.fn().mockResolvedValue({
     id: 'workflow-1',
+    userId: 'creator-1',
     workspaceId: 'workspace-1',
     isDeployed: true,
   }),
@@ -197,19 +198,23 @@ describe('preprocessExecution ban gate', () => {
     expect(checkServerSideUsageLimits).not.toHaveBeenCalled()
   })
 
-  it('checks the billing actor and the caller-provided userId in one call', async () => {
+  it('checks the billing actor, caller-provided userId, and workflow owner in one call', async () => {
     const result = await preprocessExecution(baseOptions)
 
     expect(result.success).toBe(true)
     expect(mockGetActivelyBannedUserIds).toHaveBeenCalledTimes(1)
-    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1', 'owner-1'])
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith([
+      'billed-account-1',
+      'owner-1',
+      'creator-1',
+    ])
   })
 
-  it('excludes the "unknown" sentinel userId from the ban check', async () => {
+  it('excludes the "unknown" sentinel userId but still checks the workflow owner', async () => {
     const result = await preprocessExecution({ ...baseOptions, userId: 'unknown' })
 
     expect(result.success).toBe(true)
-    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1'])
+    expect(mockGetActivelyBannedUserIds).toHaveBeenCalledWith(['billed-account-1', 'creator-1'])
   })
 
   it('fails closed with 500 when the ban check errors', async () => {

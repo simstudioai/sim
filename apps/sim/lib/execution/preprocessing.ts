@@ -313,12 +313,16 @@ export async function preprocessExecution(
   }
 
   // ========== STEP 3.5: Reject Banned Accounts ==========
-  // Blocks executions when the billing actor — or, when different, the
-  // caller-provided userId (workflow creator, chat deployer, authenticated
-  // caller) — has an active ban or a blocked email domain.
+  // Blocks executions when the billing actor, the workflow owner, or the
+  // caller-provided userId (chat deployer, authenticated caller) has an
+  // active ban or a blocked email domain. The owner comes from the workflow
+  // record so schedules — which pass the 'unknown' sentinel — are covered.
   const banCandidateIds = [actorUserId]
   if (userId && userId !== 'unknown' && userId !== actorUserId) {
     banCandidateIds.push(userId)
+  }
+  if (workflowRecord.userId && !banCandidateIds.includes(workflowRecord.userId)) {
+    banCandidateIds.push(workflowRecord.userId)
   }
   try {
     const bannedUserIds = await getActivelyBannedUserIds(banCandidateIds)
