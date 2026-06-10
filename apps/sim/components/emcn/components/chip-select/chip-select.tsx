@@ -238,7 +238,7 @@ export function ChipSelect({
         align={align}
         onOpenAutoFocus={searchable ? (e) => e.preventDefault() : undefined}
         style={contentStyle}
-        className={cn('z-[var(--z-popover)] min-w-[160px]', contentClassName)}
+        className={cn('min-w-[160px]', contentClassName)}
       >
         {searchable ? (
           <DropdownMenuSearchInput
