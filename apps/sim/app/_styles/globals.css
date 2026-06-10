@@ -21,13 +21,8 @@
   --auth-primary-btn-hover-border: #e0e0e0;
   --auth-primary-btn-hover-text: #000000;
 
-  /* z-index scale for layered UI.
-     --z-dropdown is the in-flow panel layer that sits BELOW modals (slide-over
-     panels, floating action bars, drag overlays). Transient poppers that can be
-     opened from inside a modal — menus, selects, popovers, tooltips, toasts —
-     must sit ABOVE --z-modal so they stay visible and clickable over the modal
-     surface (the modal overlay is semi-transparent, so a popper below it is
-     faintly visible but intercepts no clicks). */
+  /* z-index scale. Transient poppers (menus, selects, popovers, tooltips, toasts)
+     sit above --z-modal so they stay clickable over the semi-transparent overlay. */
   --z-dropdown: 100;
   --z-modal: 200;
   --z-popover: 300;
