@@ -1,5 +1,6 @@
 import type { AgiloftSearchRecordsParams, AgiloftSearchResponse } from '@/tools/agiloft/types'
-import { buildSearchRecordsUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildSearchRecordsUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftSearchRecordsTool: ToolConfig<
