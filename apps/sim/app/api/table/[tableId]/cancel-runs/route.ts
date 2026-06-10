@@ -32,7 +32,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(cancelTableRunsContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
-    const { workspaceId, scope, rowId, filter } = parsed.data.body
+    const { workspaceId, scope, rowId, filter, excludeRowIds } = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -47,6 +47,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     const cancelled = await cancelWorkflowGroupRuns(tableId, scope === 'row' ? rowId : undefined, {
       filter,
+      excludeRowIds,
     })
     logger.info(
       `[${requestId}] cancel-runs: tableId=${tableId} scope=${scope}${

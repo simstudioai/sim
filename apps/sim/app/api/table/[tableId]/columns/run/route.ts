@@ -25,7 +25,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(runColumnContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
-    const { workspaceId, groupIds, runMode, rowIds, filter, limit } = parsed.data.body
+    const { workspaceId, groupIds, runMode, rowIds, filter, excludeRowIds, limit } =
+      parsed.data.body
     const access = await checkAccess(tableId, auth.userId, 'write')
     if (!access.ok) return accessError(access, requestId, tableId)
 
@@ -40,6 +41,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       mode: runMode,
       rowIds,
       filter,
+      excludeRowIds,
       limit,
       requestId,
       triggeredByUserId: auth.userId,

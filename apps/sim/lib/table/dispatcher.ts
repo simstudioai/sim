@@ -3,7 +3,19 @@ import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/s
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, inArray, isNotNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
@@ -38,6 +50,8 @@ export interface DispatchScope {
   /** "Select all matching a filter" — run every row matching this filter (mutually exclusive with
    *  `rowIds`). Lets the action-bar Play/Refresh target a filtered view without materializing ids. */
   filter?: Filter
+  /** Select-all scope only: deselected rows the walk skips (mirrors the delete job's exclusion set). */
+  excludeRowIds?: string[]
 }
 
 /**
@@ -82,9 +96,11 @@ export async function bulkClearWorkflowGroupCells(input: {
   tableId: string
   groups: Array<{ id: string; outputs: Array<{ columnName: string }> }>
   rowIds?: string[]
+  /** Select-all scope: deselected rows whose outputs must NOT be wiped. */
+  excludeRowIds?: string[]
   mode: DispatchMode
 }): Promise<void> {
-  const { tableId, groups, rowIds, mode } = input
+  const { tableId, groups, rowIds, excludeRowIds, mode } = input
   if (groups.length === 0) return
   // `'new'` mode targets only rows with no prior attempt — nothing to clear.
   // Pre-existing outputs on any other row must not be wiped by an auto-fire.
@@ -92,6 +108,7 @@ export async function bulkClearWorkflowGroupCells(input: {
 
   const groupIds = groups.map((g) => g.id)
   const rowScope = rowIds && rowIds.length > 0 ? rowIds : null
+  const excluded = !rowScope && excludeRowIds && excludeRowIds.length > 0 ? excludeRowIds : null
 
   if (mode === 'all') {
     // Run-all re-runs every targeted group: wipe all their output columns +
@@ -104,6 +121,7 @@ export async function bulkClearWorkflowGroupCells(input: {
     for (const col of outputCols) dataExpr = sql`(${dataExpr}) - ${col}::text`
     const filters: SQL[] = [eq(userTableRows.tableId, tableId)]
     if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
+    if (excluded) filters.push(notInArray(userTableRows.id, excluded))
 
     await db.transaction(async (trx) => {
       await trx
@@ -115,6 +133,7 @@ export async function bulkClearWorkflowGroupCells(input: {
         inArray(tableRowExecutions.groupId, groupIds),
       ]
       if (rowScope) execFilters.push(inArray(tableRowExecutions.rowId, rowScope))
+      if (excluded) execFilters.push(notInArray(tableRowExecutions.rowId, excluded))
       await trx.delete(tableRowExecutions).where(and(...execFilters))
     })
     return
@@ -137,6 +156,7 @@ export async function bulkClearWorkflowGroupCells(input: {
       )`
       const filters: SQL[] = [eq(userTableRows.tableId, tableId), reRunnable]
       if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
+      if (excluded) filters.push(notInArray(userTableRows.id, excluded))
 
       let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
       for (const out of group.outputs) dataExpr = sql`(${dataExpr}) - ${out.columnName}::text`
@@ -151,6 +171,7 @@ export async function bulkClearWorkflowGroupCells(input: {
         sql`${tableRowExecutions.status} IN ('error', 'cancelled')`,
       ]
       if (rowScope) execFilters.push(inArray(tableRowExecutions.rowId, rowScope))
+      if (excluded) execFilters.push(notInArray(tableRowExecutions.rowId, excluded))
       await trx.delete(tableRowExecutions).where(and(...execFilters))
     }
   })
@@ -415,6 +436,9 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
       filters.push(filterClause)
       hasJsonbFilter = true
     }
+  }
+  if (!dispatch.scope.rowIds?.length && dispatch.scope.excludeRowIds?.length) {
+    filters.push(notInArray(userTableRows.id, dispatch.scope.excludeRowIds))
   }
   // `'new'` mode targets only rows whose targeted groups haven't been
   // attempted. Exclude a row only when EVERY targeted group already has a

@@ -253,6 +253,7 @@ export function Table({
       groupIds: string[]
       rowIds?: string[]
       filter?: Filter
+      excludeRowIds?: string[]
       runMode: RunMode
       limit?: RunLimit
       source: 'row' | 'rows' | 'column'
@@ -285,18 +286,34 @@ export function Table({
   )
 
   const onRunColumn = useCallback(
-    (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit, filter?: Filter) => {
-      runScope({ groupIds: [groupId], rowIds, filter, runMode, limit, source: 'column' })
+    (
+      groupId: string,
+      runMode: RunMode,
+      rowIds?: string[],
+      limit?: RunLimit,
+      filter?: Filter,
+      excludeRowIds?: string[]
+    ) => {
+      runScope({
+        groupIds: [groupId],
+        rowIds,
+        filter,
+        excludeRowIds,
+        runMode,
+        limit,
+        source: 'column',
+      })
     },
     [runScope]
   )
 
   const onRunRows = useCallback(
-    (rowIds: string[] | undefined, runMode: RunMode, filter?: Filter) => {
+    (rowIds: string[] | undefined, runMode: RunMode, filter?: Filter, excludeRowIds?: string[]) => {
       runScope({
         groupIds: tableWorkflowGroups.map((g) => g.id),
         rowIds,
         filter,
+        excludeRowIds,
         runMode,
         source: 'rows',
       })
@@ -357,21 +374,10 @@ export function Table({
     })
   }, [cancelRunsMutate, tableId, workspaceId])
 
-  /** Filtered select-all Stop: cancels only cells on rows matching the filter. */
-  const onStopFiltered = (filter: Filter) => {
-    cancelRunsMutate({ scope: 'all', filter })
-    captureEvent(posthogRef.current, 'table_workflow_stopped', {
-      table_id: tableId,
-      workspace_id: workspaceId,
-      scope: 'all',
-      row_count: null,
-    })
-  }
-
-  /** Select-all Stop from the grid's context menu — filter-scoped when a filter is active. */
+  /** Select-all Stop — filter-scoped when a filter is active; deselected rows keep running. */
   const onStopAllRows = useCallback(
-    (filter?: Filter) => {
-      cancelRunsMutate({ scope: 'all', filter })
+    (filter?: Filter, excludeRowIds?: string[]) => {
+      cancelRunsMutate({ scope: 'all', filter, excludeRowIds })
       captureEvent(posthogRef.current, 'table_workflow_stopped', {
         table_id: tableId,
         workspace_id: workspaceId,
@@ -687,8 +693,9 @@ export function Table({
             runScope({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
-              // `filter` is only populated on select-all, so it's already undefined otherwise.
+              // `filter`/`excludeRowIds` are only populated on select-all.
               filter: scope.filter,
+              excludeRowIds: scope.excludeRowIds,
               runMode: 'incomplete',
               source: 'rows',
             })
@@ -700,6 +707,7 @@ export function Table({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
               filter: scope.filter,
+              excludeRowIds: scope.excludeRowIds,
               runMode: 'all',
               source: 'rows',
             })
@@ -708,7 +716,9 @@ export function Table({
             const scope = selection.selectedRunScope
             if (!scope) return
             if (scope.allRows) {
-              scope.filter ? onStopFiltered(scope.filter) : onStopAll()
+              scope.filter || scope.excludeRowIds?.length
+                ? onStopAllRows(scope.filter, scope.excludeRowIds)
+                : onStopAll()
             } else {
               onStopRows(scope.rowIds)
             }

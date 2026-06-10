@@ -1119,6 +1119,14 @@ export const cancelTableRunsBodySchema = z
     scope: z.enum(['all', 'row']),
     rowId: z.string().min(1).optional(),
     filter: domainObjectSchema<Filter>().optional(),
+    /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
+    excludeRowIds: z
+      .array(z.string().min(1))
+      .max(
+        TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+        `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+      )
+      .optional(),
   })
   .superRefine((value, ctx) => {
     if (value.scope === 'row' && !value.rowId) {
@@ -1133,6 +1141,13 @@ export const cancelTableRunsBodySchema = z
         code: 'custom',
         path: ['filter'],
         message: 'filter only applies to scope "all"',
+      })
+    }
+    if (value.scope === 'row' && value.excludeRowIds) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['excludeRowIds'],
+        message: 'excludeRowIds only applies to scope "all"',
       })
     }
   })
@@ -1208,11 +1223,22 @@ export const runColumnBodySchema = z
     /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
      *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
     filter: nonEmptyFilterSchema.optional(),
+    /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
+    excludeRowIds: z
+      .array(z.string().min(1))
+      .max(
+        TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+        `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+      )
+      .optional(),
     /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
     limit: runLimitSchema.optional(),
   })
   .refine((data) => !(data.rowIds && data.filter), {
     message: 'Provide either filter or rowIds, but not both',
+  })
+  .refine((data) => !(data.rowIds && data.excludeRowIds), {
+    message: 'excludeRowIds only applies to select-all scope (no rowIds)',
   })
 
 export const runColumnContract = defineRouteContract({

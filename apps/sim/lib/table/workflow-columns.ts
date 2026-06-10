@@ -14,7 +14,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
@@ -365,7 +365,7 @@ export const TABLE_CONCURRENCY_LIMIT = 20
 export async function cancelWorkflowGroupRuns(
   tableId: string,
   rowId?: string,
-  options?: { groupIds?: string[]; filter?: Filter }
+  options?: { groupIds?: string[]; filter?: Filter; excludeRowIds?: string[] }
 ): Promise<number> {
   const { getTableById, updateRow } = await import('@/lib/table/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
@@ -435,7 +435,11 @@ export async function cancelWorkflowGroupRuns(
   ]
   if (rowId) {
     inFlightFilters.push(eq(tableRowExecutions.rowId, rowId))
-  } else if (options?.filter) {
+  } else if (options?.excludeRowIds?.length) {
+    // Select-all minus deselections: the deselected rows' cells keep running.
+    inFlightFilters.push(notInArray(tableRowExecutions.rowId, options.excludeRowIds))
+  }
+  if (!rowId && options?.filter) {
     // Filter-scoped cancel: only cells on rows matching the filter. Semi-join
     // against the tenant's rows — the in-flight sidecar set is small, so the
     // jsonb predicate is evaluated on few rows.
@@ -623,6 +627,9 @@ export async function runWorkflowColumn(opts: {
   /** "Select all under a filter" — run every row matching this filter (mutually exclusive with
    *  `rowIds`). Threaded into the dispatch scope so the dispatcher walks only matching rows. */
   filter?: Filter
+  /** Select-all scope only: deselected rows — the dispatcher walk, eager clear, and pre-run
+   *  cancel all skip them. */
+  excludeRowIds?: string[]
   /** Optional cap on work before the dispatch completes (e.g. run only the
    *  first N eligible rows). Null/omitted = process every row in scope. */
   limit?: DispatchLimit | null
@@ -643,6 +650,7 @@ export async function runWorkflowColumn(opts: {
     groupIds,
     rowIds,
     filter,
+    excludeRowIds,
     limit,
     triggeredByUserId,
   } = opts
@@ -688,8 +696,12 @@ export async function runWorkflowColumn(opts: {
   if (cancelPriorRuns) {
     if (!rowIds || rowIds.length === 0) {
       // Filtered runs cancel only their own scope — a table-wide cancel here
-      // would stop unrelated work on rows outside the filter.
-      await cancelWorkflowGroupRuns(tableId, undefined, { groupIds: targetGroupIds, filter })
+      // would stop unrelated work on rows outside the filter (or on deselected rows).
+      await cancelWorkflowGroupRuns(tableId, undefined, {
+        groupIds: targetGroupIds,
+        filter,
+        excludeRowIds,
+      })
     } else {
       // Per-row cancel — sequential so we don't fan out N parallel
       // markActiveDispatchesCancelled calls (it's a no-op when rowId is set,
@@ -715,6 +727,7 @@ export async function runWorkflowColumn(opts: {
       tableId,
       groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
       rowIds,
+      excludeRowIds,
       mode,
     })
   }
@@ -732,6 +745,9 @@ export async function runWorkflowColumn(opts: {
       groupIds: targetGroupIds,
       ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
       ...(filter ? { filter } : {}),
+      ...(excludeRowIds && excludeRowIds.length > 0 && !(rowIds && rowIds.length > 0)
+        ? { excludeRowIds }
+        : {}),
     },
     limit,
     isManualRun,

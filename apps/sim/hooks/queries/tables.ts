@@ -1236,6 +1236,8 @@ interface CancelRunsParams {
   rowId?: string
   /** Scope-`all` only: cancel just the cells on rows matching this filter (filtered select-all Stop). */
   filter?: Filter
+  /** Scope-`all` only: deselected rows whose cells keep running. */
+  excludeRowIds?: string[]
 }
 
 /**
@@ -1250,15 +1252,18 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ scope, rowId, filter }: CancelRunsParams) => {
+    mutationFn: async ({ scope, rowId, filter, excludeRowIds }: CancelRunsParams) => {
       return requestJson(cancelTableRunsContract, {
         params: { tableId },
-        body: { workspaceId, scope, rowId, filter },
+        body: { workspaceId, scope, rowId, filter, excludeRowIds },
       })
     },
-    onMutate: async ({ scope, rowId }) => {
+    onMutate: async ({ scope, rowId, excludeRowIds }) => {
+      const excludedRowIds =
+        excludeRowIds && excludeRowIds.length > 0 ? new Set(excludeRowIds) : null
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (scope === 'row' && r.id !== rowId) return null
+        if (excludedRowIds?.has(r.id)) return null
         const executions = (r.executions ?? {}) as RowExecutions
         let rowTouched = false
         const nextExecutions: RowExecutions = { ...executions }
@@ -1754,6 +1759,8 @@ interface RunColumnVariables {
    *  `rowIds`). Optimistic stamping is skipped (like `limit`) since the matching set isn't known
    *  client-side; the dispatcher's real pending stamps drive the UI. */
   filter?: Filter
+  /** Select-all scope only: deselected rows — skipped by the dispatcher and the optimistic stamp. */
+  excludeRowIds?: string[]
   /** Cap the run to the first `max` eligible rows. Omit for an unbounded run.
    *  Optimistic stamping is skipped when set — the dispatcher's real pending
    *  stamps drive the UI for the actual capped rows. */
@@ -1884,6 +1891,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       runMode = 'all',
       rowIds,
       filter,
+      excludeRowIds,
       limit,
     }: RunColumnVariables) => {
       return requestJson(runColumnContract, {
@@ -1894,11 +1902,12 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
           runMode,
           ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
           ...(filter ? { filter } : {}),
+          ...(excludeRowIds && excludeRowIds.length > 0 ? { excludeRowIds } : {}),
           ...(limit ? { limit } : {}),
         },
       })
     },
-    onMutate: async ({ groupIds, runMode = 'all', rowIds, filter, limit }) => {
+    onMutate: async ({ groupIds, runMode = 'all', rowIds, filter, excludeRowIds, limit }) => {
       // Capped and filtered runs target a set we can't predict client-side (capped picks the first
       // N by position; filtered matches a server-evaluated predicate), so optimistic stamping is
       // skipped — the dispatcher's real pending stamps (cell SSE) drive the UI within the first
@@ -1906,6 +1915,8 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       if (limit || filter)
         return { snapshots: undefined, runStateSnapshot: undefined, didBumpRunState: false }
       const targetRowIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
+      const excludedRowIds =
+        excludeRowIds && excludeRowIds.length > 0 ? new Set(excludeRowIds) : null
       const targetGroupIds = new Set(groupIds)
       const groups =
         queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
@@ -1915,6 +1926,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
       const stampedByRow: Record<string, number> = {}
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (targetRowIds && !targetRowIds.has(r.id)) return null
+        if (excludedRowIds?.has(r.id)) return null
         const executions = r.executions ?? {}
         let stamped = 0
         const next: RowExecutions = { ...executions }

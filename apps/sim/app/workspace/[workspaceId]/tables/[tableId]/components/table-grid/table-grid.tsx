@@ -107,6 +107,8 @@ export interface SelectionSnapshot {
     rowCount: number
     /** Active filter when `allRows` is set — lets a filtered "select all" run only matching rows. */
     filter?: Filter
+    /** Deselected rows when `allRows` is set — runs/stops skip them. */
+    excludeRowIds?: string[]
   } | null
   /** Drives Play (`hasIncompleteOrFailed`) / Refresh (`hasCompleted`) /
    *  Stop (`hasInFlight`) visibility on the action bar. */
@@ -169,17 +171,24 @@ interface TableGridProps {
     runMode: RunMode,
     rowIds?: string[],
     limit?: RunLimit,
-    filter?: Filter
+    filter?: Filter,
+    excludeRowIds?: string[]
   ) => void
   /** Fire every runnable column on a single row (per-row gutter Play). */
   onRunRow: (rowId: string) => void
   /** Fan out a run across every workflow group on `rowIds` — or, with `rowIds`
    *  undefined, across the whole table / the active filter. Used by context menu. */
-  onRunRows: (rowIds: string[] | undefined, runMode: RunMode, filter?: Filter) => void
+  onRunRows: (
+    rowIds: string[] | undefined,
+    runMode: RunMode,
+    filter?: Filter,
+    excludeRowIds?: string[]
+  ) => void
   /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
   onStopRows: (rowIds: string[]) => void
-  /** Select-all Stop: table-wide, or scoped to the active filter when one is set. */
-  onStopAllRows: (filter?: Filter) => void
+  /** Select-all Stop: table-wide, or scoped to the active filter when one is set.
+   *  `excludeRowIds` (deselected rows) keep running. */
+  onStopAllRows: (filter?: Filter, excludeRowIds?: string[]) => void
   /** Single-row stop for the per-row gutter button. */
   onStopRow: (rowId: string) => void
   /**
@@ -3255,13 +3264,17 @@ export function TableGrid({
   // server cascade re-runs dependent groups whose deps it fills. Right-clicking
   // a plain cell has no group, so fall back to every group on the row(s).
   /** Select-all runs dispatch by filter scope (whole table when unfiltered),
-   *  mirroring the action bar's Play/Refresh. Note: like the action bar,
-   *  filter-scoped runs ignore deselections (the run API has no exclusion set). */
+   *  mirroring the action bar's Play/Refresh; deselected rows are excluded. */
   const runSelection = (runMode: RunMode) => {
     if (contextMenuIsSelectAll) {
       const filter = queryOptions.filter ?? undefined
-      if (contextMenuGroupId) onRunColumn(contextMenuGroupId, runMode, undefined, undefined, filter)
-      else onRunRows(undefined, runMode, filter)
+      const excluded =
+        rowSelection.kind === 'all' && rowSelection.excluded
+          ? [...rowSelection.excluded]
+          : undefined
+      if (contextMenuGroupId)
+        onRunColumn(contextMenuGroupId, runMode, undefined, undefined, filter, excluded)
+      else onRunRows(undefined, runMode, filter, excluded)
     } else if (contextMenuGroupId) {
       onRunColumn(contextMenuGroupId, runMode, contextMenuRowIds)
     } else {
@@ -3272,8 +3285,15 @@ export function TableGrid({
   const handleRunWorkflowsOnSelection = () => runSelection('incomplete')
   const handleRefreshWorkflowsOnSelection = () => runSelection('all')
   const handleStopWorkflowsOnSelection = () => {
-    if (contextMenuIsSelectAll) onStopAllRows(queryOptions.filter ?? undefined)
-    else onStopRows(contextMenuRowIds)
+    if (contextMenuIsSelectAll) {
+      const excluded =
+        rowSelection.kind === 'all' && rowSelection.excluded
+          ? [...rowSelection.excluded]
+          : undefined
+      onStopAllRows(queryOptions.filter ?? undefined, excluded)
+    } else {
+      onStopRows(contextMenuRowIds)
+    }
     closeContextMenu()
   }
 
@@ -3398,6 +3418,7 @@ export function TableGrid({
           allRows: true,
           rowCount: Math.max(0, selectAllTotalRef.current - excluded),
           filter: queryOptions.filter ?? undefined,
+          excludeRowIds: rowSelection.excluded ? [...rowSelection.excluded] : undefined,
         }
       }
       const rowIds = rows.filter((r) => rowSelectionIncludes(rowSelection, r.id)).map((r) => r.id)
