@@ -275,6 +275,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'groups:history': 'Read private messages',
   'chat:write': 'Send messages',
   'chat:write.public': 'Post to public channels',
+  'assistant:write': 'Set assistant thread status, title, and suggested prompts',
   'im:write': 'Send direct messages',
   'im:history': 'Read direct message history',
   'im:read': 'View direct message channels',
