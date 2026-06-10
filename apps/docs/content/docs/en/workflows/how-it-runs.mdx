@@ -10,13 +10,13 @@ import { Image } from '@/components/ui/image'
 
 When you run a workflow, Sim works out the order from the [connections](/workflows/connections): a block runs as soon as the blocks it depends on have finished.
 
-## Independent blocks run in parallel
+## Blocks run as soon as they can
 
-A block never waits on a block it isn't downstream of. So when several blocks become ready at the same moment — all their dependencies finished — they run at the same time. Here, both agents are wired straight to Start, so they run side by side; there's nothing to configure.
+Multiple blocks in a workflow can be executing at the same time. A block starts the moment its dependencies finish, and it waits on nothing else.
 
-<Image src="/static/execution/concurrency.png" alt="Two agent blocks running at the same time after the Start trigger" width={800} height={500} />
+<Image src="/static/execution/concurrency.png" alt="Two agent blocks running after the Start trigger" width={800} height={500} />
 
-Here the Customer Support and Deep Researcher agents both run right after the Start trigger, instead of one waiting on the other.
+Here the Customer Support and Deep Researcher agents each depend only on Start, so neither waits for the other.
 
 ## A block waits for all its inputs
 
