@@ -435,6 +435,16 @@ import {
   cloudwatchUnmuteAlarmTool,
 } from '@/tools/cloudwatch'
 import {
+  codepipelineGetPipelineExecutionTool,
+  codepipelineGetPipelineStateTool,
+  codepipelineListPipelineExecutionsTool,
+  codepipelineListPipelinesTool,
+  codepipelinePutApprovalResultTool,
+  codepipelineRetryStageExecutionTool,
+  codepipelineStartExecutionTool,
+  codepipelineStopExecutionTool,
+} from '@/tools/codepipeline'
+import {
   confluenceAddLabelTool,
   confluenceCreateBlogPostTool,
   confluenceCreateCommentTool,
@@ -4302,6 +4312,14 @@ export const tools: Record<string, ToolConfig> = {
   cloudwatch_put_metric_data: cloudwatchPutMetricDataTool,
   cloudwatch_query_logs: cloudwatchQueryLogsTool,
   cloudwatch_unmute_alarm: cloudwatchUnmuteAlarmTool,
+  codepipeline_get_pipeline_execution: codepipelineGetPipelineExecutionTool,
+  codepipeline_get_pipeline_state: codepipelineGetPipelineStateTool,
+  codepipeline_list_pipeline_executions: codepipelineListPipelineExecutionsTool,
+  codepipeline_list_pipelines: codepipelineListPipelinesTool,
+  codepipeline_put_approval_result: codepipelinePutApprovalResultTool,
+  codepipeline_retry_stage_execution: codepipelineRetryStageExecutionTool,
+  codepipeline_start_execution: codepipelineStartExecutionTool,
+  codepipeline_stop_execution: codepipelineStopExecutionTool,
   crowdstrike_get_sensor_aggregates: crowdstrikeGetSensorAggregatesTool,
   crowdstrike_get_sensor_details: crowdstrikeGetSensorDetailsTool,
   crowdstrike_query_sensors: crowdstrikeQuerySensorsTool,
