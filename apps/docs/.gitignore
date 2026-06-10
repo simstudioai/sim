@@ -36,4 +36,4 @@ bun-debug.log*
 next-env.d.ts
 
 # Fumadocs
-/.source/ 
+/.source/ .plans/
