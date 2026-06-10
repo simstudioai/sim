@@ -1,5 +1,5 @@
 import { GongIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { GongResponse } from '@/tools/gong/types'
 import { getTrigger } from '@/triggers'
 
@@ -13,8 +13,8 @@ export const GongBlock: BlockConfig<GongResponse> = {
   docsLink: 'https://docs.sim.ai/tools/gong',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['meeting', 'sales-engagement', 'speech-to-text'],
   bgColor: '#8039DF',
+  iconColor: '#8039DF',
   icon: GongIcon,
   triggerAllowed: true,
   subBlocks: [
@@ -33,6 +33,8 @@ export const GongBlock: BlockConfig<GongResponse> = {
         { label: 'List Users', id: 'list_users' },
         { label: 'Get User', id: 'get_user' },
         { label: 'Aggregate Activity', id: 'aggregate_activity' },
+        { label: 'Day-by-Day Activity', id: 'day_by_day_activity' },
+        { label: 'Aggregate by Period', id: 'aggregate_by_period' },
         { label: 'Interaction Stats', id: 'interaction_stats' },
         { label: 'Answered Scorecards', id: 'answered_scorecards' },
         { label: 'List Library Folders', id: 'list_library_folders' },
@@ -319,8 +321,24 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       title: 'From Date',
       type: 'short-input',
       placeholder: '2024-01-01 (YYYY-MM-DD, inclusive)',
-      condition: { field: 'operation', value: ['aggregate_activity', 'interaction_stats'] },
-      required: { field: 'operation', value: ['aggregate_activity', 'interaction_stats'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'aggregate_activity',
+          'day_by_day_activity',
+          'aggregate_by_period',
+          'interaction_stats',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'aggregate_activity',
+          'day_by_day_activity',
+          'aggregate_by_period',
+          'interaction_stats',
+        ],
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate a date string in YYYY-MM-DD format based on the user's description.
@@ -340,8 +358,24 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'To Date',
       type: 'short-input',
       placeholder: '2024-01-31 (YYYY-MM-DD, exclusive)',
-      condition: { field: 'operation', value: ['aggregate_activity', 'interaction_stats'] },
-      required: { field: 'operation', value: ['aggregate_activity', 'interaction_stats'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'aggregate_activity',
+          'day_by_day_activity',
+          'aggregate_by_period',
+          'interaction_stats',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'aggregate_activity',
+          'day_by_day_activity',
+          'aggregate_by_period',
+          'interaction_stats',
+        ],
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate a date string in YYYY-MM-DD format based on the user's description.
@@ -361,8 +395,33 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'User IDs',
       type: 'short-input',
       placeholder: 'Comma-separated user IDs (optional)',
-      condition: { field: 'operation', value: ['aggregate_activity', 'interaction_stats'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'aggregate_activity',
+          'day_by_day_activity',
+          'aggregate_by_period',
+          'interaction_stats',
+        ],
+      },
       mode: 'advanced',
+    },
+
+    // Aggregate by Period inputs
+    {
+      id: 'aggregationPeriod',
+      title: 'Aggregation Period',
+      type: 'dropdown',
+      options: [
+        { label: 'Day', id: 'DAY' },
+        { label: 'Week', id: 'WEEK' },
+        { label: 'Month', id: 'MONTH' },
+        { label: 'Quarter', id: 'QUARTER' },
+        { label: 'Year', id: 'YEAR' },
+      ],
+      value: () => 'WEEK',
+      condition: { field: 'operation', value: 'aggregate_by_period' },
+      required: { field: 'operation', value: 'aggregate_by_period' },
     },
 
     // Answered Scorecards inputs
@@ -585,6 +644,8 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           'get_extensive_calls',
           'list_users',
           'aggregate_activity',
+          'day_by_day_activity',
+          'aggregate_by_period',
           'interaction_stats',
           'answered_scorecards',
           'list_flows',
@@ -621,6 +682,8 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       'gong_list_users',
       'gong_get_user',
       'gong_aggregate_activity',
+      'gong_day_by_day_activity',
+      'gong_aggregate_by_period',
       'gong_interaction_stats',
       'gong_answered_scorecards',
       'gong_list_library_folders',
@@ -677,6 +740,10 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     callIds: { type: 'string', description: 'Comma-separated call IDs' },
     userId: { type: 'string', description: 'Gong user ID' },
     userIds: { type: 'string', description: 'Comma-separated user IDs' },
+    aggregationPeriod: {
+      type: 'string',
+      description: 'Calendar period for aggregate-by-period (DAY/WEEK/MONTH/QUARTER/YEAR)',
+    },
     statsFromDate: { type: 'string', description: 'Start date in YYYY-MM-DD format (stats)' },
     statsToDate: { type: 'string', description: 'End date in YYYY-MM-DD format (stats)' },
     callFromDate: { type: 'string', description: 'Call start date in YYYY-MM-DD (scorecards)' },
@@ -701,10 +768,152 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     cursor: { type: 'string', description: 'Pagination cursor' },
   },
   outputs: {
-    response: {
+    // Shared across most operations
+    requestId: { type: 'string', description: 'Gong request reference ID for troubleshooting' },
+    cursor: { type: 'string', description: 'Pagination cursor for the next page' },
+    totalRecords: { type: 'number', description: 'Total number of records matching the filter' },
+    currentPageSize: { type: 'number', description: 'Number of records in the current page' },
+    currentPageNumber: { type: 'number', description: 'Current page number' },
+
+    // list_calls / get_extensive_calls / get_folder_content / lookup_email / lookup_phone
+    calls: {
       type: 'json',
       description:
-        'Gong API response data. Shape depends on the selected operation and can include callId, requestId, url, calls, callTranscripts, users, usersActivity, peopleInteractionStats, answeredScorecards, folders, scorecards, trackers, workspaces, flows, coachingData, emails, meetings, customerData, and pagination cursor fields.',
+        'Calls returned by the operation (shape varies: call list, extensive calls, folder calls, or call references)',
+    },
+
+    // create_call / get_call
+    callId: { type: 'string', description: 'Gong call ID of the created call' },
+    url: { type: 'string', description: 'URL to the call in the Gong web app' },
+    id: { type: 'string', description: 'Gong ID of the returned call or user' },
+    title: { type: 'string', description: 'Call title' },
+    scheduled: { type: 'string', description: 'Scheduled call time (ISO-8601)' },
+    started: { type: 'string', description: 'Recording start time (ISO-8601)' },
+    duration: { type: 'number', description: 'Call duration in seconds' },
+    direction: { type: 'string', description: 'Call direction (Inbound/Outbound)' },
+    system: { type: 'string', description: 'Communication platform used' },
+    scope: { type: 'string', description: "Call scope: 'Internal', 'External', or 'Unknown'" },
+    media: { type: 'string', description: 'Media type (e.g., Video)' },
+    language: { type: 'string', description: 'Language code (ISO-639-2B)' },
+    primaryUserId: { type: 'string', description: 'Host team member identifier' },
+    workspaceId: { type: 'string', description: 'Workspace identifier' },
+    sdrDisposition: { type: 'string', description: 'SDR disposition classification' },
+    clientUniqueId: {
+      type: 'string',
+      description: 'Call identifier from the origin recording system',
+    },
+    customData: { type: 'string', description: 'Metadata provided during call creation' },
+    purpose: { type: 'string', description: 'Call purpose' },
+    meetingUrl: { type: 'string', description: 'Web conference provider URL' },
+    isPrivate: { type: 'boolean', description: 'Whether the call is private' },
+    calendarEventId: { type: 'string', description: 'Calendar event identifier' },
+
+    // get_call_transcript
+    callTranscripts: {
+      type: 'json',
+      description:
+        'Call transcripts: [{callId, transcript: [{speakerId, topic, sentences: [{start, end, text}]}]}]',
+    },
+
+    // list_users / get_user
+    users: { type: 'json', description: 'List of Gong users with profile and settings fields' },
+    emailAddress: { type: 'string', description: 'User email address' },
+    created: { type: 'string', description: 'User creation timestamp (ISO-8601)' },
+    active: { type: 'boolean', description: 'Whether the user is active' },
+    emailAliases: { type: 'json', description: "User's alternative email addresses" },
+    trustedEmailAddress: { type: 'string', description: 'Trusted email address for the user' },
+    firstName: { type: 'string', description: 'User first name' },
+    lastName: { type: 'string', description: 'User last name' },
+    phoneNumber: { type: 'string', description: 'User phone number' },
+    extension: { type: 'string', description: 'Phone extension number' },
+    personalMeetingUrls: { type: 'json', description: 'Personal meeting URLs' },
+    settings: { type: 'json', description: 'User settings (recording, import, and consent flags)' },
+    managerId: { type: 'string', description: 'Manager user ID' },
+    meetingConsentPageUrl: { type: 'string', description: 'Meeting consent page URL' },
+    spokenLanguages: { type: 'json', description: 'Languages spoken: [{language, primary}]' },
+
+    // aggregate_activity / interaction_stats / day_by_day_activity / aggregate_by_period
+    usersActivity: { type: 'json', description: 'Aggregated activity stats per user' },
+    usersDetailedActivities: {
+      type: 'json',
+      description: 'Day-by-day activity per user: call IDs grouped by activity type per day',
+    },
+    usersAggregateActivity: {
+      type: 'json',
+      description: 'Aggregated activity per user grouped into time periods (with fromDate/toDate)',
+    },
+    peopleInteractionStats: {
+      type: 'json',
+      description:
+        'Interaction stats per user: [{userId, userEmailAddress, personInteractionStats: [{name, value}]}]',
+    },
+    timeZone: { type: 'string', description: "The company's defined timezone in Gong" },
+    fromDateTime: { type: 'string', description: 'Start of results (ISO-8601)' },
+    toDateTime: { type: 'string', description: 'End of results (ISO-8601)' },
+
+    // answered_scorecards
+    answeredScorecards: {
+      type: 'json',
+      description: 'Answered scorecards with scores and answers',
+    },
+
+    // list_library_folders / get_folder_content
+    folders: {
+      type: 'json',
+      description: 'Library folders: [{id, name, parentFolderId, createdBy, updated}]',
+    },
+    folderId: { type: 'string', description: 'Library folder ID' },
+    folderName: { type: 'string', description: 'Library folder display name' },
+    createdBy: { type: 'string', description: 'User ID who created the folder' },
+    updated: { type: 'string', description: "Folder's last update time (ISO-8601)" },
+
+    // list_scorecards
+    scorecards: { type: 'json', description: 'Scorecard definitions with questions' },
+
+    // list_trackers
+    trackers: { type: 'json', description: 'Keyword/smart tracker definitions' },
+
+    // list_workspaces
+    workspaces: { type: 'json', description: 'Gong workspaces: [{id, name, description}]' },
+
+    // list_flows
+    flows: {
+      type: 'json',
+      description:
+        'Gong Engage flows: [{id, name, folderId, folderName, visibility, creationDate, exclusive}]',
+    },
+
+    // get_coaching
+    coachingData: {
+      type: 'json',
+      description: "Coaching data per manager's team with direct-report metrics",
+    },
+
+    // lookup_email / lookup_phone
+    emails: {
+      type: 'json',
+      description: 'Related email messages: [{id, from, sentTime, mailbox, messageHash}]',
+    },
+    meetings: { type: 'json', description: 'Related meetings: [{id}]' },
+    customerData: {
+      type: 'json',
+      description: 'Linked external-system (CRM) objects referencing the contact',
+    },
+    customerEngagement: {
+      type: 'json',
+      description: 'Customer engagement events (e.g., viewing shared calls)',
+    },
+    suppliedPhoneNumber: {
+      type: 'string',
+      description: 'The phone number supplied in the lookup request',
+    },
+    matchingPhoneNumbers: {
+      type: 'json',
+      description: 'Phone numbers in the system matching the supplied number',
+    },
+    emailAddresses: {
+      type: 'json',
+      description: 'Email addresses associated with the phone number',
     },
   },
   triggers: {
@@ -712,3 +921,99 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     available: ['gong_webhook', 'gong_call_completed'],
   },
 }
+
+export const GongBlockMeta = {
+  tags: ['meeting', 'sales-engagement', 'speech-to-text'],
+  templates: [
+    {
+      icon: GongIcon,
+      title: 'Sales call analyzer',
+      prompt:
+        'Build a workflow that pulls call transcripts from Gong after each sales call, identifies key objections raised, action items promised, and competitor mentions, updates the deal record in my CRM, and posts a call summary with next steps to the Slack deal channel.',
+      modules: ['agent', 'tables', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis', 'communication'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong objection tracker',
+      prompt:
+        'Build a scheduled weekly workflow that scans Gong sales calls for recurring objections, scores frequency and stage, and writes a competitive-intel digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong deal-risk surfacer',
+      prompt:
+        'Create a workflow that monitors Gong conversation intelligence signals, identifies deals at risk based on talk patterns, and posts a Slack alert to the AE and manager.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong coaching dashboard',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Gong per-rep metrics — talk ratio, longest monologue, question rate — and writes a coaching table for managers.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'analysis'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong customer-quote miner',
+      prompt:
+        'Create a workflow that processes Gong customer interview calls, extracts notable quotes and themes, and writes them to a marketing research table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong CRM auto-updater',
+      prompt:
+        'Build a workflow that runs after a Gong sales call, summarizes objections and next steps, and updates the linked Salesforce or HubSpot opportunity with notes.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce', 'hubspot'],
+    },
+    {
+      icon: GongIcon,
+      title: 'Gong competitor-mention tracker',
+      prompt:
+        'Create a workflow that scans Gong calls for competitor mentions, captures context and outcome, and writes the competitive intel to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+  ],
+  skills: [
+    {
+      name: 'summarize-call',
+      description:
+        'Pull a Gong call transcript and produce a structured recap with topics, objections, and next steps.',
+      content:
+        '# Summarize Call\n\nUse Gong to turn a recorded call into a clean recap.\n\n## Steps\n1. Get the call by its call ID to read the metadata (participants, duration, account).\n2. Get the call transcript for the same call ID.\n3. Identify the main topics, customer objections, and agreed next steps from the transcript.\n\n## Output\nReturn a recap: a short overview, key topics discussed, objections raised, and a list of next steps with owners. Keep it grounded in the transcript.',
+    },
+    {
+      name: 'extract-deal-signals',
+      description:
+        'Read a Gong call transcript and extract CRM-ready deal signals like decision-maker, competitor, and next step.',
+      content:
+        '# Extract Deal Signals\n\nUse Gong to turn conversation content into structured deal attributes.\n\n## Steps\n1. Get the call transcript for the given call ID.\n2. Scan for high-value signals: decision-maker, budget, timeline, competitor mentions, use case, and the agreed next step with its date.\n3. Normalize each signal into a structured field.\n\n## Output\nReturn a structured object of deal attributes (decision_maker, competitor, next_step, next_step_date, use_case, and any others found). Leave fields null when not mentioned rather than guessing, so they can be written to CRM.',
+    },
+    {
+      name: 'review-recent-calls',
+      description:
+        'List recent Gong calls in a date range and produce a digest of themes and follow-ups across them.',
+      content:
+        '# Review Recent Calls\n\nUse Gong to summarize a batch of recent calls.\n\n## Steps\n1. List calls (or use Get Extensive Calls) filtered by a date range and optionally by user or workspace.\n2. For the most relevant calls, get the transcript to pull themes and outcomes.\n3. Roll the findings up into recurring themes, common objections, and open follow-ups across the calls.\n\n## Output\nReturn a digest: a per-call one-liner, the cross-call themes, and a consolidated follow-up list. Note any call missing a clear next step.',
+    },
+  ],
+} as const satisfies BlockMeta

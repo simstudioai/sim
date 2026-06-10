@@ -48,10 +48,6 @@ export async function parseRailwayGraphqlResponse<TData>(
   return data
 }
 
-export function compactVariables(input: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined))
-}
-
 export function optionalString(value?: string): string | undefined {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined

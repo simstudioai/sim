@@ -230,7 +230,7 @@ Create a new alert in Rootly for on-call notification and routing.
 | `apiKey` | string | Yes | Rootly API key |
 | `summary` | string | Yes | The summary of the alert |
 | `description` | string | No | A detailed description of the alert |
-| `source` | string | Yes | The source of the alert \(e.g., api, manual, datadog, pagerduty\) |
+| `source` | string | No | The source of the alert \(e.g., api, manual, datadog, pagerduty\) |
 | `status` | string | No | Alert status on creation \(open, triggered\) |
 | `serviceIds` | string | No | Comma-separated service IDs to attach |
 | `groupIds` | string | No | Comma-separated team/group IDs to attach |
@@ -887,5 +887,456 @@ List playbooks from Rootly with pagination support.
 |   ↳ `createdAt` | string | Creation date |
 |   ↳ `updatedAt` | string | Last update date |
 | `totalCount` | number | Total number of playbooks returned |
+
+### `rootly_mitigate_incident`
+
+Transition a Rootly incident to the mitigated state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident to mitigate |
+| `mitigationMessage` | string | No | How was the incident mitigated? |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The mitigated incident |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_resolve_incident`
+
+Transition a Rootly incident to the resolved state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident to resolve |
+| `resolutionMessage` | string | No | How was the incident resolved? |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The resolved incident |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_assign_incident_role`
+
+Assign an incident role (e.g. commander) to a user on a Rootly incident.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident |
+| `userId` | string | Yes | The ID of the user to assign \(use List Users to find IDs\) |
+| `incidentRoleId` | string | Yes | The ID of the incident role \(use List Incident Roles to find IDs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The incident after the role assignment |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_unassign_incident_role`
+
+Remove an incident role assignment from a user on a Rootly incident.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident |
+| `userId` | string | Yes | The ID of the user to unassign \(use List Users to find IDs\) |
+| `incidentRoleId` | string | Yes | The ID of the incident role to remove \(use List Incident Roles to find IDs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The incident after the role was unassigned |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_add_subscribers`
+
+Subscribe users to a Rootly incident so they receive updates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident |
+| `userIds` | string | Yes | Comma-separated user IDs to subscribe \(use List Users to find IDs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The incident after subscribers were added |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_remove_subscribers`
+
+Unsubscribe users from a Rootly incident.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident |
+| `userIds` | string | Yes | Comma-separated user IDs to unsubscribe \(use List Users to find IDs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The incident after subscribers were removed |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_create_status_page_event`
+
+Post a public status page update for a Rootly incident.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident |
+| `event` | string | Yes | The status page update message to publish |
+| `statusPageId` | string | No | The ID of the status page to post to |
+| `status` | string | No | Status to set \(investigating, identified, monitoring, resolved, scheduled, in_progress, completed\) |
+| `notifySubscribers` | boolean | No | Whether to notify status page subscribers |
+| `shouldTweet` | boolean | No | Whether to post the update to the linked Twitter/X account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusPageEvent` | object | The created status page event |
+|   ↳ `id` | string | Unique status page event ID |
+|   ↳ `event` | string | The published update message |
+|   ↳ `statusPageId` | string | Status page ID |
+|   ↳ `status` | string | Status that was set |
+|   ↳ `notifySubscribers` | boolean | Whether subscribers were notified |
+|   ↳ `shouldTweet` | boolean | Whether the update was tweeted |
+|   ↳ `startedAt` | string | When the event started |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+
+### `rootly_update_action_item`
+
+Update a Rootly incident action item (status, priority, assignee, etc.).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `actionItemId` | string | Yes | The ID of the action item to update |
+| `summary` | string | No | Updated action item title |
+| `description` | string | No | Updated description |
+| `kind` | string | No | The kind of action item \(task, follow_up\) |
+| `priority` | string | No | Priority level \(high, medium, low\) |
+| `status` | string | No | Action item status \(open, in_progress, cancelled, done\) |
+| `assignedToUserId` | string | No | The user ID to assign the action item to |
+| `dueDate` | string | No | Due date for the action item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actionItem` | object | The updated action item |
+|   ↳ `id` | string | Unique action item ID |
+|   ↳ `summary` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `kind` | string | Action item kind \(task, follow_up\) |
+|   ↳ `priority` | string | Priority level |
+|   ↳ `status` | string | Action item status |
+|   ↳ `dueDate` | string | Due date |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+
+### `rootly_delete_action_item`
+
+Delete a Rootly incident action item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `actionItemId` | string | Yes | The ID of the action item to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the action item was deleted |
+| `message` | string | Result message |
+
+### `rootly_snooze_alert`
+
+Snooze a Rootly alert for a set number of minutes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `alertId` | string | Yes | The ID of the alert to snooze |
+| `delayMinutes` | number | Yes | Number of minutes to snooze the alert |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The snoozed alert |
+|   ↳ `id` | string | Unique alert ID |
+|   ↳ `shortId` | string | Short alert ID |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source` | string | Alert source |
+|   ↳ `status` | string | Alert status |
+|   ↳ `externalId` | string | External ID |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `deduplicationKey` | string | Deduplication key |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `endedAt` | string | End date |
+
+### `rootly_escalate_alert`
+
+Escalate a Rootly alert, optionally to a specific escalation policy or level.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `alertId` | string | Yes | The ID of the alert to escalate |
+| `escalationPolicyId` | string | No | Escalation policy ID to escalate to \(use List Escalation Policies to find IDs\) |
+| `escalationPolicyLevel` | number | No | Escalation policy level to escalate to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The escalated alert |
+|   ↳ `id` | string | Unique alert ID |
+|   ↳ `shortId` | string | Short alert ID |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source` | string | Alert source |
+|   ↳ `status` | string | Alert status |
+|   ↳ `externalId` | string | External ID |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `deduplicationKey` | string | Deduplication key |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `endedAt` | string | End date |
+
+### `rootly_list_incident_events`
+
+List the timeline events for a Rootly incident.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of incident timeline events |
+|   ↳ `id` | string | Unique event ID |
+|   ↳ `event` | string | The event description |
+|   ↳ `visibility` | string | Event visibility \(internal or external\) |
+|   ↳ `occurredAt` | string | When the event occurred |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of events returned |
+
+### `rootly_run_workflow`
+
+Trigger a Rootly automation workflow, optionally scoped to an incident or alert.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `workflowId` | string | Yes | The ID of the workflow to run |
+| `incidentId` | string | No | Incident ID to run the workflow against |
+| `alertId` | string | No | Alert ID to run the workflow against |
+| `immediate` | boolean | No | Run immediately \(true\) or respect the workflow wait time \(false\). Default true |
+| `checkConditions` | boolean | No | Whether to evaluate the workflow conditions before running. Default false |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflowRun` | object | The triggered workflow run |
+|   ↳ `id` | string | Unique workflow run ID |
+|   ↳ `workflowId` | string | ID of the workflow that ran |
+|   ↳ `status` | string | Run status \(queued, started, completed, completed_with_errors, failed, canceled\) |
+|   ↳ `statusMessage` | string | Status detail message |
+|   ↳ `triggeredBy` | string | What triggered the run \(system, user, workflow\) |
+|   ↳ `incidentId` | string | Associated incident ID |
+|   ↳ `alertId` | string | Associated alert ID |
+|   ↳ `startedAt` | string | When the run started |
+|   ↳ `completedAt` | string | When the run completed |
+|   ↳ `failedAt` | string | When the run failed |
+|   ↳ `canceledAt` | string | When the run was canceled |
+
+### `rootly_list_incident_roles`
+
+List incident roles configured in Rootly (e.g. commander, scribe).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter incident roles |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidentRoles` | array | List of incident roles |
+|   ↳ `id` | string | Unique incident role ID |
+|   ↳ `name` | string | Role name |
+|   ↳ `slug` | string | Role slug |
+|   ↳ `summary` | string | Role summary |
+|   ↳ `description` | string | Role description |
+|   ↳ `position` | number | Display position |
+|   ↳ `optional` | boolean | Whether the role is optional |
+|   ↳ `enabled` | boolean | Whether the role is enabled |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of incident roles returned |
 
 

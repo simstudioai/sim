@@ -1,4 +1,7 @@
-export { OutputContextMenu, type OutputContextMenuProps } from './components/output-context-menu'
-export { StructuredOutput, type StructuredOutputProps } from './components/structured-output'
-export type { OutputPanelProps } from './output-panel'
-export { OutputPanel } from './output-panel'
+export {
+  OutputContextMenu,
+  type OutputContextMenuProps,
+  StructuredOutput,
+  type StructuredOutputProps,
+} from './components'
+export { OutputPanel, type OutputPanelProps } from './output-panel'

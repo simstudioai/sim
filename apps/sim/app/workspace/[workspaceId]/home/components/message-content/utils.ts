@@ -3,7 +3,6 @@ import {
   Asterisk,
   Blimp,
   Bug,
-  Calendar,
   Database,
   Eye,
   File,
@@ -20,8 +19,8 @@ import {
   TerminalWindow,
   Wrench,
 } from '@/components/emcn'
-import { Table as TableIcon } from '@/components/emcn/icons'
-import { AgentIcon } from '@/components/icons'
+import { Calendar, Table as TableIcon } from '@/components/emcn/icons'
+import { AgentIcon, ImageIcon, TTSIcon, VideoIcon } from '@/components/icons'
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
@@ -59,6 +58,11 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   context_compaction: Asterisk,
   open_resource: Eye,
   file: File,
+  media: VideoIcon,
+  generate_image: ImageIcon,
+  generate_video: VideoIcon,
+  generate_audio: TTSIcon,
+  ffmpeg: Wrench,
 }
 
 export function getAgentIcon(name: string): IconComponent {

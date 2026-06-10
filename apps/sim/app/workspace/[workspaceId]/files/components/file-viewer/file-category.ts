@@ -36,7 +36,11 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
   ...SUPPORTED_CODE_EXTENSIONS,
 ])
 
-const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf', 'text/x-pdflibjs'])
+const IFRAME_PREVIEWABLE_MIME_TYPES = new Set([
+  'application/pdf',
+  'text/x-pdflibjs',
+  'text/x-python-pdf',
+])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
 const IMAGE_PREVIEWABLE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
@@ -78,6 +82,7 @@ const DOCX_PREVIEWABLE_EXTENSIONS = new Set(['docx'])
 
 const XLSX_PREVIEWABLE_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/x-python-xlsx',
 ])
 const XLSX_PREVIEWABLE_EXTENSIONS = new Set(['xlsx'])
 

@@ -31,6 +31,9 @@ const SUPPORTED_FILE_TYPES = [
   'text/xml',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'text/x-pptxgenjs',
+  'text/x-docxjs',
+  'text/x-python-pdf',
+  'text/x-python-xlsx',
 ]
 
 /**

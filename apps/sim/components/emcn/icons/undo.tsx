@@ -18,14 +18,14 @@ export function Undo(props: SVGProps<SVGSVGElement>) {
       <path
         d='M2.5 4.5H8C9.38 4.5 10.5 5.62 10.5 7C10.5 8.38 9.38 9.5 8 9.5H5'
         stroke='currentColor'
-        strokeWidth='1'
+        strokeWidth='0.85'
         strokeLinecap='round'
         strokeLinejoin='round'
       />
       <path
         d='M4 2.5L2 4.5L4 6.5'
         stroke='currentColor'
-        strokeWidth='1'
+        strokeWidth='0.85'
         strokeLinecap='round'
         strokeLinejoin='round'
       />

@@ -19,11 +19,14 @@ import { salesPointerPeopleTool } from '@/tools/enrich/sales_pointer_people'
 import { searchCompanyTool } from '@/tools/enrich/search_company'
 import { searchCompanyActivitiesTool } from '@/tools/enrich/search_company_activities'
 import { searchCompanyEmployeesTool } from '@/tools/enrich/search_company_employees'
+import { searchJobsTool } from '@/tools/enrich/search_jobs'
 import { searchLogoTool } from '@/tools/enrich/search_logo'
 import { searchPeopleTool } from '@/tools/enrich/search_people'
 import { searchPeopleActivitiesTool } from '@/tools/enrich/search_people_activities'
 import { searchPostCommentsTool } from '@/tools/enrich/search_post_comments'
+import { searchPostCommentsByUrlTool } from '@/tools/enrich/search_post_comments_by_url'
 import { searchPostReactionsTool } from '@/tools/enrich/search_post_reactions'
+import { searchPostReactionsByUrlTool } from '@/tools/enrich/search_post_reactions_by_url'
 import { searchPostsTool } from '@/tools/enrich/search_posts'
 import { searchSimilarCompaniesTool } from '@/tools/enrich/search_similar_companies'
 import { verifyEmailTool } from '@/tools/enrich/verify_email'
@@ -52,7 +55,10 @@ export const enrichSalesPointerPeopleTool = salesPointerPeopleTool
 export const enrichSearchPostsTool = searchPostsTool
 export const enrichGetPostDetailsTool = getPostDetailsTool
 export const enrichSearchPostReactionsTool = searchPostReactionsTool
+export const enrichSearchPostReactionsByUrlTool = searchPostReactionsByUrlTool
 export const enrichSearchPostCommentsTool = searchPostCommentsTool
+export const enrichSearchPostCommentsByUrlTool = searchPostCommentsByUrlTool
+export const enrichSearchJobsTool = searchJobsTool
 export const enrichSearchPeopleActivitiesTool = searchPeopleActivitiesTool
 export const enrichSearchCompanyActivitiesTool = searchCompanyActivitiesTool
 export const enrichReverseHashLookupTool = reverseHashLookupTool

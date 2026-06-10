@@ -474,6 +474,39 @@ export function extractAndParseJSON(content: string): any {
 }
 
 /**
+ * Resolves canonical pair ids (e.g. `tableId`, `knowledgeBaseId`) from a tool's
+ * raw params, filling them in from their basic/advanced selector subblock source
+ * values when the canonical key isn't already present.
+ *
+ * Selector subblocks persist their value under the subblock id (e.g.
+ * `tableSelector`), not the canonical id, so any lookup that keys off the
+ * canonical id — like the unique-tool-id suffix below — must resolve it first.
+ * Mode selection mirrors {@link transformBlockTool}'s execution-time
+ * `paramsTransform` so the resolved id matches the params the tool actually runs
+ * with.
+ *
+ * @returns The params with canonical resource ids resolved (non-destructive)
+ */
+function resolveCanonicalResourceParams(
+  params: Record<string, any>,
+  canonicalGroups: CanonicalGroup[],
+  blockType: string,
+  canonicalModes?: Record<string, 'basic' | 'advanced'>
+): Record<string, any> {
+  if (canonicalGroups.length === 0) return params
+  const resolved = { ...params }
+  for (const group of canonicalGroups) {
+    const existing = resolved[group.canonicalId]
+    if (existing !== undefined && existing !== null && existing !== '') continue
+    const { basicValue, advancedValue } = getCanonicalValues(group, params)
+    const pairMode = canonicalModes?.[`${blockType}:${group.canonicalId}`] ?? 'basic'
+    const chosen = pairMode === 'advanced' ? advancedValue : basicValue
+    if (chosen !== undefined) resolved[group.canonicalId] = chosen
+  }
+  return resolved
+}
+
+/**
  * Transforms a block tool into a provider tool config with operation selection
  *
  * @param block The block to transform
@@ -549,14 +582,25 @@ export async function transformBlockTool(
     userProvidedParams
   )
 
+  const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
+    ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
+    : []
+
+  const resolvedResourceParams = resolveCanonicalResourceParams(
+    userProvidedParams,
+    canonicalGroups,
+    block.type,
+    canonicalModes
+  )
+
   let uniqueToolId = toolConfig.id
   let toolName = toolConfig.name
   let toolDescription = enrichedDescription || toolConfig.description
 
-  if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
-    uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
+  if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
+    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.workflowId}`
 
-    const workflowMetadata = await fetchWorkflowMetadata(userProvidedParams.workflowId)
+    const workflowMetadata = await fetchWorkflowMetadata(resolvedResourceParams.workflowId)
     if (workflowMetadata) {
       toolName = workflowMetadata.name || toolConfig.name
       if (
@@ -566,20 +610,16 @@ export async function transformBlockTool(
         toolDescription = workflowMetadata.description
       }
     }
-  } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
-    uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
-  } else if (toolId.startsWith('table_') && userProvidedParams.tableId) {
-    uniqueToolId = `${toolConfig.id}_${userProvidedParams.tableId}`
+  } else if (toolId.startsWith('knowledge_') && resolvedResourceParams.knowledgeBaseId) {
+    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.knowledgeBaseId}`
+  } else if (toolId.startsWith('table_') && resolvedResourceParams.tableId) {
+    uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.tableId}`
   }
 
   const blockParamsFn = blockDef?.tools?.config?.params as
     | ((p: Record<string, any>) => Record<string, any>)
     | undefined
   const blockInputDefs = blockDef?.inputs as Record<string, any> | undefined
-
-  const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
-    ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
-    : []
 
   const needsTransform = blockParamsFn || blockInputDefs || canonicalGroups.length > 0
   const paramsTransform = needsTransform

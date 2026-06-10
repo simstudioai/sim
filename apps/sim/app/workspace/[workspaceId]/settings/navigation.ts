@@ -1,7 +1,5 @@
 import {
-  Card,
   ClipboardList,
-  Connections,
   Database,
   HexSimple,
   Key,
@@ -17,30 +15,29 @@ import {
   TerminalWindow,
   TrashOutline,
   Upload,
+  User,
   Users,
   Wrench,
 } from '@/components/emcn'
-import { AgentSkillsIcon, McpIcon } from '@/components/icons'
+import { McpIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 
 export type SettingsSection =
   | 'general'
-  | 'integrations'
   | 'secrets'
-  | 'template-profile'
   | 'credential-sets'
   | 'access-control'
   | 'audit-logs'
   | 'apikeys'
   | 'byok'
-  | 'subscription'
+  | 'billing'
+  | 'teammates'
   | 'organization'
   | 'sso'
   | 'whitelabeling'
   | 'copilot'
   | 'mcp'
   | 'custom-tools'
-  | 'skills'
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'admin'
@@ -72,6 +69,8 @@ export interface NavigationItem {
   requiresAdminRole?: boolean
   /** Show in the sidebar even when the user lacks the required plan, with an upgrade badge. */
   showWhenLocked?: boolean
+  /** Hide for enterprise plans, which manage billing out-of-band. */
+  hideForEnterprise?: boolean
   externalUrl?: string
 }
 
@@ -98,10 +97,9 @@ export const sectionConfig: { key: NavigationSection; title: string }[] = [
 
 export const allNavigationItems: NavigationItem[] = [
   { id: 'general', label: 'General', icon: Settings, section: 'account' },
-  // { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
   {
     id: 'access-control',
-    label: 'Access Control',
+    label: 'Access control',
     icon: ShieldCheck,
     section: 'enterprise',
     requiresHosted: true,
@@ -110,7 +108,7 @@ export const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'audit-logs',
-    label: 'Audit Logs',
+    label: 'Audit logs',
     icon: ClipboardList,
     section: 'enterprise',
     requiresHosted: true,
@@ -118,11 +116,17 @@ export const allNavigationItems: NavigationItem[] = [
     selfHostedOverride: isAuditLogsEnabled,
   },
   {
-    id: 'subscription',
-    label: 'Subscription',
-    icon: Card,
+    id: 'billing',
+    label: 'Billing',
+    icon: ClipboardList,
     section: 'subscription',
     hideWhenBillingDisabled: true,
+  },
+  {
+    id: 'teammates',
+    label: 'Teammates',
+    icon: User,
+    section: 'subscription',
   },
   {
     id: 'organization',
@@ -133,13 +137,11 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresTeam: true,
   },
-  { id: 'integrations', label: 'Integrations', icon: Connections, section: 'account' },
   { id: 'secrets', label: 'Secrets', icon: Key, section: 'account' },
-  { id: 'custom-tools', label: 'Custom Tools', icon: Wrench, section: 'tools' },
-  { id: 'skills', label: 'Skills', icon: AgentSkillsIcon, section: 'tools' },
-  { id: 'mcp', label: 'MCP Tools', icon: McpIcon, section: 'tools' },
-  { id: 'apikeys', label: 'Sim Keys', icon: TerminalWindow, section: 'system' },
-  { id: 'workflow-mcp-servers', label: 'MCP Servers', icon: Server, section: 'system' },
+  { id: 'custom-tools', label: 'Custom tools', icon: Wrench, section: 'tools' },
+  { id: 'mcp', label: 'MCP tools', icon: McpIcon, section: 'tools' },
+  { id: 'apikeys', label: 'Sim API keys', icon: TerminalWindow, section: 'system' },
+  { id: 'workflow-mcp-servers', label: 'MCP servers', icon: Server, section: 'system' },
   {
     id: 'byok',
     label: 'BYOK',
@@ -149,14 +151,14 @@ export const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'copilot',
-    label: 'Copilot Keys',
+    label: 'Copilot keys',
     icon: HexSimple,
     section: 'system',
     requiresHosted: true,
   },
   {
     id: 'inbox',
-    label: 'Sim Mailer',
+    label: 'Sim mailer',
     icon: Send,
     section: 'system',
     requiresMax: true,
@@ -168,16 +170,16 @@ export const allNavigationItems: NavigationItem[] = [
     ? [
         {
           id: 'credential-sets' as const,
-          label: 'Email Polling',
+          label: 'Email polling',
           icon: Mail,
           section: 'system' as const,
         },
       ]
     : []),
-  { id: 'recently-deleted', label: 'Recently Deleted', icon: TrashOutline, section: 'system' },
+  { id: 'recently-deleted', label: 'Recently deleted', icon: TrashOutline, section: 'system' },
   {
     id: 'sso',
-    label: 'Single Sign-On',
+    label: 'Single sign-on',
     icon: LogIn,
     section: 'enterprise',
     requiresHosted: true,
@@ -186,7 +188,7 @@ export const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'data-retention',
-    label: 'Data Retention',
+    label: 'Data retention',
     icon: Database,
     section: 'enterprise',
     requiresHosted: true,
@@ -195,7 +197,7 @@ export const allNavigationItems: NavigationItem[] = [
   },
   {
     id: 'data-drains',
-    label: 'Data Drains',
+    label: 'Data drains',
     icon: Upload,
     section: 'enterprise',
     requiresHosted: true,

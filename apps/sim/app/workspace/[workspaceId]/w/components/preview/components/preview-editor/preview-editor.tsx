@@ -219,7 +219,7 @@ function CollapsibleSection({
         </span>
         <ChevronDown
           className={cn(
-            'h-[10px] w-[10px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+            'size-[10px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-180'
           )}
         />
@@ -347,7 +347,7 @@ function ConnectionsSection({
         aria-label={isAtMinHeight ? 'Expand connections' : 'Collapse connections'}
       >
         <ChevronUp
-          className={cn('h-[14px] w-[14px] transition-transform', !isAtMinHeight && 'rotate-180')}
+          className={cn('size-[14px] transition-transform', !isAtMinHeight && 'rotate-180')}
         />
         <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
       </div>

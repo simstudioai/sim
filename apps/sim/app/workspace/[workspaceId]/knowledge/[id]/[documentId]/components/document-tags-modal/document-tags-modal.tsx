@@ -5,19 +5,17 @@ import { createLogger } from '@sim/logger'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   DatePicker,
-  Input,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Trash,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
@@ -384,380 +382,368 @@ export function DocumentTagsModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent size='sm'>
-        <ModalHeader>
-          <div className='flex items-center justify-between'>
-            <span>Document Tags</span>
-          </div>
-        </ModalHeader>
-        <ModalDescription className='sr-only'>
-          View and edit tags assigned to this document
-        </ModalDescription>
+    <ChipModal open={open} onOpenChange={handleClose} srTitle='Document Tags' size='sm'>
+      <ChipModalHeader onClose={() => handleClose(false)}>
+        <div className='flex items-center justify-between'>
+          <span>Document Tags</span>
+        </div>
+      </ChipModalHeader>
 
-        <ModalBody>
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='space-y-2'>
-              <Label>Tags</Label>
-
-              {documentTags.map((tag, index) => (
-                <div key={tag.displayName} className='space-y-2'>
-                  <div
-                    role='button'
-                    tabIndex={0}
-                    className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
-                    onClick={() => startEditingTag(index)}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget) return
-                      handleKeyboardActivation(event, () => startEditingTag(index))
-                    }}
-                  >
-                    <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
-                      {tag.displayName}
-                    </span>
-                    <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
-                      {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
-                    </span>
-                    <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
-                    <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-xs'>
-                      {formatValueForDisplay(tag.value, tag.fieldType)}
-                    </span>
-                    <div className='flex flex-shrink-0 items-center gap-1'>
-                      <Button
-                        variant='ghost'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRemoveTag(index)
-                        }}
-                        className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
-                      >
-                        <Trash className='size-3' />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {editingTagIndex === index && (
-                    <div className='space-y-2 rounded-md border p-3'>
-                      <div className='flex flex-col gap-2'>
-                        <Label htmlFor={`tagName-${index}`}>Tag Name</Label>
-                        {availableDefinitions.length > 0 ? (
-                          <Combobox
-                            id={`tagName-${index}`}
-                            options={tagNameOptions}
-                            value={editTagForm.displayName}
-                            selectedValue={editTagForm.displayName}
-                            onChange={(value) => {
-                              const def = kbTagDefinitions.find(
-                                (d) => d.displayName.toLowerCase() === value.toLowerCase()
-                              )
-                              const newFieldType = def?.fieldType || 'text'
-                              setEditTagForm({
-                                ...editTagForm,
-                                displayName: value,
-                                fieldType: newFieldType,
-                                value: getValueForFieldType(
-                                  newFieldType,
-                                  editTagForm.fieldType,
-                                  editTagForm.value
-                                ),
-                              })
-                            }}
-                            placeholder='Enter or select tag name'
-                            editable={true}
-                            className={cn(tagNameConflict && 'border-[var(--text-error)]')}
-                          />
-                        ) : (
-                          <Input
-                            id={`tagName-${index}`}
-                            value={editTagForm.displayName}
-                            onChange={(e) =>
-                              setEditTagForm({ ...editTagForm, displayName: e.target.value })
-                            }
-                            placeholder='Enter tag name'
-                            className={cn(tagNameConflict && 'border-[var(--text-error)]')}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && canSaveTag) {
-                                e.preventDefault()
-                                saveDocumentTag()
-                              }
-                              if (e.key === 'Escape') {
-                                e.preventDefault()
-                                cancelEditingTag()
-                              }
-                            }}
-                          />
-                        )}
-                        {tagNameConflict && (
-                          <span className='text-[var(--text-error)] text-caption'>
-                            A tag with this name already exists
-                          </span>
-                        )}
-                      </div>
-
-                      <div className='flex flex-col gap-2'>
-                        <Label htmlFor={`tagValue-${index}`}>Value</Label>
-                        {editTagForm.fieldType === 'boolean' ? (
-                          <Combobox
-                            id={`tagValue-${index}`}
-                            options={[
-                              { label: 'True', value: 'true' },
-                              { label: 'False', value: 'false' },
-                            ]}
-                            value={editTagForm.value}
-                            selectedValue={editTagForm.value}
-                            onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                            placeholder='Select value'
-                          />
-                        ) : editTagForm.fieldType === 'number' ? (
-                          <Input
-                            id={`tagValue-${index}`}
-                            value={editTagForm.value}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              // Allow empty, digits, decimal point, and negative sign
-                              if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
-                                setEditTagForm({ ...editTagForm, value: val })
-                              }
-                            }}
-                            placeholder='Enter number'
-                            inputMode='decimal'
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && canSaveTag) {
-                                e.preventDefault()
-                                saveDocumentTag()
-                              }
-                              if (e.key === 'Escape') {
-                                e.preventDefault()
-                                cancelEditingTag()
-                              }
-                            }}
-                          />
-                        ) : editTagForm.fieldType === 'date' ? (
-                          <DatePicker
-                            value={editTagForm.value || undefined}
-                            onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                            placeholder='Select date'
-                          />
-                        ) : (
-                          <Input
-                            id={`tagValue-${index}`}
-                            value={editTagForm.value}
-                            onChange={(e) =>
-                              setEditTagForm({ ...editTagForm, value: e.target.value })
-                            }
-                            placeholder='Enter tag value'
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && canSaveTag) {
-                                e.preventDefault()
-                                saveDocumentTag()
-                              }
-                              if (e.key === 'Escape') {
-                                e.preventDefault()
-                                cancelEditingTag()
-                              }
-                            }}
-                          />
-                        )}
-                      </div>
-
-                      <div className='flex gap-2'>
-                        <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
-                          Cancel
-                        </Button>
-                        <Button
-                          variant='primary'
-                          onClick={saveDocumentTag}
-                          className='flex-1'
-                          disabled={!canSaveTag}
-                        >
-                          Save Changes
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {documentTags.length > 0 && !isTagEditing && (
-                <Button
-                  variant='default'
-                  onClick={openTagCreator}
-                  disabled={!canAddNewTag}
-                  className='w-full'
+      <ChipModalBody>
+        <ChipModalField type='custom' title='Tags'>
+          <div className='space-y-2'>
+            {documentTags.map((tag, index) => (
+              <div key={tag.displayName} className='space-y-2'>
+                <div
+                  role='button'
+                  tabIndex={0}
+                  className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
+                  onClick={() => startEditingTag(index)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return
+                    handleKeyboardActivation(event, () => startEditingTag(index))
+                  }}
                 >
-                  Add Tag
-                </Button>
-              )}
-
-              {(isCreatingTag || documentTags.length === 0) && editingTagIndex === null && (
-                <div className='space-y-2 rounded-md border p-3'>
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='newTagName'>Tag Name</Label>
-                    {tagNameOptions.length > 0 ? (
-                      <Combobox
-                        id='newTagName'
-                        options={tagNameOptions}
-                        value={editTagForm.displayName}
-                        selectedValue={editTagForm.displayName}
-                        onChange={(value) => {
-                          const def = kbTagDefinitions.find(
-                            (d) => d.displayName.toLowerCase() === value.toLowerCase()
-                          )
-                          const newFieldType = def?.fieldType || 'text'
-                          setEditTagForm({
-                            ...editTagForm,
-                            displayName: value,
-                            fieldType: newFieldType,
-                            value: getValueForFieldType(
-                              newFieldType,
-                              editTagForm.fieldType,
-                              editTagForm.value
-                            ),
-                          })
-                        }}
-                        placeholder='Enter or select tag name'
-                        editable={true}
-                        className={cn(tagNameConflict && 'border-[var(--text-error)]')}
-                      />
-                    ) : (
-                      <Input
-                        id='newTagName'
-                        value={editTagForm.displayName}
-                        onChange={(e) =>
-                          setEditTagForm({ ...editTagForm, displayName: e.target.value })
-                        }
-                        placeholder='Enter tag name'
-                        className={cn(tagNameConflict && 'border-[var(--text-error)]')}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && canSaveTag) {
-                            e.preventDefault()
-                            saveDocumentTag()
-                          }
-                          if (e.key === 'Escape') {
-                            e.preventDefault()
-                            cancelEditingTag()
-                          }
-                        }}
-                      />
-                    )}
-                    {tagNameConflict && (
-                      <span className='text-[var(--text-error)] text-caption'>
-                        A tag with this name already exists
-                      </span>
-                    )}
-                  </div>
-
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='newTagValue'>Value</Label>
-                    {editTagForm.fieldType === 'boolean' ? (
-                      <Combobox
-                        id='newTagValue'
-                        options={[
-                          { label: 'True', value: 'true' },
-                          { label: 'False', value: 'false' },
-                        ]}
-                        value={editTagForm.value}
-                        selectedValue={editTagForm.value}
-                        onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                        placeholder='Select value'
-                      />
-                    ) : editTagForm.fieldType === 'number' ? (
-                      <Input
-                        id='newTagValue'
-                        value={editTagForm.value}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          // Allow empty, digits, decimal point, and negative sign
-                          if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
-                            setEditTagForm({ ...editTagForm, value: val })
-                          }
-                        }}
-                        placeholder='Enter number'
-                        inputMode='decimal'
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && canSaveTag) {
-                            e.preventDefault()
-                            saveDocumentTag()
-                          }
-                          if (e.key === 'Escape') {
-                            e.preventDefault()
-                            cancelEditingTag()
-                          }
-                        }}
-                      />
-                    ) : editTagForm.fieldType === 'date' ? (
-                      <DatePicker
-                        value={editTagForm.value || undefined}
-                        onChange={(value) => setEditTagForm({ ...editTagForm, value })}
-                        placeholder='Select date'
-                      />
-                    ) : (
-                      <Input
-                        id='newTagValue'
-                        value={editTagForm.value}
-                        onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
-                        placeholder='Enter tag value'
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && canSaveTag) {
-                            e.preventDefault()
-                            saveDocumentTag()
-                          }
-                          if (e.key === 'Escape') {
-                            e.preventDefault()
-                            cancelEditingTag()
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-
-                  {kbTagDefinitions.length >= MAX_TAG_SLOTS &&
-                    !kbTagDefinitions.find(
-                      (def) =>
-                        def.displayName.toLowerCase() === editTagForm.displayName.toLowerCase()
-                    ) && (
-                      <Badge variant='amber' size='lg' dot className='max-w-full'>
-                        Maximum tag definitions reached. You can still use existing tag definitions,
-                        but cannot create new ones.
-                      </Badge>
-                    )}
-
-                  <div className='flex gap-2'>
-                    {documentTags.length > 0 && (
-                      <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
-                        Cancel
-                      </Button>
-                    )}
+                  <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
+                    {tag.displayName}
+                  </span>
+                  <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+                    {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
+                  </span>
+                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-xs'>
+                    {formatValueForDisplay(tag.value, tag.fieldType)}
+                  </span>
+                  <div className='flex flex-shrink-0 items-center gap-1'>
                     <Button
-                      variant='primary'
-                      onClick={saveDocumentTag}
-                      className='flex-1'
-                      disabled={
-                        !canSaveTag ||
-                        isSavingTag ||
-                        (kbTagDefinitions.length >= MAX_TAG_SLOTS &&
-                          !kbTagDefinitions.find(
-                            (def) =>
-                              def.displayName.toLowerCase() ===
-                              editTagForm.displayName.toLowerCase()
-                          ))
-                      }
+                      variant='ghost'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRemoveTag(index)
+                      }}
+                      className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                     >
-                      {isSavingTag ? 'Creating...' : 'Create Tag'}
+                      <Trash className='size-3' />
                     </Button>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </ModalBody>
 
-        <ModalFooter>
-          <Button variant='default' onClick={() => handleClose(false)}>
-            Close
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+                {editingTagIndex === index && (
+                  <div className='space-y-2 rounded-md border p-3'>
+                    <div className='flex flex-col gap-2'>
+                      <Label htmlFor={`tagName-${index}`}>Tag Name</Label>
+                      {availableDefinitions.length > 0 ? (
+                        <ChipCombobox
+                          id={`tagName-${index}`}
+                          options={tagNameOptions}
+                          value={editTagForm.displayName}
+                          selectedValue={editTagForm.displayName}
+                          onChange={(value) => {
+                            const def = kbTagDefinitions.find(
+                              (d) => d.displayName.toLowerCase() === value.toLowerCase()
+                            )
+                            const newFieldType = def?.fieldType || 'text'
+                            setEditTagForm({
+                              ...editTagForm,
+                              displayName: value,
+                              fieldType: newFieldType,
+                              value: getValueForFieldType(
+                                newFieldType,
+                                editTagForm.fieldType,
+                                editTagForm.value
+                              ),
+                            })
+                          }}
+                          placeholder='Enter or select tag name'
+                          editable={true}
+                        />
+                      ) : (
+                        <ChipInput
+                          id={`tagName-${index}`}
+                          value={editTagForm.displayName}
+                          onChange={(e) =>
+                            setEditTagForm({ ...editTagForm, displayName: e.target.value })
+                          }
+                          placeholder='Enter tag name'
+                          error={tagNameConflict}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && canSaveTag) {
+                              e.preventDefault()
+                              saveDocumentTag()
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault()
+                              cancelEditingTag()
+                            }
+                          }}
+                        />
+                      )}
+                      {tagNameConflict && (
+                        <span className='text-[var(--text-error)] text-caption'>
+                          A tag with this name already exists
+                        </span>
+                      )}
+                    </div>
+
+                    <div className='flex flex-col gap-2'>
+                      <Label htmlFor={`tagValue-${index}`}>Value</Label>
+                      {editTagForm.fieldType === 'boolean' ? (
+                        <ChipCombobox
+                          id={`tagValue-${index}`}
+                          options={[
+                            { label: 'True', value: 'true' },
+                            { label: 'False', value: 'false' },
+                          ]}
+                          value={editTagForm.value}
+                          selectedValue={editTagForm.value}
+                          onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                          placeholder='Select value'
+                        />
+                      ) : editTagForm.fieldType === 'number' ? (
+                        <ChipInput
+                          id={`tagValue-${index}`}
+                          value={editTagForm.value}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            // Allow empty, digits, decimal point, and negative sign
+                            if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
+                              setEditTagForm({ ...editTagForm, value: val })
+                            }
+                          }}
+                          placeholder='Enter number'
+                          inputMode='decimal'
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && canSaveTag) {
+                              e.preventDefault()
+                              saveDocumentTag()
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault()
+                              cancelEditingTag()
+                            }
+                          }}
+                        />
+                      ) : editTagForm.fieldType === 'date' ? (
+                        <DatePicker
+                          value={editTagForm.value || undefined}
+                          onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                          placeholder='Select date'
+                        />
+                      ) : (
+                        <ChipInput
+                          id={`tagValue-${index}`}
+                          value={editTagForm.value}
+                          onChange={(e) =>
+                            setEditTagForm({ ...editTagForm, value: e.target.value })
+                          }
+                          placeholder='Enter tag value'
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && canSaveTag) {
+                              e.preventDefault()
+                              saveDocumentTag()
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault()
+                              cancelEditingTag()
+                            }
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    <div className='flex gap-2'>
+                      <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
+                        Cancel
+                      </Button>
+                      <Button
+                        variant='primary'
+                        onClick={saveDocumentTag}
+                        className='flex-1'
+                        disabled={!canSaveTag}
+                      >
+                        Save Changes
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {documentTags.length > 0 && !isTagEditing && (
+              <Button
+                variant='default'
+                onClick={openTagCreator}
+                disabled={!canAddNewTag}
+                className='w-full'
+              >
+                Add Tag
+              </Button>
+            )}
+
+            {(isCreatingTag || documentTags.length === 0) && editingTagIndex === null && (
+              <div className='space-y-2 rounded-md border p-3'>
+                <div className='flex flex-col gap-2'>
+                  <Label htmlFor='newTagName'>Tag Name</Label>
+                  {tagNameOptions.length > 0 ? (
+                    <ChipCombobox
+                      id='newTagName'
+                      options={tagNameOptions}
+                      value={editTagForm.displayName}
+                      selectedValue={editTagForm.displayName}
+                      onChange={(value) => {
+                        const def = kbTagDefinitions.find(
+                          (d) => d.displayName.toLowerCase() === value.toLowerCase()
+                        )
+                        const newFieldType = def?.fieldType || 'text'
+                        setEditTagForm({
+                          ...editTagForm,
+                          displayName: value,
+                          fieldType: newFieldType,
+                          value: getValueForFieldType(
+                            newFieldType,
+                            editTagForm.fieldType,
+                            editTagForm.value
+                          ),
+                        })
+                      }}
+                      placeholder='Enter or select tag name'
+                      editable={true}
+                    />
+                  ) : (
+                    <ChipInput
+                      id='newTagName'
+                      value={editTagForm.displayName}
+                      onChange={(e) =>
+                        setEditTagForm({ ...editTagForm, displayName: e.target.value })
+                      }
+                      placeholder='Enter tag name'
+                      error={tagNameConflict}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && canSaveTag) {
+                          e.preventDefault()
+                          saveDocumentTag()
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault()
+                          cancelEditingTag()
+                        }
+                      }}
+                    />
+                  )}
+                  {tagNameConflict && (
+                    <span className='text-[var(--text-error)] text-caption'>
+                      A tag with this name already exists
+                    </span>
+                  )}
+                </div>
+
+                <div className='flex flex-col gap-2'>
+                  <Label htmlFor='newTagValue'>Value</Label>
+                  {editTagForm.fieldType === 'boolean' ? (
+                    <ChipCombobox
+                      id='newTagValue'
+                      options={[
+                        { label: 'True', value: 'true' },
+                        { label: 'False', value: 'false' },
+                      ]}
+                      value={editTagForm.value}
+                      selectedValue={editTagForm.value}
+                      onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                      placeholder='Select value'
+                    />
+                  ) : editTagForm.fieldType === 'number' ? (
+                    <ChipInput
+                      id='newTagValue'
+                      value={editTagForm.value}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        // Allow empty, digits, decimal point, and negative sign
+                        if (val === '' || /^-?\d*\.?\d*$/.test(val)) {
+                          setEditTagForm({ ...editTagForm, value: val })
+                        }
+                      }}
+                      placeholder='Enter number'
+                      inputMode='decimal'
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && canSaveTag) {
+                          e.preventDefault()
+                          saveDocumentTag()
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault()
+                          cancelEditingTag()
+                        }
+                      }}
+                    />
+                  ) : editTagForm.fieldType === 'date' ? (
+                    <DatePicker
+                      value={editTagForm.value || undefined}
+                      onChange={(value) => setEditTagForm({ ...editTagForm, value })}
+                      placeholder='Select date'
+                    />
+                  ) : (
+                    <ChipInput
+                      id='newTagValue'
+                      value={editTagForm.value}
+                      onChange={(e) => setEditTagForm({ ...editTagForm, value: e.target.value })}
+                      placeholder='Enter tag value'
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && canSaveTag) {
+                          e.preventDefault()
+                          saveDocumentTag()
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault()
+                          cancelEditingTag()
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+
+                {kbTagDefinitions.length >= MAX_TAG_SLOTS &&
+                  !kbTagDefinitions.find(
+                    (def) => def.displayName.toLowerCase() === editTagForm.displayName.toLowerCase()
+                  ) && (
+                    <Badge variant='amber' size='lg' dot className='max-w-full'>
+                      Maximum tag definitions reached. You can still use existing tag definitions,
+                      but cannot create new ones.
+                    </Badge>
+                  )}
+
+                <div className='flex gap-2'>
+                  {documentTags.length > 0 && (
+                    <Button variant='default' onClick={cancelEditingTag} className='flex-1'>
+                      Cancel
+                    </Button>
+                  )}
+                  <Button
+                    variant='primary'
+                    onClick={saveDocumentTag}
+                    className='flex-1'
+                    disabled={
+                      !canSaveTag ||
+                      isSavingTag ||
+                      (kbTagDefinitions.length >= MAX_TAG_SLOTS &&
+                        !kbTagDefinitions.find(
+                          (def) =>
+                            def.displayName.toLowerCase() === editTagForm.displayName.toLowerCase()
+                        ))
+                    }
+                  >
+                    {isSavingTag ? 'Creating...' : 'Create Tag'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </ChipModalField>
+      </ChipModalBody>
+
+      <ChipModalFooter
+        onCancel={() => handleClose(false)}
+        primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
+      />
+    </ChipModal>
   )
 }

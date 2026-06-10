@@ -49,11 +49,11 @@ export function ExpandedCellPopover({
     // workflow columns share `name` across siblings, so prefer `key` when set.
     const matchByKey = expandedCell.columnKey
       ? (c: DisplayColumn) => c.key === expandedCell.columnKey
-      : (c: DisplayColumn) => c.name === expandedCell.columnName
+      : (c: DisplayColumn) => c.key === expandedCell.columnName
     const column = columns.find(matchByKey)
     if (!row || !column) return null
     const colIndex = columns.findIndex(matchByKey)
-    return { row, column, colIndex, value: row.data[column.name] }
+    return { row, column, colIndex, value: row.data[column.key] }
   }, [expandedCell, rows, columns])
 
   const isBooleanCell = target?.column.type === 'boolean'
@@ -142,7 +142,7 @@ export function ExpandedCellPopover({
     // Fall back to the raw draft for non-date columns, matching the inline editor.
     const raw = displayToStorage(draftValue) ?? draftValue
     const cleaned = cleanCellValue(raw, target.column)
-    onSave(target.row.id, target.column.name, cleaned, 'blur')
+    onSave(target.row.id, target.column.key, cleaned, 'blur')
     onClose()
   }
 

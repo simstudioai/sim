@@ -33,7 +33,7 @@ const OG_FOOTER_STYLE = {
   width: '100%',
 } satisfies CSSProperties
 const OG_DOMAIN_STYLE = {
-  fontSize: 20,
+  fontSize: 24,
   fontWeight: 400,
   color: '#71717a',
 } satisfies CSSProperties
@@ -84,7 +84,7 @@ async function loadGoogleFont(font: string, weights: string, text: string): Prom
  */
 function SimLogoFull() {
   return (
-    <svg height='28' viewBox='720 440 1020 320' fill='none'>
+    <svg height='34' viewBox='720 440 1020 320' fill='none'>
       {/* Green icon - top left shape with cutout */}
       <path
         fillRule='evenodd'

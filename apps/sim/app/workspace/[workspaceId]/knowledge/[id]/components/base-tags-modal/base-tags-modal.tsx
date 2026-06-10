@@ -1,24 +1,21 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
-  Combobox,
+  ChipCombobox,
+  ChipConfirmModal,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   type ComboboxOption,
-  Input,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Trash,
 } from '@/components/emcn'
-import { requestJson } from '@/lib/api/client/request'
-import { getTagUsageContract, type TagUsageData } from '@/lib/api/contracts/knowledge'
-import { cn } from '@/lib/core/utils/cn'
+import type { TagUsageData } from '@/lib/api/contracts/knowledge'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
@@ -26,7 +23,11 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
-import { useCreateTagDefinition, useDeleteTagDefinition } from '@/hooks/queries/kb/knowledge'
+import {
+  useCreateTagDefinition,
+  useDeleteTagDefinition,
+  useTagUsageQuery,
+} from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('BaseTagsModal')
 
@@ -60,7 +61,7 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
               {doc.tagValue && (
                 <>
                   <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
-                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-xs'>
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
                     {doc.tagValue}
                   </span>
                 </>
@@ -69,7 +70,7 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
           )
         })}
         {hasMore && (
-          <div className='p-2 text-[var(--text-muted)] text-xs'>
+          <div className='p-2 text-[var(--text-muted)] text-caption'>
             and {totalCount - displayLimit} more documents
           </div>
         )}
@@ -93,33 +94,15 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
   const [deleteTagDialogOpen, setDeleteTagDialogOpen] = useState(false)
   const [selectedTag, setSelectedTag] = useState<TagDefinition | null>(null)
   const [viewDocumentsDialogOpen, setViewDocumentsDialogOpen] = useState(false)
-  const [tagUsageData, setTagUsageData] = useState<TagUsageData[]>([])
   const [isCreatingTag, setIsCreatingTag] = useState(false)
   const [createTagForm, setCreateTagForm] = useState({
     displayName: '',
     fieldType: 'text',
   })
 
-  const fetchTagUsage = useCallback(async () => {
-    if (!knowledgeBaseId) return
-
-    try {
-      const result = await requestJson(getTagUsageContract, {
-        params: { id: knowledgeBaseId },
-      })
-      if (result.success) {
-        setTagUsageData(result.data)
-      }
-    } catch (error) {
-      logger.error('Error fetching tag usage:', error)
-    }
-  }, [knowledgeBaseId])
-
-  useEffect(() => {
-    if (open) {
-      fetchTagUsage()
-    }
-  }, [open, fetchTagUsage])
+  const { data: tagUsageData = [], refetch: refetchTagUsage } = useTagUsageQuery(knowledgeBaseId, {
+    enabled: open,
+  })
 
   const getTagUsage = (tagSlot: string): TagUsageData => {
     return (
@@ -134,13 +117,13 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
   const handleDeleteTagClick = async (tag: TagDefinition) => {
     setSelectedTag(tag)
-    await fetchTagUsage()
+    await refetchTagUsage()
     setDeleteTagDialogOpen(true)
   }
 
   const handleViewDocuments = async (tag: TagDefinition) => {
     setSelectedTag(tag)
-    await fetchTagUsage()
+    await refetchTagUsage()
     setViewDocumentsDialogOpen(true)
   }
 
@@ -210,8 +193,6 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         fieldType: createTagForm.fieldType,
       })
 
-      await fetchTagUsage()
-
       setCreateTagForm({
         displayName: '',
         fieldType: 'text',
@@ -220,6 +201,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     } catch (error) {
       logger.error('Error creating tag definition:', error)
     }
+  }
+
+  const closeDeleteTagDialog = () => {
+    setDeleteTagDialogOpen(false)
+    setSelectedTag(null)
   }
 
   const confirmDeleteTag = async () => {
@@ -231,10 +217,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         tagDefinitionId: selectedTag.id,
       })
 
-      await fetchTagUsage()
-
-      setDeleteTagDialogOpen(false)
-      setSelectedTag(null)
+      closeDeleteTagDialog()
     } catch (error) {
       logger.error('Error deleting tag definition:', error)
     }
@@ -255,243 +238,239 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
   return (
     <>
-      <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent size='sm'>
-          <ModalHeader>
-            <div className='flex items-center justify-between'>
-              <span>Tags</span>
-            </div>
-          </ModalHeader>
-          <ModalDescription className='sr-only'>
-            Manage tag definitions for this knowledge base
-          </ModalDescription>
+      <ChipModal open={open} onOpenChange={handleClose} srTitle='Tags' size='sm'>
+        <ChipModalHeader onClose={() => handleClose(false)}>
+          <div className='flex items-center justify-between'>
+            <span>Tags</span>
+          </div>
+        </ChipModalHeader>
 
-          <ModalBody>
-            <div className='min-h-0 flex-1 overflow-y-auto'>
-              <div className='space-y-2'>
-                <Label>
-                  Tags:{' '}
-                  <span className='pl-1.5 text-[var(--text-tertiary)]'>
-                    {kbTagDefinitions.length} defined
-                  </span>
-                </Label>
-
-                {kbTagDefinitions.length === 0 && !isCreatingTag && (
-                  <div className='rounded-md border p-4 text-center'>
-                    <p className='text-[var(--text-tertiary)] text-caption'>
-                      No tag definitions yet. Create your first tag to organize documents.
-                    </p>
-                  </div>
-                )}
-
-                {kbTagDefinitions.map((tag) => {
-                  const usage = getTagUsage(tag.tagSlot)
-                  return (
-                    <div
-                      key={tag.id}
-                      role='button'
-                      tabIndex={0}
-                      className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
-                      onClick={() => handleViewDocuments(tag)}
-                      onKeyDown={(event) => {
-                        if (event.target !== event.currentTarget) return
-                        handleKeyboardActivation(event, () => handleViewDocuments(tag))
-                      }}
-                    >
-                      <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
-                        {tag.displayName}
-                      </span>
-                      <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
-                        {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
-                      </span>
-                      <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
-                      <span className='min-w-0 flex-1 text-[var(--text-muted)] text-xs'>
-                        {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
-                      </span>
-                      <div className='flex flex-shrink-0 items-center gap-1'>
-                        <Button
-                          variant='ghost'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteTagClick(tag)
-                          }}
-                          className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
-                        >
-                          <Trash className='size-3' />
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-
-                {!isCreatingTag && (
-                  <Button
-                    variant='default'
-                    onClick={openTagCreator}
-                    disabled={!SUPPORTED_FIELD_TYPES.some((type) => hasAvailableSlots(type))}
-                    className='w-full'
-                  >
-                    Add Tag
-                  </Button>
-                )}
-
-                {isCreatingTag && (
-                  <div className='space-y-2 rounded-md border p-3'>
-                    <div className='flex flex-col gap-2'>
-                      <Label htmlFor='tagName'>Tag Name</Label>
-                      <Input
-                        id='tagName'
-                        value={createTagForm.displayName}
-                        onChange={(e) =>
-                          setCreateTagForm({ ...createTagForm, displayName: e.target.value })
-                        }
-                        placeholder='Enter tag name'
-                        className={cn(tagNameConflict && 'border-[var(--text-error)]')}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && canSaveTag()) {
-                            e.preventDefault()
-                            saveTagDefinition()
-                          }
-                          if (e.key === 'Escape') {
-                            e.preventDefault()
-                            cancelCreatingTag()
-                          }
-                        }}
-                      />
-                      {tagNameConflict && (
-                        <span className='text-[var(--text-error)] text-caption'>
-                          A tag with this name already exists
-                        </span>
-                      )}
-                    </div>
-
-                    <div className='flex flex-col gap-2'>
-                      <Label htmlFor='tagType'>Type</Label>
-                      <Combobox
-                        options={fieldTypeOptions}
-                        value={createTagForm.fieldType}
-                        onChange={(value) =>
-                          setCreateTagForm({ ...createTagForm, fieldType: value })
-                        }
-                        placeholder='Select type'
-                      />
-                      {!hasAvailableSlots(createTagForm.fieldType) && (
-                        <span className='text-[var(--text-error)] text-caption'>
-                          No available slots for this type. Choose a different type.
-                        </span>
-                      )}
-                    </div>
-
-                    <div className='flex gap-2'>
-                      <Button variant='default' onClick={cancelCreatingTag} className='flex-1'>
-                        Cancel
-                      </Button>
-                      <Button
-                        variant='primary'
-                        onClick={saveTagDefinition}
-                        className='flex-1'
-                        disabled={
-                          !canSaveTag() ||
-                          createTagMutation.isPending ||
-                          !hasAvailableSlots(createTagForm.fieldType)
-                        }
-                      >
-                        {createTagMutation.isPending ? 'Creating...' : 'Create Tag'}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </ModalBody>
-
-          <ModalFooter>
-            <Button variant='default' onClick={() => handleClose(false)}>
-              Close
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Delete Tag Confirmation Dialog */}
-      <Modal open={deleteTagDialogOpen} onOpenChange={setDeleteTagDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Tag</ModalHeader>
-          <ModalBody>
-            <div className='space-y-2'>
-              <ModalDescription className='text-[var(--text-secondary)]'>
-                Are you sure you want to delete the "{selectedTag?.displayName}" tag?{' '}
-                <span className='text-[var(--text-error)]'>
-                  This will remove this tag from {selectedTagUsage?.documentCount || 0} document
-                  {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.
-                </span>{' '}
-                This action cannot be undone.
-              </ModalDescription>
-
-              {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
-                <div className='flex flex-col gap-2'>
-                  <Label>Affected documents:</Label>
-                  <DocumentList
-                    documents={selectedTagUsage.documents}
-                    totalCount={selectedTagUsage.documentCount}
-                  />
-                </div>
-              )}
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              disabled={deleteTagMutation.isPending}
-              onClick={() => setDeleteTagDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={confirmDeleteTag}
-              disabled={deleteTagMutation.isPending}
-            >
-              {deleteTagMutation.isPending ? 'Deleting...' : 'Delete Tag'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* View Documents Dialog */}
-      <Modal open={viewDocumentsDialogOpen} onOpenChange={setViewDocumentsDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Documents using "{selectedTag?.displayName}"</ModalHeader>
-          <ModalBody>
-            <div className='space-y-2'>
-              <ModalDescription className='text-[var(--text-secondary)]'>
-                {selectedTagUsage?.documentCount || 0} document
-                {selectedTagUsage?.documentCount !== 1 ? 's are' : ' is'} currently using this tag
-                definition.
-              </ModalDescription>
-
-              {selectedTagUsage?.documentCount === 0 ? (
+        <ChipModalBody>
+          <ChipModalField
+            type='custom'
+            title={
+              <>
+                Tags:{' '}
+                <span className='pl-1.5 text-[var(--text-tertiary)]'>
+                  {kbTagDefinitions.length} defined
+                </span>
+              </>
+            }
+          >
+            <div className='flex flex-col gap-2'>
+              {kbTagDefinitions.length === 0 && !isCreatingTag && (
                 <div className='rounded-md border p-4 text-center'>
-                  <p className='text-[var(--text-secondary)]'>
-                    This tag definition is not being used by any documents. You can safely delete it
-                    to free up the tag slot.
+                  <p className='text-[var(--text-tertiary)] text-caption'>
+                    No tag definitions yet. Create your first tag to organize documents.
                   </p>
                 </div>
-              ) : (
-                <DocumentList
-                  documents={selectedTagUsage?.documents || []}
-                  totalCount={selectedTagUsage?.documentCount || 0}
-                />
+              )}
+
+              {kbTagDefinitions.map((tag) => {
+                const usage = getTagUsage(tag.tagSlot)
+                return (
+                  <div
+                    key={tag.id}
+                    role='button'
+                    tabIndex={0}
+                    className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
+                    onClick={() => handleViewDocuments(tag)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return
+                      handleKeyboardActivation(event, () => handleViewDocuments(tag))
+                    }}
+                  >
+                    <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
+                      {tag.displayName}
+                    </span>
+                    <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+                      {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
+                    </span>
+                    <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                    <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
+                      {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
+                    </span>
+                    <div className='flex flex-shrink-0 items-center gap-1'>
+                      <Button
+                        variant='ghost'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteTagClick(tag)
+                        }}
+                        className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
+                      >
+                        <Trash className='size-3' />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {!isCreatingTag && (
+                <Button
+                  variant='default'
+                  onClick={openTagCreator}
+                  disabled={!SUPPORTED_FIELD_TYPES.some((type) => hasAvailableSlots(type))}
+                  className='w-full'
+                >
+                  Add Tag
+                </Button>
+              )}
+
+              {isCreatingTag && (
+                <div className='space-y-2 rounded-md border p-3'>
+                  <ChipModalField
+                    type='custom'
+                    title='Tag Name'
+                    flush
+                    error={tagNameConflict ? 'A tag with this name already exists' : undefined}
+                  >
+                    <ChipInput
+                      value={createTagForm.displayName}
+                      onChange={(e) =>
+                        setCreateTagForm({ ...createTagForm, displayName: e.target.value })
+                      }
+                      placeholder='Enter tag name'
+                      error={Boolean(tagNameConflict)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && canSaveTag()) {
+                          e.preventDefault()
+                          saveTagDefinition()
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault()
+                          cancelCreatingTag()
+                        }
+                      }}
+                    />
+                  </ChipModalField>
+
+                  <ChipModalField
+                    type='custom'
+                    title='Type'
+                    flush
+                    error={
+                      !hasAvailableSlots(createTagForm.fieldType)
+                        ? 'No available slots for this type. Choose a different type.'
+                        : undefined
+                    }
+                  >
+                    <ChipCombobox
+                      options={fieldTypeOptions}
+                      value={createTagForm.fieldType}
+                      onChange={(value) => setCreateTagForm({ ...createTagForm, fieldType: value })}
+                      placeholder='Select type'
+                    />
+                  </ChipModalField>
+
+                  <div className='flex gap-2'>
+                    <Button variant='default' onClick={cancelCreatingTag} className='flex-1'>
+                      Cancel
+                    </Button>
+                    <Button
+                      variant='primary'
+                      onClick={saveTagDefinition}
+                      className='flex-1'
+                      disabled={
+                        !canSaveTag() ||
+                        createTagMutation.isPending ||
+                        !hasAvailableSlots(createTagForm.fieldType)
+                      }
+                    >
+                      {createTagMutation.isPending ? 'Creating...' : 'Create Tag'}
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setViewDocumentsDialogOpen(false)}>
-              Close
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </ChipModalField>
+        </ChipModalBody>
+
+        <ChipModalFooter
+          onCancel={() => handleClose(false)}
+          primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
+        />
+      </ChipModal>
+
+      {/* Delete Tag Confirmation Dialog */}
+      <ChipConfirmModal
+        open={deleteTagDialogOpen}
+        onOpenChange={(openState) => {
+          if (openState) {
+            setDeleteTagDialogOpen(true)
+          } else {
+            closeDeleteTagDialog()
+          }
+        }}
+        srTitle='Delete Tag'
+        title='Delete Tag'
+        description={
+          <>
+            Are you sure you want to delete the &ldquo;
+            <span className='text-[var(--text-primary)]'>{selectedTag?.displayName}</span>&rdquo;
+            tag?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will remove this tag from {selectedTagUsage?.documentCount || 0} document
+              {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.
+            </span>{' '}
+            This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete Tag',
+          onClick: confirmDeleteTag,
+          pending: deleteTagMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      >
+        {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
+          <ChipModalField type='custom' title='Affected documents'>
+            <DocumentList
+              documents={selectedTagUsage.documents}
+              totalCount={selectedTagUsage.documentCount}
+            />
+          </ChipModalField>
+        )}
+      </ChipConfirmModal>
+
+      {/* View Documents Dialog */}
+      <ChipModal
+        open={viewDocumentsDialogOpen}
+        onOpenChange={setViewDocumentsDialogOpen}
+        srTitle={`Documents using "${selectedTag?.displayName}"`}
+        size='sm'
+      >
+        <ChipModalHeader onClose={() => setViewDocumentsDialogOpen(false)}>
+          Documents using "{selectedTag?.displayName}"
+        </ChipModalHeader>
+        <ChipModalBody>
+          <div className='flex flex-col gap-2 px-2'>
+            <p className='text-[var(--text-secondary)]'>
+              {selectedTagUsage?.documentCount || 0} document
+              {selectedTagUsage?.documentCount !== 1 ? 's are' : ' is'} currently using this tag
+              definition.
+            </p>
+
+            {selectedTagUsage?.documentCount === 0 ? (
+              <div className='rounded-md border p-4 text-center'>
+                <p className='text-[var(--text-secondary)]'>
+                  This tag definition is not being used by any documents. You can safely delete it
+                  to free up the tag slot.
+                </p>
+              </div>
+            ) : (
+              <DocumentList
+                documents={selectedTagUsage?.documents || []}
+                totalCount={selectedTagUsage?.documentCount || 0}
+              />
+            )}
+          </div>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => setViewDocumentsDialogOpen(false)}
+          primaryAction={{ label: 'Close', onClick: () => setViewDocumentsDialogOpen(false) }}
+        />
+      </ChipModal>
     </>
   )
 }

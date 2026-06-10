@@ -184,7 +184,7 @@ Retrieve transcripts of calls from Gong by call IDs or date range.
 
 ### `gong_get_extensive_calls`
 
-Retrieve detailed call data including trackers, topics, and highlights from Gong.
+Retrieve detailed call data including trackers, topics, highlights, and AI spotlight content (brief, outline, key points, call outcome) from Gong.
 
 #### Input
 
@@ -240,6 +240,17 @@ Retrieve detailed call data including trackers, topics, and highlights from Gong
 |     ↳ `methods` | array | Whether invited or attended |
 |     ↳ `context` | array | Links to external systems for this party |
 |   ↳ `content` | object | Call content data |
+|     ↳ `brief` | string | AI-generated brief summary of the call \(Call Spotlight\) |
+|     ↳ `outline` | array | AI-generated call outline sections |
+|       ↳ `section` | string | Outline section name |
+|       ↳ `startTime` | number | Section start in seconds from call start |
+|       ↳ `duration` | number | Section duration in seconds |
+|     ↳ `keyPoints` | array | AI-generated key points of the call |
+|       ↳ `text` | string | Key point text |
+|     ↳ `callOutcome` | object | AI-determined call outcome \(Call Spotlight\) |
+|       ↳ `id` | string | Outcome category ID |
+|       ↳ `category` | string | Outcome category name |
+|       ↳ `name` | string | Outcome name |
 |     ↳ `structure` | array | Call agenda parts |
 |       ↳ `name` | string | Agenda name |
 |       ↳ `duration` | number | Duration of this part in seconds |
@@ -423,6 +434,93 @@ Retrieve aggregated activity statistics for users by date range from Gong.
 | `timeZone` | string | The company's defined timezone in Gong |
 | `fromDateTime` | string | Start of results in ISO-8601 format |
 | `toDateTime` | string | End of results in ISO-8601 format |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `gong_day_by_day_activity`
+
+Retrieve detailed day-by-day activity (call IDs per activity type) for users by date range from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `userIds` | string | No | Comma-separated list of Gong user IDs \(up to 20 digits each\) |
+| `fromDate` | string | Yes | Start date in YYYY-MM-DD format \(inclusive, in company timezone\) |
+| `toDate` | string | Yes | End date in YYYY-MM-DD format \(exclusive, in company timezone, cannot exceed current day\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `usersDetailedActivities` | array | Day-by-day activity per user, with call IDs grouped by activity type |
+|   ↳ `userId` | string | Gong's unique numeric identifier for the user |
+|   ↳ `userEmailAddress` | string | Email address of the Gong user |
+|   ↳ `userDailyActivityStats` | array | One record per day in the date range |
+|     ↳ `fromDate` | string | Start of the day \(ISO-8601\) |
+|     ↳ `toDate` | string | End of the day \(ISO-8601\) |
+|     ↳ `callsAsHost` | array | IDs of calls the user hosted |
+|     ↳ `callsAttended` | array | IDs of calls the user attended \(not host\) |
+|     ↳ `callsGaveFeedback` | array | IDs of calls the user gave feedback on |
+|     ↳ `callsReceivedFeedback` | array | IDs of calls the user received feedback on |
+|     ↳ `callsRequestedFeedback` | array | IDs of calls the user requested feedback on |
+|     ↳ `callsScorecardsFilled` | array | IDs of calls the user filled scorecards on |
+|     ↳ `callsScorecardsReceived` | array | IDs of the user's calls that received a scorecard |
+|     ↳ `ownCallsListenedTo` | array | IDs of the user's own calls the user listened to |
+|     ↳ `othersCallsListenedTo` | array | IDs of other users' calls the user listened to |
+|     ↳ `callsSharedInternally` | array | IDs of calls the user shared internally |
+|     ↳ `callsSharedExternally` | array | IDs of calls the user shared externally |
+|     ↳ `callsCommentsGiven` | array | IDs of calls the user commented on |
+|     ↳ `callsCommentsReceived` | array | IDs of the user's calls that received a comment |
+|     ↳ `callsMarkedAsFeedbackGiven` | array | IDs of calls the user marked as reviewed |
+|     ↳ `callsMarkedAsFeedbackReceived` | array | IDs of the user's calls marked as reviewed by others |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `gong_aggregate_by_period`
+
+Retrieve aggregated user activity grouped into time periods (day, week, month, quarter, year) by date range from Gong.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKey` | string | Yes | Gong API Access Key |
+| `accessKeySecret` | string | Yes | Gong API Access Key Secret |
+| `aggregationPeriod` | string | Yes | Calendar period to group activity by: DAY, WEEK, MONTH, QUARTER, or YEAR \(week starts Monday\) |
+| `userIds` | string | No | Comma-separated list of Gong user IDs \(up to 20 digits each\) |
+| `fromDate` | string | Yes | Start date in YYYY-MM-DD format \(inclusive, in company timezone\) |
+| `toDate` | string | Yes | End date in YYYY-MM-DD format \(exclusive, in company timezone, cannot exceed current day\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requestId` | string | A Gong request reference ID for troubleshooting purposes |
+| `usersAggregateActivity` | array | Aggregated activity per user, one item per consecutive time period in the range |
+|   ↳ `userId` | string | Gong's unique numeric identifier for the user |
+|   ↳ `userEmailAddress` | string | Email address of the Gong user |
+|   ↳ `userAggregateActivity` | array | Activity counts per time period |
+|     ↳ `fromDate` | string | Start of the period \(ISO-8601\) |
+|     ↳ `toDate` | string | End of the period \(ISO-8601\) |
+|     ↳ `callsAsHost` | number | Calls the user hosted |
+|     ↳ `callsAttended` | number | Calls the user attended \(not host\) |
+|     ↳ `callsGaveFeedback` | number | Calls the user gave feedback on |
+|     ↳ `callsReceivedFeedback` | number | Calls the user received feedback on |
+|     ↳ `callsRequestedFeedback` | number | Calls the user requested feedback on |
+|     ↳ `callsScorecardsFilled` | number | Scorecards the user completed |
+|     ↳ `callsScorecardsReceived` | number | Calls where someone filled a scorecard on the user's calls |
+|     ↳ `ownCallsListenedTo` | number | The user's own calls the user listened to |
+|     ↳ `othersCallsListenedTo` | number | Other users' calls the user listened to |
+|     ↳ `callsSharedInternally` | number | Calls the user shared internally |
+|     ↳ `callsSharedExternally` | number | Calls the user shared externally |
+|     ↳ `callsCommentsGiven` | number | Calls the user commented on |
+|     ↳ `callsCommentsReceived` | number | Calls where the user's calls received a comment |
+|     ↳ `callsMarkedAsFeedbackGiven` | number | Calls the user marked as reviewed |
+|     ↳ `callsMarkedAsFeedbackReceived` | number | The user's calls marked as reviewed by others |
 | `cursor` | string | Pagination cursor for the next page |
 
 ### `gong_interaction_stats`

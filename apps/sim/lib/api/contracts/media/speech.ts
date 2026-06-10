@@ -4,6 +4,8 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const speechTokenBodySchema = z
   .object({
     chatId: z.string().optional(),
+    /** Editor/workspace voice: the workspace the session user is recording in. */
+    workspaceId: z.string().optional(),
   })
   .passthrough()
 

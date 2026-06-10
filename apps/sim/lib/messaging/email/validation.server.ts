@@ -2,28 +2,10 @@ import type { MxRecord } from 'dns'
 import dns from 'dns/promises'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('EmailValidationServer')
 
 const MX_LOOKUP_TIMEOUT_MS = 3000
-
-/**
- * MX-host substrings to block, supplied at runtime via `BLOCKED_EMAIL_MX_HOSTS`.
- *
- * Signup-spam botnets rotate throwaway domains rapidly but funnel them through a
- * small number of shared catch-all mail providers, so the resolved MX host is a
- * far more stable signal than the domain itself. Each entry is matched as a
- * case-insensitive substring against the domain's resolved MX exchanges. No
- * hosts are hardcoded — operators configure their own denylist out of band.
- */
-function getBlockedMxHosts(): string[] {
-  return (
-    env.BLOCKED_EMAIL_MX_HOSTS?.split(',')
-      .map((h) => h.trim().toLowerCase())
-      .filter(Boolean) ?? []
-  )
-}
 
 export interface SignupEmailCheck {
   /** Whether the email may proceed to signup. */
@@ -41,10 +23,18 @@ export interface SignupEmailCheck {
  * users are never blocked by an infrastructure blip. Only a definitive
  * "domain has no MX" answer (`ENOTFOUND` / `ENODATA`) blocks.
  *
+ * `blockedMxHosts` are case-insensitive substrings matched against each resolved
+ * MX exchange — signup-spam botnets rotate throwaway domains but funnel them
+ * through a few shared catch-all backends, so the MX host is a more stable signal
+ * than the domain. Sourced from access-control config (AppConfig or env fallback).
+ *
  * Server-only — imports `dns/promises`. Never import from client code. Gated by the caller
  * behind `isSignupMxValidationEnabled`; this function performs the check unconditionally.
  */
-export async function validateSignupEmailMx(email: string): Promise<SignupEmailCheck> {
+export async function validateSignupEmailMx(
+  email: string,
+  blockedMxHosts: string[]
+): Promise<SignupEmailCheck> {
   const domain = email.split('@')[1]?.toLowerCase()
   if (!domain) return { allowed: true }
 
@@ -80,10 +70,9 @@ export async function validateSignupEmailMx(email: string): Promise<SignupEmailC
     return { allowed: false, reason: 'no_mx' }
   }
 
-  const blocked = getBlockedMxHosts()
   const match = records.find((record) => {
     const exchange = record.exchange.toLowerCase()
-    return blocked.some((host) => exchange.includes(host))
+    return blockedMxHosts.some((host) => exchange.includes(host))
   })
 
   if (match) {

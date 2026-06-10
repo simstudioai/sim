@@ -740,3 +740,43 @@ export interface EnrichSearchLogoResponse extends ToolResponse {
     domain: string
   }
 }
+
+export interface EnrichSearchJobsParams extends EnrichBaseParams {
+  keywords: string
+  location?: string
+  jobTypes?: string
+  workplaceTypes?: string
+  experienceLevels?: string
+  companyIds?: string
+  timePosted?: string
+  start?: number
+}
+
+export interface EnrichSearchJobsResponse extends ToolResponse {
+  output: {
+    count: number
+    jobs: Array<{
+      title: string | null
+      companyName: string | null
+      companyLink: string | null
+      companyLogo: string | null
+      location: string | null
+      url: string | null
+      postedDate: string | null
+      postedTimestamp: string | null
+      hiringStatus: string | null
+      criteria: Record<string, unknown> | null
+    }>
+  }
+}
+
+export interface EnrichSearchPostReactionsByUrlParams extends EnrichBaseParams {
+  postUrl: string
+  reactionType: 'all' | 'like' | 'love' | 'celebrate' | 'insightful' | 'funny'
+  page: number
+}
+
+export interface EnrichSearchPostCommentsByUrlParams extends EnrichBaseParams {
+  postUrl: string
+  page?: number
+}

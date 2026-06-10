@@ -68,13 +68,13 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
     },
     clientOrderId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Original client-specified order ID',
     },
     updatedClientOrderId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'New client-specified order ID after amendment',
     },
@@ -111,10 +111,10 @@ export const kalshiAmendOrderTool: ToolConfig<KalshiAmendOrderParams, KalshiAmen
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId}/amend`),
+    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}/amend`),
     method: 'POST',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId}/amend`
+      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}/amend`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'POST', path)
     },
     body: (params) => {
@@ -311,10 +311,10 @@ export const kalshiAmendOrderV2Tool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId}/amend`),
+    url: (params) => buildKalshiUrl(`/portfolio/orders/${params.orderId.trim()}/amend`),
     method: 'POST',
     headers: (params) => {
-      const path = `/trade-api/v2/portfolio/orders/${params.orderId}/amend`
+      const path = `/trade-api/v2/portfolio/orders/${params.orderId.trim()}/amend`
       return buildKalshiAuthHeaders(params.keyId, params.privateKey, 'POST', path)
     },
     body: (params) => {

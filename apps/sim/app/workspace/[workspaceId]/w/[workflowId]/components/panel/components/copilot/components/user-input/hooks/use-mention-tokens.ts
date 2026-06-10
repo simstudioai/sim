@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import type { useMentionMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-menu'
+import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
 
 interface UseMentionTokensProps {
@@ -11,8 +12,6 @@ interface UseMentionTokensProps {
   mentionMenu: ReturnType<typeof useMentionMenu>
   /** Callback to update message */
   setMessage: (message: string) => void
-  /** Callback to update selected contexts */
-  setSelectedContexts: React.Dispatch<React.SetStateAction<ChatContext[]>>
 }
 
 /**
@@ -25,25 +24,29 @@ export interface MentionRange {
 }
 
 /**
- * Custom hook to manage mention token ranges and manipulation.
- * Handles computing mention ranges, deleting tokens, and preventing editing inside tokens.
+ * Custom hook for the TEXT side of mention tokens: computing token ranges,
+ * locating the range at a caret, and deleting a token's text atomically.
+ *
+ * Context lifetime is intentionally NOT managed here — `useContextManagement`'s
+ * sync effect owns it, removing a context exactly when its last matching token
+ * disappears from the message. That keeps duplicate-label chips (two `@sub` for
+ * the same resource) correct: deleting one token leaves the other, so the
+ * shared context survives.
  *
  * @param props - Configuration object
- * @returns Mention token utilities
+ * @returns Mention token text utilities
  */
 export function useMentionTokens({
   message,
   selectedContexts,
   mentionMenu,
   setMessage,
-  setSelectedContexts,
 }: UseMentionTokensProps) {
   /**
-   * Memoized mention ranges - computed once when message or selectedContexts change.
-   * This prevents expensive O(n×m) string searches from running on every keystroke
-   * when other callbacks access the ranges.
+   * All mention token ranges in the message, recomputed only when the message or
+   * selected contexts change — so the O(n×m) scan never runs on every keystroke.
    */
-  const memoizedMentionRanges = useMemo((): MentionRange[] => {
+  const mentionRanges = useMemo((): MentionRange[] => {
     const ranges: MentionRange[] = []
     if (!message || selectedContexts.length === 0) return ranges
 
@@ -57,8 +60,12 @@ export function useMentionTokens({
     for (const label of uniqueLabels) {
       // Find matching context to determine if it's a slash command
       const matchingContext = selectedContexts.find((c) => c.label === label)
-      const isSlashCommand = matchingContext?.kind === 'slash_command'
-      const prefix = isSlashCommand ? '/' : '@'
+      const prefix =
+        matchingContext?.kind === 'skill'
+          ? SKILL_CHIP_TRIGGER
+          : matchingContext?.kind === 'slash_command'
+            ? '/'
+            : '@'
 
       // Check for token at the very start of the message (no leading space)
       const tokenAtStart = `${prefix}${label} `
@@ -92,50 +99,22 @@ export function useMentionTokens({
   }, [message, selectedContexts])
 
   /**
-   * Finds a mention range containing the given position
-   */
-  const computeMentionRanges = useCallback(
-    (): MentionRange[] => memoizedMentionRanges,
-    [memoizedMentionRanges]
-  )
-
-  /**
-   * Finds a mention range containing the given position.
-   * Uses memoized ranges directly for better performance.
+   * Finds the mention range strictly containing a caret position, if any.
    *
-   * @param pos - Position to check
-   * @returns Mention range if found, undefined otherwise
+   * @param pos - Caret position to check
+   * @returns The containing range, or `undefined`
    */
   const findRangeContaining = useCallback(
     (pos: number): MentionRange | undefined => {
-      return memoizedMentionRanges.find((r) => pos > r.start && pos < r.end)
+      return mentionRanges.find((r) => pos > r.start && pos < r.end)
     },
-    [memoizedMentionRanges]
+    [mentionRanges]
   )
 
   /**
-   * Removes contexts for mention tokens that overlap with a text selection.
-   * Uses memoized ranges directly for better performance.
-   *
-   * @param selStart - Selection start position
-   * @param selEnd - Selection end position
-   */
-  const removeContextsInSelection = useCallback(
-    (selStart: number, selEnd: number) => {
-      const overlappingRanges = memoizedMentionRanges.filter(
-        (r) => !(selEnd <= r.start || selStart >= r.end)
-      )
-
-      if (overlappingRanges.length > 0) {
-        const labelsToRemove = new Set(overlappingRanges.map((r) => r.label))
-        setSelectedContexts((prev) => prev.filter((c) => !c.label || !labelsToRemove.has(c.label)))
-      }
-    },
-    [memoizedMentionRanges, setSelectedContexts]
-  )
-
-  /**
-   * Deletes a single mention range and its context (for atomic token deletion)
+   * Atomically deletes a single mention token's text. The context is left to
+   * `useContextManagement`'s sync effect, which prunes it only once no matching
+   * token remains — so deleting one of two duplicate chips keeps the other.
    *
    * @param range - The range to delete
    */
@@ -146,46 +125,41 @@ export function useMentionTokens({
 
       const before = message.slice(0, range.start)
       const after = message.slice(range.end)
-      const next = `${before}${after}`.replace(/\s{2,}/g, ' ')
-      setMessage(next)
+      // Collapse only the space seam the removal creates (a leading + trailing
+      // space meeting), never unrelated double-spaces elsewhere in the message —
+      // by extending the deleted range over those leading spaces so the whole
+      // removal is a single edit.
+      const deleteEnd =
+        before.endsWith(' ') && after.startsWith(' ')
+          ? range.end + (after.length - after.replace(/^ +/, '').length)
+          : range.end
 
-      setSelectedContexts((prev) => prev.filter((c) => c.label !== range.label))
+      // Prefer `execCommand` (deprecated, but the only primitive that lands the
+      // removal on the native undo stack, so Cmd+Z restores the chip). It's a
+      // no-op on Firefox textareas and returns false there, so fall back to a
+      // direct edit — correct deletion, just no native undo on that browser.
+      textarea.focus()
+      textarea.setSelectionRange(range.start, deleteEnd)
+      const valueBeforeDelete = textarea.value
+      if (!document.execCommand('delete') || textarea.value === valueBeforeDelete) {
+        textarea.setRangeText('', range.start, deleteEnd, 'start')
+      }
 
-      // Set cursor position immediately after state update
+      // The edit fires `input`, but sync state explicitly so this hook doesn't
+      // depend on the consumer's onChange wiring.
+      setMessage(textarea.value)
+
       setTimeout(() => {
         textarea.setSelectionRange(range.start, range.start)
         textarea.focus()
       }, 0)
     },
-    [message, setMessage, mentionMenu.textareaRef, setSelectedContexts]
-  )
-
-  /**
-   * Handles cut operations to remove contexts for cut mention tokens
-   *
-   * @param e - Clipboard event
-   */
-  const handleCut = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const textarea = mentionMenu.textareaRef.current
-      if (!textarea) return
-
-      const selStart = textarea.selectionStart ?? 0
-      const selEnd = textarea.selectionEnd ?? selStart
-      const selectionLength = Math.abs(selEnd - selStart)
-
-      if (selectionLength > 0) {
-        removeContextsInSelection(selStart, selEnd)
-      }
-    },
-    [mentionMenu.textareaRef, removeContextsInSelection]
+    [message, setMessage, mentionMenu.textareaRef]
   )
 
   return {
-    computeMentionRanges,
+    mentionRanges,
     findRangeContaining,
-    removeContextsInSelection,
     deleteRange,
-    handleCut,
   }
 }

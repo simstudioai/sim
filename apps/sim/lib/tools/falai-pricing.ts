@@ -4,6 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 
 export const FALAI_HOSTED_KEY_MARKUP_MULTIPLIER = 1.5
 export const FALAI_IMAGE_FALLBACK_PROVIDER_COST_DOLLARS = 0.05
+export const FALAI_AUDIO_FALLBACK_PROVIDER_COST_DOLLARS = 0.02
 export const FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS = 0.25
 const FALAI_BILLING_EVENT_ATTEMPTS = 2
 const FALAI_BILLING_EVENT_RETRY_MS = 500
@@ -40,16 +41,27 @@ function getNumber(value: unknown): number | undefined {
 
 function getFalAIFallbackProviderCostDollars(endpointId: string): number {
   const normalizedEndpointId = endpointId.toLowerCase()
+
   const isImageEndpoint =
     normalizedEndpointId.includes('image') ||
     normalizedEndpointId.includes('nano-banana') ||
     normalizedEndpointId.includes('seedream') ||
     normalizedEndpointId.includes('flux') ||
     normalizedEndpointId.includes('grok-imagine')
+  if (isImageEndpoint) return FALAI_IMAGE_FALLBACK_PROVIDER_COST_DOLLARS
 
-  return isImageEndpoint
-    ? FALAI_IMAGE_FALLBACK_PROVIDER_COST_DOLLARS
-    : FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS
+  // Audio (TTS/voice clone, music, sound effects) is far cheaper than video, so it
+  // must not fall through to the video floor — that would over-bill a short clip.
+  const isAudioEndpoint =
+    normalizedEndpointId.includes('tts') ||
+    normalizedEndpointId.includes('speech') ||
+    normalizedEndpointId.includes('music') ||
+    normalizedEndpointId.includes('sound-effect') ||
+    normalizedEndpointId.includes('audio') ||
+    normalizedEndpointId.includes('elevenlabs')
+  if (isAudioEndpoint) return FALAI_AUDIO_FALLBACK_PROVIDER_COST_DOLLARS
+
+  return FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS
 }
 
 function parseBillingEvent(value: unknown): FalAIBillingEvent | undefined {

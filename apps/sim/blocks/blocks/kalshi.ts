@@ -1,5 +1,5 @@
 import { KalshiIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 
@@ -13,9 +13,9 @@ export const KalshiBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.Analytics,
-  tags: ['prediction-markets', 'data-analytics'],
   hideFromToolbar: true,
   bgColor: '#09C285',
+  iconColor: '#09C285',
   icon: KalshiIcon,
   subBlocks: [
     {
@@ -34,9 +34,14 @@ export const KalshiBlock: BlockConfig = {
         { label: 'Get Orderbook', id: 'get_orderbook' },
         { label: 'Get Trades', id: 'get_trades' },
         { label: 'Get Candlesticks', id: 'get_candlesticks' },
+        { label: 'Get Event Candlesticks', id: 'get_event_candlesticks' },
         { label: 'Get Fills', id: 'get_fills' },
+        { label: 'Get Settlements', id: 'get_settlements' },
         { label: 'Get Series by Ticker', id: 'get_series_by_ticker' },
+        { label: 'Get Series List', id: 'get_series_list' },
         { label: 'Get Exchange Status', id: 'get_exchange_status' },
+        { label: 'Get Exchange Schedule', id: 'get_exchange_schedule' },
+        { label: 'Get Exchange Announcements', id: 'get_exchange_announcements' },
         { label: 'Create Order', id: 'create_order' },
         { label: 'Cancel Order', id: 'cancel_order' },
         { label: 'Amend Order', id: 'amend_order' },
@@ -57,6 +62,7 @@ export const KalshiBlock: BlockConfig = {
           'get_orders',
           'get_order',
           'get_fills',
+          'get_settlements',
           'create_order',
           'cancel_order',
           'amend_order',
@@ -78,6 +84,7 @@ export const KalshiBlock: BlockConfig = {
           'get_orders',
           'get_order',
           'get_fills',
+          'get_settlements',
           'create_order',
           'cancel_order',
           'amend_order',
@@ -115,11 +122,18 @@ export const KalshiBlock: BlockConfig = {
       placeholder: 'Event ticker',
       required: {
         field: 'operation',
-        value: ['get_event'],
+        value: ['get_event', 'get_event_candlesticks'],
       },
       condition: {
         field: 'operation',
-        value: ['get_markets', 'get_event', 'get_positions', 'get_orders'],
+        value: [
+          'get_markets',
+          'get_event',
+          'get_event_candlesticks',
+          'get_positions',
+          'get_orders',
+          'get_settlements',
+        ],
       },
     },
     // Get Market fields - ticker is REQUIRED for get_market (path param)
@@ -137,7 +151,7 @@ export const KalshiBlock: BlockConfig = {
       title: 'Market Ticker',
       type: 'short-input',
       placeholder: 'Filter by market ticker (optional)',
-      condition: { field: 'operation', value: ['get_orders', 'get_positions'] },
+      condition: { field: 'operation', value: ['get_orders', 'get_positions', 'get_settlements'] },
       mode: 'advanced',
     },
     // Nested markets option
@@ -150,19 +164,6 @@ export const KalshiBlock: BlockConfig = {
         { label: 'Yes', id: 'true' },
       ],
       condition: { field: 'operation', value: ['get_events', 'get_event'] },
-      mode: 'advanced',
-    },
-    // Get Positions fields
-    {
-      id: 'settlementStatus',
-      title: 'Settlement Status',
-      type: 'dropdown',
-      options: [
-        { label: 'All', id: '' },
-        { label: 'Unsettled', id: 'unsettled' },
-        { label: 'Settled', id: 'settled' },
-      ],
-      condition: { field: 'operation', value: ['get_positions'] },
       mode: 'advanced',
     },
     // Get Orders fields
@@ -184,19 +185,19 @@ export const KalshiBlock: BlockConfig = {
       id: 'minTs',
       title: 'Min Timestamp',
       type: 'short-input',
-      placeholder: 'Minimum timestamp (Unix milliseconds)',
+      placeholder: 'Minimum timestamp (Unix seconds)',
       condition: { field: 'operation', value: ['get_fills'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: `Generate a Unix timestamp in milliseconds based on the user's description.
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
 Examples:
-- "yesterday" -> Calculate yesterday at 00:00:00 in milliseconds since epoch
-- "last week" -> Calculate 7 days ago at 00:00:00 in milliseconds since epoch
-- "start of today" -> Today at 00:00:00 in milliseconds since epoch
-- "1 hour ago" -> Current time minus 1 hour in milliseconds since epoch
+- "yesterday" -> Calculate yesterday at 00:00:00 in seconds since epoch
+- "last week" -> Calculate 7 days ago at 00:00:00 in seconds since epoch
+- "start of today" -> Today at 00:00:00 in seconds since epoch
+- "1 hour ago" -> Current time minus 1 hour in seconds since epoch
 
-Return ONLY the numeric timestamp (milliseconds since Unix epoch) - no explanations, no quotes, no extra text.`,
+Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe the minimum date/time (e.g., "yesterday", "last week")...',
         generationType: 'timestamp',
       },
@@ -205,19 +206,19 @@ Return ONLY the numeric timestamp (milliseconds since Unix epoch) - no explanati
       id: 'maxTs',
       title: 'Max Timestamp',
       type: 'short-input',
-      placeholder: 'Maximum timestamp (Unix milliseconds)',
+      placeholder: 'Maximum timestamp (Unix seconds)',
       condition: { field: 'operation', value: ['get_fills'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
-        prompt: `Generate a Unix timestamp in milliseconds based on the user's description.
+        prompt: `Generate a Unix timestamp in seconds based on the user's description.
 Examples:
-- "now" -> Current time in milliseconds since epoch
-- "end of today" -> Today at 23:59:59 in milliseconds since epoch
-- "tomorrow" -> Tomorrow at 00:00:00 in milliseconds since epoch
-- "end of this week" -> End of current week in milliseconds since epoch
+- "now" -> Current time in seconds since epoch
+- "end of today" -> Today at 23:59:59 in seconds since epoch
+- "tomorrow" -> Tomorrow at 00:00:00 in seconds since epoch
+- "end of this week" -> End of current week in seconds since epoch
 
-Return ONLY the numeric timestamp (milliseconds since Unix epoch) - no explanations, no quotes, no extra text.`,
+Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe the maximum date/time (e.g., "now", "end of today")...',
         generationType: 'timestamp',
       },
@@ -229,7 +230,7 @@ Return ONLY the numeric timestamp (milliseconds since Unix epoch) - no explanati
       type: 'short-input',
       placeholder: 'Series ticker',
       required: true,
-      condition: { field: 'operation', value: ['get_candlesticks'] },
+      condition: { field: 'operation', value: ['get_candlesticks', 'get_event_candlesticks'] },
     },
     {
       id: 'tickerCandlesticks',
@@ -245,7 +246,7 @@ Return ONLY the numeric timestamp (milliseconds since Unix epoch) - no explanati
       type: 'short-input',
       placeholder: 'Start timestamp (Unix seconds)',
       required: true,
-      condition: { field: 'operation', value: ['get_candlesticks'] },
+      condition: { field: 'operation', value: ['get_candlesticks', 'get_event_candlesticks'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a Unix timestamp in seconds based on the user's description.
@@ -266,7 +267,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       type: 'short-input',
       placeholder: 'End timestamp (Unix seconds)',
       required: true,
-      condition: { field: 'operation', value: ['get_candlesticks'] },
+      condition: { field: 'operation', value: ['get_candlesticks', 'get_event_candlesticks'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a Unix timestamp in seconds based on the user's description.
@@ -291,7 +292,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
         { label: '1 day', id: '1440' },
       ],
       required: true,
-      condition: { field: 'operation', value: ['get_candlesticks'] },
+      condition: { field: 'operation', value: ['get_candlesticks', 'get_event_candlesticks'] },
     },
     // Get Fills fields
     {
@@ -318,6 +319,23 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       placeholder: 'Series ticker',
       required: true,
       condition: { field: 'operation', value: ['get_series_by_ticker'] },
+    },
+    // Get Series List fields
+    {
+      id: 'category',
+      title: 'Category',
+      type: 'short-input',
+      placeholder: 'Filter by category (e.g., Economics, Politics, Crypto)',
+      condition: { field: 'operation', value: ['get_series_list'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'tags',
+      title: 'Tags',
+      type: 'short-input',
+      placeholder: 'Filter by comma-separated tags',
+      condition: { field: 'operation', value: ['get_series_list'] },
+      mode: 'advanced',
     },
     // Order ID for get_order, cancel_order, amend_order
     {
@@ -416,17 +434,17 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       id: 'clientOrderIdAmend',
       title: 'Client Order ID',
       type: 'short-input',
-      placeholder: 'Original client order ID',
-      required: true,
+      placeholder: 'Original client order ID (optional)',
       condition: { field: 'operation', value: ['amend_order'] },
+      mode: 'advanced',
     },
     {
       id: 'updatedClientOrderId',
       title: 'New Client Order ID',
       type: 'short-input',
-      placeholder: 'New client order ID after amendment',
-      required: true,
+      placeholder: 'New client order ID after amendment (optional)',
       condition: { field: 'operation', value: ['amend_order'] },
+      mode: 'advanced',
     },
     {
       id: 'timeInForce',
@@ -498,6 +516,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           'get_orders',
           'get_trades',
           'get_fills',
+          'get_settlements',
         ],
       },
       mode: 'advanced',
@@ -516,6 +535,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           'get_orders',
           'get_trades',
           'get_fills',
+          'get_settlements',
         ],
       },
       mode: 'advanced',
@@ -534,9 +554,14 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       'kalshi_get_orderbook',
       'kalshi_get_trades',
       'kalshi_get_candlesticks',
+      'kalshi_get_event_candlesticks',
       'kalshi_get_fills',
+      'kalshi_get_settlements',
       'kalshi_get_series_by_ticker',
+      'kalshi_get_series_list',
       'kalshi_get_exchange_status',
+      'kalshi_get_exchange_schedule',
+      'kalshi_get_exchange_announcements',
       'kalshi_create_order',
       'kalshi_cancel_order',
       'kalshi_amend_order',
@@ -566,12 +591,22 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
             return 'kalshi_get_trades'
           case 'get_candlesticks':
             return 'kalshi_get_candlesticks'
+          case 'get_event_candlesticks':
+            return 'kalshi_get_event_candlesticks'
           case 'get_fills':
             return 'kalshi_get_fills'
+          case 'get_settlements':
+            return 'kalshi_get_settlements'
           case 'get_series_by_ticker':
             return 'kalshi_get_series_by_ticker'
+          case 'get_series_list':
+            return 'kalshi_get_series_list'
           case 'get_exchange_status':
             return 'kalshi_get_exchange_status'
+          case 'get_exchange_schedule':
+            return 'kalshi_get_exchange_schedule'
+          case 'get_exchange_announcements':
+            return 'kalshi_get_exchange_announcements'
           case 'create_order':
             return 'kalshi_create_order'
           case 'cancel_order':
@@ -605,8 +640,13 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           cleanParams.status = orderStatus
         }
 
-        // Map tickerFilter to ticker for get_orders and get_positions
-        if ((operation === 'get_orders' || operation === 'get_positions') && tickerFilter) {
+        // Map tickerFilter to ticker for get_orders, get_positions, and get_settlements
+        if (
+          (operation === 'get_orders' ||
+            operation === 'get_positions' ||
+            operation === 'get_settlements') &&
+          tickerFilter
+        ) {
           cleanParams.ticker = tickerFilter
         }
 
@@ -619,6 +659,11 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
         if (operation === 'get_candlesticks') {
           if (seriesTickerCandlesticks) cleanParams.seriesTicker = seriesTickerCandlesticks
           if (tickerCandlesticks) cleanParams.ticker = tickerCandlesticks
+        }
+
+        // Map series ticker for get_event_candlesticks (event ticker flows through eventTicker)
+        if (operation === 'get_event_candlesticks' && seriesTickerCandlesticks) {
+          cleanParams.seriesTicker = seriesTickerCandlesticks
         }
 
         // Map seriesTickerGet to seriesTicker for get_series_by_ticker
@@ -683,6 +728,11 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
     fills: { type: 'json', description: 'Array of fill objects (get_fills)' },
     trades: { type: 'json', description: 'Array of trade objects (get_trades)' },
     candlesticks: { type: 'json', description: 'Array of candlestick data (get_candlesticks)' },
+    market_candlesticks: {
+      type: 'json',
+      description: 'Event-level aggregated candlestick data (get_event_candlesticks)',
+    },
+    settlements: { type: 'json', description: 'Array of settlement objects (get_settlements)' },
     // Single item operations
     market: { type: 'json', description: 'Single market object (get_market)' },
     event: { type: 'json', description: 'Single event object (get_event)' },
@@ -697,6 +747,14 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
     orderbook: { type: 'json', description: 'Orderbook data with bids/asks (get_orderbook)' },
     // Exchange status
     status: { type: 'json', description: 'Exchange status (get_exchange_status)' },
+    schedule: {
+      type: 'json',
+      description: 'Exchange schedule with standard_hours and maintenance_windows',
+    },
+    announcements: {
+      type: 'json',
+      description: 'Array of exchange announcements (get_exchange_announcements)',
+    },
     // Pagination
     paging: { type: 'json', description: 'Pagination cursor for fetching more results' },
   },
@@ -710,7 +768,6 @@ export const KalshiV2Block: BlockConfig = {
   longDescription:
     'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
   integrationType: IntegrationType.Analytics,
-  tags: ['prediction-markets', 'data-analytics'],
   hideFromToolbar: false,
   tools: {
     ...KalshiBlock.tools,
@@ -726,9 +783,14 @@ export const KalshiV2Block: BlockConfig = {
       'kalshi_get_orderbook_v2',
       'kalshi_get_trades_v2',
       'kalshi_get_candlesticks_v2',
+      'kalshi_get_event_candlesticks_v2',
       'kalshi_get_fills_v2',
+      'kalshi_get_settlements_v2',
       'kalshi_get_series_by_ticker_v2',
+      'kalshi_get_series_list_v2',
       'kalshi_get_exchange_status_v2',
+      'kalshi_get_exchange_schedule_v2',
+      'kalshi_get_exchange_announcements_v2',
       'kalshi_create_order_v2',
       'kalshi_cancel_order_v2',
       'kalshi_amend_order_v2',
@@ -760,12 +822,22 @@ export const KalshiV2Block: BlockConfig = {
               return 'kalshi_get_trades'
             case 'get_candlesticks':
               return 'kalshi_get_candlesticks'
+            case 'get_event_candlesticks':
+              return 'kalshi_get_event_candlesticks'
             case 'get_fills':
               return 'kalshi_get_fills'
+            case 'get_settlements':
+              return 'kalshi_get_settlements'
             case 'get_series_by_ticker':
               return 'kalshi_get_series_by_ticker'
+            case 'get_series_list':
+              return 'kalshi_get_series_list'
             case 'get_exchange_status':
               return 'kalshi_get_exchange_status'
+            case 'get_exchange_schedule':
+              return 'kalshi_get_exchange_schedule'
+            case 'get_exchange_announcements':
+              return 'kalshi_get_exchange_announcements'
             case 'create_order':
               return 'kalshi_create_order'
             case 'cancel_order':
@@ -800,6 +872,19 @@ export const KalshiV2Block: BlockConfig = {
       type: 'json',
       description: 'Array of candlestick data with yes_bid/yes_ask/price nested objects',
     },
+    market_candlesticks: {
+      type: 'json',
+      description: 'Event-level aggregated candlestick data (get_event_candlesticks)',
+    },
+    market_tickers: {
+      type: 'json',
+      description: 'Market tickers included in event candlesticks (get_event_candlesticks)',
+    },
+    adjusted_end_ts: {
+      type: 'number',
+      description: 'Adjusted end timestamp for event candlesticks (get_event_candlesticks)',
+    },
+    settlements: { type: 'json', description: 'Array of settlement objects (get_settlements)' },
     milestones: {
       type: 'json',
       description: 'Array of milestone objects (get_events with milestones)',
@@ -826,11 +911,20 @@ export const KalshiV2Block: BlockConfig = {
       description: 'Fixed-point orderbook with yes_dollars/no_dollars tuple arrays',
     },
     // Exchange status
-    exchange_status: {
-      type: 'string',
-      description: 'Exchange status string (get_exchange_status)',
-    },
+    exchange_active: { type: 'boolean', description: 'Exchange active flag (get_exchange_status)' },
     trading_active: { type: 'boolean', description: 'Trading active flag (get_exchange_status)' },
+    exchange_estimated_resume_time: {
+      type: 'string',
+      description: 'Estimated exchange resume time when inactive (get_exchange_status)',
+    },
+    schedule: {
+      type: 'json',
+      description: 'Exchange schedule with standard_hours and maintenance_windows',
+    },
+    announcements: {
+      type: 'json',
+      description: 'Array of exchange announcements (get_exchange_announcements)',
+    },
     // Cancel order specific
     reduced_by: { type: 'number', description: 'Number of contracts reduced (cancel_order)' },
     reduced_by_fp: {
@@ -843,3 +937,103 @@ export const KalshiV2Block: BlockConfig = {
     cursor: { type: 'string', description: 'Pagination cursor for fetching more results' },
   },
 }
+
+export const KalshiBlockMeta = {
+  tags: ['prediction-markets', 'data-analytics'],
+  templates: [
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi event-contract tracker',
+      prompt:
+        'Create a scheduled workflow that polls Kalshi for prices on tracked event contracts, writes the price history to a tables-based portfolio, and posts large-move alerts to Slack.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi macroeconomic dashboard',
+      prompt:
+        'Build a scheduled workflow that pulls Kalshi probability markets for selected macroeconomic events, writes the implied probabilities to a tables-based dashboard, and emails a weekly summary.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'reporting'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi + Polymarket arbitrage scanner',
+      prompt:
+        'Create a scheduled workflow that fetches comparable contracts on Kalshi and Polymarket, computes implied-probability spreads, writes the top arbitrage candidates to a table, and pings Slack on significant gaps.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis'],
+      alsoIntegrations: ['polymarket', 'slack'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi + Profound macro signal',
+      prompt:
+        'Build a scheduled workflow that combines Kalshi event-contract prices with Profound AI signal to forecast macro events and writes a thesis file weekly.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'research'],
+      alsoIntegrations: ['profound'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi position rebalancer',
+      prompt:
+        'Build a workflow that monitors Kalshi position weights against a target allocation, captures drift, and pings Slack with proposed rebalancing trades.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi earnings event tracker',
+      prompt:
+        'Create a workflow that pulls Kalshi earnings-event contracts, captures implied probabilities the day before each event, and writes a per-ticker table for review.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'research'],
+    },
+    {
+      icon: KalshiIcon,
+      title: 'Kalshi election-market dashboard',
+      prompt:
+        'Build a scheduled workflow that pulls Kalshi election market prices, captures movement over time, and writes a per-race tracking table for political analysts.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'analysis'],
+    },
+  ],
+  skills: [
+    {
+      name: 'market-odds-snapshot',
+      description:
+        'Pull current prices and odds for a Kalshi event and summarize the implied probabilities.',
+      content:
+        '# Market Odds Snapshot\n\nReport the current state of a Kalshi prediction market.\n\n## Steps\n1. Find the event by ticker or search recent events.\n2. Get the markets under that event and their current yes/no prices.\n3. Convert prices to implied probabilities and capture volume and open interest.\n\n## Output\nReturn each market with its current yes/no price, implied probability, and recent volume, plus a one-line read on where the market is leaning.',
+    },
+    {
+      name: 'track-position-pnl',
+      description:
+        'Report account balance, open positions, and unrealized profit or loss on Kalshi.',
+      content:
+        '# Track Position P&L\n\nGive a clear read on the current trading account state.\n\n## Steps\n1. Get the account balance.\n2. Get current positions and, for each, the market and entry exposure.\n3. Get current market prices to estimate unrealized P&L per position.\n\n## Output\nReturn balance, each open position with its market and estimated unrealized P&L, and a total exposure figure.',
+    },
+    {
+      name: 'place-limit-order',
+      description: 'Place a limit order on a Kalshi market after confirming price and balance.',
+      content:
+        '# Place a Limit Order\n\nSubmit a limit order on a chosen Kalshi market with guardrails.\n\n## Steps\n1. Get the target market and confirm its current price and orderbook.\n2. Check the account balance to ensure the order is affordable.\n3. Create a limit order with the side (yes/no), price, and quantity.\n4. Confirm the order was accepted and capture its ID.\n\n## Output\nReturn the order ID, market, side, price, quantity, and status. State clearly if the order was rejected or only partially filled.',
+    },
+  ],
+} as const satisfies BlockMeta
+
+export const KalshiV2BlockMeta = {
+  tags: ['prediction-markets', 'data-analytics'],
+} as const satisfies BlockMeta

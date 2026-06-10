@@ -233,21 +233,6 @@ export function getTriggersForSidebar(): BlockConfig[] {
 }
 
 /**
- * Get blocks that should appear in the blocks tab
- * This excludes only dedicated trigger blocks, not tools with trigger capability
- */
-export function getBlocksForSidebar(): BlockConfig[] {
-  const allBlocks = getAllBlocks()
-  return allBlocks.filter((block) => {
-    if (block.hideFromToolbar) return false
-    if (block.type === 'starter') return false // Legacy block
-    // Only exclude blocks with 'triggers' category
-    // Tools with trigger capability should still appear in blocks tab
-    return block.category !== 'triggers'
-  })
-}
-
-/**
  * Get the proper display name for a trigger block in the UI
  */
 export function getTriggerDisplayName(blockType: string): string {

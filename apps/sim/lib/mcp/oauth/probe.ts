@@ -1,13 +1,26 @@
 import { extractWWWAuthenticateParams } from '@modelcontextprotocol/sdk/client/auth.js'
+import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@/lib/core/utils/urls'
+import { createMcpPinnedFetch, createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 import type { McpAuthType } from '@/lib/mcp/types'
 
 const logger = createLogger('McpOauthProbe')
 
 const PROBE_TIMEOUT_MS = 5000
 
-export async function detectMcpAuthType(url: string): Promise<McpAuthType> {
+/**
+ * Probes an MCP server URL to classify its auth requirement.
+ *
+ * The probe must never re-resolve DNS independently of the caller's SSRF
+ * validation, or it re-opens the DNS-rebinding window. When the caller passes a
+ * pre-validated `resolvedIP` the connection is pinned to it; otherwise an
+ * SSRF-guarded fetch validates and pins each request itself.
+ */
+export async function detectMcpAuthType(
+  url: string,
+  resolvedIP?: string | null
+): Promise<McpAuthType> {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -18,11 +31,16 @@ export async function detectMcpAuthType(url: string): Promise<McpAuthType> {
   if (parsed.protocol !== 'https:' && !isLoopbackHttp) {
     return 'headers'
   }
+
+  const probeFetch: FetchLike = resolvedIP
+    ? createMcpPinnedFetch(resolvedIP)
+    : createSsrfGuardedMcpFetch()
+
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
 
   try {
-    const res = await fetch(url, {
+    const res = await probeFetch(url, {
       method: 'POST',
       redirect: 'manual',
       headers: {
@@ -44,7 +62,7 @@ export async function detectMcpAuthType(url: string): Promise<McpAuthType> {
 
     const sessionId = res.headers.get('mcp-session-id')
     if (sessionId) {
-      void closeMcpSession(url, sessionId)
+      void closeMcpSession(url, sessionId, probeFetch)
     }
 
     if (res.status === 401) {
@@ -71,14 +89,19 @@ export async function detectMcpAuthType(url: string): Promise<McpAuthType> {
 
 /**
  * Best-effort DELETE to release the streamable-HTTP session the probe just
- * allocated. Failures are ignored — the session will expire on the server side.
+ * allocated. Reuses the probe's pinned fetch so this cleanup hop stays pinned.
+ * Failures are ignored — the session will expire on the server side.
  */
-async function closeMcpSession(url: string, sessionId: string): Promise<void> {
+async function closeMcpSession(
+  url: string,
+  sessionId: string,
+  probeFetch: FetchLike
+): Promise<void> {
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
     try {
-      await fetch(url, {
+      await probeFetch(url, {
         method: 'DELETE',
         headers: { 'Mcp-Session-Id': sessionId },
         signal: controller.signal,

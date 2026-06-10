@@ -83,7 +83,7 @@ export const listEventsTool: ToolConfig<LumaListEventsParams, LumaListEventsResp
     }
 
     const events = (data.entries ?? []).map((entry: Record<string, unknown>) => {
-      const event = entry.event as Record<string, unknown>
+      const event = (entry.event as Record<string, unknown>) ?? entry
       return {
         id: (event.id as string) ?? null,
         name: (event.name as string) ?? null,

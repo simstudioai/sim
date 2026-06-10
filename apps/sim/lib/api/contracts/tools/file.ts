@@ -53,12 +53,24 @@ export const fileManageReadBodySchema = z
     message: 'Either fileId or fileInput is required for read operation',
   })
 
+export const fileManageContentBodySchema = z
+  .object({
+    operation: z.literal('content'),
+    workspaceId: z.string().min(1).optional(),
+    fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
+    fileInput: z.unknown().optional(),
+  })
+  .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
+    message: 'Either fileId or fileInput is required for content operation',
+  })
+
 export const fileManageBodySchema = z.union([
   fileManageWriteBodySchema,
   fileManageAppendBodySchema,
   fileManageGetBodySchema,
   fileManageMoveBodySchema,
   fileManageReadBodySchema,
+  fileManageContentBodySchema,
 ])
 
 export const fileManageContract = defineRouteContract({

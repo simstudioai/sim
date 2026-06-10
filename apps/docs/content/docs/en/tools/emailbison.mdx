@@ -29,9 +29,7 @@ Retrieves leads from Email Bison with optional search and tag filters.
 | `search` | string | No | Search term for filtering leads |
 | `campaignStatus` | string | No | Lead campaign status filter: in_sequence, sequence_finished, sequence_stopped, never_contacted, or replied |
 | `tagIds` | array | No | Tag IDs to include |
-| `items` | number | No | No description |
 | `excludedTagIds` | array | No | Tag IDs to exclude |
-| `items` | number | No | No description |
 | `withoutTags` | boolean | No | Only return leads without tags |
 
 #### Output
@@ -97,10 +95,6 @@ Creates a single lead in Email Bison.
 | `company` | string | No | Lead company |
 | `notes` | string | No | Additional notes about the lead |
 | `customVariables` | array | No | Custom variables to store on the lead |
-| `items` | object | No | Custom variable name |
-| `properties` | string | No | Custom variable name |
-| `name` | string | No | No description |
-| `value` | string | No | No description |
 
 #### Output
 
@@ -137,10 +131,6 @@ Updates an existing Email Bison lead. Fields omitted from a PUT update may be cl
 | `company` | string | No | Lead company |
 | `notes` | string | No | Additional notes about the lead |
 | `customVariables` | array | No | Custom variables to store on the lead |
-| `items` | object | No | Custom variable name |
-| `properties` | string | No | Custom variable name |
-| `name` | string | No | No description |
-| `value` | string | No | No description |
 
 #### Output
 
@@ -297,7 +287,6 @@ Adds existing Email Bison leads to a campaign.
 | --------- | ---- | -------- | ----------- |
 | `campaignId` | number | Yes | Campaign ID |
 | `leadIds` | array | Yes | Lead IDs to add to the campaign |
-| `items` | number | No | No description |
 | `allowParallelSending` | boolean | No | Force add leads already in sequence in other campaigns |
 
 #### Output
@@ -335,7 +324,6 @@ Retrieves Email Bison replies with optional status, folder, campaign, sender, le
 | `senderEmailId` | number | No | Sender email ID |
 | `leadId` | number | No | Lead ID |
 | `tagIds` | array | No | Tag IDs to filter replies by |
-| `items` | number | No | No description |
 
 #### Output
 
@@ -422,9 +410,7 @@ Attaches Email Bison tags to one or more leads.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `tagIds` | array | Yes | Tag IDs to attach |
-| `items` | number | No | No description |
 | `leadIds` | array | Yes | Lead IDs to tag |
-| `items` | number | No | No description |
 | `skipWebhooks` | boolean | No | Skip Email Bison webhooks for this action |
 
 #### Output

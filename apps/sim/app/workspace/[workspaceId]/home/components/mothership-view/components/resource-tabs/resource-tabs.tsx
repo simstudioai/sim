@@ -29,12 +29,12 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useTablesList } from '@/hooks/queries/tables'
 import {
   useAddChatResource,
   useRemoveChatResource,
   useReorderChatResources,
-} from '@/hooks/queries/tasks'
+} from '@/hooks/queries/mothership-chats'
+import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
@@ -202,7 +202,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
           isDragging && 'opacity-30'
         )}
       >
-        {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
+        {config.renderTabIcon(resource, 'mr-1.5 size-[14px]')}
         {displayName}
         {(isHovered || isActive) && chatId && (
           <span

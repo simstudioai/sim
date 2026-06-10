@@ -4,7 +4,6 @@ import {
   chat as chatTable,
   copilotChats,
   document,
-  form,
   jobExecutionLogs,
   knowledgeConnector,
   mcpServers as mcpServersTable,
@@ -19,12 +18,35 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
-import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
+import {
+  buildWorkspaceContextMd,
+  buildWorkspaceMd,
+  type WorkspaceMdData,
+} from '@/lib/copilot/chat/workspace-context'
+import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
+import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
+import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
+import { isRenderableDocExt, renderDocToGrid } from '@/lib/copilot/tools/server/files/doc-render'
+import {
+  collectWorkflowFieldIssues,
+  lintEditedWorkflowState,
+} from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
+import {
+  collectUnresolvedReferences,
+  UNRESOLVABLE_AT_LINT_NOTE,
+} from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
+import type { GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
+import {
+  buildVfsFolderPathMap,
+  canonicalWorkflowVfsDir,
+  canonicalWorkspaceFilePath,
+  encodeVfsPathSegments,
+} from '@/lib/copilot/vfs/path-utils'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
 import {
   serializeApiKeys,
@@ -53,6 +75,20 @@ import {
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
+import { ensureWorkflowAliasBackingQuietly } from '@/lib/copilot/vfs/workflow-alias-backing'
+import {
+  buildWorkflowAliasLinks,
+  isWorkflowAliasBackingPath,
+  WORKFLOW_ALIAS_LINKS_NAME,
+  WORKFLOW_CHANGELOG_ALIAS_NAME,
+  WORKFLOW_PLANS_ALIAS_DIR,
+  WORKFLOW_PLANS_BACKING_FOLDER,
+  WORKSPACE_PLANS_BACKING_FOLDER,
+  workflowChangelogBackingPath,
+  workspacePlanBackingPath,
+  workspacePlansBackingFolderPath,
+} from '@/lib/copilot/vfs/workflow-aliases'
+import { isE2BDocEnabled, isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -67,12 +103,14 @@ import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/works
 import {
   fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
-  getWorkspaceFile,
   listWorkspaceFiles,
+  type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowDeploymentSnapshot,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { listSkills } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
@@ -81,16 +119,33 @@ import {
   getUsersWithPermissions,
   getWorkspaceWithOwner,
 } from '@/lib/workspaces/permissions/utils'
+import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
-import { tools as toolRegistry } from '@/tools/registry'
-import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 const logger = createLogger('WorkspaceVFS')
+const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 /** Static component files, computed once and shared across all VFS instances */
 let staticComponentFiles: Map<string, string> | null = null
+
+// On-the-fly doc reads (render/extract) download the binary into the Sim process
+// and base64-stage it to E2B, so bound the input like the compile path's staging
+// caps — otherwise an authenticated member could OOM the worker with a multi-GB
+// upload (uploads are capped at 5GB).
+const MAX_DOC_READ_INPUT_BYTES = 50 * 1024 * 1024
+
+/**
+ * True when the buffer is an actual compiled/uploaded binary (vs a source-backed
+ * generated doc). OOXML (pptx/docx/xlsx) is a ZIP (starts `PK`); PDFs may carry a
+ * BOM or leading whitespace before `%PDF`, so scan the head rather than offset 0.
+ */
+function isBinaryDocBuffer(buffer: Buffer, ext: string): boolean {
+  if (ext === 'pdf') return buffer.subarray(0, 1024).toString('latin1').includes('%PDF')
+  return buffer.subarray(0, 2).toString('latin1') === 'PK'
+}
 
 /**
  * Build the static component files from block and tool registries.
@@ -116,32 +171,15 @@ function getStaticComponentFiles(): Map<string, string> {
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
-  const toolToService = new Map<string, string>()
-  for (const block of visibleBlocks) {
-    if (!block.tools?.access) continue
-    const service = stripVersionSuffix(block.type)
-    for (const toolId of block.tools.access) {
-      toolToService.set(toolId, service)
-    }
-  }
-
-  const latestTools = getLatestVersionTools(toolRegistry)
   let integrationCount = 0
 
   const oauthServices = new Map<string, { provider: string; operations: string[] }>()
   const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
 
-  for (const [toolId, tool] of Object.entries(latestTools)) {
-    const baseName = stripVersionSuffix(toolId)
-    const service = toolToService.get(toolId) ?? toolToService.get(baseName)
-    if (!service) {
-      logger.debug('Tool not associated with any block, skipping VFS entry', { toolId })
-      continue
-    }
-
-    const prefix = `${service}_`
-    const operation = baseName.startsWith(prefix) ? baseName.slice(prefix.length) : baseName
-
+  // Integration tools come from the shared exposed-tool set (latest version of
+  // each operation owned by a visible block), the same set used to build the
+  // deferred callable tools — so discovery and execution can never drift.
+  for (const { config: tool, service, operation } of getExposedIntegrationTools()) {
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
     integrationCount++
@@ -202,9 +240,9 @@ function getStaticComponentFiles(): Map<string, string> {
             description: 'Condition expression (for loopType "while" or "doWhile")',
           },
         },
-        sourceHandles: ['loop-start-source', 'source'],
+        sourceHandles: ['loop-start-source', 'loop-end-source'],
         notes:
-          'Use "loop-start-source" to connect to blocks inside the loop. Use "source" for the edge that runs after the loop completes. Blocks inside the loop must have parentId set to the loop block ID.',
+          'Use "loop-start-source" to connect to blocks INSIDE the loop. Use "loop-end-source" for the edge that runs AFTER the loop completes. Do NOT use "source" for a loop block — it is rejected; the only valid source handles are "loop-start-source", "loop-end-source", and "error". Blocks inside the loop must have parentId set to the loop block ID.',
       },
       null,
       2
@@ -233,9 +271,9 @@ function getStaticComponentFiles(): Map<string, string> {
             description: 'Collection to distribute (for parallelType "collection")',
           },
         },
-        sourceHandles: ['parallel-start-source', 'source'],
+        sourceHandles: ['parallel-start-source', 'parallel-end-source'],
         notes:
-          'Use "parallel-start-source" to connect to blocks inside the parallel container. Use "source" for the edge after all branches complete. Blocks inside must have parentId set to the parallel block ID.',
+          'Use "parallel-start-source" to connect to blocks INSIDE the parallel container. Use "parallel-end-source" for the edge AFTER all branches complete. Do NOT use "source" for a parallel block — it is rejected; the only valid source handles are "parallel-start-source", "parallel-end-source", and "error". Blocks inside must have parentId set to the parallel block ID.',
       },
       null,
       2
@@ -305,9 +343,11 @@ function getStaticComponentFiles(): Map<string, string> {
  * Virtual Filesystem that materializes workspace data into an in-memory Map.
  *
  * Structure:
- *   WORKSPACE.md                         — workspace identity, members, inventory (auto-generated)
+ *   WORKSPACE_CONTEXT.md                 — full dynamic workspace/user context (auto-generated)
+ *   WORKSPACE.md                         — workspace inventory summary (auto-generated)
  *   workflows/{name}/meta.json            (root-level workflows)
  *   workflows/{name}/state.json          (sanitized blocks with embedded connections)
+ *   workflows/{name}/lint.json           (sources/sinks, required-field, credential/resource issues)
  *   workflows/{name}/executions.json
  *   workflows/{name}/deployment.json
  *   workflows/{folder}/{name}/...        (workflows inside folders, nested folders supported)
@@ -315,10 +355,9 @@ function getStaticComponentFiles(): Map<string, string> {
  *   knowledgebases/{name}/documents.json
  *   knowledgebases/{name}/connectors.json
  *   tables/{name}/meta.json
- *   files/{name}/meta.json
- *   files/by-id/{id}/meta.json
- *   files/by-id/{id}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
- *   files/by-id/{id}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
+ *   files/{name}                         (workspace file leaf; dynamic content on read)
+ *   files/{path}/{name}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
+ *   files/{path}/{name}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
  *   jobs/{title}/meta.json
  *   jobs/{title}/history.json
  *   jobs/{title}/executions.json
@@ -382,24 +421,24 @@ export class WorkspaceVFS {
       getUsersWithPermissions(workspaceId),
     ])
 
-    this.files.set(
-      'WORKSPACE.md',
-      buildWorkspaceMd({
-        workspace: wsRow,
-        members,
-        workflows: wfSummary,
-        knowledgeBases: kbSummary,
-        tables: tblSummary,
-        files: fileSummary,
-        oauthIntegrations: envSummary.oauthIntegrations,
-        envVariables: envSummary.envVariables,
-        tasks: taskSummary,
-        customTools: toolsSummary,
-        mcpServers: mcpServersSummary,
-        skills: skillsSummary,
-        jobs: jobsSummary,
-      })
-    )
+    const workspaceMdData = {
+      workspace: wsRow,
+      members,
+      workflows: wfSummary,
+      knowledgeBases: kbSummary,
+      tables: tblSummary,
+      files: fileSummary,
+      oauthIntegrations: envSummary.oauthIntegrations,
+      envVariables: envSummary.envVariables,
+      tasks: taskSummary,
+      customTools: toolsSummary,
+      mcpServers: mcpServersSummary,
+      skills: skillsSummary,
+      jobs: jobsSummary,
+    }
+
+    this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
+    this.files.set('WORKSPACE_CONTEXT.md', buildWorkspaceContextMd(workspaceMdData))
 
     await this.materializeRecentlyDeleted(workspaceId, userId)
 
@@ -437,6 +476,56 @@ export class WorkspaceVFS {
     return ops.grep(this.filesForPath(path), pattern, path, options)
   }
 
+  /**
+   * Grep the *content* of a single workspace file (under `files/`), as opposed to
+   * {@link grep} which searches the in-memory VFS map (workflow JSON, metadata,
+   * plans, memories — workspace files appear there only as metadata).
+   *
+   * Content search applies to workspace files only and must target exactly one
+   * file (`files/<name>` or `files/<name>/content`, plus the `recently-deleted/`
+   * variants). A folder, the whole `files/` tree, or any path that does not
+   * resolve to a single file leaf throws — grepping multiple workspace files at
+   * once is intentionally unsupported.
+   *
+   * Per file type the file's text is resolved via {@link readFileContent} (the
+   * same extraction `read` uses): text-like files are read as UTF-8, parseable
+   * documents (pdf/docx/xlsx/pptx/…) are parsed to text, and the regex runs over
+   * that text. Images and binary files have no searchable text and throw, as do
+   * files too large for the inline read cap. Reading exactly one file (bounded by
+   * the existing per-type read caps) keeps this from loading the workspace into
+   * memory.
+   */
+  async grepFile(
+    path: string,
+    pattern: string,
+    options?: GrepOptions
+  ): Promise<GrepMatch[] | string[] | ops.GrepCountEntry[]> {
+    const normalized = path.replace(/^\/+/, '')
+    // Prefer the path verbatim when it is itself a file leaf (e.g. a file literally
+    // named "content"); otherwise drop a trailing "/content" read suffix.
+    const leaf = this.files.has(normalized) ? normalized : normalized.replace(/\/content$/, '')
+
+    const isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+    if (!isWorkspaceFilePath || !this.files.has(leaf)) {
+      const suggestions = this.suggestSimilar(leaf)
+      const hint =
+        suggestions.length > 0
+          ? ` Did you mean: ${suggestions.join(', ')}?`
+          : ' Use glob to find the exact file path, then grep that single file.'
+      throw new ops.WorkspaceFileGrepError(
+        `Grep over workspace file content must target a single workspace file (e.g. path: "files/report.csv"). "${path}" is not a single workspace file.${hint}`
+      )
+    }
+
+    const contentPath = `${leaf}/content`
+    const result = await this.readFileContent(contentPath)
+    if (!result) {
+      throw new ops.WorkspaceFileGrepError(`Workspace file content not found for "${path}".`)
+    }
+
+    return ops.grepReadResult(leaf, result, pattern, contentPath, options)
+  }
+
   glob(pattern: string): string[] {
     const target = pattern.startsWith('recently-deleted') ? this.files : this.activeFiles()
     return ops.glob(target, pattern)
@@ -446,34 +535,317 @@ export class WorkspaceVFS {
     return ops.read(this.files, path, offset, limit)
   }
 
-  list(path: string): DirEntry[] {
-    return ops.list(this.filesForPath(path), path)
-  }
-
   suggestSimilar(missingPath: string, max?: number): string[] {
     return ops.suggestSimilar(this.files, missingPath, max)
   }
 
+  private async resolveWorkspaceFileForDynamicRead(
+    path: string,
+    suffix: 'style' | 'compiled-check' | 'compiled' | 'render' | 'extract'
+  ): Promise<WorkspaceFileRecord | null> {
+    if (!isMothershipBetaFeaturesEnabled && isWorkflowAliasBackingPath(path)) {
+      return null
+    }
+    const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
+    if (!canonicalMatch?.[1]) return null
+
+    const files = await listWorkspaceFiles(this._workspaceId, { includeReservedSystemFiles: true })
+    return findWorkspaceFileRecord(files, `files/${canonicalMatch[1]}`)
+  }
+
+  /**
+   * Renders a renderable doc (pptx/docx/pdf) record to a contact-sheet image and
+   * returns it as a model readable JPEG attachment. Shared by the `/render` and
+   * `/compiled` reads so a binary doc is NEVER attached as a raw (non-PDF)
+   * `document` block — the model only reads images and application/pdf. Compiles
+   * the source first when needed (E2B doc sandbox, else isolated-vm); uses the
+   * binary directly for already-binary uploads. Throws on compile/render failure
+   * (the caller's try/catch reports it).
+   */
+  private async renderDocRecordResult(
+    record: WorkspaceFileRecord,
+    ext: string,
+    buildMessage: (pageCount: number) => string
+  ): Promise<FileReadResult> {
+    if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
+      return {
+        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
+        totalLines: 1,
+      }
+    }
+    const buffer = await fetchWorkspaceFileBuffer(record)
+    if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
+      return {
+        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
+        totalLines: 1,
+      }
+    }
+    // Already-binary uploads render directly; source files are compiled first
+    // (E2B regime -> doc sandbox: Node pptx/docx, Python pdf; otherwise
+    // isolated-vm pptxgenjs/docx-js/pdf-lib).
+    let bin: Buffer
+    if (isBinaryDocBuffer(buffer, ext)) {
+      bin = buffer
+    } else {
+      const code = buffer.toString('utf-8')
+      if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
+        return {
+          content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
+          totalLines: 1,
+        }
+      }
+      if (isE2BDocEnabled && getE2BDocFormat(record.name)) {
+        bin = (
+          await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
+        ).buffer
+      } else {
+        const taskId = BINARY_DOC_TASKS[ext]
+        if (!taskId) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'Cannot render this file' }),
+            totalLines: 1,
+          }
+        }
+        bin = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+      }
+    }
+    const { grid, pageCount } = await renderDocToGrid({
+      binary: bin,
+      ext,
+      workspaceId: this._workspaceId,
+    })
+    return {
+      content: buildMessage(pageCount),
+      totalLines: 1,
+      attachment: {
+        // The rendered contact sheet is a JPEG, so it must be an image block.
+        // Tagging it 'file' routes it to a provider document block, which only
+        // accepts application/pdf — Anthropic rejects image/jpeg there with a
+        // 400 that surfaces to the client as a "Stream error".
+        type: 'image',
+        name: `${record.name}.render.jpg`,
+        source: { type: 'base64', media_type: 'image/jpeg', data: grid.toString('base64') },
+      },
+    }
+  }
+
   /**
    * Attempt to read dynamic workspace file content from storage.
-   * Handles images (base64), parseable documents (PDF, etc.), and text files.
+   * Handles explicit /content reads for images, PDFs, documents, and text files.
    * Also handles:
-   *   `files/by-id/{id}/style`           — style extraction (.docx / .pptx / .pdf)
-   *   `files/by-id/{id}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
-   * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
+   *   `files/{path}/{name}/style`           — style extraction (.docx / .pptx / .pdf)
+   *   `files/{path}/{name}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
+   *   `files/{path}/{name}/compiled`        — compile JS-source binary files and return the compiled artifact as an attachment
+   * Files are resolved by their sanitized canonical path only.
+   * Returns null if the path doesn't match a dynamic file path or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
-    // Handle compiled-check path: files/by-id/{id}/compiled-check
-    const compiledCheckMatch = path.match(/^files\/by-id\/([^/]+)\/compiled-check$/)
-    if (compiledCheckMatch) {
-      const fileId = compiledCheckMatch[1]
+    const compiledMatch = /^files\/.+\/compiled$/.test(path)
+    if (compiledMatch) {
+      let record: WorkspaceFileRecord | null = null
       try {
-        const record = await getWorkspaceFile(this._workspaceId, fileId)
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(record.name) : null
+        const taskId = BINARY_DOC_TASKS[ext]
+        if (!e2bFmt && !taskId) return null
+
+        // Only PDF can be attached as a model-readable `document` block —
+        // Bedrock/Anthropic document blocks accept application/pdf ONLY. Attaching
+        // raw pptx/docx/xlsx binary is rejected by the provider (400). So for
+        // pptx/docx, render to page images (which the model CAN read) and return
+        // those directly — /compiled can never emit an invalid document block for
+        // these formats. xlsx isn't renderable; direct to /extract for its content.
+        if (ext !== 'pdf') {
+          if (isRenderableDocExt(ext)) {
+            const compiledName = record.name
+            return await this.renderDocRecordResult(
+              record,
+              ext,
+              (pageCount) =>
+                `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`
+            )
+          }
+          const extractPath = `${canonicalWorkspaceFilePath({
+            folderPath: record.folderPath,
+            name: record.name,
+          })}/extract`
+          return {
+            content: `${record.name} is a spreadsheet — read "${extractPath}" for its contents.`,
+            totalLines: 1,
+          }
+        }
+
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        const code = buffer.toString('utf-8')
+        if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
+            totalLines: 1,
+          }
+        }
+        const compiled = e2bFmt
+          ? (
+              await compileDoc({
+                source: code,
+                fileName: record.name,
+                workspaceId: this._workspaceId,
+              })
+            ).buffer
+          : await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+        if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
+          return {
+            content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
+            totalLines: 1,
+          }
+        }
+        return {
+          content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
+          totalLines: 1,
+          attachment: {
+            type: 'file',
+            name: record.name,
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: compiled.toString('base64'),
+            },
+          },
+        }
+      } catch (err) {
+        logger.warn('Compiled artifact read failed via VFS', {
+          workspaceId: this._workspaceId,
+          path,
+          fileId: record?.id,
+          error: toError(err).message,
+        })
+        if (err instanceof SandboxUserCodeError) {
+          const json = JSON.stringify({
+            ok: false,
+            error: toError(err).message,
+            errorName: err.name,
+          })
+          return { content: json, totalLines: 1 }
+        }
+        return null
+      }
+    }
+
+    const renderMatch = /^files\/.+\/render$/.test(path)
+    if (renderMatch) {
+      let record: WorkspaceFileRecord | null = null
+      try {
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'render')
+        if (!record) return null
+        const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        if (!isRenderableDocExt(ext)) {
+          return {
+            content: JSON.stringify({
+              ok: false,
+              error: 'Render supports .pptx, .docx, and .pdf only',
+            }),
+            totalLines: 1,
+          }
+        }
+        const renderName = record.name
+        return await this.renderDocRecordResult(
+          record,
+          ext,
+          (pageCount) =>
+            `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`
+        )
+      } catch (err) {
+        logger.warn('Render read failed via VFS', {
+          workspaceId: this._workspaceId,
+          path,
+          fileId: record?.id,
+          error: toError(err).message,
+        })
+        // Return an explicit error (not null) once the file resolved — a null read
+        // looks like a missing path and sends the agent hunting for the "correct"
+        // render path instead of surfacing the real compile/render failure.
+        return {
+          content: JSON.stringify({ ok: false, error: toError(err).message }),
+          totalLines: 1,
+        }
+      }
+    }
+
+    const extractMatch = /^files\/.+\/extract$/.test(path)
+    if (extractMatch && isE2BDocEnabled) {
+      let record: WorkspaceFileRecord | null = null
+      try {
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'extract')
+        if (!record) return null
+        const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        if (!isExtractableDocExt(ext)) {
+          return {
+            content: JSON.stringify({
+              ok: false,
+              error: 'Extraction supports .pdf, .pptx, .docx, and .xlsx only',
+            }),
+            totalLines: 1,
+          }
+        }
+        // Bound the input before downloading + base64-staging it in-process.
+        if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
+            totalLines: 1,
+          }
+        }
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
+            totalLines: 1,
+          }
+        }
+        // Extraction reads the binary. A source-backed generated doc (text source,
+        // no binary magic) should be read directly instead — point the agent there.
+        if (!isBinaryDocBuffer(buffer, ext)) {
+          return {
+            content: JSON.stringify({
+              ok: false,
+              error: 'This is a source-backed generated file; read its content directly instead.',
+            }),
+            totalLines: 1,
+          }
+        }
+        const { text, truncated } = await extractDocText({ binary: buffer, ext })
+        const note = truncated
+          ? '\n\n[... truncated — read the file directly for the full content]'
+          : ''
+        return {
+          content: `${text || '[no extractable text found]'}${note}`,
+          totalLines: 1,
+        }
+      } catch (err) {
+        logger.warn('Extract read failed via VFS', {
+          workspaceId: this._workspaceId,
+          path,
+          fileId: record?.id,
+          error: toError(err).message,
+        })
+        return {
+          content: JSON.stringify({ ok: false, error: toError(err).message }),
+          totalLines: 1,
+        }
+      }
+    }
+
+    const compiledCheckMatch = /^files\/.+\/compiled-check$/.test(path)
+    if (compiledCheckMatch) {
+      let record: WorkspaceFileRecord | null = null
+      try {
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
+        if (!record) return null
+        const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
-        if (!taskId && !isMermaidFile) return null
+        if (!e2bFmt && !taskId && !isMermaidFile) return null
         const buffer = await fetchWorkspaceFileBuffer(record)
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
@@ -488,15 +860,27 @@ export class WorkspaceVFS {
           return { content: json, totalLines: 1 }
         }
         let result: { ok: boolean; error?: string; errorName?: string }
-        try {
-          if (!taskId) return null
-          await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
-          result = { ok: true }
-        } catch (err) {
-          if (err instanceof SandboxUserCodeError) {
-            result = { ok: false, error: toError(err).message, errorName: err.name }
-          } else {
-            throw err
+        if (e2bFmt) {
+          // Loads the artifact if present, else compiles once (and recalc-scans
+          // xlsx). Only a script error is { ok: false }; infra failures rethrow to
+          // the outer catch so an E2B/S3 outage isn't reported as a bad script.
+          result = await runE2BCompiledCheck({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+            ext,
+          })
+        } else {
+          try {
+            if (!taskId) return null
+            await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+            result = { ok: true }
+          } catch (err) {
+            if (err instanceof SandboxUserCodeError) {
+              result = { ok: false, error: toError(err).message, errorName: err.name }
+            } else {
+              throw err
+            }
           }
         }
         const json = JSON.stringify(result)
@@ -504,19 +888,19 @@ export class WorkspaceVFS {
       } catch (err) {
         logger.warn('Compiled check failed via VFS', {
           workspaceId: this._workspaceId,
-          fileId,
+          path,
+          fileId: record?.id,
           error: toError(err).message,
         })
         return null
       }
     }
 
-    // Handle style extraction path: files/by-id/{id}/style
-    const styleMatch = path.match(/^files\/by-id\/([^/]+)\/style$/)
+    const styleMatch = /^files\/.+\/style$/.test(path)
     if (styleMatch) {
-      const fileId = styleMatch[1]
+      let record: WorkspaceFileRecord | null = null
       try {
-        const record = await getWorkspaceFile(this._workspaceId, fileId)
+        record = await this.resolveWorkspaceFileForDynamicRead(path, 'style')
         if (!record) return null
         const rawExt = record.name.split('.').pop()?.toLowerCase()
         if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') return null
@@ -529,15 +913,16 @@ export class WorkspaceVFS {
       } catch (err) {
         logger.warn('Failed to extract document style via VFS', {
           workspaceId: this._workspaceId,
-          fileId,
+          path,
+          fileId: record?.id,
           error: toError(err).message,
         })
         return null
       }
     }
 
-    const deletedMatch = path.match(/^recently-deleted\/files\/(.+?)(?:\/content)?$/)
-    const activeMatch = path.match(/^files\/(.+?)(?:\/content)?$/)
+    const deletedMatch = path.match(/^recently-deleted\/files\/(.+)\/content$/)
+    const activeMatch = path.match(/^files\/(.+)\/content$/)
     const match = deletedMatch || activeMatch
     if (!match) return null
     const fileReference = path
@@ -545,12 +930,18 @@ export class WorkspaceVFS {
       .replace(/\/content$/, '')
       .replace(/^\/+/, '')
 
+    if (!isMothershipBetaFeaturesEnabled && isWorkflowAliasBackingPath(fileReference)) {
+      return null
+    }
     if (fileReference.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
 
     const scope = deletedMatch ? 'archived' : 'active'
 
     try {
-      const files = await listWorkspaceFiles(this._workspaceId, { scope })
+      const files = await listWorkspaceFiles(this._workspaceId, {
+        scope,
+        includeReservedSystemFiles: isMothershipBetaFeaturesEnabled,
+      })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
       return readFileRecord(record)
@@ -571,28 +962,7 @@ export class WorkspaceVFS {
   private buildFolderPaths(
     folders: Array<{ folderId: string; folderName: string; parentId: string | null }>
   ): Map<string, string> {
-    const folderMap = new Map<string, { name: string; parentId: string | null }>()
-    for (const f of folders) {
-      folderMap.set(f.folderId, { name: f.folderName, parentId: f.parentId })
-    }
-
-    const cache = new Map<string, string>()
-    const resolve = (id: string): string => {
-      if (cache.has(id)) return cache.get(id)!
-      const folder = folderMap.get(id)
-      if (!folder) return ''
-      const parentPath = folder.parentId ? resolve(folder.parentId) : ''
-      const path = parentPath
-        ? `${parentPath}/${sanitizeName(folder.name)}`
-        : sanitizeName(folder.name)
-      cache.set(id, path)
-      return path
-    }
-
-    for (const id of folderMap.keys()) {
-      resolve(id)
-    }
-    return cache
+    return buildVfsFolderPathMap(folders)
   }
 
   /**
@@ -604,14 +974,31 @@ export class WorkspaceVFS {
    */
   private async materializeWorkflows(
     workspaceId: string,
-    _userId: string
+    userId: string
   ): Promise<WorkspaceMdData['workflows']> {
+    const workflowArtifactsEnabled = isMothershipBetaFeaturesEnabled
     const [workflowRows, folderRows] = await Promise.all([
       listWorkflows(workspaceId),
       listFolders(workspaceId),
     ])
 
     const folderPaths = this.buildFolderPaths(folderRows)
+
+    if (workflowArtifactsEnabled) {
+      await Promise.all(
+        workflowRows.map((wf) =>
+          ensureWorkflowAliasBackingQuietly({
+            workspaceId,
+            userId,
+            workflowId: wf.id,
+            workflowName: wf.name,
+          })
+        )
+      )
+    }
+    const workspaceFiles = workflowArtifactsEnabled
+      ? await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
+      : []
 
     // Register all folders in the VFS so empty folders are discoverable.
     for (const { folderId } of folderRows) {
@@ -623,13 +1010,79 @@ export class WorkspaceVFS {
 
     await Promise.all(
       workflowRows.map(async (wf) => {
-        const safeName = sanitizeName(wf.name)
         const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
-        const prefix = folderPath
-          ? `workflows/${folderPath}/${safeName}/`
-          : `workflows/${safeName}/`
+        const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
+        const workflowPath = prefix.replace(/\/$/, '')
 
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
+
+        if (workflowArtifactsEnabled) {
+          const changelog = findWorkspaceFileRecord(
+            workspaceFiles,
+            workflowChangelogBackingPath(wf.id)
+          )
+          let changelogContent = ''
+          if (changelog) {
+            try {
+              changelogContent = (await readFileRecord(changelog))?.content ?? ''
+            } catch (err) {
+              logger.warn('Failed to read workflow changelog alias backing file', {
+                workspaceId,
+                workflowId: wf.id,
+                fileId: changelog.id,
+                error: toError(err).message,
+              })
+            }
+          }
+          if (changelog) {
+            this.files.set(`${prefix}${WORKFLOW_CHANGELOG_ALIAS_NAME}`, changelogContent)
+          }
+          this.files.set(`${prefix}${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
+
+          const planFiles = workspaceFiles.filter((file) => {
+            if (!file.folderPath) return false
+            return (
+              file.folderPath === `${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}` ||
+              file.folderPath.startsWith(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}/`)
+            )
+          })
+          for (const planFile of planFiles) {
+            const relativeFolder = planFile.folderPath
+              ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${wf.id}`, '')
+              .replace(/^\/+/, '')
+            const aliasPlanPath = [
+              prefix,
+              `${WORKFLOW_PLANS_ALIAS_DIR}/`,
+              relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
+              normalizeVfsSegment(planFile.name),
+            ].join('')
+            try {
+              this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
+            } catch (err) {
+              logger.warn('Failed to read workflow plan alias backing file', {
+                workspaceId,
+                workflowId: wf.id,
+                fileId: planFile.id,
+                error: toError(err).message,
+              })
+            }
+          }
+          this.files.set(
+            `${prefix}${WORKFLOW_ALIAS_LINKS_NAME}`,
+            JSON.stringify(
+              {
+                aliases: buildWorkflowAliasLinks({
+                  workflowPath,
+                  workflowId: wf.id,
+                  changelog,
+                  planFiles,
+                }),
+              },
+              null,
+              2
+            )
+          )
+        }
 
         let normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> = null
         try {
@@ -642,6 +1095,61 @@ export class WorkspaceVFS {
               parallels: normalized.parallels,
             } as any)
             this.files.set(`${prefix}state.json`, JSON.stringify(sanitized, null, 2))
+
+            // Dynamically-computed validation state (lint.json), derived from
+            // the raw normalized state so subBlock values, advancedMode,
+            // canonicalModes, and subflow edges are all available.
+            try {
+              const graphLint = lintEditedWorkflowState(normalized as any)
+              const fieldIssues = collectWorkflowFieldIssues(normalized.blocks as any)
+              let unresolvedReferences: Awaited<ReturnType<typeof collectUnresolvedReferences>> = []
+              try {
+                unresolvedReferences = await collectUnresolvedReferences(normalized as any, {
+                  userId,
+                  workspaceId,
+                })
+              } catch (resolveErr) {
+                // Tier-2 resolution is best-effort; degrade to graph + config lint.
+                logger.warn('Failed to resolve workflow references for lint.json', {
+                  workflowId: wf.id,
+                  error: toError(resolveErr).message,
+                })
+              }
+
+              this.files.set(
+                `${prefix}lint.json`,
+                JSON.stringify(
+                  {
+                    ...graphLint,
+                    fieldIssues,
+                    unresolvedReferences,
+                    notes: [UNRESOLVABLE_AT_LINT_NOTE],
+                  },
+                  null,
+                  2
+                )
+              )
+            } catch (lintErr) {
+              logger.warn('Failed to compute lint.json', {
+                workflowId: wf.id,
+                error: toError(lintErr).message,
+              })
+            }
+          } else {
+            // loadWorkflowFromNormalizedTables returns null when the workflow has
+            // zero block rows. A block-less workflow still exists and must be
+            // readable, so emit an empty-but-valid state.json — otherwise
+            // read("workflows/{path}/state.json") 404s and suggestSimilar points the
+            // agent at a different, same-named workflow. dag/lint are derived from
+            // blocks and are omitted for the empty case.
+            this.files.set(
+              `${prefix}state.json`,
+              JSON.stringify(
+                sanitizeForCopilot({ blocks: {}, edges: [], loops: {}, parallels: {} } as any),
+                null,
+                2
+              )
+            )
           }
         } catch (err) {
           logger.warn('Failed to load workflow state', {
@@ -681,8 +1189,7 @@ export class WorkspaceVFS {
             wf.id,
             workspaceId,
             wf.isDeployed,
-            wf.deployedAt,
-            normalized
+            wf.deployedAt
           )
           if (deploymentData) {
             this.files.set(`${prefix}deployment.json`, serializeDeployments(deploymentData))
@@ -863,36 +1370,40 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
-      const files = await listWorkspaceFiles(workspaceId)
+      const workflowArtifactsEnabled = isMothershipBetaFeaturesEnabled
+      const folders = await listWorkspaceFileFolders(workspaceId, {
+        includeReservedSystemFolders: true,
+      })
+      const files = await listWorkspaceFiles(workspaceId, {
+        folders,
+        includeReservedSystemFiles: true,
+      })
+      for (const folder of folders) {
+        if (
+          !workflowArtifactsEnabled &&
+          isWorkflowAliasBackingPath(`files/${encodeVfsPathSegments(folder.path.split('/'))}`)
+        ) {
+          continue
+        }
+        this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
+      }
 
       for (const file of files) {
-        const safeName = sanitizeName(file.name)
-        const safeFolderPath = file.folderPath
-          ?.split('/')
-          .map((segment) => sanitizeName(segment))
-          .join('/')
-        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
+        const filePath = canonicalWorkspaceFilePath({
+          folderPath: file.folderPath,
+          name: file.name,
+        })
+        if (!workflowArtifactsEnabled && isWorkflowAliasBackingPath(filePath)) {
+          continue
+        }
         this.files.set(
-          `files/${fileVfsPath}/meta.json`,
+          filePath,
           serializeFileMeta({
             id: file.id,
             name: file.name,
             folderId: file.folderId,
             folderPath: file.folderPath,
-            vfsPath: `files/${fileVfsPath}`,
-            contentType: file.type,
-            size: file.size,
-            uploadedAt: file.uploadedAt,
-          })
-        )
-        this.files.set(
-          `files/by-id/${file.id}/meta.json`,
-          serializeFileMeta({
-            id: file.id,
-            name: file.name,
-            folderId: file.folderId,
-            folderPath: file.folderPath,
-            vfsPath: `files/${fileVfsPath}`,
+            vfsPath: filePath,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -900,13 +1411,86 @@ export class WorkspaceVFS {
         )
       }
 
-      return files.map((f) => ({
-        id: f.id,
-        name: f.name,
-        type: f.type,
-        size: f.size,
-        folderPath: f.folderPath ?? null,
-      }))
+      if (workflowArtifactsEnabled) {
+        this.files.set(`${WORKFLOW_PLANS_ALIAS_DIR}/.folder`, '')
+        const workspacePlanFiles = files.filter((file) => {
+          if (!file.folderPath) return false
+          return (
+            file.folderPath ===
+              `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}` ||
+            file.folderPath.startsWith(
+              `${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}/`
+            )
+          )
+        })
+        const workspacePlanLinks = []
+        for (const planFile of workspacePlanFiles) {
+          const relativeFolder = planFile.folderPath
+            ?.replace(`${WORKFLOW_PLANS_BACKING_FOLDER}/${WORKSPACE_PLANS_BACKING_FOLDER}`, '')
+            .replace(/^\/+/, '')
+          const aliasRelativePath = [
+            relativeFolder ? `${encodeVfsPathSegments(relativeFolder.split('/'))}/` : '',
+            normalizeVfsSegment(planFile.name),
+          ].join('')
+          const aliasPlanPath = `${WORKFLOW_PLANS_ALIAS_DIR}/${aliasRelativePath}`
+          const relativeSegments = aliasRelativePath.split('/').slice(0, -1)
+          for (let index = 0; index < relativeSegments.length; index++) {
+            this.files.set(
+              `${WORKFLOW_PLANS_ALIAS_DIR}/${relativeSegments.slice(0, index + 1).join('/')}/.folder`,
+              ''
+            )
+          }
+          try {
+            this.files.set(aliasPlanPath, (await readFileRecord(planFile))?.content ?? '')
+            workspacePlanLinks.push({
+              kind: 'plan_file',
+              scope: 'workspace',
+              aliasPath: aliasPlanPath,
+              backingPath: workspacePlanBackingPath(aliasRelativePath),
+              backingFileId: planFile.id,
+            })
+          } catch (err) {
+            logger.warn('Failed to read workspace plan alias backing file', {
+              workspaceId,
+              fileId: planFile.id,
+              error: toError(err).message,
+            })
+          }
+        }
+        this.files.set(
+          `${WORKFLOW_PLANS_ALIAS_DIR}/${WORKFLOW_ALIAS_LINKS_NAME}`,
+          JSON.stringify(
+            {
+              aliases: [
+                {
+                  kind: 'plans_dir',
+                  scope: 'workspace',
+                  aliasPath: WORKFLOW_PLANS_ALIAS_DIR,
+                  backingPath: workspacePlansBackingFolderPath(),
+                },
+                ...workspacePlanLinks,
+              ],
+            },
+            null,
+            2
+          )
+        )
+      }
+
+      return files
+        .filter(
+          (f) =>
+            !isWorkflowAliasBackingPath(
+              canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name })
+            )
+        )
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+          folderPath: f.folderPath ?? null,
+        }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
@@ -924,10 +1508,9 @@ export class WorkspaceVFS {
     workflowId: string,
     workspaceId: string,
     isDeployed: boolean,
-    deployedAt: Date | null,
-    currentNormalized?: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
+    deployedAt: Date | null
   ): Promise<DeploymentData | null> {
-    const [chatRows, formRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
+    const [chatRows, mcpRows, a2aRows, versionRows, allVersionRows] = await Promise.all([
       db
         .select({
           id: chatTable.id,
@@ -940,19 +1523,6 @@ export class WorkspaceVFS {
         })
         .from(chatTable)
         .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
-      db
-        .select({
-          id: form.id,
-          identifier: form.identifier,
-          title: form.title,
-          description: form.description,
-          authType: form.authType,
-          showBranding: form.showBranding,
-          customizations: form.customizations,
-          isActive: form.isActive,
-        })
-        .from(form)
-        .where(and(eq(form.workflowId, workflowId), isNull(form.archivedAt))),
       db
         .select({
           serverId: workflowMcpTool.serverId,
@@ -1018,24 +1588,22 @@ export class WorkspaceVFS {
     ])
 
     const hasAnyDeployment =
-      isDeployed ||
-      chatRows.length > 0 ||
-      formRows.length > 0 ||
-      mcpRows.length > 0 ||
-      a2aRows.length > 0
+      isDeployed || chatRows.length > 0 || mcpRows.length > 0 || a2aRows.length > 0
     if (!hasAnyDeployment && allVersionRows.length === 0) return null
 
     let needsRedeployment: boolean | undefined
     const deployedVersion = versionRows[0]
-    if (isDeployed && deployedVersion?.state && currentNormalized) {
+    if (isDeployed && deployedVersion?.state) {
       try {
-        const currentState = {
-          blocks: currentNormalized.blocks,
-          edges: currentNormalized.edges,
-          loops: currentNormalized.loops,
-          parallels: currentNormalized.parallels,
-        }
-        needsRedeployment = hasWorkflowChanged(currentState as any, deployedVersion.state as any)
+        // Use the canonical deployment snapshot (includes variables) so this
+        // matches check_deployment_status exactly. The reshaped normalized load
+        // dropped variables, which made any workflow with deployment variables
+        // permanently report needsRedeployment: true.
+        const currentSnapshot = await loadWorkflowDeploymentSnapshot(workflowId)
+        needsRedeployment = computeNeedsRedeployment(
+          currentSnapshot,
+          deployedVersion.state as WorkflowState
+        )
       } catch (err) {
         logger.warn('Failed to compute needsRedeployment', {
           workflowId,
@@ -1053,7 +1621,6 @@ export class WorkspaceVFS {
         ? { version: deployedVersion.version, createdAt: deployedVersion.createdAt }
         : null,
       chat: chatRows[0] ?? null,
-      form: formRows[0] ?? null,
       mcp: mcpRows,
       a2a: a2aRows[0] ?? null,
       versions: allVersionRows,
@@ -1136,7 +1703,7 @@ export class WorkspaceVFS {
     workspaceId: string
   ): Promise<NonNullable<WorkspaceMdData['skills']>> {
     try {
-      const skillRows = await listSkills({ workspaceId })
+      const skillRows = await listSkills({ workspaceId, includeBuiltins: false })
 
       for (const s of skillRows) {
         const safeName = sanitizeName(s.name)
@@ -1452,20 +2019,19 @@ export class WorkspaceVFS {
       }
 
       for (const file of archivedFiles) {
-        const safeName = sanitizeName(file.name)
-        const safeFolderPath = file.folderPath
-          ?.split('/')
-          .map((segment) => sanitizeName(segment))
-          .join('/')
-        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
+        const filePath = canonicalWorkspaceFilePath({
+          folderPath: file.folderPath,
+          name: file.name,
+          prefix: 'recently-deleted/files',
+        })
         this.files.set(
-          `recently-deleted/files/${fileVfsPath}/meta.json`,
+          filePath,
           serializeFileMeta({
             id: file.id,
             name: file.name,
             folderId: file.folderId,
             folderPath: file.folderPath,
-            vfsPath: `recently-deleted/files/${fileVfsPath}`,
+            vfsPath: filePath,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -1550,10 +2116,14 @@ export class WorkspaceVFS {
         serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
       )
 
-      const oauthProviders = [...new Set(oauthCredentials.map((c) => c.providerId))]
       const envKeys = [...new Set(envCredentials.map((c) => c.envKey))]
       return {
-        oauthIntegrations: oauthProviders.map((key) => ({ providerId: key })),
+        oauthIntegrations: oauthCredentials.map((c) => ({
+          id: c.id,
+          providerId: c.providerId,
+          displayName: c.displayName,
+          role: c.role,
+        })),
         envVariables: envKeys,
       }
     } catch (err) {

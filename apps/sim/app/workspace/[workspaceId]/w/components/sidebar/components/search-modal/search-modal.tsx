@@ -6,11 +6,24 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { Library } from '@/components/emcn'
-import { Calendar, Database, File, HelpCircle, Settings, Table } from '@/components/emcn/icons'
+import {
+  Calendar,
+  Database,
+  File,
+  HelpCircle,
+  Home,
+  Integration,
+  Settings,
+  Table,
+} from '@/components/emcn/icons'
 import { Search } from '@/components/emcn/icons/search'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import {
+  CMDK_ITEM_GAP_CLASS,
+  CMDK_SECTION_GAP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -22,12 +35,14 @@ import type {
 } from '@/stores/modals/search/types'
 import {
   BlocksGroup,
+  ChatsGroup,
+  ConnectedAccountsGroup,
   DocsGroup,
   FilesGroup,
+  IntegrationsGroup,
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,
-  TasksGroup,
   ToolOpsGroup,
   ToolsGroup,
   TriggersGroup,
@@ -36,6 +51,7 @@ import {
 } from './components/search-groups'
 import type {
   FileItem,
+  IntegrationSearchItem,
   PageItem,
   SearchModalProps,
   TaskItem,
@@ -44,25 +60,21 @@ import type {
 } from './utils'
 import { filterAndSort } from './utils'
 
-const EMPTY_WORKFLOWS: WorkflowItem[] = []
-const EMPTY_WORKSPACES: WorkspaceItem[] = []
-const EMPTY_TASKS: TaskItem[] = []
-const EMPTY_TABLES: TaskItem[] = []
-const EMPTY_FILES: FileItem[] = []
-const EMPTY_KNOWLEDGE_BASES: TaskItem[] = []
-
 export type { SearchModalProps } from './utils'
 
 export function SearchModal({
   open,
   onOpenChange,
-  workflows = EMPTY_WORKFLOWS,
-  workspaces = EMPTY_WORKSPACES,
-  tasks = EMPTY_TASKS,
-  tables = EMPTY_TABLES,
-  files = EMPTY_FILES,
-  knowledgeBases = EMPTY_KNOWLEDGE_BASES,
+  workflows = [],
+  workspaces = [],
+  chats = [],
+  tables = [],
+  files = [],
+  knowledgeBases = [],
+  integrations = [],
+  connectedAccounts = [],
   isOnWorkflowPage = false,
+  isOnIntegrationsPage = false,
 }: SearchModalProps) {
   const params = useParams()
   const router = useRouter()
@@ -96,6 +108,19 @@ export function SearchModal({
     (): PageItem[] =>
       [
         {
+          id: 'home',
+          name: 'New chat',
+          icon: Home,
+          href: `/workspace/${workspaceId}/home`,
+        },
+        {
+          id: 'integrations',
+          name: 'Integrations',
+          icon: Integration,
+          href: `/workspace/${workspaceId}/integrations`,
+          hidden: permissionConfig.hideIntegrationsTab,
+        },
+        {
           id: 'tables',
           name: 'Tables',
           icon: Table,
@@ -111,14 +136,14 @@ export function SearchModal({
         },
         {
           id: 'knowledge-base',
-          name: 'Knowledge Base',
+          name: 'Knowledge base',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
           id: 'scheduled-tasks',
-          name: 'Scheduled Tasks',
+          name: 'Scheduled tasks',
           icon: Calendar,
           href: `/workspace/${workspaceId}/scheduled-tasks`,
         },
@@ -149,6 +174,7 @@ export function SearchModal({
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
+      permissionConfig.hideIntegrationsTab,
     ]
   )
 
@@ -272,9 +298,9 @@ export function SearchModal({
     [workspaceId]
   )
 
-  const handleTaskSelect = useCallback(
-    (task: TaskItem) => {
-      routerRef.current.push(task.href)
+  const handleChatSelect = useCallback(
+    (chat: TaskItem) => {
+      routerRef.current.push(chat.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'task',
         query_length: deferredSearchRef.current.length,
@@ -358,6 +384,32 @@ export function SearchModal({
     [workspaceId]
   )
 
+  const handleConnectedAccountSelect = useCallback(
+    (item: IntegrationSearchItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'connected_account',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleIntegrationSelect = useCallback(
+    (item: IntegrationSearchItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'integration',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
   const handleBlockSelectAsBlock = useCallback(
     (block: SearchBlockItem) => handleBlockSelect(block, 'block'),
     [handleBlockSelect]
@@ -429,9 +481,9 @@ export function SearchModal({
     () => filterAndSort(workflows, (w) => `${w.name} workflow-${w.id}`, deferredSearch),
     [workflows, deferredSearch]
   )
-  const filteredTasks = useMemo(
-    () => filterAndSort(tasks, (t) => `${t.name} task-${t.id}`, deferredSearch),
-    [tasks, deferredSearch]
+  const filteredChats = useMemo(
+    () => filterAndSort(chats, (t) => `${t.name} task-${t.id}`, deferredSearch),
+    [chats, deferredSearch]
   )
   const filteredWorkspaces = useMemo(
     () => filterAndSort(workspaces, (w) => `${w.name} workspace-${w.id}`, deferredSearch),
@@ -442,12 +494,27 @@ export function SearchModal({
     [pages, deferredSearch]
   )
 
+  /** Connected accounts: visible on the integrations page even with empty input. */
+  const filteredConnectedAccounts = useMemo(() => {
+    if (!isOnIntegrationsPage) return []
+    return filterAndSort(
+      connectedAccounts,
+      (a) => `${a.name} connected-account-${a.id}`,
+      deferredSearch
+    )
+  }, [isOnIntegrationsPage, connectedAccounts, deferredSearch])
+
+  /** Catalog integrations: only shown once the user has typed something. */
+  const filteredIntegrations = useMemo(() => {
+    if (!isOnIntegrationsPage || !deferredSearch) return []
+    return filterAndSort(integrations, (i) => `${i.name} integration-${i.id}`, deferredSearch)
+  }, [isOnIntegrationsPage, deferredSearch, integrations])
+
   if (!mounted) return null
 
   return createPortal(
     <>
       <div
-        role='presentation'
         className={cn(
           'fixed inset-0 z-40 transition-opacity duration-100',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -462,7 +529,7 @@ export function SearchModal({
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border-[4px] border-black/[0.06] bg-[var(--bg)] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.15)] dark:border-white/[0.06] dark:shadow-[0_24px_80px_-16px_rgba(0,0,0,0.4)]',
+          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
         style={{
@@ -471,35 +538,49 @@ export function SearchModal({
             : 'calc(var(--sidebar-width) / 2 + 50%)',
         }}
       >
-        <Command label='Search' shouldFilter={false}>
-          <div className='mx-2 mt-2 mb-1 flex items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-            <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-            <Command.Input
-              ref={inputRef}
-              onValueChange={handleSearchChange}
-              placeholder='Search anything...'
-              className='w-full bg-transparent py-1.5 font-base text-[var(--text-primary)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
-            />
-          </div>
-          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden p-2 [&_[cmdk-group]+[cmdk-group]]:mt-2.5'>
-            <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
-              No results found.
-            </Command.Empty>
+        <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
+          <Command label='Search' shouldFilter={false}>
+            <div className='mx-2 mt-2 flex h-[30px] items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+              <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
+              <Command.Input
+                ref={inputRef}
+                autoFocus
+                onValueChange={handleSearchChange}
+                placeholder='Search anything...'
+                className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+              />
+            </div>
+            <Command.List
+              className={cn(
+                'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col',
+                CMDK_ITEM_GAP_CLASS,
+                CMDK_SECTION_GAP_CLASS
+              )}
+            >
+              <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
+                No results found.
+              </Command.Empty>
 
-            <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
-            <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
-            <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
-            <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
-            <TasksGroup items={filteredTasks} onSelect={handleTaskSelect} />
-            <TablesGroup items={filteredTables} onSelect={handleTableSelect} />
-            <FilesGroup items={filteredFiles} onSelect={handleFileSelect} />
-            <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleKbSelect} />
-            <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
-            <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
-            <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />
-            <PagesGroup items={filteredPages} onSelect={handlePageSelect} />
-          </Command.List>
-        </Command>
+              <ConnectedAccountsGroup
+                items={filteredConnectedAccounts}
+                onSelect={handleConnectedAccountSelect}
+              />
+              <IntegrationsGroup items={filteredIntegrations} onSelect={handleIntegrationSelect} />
+              <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
+              <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
+              <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
+              <ChatsGroup items={filteredChats} onSelect={handleChatSelect} />
+              <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
+              <TablesGroup items={filteredTables} onSelect={handleTableSelect} />
+              <FilesGroup items={filteredFiles} onSelect={handleFileSelect} />
+              <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleKbSelect} />
+              <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
+              <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
+              <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />
+              <PagesGroup items={filteredPages} onSelect={handlePageSelect} />
+            </Command.List>
+          </Command>
+        </div>
       </div>
     </>,
     document.body

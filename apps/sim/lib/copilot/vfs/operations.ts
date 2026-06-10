@@ -21,14 +21,63 @@ export interface GrepCountEntry {
   count: number
 }
 
+/**
+ * Thrown when a single-file content grep (see `WorkspaceVFS.grepFile`) hits an
+ * expected, user-facing condition: the path is not a single workspace file, the
+ * file has no searchable text (image/binary), or it exceeds the inline read cap.
+ * The grep handler surfaces the message verbatim instead of treating it as an
+ * internal failure. Defined here (rather than in `workspace-vfs.ts`) so the
+ * handler can reference it without pulling in the VFS module's heavy deps.
+ */
+export class WorkspaceFileGrepError extends Error {
+  readonly code = 'WORKSPACE_FILE_GREP' as const
+  constructor(message: string) {
+    super(message)
+    this.name = 'WorkspaceFileGrepError'
+  }
+}
+
+/**
+ * True when file content is one of `readFileRecord`'s non-text placeholders
+ * (binary, unparseable, or over the inline read cap) — these carry no searchable
+ * content, so grepping them should report the placeholder instead.
+ */
+function isNonGreppablePlaceholder(content: string, totalLines: number): boolean {
+  if (totalLines !== 1) return false
+  return /^\[(File too large|Image too large|Document too large|Could not parse|Binary file|Compiled artifact too large)/.test(
+    content.trim()
+  )
+}
+
+/**
+ * Run a single-file content grep over an already-resolved file read result,
+ * shared by workspace-file grep (`WorkspaceVFS.grepFile`) and chat-upload grep.
+ * Throws {@link WorkspaceFileGrepError} when the file has no searchable text
+ * (image/binary attachment) or is a size/parse placeholder; otherwise greps the
+ * text with the standard {@link grep} engine over a one-entry map keyed by
+ * `path`. `readHint` is the path to suggest in the "use read(...)" message.
+ */
+export function grepReadResult(
+  path: string,
+  result: { content: string; totalLines: number; attachment?: unknown },
+  pattern: string,
+  readHint: string,
+  options?: GrepOptions
+): GrepMatch[] | string[] | GrepCountEntry[] {
+  if (result.attachment) {
+    throw new WorkspaceFileGrepError(
+      `Cannot grep "${path}" — it has no searchable text (image/binary). Use read("${readHint}") to view it.`
+    )
+  }
+  if (isNonGreppablePlaceholder(result.content, result.totalLines)) {
+    throw new WorkspaceFileGrepError(result.content)
+  }
+  return grep(new Map([[path, result.content]]), pattern, undefined, options)
+}
+
 export interface ReadResult {
   content: string
   totalLines: number
-}
-
-export interface DirEntry {
-  name: string
-  type: 'file' | 'dir'
 }
 
 /**
@@ -173,6 +222,10 @@ export function glob(files: Map<string, string>, pattern: string): string[] {
 
   const directories = new Set<string>()
   for (const filePath of files.keys()) {
+    if (filePath.endsWith('/.folder')) {
+      directories.add(filePath.slice(0, -'/.folder'.length))
+      continue
+    }
     const parts = filePath.split('/')
     for (let i = 1; i < parts.length; i++) {
       directories.add(parts.slice(0, i).join('/'))
@@ -180,6 +233,7 @@ export function glob(files: Map<string, string>, pattern: string): string[] {
   }
 
   for (const filePath of files.keys()) {
+    if (filePath.endsWith('/.folder')) continue
     if (micromatch.isMatch(filePath, pattern, VFS_GLOB_OPTIONS)) {
       result.add(filePath)
     }
@@ -237,42 +291,6 @@ export function read(
   }
 
   return { content, totalLines }
-}
-
-/**
- * List entries in a VFS directory path.
- * Returns files and subdirectories at the given path level.
- */
-export function list(files: Map<string, string>, path: string): DirEntry[] {
-  const normalizedPath = path.endsWith('/') ? path : `${path}/`
-  const seen = new Set<string>()
-  const entries: DirEntry[] = []
-
-  for (const filePath of files.keys()) {
-    if (!filePath.startsWith(normalizedPath)) continue
-
-    const remainder = filePath.slice(normalizedPath.length)
-    if (!remainder) continue
-
-    const slashIndex = remainder.indexOf('/')
-    if (slashIndex === -1) {
-      if (!seen.has(remainder)) {
-        seen.add(remainder)
-        entries.push({ name: remainder, type: 'file' })
-      }
-    } else {
-      const dirName = remainder.slice(0, slashIndex)
-      if (!seen.has(dirName)) {
-        seen.add(dirName)
-        entries.push({ name: dirName, type: 'dir' })
-      }
-    }
-  }
-
-  return entries.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
-    return a.name.localeCompare(b.name)
-  })
 }
 
 /**

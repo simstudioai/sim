@@ -100,8 +100,8 @@ export const rootlyListOnCallsTool: ToolConfig<RootlyListOnCallsParams, RootlyLi
             ? (((scheduleIncl.attributes as Record<string, unknown>)?.name as string) ?? null)
             : null,
           escalationPolicyId,
-          startTime: (attrs.start_time as string) ?? null,
-          endTime: (attrs.end_time as string) ?? null,
+          startTime: (attrs.starts_at as string) ?? null,
+          endTime: (attrs.ends_at as string) ?? null,
         }
       })
 

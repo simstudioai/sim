@@ -4,7 +4,6 @@ import { memo, useCallback, useEffect, useReducer, useRef, useState } from 'reac
 import type { OnMount } from '@monaco-editor/react'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
-import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -16,6 +15,7 @@ import { useAutosave } from '@/hooks/use-autosave'
 import { EditorContextMenu } from './editor-context-menu'
 import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
+import { PreviewLoadingFrame } from './preview-shared'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
   type StreamingMode,
@@ -373,25 +373,12 @@ function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: 
   })
 }
 
-const DOCUMENT_SKELETON = (
-  <div className='flex flex-1 flex-col gap-[6px] p-[24px]'>
-    <Skeleton className='h-[14px] w-[45%]' />
-    <Skeleton className='h-[14px] w-[70%]' />
-    <Skeleton className='h-[14px] w-[55%]' />
-    <Skeleton className='mt-2 h-[14px] w-[80%]' />
-    <Skeleton className='h-[14px] w-[60%]' />
-    <Skeleton className='h-[14px] w-[75%]' />
-    <Skeleton className='h-[14px] w-[50%]' />
-    <Skeleton className='mt-2 h-[14px] w-[65%]' />
-    <Skeleton className='h-[14px] w-[40%]' />
-  </div>
-)
-
 interface TextEditorProps {
   file: WorkspaceFileRecord
   workspaceId: string
   canEdit: boolean
   previewMode: PreviewMode
+  autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
@@ -406,6 +393,7 @@ export const TextEditor = memo(function TextEditor({
   workspaceId,
   canEdit,
   previewMode,
+  autoFocus,
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
@@ -417,6 +405,7 @@ export const TextEditor = memo(function TextEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const lastSyncedContentRef = useRef('')
+  const hasAutoFocusedRef = useRef(false)
   const contentRef = useRef('')
   const textareaStuckRef = useRef(false)
   const suppressScrollListenerRef = useRef(false)
@@ -439,7 +428,9 @@ export const TextEditor = memo(function TextEditor({
     file.key,
     file.type === 'text/x-pptxgenjs' ||
       file.type === 'text/x-docxjs' ||
-      file.type === 'text/x-pdflibjs'
+      file.type === 'text/x-pdflibjs' ||
+      file.type === 'text/x-python-pdf' ||
+      file.type === 'text/x-python-xlsx'
   )
 
   const updateContent = useUpdateWorkspaceFileContent()
@@ -633,6 +624,11 @@ export const TextEditor = memo(function TextEditor({
       lastSyncedContentRef.current = currentContent
     }
 
+    if (autoFocus && !hasAutoFocusedRef.current) {
+      hasAutoFocusedRef.current = true
+      editor.focus()
+    }
+
     const contextMenuDisposable = editor.onContextMenu((e) => {
       e.event.preventDefault()
       const sel = editor.getSelection()
@@ -662,7 +658,7 @@ export const TextEditor = memo(function TextEditor({
   const showPreviewPane = effectiveMode !== 'editor'
 
   if (streamingContent === undefined) {
-    if (isLoading) return DOCUMENT_SKELETON
+    if (isLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
 
     if (error && !isInitialized) {
       return (

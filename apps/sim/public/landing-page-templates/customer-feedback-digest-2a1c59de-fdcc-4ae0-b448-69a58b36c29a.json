@@ -977,7 +977,6 @@
     "metadata": {
       "name": "customer-feedback-digest",
       "description": "New workflow",
-      "color": "#c92626",
       "exportedAt": "2026-03-09T21:40:19.011Z"
     },
     "variables": {}

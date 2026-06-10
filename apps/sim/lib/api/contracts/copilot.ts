@@ -57,13 +57,6 @@ export const createWorkflowCopilotChatBodySchema = z.object({
 })
 export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
 
-export const copilotStatsBodySchema = z.object({
-  messageId: z.string(),
-  diffCreated: z.boolean(),
-  diffAccepted: z.boolean(),
-})
-export type CopilotStatsBody = z.input<typeof copilotStatsBodySchema>
-
 export const copilotTrainingExampleBodySchema = z.object({
   json: z.string().min(1, 'JSON string is required'),
   title: z.string().min(1, 'Title is required'),
@@ -92,16 +85,6 @@ export const renameCopilotChatBodySchema = z.object({
   title: z.string().min(1).max(200),
 })
 export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
-
-export const copilotToolPreferenceBodySchema = z.object({
-  toolId: z.string().min(1),
-})
-export type CopilotToolPreferenceBody = z.input<typeof copilotToolPreferenceBodySchema>
-
-export const copilotToolPreferenceQuerySchema = z.object({
-  toolId: z.string().min(1),
-})
-export type CopilotToolPreferenceQuery = z.input<typeof copilotToolPreferenceQuerySchema>
 
 const copilotResourceTypeSchema = z.enum([
   'table',
@@ -280,6 +263,13 @@ export type UpdateCopilotMessagesBody = z.input<typeof updateCopilotMessagesBody
 
 export const validateCopilotApiKeyBodySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
+  /**
+   * Originating workspace. Used to enforce per-member org-workspace credit limits
+   * at mothership/copilot request time. Required: the Go mothership always resolves
+   * a workspace for a chat request, so a missing value must fail closed (block the
+   * request) rather than silently skip the per-member gate.
+   */
+  workspaceId: z.string().min(1),
 })
 export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
 
@@ -430,7 +420,6 @@ const copilotConnectedCredentialSchema = z.object({
   serviceName: z.string(),
   lastUsed: z.string(),
   isDefault: z.boolean(),
-  accessToken: z.string().nullable(),
 })
 
 const copilotNotConnectedServiceSchema = z.object({
@@ -473,18 +462,84 @@ export const copilotCredentialsContract = defineRouteContract({
   },
 })
 
-export const copilotStatsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/stats',
-  body: copilotStatsBodySchema,
-  response: { mode: 'json', schema: successFlagSchema },
-})
-
 export const validateCopilotApiKeyContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/api-keys/validate',
   body: validateCopilotApiKeyBodySchema,
   response: { mode: 'empty' },
+})
+
+export const validateCopilotByokBodySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  userId: z.string().min(1, 'userId is required'),
+})
+export type ValidateCopilotByokBody = z.input<typeof validateCopilotByokBodySchema>
+
+/**
+ * Server-to-server entitlement gate called by the mothership (Go) before it
+ * uses a workspace's own provider key. Empty 200/401/403 responses signal the
+ * outcome; the Go caller fails closed to hosted keys on anything but a 200.
+ */
+export const validateCopilotByokContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/byok/validate',
+  body: validateCopilotByokBodySchema,
+  response: { mode: 'empty' },
+})
+
+export const listCopilotByokKeysQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+})
+export type ListCopilotByokKeysQuery = z.input<typeof listCopilotByokKeysQuerySchema>
+
+export const upsertCopilotByokKeyBodySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  provider: z.string().min(1, 'provider is required'),
+  apiKey: z.string().min(1, 'apiKey is required'),
+})
+export type UpsertCopilotByokKeyBody = z.input<typeof upsertCopilotByokKeyBodySchema>
+
+export const deleteCopilotByokKeyQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'workspaceId is required'),
+  provider: z.string().min(1, 'provider is required'),
+})
+export type DeleteCopilotByokKeyQuery = z.input<typeof deleteCopilotByokKeyQuerySchema>
+
+/**
+ * Superuser-gated proxies to the copilot's `/api/admin/byok` endpoints. The
+ * responses are owned by the copilot service and forwarded verbatim.
+ */
+export const listCopilotByokKeysContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/copilot/byok',
+  query: listCopilotByokKeysQuerySchema,
+  response: {
+    mode: 'json',
+    // untyped-response: forwards the copilot /api/admin/byok response unchanged; shape is owned by the copilot service
+    schema: z.unknown(),
+  },
+})
+
+export const upsertCopilotByokKeyContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/copilot/byok',
+  body: upsertCopilotByokKeyBodySchema,
+  response: {
+    mode: 'json',
+    // untyped-response: forwards the copilot /api/admin/byok response unchanged; shape is owned by the copilot service
+    schema: z.unknown(),
+  },
+})
+
+export const deleteCopilotByokKeyContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/copilot/byok',
+  query: deleteCopilotByokKeyQuerySchema,
+  response: {
+    mode: 'json',
+    // untyped-response: forwards the copilot /api/admin/byok response unchanged; shape is owned by the copilot service
+    schema: z.unknown(),
+  },
 })
 
 export const createWorkflowCopilotChatContract = defineRouteContract({
@@ -628,32 +683,6 @@ export const renameCopilotChatContract = defineRouteContract({
   path: '/api/copilot/chat/rename',
   body: renameCopilotChatBodySchema,
   response: { mode: 'json', schema: successFlagSchema },
-})
-
-export const addCopilotAutoAllowedToolContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/auto-allowed-tools',
-  body: copilotToolPreferenceBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      autoAllowedTools: z.array(z.string()),
-    }),
-  },
-})
-
-export const removeCopilotAutoAllowedToolContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/copilot/auto-allowed-tools',
-  query: copilotToolPreferenceQuerySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      autoAllowedTools: z.array(z.string()),
-    }),
-  },
 })
 
 export const revertCopilotCheckpointContract = defineRouteContract({

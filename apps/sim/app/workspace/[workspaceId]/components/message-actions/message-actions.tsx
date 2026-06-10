@@ -4,16 +4,13 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { GitBranch } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
-  Button,
   Check,
-  Copy,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  Duplicate,
   ThumbsDown,
   ThumbsUp,
   Tooltip,
@@ -21,7 +18,7 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
-import { useForkTask } from '@/hooks/queries/tasks'
+import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
 
 const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
@@ -46,9 +43,9 @@ function toPlainText(raw: string): string {
   )
 }
 
-const ICON_CLASS = 'h-[14px] w-[14px]'
+const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
-  'flex h-[26px] w-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
+  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
 
 interface MessageActionsProps {
   content: string
@@ -74,7 +71,7 @@ export const MessageActions = memo(function MessageActions({
   const resetTimeoutRef = useRef<number | null>(null)
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
-  const forkTask = useForkTask(params.workspaceId)
+  const forkChat = useForkMothershipChat(params.workspaceId)
 
   useEffect(() => {
     return () => {
@@ -153,11 +150,11 @@ export const MessageActions = memo(function MessageActions({
   }
 
   const handleFork = async () => {
-    if (!chatId || !messageId || forkTask.isPending) return
+    if (!chatId || !messageId || forkChat.isPending) return
     try {
-      const result = await forkTask.mutateAsync({ chatId, upToMessageId: messageId })
-      useFolderStore.getState().clearTaskSelection()
-      router.push(`/workspace/${params.workspaceId}/task/${result.id}`)
+      const result = await forkChat.mutateAsync({ chatId, upToMessageId: messageId })
+      useFolderStore.getState().clearChatSelection()
+      router.push(`/workspace/${params.workspaceId}/chat/${result.id}`)
     } catch {
       toast.error('Failed to fork chat')
     }
@@ -180,7 +177,7 @@ export const MessageActions = memo(function MessageActions({
                 onClick={copyToClipboard}
                 className={BUTTON_CLASS}
               >
-                {copied ? <Check className={ICON_CLASS} /> : <Copy className={ICON_CLASS} />}
+                {copied ? <Check className={ICON_CLASS} /> : <Duplicate className={ICON_CLASS} />}
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -225,8 +222,8 @@ export const MessageActions = memo(function MessageActions({
                 type='button'
                 aria-label='Fork from here'
                 onClick={handleFork}
-                disabled={forkTask.isPending}
-                className={cn(BUTTON_CLASS, forkTask.isPending && 'cursor-not-allowed opacity-50')}
+                disabled={forkChat.isPending}
+                className={cn(BUTTON_CLASS, forkChat.isPending && 'cursor-not-allowed opacity-50')}
               >
                 <GitBranch className={ICON_CLASS} />
               </button>
@@ -236,62 +233,62 @@ export const MessageActions = memo(function MessageActions({
         )}
       </div>
 
-      <Modal open={pendingFeedback !== null} onOpenChange={handleModalClose}>
-        <ModalContent size='sm'>
-          <ModalHeader>Give feedback</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='sr-only'>
-              Submit feedback about this response
-            </ModalDescription>
-            <div className='flex flex-col gap-2'>
-              <div className='flex items-start justify-between gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                  {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
-                </p>
-                {pendingFeedback === 'down' && requestId && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        type='button'
-                        aria-label='Copy request ID'
-                        onClick={copyRequestId}
-                        className='flex size-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
-                      >
-                        {copiedRequestId ? (
-                          <Check className='size-[14px]' />
-                        ) : (
-                          <Copy className='size-[14px]' />
-                        )}
-                      </button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>
-                      {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                )}
-              </div>
-              <Textarea
-                placeholder={
-                  pendingFeedback === 'up'
-                    ? 'Tell us what was helpful...'
-                    : 'Tell us what went wrong...'
-                }
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => handleModalClose(false)}>
-              Cancel
-            </Button>
-            <Button variant='primary' onClick={handleSubmitFeedback}>
-              Submit feedback
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={pendingFeedback !== null}
+        onOpenChange={handleModalClose}
+        srTitle='Give feedback'
+      >
+        <ChipModalHeader onClose={() => handleModalClose(false)}>Give feedback</ChipModalHeader>
+        <ChipModalBody>
+          <div className='flex items-start justify-between gap-2 px-2'>
+            <p className='font-medium text-[var(--text-secondary)] text-sm'>
+              {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
+            </p>
+            {pendingFeedback === 'down' && requestId && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type='button'
+                    aria-label='Copy request ID'
+                    onClick={copyRequestId}
+                    className='flex size-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
+                  >
+                    {copiedRequestId ? (
+                      <Check className='size-[14px]' />
+                    ) : (
+                      <Duplicate className='size-[14px]' />
+                    )}
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>
+                  {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+          </div>
+          <ChipModalField
+            type='textarea'
+            title='Feedback'
+            value={feedbackText}
+            onChange={setFeedbackText}
+            rows={6}
+            minHeight={140}
+            resizable
+            placeholder={
+              pendingFeedback === 'up'
+                ? 'Tell us what was helpful...'
+                : 'Tell us what went wrong...'
+            }
+          />
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => handleModalClose(false)}
+          primaryAction={{
+            label: 'Submit',
+            onClick: handleSubmitFeedback,
+          }}
+        />
+      </ChipModal>
     </>
   )
 })

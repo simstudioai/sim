@@ -3,25 +3,26 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { ChevronDown, Plus, Search } from 'lucide-react'
+import { ChevronDown, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
-  Callout,
-  Combobox,
+  Chip,
+  ChipConfirmModal,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipSelect,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  FormField,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   MoreHorizontal,
+  Search,
   Switch,
   Table,
   TableBody,
@@ -31,21 +32,12 @@ import {
   TableRow,
   toast,
 } from '@/components/emcn'
-import {
-  AzureIcon,
-  BigQueryIcon,
-  DatadogIcon,
-  GoogleIcon,
-  S3Icon,
-  SnowflakeIcon,
-} from '@/components/icons'
-import { Input as BaseInput } from '@/components/ui'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
-import { DataDrainsSkeleton } from '@/ee/data-drains/components/data-drains-skeleton'
+import { InfoNote } from '@/ee/components/info-note'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import {
   useCreateDataDrain,
@@ -85,29 +77,10 @@ const CADENCE_LABELS: Record<(typeof CADENCE_TYPES)[number], string> = {
 
 const SOURCE_OPTIONS = SOURCE_TYPES.map((t) => ({ value: t, label: SOURCE_LABELS[t] }))
 const CADENCE_OPTIONS = CADENCE_TYPES.map((t) => ({ value: t, label: CADENCE_LABELS[t] }))
-function getDestinationIcon(type: (typeof DESTINATION_TYPES)[number]) {
-  switch (type) {
-    case 's3':
-      return <S3Icon className='size-[14px] flex-shrink-0 text-[#1B660F]' />
-    case 'gcs':
-      return <GoogleIcon className='size-[14px] flex-shrink-0' />
-    case 'azure_blob':
-      return <AzureIcon className='size-[14px] flex-shrink-0' />
-    case 'datadog':
-      return <DatadogIcon className='size-[14px] flex-shrink-0' />
-    case 'bigquery':
-      return <BigQueryIcon className='size-[14px] flex-shrink-0' />
-    case 'snowflake':
-      return <SnowflakeIcon className='size-[14px] flex-shrink-0' />
-    default:
-      return null
-  }
-}
 
 const DESTINATION_OPTIONS = DESTINATION_TYPES.map((t) => ({
   value: t,
   label: DESTINATION_LABELS[t],
-  iconElement: getDestinationIcon(t),
 }))
 
 export function DataDrainsSettings() {
@@ -139,7 +112,7 @@ export function DataDrainsSettings() {
       )
 
   if (sessionPending || orgsLoading || drainsLoading) {
-    return <DataDrainsSkeleton />
+    return null
   }
 
   if (!orgId) {
@@ -159,74 +132,77 @@ export function DataDrainsSettings() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <Callout>
-        Drains continuously export Sim data to your own storage on a schedule. Combine with Data
-        Retention to satisfy long-term compliance archives.
-      </Callout>
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <div />
+        <div className='flex items-center'>
+          <Chip leftIcon={Plus} variant='primary' onClick={() => setCreateOpen(true)}>
+            New Drain
+          </Chip>
+        </div>
+      </div>
 
-      <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-          <Search
-            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-            strokeWidth={2}
-          />
-          <BaseInput
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+          <InfoNote>
+            Drains continuously export Sim data to your own storage on a schedule. Combine with Data
+            Retention to satisfy long-term compliance archives.
+          </InfoNote>
+
+          <ChipInput
+            icon={Search}
             placeholder='Search data drains...'
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
-        </div>
-        <Button variant='primary' onClick={() => setCreateOpen(true)}>
-          <Plus className='mr-1.5 size-[13px]' />
-          New drain
-        </Button>
-      </div>
 
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        {drainsError ? (
-          <Callout variant='destructive'>
-            Failed to load data drains: {toError(drainsError).message}
-          </Callout>
-        ) : drains && drains.length > 0 ? (
-          filteredDrains.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Destination</TableHead>
-                  <TableHead>Cadence</TableHead>
-                  <TableHead>Last run</TableHead>
-                  <TableHead>Enabled</TableHead>
-                  <TableHead className='w-[40px]' />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDrains.map((drain) => (
-                  <DrainRow
-                    key={drain.id}
-                    drain={drain}
-                    organizationId={orgId}
-                    expanded={expandedDrainId === drain.id}
-                    onToggleExpand={() =>
-                      setExpandedDrainId(expandedDrainId === drain.id ? null : drain.id)
-                    }
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
-              No results for "{searchTerm.trim()}"
-            </div>
-          )
-        ) : (
-          <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
-            Click "New drain" above to get started
+          <div>
+            {drainsError ? (
+              <div className='flex h-full flex-col items-center justify-center gap-2'>
+                <p className='text-[var(--text-error)] text-sm leading-tight'>
+                  Failed to load data drains: {toError(drainsError).message}
+                </p>
+              </div>
+            ) : drains && drains.length > 0 ? (
+              filteredDrains.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Source</TableHead>
+                      <TableHead>Destination</TableHead>
+                      <TableHead>Cadence</TableHead>
+                      <TableHead>Last run</TableHead>
+                      <TableHead>Enabled</TableHead>
+                      <TableHead className='w-[40px]' />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredDrains.map((drain) => (
+                      <DrainRow
+                        key={drain.id}
+                        drain={drain}
+                        organizationId={orgId}
+                        expanded={expandedDrainId === drain.id}
+                        onToggleExpand={() =>
+                          setExpandedDrainId(expandedDrainId === drain.id ? null : drain.id)
+                        }
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  No results for "{searchTerm.trim()}"
+                </div>
+              )
+            ) : (
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                Click "New Drain" above to get started
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {createOpen && (
@@ -248,6 +224,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
   const deleteMutation = useDeleteDataDrain()
   const runMutation = useRunDataDrainNow()
   const testMutation = useTestDataDrain()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   async function handleToggleEnabled() {
     try {
@@ -280,9 +257,13 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
     }
   }
 
-  async function handleDelete() {
-    if (!window.confirm(`Delete drain "${drain.name}"? This cannot be undone.`)) return
+  function handleDelete() {
+    setShowDeleteConfirm(true)
+  }
+
+  async function handleConfirmDelete() {
     try {
+      setShowDeleteConfirm(false)
       await deleteMutation.mutateAsync({ organizationId, drainId: drain.id })
       toast.success('Drain deleted')
     } catch (error) {
@@ -311,7 +292,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <Badge>{DESTINATION_LABELS[drain.destinationType]}</Badge>
         </TableCell>
         <TableCell>{CADENCE_LABELS[drain.scheduleCadence]}</TableCell>
-        <TableCell className='text-[13px] text-[var(--text-muted)]' suppressHydrationWarning>
+        <TableCell className='text-[var(--text-muted)] text-small' suppressHydrationWarning>
           {drain.lastRunAt ? new Date(drain.lastRunAt).toLocaleString() : 'Never'}
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -333,7 +314,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
                 Run now
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleTest}>Test connection</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDelete} className='text-red-600'>
+              <DropdownMenuItem onClick={handleDelete} className='text-[var(--text-error)]'>
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -347,6 +328,25 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           </TableCell>
         </TableRow>
       )}
+      <ChipConfirmModal
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        srTitle='Delete Drain'
+        title='Delete Drain'
+        description={
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{drain.name}</span>? This
+            action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleConfirmDelete,
+          pending: deleteMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }
@@ -360,15 +360,15 @@ function DrainRunsPanel({ organizationId, drainId }: DrainRunsPanelProps) {
   const { data: runs, isLoading } = useDataDrainRuns(organizationId, drainId, 10)
 
   if (isLoading) {
-    return <div className='text-[13px] text-[var(--text-muted)]'>Loading runs...</div>
+    return <div className='text-[var(--text-muted)] text-small'>Loading runs...</div>
   }
   if (!runs || runs.length === 0) {
-    return <div className='text-[13px] text-[var(--text-muted)]'>No runs yet.</div>
+    return <div className='text-[var(--text-muted)] text-small'>No runs yet.</div>
   }
 
   return (
     <div className='flex flex-col gap-2'>
-      <div className='font-medium text-[13px] text-[var(--text-primary)]'>Recent runs</div>
+      <div className='font-medium text-[var(--text-primary)] text-small'>Recent runs</div>
       {runs.map((run) => (
         <RunRow key={run.id} run={run} />
       ))}
@@ -379,12 +379,12 @@ function DrainRunsPanel({ organizationId, drainId }: DrainRunsPanelProps) {
 function RunRow({ run }: { run: DataDrainRun }) {
   const statusColor =
     run.status === 'success'
-      ? 'text-green-600'
+      ? 'text-[var(--text-success)]'
       : run.status === 'failed'
-        ? 'text-red-600'
+        ? 'text-[var(--text-error)]'
         : 'text-[var(--text-muted)]'
   return (
-    <div className='flex items-start justify-between gap-4 rounded border border-[var(--border)] px-3 py-2 text-[12px]'>
+    <div className='flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] px-3 py-2 text-caption'>
       <div className='flex flex-col gap-0.5'>
         <div className='flex items-center gap-2'>
           <span className={cn('font-medium', statusColor)}>{run.status}</span>
@@ -393,7 +393,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
             {new Date(run.startedAt).toLocaleString()}
           </span>
         </div>
-        {run.error && <div className='text-red-600'>{run.error}</div>}
+        {run.error && <div className='text-[var(--text-error)]'>{run.error}</div>}
       </div>
       <div className='text-right text-[var(--text-muted)]'>
         <div>{run.rowsExported.toLocaleString()} rows</div>
@@ -420,6 +420,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
   const [destState, setDestState] = useState<unknown>(
     () => DESTINATION_FORM_REGISTRY[DESTINATION_TYPES[0]].initialState
   )
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const spec = DESTINATION_FORM_REGISTRY[destinationType]
   const canSubmit = name.trim().length > 0 && spec.isComplete(destState)
@@ -431,6 +432,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
 
   async function handleSubmit() {
     if (!canSubmit) return
+    setSubmitError(null)
     try {
       const body = {
         name: name.trim(),
@@ -444,77 +446,62 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
     } catch (error) {
       const msg = toError(error).message
       logger.error('Failed to create data drain', { error: msg })
-      toast.error(msg)
+      setSubmitError(msg)
     }
   }
 
   return (
-    <Modal open onOpenChange={(open) => !open && onClose()}>
-      <ModalContent size='md' className='max-h-[76vh]'>
-        <ModalHeader>New data drain</ModalHeader>
-        <ModalBody className='flex min-h-0 flex-1 flex-col gap-3'>
-          <ModalDescription className='sr-only'>
-            Configure a new data drain to export workflow logs to an external destination
-          </ModalDescription>
-          <section className='flex flex-col gap-3'>
-            <FormField label='Name'>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder='Workflow logs export'
-              />
-            </FormField>
-            <FormField label='Source'>
-              <Combobox
-                value={source}
-                onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
-                options={SOURCE_OPTIONS}
-                dropdownWidth='trigger'
-              />
-            </FormField>
-            <FormField label='Cadence'>
-              <Combobox
-                value={cadence}
-                onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
-                options={CADENCE_OPTIONS}
-                dropdownWidth='trigger'
-              />
-            </FormField>
-            <FormField label='Destination'>
-              <Combobox
-                value={destinationType}
-                onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
-                options={DESTINATION_OPTIONS}
-                dropdownWidth='trigger'
-                overlayContent={
-                  <div className='flex items-center gap-2'>
-                    {getDestinationIcon(destinationType)}
-                    <span className='truncate text-[var(--text-primary)]'>
-                      {DESTINATION_LABELS[destinationType]}
-                    </span>
-                  </div>
-                }
-              />
-            </FormField>
-          </section>
+    <ChipModal open onOpenChange={(open) => !open && onClose()} srTitle='New data drain' size='md'>
+      <ChipModalHeader onClose={() => onClose()}>New data drain</ChipModalHeader>
+      <ChipModalBody>
+        <ChipModalField
+          type='input'
+          title='Name'
+          value={name}
+          onChange={setName}
+          placeholder='Workflow logs export'
+          required
+        />
+        <ChipModalField type='custom' title='Source'>
+          <ChipSelect
+            value={source}
+            onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
+            options={SOURCE_OPTIONS}
+            align='start'
+          />
+        </ChipModalField>
+        <ChipModalField type='custom' title='Cadence'>
+          <ChipSelect
+            value={cadence}
+            onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
+            options={CADENCE_OPTIONS}
+            align='start'
+          />
+        </ChipModalField>
+        <ChipModalField type='custom' title='Destination'>
+          <ChipSelect
+            value={destinationType}
+            onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
+            options={DESTINATION_OPTIONS}
+            displayLabel={DESTINATION_LABELS[destinationType]}
+            align='start'
+          />
+        </ChipModalField>
 
-          <section className='flex flex-col gap-3'>
-            <spec.FormFields state={destState} setState={setDestState} />
-          </section>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant='primary'
-            onClick={handleSubmit}
-            disabled={!canSubmit || createMutation.isPending}
-          >
-            {createMutation.isPending ? 'Creating...' : 'Create drain'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        <section className='flex flex-col gap-4 px-2'>
+          <spec.FormFields state={destState} setState={setDestState} />
+        </section>
+        <ChipModalError>{submitError}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={onClose}
+        cancelDisabled={createMutation.isPending}
+        primaryAction={{
+          label: createMutation.isPending ? 'Creating...' : 'Create drain',
+          onClick: handleSubmit,
+          disabled: !canSubmit || createMutation.isPending,
+        }}
+      />
+    </ChipModal>
   )
 }

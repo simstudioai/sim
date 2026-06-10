@@ -2,16 +2,12 @@
 
 import { useCallback, useState } from 'react'
 import {
-  Button,
-  Input,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
 } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { integrationRequestContract } from '@/lib/api/contracts/common'
@@ -41,30 +37,26 @@ export function RequestIntegrationModal() {
     [resetForm]
   )
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
-      if (!integrationName.trim() || !email.trim()) return
+  const handleSubmit = useCallback(async () => {
+    if (!integrationName.trim() || !email.trim()) return
 
-      setStatus('submitting')
+    setStatus('submitting')
 
-      try {
-        await requestJson(integrationRequestContract, {
-          body: {
-            integrationName: integrationName.trim(),
-            email: email.trim(),
-            useCase: useCase.trim() || undefined,
-          },
-        })
+    try {
+      await requestJson(integrationRequestContract, {
+        body: {
+          integrationName: integrationName.trim(),
+          email: email.trim(),
+          useCase: useCase.trim() || undefined,
+        },
+      })
 
-        setStatus('success')
-        setTimeout(() => setOpen(false), 1500)
-      } catch {
-        setStatus('error')
-      }
-    },
-    [integrationName, email, useCase]
-  )
+      setStatus('success')
+      setTimeout(() => setOpen(false), 1500)
+    } catch {
+      setStatus('error')
+    }
+  }, [integrationName, email, useCase])
 
   const canSubmit = integrationName.trim() && email.trim() && status === 'idle'
 
@@ -78,108 +70,90 @@ export function RequestIntegrationModal() {
         Request an integration
       </button>
 
-      <Modal open={open} onOpenChange={handleOpenChange}>
-        <ModalContent size='sm'>
-          <ModalHeader>Request an Integration</ModalHeader>
+      <ChipModal open={open} onOpenChange={handleOpenChange} srTitle='Request an Integration'>
+        <ChipModalHeader onClose={() => handleOpenChange(false)}>
+          Request an Integration
+        </ChipModalHeader>
 
+        <ChipModalBody>
           {status === 'success' ? (
-            <ModalBody>
-              <ModalDescription className='sr-only'>
-                Integration request submitted successfully
-              </ModalDescription>
-              <div className='flex flex-col items-center gap-3 py-6 text-center'>
-                <div className='flex size-10 items-center justify-center rounded-full bg-[#33C482]/10'>
-                  <svg
-                    className='size-5 text-[var(--brand-accent)]'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth={2}
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  >
-                    <polyline points='20 6 9 17 4 12' />
-                  </svg>
-                </div>
-                <p className='text-[14px] text-[var(--landing-text)]'>
-                  Request submitted. We&apos;ll follow up at{' '}
-                  <span className='font-medium'>{email}</span>.
-                </p>
-              </div>
-            </ModalBody>
-          ) : (
-            <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
-              <ModalBody>
-                <ModalDescription className='sr-only'>
-                  Submit a request for a new integration by entering the integration name and your
-                  email
-                </ModalDescription>
-                <div className='space-y-3'>
-                  <div className='flex flex-col gap-1'>
-                    <Label htmlFor='integration-name'>Integration name</Label>
-                    <Input
-                      id='integration-name'
-                      placeholder='e.g. Stripe, HubSpot, Snowflake'
-                      value={integrationName}
-                      onChange={(e) => setIntegrationName(e.target.value)}
-                      maxLength={200}
-                      autoComplete='off'
-                      required
-                    />
-                  </div>
-
-                  <div className='flex flex-col gap-1'>
-                    <Label htmlFor='requester-email'>Your email</Label>
-                    <Input
-                      id='requester-email'
-                      type='email'
-                      placeholder='you@company.com'
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoComplete='email'
-                      required
-                    />
-                  </div>
-
-                  <div className='flex flex-col gap-1'>
-                    <Label htmlFor='use-case'>
-                      Use case <span className='text-[var(--text-tertiary)]'>(optional)</span>
-                    </Label>
-                    <Textarea
-                      id='use-case'
-                      placeholder='What would you automate with this integration?'
-                      value={useCase}
-                      onChange={(e) => setUseCase(e.target.value)}
-                      rows={3}
-                      maxLength={2000}
-                    />
-                  </div>
-
-                  {status === 'error' && (
-                    <p className='text-[13px] text-[var(--text-error)]'>
-                      Something went wrong. Please try again.
-                    </p>
-                  )}
-                </div>
-              </ModalBody>
-
-              <ModalFooter>
-                <Button
-                  type='button'
-                  variant='default'
-                  onClick={() => setOpen(false)}
-                  disabled={status === 'submitting'}
+            <div className='flex flex-col items-center gap-3 py-6 text-center'>
+              <div className='flex size-10 items-center justify-center rounded-full bg-[#33C482]/10'>
+                <svg
+                  className='size-5 text-[var(--brand-accent)]'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth={2}
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
                 >
-                  Cancel
-                </Button>
-                <Button type='submit' variant='primary' disabled={!canSubmit && status !== 'error'}>
-                  {status === 'submitting' ? 'Submitting...' : 'Submit request'}
-                </Button>
-              </ModalFooter>
-            </form>
+                  <polyline points='20 6 9 17 4 12' />
+                </svg>
+              </div>
+              <p className='text-[14px] text-[var(--landing-text)]'>
+                Request submitted. We&apos;ll follow up at{' '}
+                <span className='font-medium'>{email}</span>.
+              </p>
+            </div>
+          ) : (
+            <>
+              <ChipModalField
+                type='input'
+                title='Integration name'
+                value={integrationName}
+                onChange={(value) => setIntegrationName(value)}
+                placeholder='e.g. Stripe, HubSpot, Snowflake'
+                maxLength={200}
+                autoComplete='off'
+                required
+              />
+              <ChipModalField
+                type='email'
+                title='Your email'
+                value={email}
+                onChange={(value) => setEmail(value)}
+                placeholder='you@company.com'
+                autoComplete='email'
+                required
+              />
+              <ChipModalField
+                type='textarea'
+                title={
+                  <>
+                    Use case <span className='text-[var(--text-tertiary)]'>(optional)</span>
+                  </>
+                }
+                value={useCase}
+                onChange={(value) => setUseCase(value)}
+                placeholder='What would you automate with this integration?'
+                rows={3}
+                maxLength={2000}
+              />
+              {status === 'error' && (
+                <ChipModalError>Something went wrong. Please try again.</ChipModalError>
+              )}
+            </>
           )}
-        </ModalContent>
-      </Modal>
+        </ChipModalBody>
+
+        {status === 'success' ? (
+          <ChipModalFooter
+            onCancel={() => handleOpenChange(false)}
+            primaryAction={{ label: 'Done', onClick: () => handleOpenChange(false) }}
+          />
+        ) : (
+          <ChipModalFooter
+            onCancel={() => setOpen(false)}
+            cancelDisabled={status === 'submitting'}
+            primaryAction={{
+              label: status === 'submitting' ? 'Submitting...' : 'Submit request',
+              onClick: handleSubmit,
+              disabled: !canSubmit && status !== 'error',
+            }}
+          />
+        )}
+      </ChipModal>
     </>
   )
 }

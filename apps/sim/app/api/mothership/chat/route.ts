@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   mothershipChatGetQuerySchema,
   mothershipChatPostEnvelopeSchema,
-} from '@/lib/api/contracts/mothership-tasks'
+} from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { handleUnifiedChatPost, maxDuration } from '@/lib/copilot/chat/post'

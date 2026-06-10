@@ -96,6 +96,26 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     events: [],
   },
   {
+    id: 'action_read_history',
+    label: 'Read message history',
+    description:
+      'Let the bot page through channel, thread, and DM history (conversations.history / conversations.replies).',
+    defaultChecked: true,
+    group: 'action',
+    scopes: ['channels:history', 'groups:history', 'im:history', 'mpim:history'],
+    events: [],
+  },
+  {
+    id: 'action_assistant',
+    label: 'Manage assistant threads',
+    description:
+      "Let the bot set the status indicator (the 'is thinking…' shimmer), title, and suggested prompts on AI app threads.",
+    defaultChecked: true,
+    group: 'action',
+    scopes: ['assistant:write'],
+    events: [],
+  },
+  {
     id: 'action_read_files',
     label: 'Read file attachments',
     description: 'Let the bot download file attachments on incoming messages.',

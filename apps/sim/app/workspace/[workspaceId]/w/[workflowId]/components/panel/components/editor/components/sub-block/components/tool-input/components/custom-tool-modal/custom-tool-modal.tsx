@@ -6,17 +6,14 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  ChipConfirmModal,
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalTabs,
   Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
+  Label,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -24,7 +21,6 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import {
   checkEnvVarTrigger,
@@ -825,88 +821,94 @@ try {
 
   return (
     <>
-      <Modal open={open} onOpenChange={handleCloseAttempt}>
-        <ModalContent size='xl'>
-          <ModalHeader>{isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}</ModalHeader>
+      <ChipModal
+        open={open}
+        onOpenChange={handleCloseAttempt}
+        srTitle={isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}
+        size='xl'
+      >
+        <ChipModalHeader onClose={handleCloseAttempt}>
+          {isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}
+        </ChipModalHeader>
 
-          <ModalTabs
+        {/*
+          flex-none + overflow-visible opt this body out of the chrome's
+          scroll container: the caret-anchored EnvVar/Tag autocomplete
+          dropdowns are absolute-positioned inside it and must spill past
+          the body's bounds rather than clip against a scroll boundary.
+        */}
+        <ChipModalBody className='flex-none gap-2 overflow-visible px-4'>
+          <ChipModalTabs
+            tabs={[
+              { value: 'schema', label: 'Schema' },
+              { value: 'code', label: 'Code' },
+            ]}
             value={activeSection}
-            onValueChange={(value) => setActiveSection(value as ToolSection)}
-            className='flex min-h-0 flex-1 flex-col'
-          >
-            <ModalTabsList activeValue={activeSection}>
-              <ModalTabsTrigger value='schema'>Schema</ModalTabsTrigger>
-              <ModalTabsTrigger value='code'>Code</ModalTabsTrigger>
-            </ModalTabsList>
+            onChange={(value) => setActiveSection(value as ToolSection)}
+          />
 
-            <ModalBody className='min-h-0 flex-1'>
-              <ModalDescription className='sr-only'>
-                Create or edit a custom agent tool by defining its JSON schema and implementation
-                code.
-              </ModalDescription>
-              <ModalTabsContent value='schema'>
-                <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
-                  <div className='flex min-w-0 items-center gap-2'>
-                    <Label htmlFor='json-schema' className='font-medium text-small'>
-                      JSON Schema
-                    </Label>
-                    {schemaError && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
-                        <AlertCircle className='size-3 flex-shrink-0' />
-                        <span className='truncate'>{schemaError}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className='flex min-w-0 items-center justify-end gap-1'>
-                    {!isSchemaPromptActive ? (
-                      <Button
-                        variant='active'
-                        className='-my-1 h-5 px-2 py-0 text-xs'
-                        onClick={handleSchemaWandClick}
-                        disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
-                      >
-                        Generate
-                      </Button>
-                    ) : (
-                      <div className='-my-1 flex items-center gap-1'>
-                        <Input
-                          ref={schemaPromptInputRef}
-                          value={schemaGeneration.isStreaming ? 'Generating...' : schemaPromptInput}
-                          onChange={(e) => handleSchemaPromptChange(e.target.value)}
-                          onBlur={handleSchemaPromptBlur}
-                          onKeyDown={handleSchemaPromptKeyDown}
-                          disabled={schemaGeneration.isStreaming}
-                          className={cn(
-                            'h-5 max-w-[200px] flex-1 text-xs',
-                            schemaGeneration.isStreaming && 'text-muted-foreground'
-                          )}
-                          placeholder='Generate...'
-                        />
-                        <Button
-                          variant='primary'
-                          disabled={!schemaPromptInput.trim() || schemaGeneration.isStreaming}
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleSchemaPromptSubmit()
-                          }}
-                          className='size-[20px] flex-shrink-0 p-0'
-                        >
-                          <ArrowUp className='size-[12px]' />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+          {activeSection === 'schema' && (
+            <div>
+              <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
+                <div className='flex min-w-0 items-center gap-2'>
+                  <Label htmlFor='json-schema'>JSON Schema</Label>
+                  {schemaError && (
+                    <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
+                      <AlertCircle className='size-3 flex-shrink-0' />
+                      <span className='truncate'>{schemaError}</span>
+                    </div>
+                  )}
                 </div>
-                <CodeEditor
-                  value={jsonSchema}
-                  onChange={handleJsonSchemaChange}
-                  language='json'
-                  showWandButton={false}
-                  placeholder={`{
+                <div className='flex min-w-0 items-center justify-end gap-1'>
+                  {!isSchemaPromptActive ? (
+                    <Button
+                      variant='active'
+                      className='-my-1 h-5 px-2 py-0 text-xs'
+                      onClick={handleSchemaWandClick}
+                      disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
+                    >
+                      Generate
+                    </Button>
+                  ) : (
+                    <div className='-my-1 flex items-center gap-1'>
+                      <Input
+                        ref={schemaPromptInputRef}
+                        value={schemaGeneration.isStreaming ? 'Generating...' : schemaPromptInput}
+                        onChange={(e) => handleSchemaPromptChange(e.target.value)}
+                        onBlur={handleSchemaPromptBlur}
+                        onKeyDown={handleSchemaPromptKeyDown}
+                        disabled={schemaGeneration.isStreaming}
+                        className={cn(
+                          'h-5 max-w-[200px] flex-1 text-xs',
+                          schemaGeneration.isStreaming && 'text-muted-foreground'
+                        )}
+                        placeholder='Generate...'
+                      />
+                      <Button
+                        variant='primary'
+                        disabled={!schemaPromptInput.trim() || schemaGeneration.isStreaming}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleSchemaPromptSubmit()
+                        }}
+                        className='size-[20px] flex-shrink-0 p-0'
+                      >
+                        <ArrowUp className='size-[12px]' />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <CodeEditor
+                value={jsonSchema}
+                onChange={handleJsonSchemaChange}
+                language='json'
+                showWandButton={false}
+                placeholder={`{
   "type": "function",
   "function": {
     "name": "addItemToOrder",
@@ -923,325 +925,298 @@ try {
     }
   }
 }`}
-                  minHeight='420px'
-                  className={cn(
-                    'bg-[var(--bg)]',
-                    schemaError && 'border-[var(--text-error)]',
-                    (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
-                      'cursor-not-allowed opacity-50'
-                  )}
-                  gutterClassName='bg-[var(--bg)]'
-                  disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
-                  onKeyDown={handleKeyDown}
-                />
-              </ModalTabsContent>
-
-              <ModalTabsContent value='code'>
-                <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
-                  <div className='flex min-w-0 items-center gap-2'>
-                    <Label htmlFor='function-code' className='font-medium text-small'>
-                      Code
-                    </Label>
-                    {codeError && !codeGeneration.isStreaming && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
-                        <AlertCircle className='size-3 flex-shrink-0' />
-                        <span className='truncate'>{codeError}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className='flex min-w-0 items-center justify-end gap-1'>
-                    {!isCodePromptActive ? (
-                      <Button
-                        variant='active'
-                        className='-my-1 h-5 px-2 py-0 text-xs'
-                        onClick={handleCodeWandClick}
-                        disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
-                      >
-                        Generate
-                      </Button>
-                    ) : (
-                      <div className='-my-1 flex items-center gap-1'>
-                        <Input
-                          ref={codePromptInputRef}
-                          value={codeGeneration.isStreaming ? 'Generating...' : codePromptInput}
-                          onChange={(e) => handleCodePromptChange(e.target.value)}
-                          onBlur={handleCodePromptBlur}
-                          onKeyDown={handleCodePromptKeyDown}
-                          disabled={codeGeneration.isStreaming}
-                          className={cn(
-                            'h-5 max-w-[200px] flex-1 text-xs',
-                            codeGeneration.isStreaming && 'text-muted-foreground'
-                          )}
-                          placeholder='Generate...'
-                        />
-                        <Button
-                          variant='primary'
-                          disabled={!codePromptInput.trim() || codeGeneration.isStreaming}
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleCodePromptSubmit()
-                          }}
-                          className='size-[20px] flex-shrink-0 p-0'
-                        >
-                          <ArrowUp className='size-[12px]' />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {schemaParameters.length > 0 && (
-                  <div className='mb-2 rounded-md border bg-[var(--surface-2)] p-2'>
-                    <div className='flex flex-wrap items-center gap-1.5 text-xs'>
-                      <span className='font-medium text-[var(--text-tertiary)]'>
-                        Available parameters:
-                      </span>
-                      {schemaParameters.map((param) => (
-                        <Badge key={param.name} variant='blue-secondary' size='sm'>
-                          {param.name}
-                        </Badge>
-                      ))}
-                      <span className='text-[var(--text-tertiary)]'>
-                        Start typing a parameter name for autocomplete.
-                      </span>
-                    </div>
-                  </div>
+                minHeight='420px'
+                className={cn(
+                  'bg-[var(--bg)]',
+                  schemaError && 'border-[var(--text-error)]',
+                  (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
+                    'cursor-not-allowed opacity-50'
                 )}
-                <div ref={codeEditorRef} className='relative'>
-                  <CodeEditor
-                    value={functionCode}
-                    onChange={handleFunctionCodeChange}
-                    language='javascript'
-                    showWandButton={false}
-                    placeholder={'return schemaVariable + {{environmentVariable}}'}
-                    minHeight={schemaParameters.length > 0 ? '380px' : '420px'}
-                    className={cn(
-                      'bg-[var(--bg)]',
-                      codeError && !codeGeneration.isStreaming && 'border-[var(--text-error)]',
-                      (codeGeneration.isLoading || codeGeneration.isStreaming) &&
-                        'cursor-not-allowed opacity-50'
-                    )}
-                    gutterClassName='bg-[var(--bg)]'
-                    highlightVariables={true}
-                    disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
-                    onKeyDown={handleKeyDown}
-                    schemaParameters={schemaParameters}
-                  />
-
-                  {showEnvVars && (
-                    <EnvVarDropdown
-                      visible={showEnvVars}
-                      onSelect={handleEnvVarSelect}
-                      searchTerm={searchTerm}
-                      inputValue={functionCode}
-                      cursorPosition={cursorPosition}
-                      workspaceId={workspaceId}
-                      onClose={() => {
-                        setShowEnvVars(false)
-                        setSearchTerm('')
-                      }}
-                      className='w-64'
-                      style={{
-                        position: 'absolute',
-                        top: `${dropdownPosition.top}px`,
-                        left: `${dropdownPosition.left}px`,
-                      }}
-                    />
-                  )}
-
-                  {showTags && (
-                    <TagDropdown
-                      visible={showTags}
-                      onSelect={handleTagSelect}
-                      blockId={blockId}
-                      activeSourceBlockId={activeSourceBlockId}
-                      inputValue={functionCode}
-                      cursorPosition={cursorPosition}
-                      onClose={() => {
-                        setShowTags(false)
-                        setActiveSourceBlockId(null)
-                      }}
-                      className='w-64'
-                      style={{
-                        position: 'absolute',
-                        top: `${dropdownPosition.top}px`,
-                        left: `${dropdownPosition.left}px`,
-                      }}
-                    />
-                  )}
-
-                  {showSchemaParams && schemaParameters.length > 0 && (
-                    <Popover
-                      open={showSchemaParams}
-                      onOpenChange={(open) => {
-                        if (!open) {
-                          setShowSchemaParams(false)
-                        }
-                      }}
-                      colorScheme='inverted'
-                    >
-                      <PopoverAnchor asChild>
-                        <div
-                          className='pointer-events-none'
-                          style={{
-                            position: 'absolute',
-                            top: `${dropdownPosition.top}px`,
-                            left: `${dropdownPosition.left}px`,
-                            width: '1px',
-                            height: '1px',
-                          }}
-                        />
-                      </PopoverAnchor>
-                      <PopoverContent
-                        maxHeight={240}
-                        className='min-w-[280px]'
-                        side='bottom'
-                        align='start'
-                        collisionPadding={6}
-                        onOpenAutoFocus={(e) => e.preventDefault()}
-                        onCloseAutoFocus={(e) => e.preventDefault()}
-                      >
-                        <PopoverScrollArea>
-                          <PopoverSection>Available Parameters</PopoverSection>
-                          {schemaParameters.map((param, index) => (
-                            <PopoverItem
-                              key={param.name}
-                              rootOnly
-                              active={index === schemaParamSelectedIndex}
-                              onMouseEnter={() => setSchemaParamSelectedIndex(index)}
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                handleSchemaParamSelect(param.name)
-                              }}
-                              ref={(el) => {
-                                if (el) {
-                                  schemaParamItemRefs.current.set(index, el)
-                                }
-                              }}
-                            >
-                              <span className='flex-1 truncate'>{param.name}</span>
-                              {param.type && param.type !== 'any' && (
-                                <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
-                                  {param.type}
-                                </span>
-                              )}
-                            </PopoverItem>
-                          ))}
-                        </PopoverScrollArea>
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                </div>
-              </ModalTabsContent>
-            </ModalBody>
-          </ModalTabs>
-
-          {activeSection === 'schema' && (
-            <ModalFooter className='items-center justify-between'>
-              {isEditing ? (
-                <Button variant='destructive' onClick={() => setShowDeleteConfirm(true)}>
-                  Delete
-                </Button>
-              ) : (
-                <div />
-              )}
-              <div className='flex gap-2'>
-                <Button variant='default' onClick={handleClose}>
-                  Cancel
-                </Button>
-                <Button
-                  variant='primary'
-                  onClick={() => setActiveSection('code')}
-                  disabled={!isSchemaValid || !!schemaError}
-                >
-                  Next
-                </Button>
-              </div>
-            </ModalFooter>
+                gutterClassName='bg-[var(--bg)]'
+                disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
+                onKeyDown={handleKeyDown}
+              />
+            </div>
           )}
 
           {activeSection === 'code' && (
-            <ModalFooter className='items-center justify-between'>
-              {isEditing ? (
-                <Button variant='destructive' onClick={() => setShowDeleteConfirm(true)}>
-                  Delete
-                </Button>
-              ) : (
-                <Button variant='default' onClick={() => setActiveSection('schema')}>
-                  Back
-                </Button>
-              )}
-              <div className='flex gap-2'>
-                <Button variant='default' onClick={handleClose}>
-                  Cancel
-                </Button>
-                <Button
-                  variant='primary'
-                  onClick={handleSave}
-                  disabled={!isSchemaValid || !!schemaError || !hasChanges}
-                >
-                  {isEditing ? 'Update Tool' : 'Save Tool'}
-                </Button>
+            <div>
+              <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
+                <div className='flex min-w-0 items-center gap-2'>
+                  <Label htmlFor='function-code'>Code</Label>
+                  {codeError && !codeGeneration.isStreaming && (
+                    <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
+                      <AlertCircle className='size-3 flex-shrink-0' />
+                      <span className='truncate'>{codeError}</span>
+                    </div>
+                  )}
+                </div>
+                <div className='flex min-w-0 items-center justify-end gap-1'>
+                  {!isCodePromptActive ? (
+                    <Button
+                      variant='active'
+                      className='-my-1 h-5 px-2 py-0 text-xs'
+                      onClick={handleCodeWandClick}
+                      disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
+                    >
+                      Generate
+                    </Button>
+                  ) : (
+                    <div className='-my-1 flex items-center gap-1'>
+                      <Input
+                        ref={codePromptInputRef}
+                        value={codeGeneration.isStreaming ? 'Generating...' : codePromptInput}
+                        onChange={(e) => handleCodePromptChange(e.target.value)}
+                        onBlur={handleCodePromptBlur}
+                        onKeyDown={handleCodePromptKeyDown}
+                        disabled={codeGeneration.isStreaming}
+                        className={cn(
+                          'h-5 max-w-[200px] flex-1 text-xs',
+                          codeGeneration.isStreaming && 'text-muted-foreground'
+                        )}
+                        placeholder='Generate...'
+                      />
+                      <Button
+                        variant='primary'
+                        disabled={!codePromptInput.trim() || codeGeneration.isStreaming}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleCodePromptSubmit()
+                        }}
+                        className='size-[20px] flex-shrink-0 p-0'
+                      >
+                        <ArrowUp className='size-[12px]' />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </ModalFooter>
+              {schemaParameters.length > 0 && (
+                <div className='mb-2 rounded-md border bg-[var(--surface-2)] p-2'>
+                  <div className='flex flex-wrap items-center gap-1.5 text-xs'>
+                    <span className='font-medium text-[var(--text-tertiary)]'>
+                      Available parameters:
+                    </span>
+                    {schemaParameters.map((param) => (
+                      <Badge key={param.name} variant='blue-secondary' size='sm'>
+                        {param.name}
+                      </Badge>
+                    ))}
+                    <span className='text-[var(--text-tertiary)]'>
+                      Start typing a parameter name for autocomplete.
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div ref={codeEditorRef} className='relative'>
+                <CodeEditor
+                  value={functionCode}
+                  onChange={handleFunctionCodeChange}
+                  language='javascript'
+                  showWandButton={false}
+                  placeholder={'return schemaVariable + {{environmentVariable}}'}
+                  minHeight={schemaParameters.length > 0 ? '380px' : '420px'}
+                  className={cn(
+                    'bg-[var(--bg)]',
+                    codeError && !codeGeneration.isStreaming && 'border-[var(--text-error)]',
+                    (codeGeneration.isLoading || codeGeneration.isStreaming) &&
+                      'cursor-not-allowed opacity-50'
+                  )}
+                  gutterClassName='bg-[var(--bg)]'
+                  highlightVariables={true}
+                  disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
+                  onKeyDown={handleKeyDown}
+                  schemaParameters={schemaParameters}
+                />
+
+                {showEnvVars && (
+                  <EnvVarDropdown
+                    visible={showEnvVars}
+                    onSelect={handleEnvVarSelect}
+                    searchTerm={searchTerm}
+                    inputValue={functionCode}
+                    cursorPosition={cursorPosition}
+                    workspaceId={workspaceId}
+                    onClose={() => {
+                      setShowEnvVars(false)
+                      setSearchTerm('')
+                    }}
+                    className='w-64'
+                    style={{
+                      position: 'absolute',
+                      top: `${dropdownPosition.top}px`,
+                      left: `${dropdownPosition.left}px`,
+                    }}
+                  />
+                )}
+
+                {showTags && (
+                  <TagDropdown
+                    visible={showTags}
+                    onSelect={handleTagSelect}
+                    blockId={blockId}
+                    activeSourceBlockId={activeSourceBlockId}
+                    inputValue={functionCode}
+                    cursorPosition={cursorPosition}
+                    onClose={() => {
+                      setShowTags(false)
+                      setActiveSourceBlockId(null)
+                    }}
+                    className='w-64'
+                    style={{
+                      position: 'absolute',
+                      top: `${dropdownPosition.top}px`,
+                      left: `${dropdownPosition.left}px`,
+                    }}
+                  />
+                )}
+
+                {showSchemaParams && schemaParameters.length > 0 && (
+                  <Popover
+                    open={showSchemaParams}
+                    onOpenChange={(open) => {
+                      if (!open) {
+                        setShowSchemaParams(false)
+                      }
+                    }}
+                    colorScheme='inverted'
+                  >
+                    <PopoverAnchor asChild>
+                      <div
+                        className='pointer-events-none'
+                        style={{
+                          position: 'absolute',
+                          top: `${dropdownPosition.top}px`,
+                          left: `${dropdownPosition.left}px`,
+                          width: '1px',
+                          height: '1px',
+                        }}
+                      />
+                    </PopoverAnchor>
+                    <PopoverContent
+                      maxHeight={240}
+                      className='min-w-[280px]'
+                      side='bottom'
+                      align='start'
+                      collisionPadding={6}
+                      onOpenAutoFocus={(e) => e.preventDefault()}
+                      onCloseAutoFocus={(e) => e.preventDefault()}
+                    >
+                      <PopoverScrollArea>
+                        <PopoverSection>Available Parameters</PopoverSection>
+                        {schemaParameters.map((param, index) => (
+                          <PopoverItem
+                            key={param.name}
+                            rootOnly
+                            active={index === schemaParamSelectedIndex}
+                            onMouseEnter={() => setSchemaParamSelectedIndex(index)}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleSchemaParamSelect(param.name)
+                            }}
+                            ref={(el) => {
+                              if (el) {
+                                schemaParamItemRefs.current.set(index, el)
+                              }
+                            }}
+                          >
+                            <span className='flex-1 truncate'>{param.name}</span>
+                            {param.type && param.type !== 'any' && (
+                              <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
+                                {param.type}
+                              </span>
+                            )}
+                          </PopoverItem>
+                        ))}
+                      </PopoverScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            </div>
           )}
-        </ModalContent>
-      </Modal>
+        </ChipModalBody>
 
-      <Modal open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Custom Tool</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              <span className='text-[var(--text-error)]'>
-                This will permanently delete the tool and remove it from any workflows that are
-                using it.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => setShowDeleteConfirm(false)}
-              disabled={deleteToolMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={deleteToolMutation.isPending}
-            >
-              {deleteToolMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+        {activeSection === 'schema' && (
+          <ChipModalFooter
+            onCancel={handleClose}
+            secondaryAction={
+              isEditing
+                ? {
+                    label: 'Delete',
+                    onClick: () => setShowDeleteConfirm(true),
+                    variant: 'destructive',
+                  }
+                : undefined
+            }
+            primaryAction={{
+              label: 'Next',
+              onClick: () => setActiveSection('code'),
+              disabled: !isSchemaValid || !!schemaError,
+            }}
+          />
+        )}
 
-      <Modal open={showDiscardAlert} onOpenChange={setShowDiscardAlert}>
-        <ModalContent size='sm'>
-          <ModalHeader>Unsaved Changes</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              You have unsaved changes to this tool. Are you sure you want to discard your changes
-              and close the editor?
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowDiscardAlert(false)}>
-              Keep Editing
-            </Button>
-            <Button variant='destructive' onClick={handleConfirmDiscard}>
-              Discard Changes
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+        {activeSection === 'code' && (
+          <ChipModalFooter
+            onCancel={handleClose}
+            secondaryAction={
+              isEditing
+                ? {
+                    label: 'Delete',
+                    onClick: () => setShowDeleteConfirm(true),
+                    variant: 'destructive',
+                  }
+                : { label: 'Back', onClick: () => setActiveSection('schema') }
+            }
+            primaryAction={{
+              label: isEditing ? 'Update Tool' : 'Save Tool',
+              onClick: handleSave,
+              disabled: !isSchemaValid || !!schemaError || !hasChanges,
+            }}
+          />
+        )}
+      </ChipModal>
+
+      <ChipConfirmModal
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        srTitle='Delete Custom Tool'
+        title='Delete Custom Tool'
+        description={
+          <>
+            <span className='text-[var(--text-error)]'>
+              This will permanently delete the tool and remove it from any workflows that are using
+              it.
+            </span>{' '}
+            This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteToolMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
+
+      <ChipConfirmModal
+        open={showDiscardAlert}
+        onOpenChange={setShowDiscardAlert}
+        srTitle='Unsaved Changes'
+        title='Unsaved Changes'
+        description='You have unsaved changes. Are you sure you want to discard them?'
+        dismissLabel='Keep editing'
+        confirm={{
+          label: 'Discard Changes',
+          onClick: handleConfirmDiscard,
+        }}
+      />
     </>
   )
 }

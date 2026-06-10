@@ -2,30 +2,29 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, Plus, Search } from 'lucide-react'
+import { ArrowRight, ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  Button,
   Checkbox,
-  Input,
+  Chip,
+  ChipConfirmModal,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalTabs,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
+  Search,
   Skeleton,
   Switch,
 } from '@/components/emcn'
-import { Input as BaseInput } from '@/components/ui'
+import { ArrowLeft } from '@/components/emcn/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
@@ -133,38 +132,35 @@ function AddMembersModal({
   }
 
   return (
-    <Modal
+    <ChipModal
       open={open}
       onOpenChange={(o) => {
         if (!o) setSearchTerm('')
         onOpenChange(o)
       }}
+      size='sm'
+      srTitle='Add Members'
     >
-      <ModalContent size='sm'>
-        <ModalHeader>Add Members</ModalHeader>
-        <ModalBody className='!pb-4'>
-          <ModalDescription className='sr-only'>
-            Search and select workspace members to add to this permission group
-          </ModalDescription>
-          {availableMembers.length === 0 ? (
-            <p className='text-[var(--text-muted)] text-sm'>
-              All workspace members are already in this group.
-            </p>
-          ) : (
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Add Members</ChipModalHeader>
+      <ChipModalBody>
+        {availableMembers.length === 0 ? (
+          <p className='px-2 text-[var(--text-muted)] text-sm'>
+            All workspace members are already in this group.
+          </p>
+        ) : (
+          <ChipModalField type='custom' title='Members'>
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
-                <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                  <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                  <BaseInput
-                    placeholder='Search members...'
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                  />
-                </div>
-                <Button variant='default' onClick={handleToggleAll}>
+                <ChipInput
+                  icon={Search}
+                  placeholder='Search members...'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className='min-w-0 flex-1'
+                />
+                <Chip onClick={handleToggleAll}>
                   {allFilteredSelected ? 'Deselect All' : 'Select All'}
-                </Button>
+                </Chip>
               </div>
 
               <div className='max-h-[280px] overflow-y-auto'>
@@ -185,7 +181,7 @@ function AddMembersModal({
                           key={member.userId}
                           type='button'
                           onClick={() => handleToggleMember(member.userId)}
-                          className='flex items-center gap-2.5 rounded-sm px-2 py-1.5 hover:bg-[var(--surface-2)]'
+                          className='flex items-center gap-2.5 rounded-sm px-2 py-1.5 hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
                           <Avatar size='sm'>
@@ -200,9 +196,7 @@ function AddMembersModal({
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0 flex-1 text-left'>
-                            <div className='truncate text-[var(--text-primary)] text-sm'>
-                              {name}
-                            </div>
+                            <div className='truncate text-[var(--text-body)] text-sm'>{name}</div>
                             <div className='truncate text-[var(--text-muted)] text-xs'>{email}</div>
                           </div>
                         </button>
@@ -212,51 +206,22 @@ function AddMembersModal({
                 )}
               </div>
             </div>
-          )}
-          {errorMessage && (
-            <p className='mt-3 text-[var(--text-destructive)] text-xs'>{errorMessage}</p>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Button
-            variant='default'
-            onClick={() => {
-              setSearchTerm('')
-              onOpenChange(false)
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant='primary'
-            onClick={onAddMembers}
-            disabled={selectedMemberIds.size === 0 || isAdding}
-          >
-            {isAdding ? 'Adding...' : 'Add Members'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  )
-}
-
-function AccessControlSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='flex flex-col gap-2'>
-        <Skeleton className='h-[14px] w-[100px]' />
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-3'>
-            <Skeleton className='size-9 rounded-md' />
-            <div className='flex flex-col gap-1'>
-              <Skeleton className='h-[14px] w-[120px]' />
-              <Skeleton className='h-[12px] w-[80px]' />
-            </div>
-          </div>
-          <Skeleton className='h-[32px] w-[60px] rounded-md' />
-        </div>
-      </div>
-    </div>
+          </ChipModalField>
+        )}
+        <ChipModalError>{errorMessage}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => {
+          setSearchTerm('')
+          onOpenChange(false)
+        }}
+        primaryAction={{
+          label: isAdding ? 'Adding...' : 'Add Members',
+          onClick: onAddMembers,
+          disabled: selectedMemberIds.size === 0 || isAdding,
+        }}
+      />
+    </ChipModal>
   )
 }
 
@@ -305,22 +270,16 @@ function ModelCheckboxGrid({
   return (
     <div className='flex flex-col gap-2'>
       <div className='flex items-center gap-2'>
-        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-          <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-          <BaseInput
-            placeholder='Search models...'
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-        </div>
-        <Button
-          variant='default'
-          className='h-8'
-          onClick={() => onSetModelsDenied(filteredModels, allFilteredAllowed)}
-        >
+        <ChipInput
+          icon={Search}
+          placeholder='Search models...'
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className='min-w-0 flex-1'
+        />
+        <Chip onClick={() => onSetModelsDenied(filteredModels, allFilteredAllowed)}>
           {allFilteredAllowed ? 'Block All' : 'Allow All'}
-        </Button>
+        </Chip>
       </div>
       <div className='grid grid-cols-2 gap-x-2 gap-y-0.5'>
         {filteredModels.map((model) => {
@@ -329,7 +288,7 @@ function ModelCheckboxGrid({
             <label
               key={model}
               htmlFor={checkboxId}
-              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
+              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <Checkbox
                 id={checkboxId}
@@ -391,7 +350,7 @@ function ProviderRow({
 
   return (
     <div>
-      <div className='flex items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'>
+      <div className='flex items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'>
         <Checkbox
           id={checkboxId}
           checked={isProviderAllowed}
@@ -486,6 +445,7 @@ export function AccessControl() {
   const removeMember = useRemovePermissionGroupMember()
 
   const [showConfigModal, setShowConfigModal] = useState(false)
+  const [configTab, setConfigTab] = useState<'providers' | 'blocks' | 'platform'>('providers')
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig | null>(null)
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
   const [addMembersError, setAddMembersError] = useState<string | null>(null)
@@ -826,6 +786,31 @@ export function AccessControl() {
     }
   }, [viewingGroup, editingConfig, workspaceId, updatePermissionGroup])
 
+  const handleCloseConfigModal = useCallback(() => {
+    if (hasConfigChanges) {
+      setShowUnsavedChanges(true)
+    } else {
+      setShowConfigModal(false)
+      setProviderSearchTerm('')
+      setIntegrationSearchTerm('')
+      setPlatformSearchTerm('')
+    }
+  }, [hasConfigChanges])
+
+  const handleDiscardConfig = useCallback(() => {
+    setShowUnsavedChanges(false)
+    setShowConfigModal(false)
+    setEditingConfig(null)
+    setProviderSearchTerm('')
+    setIntegrationSearchTerm('')
+    setPlatformSearchTerm('')
+  }, [])
+
+  const handleSaveConfigFromUnsaved = useCallback(() => {
+    setShowUnsavedChanges(false)
+    handleSaveConfig()
+  }, [handleSaveConfig])
+
   const handleOpenAddMembersModal = useCallback(() => {
     setSelectedMemberIds(new Set())
     setAddMembersError(null)
@@ -1003,12 +988,12 @@ export function AccessControl() {
   }, [workspaceMembers, members])
 
   if (isLoading) {
-    return <AccessControlSkeleton />
+    return null
   }
 
   if (!canManage) {
     return (
-      <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
         Only workspace admins on Enterprise plans can manage Access Control settings.
       </div>
     )
@@ -1017,122 +1002,129 @@ export function AccessControl() {
   if (viewingGroup) {
     return (
       <>
-        <div className='flex h-full flex-col gap-4.5'>
-          <div className='flex flex-col gap-1'>
-            <div className='flex items-center justify-between'>
-              <h3 className='font-medium text-[var(--text-primary)] text-base'>
-                {viewingGroup.name}
-              </h3>
-              <Button variant='default' onClick={handleOpenConfigModal}>
-                Configure
-              </Button>
+        <div className='flex h-full flex-col bg-[var(--bg)]'>
+          <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+            <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
+              Access Control
+            </Chip>
+            <div className='flex items-center gap-2'>
+              <Chip
+                variant='destructive'
+                onClick={() => handleDeleteClick(viewingGroup)}
+                disabled={deletingGroupIds.has(viewingGroup.id)}
+              >
+                {deletingGroupIds.has(viewingGroup.id) ? 'Deleting...' : 'Delete'}
+              </Chip>
+              <Chip onClick={handleOpenConfigModal}>Configure</Chip>
             </div>
-            {viewingGroup.description && (
-              <p className='text-[var(--text-muted)] text-sm'>{viewingGroup.description}</p>
-            )}
           </div>
 
-          <div className='flex items-center justify-between'>
-            <div className='flex flex-col gap-0.5'>
-              <span className='font-medium text-[var(--text-primary)] text-sm'>
-                Auto-add new members
-              </span>
-              <span className='text-[var(--text-muted)] text-small'>
-                Automatically add new workspace members to this group
-              </span>
-            </div>
-            <Switch
-              checked={viewingGroup.autoAddNewMembers}
-              onCheckedChange={(checked) => handleToggleAutoAdd(checked)}
-              disabled={updatePermissionGroup.isPending}
-            />
-          </div>
-
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-2'>
-              <div className='flex items-center justify-between'>
-                <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
-                <Button variant='primary' onClick={handleOpenAddMembersModal}>
-                  <Plus className='mr-1.5 size-[13px]' />
-                  Add
-                </Button>
+          <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+            <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+              <div className='flex flex-col gap-1'>
+                <h3 className='font-medium text-[14px] text-[var(--text-body)]'>
+                  {viewingGroup.name}
+                </h3>
+                {viewingGroup.description && (
+                  <p className='text-[var(--text-muted)] text-sm'>{viewingGroup.description}</p>
+                )}
               </div>
 
-              {membersLoading ? (
-                <div className='flex flex-col gap-4.5'>
-                  {[1, 2].map((i) => (
-                    <div key={i} className='flex items-center justify-between'>
-                      <div className='flex items-center gap-3'>
-                        <Skeleton className='size-8 rounded-full' />
-                        <div className='flex flex-col gap-1'>
-                          <Skeleton className='h-[14px] w-[100px]' />
-                          <Skeleton className='h-[12px] w-[150px]' />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              <div className='flex items-center justify-between'>
+                <div className='flex flex-col gap-0.5'>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>
+                    Auto-add new members
+                  </span>
+                  <span className='text-[var(--text-muted)] text-small'>
+                    Automatically add new workspace members to this group
+                  </span>
                 </div>
-              ) : members.length === 0 ? (
-                <p className='text-[var(--text-muted)] text-sm'>
-                  No members yet. Click "Add" to get started.
-                </p>
-              ) : (
-                <div className='flex flex-col gap-4.5'>
-                  {members.map((member) => {
-                    const name = member.userName || 'Unknown'
-                    const avatarInitial = name.charAt(0).toUpperCase()
+                <Switch
+                  checked={viewingGroup.autoAddNewMembers}
+                  onCheckedChange={(checked) => handleToggleAutoAdd(checked)}
+                  disabled={updatePermissionGroup.isPending}
+                />
+              </div>
 
-                    return (
-                      <div key={member.id} className='flex items-center justify-between'>
-                        <div className='flex flex-1 items-center gap-3'>
-                          <Avatar size='md'>
-                            {member.userImage && <AvatarImage src={member.userImage} alt={name} />}
-                            <AvatarFallback
-                              style={{
-                                background: getUserColor(member.userId || member.userEmail || ''),
-                              }}
-                              className='border-0 text-white'
-                            >
-                              {avatarInitial}
-                            </AvatarFallback>
-                          </Avatar>
+              <div className='flex flex-col gap-2'>
+                <div className='flex items-center justify-between'>
+                  <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
+                  <Chip variant='primary' leftIcon={Plus} onClick={handleOpenAddMembersModal}>
+                    Add
+                  </Chip>
+                </div>
 
-                          <div className='min-w-0'>
-                            <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-[var(--text-primary)] text-base'>
-                                {name}
-                              </span>
-                            </div>
-                            <div className='truncate text-[var(--text-muted)] text-small'>
-                              {member.userEmail}
-                            </div>
+                {membersLoading ? (
+                  <div className='flex flex-col gap-4.5'>
+                    {[1, 2].map((i) => (
+                      <div key={i} className='flex items-center justify-between'>
+                        <div className='flex items-center gap-3'>
+                          <Skeleton className='size-8 rounded-full' />
+                          <div className='flex flex-col gap-1'>
+                            <Skeleton className='h-[14px] w-[100px]' />
+                            <Skeleton className='h-[12px] w-[150px]' />
                           </div>
                         </div>
-
-                        <Button
-                          variant='ghost'
-                          onClick={() => handleRemoveMember(member.id)}
-                          disabled={removeMember.isPending}
-                          className='flex-shrink-0'
-                        >
-                          Remove
-                        </Button>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+                    ))}
+                  </div>
+                ) : members.length === 0 ? (
+                  <p className='text-[var(--text-muted)] text-sm'>
+                    No members yet. Click "Add" to get started.
+                  </p>
+                ) : (
+                  <div className='flex flex-col gap-4.5'>
+                    {members.map((member) => {
+                      const name = member.userName || 'Unknown'
+                      const avatarInitial = name.charAt(0).toUpperCase()
 
-          <div className='mt-auto flex items-center justify-start'>
-            <Button onClick={handleBackToList} variant='default'>
-              Back
-            </Button>
+                      return (
+                        <div key={member.id} className='flex items-center justify-between'>
+                          <div className='flex flex-1 items-center gap-3'>
+                            <Avatar size='md'>
+                              {member.userImage && (
+                                <AvatarImage src={member.userImage} alt={name} />
+                              )}
+                              <AvatarFallback
+                                style={{
+                                  background: getUserColor(member.userId || member.userEmail || ''),
+                                }}
+                                className='border-0 text-white'
+                              >
+                                {avatarInitial}
+                              </AvatarFallback>
+                            </Avatar>
+
+                            <div className='min-w-0'>
+                              <div className='flex items-center gap-2'>
+                                <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>
+                                  {name}
+                                </span>
+                              </div>
+                              <div className='truncate text-[var(--text-muted)] text-small'>
+                                {member.userEmail}
+                              </div>
+                            </div>
+                          </div>
+
+                          <Chip
+                            onClick={() => handleRemoveMember(member.id)}
+                            disabled={removeMember.isPending}
+                            className='flex-shrink-0'
+                          >
+                            Remove
+                          </Chip>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        <Modal
+        <ChipModal
           open={showConfigModal}
           onOpenChange={(open) => {
             if (!open && hasConfigChanges) {
@@ -1146,316 +1138,291 @@ export function AccessControl() {
               }
             }
           }}
+          srTitle='Configure Permissions'
+          size='xl'
         >
-          <ModalContent size='xl' className='h-[76vh]'>
-            <ModalHeader>Configure Permissions</ModalHeader>
-            <ModalTabs defaultValue='providers' className='flex min-h-0 flex-1 flex-col'>
-              <ModalTabsList>
-                <ModalTabsTrigger value='providers'>Model Providers</ModalTabsTrigger>
-                <ModalTabsTrigger value='blocks'>Blocks</ModalTabsTrigger>
-                <ModalTabsTrigger value='platform'>Platform</ModalTabsTrigger>
-              </ModalTabsList>
-
-              <ModalBody className='min-h-0 flex-1'>
-                <ModalDescription className='sr-only'>
-                  Configure model provider, block, and platform permissions for this permission
-                  group
-                </ModalDescription>
-                <ModalTabsContent value='providers'>
-                  <div className='flex items-center gap-2 pb-3'>
-                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                      <BaseInput
-                        placeholder='Search providers...'
-                        value={providerSearchTerm}
-                        onChange={(e) => setProviderSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                      />
-                    </div>
-                    <Button
-                      variant='default'
-                      className='h-8'
-                      onClick={() => {
-                        const allAllowed =
-                          editingConfig?.allowedModelProviders === null ||
-                          allProviderIds.every((id) =>
-                            editingConfig?.allowedModelProviders?.includes(id)
-                          )
-                        setEditingConfig((prev) =>
-                          prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
+          <ChipModalHeader
+            onClose={() => {
+              if (hasConfigChanges) {
+                setShowUnsavedChanges(true)
+              } else {
+                setShowConfigModal(false)
+                setProviderSearchTerm('')
+                setIntegrationSearchTerm('')
+                setPlatformSearchTerm('')
+              }
+            }}
+          >
+            Configure Permissions
+          </ChipModalHeader>
+          <ChipModalBody>
+            <ChipModalTabs
+              tabs={[
+                { value: 'providers', label: 'Model Providers' },
+                { value: 'blocks', label: 'Blocks' },
+                { value: 'platform', label: 'Platform' },
+              ]}
+              value={configTab}
+              onChange={(value) => setConfigTab(value as 'providers' | 'blocks' | 'platform')}
+            />
+            {configTab === 'providers' && (
+              <div>
+                <div className='flex items-center gap-2 pb-3'>
+                  <ChipInput
+                    icon={Search}
+                    placeholder='Search providers...'
+                    value={providerSearchTerm}
+                    onChange={(e) => setProviderSearchTerm(e.target.value)}
+                    className='min-w-0 flex-1'
+                  />
+                  <Chip
+                    onClick={() => {
+                      const allAllowed =
+                        editingConfig?.allowedModelProviders === null ||
+                        allProviderIds.every((id) =>
+                          editingConfig?.allowedModelProviders?.includes(id)
                         )
-                      }}
-                    >
-                      {editingConfig?.allowedModelProviders === null ||
-                      allProviderIds.every((id) =>
-                        editingConfig?.allowedModelProviders?.includes(id)
+                      setEditingConfig((prev) =>
+                        prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
                       )
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </Button>
-                  </div>
-                  <div className='flex flex-col gap-0.5'>
-                    {filteredProviders.map((providerId) => (
-                      <ProviderRow
-                        key={providerId}
-                        providerId={providerId}
-                        isProviderAllowed={isProviderAllowed(providerId)}
-                        onToggleProvider={() => toggleProvider(providerId)}
-                        deniedCount={deniedCountByProvider[providerId] ?? 0}
-                        workspaceId={workspaceId}
-                        isModelAllowed={isModelAllowed}
-                        onToggleModel={toggleModel}
-                        onSetModelsDenied={setModelsDenied}
-                      />
-                    ))}
-                  </div>
-                </ModalTabsContent>
-
-                <ModalTabsContent value='blocks'>
-                  <div className='flex items-center gap-2 pb-3'>
-                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                      <BaseInput
-                        placeholder='Search blocks...'
-                        value={integrationSearchTerm}
-                        onChange={(e) => setIntegrationSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                      />
-                    </div>
-                    <Button
-                      variant='default'
-                      className='h-8'
-                      onClick={() => {
-                        const allAllowed =
-                          editingConfig?.allowedIntegrations === null ||
-                          allBlocks.every((b) =>
-                            editingConfig?.allowedIntegrations?.includes(b.type)
+                    }}
+                  >
+                    {editingConfig?.allowedModelProviders === null ||
+                    allProviderIds.every((id) => editingConfig?.allowedModelProviders?.includes(id))
+                      ? 'Deselect All'
+                      : 'Select All'}
+                  </Chip>
+                </div>
+                <div className='flex flex-col gap-0.5'>
+                  {filteredProviders.map((providerId) => (
+                    <ProviderRow
+                      key={providerId}
+                      providerId={providerId}
+                      isProviderAllowed={isProviderAllowed(providerId)}
+                      onToggleProvider={() => toggleProvider(providerId)}
+                      deniedCount={deniedCountByProvider[providerId] ?? 0}
+                      workspaceId={workspaceId}
+                      isModelAllowed={isModelAllowed}
+                      onToggleModel={toggleModel}
+                      onSetModelsDenied={setModelsDenied}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {configTab === 'blocks' && (
+              <div>
+                <div className='flex items-center gap-2 pb-3'>
+                  <ChipInput
+                    icon={Search}
+                    placeholder='Search blocks...'
+                    value={integrationSearchTerm}
+                    onChange={(e) => setIntegrationSearchTerm(e.target.value)}
+                    className='min-w-0 flex-1'
+                  />
+                  <Chip
+                    onClick={() => {
+                      const allAllowed =
+                        editingConfig?.allowedIntegrations === null ||
+                        allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
+                      setEditingConfig((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              allowedIntegrations: allAllowed ? ['start_trigger'] : null,
+                            }
+                          : prev
+                      )
+                    }}
+                  >
+                    {editingConfig?.allowedIntegrations === null ||
+                    allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
+                      ? 'Deselect All'
+                      : 'Select All'}
+                  </Chip>
+                </div>
+                <div className='flex flex-col gap-4'>
+                  {filteredCoreBlocks.length > 0 && (
+                    <div className='flex flex-col gap-1.5'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                        Core Blocks
+                      </span>
+                      <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
+                        {filteredCoreBlocks.map((block) => {
+                          const BlockIcon = block.icon
+                          const checkboxId = `block-${block.type}`
+                          return (
+                            <label
+                              key={block.type}
+                              htmlFor={checkboxId}
+                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                            >
+                              <Checkbox
+                                id={checkboxId}
+                                checked={isIntegrationAllowed(block.type)}
+                                onCheckedChange={() => toggleIntegration(block.type)}
+                              />
+                              <div
+                                className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                style={{ background: block.bgColor }}
+                              >
+                                {BlockIcon && (
+                                  <BlockIcon className='!h-[10px] !w-[10px] text-white' />
+                                )}
+                              </div>
+                              <span className='truncate font-medium text-sm'>{block.name}</span>
+                            </label>
                           )
-                        setEditingConfig((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                allowedIntegrations: allAllowed ? ['start_trigger'] : null,
-                              }
-                            : prev
-                        )
-                      }}
-                    >
-                      {editingConfig?.allowedIntegrations === null ||
-                      allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </Button>
-                  </div>
-                  <div className='flex flex-col gap-4'>
-                    {filteredCoreBlocks.length > 0 && (
-                      <div className='flex flex-col gap-1.5'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                          Core Blocks
-                        </span>
-                        <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
-                          {filteredCoreBlocks.map((block) => {
-                            const BlockIcon = block.icon
-                            const checkboxId = `block-${block.type}`
-                            return (
-                              <label
-                                key={block.type}
-                                htmlFor={checkboxId}
-                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
-                              >
-                                <Checkbox
-                                  id={checkboxId}
-                                  checked={isIntegrationAllowed(block.type)}
-                                  onCheckedChange={() => toggleIntegration(block.type)}
-                                />
-                                <div
-                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                                  style={{ background: block.bgColor }}
-                                >
-                                  {BlockIcon && (
-                                    <BlockIcon className='!h-[10px] !w-[10px] text-white' />
-                                  )}
-                                </div>
-                                <span className='truncate font-medium text-sm'>{block.name}</span>
-                              </label>
-                            )
-                          })}
-                        </div>
+                        })}
                       </div>
-                    )}
-                    {filteredToolBlocks.length > 0 && (
-                      <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                          Tools
-                        </span>
-                        <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
-                          {filteredToolBlocks.map((block) => {
-                            const BlockIcon = block.icon
-                            const checkboxId = `block-${block.type}`
-                            return (
-                              <label
-                                key={block.type}
-                                htmlFor={checkboxId}
-                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
-                              >
-                                <Checkbox
-                                  id={checkboxId}
-                                  checked={isIntegrationAllowed(block.type)}
-                                  onCheckedChange={() => toggleIntegration(block.type)}
-                                />
-                                <div
-                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                                  style={{ background: block.bgColor }}
-                                >
-                                  {BlockIcon && (
-                                    <BlockIcon className='!h-[10px] !w-[10px] text-white' />
-                                  )}
-                                </div>
-                                <span className='truncate font-medium text-sm'>{block.name}</span>
-                              </label>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </ModalTabsContent>
-
-                <ModalTabsContent value='platform'>
-                  <div className='flex items-center gap-2 pb-3'>
-                    <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
-                      <BaseInput
-                        placeholder='Search features...'
-                        value={platformSearchTerm}
-                        onChange={(e) => setPlatformSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                      />
                     </div>
-                    <Button
-                      variant='default'
-                      className='h-8'
-                      onClick={() => {
-                        const allVisible = platformFeatures.every(
-                          (f) => !editingConfig?.[f.configKey]
-                        )
-                        setEditingConfig((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                ...Object.fromEntries(
-                                  platformFeatures.map((f) => [f.configKey, allVisible])
-                                ),
-                              }
-                            : prev
-                        )
-                      }}
-                    >
-                      {platformFeatures.every((f) => !editingConfig?.[f.configKey])
-                        ? 'Deselect All'
-                        : 'Select All'}
-                    </Button>
-                  </div>
-                  <div className='grid grid-cols-3 gap-x-6'>
-                    {platformCategoryColumns.map((column, columnIndex) => (
-                      <div key={columnIndex} className='flex flex-col gap-8'>
-                        {column.map(({ category, features }) => (
-                          <div key={category} className='flex flex-col gap-1.5'>
-                            <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                              {category}
-                            </span>
-                            <div className='flex flex-col gap-0.5'>
-                              {features.map((feature) => (
-                                <label
-                                  key={feature.id}
-                                  htmlFor={feature.id}
-                                  className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
-                                >
-                                  <Checkbox
-                                    id={feature.id}
-                                    checked={!editingConfig?.[feature.configKey]}
-                                    onCheckedChange={(checked) =>
-                                      setEditingConfig((prev) =>
-                                        prev
-                                          ? { ...prev, [feature.configKey]: checked !== true }
-                                          : prev
-                                      )
-                                    }
-                                  />
-                                  <span className='font-normal text-sm'>{feature.label}</span>
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                  )}
+                  {filteredToolBlocks.length > 0 && (
+                    <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                        Tools
+                      </span>
+                      <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
+                        {filteredToolBlocks.map((block) => {
+                          const BlockIcon = block.icon
+                          const checkboxId = `block-${block.type}`
+                          return (
+                            <label
+                              key={block.type}
+                              htmlFor={checkboxId}
+                              className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                            >
+                              <Checkbox
+                                id={checkboxId}
+                                checked={isIntegrationAllowed(block.type)}
+                                onCheckedChange={() => toggleIntegration(block.type)}
+                              />
+                              <div
+                                className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                style={{ background: block.bgColor }}
+                              >
+                                {BlockIcon && (
+                                  <BlockIcon className='!h-[10px] !w-[10px] text-white' />
+                                )}
+                              </div>
+                              <span className='truncate font-medium text-sm'>{block.name}</span>
+                            </label>
+                          )
+                        })}
                       </div>
-                    ))}
-                  </div>
-                </ModalTabsContent>
-              </ModalBody>
-            </ModalTabs>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => {
-                  if (hasConfigChanges) {
-                    setShowUnsavedChanges(true)
-                  } else {
-                    setShowConfigModal(false)
-                    setProviderSearchTerm('')
-                    setIntegrationSearchTerm('')
-                    setPlatformSearchTerm('')
-                  }
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant='primary'
-                onClick={handleSaveConfig}
-                disabled={updatePermissionGroup.isPending || !hasConfigChanges}
-              >
-                {updatePermissionGroup.isPending ? 'Saving...' : 'Save'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {configTab === 'platform' && (
+              <div>
+                <div className='flex items-center gap-2 pb-3'>
+                  <ChipInput
+                    icon={Search}
+                    placeholder='Search features...'
+                    value={platformSearchTerm}
+                    onChange={(e) => setPlatformSearchTerm(e.target.value)}
+                    className='min-w-0 flex-1'
+                  />
+                  <Chip
+                    onClick={() => {
+                      const allVisible = platformFeatures.every(
+                        (f) => !editingConfig?.[f.configKey]
+                      )
+                      setEditingConfig((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              ...Object.fromEntries(
+                                platformFeatures.map((f) => [f.configKey, allVisible])
+                              ),
+                            }
+                          : prev
+                      )
+                    }}
+                  >
+                    {platformFeatures.every((f) => !editingConfig?.[f.configKey])
+                      ? 'Deselect All'
+                      : 'Select All'}
+                  </Chip>
+                </div>
+                <div className='grid grid-cols-3 gap-x-6'>
+                  {platformCategoryColumns.map((column, columnIndex) => (
+                    <div key={columnIndex} className='flex flex-col gap-8'>
+                      {column.map(({ category, features }) => (
+                        <div key={category} className='flex flex-col gap-1.5'>
+                          <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                            {category}
+                          </span>
+                          <div className='flex flex-col gap-0.5'>
+                            {features.map((feature) => (
+                              <label
+                                key={feature.id}
+                                htmlFor={feature.id}
+                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                              >
+                                <Checkbox
+                                  id={feature.id}
+                                  checked={!editingConfig?.[feature.configKey]}
+                                  onCheckedChange={(checked) =>
+                                    setEditingConfig((prev) =>
+                                      prev
+                                        ? { ...prev, [feature.configKey]: checked !== true }
+                                        : prev
+                                    )
+                                  }
+                                />
+                                <span className='font-normal text-sm'>{feature.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </ChipModalBody>
+          <ChipModalFooter
+            onCancel={handleCloseConfigModal}
+            primaryAction={{
+              label: updatePermissionGroup.isPending ? 'Saving...' : 'Save',
+              onClick: handleSaveConfig,
+              disabled: updatePermissionGroup.isPending || !hasConfigChanges,
+            }}
+          />
+        </ChipModal>
 
-        <Modal open={showUnsavedChanges} onOpenChange={setShowUnsavedChanges}>
-          <ModalContent size='sm'>
-            <ModalHeader>Unsaved Changes</ModalHeader>
-            <ModalBody>
-              <ModalDescription className='text-[var(--text-secondary)]'>
-                You have unsaved changes. Do you want to save them before closing?
-              </ModalDescription>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='destructive'
-                onClick={() => {
-                  setShowUnsavedChanges(false)
-                  setShowConfigModal(false)
-                  setEditingConfig(null)
-                  setProviderSearchTerm('')
-                  setIntegrationSearchTerm('')
-                  setPlatformSearchTerm('')
-                }}
-              >
-                Discard Changes
-              </Button>
-              <Button
-                variant='primary'
-                onClick={() => {
-                  setShowUnsavedChanges(false)
-                  handleSaveConfig()
-                }}
-                disabled={updatePermissionGroup.isPending}
-              >
-                {updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+        <ChipModal
+          open={showUnsavedChanges}
+          onOpenChange={setShowUnsavedChanges}
+          size='sm'
+          srTitle='Unsaved Changes'
+        >
+          <ChipModalHeader onClose={() => setShowUnsavedChanges(false)}>
+            Unsaved Changes
+          </ChipModalHeader>
+          <ChipModalBody>
+            <p className='px-2 text-[var(--text-secondary)] text-sm'>
+              You have unsaved changes. Do you want to save them before closing?
+            </p>
+          </ChipModalBody>
+          <ChipModalFooter
+            onCancel={() => setShowUnsavedChanges(false)}
+            secondaryAction={{
+              label: 'Discard Changes',
+              onClick: handleDiscardConfig,
+              variant: 'destructive',
+            }}
+            primaryAction={{
+              label: updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes',
+              onClick: handleSaveConfigFromUnsaved,
+              disabled: updatePermissionGroup.isPending,
+            }}
+          />
+        </ChipModal>
 
         <AddMembersModal
           open={showAddMembersModal}
@@ -1476,153 +1443,137 @@ export function AccessControl() {
 
   return (
     <>
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <BaseInput
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <div />
+          <div className='flex items-center'>
+            <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
+              Create Group
+            </Chip>
+          </div>
+        </div>
+
+        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+            <ChipInput
+              icon={Search}
               placeholder='Search permission groups...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
-          </div>
-          <Button variant='primary' onClick={() => setShowCreateModal(true)}>
-            <Plus className='mr-1.5 size-[13px]' />
-            Create
-          </Button>
-        </div>
 
-        <div className='relative min-h-0 flex-1 overflow-y-auto'>
-          {filteredGroups.length === 0 && searchTerm.trim() ? (
-            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-              No results found matching "{searchTerm}"
-            </div>
-          ) : permissionGroups.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-              Click "Create" above to get started
-            </div>
-          ) : (
-            <div className='flex flex-col gap-2'>
-              {filteredGroups.map((group) => (
-                <div key={group.id} className='flex items-center justify-between'>
-                  <div className='flex flex-col'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-medium text-base'>{group.name}</span>
-                      {group.autoAddNewMembers && (
-                        <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
-                          Auto-enrolls
+            {filteredGroups.length === 0 && searchTerm.trim() ? (
+              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                No results found matching "{searchTerm}"
+              </div>
+            ) : permissionGroups.length === 0 ? (
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                Click "Create Group" above to get started
+              </div>
+            ) : (
+              <div className='flex flex-col gap-1'>
+                {filteredGroups.map((group) => (
+                  <button
+                    key={group.id}
+                    type='button'
+                    onClick={() => setViewingGroup(group)}
+                    className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+                  >
+                    <div className='flex min-w-0 flex-1 flex-col'>
+                      <div className='flex items-center gap-2'>
+                        <span className='truncate text-[14px] text-[var(--text-body)]'>
+                          {group.name}
                         </span>
-                      )}
+                        {group.autoAddNewMembers && (
+                          <span className='flex-shrink-0 rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+                            Auto-enrolls
+                          </span>
+                        )}
+                      </div>
+                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                        {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
+                      </span>
                     </div>
-                    <span className='text-[var(--text-muted)] text-sm'>
-                      {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className='flex flex-shrink-0 items-center gap-2'>
-                    <Button variant='default' onClick={() => setViewingGroup(group)}>
-                      Details
-                    </Button>
-                    <Button
-                      variant='ghost'
-                      onClick={() => handleDeleteClick(group)}
-                      disabled={deletingGroupIds.has(group.id)}
-                    >
-                      {deletingGroupIds.has(group.id) ? 'Deleting...' : 'Delete'}
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                    <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
-        <ModalContent size='sm'>
-          <ModalHeader>Create Permission Group</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='sr-only'>
-              Enter a name and optional description to create a new permission group
-            </ModalDescription>
-            <div className='flex flex-col gap-3'>
-              <div className='flex flex-col gap-1'>
-                <Label>Name</Label>
-                <Input
-                  value={newGroupName}
-                  onChange={(e) => {
-                    setNewGroupName(e.target.value)
-                    if (createError) setCreateError(null)
-                  }}
-                  placeholder='e.g., Marketing Team'
-                />
-              </div>
-              <div className='flex flex-col gap-1'>
-                <Label>Description (optional)</Label>
-                <Input
-                  value={newGroupDescription}
-                  onChange={(e) => setNewGroupDescription(e.target.value)}
-                  placeholder='e.g., Limited access for marketing users'
-                />
-              </div>
-              <div className='flex items-center gap-2'>
-                <Checkbox
-                  id='auto-add-members'
-                  checked={newGroupAutoAdd}
-                  onCheckedChange={(checked) => setNewGroupAutoAdd(checked === true)}
-                />
-                <Label htmlFor='auto-add-members' className='cursor-pointer font-normal'>
-                  Auto-add new workspace members
-                </Label>
-              </div>
-              {createError && <p className='text-[var(--text-error)] text-small'>{createError}</p>}
+      <ChipModal
+        open={showCreateModal}
+        onOpenChange={handleCloseCreateModal}
+        size='sm'
+        srTitle='Create Permission Group'
+      >
+        <ChipModalHeader onClose={handleCloseCreateModal}>Create Permission Group</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='input'
+            title='Name'
+            value={newGroupName}
+            onChange={(value) => {
+              setNewGroupName(value)
+              if (createError) setCreateError(null)
+            }}
+            placeholder='e.g., Marketing Team'
+          />
+          <ChipModalField
+            type='input'
+            title='Description (optional)'
+            value={newGroupDescription}
+            onChange={(value) => setNewGroupDescription(value)}
+            placeholder='e.g., Limited access for marketing users'
+          />
+          <ChipModalField type='custom' title='Membership'>
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='auto-add-members'
+                checked={newGroupAutoAdd}
+                onCheckedChange={(checked) => setNewGroupAutoAdd(checked === true)}
+              />
+              <Label htmlFor='auto-add-members' className='cursor-pointer font-normal'>
+                Auto-add new workspace members
+              </Label>
             </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={handleCloseCreateModal}>
-              Cancel
-            </Button>
-            <Button
-              variant='primary'
-              onClick={handleCreatePermissionGroup}
-              disabled={!newGroupName.trim() || createPermissionGroup.isPending}
-            >
-              {createPermissionGroup.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </ChipModalField>
+          <ChipModalError>{createError}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={handleCloseCreateModal}
+          primaryAction={{
+            label: createPermissionGroup.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreatePermissionGroup,
+            disabled: !newGroupName.trim() || createPermissionGroup.isPending,
+          }}
+        />
+      </ChipModal>
 
-      <Modal open={!!deletingGroup} onOpenChange={() => setDeletingGroup(null)}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Permission Group</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?
-              <span className='text-[var(--text-error)]'>
-                All members will be removed from this group.
-              </span>{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setDeletingGroup(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={confirmDelete}
-              disabled={deletePermissionGroup.isPending}
-            >
-              {deletePermissionGroup.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={!!deletingGroup}
+        onOpenChange={() => setDeletingGroup(null)}
+        srTitle='Delete Permission Group'
+        title='Delete Permission Group'
+        description={
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All members will be removed from this group.
+            </span>{' '}
+            This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: confirmDelete,
+          pending: deletePermissionGroup.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

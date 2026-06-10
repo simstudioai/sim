@@ -195,6 +195,13 @@ export interface PostHogEventMap {
     source?: 'settings' | 'tool_input'
   }
 
+  skill_updated: {
+    skill_id: string
+    skill_name: string
+    workspace_id: string
+    source?: 'settings' | 'tool_input'
+  }
+
   skill_deleted: {
     skill_id: string
     workspace_id: string
@@ -339,6 +346,34 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  credential_shared: {
+    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    role: 'admin' | 'member'
+    workspace_id: string
+  }
+
+  credential_unshared: {
+    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    workspace_id: string
+  }
+
+  environment_updated: {
+    workspace_id: string
+    key_count: number
+  }
+
+  environment_deleted: {
+    workspace_id: string
+    key_count: number
+  }
+
+  seats_provisioned: {
+    organization_id: string
+    previous_seats: number
+    seats: number
+    reason: string
+  }
+
   copilot_chat_sent: {
     workflow_id: string
     workspace_id: string
@@ -351,12 +386,6 @@ export interface PostHogEventMap {
     is_positive: boolean
     has_text_feedback: boolean
     has_workflow_yaml: boolean
-  }
-
-  /** `template_modules` is a space-separated list of module tags, e.g. `"agent tables knowledge-base"`. */
-  template_used: {
-    template_title: string
-    template_modules: string
   }
 
   settings_tab_viewed: {
@@ -394,6 +423,8 @@ export interface PostHogEventMap {
     /** Number of explicitly targeted rows; `null` when the run targets all rows in scope. */
     row_count: number | null
     has_limit: boolean
+    /** Which workflow version the run targets; omitted when groups mix modes. */
+    deployment_mode?: 'live' | 'deployed' | 'mixed'
   }
 
   /**
@@ -407,6 +438,33 @@ export interface PostHogEventMap {
     scope: 'all' | 'row' | 'rows'
     /** Number of rows targeted; `null` for the `all` scope. */
     row_count: number | null
+  }
+
+  table_import_started: {
+    table_id: string
+    workspace_id: string
+    import_id: string
+    file_type: 'csv' | 'tsv'
+  }
+
+  table_import_completed: {
+    table_id: string
+    workspace_id: string
+    import_id: string
+    status: 'completed' | 'failed'
+    row_count: number | null
+    error_message?: string
+  }
+
+  table_exported: {
+    table_id: string
+    workspace_id: string
+  }
+
+  file_downloaded: {
+    workspace_id: string
+    is_bulk: boolean
+    file_count: number
   }
 
   custom_tool_saved: {
@@ -488,19 +546,6 @@ export interface PostHogEventMap {
     user_message_id: string
   }
 
-  tour_started: {
-    tour_type: 'nav' | 'workflow'
-  }
-
-  tour_completed: {
-    tour_type: 'nav' | 'workflow'
-  }
-
-  tour_skipped: {
-    tour_type: 'nav' | 'workflow'
-    step_index: number
-  }
-
   docs_opened: {
     source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
     block_type?: string
@@ -512,6 +557,8 @@ export interface PostHogEventMap {
       | 'tool'
       | 'trigger'
       | 'tool_operation'
+      | 'connected_account'
+      | 'integration'
       | 'workflow'
       | 'workspace'
       | 'task'
@@ -520,8 +567,42 @@ export interface PostHogEventMap {
       | 'knowledge_base'
       | 'page'
       | 'docs'
+      | 'connected_account'
+      | 'integration'
     query_length: number
     workspace_id: string
+  }
+
+  /** A home-page suggested action was clicked. `action_id` is the candidate id (e.g. `gmail-0`). */
+  suggested_action_clicked: {
+    workspace_id: string
+    kind: 'prompt' | 'integration'
+    action_id: string
+    label: string
+    position: number
+    connected_provider_count: number
+  }
+
+  suggested_actions_shuffled: {
+    workspace_id: string
+    connected_provider_count: number
+  }
+
+  suggested_actions_toggled: {
+    workspace_id: string
+    expanded: boolean
+  }
+
+  /**
+   * A curated "suggested skill" was added to the workspace from an integration's
+   * detail page. `position` is the skill's index within the integration's list.
+   */
+  integration_skill_added: {
+    workspace_id: string
+    integration_type: string
+    skill_name: string
+    position: number
+    skill_count: number
   }
 
   workflow_imported: {

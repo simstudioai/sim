@@ -3,7 +3,6 @@ import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/feature-flags'
 import {
   getChatEmbedCSPPolicy,
-  getFormEmbedCSPPolicy,
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
@@ -83,6 +82,8 @@ const nextConfig: NextConfig = {
     'fluent-ffmpeg',
     'ws',
     'isolated-vm',
+    '@e2b/code-interpreter',
+    'e2b',
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
@@ -91,6 +92,17 @@ const nextConfig: NextConfig = {
       './node_modules/@img/**/*',
       './lib/execution/sandbox/bundles/*.cjs',
     ],
+  },
+  turbopack: {
+    resolveAlias: {
+      // `dns/promises` has no browser shim. Server-only connector fetch logic
+      // (which imports `input-validation.server`) is statically reachable from
+      // the client bundle via the connector registry, but never runs there.
+      // Stub it for the browser only; the server keeps the real module so SSRF
+      // validation is unaffected.
+      'dns/promises': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
+      dns: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
+    },
   },
   experimental: {
     optimizeCss: true,
@@ -104,7 +116,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-popover',
       '@radix-ui/react-select',
       '@radix-ui/react-tabs',
-      '@radix-ui/react-tooltip',
       '@radix-ui/react-accordion',
       '@radix-ui/react-checkbox',
       '@radix-ui/react-switch',
@@ -224,29 +235,11 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
         ],
       },
-      // Form pages - allow iframe embedding from any origin
-      {
-        source: '/form/:path*',
-        headers: [
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          // No X-Frame-Options to allow iframe embedding
-          {
-            key: 'Content-Security-Policy',
-            value: getFormEmbedCSPPolicy(),
-          },
-          // Permissive CORS for form API requests from embedded forms
-          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
-          { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
-        ],
-      },
       // Apply security headers to routes not handled by middleware runtime CSP
       // Middleware handles: /, /login, /signup, /workspace/*
-      // Exclude chat and form routes which have their own permissive embed headers
+      // Exclude chat routes which have their own permissive embed headers
       {
-        source: '/((?!workspace|chat|form|login|signup|$).*)',
+        source: '/((?!workspace|chat|login|signup|$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -323,6 +316,15 @@ const nextConfig: NextConfig = {
         permanent: true,
       }
     )
+
+    // Legacy chat URL support: the workspace chat route was renamed from
+    // `/workspace/:workspaceId/task/:chatId` to `/workspace/:workspaceId/chat/:chatId`.
+    // Preserve existing bookmarks and deeplinks.
+    redirects.push({
+      source: '/workspace/:workspaceId/task/:chatId',
+      destination: '/workspace/:workspaceId/chat/:chatId',
+      permanent: true,
+    })
 
     return redirects
   },

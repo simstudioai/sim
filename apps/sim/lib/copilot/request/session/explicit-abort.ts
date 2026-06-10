@@ -11,6 +11,7 @@ export async function requestExplicitStreamAbort(params: {
   streamId: string
   userId: string
   chatId?: string
+  workspaceId?: string
   timeoutMs?: number
   otelContext?: Context
 }): Promise<void> {
@@ -18,6 +19,7 @@ export async function requestExplicitStreamAbort(params: {
     streamId,
     userId,
     chatId,
+    workspaceId,
     timeoutMs = DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS,
     otelContext,
   } = params
@@ -46,6 +48,7 @@ export async function requestExplicitStreamAbort(params: {
         messageId: streamId,
         userId,
         ...(chatId ? { chatId } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
       }),
       otelContext,
       spanName: 'sim → go /api/streams/explicit-abort',

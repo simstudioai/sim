@@ -45,7 +45,8 @@ export const railwayGetProjectTool: ToolConfig<RailwayGetProjectParams, RailwayG
         type: 'string',
         required: false,
         visibility: 'user-only',
-        description: 'Railway token type: account, workspace, project, or oauth',
+        description:
+          'Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens.',
       },
       projectId: {
         type: 'string',
@@ -67,6 +68,7 @@ export const railwayGetProjectTool: ToolConfig<RailwayGetProjectParams, RailwayG
               name
               description
               createdAt
+              updatedAt
               services {
                 edges {
                   node {
@@ -121,6 +123,7 @@ export const railwayGetProjectTool: ToolConfig<RailwayGetProjectParams, RailwayG
             name: project.name,
             description: project.description ?? null,
             createdAt: project.createdAt,
+            updatedAt: project.updatedAt ?? null,
             services,
             environments,
           },
@@ -137,6 +140,7 @@ export const railwayGetProjectTool: ToolConfig<RailwayGetProjectParams, RailwayG
           name: { type: 'string', description: 'Project name' },
           description: { type: 'string', description: 'Project description', optional: true },
           createdAt: { type: 'string', description: 'Project creation timestamp' },
+          updatedAt: { type: 'string', description: 'Project update timestamp', optional: true },
           services: {
             type: 'array',
             description: 'Project services',

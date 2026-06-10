@@ -17,6 +17,7 @@ import {
 } from '@/lib/mcp/tool-limits'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
+import type { InputFormatField } from '@/lib/workflows/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { mcpPubSub } from './pubsub'
 import { extractInputFormatFromBlocks, generateToolInputSchema } from './workflow-tool-schema'
@@ -122,6 +123,19 @@ export async function generateParameterSchemaForWorkflow(
   const deployed = await loadDeployedWorkflowState(workflowId)
   if (!deployed?.blocks) return EMPTY_SCHEMA
   return generateSchemaFromBlocks(deployed.blocks as Record<string, unknown>)
+}
+
+/**
+ * Load a workflow's active deployed state and return its start-trigger input
+ * format fields. Shared so callers (e.g. the copilot `deploy_mcp` tool) can
+ * build a parameter schema from the same input source the deploy modal uses.
+ */
+export async function getDeployedWorkflowInputFormat(
+  workflowId: string
+): Promise<InputFormatField[]> {
+  const deployed = await loadDeployedWorkflowState(workflowId)
+  if (!deployed?.blocks) return []
+  return extractInputFormatFromBlocks(deployed.blocks as Record<string, unknown>) ?? []
 }
 
 interface SyncOptions {

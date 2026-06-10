@@ -6,13 +6,13 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
+  ChipConfirmModal,
   Expand,
   Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalDescription,
-  ModalFooter,
   ModalHeader,
   Skeleton,
   Tooltip,
@@ -274,57 +274,54 @@ export function GeneralDeploy({
         </div>
       </div>
 
-      <Modal open={showLoadDialog} onOpenChange={setShowLoadDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Load Deployment</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to load{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {versionToLoadInfo?.name || `v${versionToLoad?.version}`}
-              </span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will replace your current workflow with the deployed version.
-              </span>
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowLoadDialog(false)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={confirmLoadDeployment}>
-              Load deployment
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={showLoadDialog}
+        onOpenChange={setShowLoadDialog}
+        srTitle='Load Deployment'
+        title='Load Deployment'
+        description={
+          <>
+            Are you sure you want to load{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {versionToLoadInfo?.name || `v${versionToLoad?.version}`}
+            </span>
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will replace your current workflow with the deployed version.
+            </span>
+          </>
+        }
+        confirm={{
+          label: 'Load deployment',
+          onClick: confirmLoadDeployment,
+          pending: revertMutation.isPending,
+        }}
+      />
 
-      <Modal open={showPromoteDialog} onOpenChange={setShowPromoteDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Promote to live</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to promote{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {versionToPromoteInfo?.name || `v${versionToPromote?.version}`}
-              </span>{' '}
-              to live?{' '}
-              <span className='text-[var(--text-primary)]'>
-                This version will become the active deployment and serve all API requests.
-              </span>
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowPromoteDialog(false)}>
-              Cancel
-            </Button>
-            <Button variant='tertiary' onClick={confirmPromoteToLive} disabled={isPromotingVersion}>
-              Promote to live
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={showPromoteDialog}
+        onOpenChange={setShowPromoteDialog}
+        srTitle='Promote to live'
+        title='Promote to live'
+        description={
+          <>
+            Are you sure you want to promote{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {versionToPromoteInfo?.name || `v${versionToPromote?.version}`}
+            </span>{' '}
+            to live?{' '}
+            <span className='text-[var(--text-primary)]'>
+              This version will become the active deployment and serve all API requests.
+            </span>
+          </>
+        }
+        confirm={{
+          label: 'Promote to live',
+          onClick: confirmPromoteToLive,
+          variant: 'primary',
+          pending: isPromotingVersion,
+        }}
+      />
 
       {workflowToShow && (
         <Modal open={showExpandedPreview} onOpenChange={setShowExpandedPreview}>

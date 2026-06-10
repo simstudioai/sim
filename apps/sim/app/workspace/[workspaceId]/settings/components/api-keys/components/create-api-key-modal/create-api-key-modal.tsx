@@ -4,16 +4,14 @@ import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Button,
   ButtonGroup,
   ButtonGroupItem,
-  Input as EmcnInput,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   SecretReveal,
 } from '@/components/emcn'
 import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
@@ -66,8 +64,8 @@ export function CreateApiKeyModal({
     if (isDuplicate) {
       setCreateError(
         keyType === 'workspace'
-          ? `A workspace Sim key named "${trimmedName}" already exists. Please choose a different name.`
-          : `A personal Sim key named "${trimmedName}" already exists. Please choose a different name.`
+          ? `A workspace API key named "${trimmedName}" already exists. Please choose a different name.`
+          : `A personal API key named "${trimmedName}" already exists. Please choose a different name.`
       )
       return
     }
@@ -90,11 +88,11 @@ export function CreateApiKeyModal({
       onKeyCreated?.(data.key)
     } catch (error: unknown) {
       logger.error('API key creation failed:', { error })
-      const errorMessage = getErrorMessage(error, 'Failed to create Sim key. Please try again.')
+      const errorMessage = getErrorMessage(error, 'Failed to create API key. Please try again.')
       if (errorMessage.toLowerCase().includes('already exists')) {
         setCreateError(errorMessage)
       } else {
-        setCreateError('Failed to create Sim key. Please check your connection and try again.')
+        setCreateError('Failed to create API key. Please check your connection and try again.')
       }
     }
   }
@@ -109,96 +107,68 @@ export function CreateApiKeyModal({
   return (
     <>
       {/* Create API Key Dialog */}
-      <Modal open={open} onOpenChange={onOpenChange}>
-        <ModalContent size='md'>
-          <ModalHeader>Create new Sim key</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              {keyType === 'workspace'
-                ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
-                : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
-            </ModalDescription>
-
-            <div className='mt-4 flex flex-col gap-4.5'>
-              {canManageWorkspaceKeys && (
-                <div className='flex flex-col gap-2'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Sim Key Type</p>
-                  <ButtonGroup
-                    value={keyType}
-                    onValueChange={(value) => {
-                      setKeyType(value as 'personal' | 'workspace')
-                      if (createError) setCreateError(null)
-                    }}
-                  >
-                    <ButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
-                      Personal
-                    </ButtonGroupItem>
-                    <ButtonGroupItem value='workspace'>Workspace</ButtonGroupItem>
-                  </ButtonGroup>
-                </div>
-              )}
-              <div className='flex flex-col gap-2'>
-                <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Enter a name for your Sim key to help you identify it later.
-                </p>
-                {/* Hidden decoy fields to prevent browser autofill */}
-                <input
-                  type='text'
-                  name='fakeusernameremembered'
-                  autoComplete='username'
-                  style={{
-                    position: 'absolute',
-                    left: '-9999px',
-                    opacity: 0,
-                    pointerEvents: 'none',
-                  }}
-                  tabIndex={-1}
-                  readOnly
-                />
-                <EmcnInput
-                  value={keyName}
-                  onChange={(e) => {
-                    setKeyName(e.target.value)
-                    if (createError) setCreateError(null)
-                  }}
-                  placeholder='e.g., Development, Production'
-                  className='h-9'
-                  name='api_key_label'
-                  autoComplete='off'
-                  autoCorrect='off'
-                  autoCapitalize='off'
-                  data-lpignore='true'
-                  data-form-type='other'
-                />
-                {createError && (
-                  <p className='text-[var(--text-error)] text-small leading-tight'>{createError}</p>
-                )}
-              </div>
-            </div>
-          </ModalBody>
-
-          <ModalFooter>
-            <Button variant='default' onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button
-              type='button'
-              variant='primary'
-              onClick={handleCreateKey}
-              disabled={
-                !keyName.trim() ||
-                createApiKeyMutation.isPending ||
-                (keyType === 'workspace' && !canManageWorkspaceKeys)
-              }
-            >
-              {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Create new API key'>
+        <ChipModalHeader onClose={handleClose}>Create new API key</ChipModalHeader>
+        <ChipModalBody>
+          {canManageWorkspaceKeys && (
+            <ChipModalField type='custom' title='API Key Type'>
+              <ButtonGroup
+                value={keyType}
+                onValueChange={(value) => {
+                  setKeyType(value as 'personal' | 'workspace')
+                  if (createError) setCreateError(null)
+                }}
+              >
+                <ButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
+                  Personal
+                </ButtonGroupItem>
+                <ButtonGroupItem value='workspace'>Workspace</ButtonGroupItem>
+              </ButtonGroup>
+            </ChipModalField>
+          )}
+          <ChipModalField
+            type='input'
+            title='Enter a name for your API key to help you identify it later.'
+            value={keyName}
+            onChange={(value) => {
+              setKeyName(value)
+              if (createError) setCreateError(null)
+            }}
+            placeholder='e.g., Development, Production'
+            autoComplete='off'
+            required
+          />
+          {/* Hidden decoy fields to prevent browser autofill */}
+          <input
+            type='text'
+            name='fakeusernameremembered'
+            autoComplete='username'
+            style={{
+              position: 'absolute',
+              left: '-9999px',
+              opacity: 0,
+              pointerEvents: 'none',
+            }}
+            tabIndex={-1}
+            readOnly
+          />
+          <ChipModalError>{createError}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={handleClose}
+          primaryAction={{
+            label: createApiKeyMutation.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreateKey,
+            disabled:
+              !keyName.trim() ||
+              createApiKeyMutation.isPending ||
+              (keyType === 'workspace' && !canManageWorkspaceKeys),
+          }}
+        />
+      </ChipModal>
 
       {/* New API Key Dialog - shows the created key */}
-      <Modal
+      <ChipModal
         open={showNewKeyDialog}
         onOpenChange={(dialogOpen: boolean) => {
           setShowNewKeyDialog(dialogOpen)
@@ -206,21 +176,21 @@ export function CreateApiKeyModal({
             setNewKey(null)
           }
         }}
+        srTitle='Your API key has been created'
       >
-        <ModalContent size='sm'>
-          <ModalHeader>Your Sim key has been created</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              This is the only time you will see your Sim key.{' '}
-              <span className='font-semibold text-[var(--text-primary)]'>
-                Copy it now and store it securely.
-              </span>
-            </ModalDescription>
-
-            {newKey && <SecretReveal value={newKey.key} className='mt-2.5' />}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+        <ChipModalHeader onClose={() => setShowNewKeyDialog(false)}>
+          Your API key has been created
+        </ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField type='custom' title="Copy it now — it won't be shown again">
+            {newKey && <SecretReveal value={newKey.key} />}
+          </ChipModalField>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => setShowNewKeyDialog(false)}
+          primaryAction={{ label: 'Done', onClick: () => setShowNewKeyDialog(false) }}
+        />
+      </ChipModal>
     </>
   )
 }

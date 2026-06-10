@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { Checkbox, Input, Label, SecretInput, Tooltip, toast, Wizard } from '@/components/emcn'
+import { Checkbox, Input, Label, SecretInput, Tooltip, Wizard } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
@@ -263,15 +263,17 @@ interface StepCreateProps {
 
 function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
   const [copied, setCopied] = useState<boolean>(false)
+  const [copyFailed, setCopyFailed] = useState<boolean>(false)
 
   const handleCopy = useCallback(async () => {
     if (!canCopy) return
     try {
       await navigator.clipboard.writeText(manifestJson)
+      setCopyFailed(false)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error("Couldn't copy manifest — copy it manually from the developer console.")
+      setCopyFailed(true)
     }
   }, [canCopy, manifestJson])
 
@@ -301,6 +303,11 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
                 <Clipboard className='size-[12px] text-[var(--text-muted)]' />
               ))}
           </button>
+          {copyFailed ? (
+            <p className='mt-1.5 text-[var(--text-error)] text-xs'>
+              Couldn't copy manifest — copy it manually from the developer console.
+            </p>
+          ) : null}
         </SubStep>
         <SubStep n={2}>
           Open the{' '}
@@ -453,7 +460,7 @@ function StatusRow({ label, ok }: StatusRowProps) {
     <span className='flex items-center gap-2'>
       <Check
         className={cn(
-          'h-[14px] w-[14px]',
+          'size-[14px]',
           ok ? 'text-[var(--text-success)]' : 'text-[var(--text-muted)]'
         )}
       />

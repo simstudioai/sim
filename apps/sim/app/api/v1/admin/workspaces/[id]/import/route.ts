@@ -50,12 +50,11 @@ import {
   internalErrorResponse,
   notFoundResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  extractWorkflowMetadata,
-  type ImportResult,
-  type WorkflowVariable,
-  type WorkspaceImportRequest,
-  type WorkspaceImportResponse,
+import type {
+  ImportResult,
+  WorkflowVariable,
+  WorkspaceImportRequest,
+  WorkspaceImportResponse,
 } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkspaceImportAPI')
@@ -243,14 +242,6 @@ async function importSingleWorkflow(
       targetFolderId = folderMap.get(fullFolderPath) || parentId
     }
 
-    const parsedContent = (() => {
-      try {
-        return JSON.parse(wf.content)
-      } catch {
-        return null
-      }
-    })()
-    const { color: workflowColor } = extractWorkflowMetadata(parsedContent)
     const workflowId = generateId()
     const now = new Date()
     const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
@@ -262,7 +253,6 @@ async function importSingleWorkflow(
       folderId: targetFolderId,
       name: dedupedName,
       description: workflowData.metadata?.description || 'Imported via Admin API',
-      color: workflowColor,
       lastSynced: now,
       createdAt: now,
       updatedAt: now,

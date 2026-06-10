@@ -20,6 +20,14 @@ export const billingUpdateCostBodySchema = z.object({
     .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
     .default('copilot'),
   idempotencyKey: z.string().min(1).optional(),
+  /**
+   * Originating workspace. Stamped onto `usage_log.workspaceId` so mothership/
+   * copilot cost is attributable to org-owned workspaces (per-member usage).
+   * Required: the Go mothership always resolves a workspace for a billed request,
+   * so a missing value is a bug to surface (fail loud) rather than silently drop
+   * the cost from the per-member meter.
+   */
+  workspaceId: z.string().min(1),
 })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 
@@ -199,6 +207,33 @@ export const billingPortalBodySchema = z.object({
   returnUrl: z.string().min(1).optional(),
 })
 
+export const invoicesQuerySchema = z.object({
+  context: z.enum(['user', 'organization']).optional().default('user'),
+  organizationId: z.string().min(1).optional(),
+})
+
+export const invoiceItemSchema = z.object({
+  id: z.string(),
+  number: z.string().nullable(),
+  /** Invoice creation time as a Unix timestamp in seconds. */
+  created: z.number(),
+  /** Invoice total in the currency's minor units (e.g. cents). */
+  total: z.number(),
+  /** Amount paid in the currency's minor units (e.g. cents). */
+  amountPaid: z.number(),
+  currency: z.string(),
+  status: z.string().nullable(),
+  hostedInvoiceUrl: z.string().nullable(),
+  invoicePdf: z.string().nullable(),
+})
+
+export const invoicesApiResponseSchema = z.object({
+  success: z.boolean(),
+  invoices: z.array(invoiceItemSchema),
+  /** True when Stripe has more invoices than the returned page (overflow). */
+  hasMore: z.boolean(),
+})
+
 const successResponseSchema = z.object({
   success: z.boolean(),
 })
@@ -292,6 +327,16 @@ export const createBillingPortalContract = defineRouteContract({
   },
 })
 
+export const getInvoicesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/billing/invoices',
+  query: invoicesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: invoicesApiResponseSchema,
+  },
+})
+
 export const billingSwitchPlanResponseSchema = z.object({
   success: z.literal(true),
   plan: z.string().optional(),
@@ -336,3 +381,5 @@ export type SubscriptionBillingData = z.infer<typeof subscriptionBillingDataSche
 export type SubscriptionApiResponse = z.infer<typeof subscriptionApiResponseSchema>
 export type OrganizationBillingApiResponse = z.infer<typeof organizationBillingApiResponseSchema>
 export type UsageLimitApiResponse = z.infer<typeof usageLimitApiResponseSchema>
+export type InvoiceItem = z.infer<typeof invoiceItemSchema>
+export type InvoicesApiResponse = z.infer<typeof invoicesApiResponseSchema>

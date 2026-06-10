@@ -73,11 +73,6 @@ export const AuditAction = {
   FOLDER_DUPLICATED: 'folder.duplicated',
   FOLDER_RESTORED: 'folder.restored',
 
-  // Forms
-  FORM_CREATED: 'form.created',
-  FORM_UPDATED: 'form.updated',
-  FORM_DELETED: 'form.deleted',
-
   // Invitations
   INVITATION_ACCEPTED: 'invitation.accepted',
   INVITATION_REJECTED: 'invitation.rejected',
@@ -119,6 +114,9 @@ export const AuditAction = {
   CREDENTIAL_RENAMED: 'credential.renamed',
   CREDENTIAL_RECONNECTED: 'credential.reconnected',
   CREDENTIAL_DELETED: 'credential.deleted',
+  CREDENTIAL_MEMBER_ADDED: 'credential_member.added',
+  CREDENTIAL_MEMBER_REMOVED: 'credential_member.removed',
+  CREDENTIAL_MEMBER_ROLE_CHANGED: 'credential_member.role_changed',
 
   // Password
   PASSWORD_RESET_REQUESTED: 'password.reset_requested',
@@ -130,6 +128,7 @@ export const AuditAction = {
   ORG_MEMBER_ADDED: 'org_member.added',
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
+  ORG_MEMBER_USAGE_LIMIT_CHANGED: 'org_member.usage_limit_changed',
   ORG_INVITATION_CREATED: 'org_invitation.created',
   ORG_INVITATION_UPDATED: 'org_invitation.updated',
   ORG_INVITATION_ACCEPTED: 'org_invitation.accepted',
@@ -137,6 +136,8 @@ export const AuditAction = {
   ORG_INVITATION_CANCELLED: 'org_invitation.cancelled',
   ORG_INVITATION_REVOKED: 'org_invitation.revoked',
   ORG_INVITATION_RESENT: 'org_invitation.resent',
+  ORG_SEAT_PROVISIONED: 'org_seat.provisioned',
+  ORG_PLAN_CONVERTED: 'org_plan.converted',
 
   // Permission Groups
   PERMISSION_GROUP_CREATED: 'permission_group.created',
@@ -160,11 +161,6 @@ export const AuditAction = {
   TABLE_UPDATED: 'table.updated',
   TABLE_DELETED: 'table.deleted',
   TABLE_RESTORED: 'table.restored',
-
-  // Templates
-  TEMPLATE_CREATED: 'template.created',
-  TEMPLATE_UPDATED: 'template.updated',
-  TEMPLATE_DELETED: 'template.deleted',
 
   // Webhooks
   WEBHOOK_CREATED: 'webhook.created',
@@ -209,7 +205,6 @@ export const AuditResourceType = {
   ENVIRONMENT: 'environment',
   FILE: 'file',
   FOLDER: 'folder',
-  FORM: 'form',
   KNOWLEDGE_BASE: 'knowledge_base',
   MCP_SERVER: 'mcp_server',
   NOTIFICATION: 'notification',
@@ -220,7 +215,6 @@ export const AuditResourceType = {
   SCHEDULE: 'schedule',
   SKILL: 'skill',
   TABLE: 'table',
-  TEMPLATE: 'template',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',
   WORKSPACE: 'workspace',

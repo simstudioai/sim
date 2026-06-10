@@ -63,6 +63,25 @@ export interface SkippedItem {
 }
 
 /**
+ * Skipped-item types that represent benign, SELF-HEALING deferrals rather than
+ * failures. A deferred forward-reference edge (`invalid_edge_target`) is
+ * recorded as a pending connection and wired automatically once its target
+ * block exists -- possibly on a later edit_workflow call. It must be surfaced to
+ * the model as informational, NOT through the "skipped/failed operation"
+ * channel; otherwise a literal model re-issues the self-healing operation in a
+ * loop. See `createValidatedEdge` (builders.ts) and `resolvePendingConnections`
+ * (engine.ts).
+ */
+export const DEFERRED_SKIPPED_ITEM_TYPES: ReadonlySet<SkippedItemType> = new Set([
+  'invalid_edge_target',
+])
+
+/** Whether a skipped item is a benign deferral (see DEFERRED_SKIPPED_ITEM_TYPES). */
+export function isDeferredSkippedItem(item: SkippedItem): boolean {
+  return DEFERRED_SKIPPED_ITEM_TYPES.has(item.type)
+}
+
+/**
  * Logs and records a skipped item
  */
 export function logSkippedItem(skippedItems: SkippedItem[], item: SkippedItem): void {

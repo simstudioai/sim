@@ -1583,6 +1583,34 @@
       "when": 1780621979250,
       "tag": "0226_sparkling_sheva_callister",
       "breakpoints": true
+    },
+    {
+      "idx": 227,
+      "version": "7",
+      "when": 1780756851885,
+      "tag": "0227_natural_mentor",
+      "breakpoints": true
+    },
+    {
+      "idx": 228,
+      "version": "7",
+      "when": 1780945741000,
+      "tag": "0228_order_key_binary_collation",
+      "breakpoints": true
+    },
+    {
+      "idx": 229,
+      "version": "7",
+      "when": 1780946000000,
+      "tag": "0229_backfill_column_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 230,
+      "version": "7",
+      "when": 1781027249389,
+      "tag": "0230_thick_stranger",
+      "breakpoints": true
     }
   ]
 }

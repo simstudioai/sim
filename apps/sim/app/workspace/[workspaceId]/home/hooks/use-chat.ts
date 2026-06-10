@@ -10,7 +10,7 @@ import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
-} from '@/lib/api/contracts/mothership-tasks'
+} from '@/lib/api/contracts/mothership-chats'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
@@ -21,65 +21,20 @@ import type {
 } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage, withBlockTiming } from '@/lib/copilot/chat/persisted-message'
 import {
-  captureRevealedSimKeys,
   type RevealedSimKeysByMessage,
   restoreRevealedSimKeysForMessage,
 } from '@/lib/copilot/chat/sim-key-redaction'
-import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import { MOTHERSHIP_CHAT_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
-import type {
-  MothershipStreamV1ErrorPayload,
-  MothershipStreamV1ToolUI,
-} from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-  MothershipStreamV1ResourceOp,
-  MothershipStreamV1RunKind,
   MothershipStreamV1SessionKind,
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
   MothershipStreamV1TextChannel,
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
-  MothershipStreamV1ToolStatus,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import {
-  CrawlWebsite,
-  CreateFolder,
-  DeleteFolder,
-  DeleteWorkflow,
-  DeployApi,
-  DeployChat,
-  DeployMcp,
-  GetPageContents,
-  GetWorkflowLogs,
-  Glob,
-  Grep,
-  ManageCredential,
-  ManageCredentialOperation,
-  ManageCustomTool,
-  ManageCustomToolOperation,
-  ManageJob,
-  ManageJobOperation,
-  ManageMcpTool,
-  ManageMcpToolOperation,
-  ManageSkill,
-  ManageSkillOperation,
-  MoveFolder,
-  MoveWorkflow,
-  Read as ReadTool,
-  Redeploy,
-  RenameWorkflow,
-  RunFromBlock,
-  RunWorkflow,
-  RunWorkflowUntilBlock,
-  ScrapePage,
-  SearchOnline,
-  ToolSearchToolRegex,
-  WorkspaceFile,
-  WorkspaceFileOperation,
-} from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   type ParseStreamEventEnvelopeFailure,
   parsePersistedStreamEventEnvelope,
@@ -91,12 +46,6 @@ import {
 } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
-  extractResourcesFromToolResult,
-  isResourceToolName,
-} from '@/lib/copilot/resources/extraction'
-import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
-import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
-import {
   bindRunToolToExecution,
   cancelRunToolExecution,
   executeRunToolOnClient,
@@ -105,32 +54,25 @@ import {
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
-  buildCompletedPreviewSessions,
-  type FilePreviewSessionsState,
-  hasRenderableFilePreviewContent,
-  INITIAL_FILE_PREVIEW_SESSIONS_STATE,
-  reduceFilePreviewSessions,
-  shouldReplaceSession,
-  useFilePreviewSessions,
-} from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
-import { deploymentKeys } from '@/hooks/queries/deployments'
+  createStreamLoopContext,
+  dispatchStreamEvent,
+  finalizeResidualToolCalls,
+  isRecord,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream'
 import {
-  fetchChatHistory,
-  type TaskChatHistory,
-  taskKeys,
-  useChatHistory,
-} from '@/hooks/queries/tasks'
+  fetchMothershipChatHistory,
+  type MothershipChatHistory,
+  mothershipChatKeys,
+  useMothershipChatHistory,
+} from '@/hooks/queries/mothership-chats'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
-import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { workflowKeys } from '@/hooks/queries/workflows'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
@@ -142,7 +84,6 @@ import type { ChatContext } from '@/stores/panel'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type {
   ChatMessage,
   ContentBlock,
@@ -153,9 +94,6 @@ import type {
   QueuedMessage,
   ToolCallInfo,
 } from '../types'
-import { ToolCallStatus } from '../types'
-
-const FILE_SUBAGENT_ID = 'file'
 
 export interface UseChatReturn {
   messages: ChatMessage[]
@@ -187,20 +125,6 @@ export interface UseChatReturn {
   getCurrentRequestId: () => string | undefined
 }
 
-const DEPLOY_TOOL_NAMES: Set<string> = new Set([
-  DeployApi.id,
-  DeployChat.id,
-  DeployMcp.id,
-  Redeploy.id,
-])
-
-const FOLDER_TOOL_NAMES: Set<string> = new Set([CreateFolder.id, DeleteFolder.id, MoveFolder.id])
-
-const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
-  MoveWorkflow.id,
-  RenameWorkflow.id,
-  DeleteWorkflow.id,
-])
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
 const MAX_RECONNECT_ATTEMPTS = 10
@@ -222,8 +146,6 @@ const QUEUED_SEND_HANDOFF_RETRY_MAX_MS = 30_000
 const EMPTY_MESSAGE_QUEUE: QueuedMothershipMessage[] = []
 
 const logger = createLogger('useChat')
-
-type StreamPayload = Record<string, unknown>
 
 type QueueDispatchAction = { type: 'send_head'; epoch: number }
 
@@ -370,12 +292,16 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.fileId === 'string'
     case 'folder':
       return typeof value.folderId === 'string'
-    case 'templates':
-      return value.templateId === undefined || typeof value.templateId === 'string'
+    case 'filefolder':
+      return typeof value.fileFolderId === 'string'
     case 'docs':
       return true
     case 'slash_command':
       return typeof value.command === 'string'
+    case 'integration':
+      return typeof value.blockType === 'string'
+    case 'skill':
+      return typeof value.skillId === 'string'
     default:
       return false
   }
@@ -524,330 +450,12 @@ function clearQueuedSendHandoffClaim(expectedId?: string, expectedOwnerId?: stri
   window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
 }
 
-function stringParam(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function stringArrayParam(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-}
-
-function resolveWorkflowNameForDisplay(workflowId: unknown): string | undefined {
-  const id = stringParam(workflowId)
-  if (!id) return undefined
-  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-  if (!workspaceId) return undefined
-  return getWorkflowById(workspaceId, id)?.name
-}
-
-function resolveBlockNameForDisplay(blockId: unknown): string | undefined {
-  const id = stringParam(blockId)
-  if (!id) return undefined
-  return useWorkflowStore.getState().blocks[id]?.name
-}
-
-function resolveWorkspaceFileDisplayTitle(
-  operation: unknown,
-  title: unknown,
-  targetFileName?: unknown
-): string | undefined {
-  const chunkTitle = stringParam(title)
-  const fileName = stringParam(targetFileName)
-  let verb = 'Writing'
-
-  switch (operation) {
-    case WorkspaceFileOperation.append:
-      verb = 'Adding'
-      break
-    case WorkspaceFileOperation.patch:
-      verb = 'Editing'
-      break
-    case WorkspaceFileOperation.update:
-      verb = 'Writing'
-      break
-  }
-
-  if (chunkTitle) return `${verb} ${chunkTitle}`
-  if (fileName) return `${verb} ${fileName}`
-  return undefined
-}
-
-function resolveOperationDisplayTitle(
-  operation: unknown,
-  labels: Partial<Record<string, string>>,
-  fallback: string
-): string {
-  const label = typeof operation === 'string' ? labels[operation] : undefined
-  return label ?? fallback
-}
-
-function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string | undefined {
-  if (!args) return undefined
-
-  if (name === WorkspaceFile.id) {
-    const target = asPayloadRecord(args.target)
-    return resolveWorkspaceFileDisplayTitle(args.operation, args.title, target?.fileName)
-  }
-
-  if (name === SearchOnline.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Searching online for ${toolTitle}` : 'Searching online'
-  }
-
-  if (name === Grep.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Searching for ${toolTitle}` : 'Searching'
-  }
-
-  if (name === Glob.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Finding ${toolTitle}` : 'Finding files'
-  }
-
-  if (name === ScrapePage.id) {
-    const url = stringParam(args.url)
-    return url ? `Scraping ${url}` : 'Scraping page'
-  }
-
-  if (name === CrawlWebsite.id) {
-    const url = stringParam(args.url)
-    return url ? `Crawling ${url}` : 'Crawling website'
-  }
-
-  if (name === GetPageContents.id) {
-    const urls = stringArrayParam(args.urls)
-    if (urls.length === 1) return `Getting ${urls[0]}`
-    if (urls.length > 1) return `Getting ${urls.length} pages`
-    return 'Getting page contents'
-  }
-
-  if (name === ManageCustomTool.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageCustomToolOperation.add]: 'Creating custom tool',
-        [ManageCustomToolOperation.edit]: 'Updating custom tool',
-        [ManageCustomToolOperation.delete]: 'Deleting custom tool',
-        [ManageCustomToolOperation.list]: 'Listing custom tools',
-      },
-      'Custom tool action'
-    )
-  }
-
-  if (name === ManageMcpTool.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageMcpToolOperation.add]: 'Creating MCP server',
-        [ManageMcpToolOperation.edit]: 'Updating MCP server',
-        [ManageMcpToolOperation.delete]: 'Deleting MCP server',
-        [ManageMcpToolOperation.list]: 'Listing MCP servers',
-      },
-      'MCP server action'
-    )
-  }
-
-  if (name === ManageSkill.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageSkillOperation.add]: 'Creating skill',
-        [ManageSkillOperation.edit]: 'Updating skill',
-        [ManageSkillOperation.delete]: 'Deleting skill',
-        [ManageSkillOperation.list]: 'Listing skills',
-      },
-      'Skill action'
-    )
-  }
-
-  if (name === ManageJob.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageJobOperation.create]: 'Creating job',
-        [ManageJobOperation.get]: 'Getting job',
-        [ManageJobOperation.update]: 'Updating job',
-        [ManageJobOperation.delete]: 'Deleting job',
-        [ManageJobOperation.list]: 'Listing jobs',
-      },
-      'Job action'
-    )
-  }
-
-  if (name === ManageCredential.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageCredentialOperation.rename]: 'Renaming credential',
-        [ManageCredentialOperation.delete]: 'Deleting credential',
-      },
-      'Credential action'
-    )
-  }
-
-  if (name === RunWorkflow.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    return workflowName ? `Running ${workflowName}` : 'Running workflow'
-  }
-
-  if (name === RunFromBlock.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    const blockName = resolveBlockNameForDisplay(args.startBlockId)
-    if (workflowName && blockName) return `Running ${workflowName} from ${blockName}`
-    if (workflowName) return `Running ${workflowName}`
-    if (blockName) return `Running from ${blockName}`
-    return 'Running workflow'
-  }
-
-  if (name === RunWorkflowUntilBlock.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    const blockName = resolveBlockNameForDisplay(args.stopAfterBlockId)
-    if (workflowName && blockName) return `Running ${workflowName} until ${blockName}`
-    if (workflowName) return `Running ${workflowName}`
-    if (blockName) return `Running until ${blockName}`
-    return 'Running workflow'
-  }
-
-  if (name === GetWorkflowLogs.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    return workflowName ? `Getting logs for ${workflowName}` : 'Getting logs'
-  }
-
-  return undefined
-}
-
-function decodeStreamingString(value: string): string {
-  return value
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_: string, hex: string) =>
-      String.fromCharCode(Number.parseInt(hex, 16))
-    )
-    .replace(/\\"/g, '"')
-    .replace(/\\\\/g, '\\')
-}
-
-function matchStreamingStringArg(streamingArgs: string, key: string): string | undefined {
-  const match = streamingArgs.match(new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'm'))
-  return match?.[1] ? decodeStreamingString(match[1]) : undefined
-}
-
-function resolveStreamingToolDisplayTitle(name: string, streamingArgs: string): string | undefined {
-  if (name === WorkspaceFile.id) {
-    return resolveWorkspaceFileDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      matchStreamingStringArg(streamingArgs, 'title'),
-      matchStreamingStringArg(streamingArgs, 'fileName')
-    )
-  }
-
-  if (name === SearchOnline.id) {
-    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
-    return toolTitle ? `Searching online for ${toolTitle}` : undefined
-  }
-
-  if (name === Grep.id) {
-    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
-    return toolTitle ? `Searching for ${toolTitle}` : undefined
-  }
-
-  if (name === Glob.id) {
-    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
-    return toolTitle ? `Finding ${toolTitle}` : undefined
-  }
-
-  if (name === ScrapePage.id) {
-    const url = matchStreamingStringArg(streamingArgs, 'url')
-    return url ? `Scraping ${url}` : undefined
-  }
-
-  if (name === CrawlWebsite.id) {
-    const url = matchStreamingStringArg(streamingArgs, 'url')
-    return url ? `Crawling ${url}` : undefined
-  }
-
-  if (name === ManageCustomTool.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageCustomToolOperation.add]: 'Creating custom tool',
-        [ManageCustomToolOperation.edit]: 'Updating custom tool',
-        [ManageCustomToolOperation.delete]: 'Deleting custom tool',
-        [ManageCustomToolOperation.list]: 'Listing custom tools',
-      },
-      'Custom tool action'
-    )
-  }
-
-  if (name === ManageMcpTool.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageMcpToolOperation.add]: 'Creating MCP server',
-        [ManageMcpToolOperation.edit]: 'Updating MCP server',
-        [ManageMcpToolOperation.delete]: 'Deleting MCP server',
-        [ManageMcpToolOperation.list]: 'Listing MCP servers',
-      },
-      'MCP server action'
-    )
-  }
-
-  if (name === ManageSkill.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageSkillOperation.add]: 'Creating skill',
-        [ManageSkillOperation.edit]: 'Updating skill',
-        [ManageSkillOperation.delete]: 'Deleting skill',
-        [ManageSkillOperation.list]: 'Listing skills',
-      },
-      'Skill action'
-    )
-  }
-
-  if (name === ManageJob.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageJobOperation.create]: 'Creating job',
-        [ManageJobOperation.get]: 'Getting job',
-        [ManageJobOperation.update]: 'Updating job',
-        [ManageJobOperation.delete]: 'Deleting job',
-        [ManageJobOperation.list]: 'Listing jobs',
-      },
-      'Job action'
-    )
-  }
-
-  if (name === ManageCredential.id) {
-    return resolveOperationDisplayTitle(
-      matchStreamingStringArg(streamingArgs, 'operation'),
-      {
-        [ManageCredentialOperation.rename]: 'Renaming credential',
-        [ManageCredentialOperation.delete]: 'Deleting credential',
-      },
-      'Credential action'
-    )
-  }
-
-  return undefined
-}
-
-type StreamToolUI = {
-  hidden?: boolean
-  title?: string
-  clientExecutable?: boolean
-}
-
 type StreamBatchResponse = {
   success: boolean
   events: StreamBatchEvent[]
   previewSessions?: FilePreviewSession[]
   status: string
   chatId?: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 const STREAM_SCHEMA_ENFORCEMENT_PREFIX = 'Client stream schema enforcement failed.'
@@ -953,6 +561,13 @@ function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown
   const persisted = toRawPersistedContentBlockBody(block)
   if (!persisted) return null
   if (block.parentToolCallId) persisted.parentToolCallId = block.parentToolCallId
+  // Carry deterministic span identity onto the live streaming snapshot so the
+  // rendered live message nests subagents via the span tree. Without this the
+  // live blocks lose spanId and parseBlocks falls back to legacy flat grouping,
+  // rendering nested subagents (e.g. deploy) at the top level mid-stream until
+  // the persisted message (which keeps spanId) replaces it.
+  if (block.spanId) persisted.spanId = block.spanId
+  if (block.parentSpanId) persisted.parentSpanId = block.parentSpanId
   return withBlockTiming(persisted, block)
 }
 
@@ -1098,7 +713,7 @@ function markMessageStopped(message: PersistedMessage): PersistedMessage {
   })
 }
 
-function buildChatHistoryHydrationKey(chatHistory: TaskChatHistory): string {
+function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
   const resourceKey = chatHistory.resources
     .map((resource) => `${resource.type}:${resource.id}:${resource.title}`)
     .join('|')
@@ -1327,39 +942,6 @@ function buildReplayStream(events: StreamBatchEvent[]): ReadableStream<Uint8Arra
   })
 }
 
-function asPayloadRecord(value: unknown): StreamPayload | undefined {
-  return isRecord(value) ? value : undefined
-}
-
-function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {
-  if (!ui) {
-    return undefined
-  }
-
-  const title =
-    typeof ui.title === 'string'
-      ? ui.title
-      : typeof ui.phaseLabel === 'string'
-        ? ui.phaseLabel
-        : undefined
-
-  return {
-    ...(typeof ui.hidden === 'boolean' ? { hidden: ui.hidden } : {}),
-    ...(title ? { title } : {}),
-    ...(typeof ui.clientExecutable === 'boolean' ? { clientExecutable: ui.clientExecutable } : {}),
-  }
-}
-
-function resolveLiveToolStatus(
-  payload: Partial<{
-    status: string
-    success: boolean
-    output: unknown
-  }>
-): ToolCallStatus {
-  return resolveStreamToolOutcome(payload) as ToolCallStatus
-}
-
 /** Adds a workflow to the React Query cache with a top-insertion sort order if it doesn't already exist. */
 function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId: string): boolean {
   const workflows = getWorkflows(workspaceId)
@@ -1375,7 +957,6 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
     name: title,
     lastModified: new Date(),
     createdAt: new Date(),
-    color: getNextWorkflowColor(),
     workspaceId,
     folderId: null,
     sortOrder,
@@ -1392,53 +973,6 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
   })
   void invalidateWorkflowSelectors(queryClient, workspaceId)
   return true
-}
-
-function extractResourceFromReadResult(
-  path: string | undefined,
-  output: unknown
-): MothershipResource | null {
-  if (!path) return null
-
-  const segments = path
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-  const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
-  if (!resourceType || !segments[1]) return null
-
-  const obj = output && typeof output === 'object' ? (output as Record<string, unknown>) : undefined
-  if (!obj) return null
-
-  let id = obj.id as string | undefined
-  let name = obj.name as string | undefined
-
-  if (!id && typeof obj.content === 'string') {
-    try {
-      const parsed = JSON.parse(obj.content)
-      id = parsed?.id as string | undefined
-      name = parsed?.name as string | undefined
-    } catch {
-      // content is not JSON
-    }
-  }
-
-  const fallbackTitle =
-    resourceType === 'workflow'
-      ? resolveLeafWorkflowPathSegment(segments)
-      : segments[1] || segments[segments.length - 1]
-
-  if (!id) return null
-  return { type: resourceType, id, title: name || fallbackTitle || id }
-}
-
-function resolveLeafWorkflowPathSegment(segments: string[]): string | undefined {
-  const lastSegment = segments[segments.length - 1]
-  if (!lastSegment) return undefined
-  if (/\.[^/.]+$/.test(lastSegment) && segments.length > 1) {
-    return segments[segments.length - 2]
-  }
-  return lastSegment
 }
 
 export interface UseChatOptions {
@@ -1561,154 +1095,46 @@ export function useChat(
 
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
-  const previewActivationOwnerRef = useRef<Map<string, string | null>>(new Map())
-  const completedPreviewResourceHandoffRef = useRef<
-    Map<string, { sessionId: string; suppressActivation: boolean }>
-  >(new Map())
-
-  const rememberPreviewActivationOwner = useCallback((session: FilePreviewSession) => {
-    if (!session.fileId || previewActivationOwnerRef.current.has(session.id)) {
-      return
-    }
-    previewActivationOwnerRef.current.set(session.id, activeResourceIdRef.current)
-  }, [])
-
-  const shouldAutoActivatePreviewSession = useCallback((session: FilePreviewSession) => {
-    if (!session.fileId) {
-      return false
-    }
-    const currentActiveResourceId = activeResourceIdRef.current
-    const activationOwnerId = previewActivationOwnerRef.current.get(session.id)
-    return (
-      currentActiveResourceId === null ||
-      currentActiveResourceId === session.fileId ||
-      currentActiveResourceId === 'streaming-file' ||
-      currentActiveResourceId === activationOwnerId
-    )
-  }, [])
-
-  const seedCompletedPreviewContentCache = useCallback(
-    (fileId: string, previewText: string) => {
-      queryClient.setQueriesData<string>(
-        { queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'text') },
-        previewText
-      )
-
-      const activeFiles = queryClient.getQueryData<Array<{ id: string; key: string }>>(
-        workspaceFilesKeys.list(workspaceId, 'active')
-      )
-      const fileKey = activeFiles?.find((file) => file.id === fileId)?.key
-      if (fileKey) {
-        queryClient.setQueryData(
-          [...workspaceFilesKeys.content(workspaceId, fileId, 'text'), fileKey],
-          previewText
-        )
-      }
-    },
-    [queryClient, workspaceId]
-  )
-
-  const upsertTaskChatHistory = useCallback(
-    (chatId: string, updater: (current: TaskChatHistory) => TaskChatHistory) => {
-      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), (current) => {
-        const base: TaskChatHistory = current ?? {
-          id: chatId,
-          title: null,
-          messages: [],
-          activeStreamId: null,
-          resources: resourcesRef.current,
-        }
-        return updater(base)
-      })
-    },
-    [queryClient]
-  )
-
   const {
     previewSession,
-    previewSessionsById,
-    activePreviewSessionId,
-    hydratePreviewSessions,
-    upsertPreviewSession,
-    completePreviewSession,
-    removePreviewSession,
-    resetPreviewSessions,
-  } = useFilePreviewSessions()
-  const previewSessionRef = useRef(previewSession)
-  previewSessionRef.current = previewSession
-  const previewSessionsRef = useRef(previewSessionsById)
-  previewSessionsRef.current = previewSessionsById
-  const activePreviewSessionIdRef = useRef(activePreviewSessionId)
-  activePreviewSessionIdRef.current = activePreviewSessionId
-  const previewSessionsStateRef = useRef<FilePreviewSessionsState>({
-    activeSessionId: activePreviewSessionId,
-    sessions: previewSessionsById,
+    previewSessionRef,
+    previewSessionsRef,
+    activePreviewSessionIdRef,
+    latestPreviewTargetToolCallIdRef,
+    previewActivationOwnerRef,
+    completedPreviewResourceHandoffRef,
+    shouldAutoActivatePreviewSession,
+    applyPreviewSessionUpdate,
+    removePreviewSessionImmediate,
+    reconcileTerminalPreviewSessions,
+    resetEphemeralPreviewState,
+    promoteFileResource,
+    seedPreviewSessions,
+    onPreviewPhase,
+  } = useFilePreviewController({
+    workspaceId,
+    setResources,
+    setActiveResourceId,
+    activeResourceIdRef,
   })
-  previewSessionsStateRef.current = {
-    activeSessionId: activePreviewSessionId,
-    sessions: previewSessionsById,
-  }
 
-  const syncPreviewSessionRefs = useCallback((nextState: FilePreviewSessionsState) => {
-    previewSessionsStateRef.current = nextState
-    previewSessionsRef.current = nextState.sessions
-    activePreviewSessionIdRef.current = nextState.activeSessionId
-    previewSessionRef.current =
-      nextState.activeSessionId !== null
-        ? (nextState.sessions[nextState.activeSessionId] ?? null)
-        : null
-  }, [])
-
-  const applyPreviewSessionUpdate = useCallback(
-    (session: FilePreviewSession, options?: { activate?: boolean }) => {
-      const nextState = reduceFilePreviewSessions(previewSessionsStateRef.current, {
-        type: 'upsert',
-        session,
-        ...(options?.activate === false ? { activate: false } : {}),
-      })
-      syncPreviewSessionRefs(nextState)
-      upsertPreviewSession(session, options)
-      return nextState
+  const upsertChatHistory = useCallback(
+    (chatId: string, updater: (current: MothershipChatHistory) => MothershipChatHistory) => {
+      queryClient.setQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId),
+        (current) => {
+          const base: MothershipChatHistory = current ?? {
+            id: chatId,
+            title: null,
+            messages: [],
+            activeStreamId: null,
+            resources: resourcesRef.current,
+          }
+          return updater(base)
+        }
+      )
     },
-    [syncPreviewSessionRefs, upsertPreviewSession]
-  )
-
-  const applyCompletedPreviewSession = useCallback(
-    (session: FilePreviewSession) => {
-      const nextState = reduceFilePreviewSessions(previewSessionsStateRef.current, {
-        type: 'complete',
-        session,
-      })
-      syncPreviewSessionRefs(nextState)
-      completePreviewSession(session)
-      return nextState
-    },
-    [completePreviewSession, syncPreviewSessionRefs]
-  )
-
-  const reconcileTerminalPreviewSessions = useCallback(() => {
-    const completedAt = new Date().toISOString()
-    const completedSessions = buildCompletedPreviewSessions(
-      previewSessionsStateRef.current.sessions,
-      completedAt
-    )
-
-    for (const session of completedSessions) {
-      applyCompletedPreviewSession(session)
-    }
-  }, [applyCompletedPreviewSession])
-
-  const removePreviewSessionImmediate = useCallback(
-    (sessionId: string) => {
-      const nextState = reduceFilePreviewSessions(previewSessionsStateRef.current, {
-        type: 'remove',
-        sessionId,
-      })
-      syncPreviewSessionRefs(nextState)
-      removePreviewSession(sessionId)
-      return nextState
-    },
-    [removePreviewSession, syncPreviewSessionRefs]
+    [queryClient]
   )
 
   // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`
@@ -1774,88 +1200,10 @@ export function useChat(
   )
   const recoveringQueuedSendHandoffRef = useRef<ActiveQueuedSendHandoffRecovery | null>(null)
 
-  const resetEphemeralPreviewState = useCallback(
-    (options?: { removeStreamingResource?: boolean }) => {
-      previewActivationOwnerRef.current.clear()
-      completedPreviewResourceHandoffRef.current.clear()
-      syncPreviewSessionRefs(INITIAL_FILE_PREVIEW_SESSIONS_STATE)
-      resetPreviewSessions()
-      if (options?.removeStreamingResource) {
-        setResources((current) => current.filter((resource) => resource.id !== 'streaming-file'))
-      }
-    },
-    [resetPreviewSessions, syncPreviewSessionRefs]
-  )
-
-  const syncPreviewResourceChrome = useCallback(
-    (session: FilePreviewSession, options?: { activate?: boolean }) => {
-      if (session.targetKind === 'new_file') {
-        setResources((current) => {
-          const existing = current.find((resource) => resource.id === 'streaming-file')
-          if (existing) {
-            return current.map((resource) =>
-              resource.id === 'streaming-file'
-                ? { ...resource, title: session.fileName || 'Writing file...' }
-                : resource
-            )
-          }
-          return [
-            ...current,
-            {
-              type: 'file',
-              id: 'streaming-file',
-              title: session.fileName || 'Writing file...',
-            },
-          ]
-        })
-        setActiveResourceId('streaming-file')
-        return
-      }
-
-      if (session.fileId && hasRenderableFilePreviewContent(session)) {
-        setResources((current) => current.filter((resource) => resource.id !== 'streaming-file'))
-        if (options?.activate !== false) {
-          setActiveResourceId(session.fileId)
-        }
-      }
-    },
-    []
-  )
-
-  const seedPreviewSessions = useCallback(
-    (sessions: FilePreviewSession[]) => {
-      if (sessions.length === 0) {
-        return
-      }
-
-      const nextState = reduceFilePreviewSessions(previewSessionsStateRef.current, {
-        type: 'hydrate',
-        sessions,
-      })
-      syncPreviewSessionRefs(nextState)
-      hydratePreviewSessions(sessions)
-      const active =
-        nextState.activeSessionId !== null
-          ? (nextState.sessions[nextState.activeSessionId] ?? null)
-          : null
-      if (active) {
-        syncPreviewResourceChrome(active, {
-          activate: active.targetKind === 'new_file' || shouldAutoActivatePreviewSession(active),
-        })
-      }
-    },
-    [
-      hydratePreviewSessions,
-      shouldAutoActivatePreviewSession,
-      syncPreviewResourceChrome,
-      syncPreviewSessionRefs,
-    ]
-  )
-
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
-  /** Panel/task selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
+  /** Panel/chat selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
   const appliedChatHistoryKeyRef = useRef<string | undefined>(undefined)
@@ -1927,12 +1275,14 @@ export function useChat(
       streamId: string,
       assistantId: string,
       afterCursor: string,
-      options?: { targetChatId?: string; chatHistory?: TaskChatHistory }
+      options?: { targetChatId?: string; chatHistory?: MothershipChatHistory }
     ): ReconnectReplaySelection => {
       const cachedHistory =
         options?.chatHistory ??
         (options?.targetChatId
-          ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(options.targetChatId))
+          ? queryClient.getQueryData<MothershipChatHistory>(
+              mothershipChatKeys.detail(options.targetChatId)
+            )
           : undefined)
       const cachedLiveAssistant = cachedHistory?.messages.find(
         (message) => message.id === assistantId
@@ -2069,17 +1419,17 @@ export function useChat(
         !workflowIdRef.current &&
         typeof window !== 'undefined'
       ) {
-        window.history.replaceState(null, '', `/workspace/${workspaceId}/task/${chatId}`)
+        window.history.replaceState(null, '', `/workspace/${workspaceId}/chat/${chatId}`)
       }
       if (options?.invalidateList) {
-        queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
       }
       flushPendingResources(chatId)
     },
     [flushPendingResources, queryClient, workspaceId]
   )
 
-  const { data: chatHistory } = useChatHistory(resolvedChatId)
+  const { data: chatHistory } = useMothershipChatHistory(resolvedChatId)
   const messages = useMemo(() => {
     const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
@@ -2294,7 +1644,7 @@ export function useChat(
         clearActiveTurn()
         setTransportIdle()
         if (abandonedChatId) {
-          queryClient.invalidateQueries({ queryKey: taskKeys.detail(abandonedChatId) })
+          queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(abandonedChatId) })
         }
       } else {
         setResolvedChatId(initialChatId)
@@ -2552,243 +1902,59 @@ export function useChat(
       }
     ) => {
       const decoder = new TextDecoder()
-      const isReaderStale = () =>
-        (expectedGen !== undefined && streamGenRef.current !== expectedGen) ||
-        options?.shouldContinue?.() === false
-      if (isReaderStale()) {
+      const ctx = createStreamLoopContext({
+        workspaceId,
+        queryClient,
+        assistantId,
+        expectedGen,
+        options: options ?? {},
+        setError,
+        setPendingMessages,
+        setResolvedChatId,
+        setResources,
+        setActiveResourceId,
+        addResource,
+        removeResource,
+        startClientWorkflowTool,
+        upsertMothershipChatHistory: upsertChatHistory,
+        ensureWorkflowInRegistry,
+        onPreviewPhase,
+        applyPreviewSessionUpdate,
+        removePreviewSessionImmediate,
+        promoteFileResource,
+        shouldAutoActivatePreviewSession,
+        buildAssistantSnapshotMessage,
+        hasTerminalPersistedAssistantForStream,
+        reconcileLiveAssistantTurn,
+        streamGenRef,
+        streamingBlocksRef,
+        streamingContentRef,
+        chatIdRef,
+        selectedChatIdRef,
+        streamIdRef,
+        revealedSimKeysRef,
+        pendingUserMsgRef,
+        activeTurnRef,
+        resourcesRef,
+        workflowIdRef,
+        activeResourceIdRef,
+        onTitleUpdateRef,
+        onToolResultRef,
+        onResourceEventRef,
+        previewSessionRef,
+        previewSessionsRef,
+        latestPreviewTargetToolCallIdRef,
+        activePreviewSessionIdRef,
+        completedPreviewResourceHandoffRef,
+        previewActivationOwnerRef,
+      })
+      const { state, ops } = ctx
+      if (ops.isStale()) {
         void reader.cancel().catch(() => {})
         return { sawStreamError: false, sawComplete: false }
       }
       streamReaderRef.current = reader
       let buffer = ''
-
-      const preserveState = options?.preserveExistingState === true
-      const blocks: ContentBlock[] = preserveState ? [...streamingBlocksRef.current] : []
-      const toolMap = new Map<string, number>()
-      const toolArgsMap = new Map<string, Record<string, unknown>>()
-
-      if (preserveState) {
-        for (let i = 0; i < blocks.length; i++) {
-          const tc = blocks[i].toolCall
-          if (tc) {
-            toolMap.set(tc.id, i)
-            if (tc.params) toolArgsMap.set(tc.id, tc.params)
-          }
-        }
-      }
-
-      let activeSubagent: string | undefined
-      let activeSubagentParentToolCallId: string | undefined
-      let activeCompactionId: string | undefined
-      const subagentByParentToolCallId = new Map<string, string>()
-
-      if (preserveState) {
-        for (let i = blocks.length - 1; i >= 0; i--) {
-          if (blocks[i].type === 'subagent' && blocks[i].content) {
-            activeSubagent = blocks[i].content
-            activeSubagentParentToolCallId = blocks[i].parentToolCallId
-            break
-          }
-          if (blocks[i].type === 'subagent_end') {
-            break
-          }
-        }
-      }
-
-      let runningText = preserveState ? streamingContentRef.current || '' : ''
-      let lastContentSource: 'main' | 'subagent' | null = null
-      let streamRequestId: string | undefined
-
-      if (!preserveState) {
-        streamingContentRef.current = ''
-        streamingBlocksRef.current = []
-      }
-
-      const toEventMs = (ts: string | undefined): number => {
-        if (ts) {
-          const parsed = Date.parse(ts)
-          if (Number.isFinite(parsed)) return parsed
-        }
-        return Date.now()
-      }
-
-      const stampBlockEnd = (block: ContentBlock | undefined, ts?: string) => {
-        if (block && block.endedAt === undefined) block.endedAt = toEventMs(ts)
-      }
-
-      const ensureTextBlock = (
-        subagentName: string | undefined,
-        parentToolCallId: string | undefined,
-        ts?: string
-      ): ContentBlock => {
-        const last = blocks[blocks.length - 1]
-        if (
-          last?.type === 'text' &&
-          last.subagent === subagentName &&
-          last.parentToolCallId === parentToolCallId
-        ) {
-          return last
-        }
-        stampBlockEnd(last, ts)
-        const b: ContentBlock = { type: 'text', content: '', timestamp: toEventMs(ts) }
-        if (subagentName) b.subagent = subagentName
-        if (parentToolCallId) b.parentToolCallId = parentToolCallId
-        blocks.push(b)
-        return b
-      }
-
-      const ensureThinkingBlock = (
-        subagentName: string | undefined,
-        parentToolCallId: string | undefined,
-        ts?: string
-      ): ContentBlock => {
-        const targetType = subagentName ? 'subagent_thinking' : 'thinking'
-        const last = blocks[blocks.length - 1]
-        if (
-          last?.type === targetType &&
-          last.subagent === subagentName &&
-          last.parentToolCallId === parentToolCallId
-        ) {
-          return last
-        }
-        stampBlockEnd(last, ts)
-        const b: ContentBlock = { type: targetType, content: '', timestamp: toEventMs(ts) }
-        if (subagentName) b.subagent = subagentName
-        if (parentToolCallId) b.parentToolCallId = parentToolCallId
-        blocks.push(b)
-        return b
-      }
-
-      const resolveScopedSubagent = (
-        agentId: string | undefined,
-        parentToolCallId: string | undefined
-      ): string | undefined => {
-        if (agentId) return agentId
-        if (parentToolCallId) {
-          const scoped = subagentByParentToolCallId.get(parentToolCallId)
-          if (scoped) return scoped
-        }
-        return activeSubagent
-      }
-
-      const resolveParentForSubagentBlock = (
-        subagent: string | undefined,
-        scopedParent: string | undefined
-      ): string | undefined => {
-        if (!subagent) return undefined
-        if (scopedParent) return scopedParent
-        if (activeSubagent === subagent) return activeSubagentParentToolCallId
-        for (const [parent, name] of subagentByParentToolCallId) {
-          if (name === subagent) return parent
-        }
-        return undefined
-      }
-
-      const appendInlineErrorTag = (
-        tag: string,
-        subagentName?: string,
-        parentToolCallId?: string,
-        ts?: string
-      ) => {
-        if (runningText.includes(tag)) return
-        const tb = ensureTextBlock(subagentName, parentToolCallId, ts)
-        const prefix = runningText.length > 0 && !runningText.endsWith('\n') ? '\n' : ''
-        tb.content = `${tb.content ?? ''}${prefix}${tag}`
-        runningText += `${prefix}${tag}`
-        streamingContentRef.current = runningText
-        flush()
-      }
-
-      const buildInlineErrorTag = (payload: MothershipStreamV1ErrorPayload) => {
-        const message =
-          (typeof payload.displayMessage === 'string' ? payload.displayMessage : undefined) ||
-          (typeof payload.message === 'string' ? payload.message : undefined) ||
-          (typeof payload.error === 'string' ? payload.error : undefined) ||
-          'An unexpected error occurred'
-        const provider = typeof payload.provider === 'string' ? payload.provider : undefined
-        const code = typeof payload.code === 'string' ? payload.code : undefined
-        return `<mothership-error>${JSON.stringify({
-          message,
-          ...(code ? { code } : {}),
-          ...(provider ? { provider } : {}),
-        })}</mothership-error>`
-      }
-
-      const isStale = isReaderStale
-      let sawStreamError = false
-      let sawCompleteEvent = false
-      let scheduledTextFlushFrame: number | null = null
-
-      const flush = () => {
-        if (isStale()) return
-        streamingBlocksRef.current = [...blocks]
-        captureRevealedSimKeys(
-          revealedSimKeysRef.current,
-          [assistantId, streamRequestId],
-          runningText
-        )
-        const activeChatId = options?.targetChatId ?? chatIdRef.current
-        if (!activeChatId) {
-          const snapshot: Partial<ChatMessage> = {
-            content: runningText,
-            contentBlocks: [...blocks],
-          }
-          if (streamRequestId) snapshot.requestId = streamRequestId
-          setPendingMessages((prev) => {
-            if (expectedGen !== undefined && streamGenRef.current !== expectedGen) return prev
-            const idx = prev.findIndex((m) => m.id === assistantId)
-            if (idx >= 0) {
-              return prev.map((m) => (m.id === assistantId ? { ...m, ...snapshot } : m))
-            }
-            return [
-              ...prev,
-              { id: assistantId, role: 'assistant' as const, content: '', ...snapshot },
-            ]
-          })
-          return
-        }
-
-        const assistantMessage = buildAssistantSnapshotMessage({
-          id: assistantId,
-          content: runningText,
-          contentBlocks: blocks,
-          ...(streamRequestId ? { requestId: streamRequestId } : {}),
-        })
-        upsertTaskChatHistory(activeChatId, (current) => {
-          const streamId = streamIdRef.current ?? current.activeStreamId ?? assistantId
-          const terminalPersistedAssistantExists =
-            current.activeStreamId !== streamId &&
-            hasTerminalPersistedAssistantForStream(current.messages, streamId, assistantMessage.id)
-          const reconciledMessages = reconcileLiveAssistantTurn({
-            messages: current.messages,
-            streamId,
-            liveAssistant: assistantMessage,
-            activeStreamId: current.activeStreamId,
-          })
-          const skippedTerminalLiveWrite = reconciledMessages === current.messages
-          return {
-            ...current,
-            messages: reconciledMessages,
-            activeStreamId:
-              skippedTerminalLiveWrite || terminalPersistedAssistantExists
-                ? current.activeStreamId
-                : (streamIdRef.current ?? current.activeStreamId),
-          }
-        })
-      }
-
-      const flushText = () => {
-        if (isStale()) return
-        if (scheduledTextFlushFrame !== null) return
-        if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
-          flush()
-          return
-        }
-        scheduledTextFlushFrame = window.requestAnimationFrame(() => {
-          scheduledTextFlushFrame = null
-          flush()
-        })
-      }
 
       try {
         const pendingLines: string[] = []
@@ -2796,10 +1962,10 @@ export function useChat(
         while (true) {
           if (pendingLines.length === 0) {
             // Don't read another chunk after `complete` has drained.
-            if (sawCompleteEvent) break
+            if (state.sawCompleteEvent) break
             const { done, value } = await reader.read()
             if (done) break
-            if (isStale()) continue
+            if (ops.isStale()) continue
 
             buffer += decoder.decode(value, { stream: true })
             const lines = buffer.split('\n')
@@ -2814,7 +1980,7 @@ export function useChat(
           if (line === undefined) {
             continue
           }
-          if (isStale()) {
+          if (ops.isStale()) {
             pendingLines.length = 0
             continue
           }
@@ -2834,10 +2000,10 @@ export function useChat(
           }
           const parsed = parsedResult.event
 
-          if (parsed.trace?.requestId && parsed.trace.requestId !== streamRequestId) {
-            streamRequestId = parsed.trace.requestId
-            streamRequestIdRef.current = streamRequestId
-            flush()
+          if (parsed.trace?.requestId && parsed.trace.requestId !== state.streamRequestId) {
+            state.streamRequestId = parsed.trace.requestId
+            streamRequestIdRef.current = state.streamRequestId
+            ops.flush()
           }
           if (parsed.stream?.streamId) {
             streamIdRef.current = parsed.stream.streamId
@@ -2853,805 +2019,36 @@ export function useChat(
           }
 
           logger.debug('SSE event received', parsed)
-          const scopedParentToolCallId =
-            typeof parsed.scope?.parentToolCallId === 'string'
-              ? parsed.scope.parentToolCallId
-              : undefined
-          const scopedAgentId =
-            typeof parsed.scope?.agentId === 'string' ? parsed.scope.agentId : undefined
-          const scopedSubagent = resolveScopedSubagent(scopedAgentId, scopedParentToolCallId)
-          switch (parsed.type) {
-            case MothershipStreamV1EventType.session: {
-              const payload = parsed.payload
-              const payloadChatId =
-                payload.kind === MothershipStreamV1SessionKind.chat
-                  ? payload.chatId
-                  : typeof parsed.stream?.chatId === 'string'
-                    ? parsed.stream.chatId
-                    : undefined
-              if (payload.kind === MothershipStreamV1SessionKind.chat && payloadChatId) {
-                const isNewChat = !chatIdRef.current
-                chatIdRef.current = payloadChatId
-                const selected = selectedChatIdRef.current
-                if (selected == null) {
-                  if (isNewChat) {
-                    setResolvedChatId(payloadChatId)
-                  }
-                } else if (payloadChatId === selected) {
-                  setResolvedChatId(payloadChatId)
-                }
-                queryClient.invalidateQueries({
-                  queryKey: taskKeys.list(workspaceId),
-                })
-                if (isNewChat) {
-                  const userMsg = pendingUserMsgRef.current
-                  const activeStreamId = streamIdRef.current
-                  if (userMsg && activeStreamId) {
-                    const assistantMessage = buildAssistantSnapshotMessage({
-                      id:
-                        activeTurnRef.current?.assistantMessageId ??
-                        getLiveAssistantMessageId(activeStreamId),
-                      content: streamingContentRef.current,
-                      contentBlocks: streamingBlocksRef.current,
-                    })
-                    const seededMessages = [userMsg, assistantMessage]
-                    queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(payloadChatId), {
-                      id: payloadChatId,
-                      title: null,
-                      messages: seededMessages,
-                      activeStreamId,
-                      resources: resourcesRef.current,
-                    })
-                  }
-                  setPendingMessages([])
-                  if (!workflowIdRef.current) {
-                    window.history.replaceState(
-                      null,
-                      '',
-                      `/workspace/${workspaceId}/task/${payloadChatId}`
-                    )
-                  }
-                }
-              }
-              if (payload.kind === MothershipStreamV1SessionKind.title) {
-                queryClient.invalidateQueries({
-                  queryKey: taskKeys.list(workspaceId),
-                })
-                onTitleUpdateRef.current?.()
-              }
-              break
-            }
-            case MothershipStreamV1EventType.text: {
-              const chunk = parsed.payload.text
-              if (chunk) {
-                const eventTs = typeof parsed.ts === 'string' ? parsed.ts : undefined
-                if (parsed.payload.channel === MothershipStreamV1TextChannel.thinking) {
-                  const scopedParentForBlock = resolveParentForSubagentBlock(
-                    scopedSubagent,
-                    scopedParentToolCallId
-                  )
-                  const tb = ensureThinkingBlock(scopedSubagent, scopedParentForBlock, eventTs)
-                  tb.content = (tb.content ?? '') + chunk
-                  flushText()
-                  break
-                }
-                const contentSource: 'main' | 'subagent' = scopedSubagent ? 'subagent' : 'main'
-                const needsBoundaryNewline =
-                  lastContentSource !== null &&
-                  lastContentSource !== contentSource &&
-                  runningText.length > 0 &&
-                  !runningText.endsWith('\n')
-                const scopedParentForBlock = resolveParentForSubagentBlock(
-                  scopedSubagent,
-                  scopedParentToolCallId
-                )
-                const tb = ensureTextBlock(scopedSubagent, scopedParentForBlock, eventTs)
-                const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
-                tb.content = (tb.content ?? '') + normalizedChunk
-                runningText += normalizedChunk
-                lastContentSource = contentSource
-                streamingContentRef.current = runningText
-                flushText()
-              }
-              break
-            }
-            case MothershipStreamV1EventType.tool: {
-              const payload = parsed.payload
-              const id = payload.toolCallId
-
-              if ('previewPhase' in payload) {
-                const prevSession = previewSessionsRef.current[id]
-                const target =
-                  payload.previewPhase === 'file_preview_target' ? payload.target : undefined
-                const targetKind =
-                  'targetKind' in payload &&
-                  (payload.targetKind === 'new_file' || payload.targetKind === 'file_id')
-                    ? payload.targetKind
-                    : target?.kind === 'new_file' || target?.kind === 'file_id'
-                      ? target.kind
-                      : prevSession?.targetKind
-                const fileId =
-                  'fileId' in payload && typeof payload.fileId === 'string'
-                    ? payload.fileId
-                    : typeof target?.fileId === 'string'
-                      ? target.fileId
-                      : prevSession?.fileId
-                const fileName =
-                  'fileName' in payload && typeof payload.fileName === 'string'
-                    ? payload.fileName
-                    : typeof target?.fileName === 'string'
-                      ? target.fileName
-                      : (prevSession?.fileName ?? '')
-                const operation =
-                  'operation' in payload && typeof payload.operation === 'string'
-                    ? payload.operation
-                    : prevSession?.operation
-                const edit =
-                  ('edit' in payload ? asPayloadRecord(payload.edit) : undefined) ??
-                  prevSession?.edit
-                const streamId = parsed.stream?.streamId ?? prevSession?.streamId ?? ''
-                const nextPreviewVersion =
-                  'previewVersion' in payload &&
-                  typeof payload.previewVersion === 'number' &&
-                  Number.isFinite(payload.previewVersion)
-                    ? payload.previewVersion
-                    : (prevSession?.previewVersion ?? 0) + 1
-                const baseSession: FilePreviewSession = {
-                  schemaVersion: 1,
-                  id,
-                  streamId,
-                  toolCallId: id,
-                  status: prevSession?.status ?? 'pending',
-                  fileName,
-                  ...(fileId ? { fileId } : {}),
-                  ...(targetKind ? { targetKind } : {}),
-                  ...(operation ? { operation } : {}),
-                  ...(edit ? { edit } : {}),
-                  previewText: prevSession?.previewText ?? '',
-                  previewVersion: prevSession?.previewVersion ?? 0,
-                  updatedAt: prevSession?.updatedAt ?? new Date().toISOString(),
-                  ...(prevSession?.completedAt ? { completedAt: prevSession.completedAt } : {}),
-                }
-
-                if (payload.previewPhase === 'file_preview_start') {
-                  const nextSession: FilePreviewSession = {
-                    ...baseSession,
-                    status: 'pending',
-                    updatedAt: new Date().toISOString(),
-                  }
-                  applyPreviewSessionUpdate(nextSession)
-                  break
-                }
-
-                if (payload.previewPhase === 'file_preview_target') {
-                  const nextSession: FilePreviewSession = {
-                    ...baseSession,
-                    updatedAt: new Date().toISOString(),
-                  }
-                  rememberPreviewActivationOwner(nextSession)
-                  const nextState = applyPreviewSessionUpdate(nextSession)
-                  const activePreview =
-                    nextState.activeSessionId !== null
-                      ? (nextState.sessions[nextState.activeSessionId] ?? null)
-                      : null
-                  if (activePreview?.id === nextSession.id) {
-                    syncPreviewResourceChrome(activePreview, {
-                      activate:
-                        activePreview.targetKind === 'new_file' ||
-                        shouldAutoActivatePreviewSession(activePreview),
-                    })
-                  }
-                  break
-                }
-
-                if (payload.previewPhase === 'file_preview_edit_meta') {
-                  const nextSession: FilePreviewSession = {
-                    ...baseSession,
-                    status: prevSession?.status ?? 'pending',
-                    updatedAt: new Date().toISOString(),
-                  }
-                  applyPreviewSessionUpdate(nextSession)
-                  break
-                }
-
-                if (payload.previewPhase === 'file_preview_content') {
-                  const content = payload.content
-                  const contentMode = payload.contentMode
-                  const nextPreviewText =
-                    contentMode === 'delta' ? (prevSession?.previewText ?? '') + content : content
-                  const nextSession: FilePreviewSession = {
-                    ...baseSession,
-                    status: 'streaming',
-                    previewText: nextPreviewText,
-                    previewVersion: nextPreviewVersion,
-                    updatedAt: new Date().toISOString(),
-                  }
-                  applyPreviewSessionUpdate(nextSession)
-                  if (!prevSession || !hasRenderableFilePreviewContent(prevSession)) {
-                    syncPreviewResourceChrome(nextSession, {
-                      activate:
-                        nextSession.targetKind === 'new_file' ||
-                        shouldAutoActivatePreviewSession(nextSession),
-                    })
-                  }
-                  const previewToolIdx = toolMap.get(id)
-                  if (previewToolIdx !== undefined && blocks[previewToolIdx].toolCall) {
-                    blocks[previewToolIdx].toolCall!.status = 'executing'
-                  }
-                  break
-                }
-
-                if (payload.previewPhase === 'file_preview_complete') {
-                  const resultData = asPayloadRecord(payload.output)
-                  const outputData = asPayloadRecord(resultData?.data) ?? resultData
-                  const completedAt = new Date().toISOString()
-                  const wasRenderableBeforeComplete =
-                    prevSession !== undefined && hasRenderableFilePreviewContent(prevSession)
-                  const nextSession: FilePreviewSession = {
-                    ...baseSession,
-                    status: 'complete',
-                    previewVersion: payload.previewVersion ?? prevSession?.previewVersion ?? 0,
-                    updatedAt: completedAt,
-                    completedAt,
-                  }
-                  const nextState = applyCompletedPreviewSession(nextSession)
-
-                  if (fileId && resultData?.success === true && outputData?.id === fileId) {
-                    const fileName = (outputData.name as string) ?? nextSession.fileName ?? 'File'
-                    const fileResource = { type: 'file' as const, id: fileId, title: fileName }
-                    setResources((rs) => {
-                      const without = rs.filter((r) => r.id !== 'streaming-file')
-                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
-                        return without
-                      }
-                      return [...without, fileResource]
-                    })
-                    const shouldActivateOnComplete =
-                      !wasRenderableBeforeComplete &&
-                      hasRenderableFilePreviewContent(nextSession) &&
-                      shouldAutoActivatePreviewSession(nextSession)
-                    if (shouldActivateOnComplete) {
-                      setActiveResourceId(fileId)
-                    }
-                    completedPreviewResourceHandoffRef.current.set(fileId, {
-                      sessionId: nextSession.id,
-                      suppressActivation: !shouldActivateOnComplete,
-                    })
-                    if (hasRenderableFilePreviewContent(nextSession)) {
-                      seedCompletedPreviewContentCache(fileId, nextSession.previewText)
-                    }
-                    invalidateResourceQueries(queryClient, workspaceId, 'file', fileId)
-                  } else {
-                    const activePreview =
-                      nextState.activeSessionId !== null
-                        ? (nextState.sessions[nextState.activeSessionId] ?? null)
-                        : null
-                    if (activePreview) {
-                      syncPreviewResourceChrome(activePreview, {
-                        activate:
-                          activePreview.targetKind === 'new_file' ||
-                          shouldAutoActivatePreviewSession(activePreview),
-                      })
-                    }
-                  }
-                  break
-                }
-              }
-
-              if (payload.phase === MothershipStreamV1ToolPhase.args_delta) {
-                const delta = payload.argumentsDelta
-                if (!delta) break
-
-                const idx = toolMap.get(id)
-                if (idx !== undefined && blocks[idx].toolCall) {
-                  const tc = blocks[idx].toolCall!
-                  tc.streamingArgs = (tc.streamingArgs ?? '') + delta
-                  const displayTitle = resolveStreamingToolDisplayTitle(tc.name, tc.streamingArgs)
-                  if (displayTitle) tc.displayTitle = displayTitle
-
-                  flush()
-                }
-                break
-              }
-
-              if (payload.phase === MothershipStreamV1ToolPhase.result) {
-                const idx = toolMap.get(id)
-                if (idx === undefined || !blocks[idx].toolCall) {
-                  break
-                }
-                const tc = blocks[idx].toolCall!
-                const outputObj = asPayloadRecord(payload.output)
-                const isCancelled =
-                  outputObj?.reason === 'user_cancelled' ||
-                  outputObj?.cancelledByUser === true ||
-                  payload.status === MothershipStreamV1ToolOutcome.cancelled
-                const status = isCancelled
-                  ? ToolCallStatus.cancelled
-                  : resolveLiveToolStatus(payload)
-                const isSuccess = status === ToolCallStatus.success
-
-                if (status === ToolCallStatus.cancelled) {
-                  tc.status = ToolCallStatus.cancelled
-                  tc.displayTitle = 'Stopped by user'
-                } else {
-                  tc.status = status
-                }
-                tc.streamingArgs = undefined
-                tc.result = {
-                  success: isSuccess,
-                  output: payload.output,
-                  error: typeof payload.error === 'string' ? payload.error : undefined,
-                }
-                stampBlockEnd(blocks[idx])
-                flush()
-
-                if (tc.name === ReadTool.id && tc.status === 'success') {
-                  const readArgs = toolArgsMap.get(id)
-                  const resource = extractResourceFromReadResult(
-                    typeof readArgs?.path === 'string' ? readArgs.path : undefined,
-                    tc.result.output
-                  )
-                  if (resource && addResource(resource)) {
-                    onResourceEventRef.current?.()
-                  }
-                }
-
-                if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
-                  const output = tc.result?.output as Record<string, unknown> | undefined
-                  const deployedWorkflowId = (output?.workflowId as string) ?? undefined
-                  if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
-                    queryClient.invalidateQueries({
-                      queryKey: deploymentKeys.info(deployedWorkflowId),
-                    })
-                    queryClient.invalidateQueries({
-                      queryKey: deploymentKeys.versions(deployedWorkflowId),
-                    })
-                    queryClient.invalidateQueries({
-                      queryKey: workflowKeys.list(workspaceId),
-                    })
-                  }
-                }
-
-                if (FOLDER_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
-                  queryClient.invalidateQueries({
-                    queryKey: folderKeys.list(workspaceId),
-                  })
-                }
-                if (WORKFLOW_MUTATION_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
-                  queryClient.invalidateQueries({
-                    queryKey: workflowKeys.list(workspaceId),
-                  })
-                }
-
-                const extractedResources =
-                  tc.status === 'success' && isResourceToolName(tc.name)
-                    ? extractResourcesFromToolResult(
-                        tc.name,
-                        toolArgsMap.get(id) as Record<string, unknown> | undefined,
-                        tc.result?.output
-                      )
-                    : []
-
-                for (const resource of extractedResources) {
-                  invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
-                }
-
-                onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
-
-                const workspaceFileOperation =
-                  tc.name === WorkspaceFile.id && typeof tc.params?.operation === 'string'
-                    ? tc.params.operation
-                    : undefined
-                const shouldKeepWorkspacePreviewOpen =
-                  tc.name === WorkspaceFile.id &&
-                  (workspaceFileOperation === 'append' ||
-                    workspaceFileOperation === 'update' ||
-                    workspaceFileOperation === 'patch')
-
-                if (
-                  (tc.name === WorkspaceFile.id || tc.name === 'edit_content') &&
-                  !shouldKeepWorkspacePreviewOpen
-                ) {
-                  if (tc.name === WorkspaceFile.id) {
-                    removePreviewSessionImmediate(id)
-                  }
-                  const fileResource = extractedResources.find((r) => r.type === 'file')
-                  if (fileResource) {
-                    setResources((rs) => {
-                      const without = rs.filter((r) => r.id !== 'streaming-file')
-                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
-                        return without
-                      }
-                      return [...without, fileResource]
-                    })
-                    setActiveResourceId(fileResource.id)
-                    invalidateResourceQueries(queryClient, workspaceId, 'file', fileResource.id)
-                  } else if (tc.calledBy !== FILE_SUBAGENT_ID) {
-                    setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
-                  }
-                }
-                break
-              }
-
-              const name = payload.toolName
-              const isPartial =
-                payload.partial === true ||
-                payload.status === MothershipStreamV1ToolStatus.generating
-              if (name === ToolSearchToolRegex.id || isToolHiddenInUi(name)) {
-                break
-              }
-              const ui = getToolUI(payload.ui)
-              if (ui?.hidden) break
-              let displayTitle = ui?.title
-              const args = payload.arguments as Record<string, unknown> | undefined
-
-              displayTitle = resolveToolDisplayTitle(name, args) ?? displayTitle
-
-              if (name === 'edit_content') {
-                const parentToolCallId =
-                  activePreviewSessionIdRef.current ?? previewSessionRef.current?.toolCallId
-                const parentIdx =
-                  parentToolCallId !== null && parentToolCallId !== undefined
-                    ? toolMap.get(parentToolCallId)
-                    : undefined
-                if (parentIdx !== undefined && blocks[parentIdx].toolCall) {
-                  toolMap.set(id, parentIdx)
-                  const tc = blocks[parentIdx].toolCall!
-                  tc.status = 'executing'
-                  tc.result = undefined
-                  flush()
-                  break
-                }
-              }
-
-              const existingToolCall = toolMap.has(id)
-                ? blocks[toolMap.get(id)!]?.toolCall
-                : undefined
-              const isNewToolCall = !existingToolCall
-              if (isNewToolCall) {
-                stampBlockEnd(blocks[blocks.length - 1])
-                toolMap.set(id, blocks.length)
-                const parentToolCallIdForBlock = resolveParentForSubagentBlock(
-                  scopedSubagent,
-                  scopedParentToolCallId
-                )
-                blocks.push({
-                  type: 'tool_call',
-                  toolCall: {
-                    id,
-                    name,
-                    status: 'executing',
-                    displayTitle,
-                    params: args,
-                    calledBy: scopedSubagent,
-                  },
-                  ...(parentToolCallIdForBlock
-                    ? { parentToolCallId: parentToolCallIdForBlock }
-                    : {}),
-                  timestamp: Date.now(),
-                })
-                if (name === ReadTool.id || isResourceToolName(name)) {
-                  if (args) toolArgsMap.set(id, args)
-                }
-              } else {
-                const idx = toolMap.get(id)!
-                const tc = blocks[idx].toolCall
-                if (tc) {
-                  tc.name = name
-                  if (displayTitle) tc.displayTitle = displayTitle
-                  if (args) tc.params = args
-                }
-              }
-              flush()
-
-              if (isWorkflowToolName(name) && !isPartial) {
-                const shouldStartWorkflowTool =
-                  !options?.suppressedWorkflowToolStartIds?.has(id) &&
-                  (isNewToolCall ||
-                    (existingToolCall?.status === ToolCallStatus.executing &&
-                      !existingToolCall.result))
-                if (shouldStartWorkflowTool) {
-                  startClientWorkflowTool(id, name, args ?? {})
-                }
-              }
-              break
-            }
-            case MothershipStreamV1EventType.resource: {
-              const payload = parsed.payload
-              const resource = payload.resource
-
-              if (payload.op === MothershipStreamV1ResourceOp.remove) {
-                removeResource(resource.type as MothershipResourceType, resource.id)
-                invalidateResourceQueries(
-                  queryClient,
-                  workspaceId,
-                  resource.type as MothershipResourceType,
-                  resource.id
-                )
-                onResourceEventRef.current?.()
-                break
-              }
-
-              const nextResource = {
-                type: resource.type as MothershipResourceType,
-                id: resource.id,
-                title: typeof resource.title === 'string' ? resource.title : resource.id,
-              }
-              const completedPreviewHandoff =
-                nextResource.type === 'file'
-                  ? completedPreviewResourceHandoffRef.current.get(nextResource.id)
-                  : undefined
-              const matchingPreviewSessions =
-                nextResource.type === 'file'
-                  ? Object.values(previewSessionsRef.current).filter(
-                      (session) => session.fileId === nextResource.id
-                    )
-                  : []
-              const latestPreviewForResource = (
-                sessions: FilePreviewSession[]
-              ): FilePreviewSession | undefined =>
-                sessions.reduce<FilePreviewSession | undefined>(
-                  (latest, session) => (shouldReplaceSession(latest, session) ? session : latest),
-                  undefined
-                )
-              const latestActivePreviewForResource = latestPreviewForResource(
-                matchingPreviewSessions.filter((session) => session.status !== 'complete')
-              )
-              const previewForResource =
-                latestActivePreviewForResource ?? latestPreviewForResource(matchingPreviewSessions)
-              const isCompletedPreviewHandoffCurrent =
-                completedPreviewHandoff !== undefined &&
-                (!latestActivePreviewForResource ||
-                  latestActivePreviewForResource.id === completedPreviewHandoff.sessionId)
-              if (completedPreviewHandoff && !isCompletedPreviewHandoffCurrent) {
-                completedPreviewResourceHandoffRef.current.delete(nextResource.id)
-                previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
-              }
-              const shouldSuppressFileResourceActivation =
-                (isCompletedPreviewHandoffCurrent &&
-                  completedPreviewHandoff?.suppressActivation === true) ||
-                (previewForResource !== undefined &&
-                  previewForResource.status !== 'complete' &&
-                  (!hasRenderableFilePreviewContent(previewForResource) ||
-                    !shouldAutoActivatePreviewSession(previewForResource)))
-              const wasAdded = shouldSuppressFileResourceActivation
-                ? !resourcesRef.current.some(
-                    (r) => r.type === nextResource.type && r.id === nextResource.id
-                  )
-                : addResource(nextResource)
-              if (shouldSuppressFileResourceActivation && wasAdded) {
-                setResources((current) =>
-                  current.some((r) => r.type === nextResource.type && r.id === nextResource.id)
-                    ? current
-                    : [...current, nextResource]
-                )
-              }
-              if (completedPreviewHandoff && isCompletedPreviewHandoffCurrent) {
-                completedPreviewResourceHandoffRef.current.delete(nextResource.id)
-                previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
-              }
-              invalidateResourceQueries(
-                queryClient,
-                workspaceId,
-                nextResource.type,
-                nextResource.id
-              )
-
-              if (
-                !shouldSuppressFileResourceActivation &&
-                !wasAdded &&
-                activeResourceIdRef.current !== nextResource.id
-              ) {
-                setActiveResourceId(nextResource.id)
-              }
-              onResourceEventRef.current?.()
-
-              if (nextResource.type === 'workflow') {
-                const wasRegistered = ensureWorkflowInRegistry(
-                  nextResource.id,
-                  nextResource.title,
-                  workspaceId
-                )
-                if (wasAdded && wasRegistered) {
-                  useWorkflowRegistry.getState().setActiveWorkflow(nextResource.id)
-                } else {
-                  useWorkflowRegistry.getState().loadWorkflowState(nextResource.id)
-                }
-              }
-              break
-            }
-            case MothershipStreamV1EventType.run: {
-              const payload = parsed.payload
-              if (payload.kind === MothershipStreamV1RunKind.compaction_start) {
-                const compactionId = `compaction_${Date.now()}`
-                activeCompactionId = compactionId
-                stampBlockEnd(blocks[blocks.length - 1])
-                toolMap.set(compactionId, blocks.length)
-                blocks.push({
-                  type: 'tool_call',
-                  toolCall: {
-                    id: compactionId,
-                    name: 'context_compaction',
-                    status: 'executing',
-                    displayTitle: 'Compacting context...',
-                  },
-                  timestamp: Date.now(),
-                })
-                flush()
-              } else if (payload.kind === MothershipStreamV1RunKind.compaction_done) {
-                const compactionId = activeCompactionId || `compaction_${Date.now()}`
-                activeCompactionId = undefined
-                const idx = toolMap.get(compactionId)
-                if (idx !== undefined && blocks[idx]?.toolCall) {
-                  blocks[idx].toolCall!.status = 'success'
-                  blocks[idx].toolCall!.displayTitle = 'Compacted context'
-                  stampBlockEnd(blocks[idx])
-                } else {
-                  toolMap.set(compactionId, blocks.length)
-                  const endNow = Date.now()
-                  blocks.push({
-                    type: 'tool_call',
-                    toolCall: {
-                      id: compactionId,
-                      name: 'context_compaction',
-                      status: 'success',
-                      displayTitle: 'Compacted context',
-                    },
-                    timestamp: endNow,
-                    endedAt: endNow,
-                  })
-                }
-                flush()
-              }
-              break
-            }
-            case MothershipStreamV1EventType.span: {
-              const payload = parsed.payload
-              if (payload.kind !== MothershipStreamV1SpanPayloadKind.subagent) {
-                break
-              }
-              const spanData = asPayloadRecord(payload.data)
-              const parentToolCallIdFromData =
-                typeof spanData?.tool_call_id === 'string'
-                  ? spanData.tool_call_id
-                  : typeof spanData?.toolCallId === 'string'
-                    ? spanData.toolCallId
-                    : undefined
-              const parentToolCallId = scopedParentToolCallId ?? parentToolCallIdFromData
-              const isPendingPause = spanData?.pending === true
-              const name = typeof payload.agent === 'string' ? payload.agent : scopedAgentId
-              if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name) {
-                const isSameActiveSubagent =
-                  activeSubagent === name &&
-                  activeSubagentParentToolCallId &&
-                  parentToolCallId === activeSubagentParentToolCallId
-                if (parentToolCallId) {
-                  subagentByParentToolCallId.set(parentToolCallId, name)
-                }
-                activeSubagent = name
-                activeSubagentParentToolCallId = parentToolCallId
-                if (!isSameActiveSubagent) {
-                  stampBlockEnd(blocks[blocks.length - 1])
-                  blocks.push({
-                    type: 'subagent',
-                    content: name,
-                    ...(parentToolCallId ? { parentToolCallId } : {}),
-                    timestamp: Date.now(),
-                  })
-                }
-                if (name === FILE_SUBAGENT_ID && !isSameActiveSubagent) {
-                  applyPreviewSessionUpdate({
-                    schemaVersion: 1,
-                    id: parentToolCallId || 'file-preview',
-                    streamId: streamIdRef.current ?? '',
-                    toolCallId: parentToolCallId || 'file-preview',
-                    status: 'pending',
-                    fileName: '',
-                    previewText: '',
-                    previewVersion: 0,
-                    updatedAt: new Date().toISOString(),
-                  })
-                }
-                flush()
-              } else if (payload.event === MothershipStreamV1SpanLifecycleEvent.end) {
-                if (isPendingPause) {
-                  break
-                }
-                if (parentToolCallId) {
-                  subagentByParentToolCallId.delete(parentToolCallId)
-                }
-                if (
-                  previewSessionRef.current &&
-                  (!activePreviewSessionIdRef.current ||
-                    previewSessionRef.current.status === 'complete')
-                ) {
-                  const lastFileResource = resourcesRef.current.find(
-                    (r) => r.type === 'file' && r.id !== 'streaming-file'
-                  )
-                  setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
-                  if (lastFileResource) {
-                    setActiveResourceId(lastFileResource.id)
-                  }
-                }
-                if (
-                  !parentToolCallId ||
-                  parentToolCallId === activeSubagentParentToolCallId ||
-                  name === activeSubagent
-                ) {
-                  activeSubagent = undefined
-                  activeSubagentParentToolCallId = undefined
-                }
-                const endNow = Date.now()
-                if (name) {
-                  for (let i = blocks.length - 1; i >= 0; i--) {
-                    const b = blocks[i]
-                    if (
-                      b.type === 'subagent' &&
-                      b.content === name &&
-                      b.endedAt === undefined &&
-                      (!parentToolCallId || b.parentToolCallId === parentToolCallId)
-                    ) {
-                      b.endedAt = endNow
-                      break
-                    }
-                  }
-                }
-                stampBlockEnd(blocks[blocks.length - 1])
-                blocks.push({
-                  type: 'subagent_end',
-                  ...(parentToolCallId ? { parentToolCallId } : {}),
-                  timestamp: endNow,
-                })
-                flush()
-              }
-              break
-            }
-            case MothershipStreamV1EventType.error: {
-              sawStreamError = true
-              setError(parsed.payload.message || parsed.payload.error || 'An error occurred')
-              appendInlineErrorTag(
-                buildInlineErrorTag(parsed.payload),
-                scopedSubagent,
-                resolveParentForSubagentBlock(scopedSubagent, scopedParentToolCallId),
-                typeof parsed.ts === 'string' ? parsed.ts : undefined
-              )
-              break
-            }
-            case MothershipStreamV1EventType.complete: {
-              sawCompleteEvent = true
-              stampBlockEnd(blocks[blocks.length - 1])
-              // `complete` is the end-of-turn marker; drain whatever
-              // else arrived in the same TCP chunk (trailing text,
-              // followups, run metadata) before stopping. Do NOT
-              // await another read — events after `complete` would
-              // be a server bug.
-              continue
-            }
-          }
+          dispatchStreamEvent(ctx, parsed)
         }
       } finally {
-        if (scheduledTextFlushFrame !== null) {
-          cancelAnimationFrame(scheduledTextFlushFrame)
-          scheduledTextFlushFrame = null
-          flush()
+        if (state.sawStreamError && !state.sawCompleteEvent) {
+          finalizeResidualToolCalls(state.blocks, 'error')
+          ops.flush()
+        }
+        if (state.scheduledTextFlushFrame !== null) {
+          cancelAnimationFrame(state.scheduledTextFlushFrame)
+          state.scheduledTextFlushFrame = null
+          ops.flush()
         }
         if (streamReaderRef.current === reader) {
           streamReaderRef.current = null
         }
       }
-      return { sawStreamError, sawComplete: sawCompleteEvent }
+      return { sawStreamError: state.sawStreamError, sawComplete: state.sawCompleteEvent }
     },
     [
       workspaceId,
-      router,
       queryClient,
-      upsertTaskChatHistory,
       addResource,
       removeResource,
+      startClientWorkflowTool,
+      upsertChatHistory,
+      onPreviewPhase,
       applyPreviewSessionUpdate,
-      applyCompletedPreviewSession,
       removePreviewSessionImmediate,
-      syncPreviewResourceChrome,
+      promoteFileResource,
+      shouldAutoActivatePreviewSession,
     ]
   )
   processSSEStreamRef.current = processSSEStream
@@ -3661,16 +2058,18 @@ export function useChat(
       chatId: string,
       signal?: AbortSignal
     ): Promise<{ loaded: boolean; streamId: string | null }> => {
-      const cached = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      const cached = queryClient.getQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId)
+      )
 
       try {
         const fetchSignal = combineAbortSignals(
           signal,
           createTimeoutSignal(CHAT_HISTORY_RECOVERY_TIMEOUT_MS)
         )
-        const history = await fetchChatHistory(chatId, fetchSignal)
+        const history = await fetchMothershipChatHistory(chatId, fetchSignal)
         if (signal?.aborted || fetchSignal?.aborted) return { loaded: false, streamId: null }
-        queryClient.setQueryData(taskKeys.detail(chatId), history)
+        queryClient.setQueryData(mothershipChatKeys.detail(chatId), history)
         return { loaded: true, streamId: history.activeStreamId ?? null }
       } catch (error) {
         logger.warn('Failed to load chat history while recovering stream', {
@@ -4189,7 +2588,9 @@ export function useChat(
           selectedChatIdRef.current === startingSelectedChatId &&
           !recoveryController.signal.aborted
 
-        const cached = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+        const cached = queryClient.getQueryData<MothershipChatHistory>(
+          mothershipChatKeys.detail(chatId)
+        )
         const fallbackStreamId =
           streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? cached?.activeStreamId
         const loadedStream = await getActiveStreamIdForChat(chatId, recoveryController.signal)
@@ -4432,10 +2833,10 @@ export function useChat(
       const activeChatId = options?.targetChatId ?? chatIdRef.current
       if (options?.includeDetail !== false && activeChatId) {
         queryClient.invalidateQueries({
-          queryKey: taskKeys.detail(activeChatId),
+          queryKey: mothershipChatKeys.detail(activeChatId),
         })
       }
-      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
     },
     [workspaceId, queryClient]
   )
@@ -4479,7 +2880,8 @@ export function useChat(
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
       const cachedActiveStreamId = handoffChatId
-        ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(handoffChatId))?.activeStreamId
+        ? queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(handoffChatId))
+            ?.activeStreamId
         : undefined
       const supersededStreamId =
         streamIdRef.current ||
@@ -4599,6 +3001,8 @@ export function useChat(
         ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
+        ...(c.kind === 'skill' && 'skillId' in c ? { skillId: c.skillId } : {}),
+        ...(c.kind === 'integration' && 'blockType' in c ? { blockType: c.blockType } : {}),
       }))
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,
@@ -4633,7 +3037,7 @@ export function useChat(
       }
 
       if (requestChatId) {
-        await queryClient.cancelQueries({ queryKey: taskKeys.detail(requestChatId) })
+        await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(requestChatId) })
       }
 
       const applyOptimisticSend = () => {
@@ -4643,7 +3047,7 @@ export function useChat(
           contentBlocks: [],
         })
         if (requestChatId) {
-          upsertTaskChatHistory(requestChatId, (current) => ({
+          upsertChatHistory(requestChatId, (current) => ({
             ...current,
             resources: current.resources.filter((resource) => resource.id !== 'streaming-file'),
             messages: [
@@ -4666,7 +3070,7 @@ export function useChat(
 
       const rollbackOptimisticSend = () => {
         if (requestChatId) {
-          upsertTaskChatHistory(requestChatId, (current) => ({
+          upsertChatHistory(requestChatId, (current) => ({
             ...current,
             messages: current.messages.filter(
               (persistedMessage) =>
@@ -4724,10 +3128,12 @@ export function useChat(
               selectedChatIdRef.current &&
               selectedChatIdRef.current !== requestChatId
             ) {
-              throw new Error('Queued message was restored because the selected task changed.')
+              throw new Error('Queued message was restored because the selected chat changed.')
             }
             if (requestChatId) {
-              await queryClient.cancelQueries({ queryKey: taskKeys.detail(requestChatId) })
+              await queryClient.cancelQueries({
+                queryKey: mothershipChatKeys.detail(requestChatId),
+              })
             }
             applyOptimisticSend()
           } catch (err) {
@@ -4923,7 +3329,7 @@ export function useChat(
     [
       workspaceId,
       queryClient,
-      upsertTaskChatHistory,
+      upsertChatHistory,
       processSSEStream,
       finalize,
       resumeOrFinalize,
@@ -5239,7 +3645,8 @@ export function useChat(
         streamIdRef.current ||
         activeTurnRef.current?.userMessageId ||
         (activeChatId
-          ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(activeChatId))?.activeStreamId
+          ? queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(activeChatId))
+              ?.activeStreamId
           : undefined) ||
         undefined
 
@@ -5285,8 +3692,8 @@ export function useChat(
 
       try {
         if (activeChatId) {
-          await queryClient.cancelQueries({ queryKey: taskKeys.detail(activeChatId) })
-          upsertTaskChatHistory(activeChatId, (current) => ({
+          await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(activeChatId) })
+          upsertChatHistory(activeChatId, (current) => ({
             ...current,
             messages: current.messages.map((message) =>
               activeAssistantMessageId && message.id === activeAssistantMessageId
@@ -5304,20 +3711,12 @@ export function useChat(
               if (!hasExecutingTool && !hasOpenBlock) {
                 return msg
               }
-              const updatedBlocks = (msg.contentBlocks ?? []).map((block) => {
-                const stamped = block.endedAt === undefined ? { ...block, endedAt: stopNow } : block
-                if (stamped.toolCall?.status !== 'executing') {
-                  return stamped
-                }
-                return {
-                  ...stamped,
-                  toolCall: {
-                    ...stamped.toolCall,
-                    status: 'cancelled' as const,
-                    displayTitle: 'Stopped by user',
-                  },
-                }
-              })
+              const updatedBlocks: ContentBlock[] = (msg.contentBlocks ?? []).map((block) => ({
+                ...block,
+                ...(block.endedAt === undefined ? { endedAt: stopNow } : {}),
+                ...(block.toolCall ? { toolCall: { ...block.toolCall } } : {}),
+              }))
+              finalizeResidualToolCalls(updatedBlocks, 'cancelled')
               updatedBlocks.push({ type: 'stopped' as const })
               return { ...msg, contentBlocks: updatedBlocks }
             })
@@ -5484,7 +3883,7 @@ export function useChat(
       queryClient,
       resolveChatIdForStream,
       resetEphemeralPreviewState,
-      upsertTaskChatHistory,
+      upsertChatHistory,
       adoptResolvedChatId,
       clearActiveTurn,
       setTransportIdle,
@@ -5655,8 +4054,9 @@ export function useChat(
           ? (() => {
               const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
               const cachedActiveStreamId = handoffChatId
-                ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(handoffChatId))
-                    ?.activeStreamId
+                ? queryClient.getQueryData<MothershipChatHistory>(
+                    mothershipChatKeys.detail(handoffChatId)
+                  )?.activeStreamId
                 : undefined
               return {
                 id: msg.id,

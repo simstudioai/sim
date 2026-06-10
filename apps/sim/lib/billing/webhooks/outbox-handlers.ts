@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { isTeam } from '@/lib/billing/plan-helpers'
+import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
@@ -20,6 +21,14 @@ export const OUTBOX_EVENT_TYPES = {
    * enqueue this event after every DB change to `cancelAtPeriodEnd`.
    */
   STRIPE_SYNC_CANCEL_AT_PERIOD_END: 'stripe.sync-cancel-at-period-end',
+  /**
+   * Sync a Team subscription's price and seat quantity from our DB to
+   * Stripe. The handler reads the current DB plan + seats at processing
+   * time and reconciles the Stripe item's price (e.g. after a Pro→Team
+   * conversion) and quantity, charging the proration via `always_invoice`.
+   * A failed charge surfaces through Stripe dunning and the existing
+   * billing-blocked system, never under the synchronous accept path.
+   */
   STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
   STRIPE_THRESHOLD_OVERAGE_INVOICE: 'stripe.threshold-overage-invoice',
   STRIPE_SYNC_CUSTOMER_CONTACT: 'stripe.sync-customer-contact',
@@ -173,7 +182,19 @@ const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayl
       )
     }
 
-    if (subscriptionItem.quantity !== desiredSeats) {
+    // Reconcile the price too: a Pro→Team conversion moves the DB plan to a
+    // Team tier while Stripe is still on the Pro price. Resolve the target
+    // price for the DB plan at the item's current interval. If the target
+    // price is unconfigured we leave the price untouched and sync quantity
+    // only — `mapToTeamPlanName` guards conversions against missing tiers.
+    const targetPlan = getPlanByName(row.plan)
+    const interval = subscriptionItem.price?.recurring?.interval
+    const targetPriceId =
+      interval === 'year' ? targetPlan?.annualDiscountPriceId : targetPlan?.priceId
+    const priceNeedsChange = Boolean(targetPriceId) && subscriptionItem.price?.id !== targetPriceId
+    const quantityNeedsChange = subscriptionItem.quantity !== desiredSeats
+
+    if (priceNeedsChange || quantityNeedsChange) {
       await stripe.subscriptions.update(
         row.stripeSubscriptionId,
         {
@@ -181,11 +202,12 @@ const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayl
             {
               id: subscriptionItem.id,
               quantity: desiredSeats,
+              ...(priceNeedsChange ? { price: targetPriceId } : {}),
             },
           ],
           proration_behavior: 'always_invoice',
         },
-        { idempotencyKey: `outbox:${ctx.eventId}:seats:${desiredSeats}` }
+        { idempotencyKey: `outbox:${ctx.eventId}:${row.plan}:${desiredSeats}` }
       )
     }
 
@@ -203,12 +225,13 @@ const stripeSyncSubscriptionSeats: OutboxHandler<StripeSyncSubscriptionSeatsPayl
       continue
     }
 
-    logger.info('Synced subscription seats from DB to Stripe', {
+    logger.info('Synced subscription price and seats from DB to Stripe', {
       eventId: ctx.eventId,
       subscriptionId: payload.subscriptionId,
       stripeSubscriptionId: row.stripeSubscriptionId,
+      plan: row.plan,
       seats: desiredSeats,
-      alreadySynced: subscriptionItem.quantity === desiredSeats,
+      alreadySynced: !priceNeedsChange && !quantityNeedsChange,
       reason: payload.reason,
     })
     return

@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="sentry"
-  color="#E0E0E0"
+  color="#362D59"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -55,13 +55,13 @@ List issues from Sentry for a specific organization and optionally a specific pr
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
 | `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
-| `projectSlug` | string | No | Filter issues by specific project slug \(e.g., "my-project"\) |
+| `projectSlug` | string | No | Filter issues by numeric project ID \(e.g., "4501234"\). This organization-scoped endpoint requires the numeric project ID, not the project slug. |
 | `query` | string | No | Search query to filter issues. Supports Sentry search syntax \(e.g., "is:unresolved", "level:error"\) |
-| `statsPeriod` | string | No | Time period for stats \(e.g., "24h", "7d", "30d"\). Defaults to 24h if not specified. |
+| `statsPeriod` | string | No | Time window for the per-issue stats series \(e.g., "24h", "14d"\). Note: this controls the stats returned with each issue, not which issues are returned — use the query \(e.g., "age:-7d", "lastSeen:-24h"\) to filter results. |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
-| `limit` | number | No | Number of issues to return per page \(default: 25, max: 100\) |
-| `status` | string | No | Filter by issue status: unresolved, resolved, ignored, or muted |
-| `sort` | string | No | Sort order: date, new, freq, priority, or user \(default: date\) |
+| `limit` | number | No | Number of issues to return per page \(max: 100\) |
+| `status` | string | No | Filter by issue status: unresolved, resolved, or ignored. The legacy "ignored"/"muted" values map to Sentry\'s current "archived" search token. |
+| `sort` | string | No | Sort order: date, new, trends, freq, or user \(default: date\) |
 
 #### Output
 
@@ -76,6 +76,8 @@ List issues from Sentry for a specific organization and optionally a specific pr
 |   ↳ `logger` | string | Logger name that reported the issue |
 |   ↳ `level` | string | Severity level \(error, warning, info, etc.\) |
 |   ↳ `status` | string | Current issue status |
+|   ↳ `substatus` | string | Issue substatus \(e.g., ongoing, escalating, new, archived_until_escalating\) |
+|   ↳ `priority` | string | Issue priority \(high, medium, or low\) |
 |   ↳ `statusDetails` | object | Additional details about the status |
 |   ↳ `isPublic` | boolean | Whether the issue is publicly visible |
 |   ↳ `platform` | string | Platform where the issue occurred |
@@ -133,6 +135,8 @@ Retrieve detailed information about a specific Sentry issue by its ID. Returns c
 |   ↳ `logger` | string | Logger name that reported the issue |
 |   ↳ `level` | string | Severity level \(error, warning, info, etc.\) |
 |   ↳ `status` | string | Current issue status |
+|   ↳ `substatus` | string | Issue substatus \(e.g., ongoing, escalating, new, archived_until_escalating\) |
+|   ↳ `priority` | string | Issue priority \(high, medium, or low\) |
 |   ↳ `statusDetails` | object | Additional details about the status |
 |   ↳ `isPublic` | boolean | Whether the issue is publicly visible |
 |   ↳ `platform` | string | Platform where the issue occurred |
@@ -174,7 +178,7 @@ Update a Sentry issue by changing its status, assignment, bookmark state, or oth
 | `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
 | `issueId` | string | Yes | The unique ID of the issue to update \(e.g., "12345"\) |
 | `status` | string | No | New status for the issue: resolved, unresolved, ignored, or resolvedInNextRelease |
-| `assignedTo` | string | No | User ID or email to assign the issue to. Use empty string to unassign. |
+| `assignedTo` | string | No | Actor to assign the issue to, in the form "user:&lt;id&gt;" or "team:&lt;id&gt;" \(a bare username or email is also accepted\). Use an empty string to unassign. |
 | `isBookmarked` | boolean | No | Whether to bookmark the issue |
 | `isSubscribed` | boolean | No | Whether to subscribe to issue updates |
 | `isPublic` | boolean | No | Whether the issue should be publicly visible |
@@ -188,6 +192,8 @@ Update a Sentry issue by changing its status, assignment, bookmark state, or oth
 |   ↳ `shortId` | string | Short issue identifier |
 |   ↳ `title` | string | Issue title |
 |   ↳ `status` | string | Updated issue status |
+|   ↳ `substatus` | string | Issue substatus after the update |
+|   ↳ `priority` | string | Issue priority \(high, medium, or low\) |
 |   ↳ `assignedTo` | object | User assigned to the issue \(if any\) |
 |     ↳ `id` | string | User ID |
 |     ↳ `name` | string | User name |
@@ -263,7 +269,7 @@ Retrieve detailed information about a specific Sentry project by its slug. Retur
 |   ↳ `isMember` | boolean | Whether the user is a member of the project |
 |   ↳ `features` | array | Enabled features for the project |
 |   ↳ `firstEvent` | string | When the first event was received \(ISO timestamp\) |
-|   ↳ `firstTransactionEvent` | string | When the first transaction event was received |
+|   ↳ `firstTransactionEvent` | boolean | Whether the project has received its first transaction event |
 |   ↳ `access` | array | Access permissions |
 |   ↳ `organization` | object | Organization information |
 |     ↳ `id` | string | Organization ID |
@@ -384,10 +390,10 @@ List events from a Sentry project. Can be filtered by issue ID, query, or time p
 | `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
 | `projectSlug` | string | Yes | The slug of the project to list events from \(e.g., "my-project"\) |
 | `issueId` | string | No | Filter events by a specific issue ID \(e.g., "12345"\) |
-| `query` | string | No | Search query to filter events. Supports Sentry search syntax \(e.g., "user.email:*@example.com"\) |
+| `query` | string | No | Search query to filter events. Only applied when an Issue ID is provided \(the issue events endpoint\); the project events endpoint ignores it. Supports Sentry search syntax \(e.g., "user.email:*@example.com"\) |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
-| `limit` | number | No | Number of events to return per page \(default: 50, max: 100\) |
-| `statsPeriod` | string | No | Time period to query \(e.g., "24h", "7d", "30d"\). Defaults to 90d if not specified. |
+| `limit` | number | No | Number of events to return per page \(max: 100\) |
+| `statsPeriod` | string | No | Time period to query \(e.g., "24h", "7d", "14d"\). Cannot be combined with absolute start/end. |
 
 #### Output
 
@@ -424,6 +430,8 @@ List events from a Sentry project. Can be filtered by issue ID, query, or time p
 |   ↳ `errors` | array | Processing errors |
 |   ↳ `dist` | string | Distribution identifier |
 |   ↳ `fingerprints` | array | Fingerprints for grouping |
+|   ↳ `size` | number | Event size in bytes |
+|   ↳ `release` | object | Release associated with the event \(version, dateCreated\) |
 |   ↳ `sdk` | object | SDK information |
 |     ↳ `name` | string | SDK name |
 |     ↳ `version` | string | SDK version |
@@ -479,6 +487,8 @@ Retrieve detailed information about a specific Sentry event by its ID. Returns c
 |   ↳ `errors` | array | Processing errors that occurred |
 |   ↳ `dist` | string | Distribution identifier |
 |   ↳ `fingerprints` | array | Fingerprints used for grouping events |
+|   ↳ `size` | number | Event size in bytes |
+|   ↳ `release` | object | Release associated with the event \(version, dateCreated\) |
 |   ↳ `sdk` | object | SDK information |
 |     ↳ `name` | string | SDK name |
 |     ↳ `version` | string | SDK version |
@@ -493,7 +503,7 @@ List releases for a Sentry organization or project. Returns release details incl
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Sentry API authentication token |
 | `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
-| `projectSlug` | string | No | Filter releases by specific project slug \(e.g., "my-project"\) |
+| `projectSlug` | string | No | Filter releases by numeric project ID \(e.g., "4501234"\). This organization-scoped endpoint requires the numeric project ID, not the project slug. |
 | `query` | string | No | Search query to filter releases \(e.g., "1.0" to match version patterns\) |
 | `cursor` | string | No | Pagination cursor for retrieving next page of results |
 | `limit` | number | No | Number of releases to return per page \(default: 25, max: 100\) |
@@ -638,5 +648,42 @@ Create a deploy record for a Sentry release in a specific environment. Deploys t
 |   ↳ `url` | string | URL pointing to the deploy |
 |   ↳ `dateStarted` | string | When the deploy started \(ISO timestamp\) |
 |   ↳ `dateFinished` | string | When the deploy finished \(ISO timestamp\) |
+
+### `sentry_teams_list`
+
+List all teams in a Sentry organization. Useful for discovering the team slug required when creating a project. Returns team details including slug, name, member count, and associated projects.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sentry API authentication token |
+| `organizationSlug` | string | Yes | The slug of the organization \(e.g., "my-org"\) |
+| `query` | string | No | Filter teams by name or slug |
+| `cursor` | string | No | Pagination cursor for retrieving next page of results |
+| `limit` | number | No | Number of teams to return per page \(default: 25, max: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | List of Sentry teams |
+|   ↳ `id` | string | Unique team ID |
+|   ↳ `slug` | string | URL-friendly team identifier \(used to own projects\) |
+|   ↳ `name` | string | Team name |
+|   ↳ `dateCreated` | string | When the team was created \(ISO timestamp\) |
+|   ↳ `isMember` | boolean | Whether the user is a member of the team |
+|   ↳ `teamRole` | string | The role of the user on the team |
+|   ↳ `hasAccess` | boolean | Whether the user has access to this team |
+|   ↳ `isPending` | boolean | Whether team membership is pending |
+|   ↳ `memberCount` | number | Number of members in the team |
+|   ↳ `projects` | array | Projects owned by this team |
+|     ↳ `id` | string | Project ID |
+|     ↳ `slug` | string | Project slug |
+|     ↳ `name` | string | Project name |
+|     ↳ `platform` | string | Project platform |
+| `metadata` | object | Pagination metadata |
+|   ↳ `nextCursor` | string | Cursor for the next page of results \(if available\) |
+|   ↳ `hasMore` | boolean | Whether there are more results available |
 
 

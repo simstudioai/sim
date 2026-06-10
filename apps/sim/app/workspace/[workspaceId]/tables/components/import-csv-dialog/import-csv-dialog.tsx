@@ -7,15 +7,14 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Combobox,
+  ChipCombobox,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   type ComboboxOption,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
   Table,
   TableBody,
   TableCell,
@@ -24,7 +23,6 @@ import {
   TableRow,
   toast,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES } from '@/lib/table/constants'
 import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/import'
 import type { TableDefinition } from '@/lib/table/types'
@@ -40,8 +38,10 @@ const logger = createLogger('ImportCsvDialog')
 
 const MAX_SAMPLE_ROWS = 5
 const MAX_EXAMPLES_IN_ERROR = 3
-/** Bytes read for the preview/mapping. We never parse the whole file client-side — the importer
- *  streams it server-side and the DB trigger enforces the row limit. */
+/**
+ * Bytes read for the preview/mapping. We never parse the whole file client-side — the importer
+ * streams it server-side and the DB row-count trigger enforces the row limit.
+ */
 const CSV_PREVIEW_BYTES = 512 * 1024
 /**
  * Sentinel value for the "Do not import" option in the mapping combobox. The
@@ -132,8 +132,6 @@ export function ImportCsvDialog({
   const [mapping, setMapping] = useState<Record<string, string | null>>({})
   const [createHeaders, setCreateHeaders] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<CsvImportMode>('append')
-  const [isDragging, setIsDragging] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const importMutation = useImportCsvIntoTable()
   const importAsyncMutation = useImportCsvIntoTableAsync()
 
@@ -144,9 +142,7 @@ export function ImportCsvDialog({
     setMapping({})
     setCreateHeaders(new Set())
     setMode('append')
-    setIsDragging(false)
     setParsing(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   function handleOpenChange(newOpen: boolean) {
@@ -201,29 +197,8 @@ export function ImportCsvDialog({
     }
   }
 
-  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) void handleFileSelected(file)
-  }
-
-  function handleDragEnter(e: React.DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  function handleDragOver(e: React.DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-  }
-
-  function handleDragLeave(e: React.DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-    setIsDragging(false)
-  }
-
-  function handleDrop(e: React.DragEvent<HTMLButtonElement>) {
-    e.preventDefault()
-    setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
+  function handleFilesSelected(files: File[]) {
+    const file = files[0]
     if (file) void handleFileSelected(file)
   }
 
@@ -327,13 +302,7 @@ export function ImportCsvDialog({
         title: parsed.file.name,
       })
       onOpenChange(false)
-      toast({
-        message: `Importing "${parsed.file.name}" into "${table.name}"…`,
-        action: {
-          label: 'View',
-          onClick: () => useImportTrayStore.getState().setMenuOpen(true),
-        },
-      })
+      toast.success(`Importing "${parsed.file.name}" into "${table.name}" in the background`)
       importAsyncMutation.mutate(
         {
           workspaceId,
@@ -356,10 +325,9 @@ export function ImportCsvDialog({
               void cancelTableImport(workspaceId, table.id, data.importId).catch(() => {})
             }
           },
-          onError: (err) => {
+          onError: () => {
+            // The hook's onError surfaces the toast; just clear the tray indicator here.
             useImportTrayStore.getState().endUpload(table.id)
-            toast.error(getErrorMessage(err, 'Failed to start import'))
-            logger.error('Async CSV import failed to start', err)
           },
         }
       )
@@ -398,56 +366,30 @@ export function ImportCsvDialog({
   const hasWarning = missingRequired.length > 0 || duplicateTargets.length > 0
 
   return (
-    <Modal open={open} onOpenChange={handleOpenChange}>
-      <ModalContent size='lg'>
-        <ModalHeader>Import CSV into {table.name}</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='sr-only'>
-            Upload and map a CSV file to import rows into the table
-          </ModalDescription>
-          {!parsed ? (
-            <div className='flex flex-col gap-2'>
-              <Label>Import CSV</Label>
-              <Button
-                type='button'
-                variant='default'
-                onClick={() => fileInputRef.current?.click()}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                disabled={parsing}
-                className={cn(
-                  '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
-                  isDragging && 'border-[var(--surface-7)]'
-                )}
-              >
-                <input
-                  ref={fileInputRef}
-                  type='file'
-                  accept='.csv,.tsv'
-                  onChange={handleFileInputChange}
-                  className='hidden'
-                />
-                <div className='flex flex-col gap-0.5 text-center'>
-                  <span className='text-[var(--text-primary)]'>
-                    {parsing
-                      ? 'Parsing...'
-                      : isDragging
-                        ? 'Drop file here'
-                        : 'Drop CSV or TSV here or click to browse'}
-                  </span>
-                  <span className='text-[var(--text-tertiary)] text-xs'>
-                    Map columns to append or replace rows in this table
-                  </span>
-                </div>
-              </Button>
-              {parseError && (
-                <p className='text-[var(--text-error)] text-caption leading-tight'>{parseError}</p>
-              )}
-            </div>
-          ) : (
-            <div className='flex flex-col gap-4'>
+    <ChipModal
+      open={open}
+      onOpenChange={handleOpenChange}
+      srTitle={`Import CSV into ${table.name}`}
+      size='lg'
+    >
+      <ChipModalHeader onClose={() => handleOpenChange(false)}>
+        Import CSV into {table.name}
+      </ChipModalHeader>
+      <ChipModalBody>
+        {!parsed ? (
+          <ChipModalField
+            type='file'
+            title='Import CSV'
+            accept='.csv,.tsv'
+            disabled={parsing}
+            onChange={handleFilesSelected}
+            label={parsing ? 'Parsing...' : 'Drop CSV or TSV here or click to browse'}
+            description='Map columns to append or replace rows in this table'
+            error={parseError ?? undefined}
+          />
+        ) : (
+          <>
+            <ChipModalField type='custom' title='File'>
               <div className='flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] p-2'>
                 <div className='flex min-w-0 flex-col'>
                   <span className='truncate text-[var(--text-primary)] text-caption'>
@@ -461,142 +403,122 @@ export function ImportCsvDialog({
                   Change file
                 </Button>
               </div>
+            </ChipModalField>
 
-              <div className='flex flex-col gap-2'>
-                <Label>Mode</Label>
-                <ButtonGroup value={mode} onValueChange={handleModeChange}>
-                  <ButtonGroupItem value='append'>Append</ButtonGroupItem>
-                  <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>
-                </ButtonGroup>
-              </div>
+            <ChipModalField type='custom' title='Mode'>
+              <ButtonGroup value={mode} onValueChange={handleModeChange}>
+                <ButtonGroupItem value='append'>Append</ButtonGroupItem>
+                <ButtonGroupItem value='replace'>Replace all rows</ButtonGroupItem>
+              </ButtonGroup>
+            </ChipModalField>
 
-              <div className='flex flex-col gap-2'>
-                <div className='flex items-center justify-between'>
-                  <Label>Column mapping</Label>
-                  {skipCount > 0 && (
-                    <Button variant='ghost' size='sm' onClick={handleCreateAllUnmapped}>
-                      Create columns for {skipCount} unmapped
-                    </Button>
-                  )}
+            <ChipModalField type='custom' title='Column mapping'>
+              {skipCount > 0 && (
+                <div className='flex justify-end'>
+                  <Button variant='ghost' size='sm' onClick={handleCreateAllUnmapped}>
+                    Create columns for {skipCount} unmapped
+                  </Button>
                 </div>
-                <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
-                  <div className='max-h-[320px] overflow-auto'>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>CSV column</TableHead>
-                          <TableHead>Target column</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {parsed.headers.map((header) => {
-                          const sample = parsed.sampleRows
-                            .map((r) =>
-                              r[header] === '' || r[header] == null ? '' : String(r[header])
-                            )
-                            .filter(Boolean)
-                            .slice(0, 2)
-                            .join(', ')
-                          return (
-                            <TableRow key={header}>
-                              <TableCell>
-                                <div className='flex min-w-0 flex-col'>
-                                  <span className='truncate text-[var(--text-primary)]'>
-                                    {header}
-                                  </span>
-                                  {sample && (
-                                    <span className='truncate text-[var(--text-tertiary)] text-xs'>
-                                      {sample}
-                                    </span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Combobox
-                                  options={columnOptions}
-                                  value={
-                                    createHeaders.has(header)
-                                      ? CREATE_VALUE
-                                      : (mapping[header] ?? SKIP_VALUE)
-                                  }
-                                  onChange={(value) => handleMappingChange(header, value)}
-                                  size='sm'
-                                  className='w-full'
-                                />
-                              </TableCell>
-                            </TableRow>
+              )}
+              <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
+                <div className='max-h-[320px] overflow-auto'>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>CSV column</TableHead>
+                        <TableHead>Target column</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {parsed.headers.map((header) => {
+                        const sample = parsed.sampleRows
+                          .map((r) =>
+                            r[header] === '' || r[header] == null ? '' : String(r[header])
                           )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .join(', ')
+                        return (
+                          <TableRow key={header}>
+                            <TableCell>
+                              <div className='flex min-w-0 flex-col'>
+                                <span className='truncate text-[var(--text-primary)]'>
+                                  {header}
+                                </span>
+                                {sample && (
+                                  <span className='truncate text-[var(--text-tertiary)] text-xs'>
+                                    {sample}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <ChipCombobox
+                                options={columnOptions}
+                                value={
+                                  createHeaders.has(header)
+                                    ? CREATE_VALUE
+                                    : (mapping[header] ?? SKIP_VALUE)
+                                }
+                                onChange={(value) => handleMappingChange(header, value)}
+                                className='w-full'
+                              />
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
-                <span className='text-[var(--text-tertiary)] text-xs'>
-                  {mappedCount} mapped
-                  {createCount > 0
-                    ? ` · ${createCount} new column${createCount === 1 ? '' : 's'}`
-                    : ''}
-                  {' · '}
-                  {skipCount} skipped
-                </span>
               </div>
+              <span className='text-[var(--text-tertiary)] text-xs'>
+                {mappedCount} mapped
+                {createCount > 0
+                  ? ` · ${createCount} new column${createCount === 1 ? '' : 's'}`
+                  : ''}
+                {' · '}
+                {skipCount} skipped
+              </span>
+            </ChipModalField>
 
-              {hasWarning && (
-                <div className='flex flex-col gap-1'>
-                  {missingRequired.length > 0 && (
-                    <p className='text-[var(--text-error)] text-caption leading-tight'>
-                      Missing required column(s): {missingRequired.join(', ')}
-                    </p>
-                  )}
-                  {duplicateTargets.length > 0 && (
-                    <p className='text-[var(--text-error)] text-caption leading-tight'>
-                      Multiple CSV columns target: {duplicateTargets.join(', ')} (pick one)
-                    </p>
-                  )}
-                </div>
-              )}
+            {missingRequired.length > 0 && (
+              <ChipModalError>
+                Missing required column(s): {missingRequired.join(', ')}
+              </ChipModalError>
+            )}
+            {duplicateTargets.length > 0 && (
+              <ChipModalError>
+                Multiple CSV columns target: {duplicateTargets.join(', ')} (pick one)
+              </ChipModalError>
+            )}
 
-              {mode === 'replace' && !hasWarning && (
-                <p className='text-[var(--text-error)] text-caption leading-tight'>
-                  Replace will permanently delete the {table.rowCount.toLocaleString()} existing
-                  row(s) before inserting the new rows.
-                </p>
-              )}
+            {mode === 'replace' && !hasWarning && (
+              <ChipModalError>
+                Replace will permanently delete the {table.rowCount.toLocaleString()} existing
+                row(s) before inserting the new rows.
+              </ChipModalError>
+            )}
 
-              {submitError && (
-                <p
-                  className='text-[var(--text-error)] text-caption leading-tight'
-                  title={submitError}
-                >
-                  {submitError}
-                </p>
-              )}
-            </div>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Button
-            variant='default'
-            onClick={() => onOpenChange(false)}
-            disabled={importMutation.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant={mode === 'replace' ? 'destructive' : 'primary'}
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-          >
-            {importMutation.isPending
-              ? mode === 'replace'
-                ? 'Replacing...'
-                : 'Importing...'
-              : mode === 'replace'
-                ? 'Replace rows'
-                : 'Append rows'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+            <ChipModalError title={submitError ?? undefined}>{submitError}</ChipModalError>
+          </>
+        )}
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        cancelDisabled={importMutation.isPending}
+        primaryAction={{
+          label: importMutation.isPending
+            ? mode === 'replace'
+              ? 'Replacing...'
+              : 'Importing...'
+            : mode === 'replace'
+              ? 'Replace rows'
+              : 'Append rows',
+          onClick: handleSubmit,
+          disabled: !canSubmit,
+          variant: mode === 'replace' ? 'destructive' : 'primary',
+        }}
+      />
+    </ChipModal>
   )
 }

@@ -10,7 +10,7 @@ import { getSession } from '@/lib/auth'
 import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
+import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   loadWorkflowFromNormalizedTables,
@@ -112,7 +112,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       metadata: {
         name: sourceWorkflow.name,
         description: sourceWorkflow.description ?? undefined,
-        color: sourceWorkflow.color,
       },
     }
 
@@ -144,7 +143,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       folderId: null,
       name: dedupedName,
       description: sourceWorkflow.description,
-      color: sourceWorkflow.color,
       lastSynced: now,
       createdAt: now,
       updatedAt: now,

@@ -7,7 +7,7 @@ import { deleteCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
-import { taskPubSub } from '@/lib/copilot/tasks'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('DeleteChatAPI')
@@ -47,7 +47,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     logger.info('Chat deleted', { chatId: parsed.chatId })
 
     if (deleted.workspaceId) {
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: deleted.workspaceId,
         chatId: parsed.chatId,
         type: 'deleted',

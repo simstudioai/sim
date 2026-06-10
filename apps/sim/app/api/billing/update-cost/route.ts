@@ -4,7 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
-import { recordUsage } from '@/lib/billing/core/usage-log'
+import { recordCumulativeUsage, recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -12,7 +12,6 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
-import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -42,8 +41,6 @@ export const POST = withRouteHandler((req: NextRequest) =>
 async function updateCostInner(req: NextRequest, span: Span): Promise<NextResponse> {
   const requestId = generateRequestId()
   const startTime = Date.now()
-  let claim: AtomicClaimResult | null = null
-  let usageCommitted = false
 
   try {
     logger.info(`[${requestId}] Update cost request started`)
@@ -110,7 +107,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     if (!parsed.success) return parsed.response
 
-    const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey } =
+    const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey, workspaceId } =
       parsed.data.body
     const isMcp = source === 'mcp_copilot'
 
@@ -125,28 +122,6 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       ...(idempotencyKey ? { [TraceAttr.BillingIdempotencyKey]: idempotencyKey } : {}),
     })
 
-    claim = idempotencyKey
-      ? await billingIdempotency.atomicallyClaim('update-cost', idempotencyKey)
-      : null
-
-    if (claim && !claim.claimed) {
-      logger.warn(`[${requestId}] Duplicate billing update rejected`, {
-        idempotencyKey,
-        userId,
-        source,
-      })
-      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.DuplicateIdempotencyKey)
-      span.setAttribute(TraceAttr.HttpStatusCode, 409)
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Duplicate request: idempotency key already processed',
-          requestId,
-        },
-        { status: 409 }
-      )
-    }
-
     logger.info(`[${requestId}] Processing cost update`, {
       userId,
       cost,
@@ -154,32 +129,84 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       source,
     })
 
-    await recordUsage({
-      userId,
-      entries: [
-        {
-          category: 'model',
-          source,
-          description: model,
-          cost,
-          eventKey: idempotencyKey ? `update-cost:${idempotencyKey}` : undefined,
-          sourceReference: idempotencyKey ? `update-cost:${idempotencyKey}` : requestId,
-          metadata: { inputTokens, outputTokens },
-        },
-      ],
-    })
-    usageCommitted = true
-
-    logger.info(`[${requestId}] Recorded usage`, {
-      userId,
-      addedCost: cost,
-      source,
-    })
-
-    // Check if user has hit overage threshold and bill incrementally
-    await checkAndBillOverageThreshold(userId)
+    // Go sends the request's CUMULATIVE cost, possibly more than once (a
+    // mid-loop provider-error flush, then the recovered terminal flush, plus
+    // abort-race duplicates). Record it as a monotonic top-up: one ledger row
+    // per request holds the MAX cumulative and we bill only the delta, so
+    // partial + complete flushes converge to the true total exactly once — no
+    // under-billing on recovery, no over-billing on duplicates. When there is
+    // no idempotency key (shouldn't happen for real requests) we fall back to a
+    // plain append so cost is never silently dropped.
+    let billed = true
+    if (idempotencyKey) {
+      const result = await recordCumulativeUsage({
+        userId,
+        workspaceId,
+        source,
+        model,
+        cost,
+        eventKey: `update-cost:${idempotencyKey}`,
+        metadata: { inputTokens, outputTokens },
+      })
+      billed = result.billed
+      logger.info(`[${requestId}] Cumulative cost top-up`, {
+        userId,
+        source,
+        cumulativeCost: cost,
+        billedDelta: result.delta,
+        newTotal: result.total,
+        billed: result.billed,
+      })
+    } else {
+      await recordUsage({
+        userId,
+        workspaceId,
+        entries: [
+          {
+            category: 'model',
+            source,
+            description: model,
+            cost,
+            sourceReference: requestId,
+            metadata: { inputTokens, outputTokens },
+          },
+        ],
+      })
+      logger.info(`[${requestId}] Recorded usage (no idempotency key)`, {
+        userId,
+        addedCost: cost,
+        source,
+      })
+    }
 
     const duration = Date.now() - startTime
+
+    // Same-or-lower cumulative than already recorded: nothing new to bill. Tell
+    // the caller via 409 (its existing "duplicate" outcome) without re-running
+    // overage billing.
+    if (!billed) {
+      logger.info(`[${requestId}] Duplicate/non-increasing cumulative cost; no new charge`, {
+        idempotencyKey,
+        userId,
+        cost,
+      })
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.DuplicateIdempotencyKey)
+      span.setAttribute(TraceAttr.HttpStatusCode, 409)
+      span.setAttribute(TraceAttr.BillingDurationMs, duration)
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Duplicate request: cumulative cost already recorded',
+          requestId,
+        },
+        { status: 409 }
+      )
+    }
+
+    // Check if user has hit overage threshold and bill incrementally. Reads the
+    // (now topped-up) ledger total and is idempotent against billedOverage, so
+    // it is safe to run on every flush that records new cost.
+    await checkAndBillOverageThreshold(userId)
 
     logger.info(`[${requestId}] Cost update completed successfully`, {
       userId,
@@ -208,22 +235,9 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       duration,
     })
 
-    if (claim?.claimed && !usageCommitted) {
-      await billingIdempotency
-        .release(claim.normalizedKey, claim.storageMethod)
-        .catch((releaseErr) => {
-          logger.warn(`[${requestId}] Failed to release idempotency claim`, {
-            error: toError(releaseErr).message,
-            normalizedKey: claim?.normalizedKey,
-          })
-        })
-    } else if (claim?.claimed && usageCommitted) {
-      logger.warn(
-        `[${requestId}] Error occurred after usage committed; retaining idempotency claim to prevent double-billing`,
-        { normalizedKey: claim.normalizedKey }
-      )
-    }
-
+    // The cumulative top-up runs in a single transaction (and a plain append is
+    // a single insert), so a failure here leaves nothing partially committed —
+    // a retry re-evaluates the max idempotently. No claim to release.
     span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InternalError)
     span.setAttribute(TraceAttr.HttpStatusCode, 500)
     span.setAttribute(TraceAttr.BillingDurationMs, duration)

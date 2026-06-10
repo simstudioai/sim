@@ -12,8 +12,14 @@ import {
 import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { RowData } from '@/lib/table'
-import { updateRow } from '@/lib/table'
+import type { RowData, TableSchema } from '@/lib/table'
+import {
+  buildIdByName,
+  buildNameById,
+  rowDataIdToName,
+  rowDataNameToId,
+  updateRow,
+} from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -81,12 +87,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
 
+    const nameById = buildNameById(result.table.schema as TableSchema)
     return NextResponse.json({
       success: true,
       data: {
         row: {
           id: row.id,
-          data: row.data,
+          data: rowDataIdToName(row.data as RowData, nameById),
           position: row.position,
           createdAt:
             row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -129,12 +136,15 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    const idByName = buildIdByName(table.schema as TableSchema)
+    const nameById = buildNameById(table.schema as TableSchema)
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: validated.data as RowData,
+        data: rowDataNameToId(validated.data as RowData, idByName),
         workspaceId: validated.workspaceId,
+        actorUserId: userId,
       },
       table,
       requestId
@@ -153,7 +163,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       data: {
         row: {
           id: updatedRow.id,
-          data: updatedRow.data,
+          data: rowDataIdToName(updatedRow.data, nameById),
           position: updatedRow.position,
           createdAt:
             updatedRow.createdAt instanceof Date
