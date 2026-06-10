@@ -8,7 +8,6 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 export interface SelectorOverrides {
   transformContext?: (context: SelectorContext, deps: Record<string, unknown>) => SelectorContext
@@ -23,7 +22,6 @@ interface SelectorInputProps {
   previewValue?: any
   previewContextValues?: Record<string, any>
   overrides?: SelectorOverrides
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function SelectorInput({
@@ -34,7 +32,6 @@ export function SelectorInput({
   previewValue,
   previewContextValues,
   overrides,
-  activeSearchTarget,
 }: SelectorInputProps) {
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
   const [storeValue] = useSubBlockValue(blockId, subBlock.id)
@@ -104,7 +101,6 @@ export function SelectorInput({
           collaborativeSetSubblockValue(blockId, subBlock.id, value)
         }
       }}
-      activeSearchTarget={activeSearchTarget}
     />
   )
 }

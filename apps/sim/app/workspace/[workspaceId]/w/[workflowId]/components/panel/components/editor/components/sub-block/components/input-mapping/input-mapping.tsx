@@ -8,10 +8,10 @@ import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowState } from '@/hooks/queries/workflows'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 /**
  * Props for the InputMappingField component
@@ -43,7 +43,6 @@ interface InputMappingProps {
   disabled?: boolean
   /** Sub-block values from the preview context for resolving sibling sub-block values */
   previewContextValues?: Record<string, unknown>
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -58,8 +57,8 @@ export function InputMapping({
   previewValue,
   disabled = false,
   previewContextValues,
-  activeSearchTarget,
 }: InputMappingProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const subBlockId = subBlock.id
   const [mapping, setMapping] = useSubBlockValue(blockId, subBlockId)
   const { dependencyValues } = useDependsOnGate(blockId, subBlock, {

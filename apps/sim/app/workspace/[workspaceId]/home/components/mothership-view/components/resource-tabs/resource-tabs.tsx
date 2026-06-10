@@ -16,6 +16,7 @@ import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/r
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
@@ -241,11 +242,6 @@ interface ResourceTabsProps {
   chatId?: string
   resources: MothershipResource[]
   activeId: string | null
-  onSelect: (id: string) => void
-  onAddResource: (resource: MothershipResource) => void
-  onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
-  onReorderResources: (resources: MothershipResource[]) => void
-  onCollapse: () => void
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
@@ -256,17 +252,19 @@ export function ResourceTabs({
   chatId,
   resources,
   activeId,
-  onSelect,
-  onAddResource,
-  onRemoveResource,
-  onReorderResources,
-  onCollapse,
   previewMode,
   onCyclePreviewMode,
   actions,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
+  const {
+    selectResource,
+    addResource: onAddResource,
+    removeResource: onRemoveResource,
+    reorderResources: onReorderResources,
+    collapseResource,
+  } = useMothershipResources()
   const scrollNodeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -354,7 +352,7 @@ export function ResourceTabs({
           const next = new Set<string>()
           for (let i = start; i <= end; i++) next.add(resources[i].id)
           setSelectedIds(next)
-          onSelect(resource.id)
+          selectResource(resource.id)
           return
         }
       }
@@ -370,11 +368,11 @@ export function ResourceTabs({
           if (activeId === resource.id) {
             const fallback =
               findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
-            if (fallback) onSelect(fallback)
+            if (fallback) selectResource(fallback)
           }
         } else {
           setSelectedIds((prev) => new Set(prev).add(resource.id))
-          onSelect(resource.id)
+          selectResource(resource.id)
         }
         if (!anchorIdRef.current) anchorIdRef.current = resource.id
         return
@@ -383,9 +381,9 @@ export function ResourceTabs({
       // Plain click: single-select
       anchorIdRef.current = resource.id
       setSelectedIds(new Set([resource.id]))
-      onSelect(resource.id)
+      selectResource(resource.id)
     },
-    [resources, onSelect, selectedIds, activeId]
+    [resources, selectResource, selectedIds, activeId]
   )
 
   const handleRemove = useCallback(
@@ -553,7 +551,7 @@ export function ResourceTabs({
         <Tooltip.Trigger asChild>
           <Button
             variant='subtle'
-            onClick={onCollapse}
+            onClick={collapseResource}
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Collapse resource view'
           >
@@ -623,7 +621,7 @@ export function ResourceTabs({
             workspaceId={workspaceId}
             existingKeys={existingKeys}
             onAdd={handleAdd}
-            onSwitch={onSelect}
+            onSwitch={selectResource}
             excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
           />
         )}

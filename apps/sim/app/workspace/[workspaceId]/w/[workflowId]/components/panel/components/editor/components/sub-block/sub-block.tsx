@@ -54,7 +54,6 @@ import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 const SLACK_OVERRIDES: SelectorOverrides = {
   transformContext: (context, deps) => {
@@ -105,7 +104,6 @@ interface SubBlockProps {
   /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
   dependencyContext?: Record<string, unknown>
   isSearchHighlighted?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -441,7 +439,6 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     canonicalToggleEqual &&
     prevProps.labelSuffix === nextProps.labelSuffix &&
     prevProps.isSearchHighlighted === nextProps.isSearchHighlighted &&
-    prevProps.activeSearchTarget === nextProps.activeSearchTarget &&
     prevProps.dependencyContext === nextProps.dependencyContext
   )
 }
@@ -459,7 +456,6 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
  * @param labelSuffix - Additional content rendered after the label text
  * @param dependencyContext - Sibling values for dependency resolution in non-preview contexts (e.g. tool-input)
  * @param isSearchHighlighted - Whether workflow search should highlight this field
- * @param activeSearchTarget - Active workflow search target for nested field highlighting
  */
 function SubBlockComponent({
   blockId,
@@ -472,7 +468,6 @@ function SubBlockComponent({
   labelSuffix,
   dependencyContext,
   isSearchHighlighted,
-  activeSearchTarget,
 }: SubBlockProps): JSX.Element {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -655,7 +650,6 @@ function SubBlockComponent({
             wandControlRef={wandControlRef}
             hideInternalWand={true}
             isSearchHighlighted={isSearchHighlighted}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -672,7 +666,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             wandControlRef={wandControlRef}
             hideInternalWand={true}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -693,7 +686,6 @@ function SubBlockComponent({
               fetchOptionById={config.fetchOptionById}
               dependsOn={config.dependsOn}
               searchable={config.searchable}
-              activeSearchTarget={activeSearchTarget}
             />
           </div>
         )
@@ -707,7 +699,6 @@ function SubBlockComponent({
               disabled={isDisabled}
               isPreview={isPreview}
               previewValue={previewValue as string | null}
-              activeSearchTarget={activeSearchTarget}
             />
           </div>
         )
@@ -728,7 +719,6 @@ function SubBlockComponent({
               fetchOptions={config.fetchOptions}
               fetchOptionById={config.fetchOptionById}
               dependsOn={config.dependsOn}
-              activeSearchTarget={activeSearchTarget}
             />
           </div>
         )
@@ -758,7 +748,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -791,7 +780,6 @@ function SubBlockComponent({
             }
             wandControlRef={wandControlRef}
             hideInternalWand={true}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -816,7 +804,6 @@ function SubBlockComponent({
             previewValue={previewValue}
             disabled={allowExpandInPreview ? false : isDisabled}
             allowExpandInPreview={allowExpandInPreview}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -828,7 +815,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -848,7 +834,6 @@ function SubBlockComponent({
             subBlockValues={subBlockValues}
             disabled={isDisabled}
             subBlockId={config.id}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -863,7 +848,6 @@ function SubBlockComponent({
             subBlockValues={subBlockValues ?? {}}
             disabled={isDisabled}
             maxHeight={config.maxHeight}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -875,7 +859,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -888,7 +871,6 @@ function SubBlockComponent({
             previewValue={previewValue as any}
             disabled={isDisabled}
             mode='router'
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -900,7 +882,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -913,7 +894,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -928,7 +908,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -944,7 +923,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -959,7 +937,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -973,7 +950,6 @@ function SubBlockComponent({
             previewValue={previewValue}
             previewContextValues={contextValues}
             overrides={FOLDER_OVERRIDES}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -985,7 +961,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -998,7 +973,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             previewContextValues={contextValues}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1011,7 +985,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             previewContextValues={contextValues}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1024,7 +997,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1038,7 +1010,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             config={config}
             showValue={true}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1051,7 +1022,6 @@ function SubBlockComponent({
             previewValue={previewValue as any}
             disabled={isDisabled}
             previewContextValues={contextValues}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1063,7 +1033,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1076,7 +1045,6 @@ function SubBlockComponent({
             previewValue={previewValue}
             config={config}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1088,7 +1056,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as FilterRule[] | null | undefined}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1100,7 +1067,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as SortRule[] | null | undefined}
             disabled={isDisabled}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1115,7 +1081,6 @@ function SubBlockComponent({
             previewValue={previewValue}
             previewContextValues={contextValues}
             overrides={SLACK_OVERRIDES}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1127,7 +1092,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as string | null}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1139,7 +1103,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue as any}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1152,7 +1115,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             previewContextValues={contextValues}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1165,7 +1127,6 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1202,7 +1163,6 @@ function SubBlockComponent({
             previewValue={previewValue as any}
             disabled={isDisabled}
             wandControlRef={wandControlRef}
-            activeSearchTarget={activeSearchTarget}
           />
         )
 

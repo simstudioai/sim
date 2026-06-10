@@ -21,6 +21,7 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import type { SubBlockConfig } from '@/blocks/types'
 import { CREDENTIAL_SET } from '@/executor/constants'
@@ -30,7 +31,6 @@ import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CredentialSelectorProps {
@@ -40,7 +40,6 @@ interface CredentialSelectorProps {
   isPreview?: boolean
   previewValue?: any | null
   previewContextValues?: Record<string, unknown>
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function CredentialSelector({
@@ -50,8 +49,8 @@ export function CredentialSelector({
   isPreview = false,
   previewValue,
   previewContextValues,
-  activeSearchTarget,
 }: CredentialSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const [showConnectModal, setShowConnectModal] = useState(false)
