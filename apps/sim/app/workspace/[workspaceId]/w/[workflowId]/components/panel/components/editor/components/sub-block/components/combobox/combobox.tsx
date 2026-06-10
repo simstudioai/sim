@@ -10,13 +10,13 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { getProviderFromModel } from '@/providers/utils'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -70,7 +70,6 @@ interface ComboBoxProps {
   ) => Promise<{ label: string; id: string } | null>
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export const ComboBox = memo(function ComboBox({
@@ -87,8 +86,8 @@ export const ComboBox = memo(function ComboBox({
   fetchOptions,
   fetchOptionById,
   dependsOn,
-  activeSearchTarget,
 }: ComboBoxProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   // Hooks and context
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)

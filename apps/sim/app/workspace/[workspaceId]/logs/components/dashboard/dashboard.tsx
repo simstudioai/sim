@@ -4,6 +4,10 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { Loader } from '@/components/emcn'
+import {
+  DashboardSegmentsContext,
+  type SegmentSelectionMode,
+} from '@/app/workspace/[workspaceId]/logs/components/dashboard/dashboard-segments-context'
 import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -302,12 +306,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
    * @param mode - Selection mode: 'single', 'toggle' (cmd+click), or 'range' (shift+click)
    */
   const handleSegmentClick = useCallback(
-    (
-      workflowId: string,
-      segmentIndex: number,
-      _timestamp: string,
-      mode: 'single' | 'toggle' | 'range'
-    ) => {
+    (workflowId: string, segmentIndex: number, _timestamp: string, mode: SegmentSelectionMode) => {
       if (mode === 'toggle') {
         setSelectedSegments((prev) => {
           const currentSegments = prev[workflowId] || []
@@ -353,6 +352,15 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
       }
     },
     []
+  )
+
+  const segmentsContextValue = useMemo(
+    () => ({
+      selectedSegments,
+      onSegmentClick: handleSegmentClick,
+      segmentDurationMs: segmentMs,
+    }),
+    [selectedSegments, handleSegmentClick, segmentMs]
   )
 
   const resetKey = `${JSON.stringify(stats?.workflows?.map((w) => w.workflowId))}-${timeRange}-${workflowIds.join(',')}-${searchQuery}`
@@ -477,15 +485,14 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
       </div>
 
       <div className='min-h-0 flex-1 overflow-hidden'>
-        <WorkflowsList
-          filteredExecutions={filteredExecutions as WorkflowExecution[]}
-          expandedWorkflowId={expandedWorkflowId}
-          onToggleWorkflow={handleToggleWorkflow}
-          selectedSegments={selectedSegments}
-          onSegmentClick={handleSegmentClick}
-          searchQuery={searchQuery}
-          segmentDurationMs={segmentMs}
-        />
+        <DashboardSegmentsContext.Provider value={segmentsContextValue}>
+          <WorkflowsList
+            filteredExecutions={filteredExecutions as WorkflowExecution[]}
+            expandedWorkflowId={expandedWorkflowId}
+            onToggleWorkflow={handleToggleWorkflow}
+            searchQuery={searchQuery}
+          />
+        </DashboardSegmentsContext.Provider>
       </div>
     </div>
   )

@@ -6,7 +6,8 @@ import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-ca
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
-import type { ContentBlock, MothershipResource, OptionItem, ToolCallData } from '../../types'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import type { AgentGroupItem } from './components'
 import {
@@ -676,7 +677,6 @@ interface MessageContentProps {
   fallbackContent: string
   isStreaming: boolean
   onOptionSelect?: (id: string) => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
 function MessageContentInner({
@@ -684,8 +684,8 @@ function MessageContentInner({
   fallbackContent,
   isStreaming = false,
   onOptionSelect,
-  onWorkspaceResourceSelect,
 }: MessageContentProps) {
+  const { onWorkspaceResourceSelect } = useChatSurface()
   const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
 
   const segments: MessageSegment[] =

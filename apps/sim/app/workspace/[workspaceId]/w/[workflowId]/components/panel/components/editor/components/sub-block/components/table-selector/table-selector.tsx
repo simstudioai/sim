@@ -6,9 +6,9 @@ import { Combobox, type ComboboxOption } from '@/components/emcn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTablesList } from '@/hooks/queries/tables'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface TableSelectorProps {
   blockId: string
@@ -16,7 +16,6 @@ interface TableSelectorProps {
   disabled?: boolean
   isPreview?: boolean
   previewValue?: string | null
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -33,8 +32,8 @@ export function TableSelector({
   disabled = false,
   isPreview = false,
   previewValue,
-  activeSearchTarget,
 }: TableSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
