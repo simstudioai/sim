@@ -64,17 +64,7 @@ try {
     await migrate(drizzle(client), { migrationsFolder: './migrations' })
     console.log('Migrations applied successfully.')
   } finally {
-    try {
-      await client`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`
-    } catch (unlockError) {
-      // A failed explicit unlock must never mask a successful migration with a
-      // non-zero exit — the session lock auto-releases on disconnect anyway, so
-      // log and move on rather than letting this reach the outer catch.
-      console.error(
-        'WARN: pg_advisory_unlock failed; the session lock will auto-release on disconnect.',
-        unlockError
-      )
-    }
+    await releaseMigrationLock()
   }
 } catch (error) {
   console.error('ERROR: Migration failed.')
@@ -82,6 +72,24 @@ try {
   process.exit(1)
 } finally {
   await client.end()
+}
+
+/**
+ * Release the advisory lock without ever failing the process. The session-level
+ * lock auto-releases when the connection closes, so a thrown unlock — e.g. the
+ * connection dropped right after `migrate()` committed — must be swallowed.
+ * Letting it reach the outer `catch` would exit 1 and falsely report a
+ * successful migration as failed to the deploy orchestrator.
+ */
+async function releaseMigrationLock(): Promise<void> {
+  try {
+    await client`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`
+  } catch (unlockError) {
+    console.error(
+      'WARN: pg_advisory_unlock failed; the session lock will auto-release on disconnect.',
+      unlockError
+    )
+  }
 }
 
 /**
