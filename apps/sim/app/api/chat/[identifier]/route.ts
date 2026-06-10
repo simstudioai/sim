@@ -135,7 +135,14 @@ export const POST = withRouteHandler(
 
       const authResult = await validateChatAuth(requestId, deployment, request, parsedBody)
       if (!authResult.authorized) {
-        return createErrorResponse(authResult.error || 'Authentication required', 401)
+        const response = createErrorResponse(
+          authResult.error || 'Authentication required',
+          authResult.status || 401
+        )
+        if (authResult.status === 429 && authResult.retryAfterMs !== undefined) {
+          response.headers.set('Retry-After', String(Math.ceil(authResult.retryAfterMs / 1000)))
+        }
+        return response
       }
 
       const { input, password, email, conversationId, files } = parsedBody
