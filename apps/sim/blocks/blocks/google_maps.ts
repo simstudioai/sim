@@ -712,4 +712,32 @@ export const GoogleMapsBlockMeta = {
       alsoIntegrations: ['hunter', 'hubspot'],
     },
   ],
+  skills: [
+    {
+      name: 'geocode-address',
+      description:
+        'Convert an address into latitude/longitude coordinates with a normalized formatted address.',
+      content:
+        '# Geocode an Address\n\nTurn a street address into coordinates.\n\n## Steps\n1. Take the address string from the request.\n2. Run the Geocode Address operation; optionally set a Region Bias (country code) to disambiguate.\n3. Read the returned lat, lng, formatted address, place ID, and location type.\n4. If multiple candidates are likely, note the accuracy/location type so the requester can confirm.\n\n## Output\nReturn the formatted address, latitude, longitude, and place ID. To go the other way (coordinates to address), use Reverse Geocode instead.',
+    },
+    {
+      name: 'get-directions',
+      description:
+        'Compute a route between two locations with distance, duration, and turn-by-turn steps.',
+      content:
+        '# Get Directions\n\nRoute between an origin and a destination.\n\n## Steps\n1. Capture origin and destination (addresses or `lat,lng`).\n2. Choose Travel Mode (driving, walking, bicycling, transit) and optionally features to Avoid (tolls, highways, ferries).\n3. Add Waypoints (pipe-separated) for intermediate stops if requested, and pick Units (metric/imperial).\n4. Run the Get Directions operation.\n\n## Output\nReturn total distance and duration (as text and numeric), start/end addresses, and a concise turn-by-turn step list. Mention the travel mode used.',
+    },
+    {
+      name: 'find-nearby-places',
+      description: 'Search for places matching a query near a location and return ranked results.',
+      content:
+        '# Find Nearby Places\n\nDiscover places (restaurants, hotels, etc.) near a spot.\n\n## Steps\n1. Build the Search Query (e.g., "coffee near Times Square") and set a Location Bias (`lat,lng`) and Radius if known.\n2. Optionally constrain by Place Type (restaurant, hotel, gas_station, etc.).\n3. Run the Search Places operation.\n4. For a chosen result, run Place Details with its Place ID to get rating, hours, phone, and website.\n\n## Output\nA ranked list of places: name, address, rating and number of ratings, open-now status, and place ID. Include phone/website for the top pick when details were fetched.',
+    },
+    {
+      name: 'calculate-travel-distances',
+      description: 'Compute distances and travel times from one origin to many destinations.',
+      content:
+        '# Calculate Travel Distances\n\nGet a distance matrix from an origin to multiple destinations.\n\n## Steps\n1. Set the Origin and provide Destinations as a pipe-separated list (e.g., "New York, NY|Boston, MA").\n2. Choose Travel Mode and Units; optionally set features to Avoid.\n3. Run the Distance Matrix operation.\n4. Read each row for distance and duration to each destination.\n\n## Output\nA table of destinations sorted by travel time or distance, each with distance text and duration text. Useful for picking the nearest option or planning routes.',
+    },
+  ],
 } as const satisfies BlockMeta

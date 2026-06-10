@@ -530,27 +530,19 @@ export function General() {
           </p>
           <ChipModalError>{resetPassword.error?.message}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            flush
-            onClick={() => setShowResetPasswordModal(false)}
-            disabled={resetPassword.isPending || resetPassword.isSuccess}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleResetPasswordConfirm}
-            disabled={resetPassword.isPending || resetPassword.isSuccess}
-          >
-            {resetPassword.isPending
+        <ChipModalFooter
+          onCancel={() => setShowResetPasswordModal(false)}
+          cancelDisabled={resetPassword.isPending || resetPassword.isSuccess}
+          primaryAction={{
+            label: resetPassword.isPending
               ? 'Sending...'
               : resetPassword.isSuccess
                 ? 'Sent'
-                : 'Send Reset Email'}
-          </Chip>
-        </ChipModalFooter>
+                : 'Send Reset Email',
+            onClick: handleResetPasswordConfirm,
+            disabled: resetPassword.isPending || resetPassword.isSuccess,
+          }}
+        />
       </ChipModal>
     </div>
   )

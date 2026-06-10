@@ -5,7 +5,6 @@ import { createLogger } from '@sim/logger'
 import {
   Badge,
   Button,
-  Chip,
   ChipCombobox,
   ChipInput,
   ChipModal,
@@ -17,7 +16,6 @@ import {
   Label,
   Trash,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
@@ -458,7 +456,6 @@ export function DocumentTagsModal({
                           }}
                           placeholder='Enter or select tag name'
                           editable={true}
-                          className={cn(tagNameConflict && 'border-[var(--text-error)]')}
                         />
                       ) : (
                         <ChipInput
@@ -611,7 +608,6 @@ export function DocumentTagsModal({
                       }}
                       placeholder='Enter or select tag name'
                       editable={true}
-                      className={cn(tagNameConflict && 'border-[var(--text-error)]')}
                     />
                   ) : (
                     <ChipInput
@@ -744,11 +740,10 @@ export function DocumentTagsModal({
         </ChipModalField>
       </ChipModalBody>
 
-      <ChipModalFooter>
-        <Chip flush onClick={() => handleClose(false)}>
-          Close
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => handleClose(false)}
+        primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
+      />
     </ChipModal>
   )
 }

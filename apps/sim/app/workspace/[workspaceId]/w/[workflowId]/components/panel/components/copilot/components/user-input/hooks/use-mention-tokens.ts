@@ -126,14 +126,29 @@ export function useMentionTokens({
       const before = message.slice(0, range.start)
       const after = message.slice(range.end)
       // Collapse only the space seam the removal creates (a leading + trailing
-      // space meeting), never unrelated double-spaces elsewhere in the message.
-      const next =
+      // space meeting), never unrelated double-spaces elsewhere in the message —
+      // by extending the deleted range over those leading spaces so the whole
+      // removal is a single edit.
+      const deleteEnd =
         before.endsWith(' ') && after.startsWith(' ')
-          ? `${before}${after.replace(/^ +/, '')}`
-          : `${before}${after}`
-      setMessage(next)
+          ? range.end + (after.length - after.replace(/^ +/, '').length)
+          : range.end
 
-      // Set cursor position immediately after state update
+      // Prefer `execCommand` (deprecated, but the only primitive that lands the
+      // removal on the native undo stack, so Cmd+Z restores the chip). It's a
+      // no-op on Firefox textareas and returns false there, so fall back to a
+      // direct edit — correct deletion, just no native undo on that browser.
+      textarea.focus()
+      textarea.setSelectionRange(range.start, deleteEnd)
+      const valueBeforeDelete = textarea.value
+      if (!document.execCommand('delete') || textarea.value === valueBeforeDelete) {
+        textarea.setRangeText('', range.start, deleteEnd, 'start')
+      }
+
+      // The edit fires `input`, but sync state explicitly so this hook doesn't
+      // depend on the consumer's onChange wiring.
+      setMessage(textarea.value)
+
       setTimeout(() => {
         textarea.setSelectionRange(range.start, range.start)
         textarea.focus()

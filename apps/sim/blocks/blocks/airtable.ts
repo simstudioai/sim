@@ -432,4 +432,27 @@ export const AirtableBlockMeta = {
       alsoIntegrations: ['gmail'],
     },
   ],
+  skills: [
+    {
+      name: 'sync-records-to-table',
+      description:
+        'Parse incoming emails, forms, or documents and create or update structured Airtable records.',
+      content:
+        '# Sync Records to Airtable\n\nTurn unstructured inbound data into clean Airtable records.\n\n## Steps\n1. Read the source content (email body, form payload, or document text).\n2. Extract the fields that map to the target table columns (name, email, company, amount, status, etc.).\n3. Search the table for an existing record matching a unique key (such as email or order ID).\n4. Update the existing record if found; otherwise create a new one.\n5. Set any derived fields (category, priority, owner) based on the content.\n\n## Output\nReport how many records were created vs updated and list the record IDs. Flag any rows skipped for missing required fields.',
+    },
+    {
+      name: 'triage-and-route-records',
+      description:
+        'Classify new Airtable records (leads, tickets, requests) and assign owner, priority, and due dates.',
+      content:
+        '# Triage and Route Records\n\nAutomatically qualify and route new Airtable records.\n\n## Steps\n1. List recently created records in the target table.\n2. For each record, read the free-text fields (notes, message, transcript) and classify intent, urgency, and category.\n3. Set the owner, priority, and status fields based on the classification.\n4. Compute and set a due date for time-sensitive items.\n\n## Output\nSummarize the records triaged grouped by owner and priority. Note any records that need human review.',
+    },
+    {
+      name: 'generate-status-report',
+      description:
+        'Query an Airtable table or view and produce a rolled-up status report of progress, blockers, and trends.',
+      content:
+        '# Generate Status Report\n\nBuild a concise report from an Airtable table or view.\n\n## Steps\n1. Read records from the specified table or filtered view.\n2. Group by the relevant dimension (project, status, owner, or stage).\n3. Count totals per group and identify overdue or stalled items.\n4. Highlight notable changes or anomalies in the data.\n\n## Output\nA short report: totals per group, items at risk, and 2-3 takeaways. Keep it scannable with bullet points.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -83,6 +83,23 @@ export function getScopedParentToolCallId(
   return event.scope?.parentToolCallId || context.subAgentParentToolCallId
 }
 
+/**
+ * Extract the deterministic span identity from an event's scope. Returns an
+ * empty object for legacy events that predate span identity so callers can
+ * spread it safely and fall back to `parentToolCallId`-based grouping.
+ */
+export function getScopedSpanIdentity(event: StreamEvent): {
+  spanId?: string
+  parentSpanId?: string
+} {
+  const spanId = event.scope?.spanId
+  const parentSpanId = event.scope?.parentSpanId
+  return {
+    ...(spanId ? { spanId } : {}),
+    ...(parentSpanId ? { parentSpanId } : {}),
+  }
+}
+
 export function registerPendingToolPromise(
   context: StreamingContext,
   toolCallId: string,

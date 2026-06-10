@@ -61,6 +61,7 @@ export const polymarketGetOrderbookTool: ToolConfig<
       min_order_size: data.min_order_size ?? '0',
       tick_size: data.tick_size ?? '0',
       neg_risk: data.neg_risk ?? false,
+      last_trade_price: String(data.last_trade_price ?? ''),
     }
 
     return {
@@ -105,6 +106,7 @@ export const polymarketGetOrderbookTool: ToolConfig<
         min_order_size: { type: 'string', description: 'Minimum order size' },
         tick_size: { type: 'string', description: 'Tick size' },
         neg_risk: { type: 'boolean', description: 'Whether negative risk' },
+        last_trade_price: { type: 'string', description: 'Last trade price' },
       },
     },
   },

@@ -5,7 +5,6 @@ import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Chip, ChipDropdown, ChipLink } from '@/components/emcn'
-import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
 import {
   blockTypeToIconMap,
@@ -14,6 +13,7 @@ import {
 } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
@@ -21,7 +21,12 @@ import {
   CONNECT_MODE,
   CONNECT_QUERY_PARAM,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
-import { getTemplatesForBlock, type ScopedBlockTemplate } from '@/blocks/registry'
+import { storeCuratedPrompt } from '@/blocks/integration-matcher'
+import {
+  getSuggestedSkillsForBlock,
+  getTemplatesForBlock,
+  type ScopedBlockTemplate,
+} from '@/blocks/registry'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
@@ -46,6 +51,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const searchParams = useSearchParams()
   const Icon = blockTypeToIconMap[integration.type]
   const matchingTemplates = getTemplatesForBlock(integration.type)
+  const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
   const [oauthOpen, setOAuthOpen] = useState(false)
 
@@ -111,7 +117,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   }
 
   const handleAddInChat = () => {
-    LandingPromptStorage.store(`Explore ${integration.name}. What can I do?`)
+    storeCuratedPrompt(`Explore ${integration.name}. What can I do?`)
     router.push(`/workspace/${workspaceId}/home`)
   }
 
@@ -210,6 +216,14 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
             </IntegrationSection>
           )}
 
+          {suggestedSkills.length > 0 && (
+            <IntegrationSkillsSection
+              skills={suggestedSkills}
+              workspaceId={workspaceId}
+              integrationType={integration.type}
+            />
+          )}
+
           {matchingTemplates.length > 0 && (
             <TemplatesSection
               integration={integration}
@@ -233,7 +247,7 @@ function TemplatesSection({ integration, templates, workspaceId }: TemplatesSect
   const router = useRouter()
 
   const handleSelect = (prompt: string) => {
-    LandingPromptStorage.store(prompt)
+    storeCuratedPrompt(prompt)
     router.push(`/workspace/${workspaceId}/home`)
   }
 

@@ -598,4 +598,31 @@ export const TrelloBlockMeta = {
       tags: ['hr', 'automation'],
     },
   ],
+  skills: [
+    {
+      name: 'create-card',
+      description: 'Create a Trello card in a list with a description, due date, and labels.',
+      content:
+        '# Create a Trello Card\n\nAdd a new card to a list so work is captured on the right board.\n\n## Steps\n1. Use the Create Card operation and select your Trello account.\n2. Provide the List ID where the card should land and the Card Name.\n3. Add an optional Description, a Due Date (natural language like "next Friday" works), and Label IDs.\n4. Set Position to top or bottom to control where the card appears in the list.\n\n## Output\nReturn the created card including its id, url, and list, so it can be linked or updated later.',
+    },
+    {
+      name: 'triage-and-move-cards',
+      description:
+        'List cards on a board or list, classify them, and move each to the correct list.',
+      content:
+        '# Triage and Route Trello Cards\n\nRead incoming cards, decide where each belongs, and route them automatically.\n\n## Steps\n1. Use Get Lists with the Board ID to learn the available lists and their IDs.\n2. Use List Cards with the board or list ID to pull the cards needing triage.\n3. Classify each card by its name and description (topic, priority, owner).\n4. Use Update Card with the Move to List ID to route each card to its destination list.\n\n## Output\nReturn a summary of how many cards were moved and the destination list for each.',
+    },
+    {
+      name: 'comment-on-card',
+      description: 'Add a comment to a Trello card to leave a note, nudge, or status update.',
+      content:
+        '# Comment on a Trello Card\n\nLeave a comment on a card to record context or nudge an owner.\n\n## Steps\n1. Use the Add Comment operation and select your Trello account.\n2. Provide the Card ID of the target card.\n3. Write the Comment text, including any links or mentions the team needs.\n\n## Output\nReturn the created comment action with its id and date so the note can be referenced.',
+    },
+    {
+      name: 'review-card-activity',
+      description: 'Pull the recent action history for a Trello board or card and summarize it.',
+      content:
+        '# Review Trello Card Activity\n\nInspect what has happened recently on a board or card to build a digest or audit.\n\n## Steps\n1. Use the Get Actions operation with either a Board ID or a Card ID (one or the other, not both).\n2. Set an Action Filter such as commentCard,updateCard,createCard to focus on the events you care about.\n3. Use Board Action Limit and Action Page to page through longer histories.\n\n## Output\nReturn the actions with their type, date, author, and text, summarized into a short activity recap.',
+    },
+  ],
 } as const satisfies BlockMeta

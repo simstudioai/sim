@@ -8,12 +8,8 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
+  ChipConfirmModal,
   ChipInput,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
   Input,
   Label,
   Loader,
@@ -414,14 +410,13 @@ export function ChatDeploy({
         </div>
       </form>
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteConfirmation}
         onOpenChange={setShowDeleteConfirmation}
         srTitle='Delete Chat'
-      >
-        <ChipModalHeader showDivider={false}>Delete Chat</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Chat'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {existingChat?.title || 'this chat'}
@@ -432,26 +427,15 @@ export function ChatDeploy({
               make it unavailable to all users.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            flush
-            onClick={() => setShowDeleteConfirmation(false)}
-            disabled={deleteChatMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDelete}
-            disabled={deleteChatMutation.isPending}
-          >
-            {deleteChatMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteChatMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

@@ -868,4 +868,34 @@ export const DiscordBlockMeta = {
       alsoIntegrations: ['luma', 'google_calendar'],
     },
   ],
+  skills: [
+    {
+      name: 'post-announcement',
+      description:
+        'Post a formatted announcement message to a Discord channel and optionally pin it.',
+      content:
+        '# Post a Discord Announcement\n\nShare an announcement with a community channel.\n\n## Steps\n1. Confirm the target channel and the announcement content.\n2. Format the message clearly, using mentions or roles only if requested.\n3. Send the message to the channel.\n4. If it is important, pin the message.\n\n## Output\nA confirmation with the channel, message link or id, and whether it was pinned.',
+    },
+    {
+      name: 'summarize-channel-activity',
+      description:
+        'Read recent Discord channel messages and produce a summary of discussions, questions, and decisions.',
+      content:
+        '# Summarize Discord Channel Activity\n\nCatch up on what happened in a channel.\n\n## Steps\n1. Confirm the channel and how many recent messages to review.\n2. Get the channel messages.\n3. Group the conversation into themes: announcements, questions, and decisions.\n4. Flag unanswered questions that need a reply.\n\n## Output\nA concise digest of the discussion with unanswered questions called out.',
+    },
+    {
+      name: 'open-discussion-thread',
+      description:
+        'Create a Discord thread for a topic and post a kickoff message to organize community discussion.',
+      content:
+        '# Open a Discord Discussion Thread\n\nSpin up a focused thread for a topic.\n\n## Steps\n1. Confirm the parent channel and the thread topic.\n2. Create the thread with a clear name.\n3. Post a kickoff message framing the discussion and any prompts.\n\n## Output\nA confirmation with the thread name, link or id, and the kickoff message posted.',
+    },
+    {
+      name: 'collect-reactions-feedback',
+      description:
+        'Post a poll-style message in Discord, add reaction options, and read back the tally as feedback.',
+      content:
+        '# Collect Discord Reaction Feedback\n\nRun a lightweight reaction poll.\n\n## Steps\n1. Confirm the channel, the question, and the reaction options.\n2. Send the poll message.\n3. Add each reaction option to the message.\n4. After the polling window, read the message to tally the reaction counts.\n\n## Output\nThe poll question with the reaction tally and which option leads.',
+    },
+  ],
 } as const satisfies BlockMeta

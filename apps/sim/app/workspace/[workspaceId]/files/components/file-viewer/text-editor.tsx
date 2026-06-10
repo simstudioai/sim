@@ -428,7 +428,9 @@ export const TextEditor = memo(function TextEditor({
     file.key,
     file.type === 'text/x-pptxgenjs' ||
       file.type === 'text/x-docxjs' ||
-      file.type === 'text/x-pdflibjs'
+      file.type === 'text/x-pdflibjs' ||
+      file.type === 'text/x-python-pdf' ||
+      file.type === 'text/x-python-xlsx'
   )
 
   const updateContent = useUpdateWorkspaceFileContent()

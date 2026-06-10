@@ -15,7 +15,7 @@ export const IntercomBlock: BlockConfig = {
   authMode: AuthMode.ApiKey,
   category: 'tools',
   integrationType: IntegrationType.Support,
-  bgColor: '#FFFFFF',
+  bgColor: '#1F8DED',
   icon: IntercomIcon,
   subBlocks: [
     {
@@ -1808,6 +1808,36 @@ export const IntercomBlockMeta = {
       category: 'support',
       tags: ['support', 'sync', 'enterprise'],
       alsoIntegrations: ['zendesk'],
+    },
+  ],
+  skills: [
+    {
+      name: 'triage-open-conversations',
+      description:
+        'Review open Intercom conversations and assign each to the right teammate with a priority.',
+      content:
+        '# Triage Open Conversations\n\nKeep the inbox moving by routing open Intercom conversations to the right people.\n\n## Steps\n1. List or search open conversations.\n2. Read each conversation to understand the customer issue and urgency.\n3. List admins to find the right owner, then assign the conversation.\n4. Tag the conversation by topic (billing, bug, onboarding) and add an internal note summarizing next steps.\n\n## Output\nReturn each conversation with its assigned owner, applied tags, and a one-line summary. Flag anything that looks urgent.',
+    },
+    {
+      name: 'reply-and-resolve',
+      description:
+        'Draft a reply to a customer conversation, send it, and close the conversation when resolved.',
+      content:
+        '# Reply and Resolve\n\nRespond to a customer in Intercom and wrap up the conversation.\n\n## Steps\n1. Get the conversation and read the full thread for context.\n2. Draft a helpful, on-brand reply that addresses the customer question.\n3. Reply to the conversation with the message.\n4. If the issue is fully handled, close the conversation; otherwise snooze it until a follow-up time.\n\n## Output\nReturn the reply that was sent and the final conversation state (closed or snoozed).',
+    },
+    {
+      name: 'enrich-contact-record',
+      description:
+        'Create or update an Intercom contact and link it to its company with current details.',
+      content:
+        '# Enrich a Contact Record\n\nKeep contact data accurate by creating or updating an Intercom contact.\n\n## Steps\n1. Search contacts by email to see if the person already exists.\n2. Create the contact if missing, or update the existing record with name, role, and attributes.\n3. Find or create the company and attach the contact to it.\n4. Tag the contact to reflect segment or lifecycle stage.\n\n## Output\nReturn the contact ID, the linked company, and the fields that were created or changed.',
+    },
+    {
+      name: 'open-support-ticket',
+      description:
+        'Create an Intercom ticket from a conversation and capture the key issue details.',
+      content:
+        '# Open a Support Ticket\n\nEscalate a customer issue into a tracked Intercom ticket.\n\n## Steps\n1. Get the source conversation and summarize the issue, impact, and steps to reproduce.\n2. Create a ticket with a clear title, the summary, and the linked contact.\n3. Add a note to the conversation referencing the new ticket so context is preserved.\n\n## Output\nReturn the ticket ID, title, linked contact, and the conversation it came from.',
     },
   ],
 } as const satisfies BlockMeta

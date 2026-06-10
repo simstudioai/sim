@@ -35,8 +35,15 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Apply migrations
+      - name: Apply database schema changes
         working-directory: ./packages/db
         env:
           DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || github.ref == 'refs/heads/dev' && secrets.DEV_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
-        run: bun run ./scripts/migrate.ts
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            echo "Dev environment detected — pushing schema with drizzle-kit (db:push)"
+            bun run db:push --force
+          else
+            echo "Applying versioned migrations (db:migrate)"
+            bun run ./scripts/migrate.ts
+          fi

@@ -13,6 +13,7 @@ import { ApiBlock } from '@/blocks/blocks/api'
 import { ApiTriggerBlock } from '@/blocks/blocks/api_trigger'
 import { ApifyBlock, ApifyBlockMeta } from '@/blocks/blocks/apify'
 import { ApolloBlock, ApolloBlockMeta } from '@/blocks/blocks/apollo'
+import { AppConfigBlock, AppConfigBlockMeta } from '@/blocks/blocks/appconfig'
 import { ArxivBlock, ArxivBlockMeta } from '@/blocks/blocks/arxiv'
 import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
 import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
@@ -59,7 +60,7 @@ import { EvernoteBlock, EvernoteBlockMeta } from '@/blocks/blocks/evernote'
 import { ExaBlock, ExaBlockMeta } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendBlockMeta, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock, FathomBlockMeta } from '@/blocks/blocks/fathom'
-import { FileBlock, FileV2Block, FileV3Block, FileV4Block } from '@/blocks/blocks/file'
+import { FileBlock, FileV2Block, FileV3Block, FileV4Block, FileV5Block } from '@/blocks/blocks/file'
 import { FindymailBlock, FindymailBlockMeta } from '@/blocks/blocks/findymail'
 import { FirecrawlBlock, FirecrawlBlockMeta } from '@/blocks/blocks/firecrawl'
 import {
@@ -242,6 +243,7 @@ import { SapS4HanaBlock, SapS4HanaBlockMeta } from '@/blocks/blocks/sap_s4hana'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
 import { SecretsManagerBlock, SecretsManagerBlockMeta } from '@/blocks/blocks/secrets_manager'
+import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
 import { SerperBlock, SerperBlockMeta } from '@/blocks/blocks/serper'
@@ -304,7 +306,13 @@ import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
 import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce'
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
 import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
-import type { BlockCategory, BlockConfig, BlockMeta, BlockTemplate } from '@/blocks/types'
+import type {
+  BlockCategory,
+  BlockConfig,
+  BlockMeta,
+  BlockTemplate,
+  SuggestedSkill,
+} from '@/blocks/types'
 
 /** All block configs keyed by block type. The execution source of truth. */
 const BLOCK_REGISTRY: Record<string, BlockConfig> = {
@@ -321,6 +329,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   api: ApiBlock,
   api_trigger: ApiTriggerBlock,
   apify: ApifyBlock,
+  appconfig: AppConfigBlock,
   apollo: ApolloBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,
@@ -375,6 +384,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   file_v2: FileV2Block,
   file_v3: FileV3Block,
   file_v4: FileV4Block,
+  file_v5: FileV5Block,
   findymail: FindymailBlock,
   zerobounce: ZeroBounceBlock,
   neverbounce: NeverBounceBlock,
@@ -519,6 +529,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   schedule: ScheduleBlock,
   search: SearchBlock,
   secrets_manager: SecretsManagerBlock,
+  sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
   serper: SerperBlock,
@@ -607,6 +618,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   algolia: AlgoliaBlockMeta,
   amplitude: AmplitudeBlockMeta,
   apify: ApifyBlockMeta,
+  appconfig: AppConfigBlockMeta,
   apollo: ApolloBlockMeta,
   arxiv: ArxivBlockMeta,
   asana: AsanaBlockMeta,
@@ -767,6 +779,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   sap_concur: SapConcurBlockMeta,
   sap_s4hana: SapS4HanaBlockMeta,
   secrets_manager: SecretsManagerBlockMeta,
+  sendblue: SendblueBlockMeta,
   sendgrid: SendGridBlockMeta,
   sentry: SentryBlockMeta,
   serper: SerperBlockMeta,
@@ -955,6 +968,20 @@ export function getTemplatesForBlock(type: string): ScopedBlockTemplate[] {
     }
   }
   return collected
+}
+
+/**
+ * Popular, ready-to-add skills for a block type. Curated skills live on the
+ * base integration's meta, but a versioned catalog type (e.g. `notion_v2`) has
+ * its own meta entry that {@link getBlockMeta} resolves first and which may omit
+ * skills — so fall back to the stripped base meta. Returns an empty array when
+ * the integration has no curated skills.
+ */
+export function getSuggestedSkillsForBlock(type: string): readonly SuggestedSkill[] {
+  const direct = getBlockMeta(type)?.skills
+  if (direct && direct.length > 0) return direct
+  const base = stripVersionSuffix(normalizeType(type))
+  return BLOCK_META_REGISTRY[base]?.skills ?? []
 }
 
 /**

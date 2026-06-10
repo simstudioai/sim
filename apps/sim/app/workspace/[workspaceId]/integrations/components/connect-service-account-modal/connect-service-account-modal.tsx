@@ -4,7 +4,6 @@ import { type ComponentType, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -276,12 +275,14 @@ function GoogleServiceAccountModal({
 
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip onClick={() => onOpenChange(false)}>Cancel</Chip>
-        <Chip variant='primary' onClick={handleSubmit} disabled={isDisabled}>
-          {isPending ? 'Adding...' : 'Add service account'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        primaryAction={{
+          label: isPending ? 'Adding...' : 'Add service account',
+          onClick: handleSubmit,
+          disabled: isDisabled,
+        }}
+      />
     </ChipModal>
   )
 }
@@ -407,12 +408,14 @@ function AtlassianServiceAccountModal({
 
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip onClick={() => onOpenChange(false)}>Cancel</Chip>
-        <Chip variant='primary' onClick={handleSubmit} disabled={isDisabled}>
-          {isPending ? 'Adding...' : 'Add service account'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        primaryAction={{
+          label: isPending ? 'Adding...' : 'Add service account',
+          onClick: handleSubmit,
+          disabled: isDisabled,
+        }}
+      />
     </ChipModal>
   )
 }

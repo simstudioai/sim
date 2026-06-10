@@ -58,25 +58,19 @@ export const POST = withRouteHandler((request: NextRequest) =>
         [TraceAttr.UserId]: authenticatedUserId,
       })
 
-      if (!chatId) {
-        const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
-          logger.warn('getLatestRunForStream failed while resolving chatId for abort', {
-            streamId,
-            error: getErrorMessage(err),
-          })
-          return null
+      const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
+        logger.warn('getLatestRunForStream failed while resolving abort context', {
+          streamId,
+          error: getErrorMessage(err),
         })
-        if (run?.chatId) {
-          chatId = run.chatId
-        }
+        return null
+      })
+      if (!chatId && run?.chatId) {
+        chatId = run.chatId
       }
+      const workspaceId = run?.workspaceId ?? undefined
       if (chatId) rootSpan.setAttribute(TraceAttr.ChatId, chatId)
 
-      // Local abort before Go — lets the lifecycle classifier see
-      // `signal.aborted` with an explicit-stop reason before Go's
-      // context-canceled error propagates back. Go's endpoint runs
-      // second for billing-ledger flush; Go's context is already
-      // cancelled by then.
       const aborted = await abortActiveStream(streamId)
       rootSpan.setAttribute(TraceAttr.CopilotAbortLocalAborted, aborted)
 
@@ -101,6 +95,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
             messageId: streamId,
             userId: authenticatedUserId,
             ...(chatId ? { chatId } : {}),
+            ...(workspaceId ? { workspaceId } : {}),
           }),
           spanName: 'sim → go /api/streams/explicit-abort',
           operation: 'explicit_abort',

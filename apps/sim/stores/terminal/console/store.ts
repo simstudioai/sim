@@ -241,22 +241,50 @@ function appendWorkflowEntry(
 interface NotifyBlockErrorParams {
   error: unknown
   blockName: string
+  blockId: string
+  executionId?: string
   logContext: Record<string, unknown>
 }
 
-const notifyBlockError = ({ error, blockName, logContext }: NotifyBlockErrorParams) => {
+/**
+ * A single block failure surfaces through both `addConsole` (initial entry)
+ * and `updateConsole` (streaming/finalize), so the same logical error asks to
+ * toast twice within the same tick. Collapse them inside a short window. The
+ * key is scoped to the block execution (not just block + message), so a re-run
+ * or a different execution still toasts — even within the window, and even
+ * after the stack was cleared on navigation.
+ */
+const NOTIFY_DEDUP_WINDOW_MS = 1500
+const recentErrorNotifications = new Map<string, number>()
+
+const notifyBlockError = ({
+  error,
+  blockName,
+  blockId,
+  executionId,
+  logContext,
+}: NotifyBlockErrorParams) => {
   const settings = getQueryClient().getQueryData<GeneralSettings>(generalSettingsKeys.settings())
   const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
 
   if (!isErrorNotificationsEnabled) return
 
   try {
-    const errorMessage = String(error)
+    const errorMessage = normalizeConsoleError(error) ?? String(error)
     const displayName = blockName || 'Unknown Block'
-    const displayMessage = `${displayName}: ${errorMessage}`
     const copilotMessage = `${errorMessage}\n\nError in ${displayName}.\n\nPlease fix this.`
 
-    toast.error(displayMessage, {
+    const now = Date.now()
+    for (const [key, shownAt] of recentErrorNotifications) {
+      if (now - shownAt >= NOTIFY_DEDUP_WINDOW_MS) recentErrorNotifications.delete(key)
+    }
+    const dedupKey = `${getBlockExecutionKey(blockId, executionId)}: ${errorMessage}`
+    const lastShownAt = recentErrorNotifications.get(dedupKey)
+    if (lastShownAt !== undefined && now - lastShownAt < NOTIFY_DEDUP_WINDOW_MS) return
+    recentErrorNotifications.set(dedupKey, now)
+
+    toast.error(displayName, {
+      description: errorMessage,
       action: {
         label: 'Fix in Copilot',
         onClick: () => sendMothershipMessage(copilotMessage),
@@ -322,6 +350,8 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         notifyBlockError({
           error: createdEntry.error,
           blockName: createdEntry.blockName || 'Unknown Block',
+          blockId: createdEntry.blockId,
+          executionId: createdEntry.executionId,
           logContext: { entryId: createdEntry.id },
         })
       }
@@ -610,6 +640,8 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         notifyBlockError({
           error: update.error,
           blockName: update.blockName || matchingEntry?.blockName || 'Unknown Block',
+          blockId,
+          executionId,
           logContext: { blockId },
         })
       }

@@ -6,7 +6,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipCombobox,
   ChipInput,
   ChipModal,
@@ -509,27 +508,21 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
         <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
 
-      <ChipModalFooter>
-        <Chip flush onClick={handleClose}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleSubmit}
-          disabled={
-            !isFormValid || createScheduleMutation.isPending || updateScheduleMutation.isPending
-          }
-        >
-          {isEditing
+      <ChipModalFooter
+        onCancel={handleClose}
+        primaryAction={{
+          label: isEditing
             ? updateScheduleMutation.isPending
               ? 'Saving...'
               : 'Save changes'
             : createScheduleMutation.isPending
               ? 'Creating...'
-              : 'Create'}
-        </Chip>
-      </ChipModalFooter>
+              : 'Create',
+          onClick: handleSubmit,
+          disabled:
+            !isFormValid || createScheduleMutation.isPending || updateScheduleMutation.isPending,
+        }}
+      />
     </ChipModal>
   )
 }

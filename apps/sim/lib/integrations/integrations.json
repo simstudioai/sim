@@ -330,7 +330,7 @@
     "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
     "tags": ["automation"]
@@ -582,10 +582,10 @@
     "operationCount": 7,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud", "data-analytics"]
   },
   {
     "type": "rds",
@@ -628,7 +628,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "sqs",
@@ -1456,6 +1456,125 @@
     "tags": ["sales-engagement", "enrichment"]
   },
   {
+    "type": "appconfig",
+    "slug": "aws-appconfig",
+    "name": "AWS AppConfig",
+    "description": "Manage and retrieve configuration with AWS AppConfig",
+    "longDescription": "Integrate AWS AppConfig into workflows. Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
+    "iconName": "AppConfigIcon",
+    "docsUrl": "https://docs.sim.ai/tools/appconfig",
+    "operations": [
+      {
+        "name": "Get Configuration",
+        "description": "Retrieve the latest deployed configuration for an AppConfig application, environment, and profile"
+      },
+      {
+        "name": "List Applications",
+        "description": "List applications in AWS AppConfig"
+      },
+      {
+        "name": "Create Application",
+        "description": "Create an application in AWS AppConfig"
+      },
+      {
+        "name": "Get Application",
+        "description": "Get details about a single AWS AppConfig application"
+      },
+      {
+        "name": "Update Application",
+        "description": "Update the name or description of an AWS AppConfig application"
+      },
+      {
+        "name": "Delete Application",
+        "description": "Delete an AWS AppConfig application"
+      },
+      {
+        "name": "List Environments",
+        "description": "List environments for an AWS AppConfig application"
+      },
+      {
+        "name": "Create Environment",
+        "description": "Create an environment for an AWS AppConfig application"
+      },
+      {
+        "name": "Get Environment",
+        "description": "Get details about a single AWS AppConfig environment"
+      },
+      {
+        "name": "Update Environment",
+        "description": "Update the name or description of an AWS AppConfig environment"
+      },
+      {
+        "name": "Delete Environment",
+        "description": "Delete an AWS AppConfig environment"
+      },
+      {
+        "name": "List Configuration Profiles",
+        "description": "List configuration profiles for an AWS AppConfig application"
+      },
+      {
+        "name": "Create Configuration Profile",
+        "description": "Create a configuration profile in an AWS AppConfig application"
+      },
+      {
+        "name": "Get Configuration Profile",
+        "description": "Get details about a single AWS AppConfig configuration profile"
+      },
+      {
+        "name": "Update Configuration Profile",
+        "description": "Update the name, description, or retrieval role of an AppConfig configuration profile"
+      },
+      {
+        "name": "Delete Configuration Profile",
+        "description": "Delete an AWS AppConfig configuration profile"
+      },
+      {
+        "name": "Create Hosted Configuration Version",
+        "description": "Create a new hosted configuration version for an AppConfig configuration profile"
+      },
+      {
+        "name": "Get Hosted Configuration Version",
+        "description": "Retrieve a specific hosted configuration version from an AppConfig profile"
+      },
+      {
+        "name": "List Hosted Configuration Versions",
+        "description": "List hosted configuration versions for an AWS AppConfig configuration profile"
+      },
+      {
+        "name": "Delete Hosted Configuration Version",
+        "description": "Delete a specific hosted configuration version from an AppConfig profile"
+      },
+      {
+        "name": "List Deployment Strategies",
+        "description": "List deployment strategies available in AWS AppConfig"
+      },
+      {
+        "name": "Start Deployment",
+        "description": "Start deploying a configuration version to an AWS AppConfig environment"
+      },
+      {
+        "name": "Get Deployment",
+        "description": "Get details about a specific AWS AppConfig deployment"
+      },
+      {
+        "name": "List Deployments",
+        "description": "List deployments for an AWS AppConfig environment"
+      },
+      {
+        "name": "Stop Deployment",
+        "description": "Stop an in-progress AWS AppConfig deployment"
+      }
+    ],
+    "operationCount": 25,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["cloud", "feature-flags", "automation"]
+  },
+  {
     "type": "iam",
     "slug": "aws-iam",
     "name": "AWS IAM",
@@ -1553,7 +1672,7 @@
     "operationCount": 21,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["cloud", "identity"]
@@ -1620,7 +1739,7 @@
     "operationCount": 12,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["cloud", "identity"]
@@ -1714,10 +1833,10 @@
     "operationCount": 9,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "email",
-    "tags": ["cloud", "marketing"]
+    "tags": ["cloud", "email-marketing", "messaging"]
   },
   {
     "type": "sts",
@@ -1749,10 +1868,10 @@
     "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
-    "tags": ["cloud"]
+    "tags": ["cloud", "identity"]
   },
   {
     "type": "textract_v2",
@@ -1767,7 +1886,7 @@
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "ai",
     "tags": ["document-processing", "ocr", "cloud"]
@@ -2123,7 +2242,7 @@
     "name": "Cal Com",
     "description": "Manage Cal.com bookings, event types, schedules, and availability",
     "longDescription": "Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.",
-    "bgColor": "#FFFFFE",
+    "bgColor": "#292929",
     "iconName": "CalComIcon",
     "docsUrl": "https://docs.sim.ai/tools/calcom",
     "operations": [
@@ -2339,7 +2458,7 @@
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement", "data-analytics"]
@@ -3052,7 +3171,7 @@
     "operationCount": 3,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["identity", "monitoring"]
@@ -3572,7 +3691,7 @@
     "operationCount": 35,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "webhooks", "automation"]
@@ -3781,7 +3900,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["web-scraping", "seo"]
+    "tags": ["web-scraping"]
   },
   {
     "type": "elasticsearch",
@@ -3949,7 +4068,7 @@
     "name": "Embeddings",
     "description": "Generate Open AI embeddings",
     "longDescription": "Integrate Embeddings into the workflow. Can generate embeddings from text.",
-    "bgColor": "#10a37f",
+    "bgColor": "#000000",
     "iconName": "OpenAIIcon",
     "docsUrl": "https://docs.sim.ai/tools/openai",
     "operations": [],
@@ -4094,7 +4213,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["enrichment", "data-analytics"]
+    "tags": ["enrichment"]
   },
   {
     "type": "evernote",
@@ -4196,7 +4315,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["web-scraping", "enrichment"]
+    "tags": ["web-scraping"]
   },
   {
     "type": "extend_v2",
@@ -4439,7 +4558,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["meeting", "speech-to-text", "note-taking"]
+    "tags": ["meeting", "note-taking"]
   },
   {
     "type": "gamma",
@@ -5160,7 +5279,7 @@
       }
     ],
     "triggerCount": 2,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["meeting", "sales-engagement", "speech-to-text"]
@@ -6215,7 +6334,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "security",
-    "tags": ["google-workspace", "secrets-management", "document-processing"]
+    "tags": ["google-workspace", "document-processing"]
   },
   {
     "type": "grafana",
@@ -6425,9 +6544,13 @@
       {
         "name": "Get Note",
         "description": "Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript."
+      },
+      {
+        "name": "List Folders",
+        "description": "Lists folders from Granola, sorted alphabetically, with pagination."
       }
     ],
-    "operationCount": 2,
+    "operationCount": 3,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -6545,7 +6668,7 @@
     "name": "Greptile",
     "description": "AI-powered codebase search and Q&A",
     "longDescription": "Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.",
-    "bgColor": "#5DE195",
+    "bgColor": "#181C1E",
     "iconName": "GreptileIcon",
     "docsUrl": "https://docs.sim.ai/tools/greptile",
     "operations": [
@@ -6655,7 +6778,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
-    "tags": ["data-warehouse", "data-analytics"]
+    "tags": ["data-analytics"]
   },
   {
     "type": "hubspot",
@@ -7279,7 +7402,7 @@
     "name": "Intercom",
     "description": "Manage contacts, companies, conversations, tickets, and messages in Intercom",
     "longDescription": "Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#1F8DED",
     "iconName": "IntercomIcon",
     "docsUrl": "https://docs.sim.ai/tools/intercom",
     "operations": [
@@ -7905,16 +8028,36 @@
         "description": "Retrieve OHLC candlestick data for a specific market"
       },
       {
+        "name": "Get Event Candlesticks",
+        "description": "Retrieve OHLC candlestick data aggregated across all markets in an event"
+      },
+      {
         "name": "Get Fills",
         "description": "Retrieve your portfolio"
+      },
+      {
+        "name": "Get Settlements",
+        "description": "Retrieve your portfolio settlement history from Kalshi"
       },
       {
         "name": "Get Series by Ticker",
         "description": "Retrieve details of a specific market series by ticker"
       },
       {
+        "name": "Get Series List",
+        "description": "Retrieve a list of market series from Kalshi with optional filtering"
+      },
+      {
         "name": "Get Exchange Status",
         "description": "Retrieve the current status of the Kalshi exchange (trading and exchange activity)"
+      },
+      {
+        "name": "Get Exchange Schedule",
+        "description": "Retrieve the Kalshi exchange trading schedule and maintenance windows"
+      },
+      {
+        "name": "Get Exchange Announcements",
+        "description": "Retrieve exchange-wide announcements from Kalshi"
       },
       {
         "name": "Create Order",
@@ -7929,10 +8072,10 @@
         "description": "Modify the price or quantity of an existing order on Kalshi"
       }
     ],
-    "operationCount": 17,
+    "operationCount": 22,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["prediction-markets", "data-analytics"]
@@ -8001,7 +8144,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "observability",
-    "tags": ["monitoring", "llm", "data-analytics"]
+    "tags": ["monitoring", "llm"]
   },
   {
     "type": "launchdarkly",
@@ -8027,7 +8170,7 @@
       },
       {
         "name": "Update Flag",
-        "description": "Update a feature flag metadata (name, description, tags, temporary, archived) using semantic patch."
+        "description": "Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch."
       },
       {
         "name": "Toggle Flag",
@@ -8067,7 +8210,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "observability",
+    "integrationType": "devops",
     "tags": ["feature-flags", "ci-cd"]
   },
   {
@@ -8579,7 +8722,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["marketing", "sales-engagement", "enrichment"]
+    "tags": ["marketing", "sales-engagement"]
   },
   {
     "type": "linkup",
@@ -8818,8 +8961,8 @@
     "slug": "luma",
     "name": "Luma",
     "description": "Manage events and guests on Luma",
-    "longDescription": "Integrate Luma into the workflow. Can create events, update events, get event details, list calendar events, get guest lists, and add guests to events.",
-    "bgColor": "#FFFFFF",
+    "longDescription": "Integrate Luma into the workflow. Can create, update, look up, and cancel events, list calendar events, manage guest lists (get one or many, add guests, send invites, and update approval status).",
+    "bgColor": "#000000",
     "iconName": "LumaIcon",
     "docsUrl": "https://docs.sim.ai/tools/luma",
     "operations": [
@@ -8840,15 +8983,35 @@
         "description": "List events from your Luma calendar with optional date range filtering, sorting, and pagination."
       },
       {
+        "name": "Lookup Event",
+        "description": "Look up an event by its public URL or event ID to resolve its canonical ID, API ID, and approval status."
+      },
+      {
+        "name": "Cancel Event",
+        "description": "Cancel a Luma event. This is irreversible and notifies all registered guests. Requires a cancellation token obtained from the Request Event Cancellation endpoint."
+      },
+      {
         "name": "Get Guests",
         "description": "Retrieve the guest list for a Luma event with optional filtering by approval status, sorting, and pagination."
       },
       {
+        "name": "Get Guest",
+        "description": "Retrieve a single guest"
+      },
+      {
         "name": "Add Guests",
         "description": "Add guests to a Luma event by email. Guests are added with Going (approved) status and receive one ticket of the default ticket type."
+      },
+      {
+        "name": "Send Invites",
+        "description": "Send email invitations to guests for a Luma event. Unlike Add Guests (which registers guests directly), this emails an invite that recipients can accept."
+      },
+      {
+        "name": "Update Guest Status",
+        "description": "Update a guest"
       }
     ],
-    "operationCount": 6,
+    "operationCount": 11,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -8862,7 +9025,7 @@
     "name": "Mailchimp",
     "description": "Manage audiences, campaigns, and marketing automation in Mailchimp",
     "longDescription": "Integrate Mailchimp into the workflow. Can manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.",
-    "bgColor": "#FFE01B",
+    "bgColor": "#1A1A1A",
     "iconName": "MailchimpIcon",
     "docsUrl": "https://docs.sim.ai/tools/mailchimp",
     "operations": [
@@ -9173,7 +9336,7 @@
     "name": "Mailgun",
     "description": "Send emails and manage mailing lists with Mailgun",
     "longDescription": "Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#C12126",
     "iconName": "MailgunIcon",
     "docsUrl": "https://docs.sim.ai/tools/mailgun",
     "operations": [
@@ -9432,7 +9595,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["project-management", "microsoft-365", "ticketing"]
+    "tags": ["project-management", "microsoft-365"]
   },
   {
     "type": "microsoft_teams",
@@ -9539,7 +9702,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationTypes": ["sales"],
+    "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]
   },
   {
@@ -9675,7 +9838,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["project-management"]
+    "tags": ["project-management", "ticketing"]
   },
   {
     "type": "mongodb",
@@ -9773,7 +9936,7 @@
     "name": "NeverBounce",
     "description": "Verify email deliverability and check account credits",
     "longDescription": "Integrate NeverBounce to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.",
-    "bgColor": "#1A6DF0",
+    "bgColor": "#064AF4",
     "iconName": "NeverBounceIcon",
     "docsUrl": "https://docs.sim.ai/tools/neverbounce",
     "operations": [
@@ -9791,7 +9954,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationTypes": ["sales"],
+    "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]
   },
   {
@@ -10216,7 +10379,7 @@
     "name": "Parallel AI",
     "description": "Web research with Parallel AI",
     "longDescription": "Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#1D1C1A",
     "iconName": "ParallelIcon",
     "docsUrl": "https://docs.sim.ai/tools/parallel_ai",
     "operations": [
@@ -10746,10 +10909,10 @@
     "operationCount": 43,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
-    "tags": ["data-analytics", "monitoring"]
+    "tags": ["data-analytics", "monitoring", "feature-flags"]
   },
   {
     "type": "profound",
@@ -11001,9 +11164,9 @@
     "type": "railway",
     "slug": "railway",
     "name": "Railway",
-    "description": "Manage Railway projects, deployments, and variables",
-    "longDescription": "Integrate Railway into workflows to list projects, inspect services and environments, monitor deployments, trigger service deployments, and manage environment variables.",
-    "bgColor": "#FFFFFF",
+    "description": "Manage Railway projects, services, deployments, and variables",
+    "longDescription": "Integrate Railway into workflows to list projects, manage services and environments, monitor deployments, trigger and roll back service deployments, and manage environment variables.",
+    "bgColor": "#000000",
     "iconName": "RailwayIcon",
     "docsUrl": "https://docs.sim.ai/tools/railway",
     "operations": [
@@ -11044,12 +11207,36 @@
         "description": "Delete a Railway project environment"
       },
       {
+        "name": "Create Service",
+        "description": "Create a Railway service from a GitHub repo or Docker image"
+      },
+      {
+        "name": "Delete Service",
+        "description": "Delete a Railway service and all of its deployments"
+      },
+      {
         "name": "List Deployments",
         "description": "List deployments for a Railway service in an environment"
       },
       {
+        "name": "Get Deployment",
+        "description": "Get details for a single Railway deployment"
+      },
+      {
         "name": "Deploy Service",
         "description": "Trigger a deployment for a Railway service in an environment"
+      },
+      {
+        "name": "Restart Deployment",
+        "description": "Restart a running Railway deployment without rebuilding"
+      },
+      {
+        "name": "Rollback Deployment",
+        "description": "Roll a Railway service back to a previous deployment"
+      },
+      {
+        "name": "Get Deployment Logs",
+        "description": "Retrieve runtime logs for a Railway deployment"
       },
       {
         "name": "List Variables",
@@ -11058,9 +11245,13 @@
       {
         "name": "Upsert Variable",
         "description": "Create or update a Railway environment variable"
+      },
+      {
+        "name": "Delete Variable",
+        "description": "Delete a Railway environment variable"
       }
     ],
-    "operationCount": 13,
+    "operationCount": 20,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -11224,9 +11415,89 @@
       {
         "name": "Get Subreddit Info",
         "description": "Get metadata and information about a subreddit"
+      },
+      {
+        "name": "Get Subreddit Rules",
+        "description": "Get the rules and site-wide rules that apply to a subreddit"
+      },
+      {
+        "name": "Get User Posts",
+        "description": "Fetch submitted posts (t3) from a Reddit user profile"
+      },
+      {
+        "name": "Get User Comments",
+        "description": "Fetch comments (t1) made by a Reddit user"
+      },
+      {
+        "name": "Get Saved Items",
+        "description": "Fetch your own saved posts (t3) and comments (t1). You can only read your own saved items"
+      },
+      {
+        "name": "Get Info by ID",
+        "description": "Fetch information about one or more Reddit things (posts, comments, or subreddits) by their fullnames"
+      },
+      {
+        "name": "Search Subreddits",
+        "description": "Search for subreddits by name and description"
+      },
+      {
+        "name": "List My Subreddits",
+        "description": "List the subreddits the authenticated user is subscribed to"
+      },
+      {
+        "name": "Report",
+        "description": "Report a Reddit post or comment to subreddit moderators for a rules violation"
+      },
+      {
+        "name": "Hide",
+        "description": "Hide one or more Reddit posts from your listings"
+      },
+      {
+        "name": "Unhide",
+        "description": "Unhide one or more previously hidden Reddit posts"
+      },
+      {
+        "name": "Mark NSFW",
+        "description": "Mark a Reddit post as NSFW (not safe for work)"
+      },
+      {
+        "name": "Unmark NSFW",
+        "description": "Remove the NSFW (not safe for work) mark from a Reddit post"
+      },
+      {
+        "name": "Mark Messages Read",
+        "description": "Mark one or more private messages as read"
+      },
+      {
+        "name": "Mark All Messages Read",
+        "description": "Mark all private messages in the inbox as read"
+      },
+      {
+        "name": "Approve (Mod)",
+        "description": "Approve a reported or removed Reddit post or comment as a moderator"
+      },
+      {
+        "name": "Remove (Mod)",
+        "description": "Remove a Reddit post or comment as a moderator, optionally marking it as spam"
+      },
+      {
+        "name": "Distinguish (Mod)",
+        "description": "Distinguish or un-distinguish a Reddit post or comment as a moderator"
+      },
+      {
+        "name": "Lock (Mod)",
+        "description": "Lock a Reddit post or comment to prevent further replies (moderator action)"
+      },
+      {
+        "name": "Unlock (Mod)",
+        "description": "Unlock a Reddit post or comment to allow replies again (moderator action)"
+      },
+      {
+        "name": "Sticky (Mod)",
+        "description": "Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)"
       }
     ],
-    "operationCount": 17,
+    "operationCount": 37,
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",
@@ -11336,10 +11607,10 @@
     "operationCount": 22,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "reducto_v2",
@@ -11446,7 +11717,7 @@
       }
     ],
     "triggerCount": 8,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "email",
     "tags": ["email-marketing", "messaging"]
@@ -11516,7 +11787,7 @@
     "name": "Rippling",
     "description": "Manage workers, departments, custom objects, and company data in Rippling",
     "longDescription": "Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.",
-    "bgColor": "#FFCC1C",
+    "bgColor": "#502D3C",
     "iconName": "RipplingIcon",
     "docsUrl": "https://docs.sim.ai/tools/rippling",
     "operations": [
@@ -11990,9 +12261,65 @@
       {
         "name": "List Playbooks",
         "description": "List playbooks from Rootly with pagination support."
+      },
+      {
+        "name": "Mitigate Incident",
+        "description": "Transition a Rootly incident to the mitigated state."
+      },
+      {
+        "name": "Resolve Incident",
+        "description": "Transition a Rootly incident to the resolved state."
+      },
+      {
+        "name": "Assign Incident Role",
+        "description": "Assign an incident role (e.g. commander) to a user on a Rootly incident."
+      },
+      {
+        "name": "Unassign Incident Role",
+        "description": "Remove an incident role assignment from a user on a Rootly incident."
+      },
+      {
+        "name": "Add Subscribers",
+        "description": "Subscribe users to a Rootly incident so they receive updates."
+      },
+      {
+        "name": "Remove Subscribers",
+        "description": "Unsubscribe users from a Rootly incident."
+      },
+      {
+        "name": "Create Status Page Event",
+        "description": "Post a public status page update for a Rootly incident."
+      },
+      {
+        "name": "Update Action Item",
+        "description": "Update a Rootly incident action item (status, priority, assignee, etc.)."
+      },
+      {
+        "name": "Delete Action Item",
+        "description": "Delete a Rootly incident action item."
+      },
+      {
+        "name": "Snooze Alert",
+        "description": "Snooze a Rootly alert for a set number of minutes."
+      },
+      {
+        "name": "Escalate Alert",
+        "description": "Escalate a Rootly alert, optionally to a specific escalation policy or level."
+      },
+      {
+        "name": "List Incident Events",
+        "description": "List the timeline events for a Rootly incident."
+      },
+      {
+        "name": "Run Workflow",
+        "description": "Trigger a Rootly automation workflow, optionally scoped to an incident or alert."
+      },
+      {
+        "name": "List Incident Roles",
+        "description": "List incident roles configured in Rootly (e.g. commander, scribe)."
       }
     ],
-    "operationCount": 27,
+    "operationCount": 41,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -12034,7 +12361,7 @@
     "operationCount": 5,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "documents",
     "tags": ["cloud", "automation"]
@@ -12523,7 +12850,7 @@
     "operationCount": 70,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
     "tags": ["automation"]
@@ -12694,10 +13021,60 @@
     "operationCount": 38,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "hr",
     "tags": ["automation"]
+  },
+  {
+    "type": "sendblue",
+    "slug": "sendblue",
+    "name": "Sendblue",
+    "description": "Send and receive iMessage and SMS",
+    "longDescription": "Send iMessages and SMS to individuals or groups, check whether a number supports iMessage, show typing indicators, and look up message status with Sendblue. Trigger workflows on inbound messages and delivery status updates.",
+    "bgColor": "#008BFF",
+    "iconName": "SendblueIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sendblue",
+    "operations": [
+      {
+        "name": "Send Message",
+        "description": "Send an iMessage or SMS to a single recipient via Sendblue."
+      },
+      {
+        "name": "Send Group Message",
+        "description": "Send an iMessage or SMS to a group of recipients via Sendblue."
+      },
+      {
+        "name": "Evaluate Service",
+        "description": "Check whether a phone number can receive iMessage or only SMS."
+      },
+      {
+        "name": "Send Typing Indicator",
+        "description": "Display a typing indicator to a recipient (not supported in group chats)."
+      },
+      {
+        "name": "Get Message",
+        "description": "Retrieve a single message and its current status by message handle/ID."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [
+      {
+        "id": "sendblue_message_received",
+        "name": "Sendblue Message Received",
+        "description": "Trigger when an inbound iMessage or SMS is received in Sendblue"
+      },
+      {
+        "id": "sendblue_message_status_updated",
+        "name": "Sendblue Message Status Updated",
+        "description": "Trigger when an outbound message status changes (SENT, DELIVERED, ERROR) in Sendblue"
+      }
+    ],
+    "triggerCount": 2,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "communication",
+    "tags": ["messaging", "automation", "webhooks"]
   },
   {
     "type": "sendgrid",
@@ -12788,7 +13165,7 @@
     "name": "Sentry",
     "description": "Manage Sentry issues, projects, events, and releases",
     "longDescription": "Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#362D59",
     "iconName": "SentryIcon",
     "docsUrl": "https://docs.sim.ai/tools/sentry",
     "operations": [
@@ -12821,6 +13198,10 @@
         "description": "Update a Sentry project by changing its name, slug, platform, or other settings. Returns the updated project details."
       },
       {
+        "name": "List Teams",
+        "description": "List all teams in a Sentry organization. Useful for discovering the team slug required when creating a project. Returns team details including slug, name, member count, and associated projects."
+      },
+      {
         "name": "List Events",
         "description": "List events from a Sentry project. Can be filtered by issue ID, query, or time period. Returns event details including context, tags, and user information."
       },
@@ -12841,7 +13222,7 @@
         "description": "Create a deploy record for a Sentry release in a specific environment. Deploys track when and where releases are deployed. Returns the created deploy details."
       }
     ],
-    "operationCount": 12,
+    "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -13080,7 +13461,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "commerce",
-    "tags": ["payments", "subscriptions"]
+    "tags": ["payments", "automation"]
   },
   {
     "type": "similarweb",
@@ -13191,6 +13572,30 @@
         "description": "Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context."
       },
       {
+        "name": "Get Thread Replies",
+        "description": "Fetch every message in a Slack thread, automatically following pagination across all pages. Returns the parent message and the full set of replies."
+      },
+      {
+        "name": "Get Channel History",
+        "description": "Fetch message history from a Slack channel, automatically following pagination. Optionally filter by a time range to scrape messages since a given timestamp."
+      },
+      {
+        "name": "Get Message Permalink",
+        "description": "Get a stable permalink URL to a specific Slack message."
+      },
+      {
+        "name": "Set Assistant Status",
+        "description": "Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it."
+      },
+      {
+        "name": "Set Assistant Title",
+        "description": "Set the title of a Slack assistant thread (shown in the AI app thread header)."
+      },
+      {
+        "name": "Set Suggested Prompts",
+        "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
+      },
+      {
         "name": "List Channels",
         "description": "List all channels in a Slack workspace. Returns public and private channels the bot has access to."
       },
@@ -13283,7 +13688,7 @@
         "description": "Publish a static view to a user"
       }
     ],
-    "operationCount": 29,
+    "operationCount": 35,
     "triggers": [
       {
         "id": "slack_webhook",
@@ -13867,7 +14272,7 @@
       }
     ],
     "triggerCount": 1,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "webhooks", "automation"]
@@ -13910,7 +14315,7 @@
     "operationCount": 6,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["data-warehouse", "data-analytics"]
@@ -13971,7 +14376,7 @@
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "automation"]
@@ -14008,7 +14413,7 @@
       }
     ],
     "triggerCount": 1,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "text-to-speech"]
@@ -14148,10 +14553,10 @@
     "operationCount": 16,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "vercel",
@@ -14192,6 +14597,10 @@
         "description": "List files in a Vercel deployment"
       },
       {
+        "name": "Promote Deployment",
+        "description": "Promote a deployment by pointing the production deployment to the given deployment"
+      },
+      {
         "name": "List Projects",
         "description": "List all projects in a Vercel team or account"
       },
@@ -14226,6 +14635,14 @@
       {
         "name": "Add Project Domain",
         "description": "Add a domain to a Vercel project"
+      },
+      {
+        "name": "Update Project Domain",
+        "description": "Update a project domain"
+      },
+      {
+        "name": "Verify Project Domain",
+        "description": "Verify a Vercel project domain by checking its verification challenge"
       },
       {
         "name": "Remove Project Domain",
@@ -14276,6 +14693,10 @@
         "description": "Create a DNS record for a domain in a Vercel account"
       },
       {
+        "name": "Update DNS Record",
+        "description": "Update an existing DNS record for a domain in a Vercel account"
+      },
+      {
         "name": "Delete DNS Record",
         "description": "Delete a DNS record for a domain in a Vercel account"
       },
@@ -14316,8 +14737,16 @@
         "description": "Create, update, upsert, or delete items in an Edge Config store"
       },
       {
+        "name": "Delete Edge Config",
+        "description": "Delete an Edge Config store by ID"
+      },
+      {
         "name": "List Webhooks",
         "description": "List webhooks for a Vercel project or team"
+      },
+      {
+        "name": "Get Webhook",
+        "description": "Get details about a specific Vercel webhook"
       },
       {
         "name": "Create Webhook",
@@ -14364,7 +14793,7 @@
         "description": "Get information about the authenticated Vercel user"
       }
     ],
-    "operationCount": 50,
+    "operationCount": 56,
     "triggers": [
       {
         "id": "vercel_deployment_created",
@@ -14454,7 +14883,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["sales-engagement", "customer-support"]
+    "tags": ["sales-engagement"]
   },
   {
     "type": "webflow",
@@ -14573,7 +15002,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["knowledge-base", "web-scraping"]
+    "tags": ["knowledge-base"]
   },
   {
     "type": "wiza",
@@ -14790,7 +15219,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "hr",
-    "tags": ["hiring", "project-management"]
+    "tags": ["hiring"]
   },
   {
     "type": "x",
@@ -14976,7 +15405,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
-    "tags": ["google-workspace", "marketing", "content-management"]
+    "tags": ["marketing", "content-management"]
   },
   {
     "type": "zendesk",
@@ -14984,7 +15413,7 @@
     "name": "Zendesk",
     "description": "Manage support tickets, users, and organizations in Zendesk",
     "longDescription": "Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#03363D",
     "iconName": "ZendeskIcon",
     "docsUrl": "https://docs.sim.ai/tools/zendesk",
     "operations": [
@@ -15096,7 +15525,7 @@
     "operationCount": 26,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "support",
     "tags": ["customer-support", "ticketing"]
@@ -15154,7 +15583,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "ai",
-    "tags": ["llm", "knowledge-base", "agentic"]
+    "tags": ["knowledge-base", "agentic"]
   },
   {
     "type": "zerobounce",
@@ -15162,7 +15591,7 @@
     "name": "ZeroBounce",
     "description": "Validate email deliverability and check account credits",
     "longDescription": "Integrate ZeroBounce to validate email deliverability in real time — detect invalid, catch-all, spamtrap, abuse, and do-not-mail addresses — and check your remaining validation credits.",
-    "bgColor": "#00B894",
+    "bgColor": "#330D49",
     "iconName": "ZeroBounceIcon",
     "docsUrl": "https://docs.sim.ai/tools/zerobounce",
     "operations": [
@@ -15180,7 +15609,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationTypes": ["sales"],
+    "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]
   },
   {
@@ -15311,7 +15740,7 @@
     "operationCount": 6,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]

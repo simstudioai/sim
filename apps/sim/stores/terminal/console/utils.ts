@@ -9,7 +9,7 @@ export const TERMINAL_CONSOLE_LIMITS = {
   MAX_STRING_LENGTH: 50_000,
   MAX_OBJECT_KEYS: 100,
   MAX_ARRAY_ITEMS: 100,
-  MAX_DEPTH: 6,
+  MAX_DEPTH: 12,
   MAX_SERIALIZED_BYTES: 256 * 1024,
   MAX_SERIALIZED_PREVIEW_LENGTH: 10_000,
 } as const
@@ -92,8 +92,18 @@ export function safeConsoleStringify(value: unknown): string {
 
 /**
  * Produces a terminal-safe representation of any value.
+ *
+ * Recursion is bounded by two independent guards: `seen` tracks the current
+ * ancestor chain so true circular references resolve to `[Circular]` (a value
+ * reused across sibling positions is not a cycle and renders fully), and
+ * `MAX_DEPTH` is a pathological-nesting backstop. Actual payload size is bounded
+ * downstream by `truncateString` and `capNormalizedValue`, not by depth.
  */
-export function normalizeConsoleValue(value: unknown, depth = 0): unknown {
+export function normalizeConsoleValue(
+  value: unknown,
+  depth = 0,
+  seen: WeakSet<object> = new WeakSet()
+): unknown {
   if (value === null || value === undefined) {
     return value
   }
@@ -130,33 +140,48 @@ export function normalizeConsoleValue(value: unknown, depth = 0): unknown {
     return `[Truncated ${Array.isArray(value) ? 'array' : 'object'}]`
   }
 
-  if (Array.isArray(value)) {
-    const normalizedItems = value
-      .slice(0, TERMINAL_CONSOLE_LIMITS.MAX_ARRAY_ITEMS)
-      .map((item) => normalizeConsoleValue(item, depth + 1))
+  const objectValue = value as object
 
-    if (value.length > TERMINAL_CONSOLE_LIMITS.MAX_ARRAY_ITEMS) {
-      normalizedItems.push(
-        `[... truncated ${value.length - TERMINAL_CONSOLE_LIMITS.MAX_ARRAY_ITEMS} items]`
-      )
+  if (seen.has(objectValue)) {
+    return '[Circular]'
+  }
+
+  seen.add(objectValue)
+
+  try {
+    if (Array.isArray(value)) {
+      const normalizedItems = value
+        .slice(0, TERMINAL_CONSOLE_LIMITS.MAX_ARRAY_ITEMS)
+        .map((item) => normalizeConsoleValue(item, depth + 1, seen))
+
+      if (value.length > TERMINAL_CONSOLE_LIMITS.MAX_ARRAY_ITEMS) {
+        normalizedItems.push(
+          `[... truncated ${value.length - TERMINAL_CONSOLE_LIMITS.MAX_ARRAY_ITEMS} items]`
+        )
+      }
+
+      return normalizedItems
     }
 
-    return normalizedItems
+    const objectEntries = Object.entries(value as Record<string, unknown>)
+    const normalizedObject: Record<string, unknown> = {}
+
+    for (const [key, entryValue] of objectEntries.slice(
+      0,
+      TERMINAL_CONSOLE_LIMITS.MAX_OBJECT_KEYS
+    )) {
+      normalizedObject[key] = normalizeConsoleValue(entryValue, depth + 1, seen)
+    }
+
+    if (objectEntries.length > TERMINAL_CONSOLE_LIMITS.MAX_OBJECT_KEYS) {
+      normalizedObject.__simTruncatedKeys =
+        objectEntries.length - TERMINAL_CONSOLE_LIMITS.MAX_OBJECT_KEYS
+    }
+
+    return normalizedObject
+  } finally {
+    seen.delete(objectValue)
   }
-
-  const objectEntries = Object.entries(value as Record<string, unknown>)
-  const normalizedObject: Record<string, unknown> = {}
-
-  for (const [key, entryValue] of objectEntries.slice(0, TERMINAL_CONSOLE_LIMITS.MAX_OBJECT_KEYS)) {
-    normalizedObject[key] = normalizeConsoleValue(entryValue, depth + 1)
-  }
-
-  if (objectEntries.length > TERMINAL_CONSOLE_LIMITS.MAX_OBJECT_KEYS) {
-    normalizedObject.__simTruncatedKeys =
-      objectEntries.length - TERMINAL_CONSOLE_LIMITS.MAX_OBJECT_KEYS
-  }
-
-  return normalizedObject
 }
 
 /**

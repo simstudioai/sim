@@ -12,7 +12,7 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
   docsLink: 'https://docs.sim.ai/tools/zerobounce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  bgColor: '#00B894',
+  bgColor: '#330D49',
   icon: ZeroBounceIcon,
   subBlocks: [
     {
@@ -33,7 +33,6 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
       placeholder: 'john@example.com',
       condition: { field: 'operation', value: 'zerobounce_verify_email' },
     },
-    // API Key — hidden on hosted Sim for operations with hosted-key support
     {
       id: 'apiKey',
       title: 'API Key',
@@ -44,7 +43,6 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
       hideWhenHosted: true,
       condition: { field: 'operation', value: 'zerobounce_get_credits', not: true },
     },
-    // API Key — always required for the credit-balance lookup (no hosted key)
     {
       id: 'apiKey',
       title: 'API Key',

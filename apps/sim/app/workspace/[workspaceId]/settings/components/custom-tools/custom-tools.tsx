@@ -5,15 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Chip,
-  ChipInput,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  Search,
-} from '@/components/emcn'
+import { Chip, ChipConfirmModal, ChipInput, Search } from '@/components/emcn'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 
@@ -187,28 +179,22 @@ export function CustomTools() {
         }
       />
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+        onOpenChange={(open) => {
+          if (!open) setShowDeleteDialog(false)
+        }}
         srTitle='Delete Custom Tool'
-      >
-        <ChipModalHeader showDivider={false}>Delete Custom Tool</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Custom Tool'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.name}</span>?{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush onClick={() => setShowDeleteDialog(false)}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDeleteTool}>
-            Delete
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{ label: 'Delete', onClick: handleDeleteTool }}
+      />
     </>
   )
 }

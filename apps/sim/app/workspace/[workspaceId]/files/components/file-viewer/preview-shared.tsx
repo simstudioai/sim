@@ -17,6 +17,13 @@ export function resolvePreviewError(
   fetchError: Error | null,
   renderError: string | null
 ): string | null {
+  // A doc whose compiled artifact never appeared (the binary query exhausted its
+  // "still generating" polls) — usually a source that failed to compile or a
+  // legacy file with no artifact. Give a clear, actionable message instead of a
+  // generic fetch error.
+  if (fetchError?.name === 'DocNotReadyError') {
+    return "Couldn't generate this document preview. Re-run the file generation to rebuild it."
+  }
   if (fetchError) return fetchError.message
   return renderError
 }

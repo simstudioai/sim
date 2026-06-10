@@ -7,7 +7,6 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -313,14 +312,15 @@ export function EditConnectorModal({
       </ChipModalBody>
 
       {activeTab === 'settings' && (
-        <ChipModalFooter>
-          <Chip flush onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Cancel
-          </Chip>
-          <Chip variant='primary' flush onClick={handleSave} disabled={!hasChanges || isSaving}>
-            {isSaving ? 'Saving…' : 'Save'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={isSaving}
+          primaryAction={{
+            label: isSaving ? 'Saving…' : 'Save',
+            onClick: handleSave,
+            disabled: !hasChanges || isSaving,
+          }}
+        />
       )}
     </ChipModal>
   )

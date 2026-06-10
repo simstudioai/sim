@@ -15,18 +15,7 @@ import {
   Trash,
   XCircle,
 } from 'lucide-react'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  Loader,
-  Tooltip,
-} from '@/components/emcn'
+import { Badge, Button, Checkbox, ChipConfirmModal, Loader, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
@@ -182,6 +171,24 @@ export function ConnectorsSection({
     [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
   )
 
+  const handleDeleteConnector = () => {
+    if (!deleteTarget) return
+    deleteConnector(
+      { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
+      {
+        onSuccess: () => {
+          setError(null)
+          closeDeleteModal()
+        },
+        onError: (err) => {
+          logger.error('Delete connector failed', { error: err.message })
+          setError(err.message)
+          closeDeleteModal()
+        },
+      }
+    )
+  }
+
   if (connectors.length === 0 && !canEdit && !isLoading) return null
 
   return (
@@ -224,62 +231,35 @@ export function ConnectorsSection({
         />
       )}
 
-      <ChipModal
+      <ChipConfirmModal
         open={deleteTarget !== null}
-        onOpenChange={closeDeleteModal}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteModal()
+        }}
         srTitle='Remove Connector'
+        title='Remove Connector'
+        description='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        confirm={{
+          label: 'Remove',
+          onClick: handleDeleteConnector,
+          pending: isDeleting,
+          pendingLabel: 'Removing...',
+        }}
       >
-        <ChipModalHeader showDivider={false}>Remove Connector</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            This will disconnect the source and stop future syncs. Documents already synced will
-            remain in the knowledge base unless you choose to delete them.
-          </p>
-          <div className='flex items-center gap-2 px-2'>
-            <Checkbox
-              id={deleteDocumentsId}
-              checked={deleteDocuments}
-              onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
-            />
-            <label
-              htmlFor={deleteDocumentsId}
-              className='cursor-pointer text-[var(--text-secondary)] text-small'
-            >
-              Also delete all synced documents
-            </label>
-          </div>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush onClick={closeDeleteModal} disabled={isDeleting}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            disabled={isDeleting}
-            onClick={() => {
-              if (deleteTarget) {
-                deleteConnector(
-                  { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
-                  {
-                    onSuccess: () => {
-                      setError(null)
-                      closeDeleteModal()
-                    },
-                    onError: (err) => {
-                      logger.error('Delete connector failed', { error: err.message })
-                      setError(err.message)
-                      closeDeleteModal()
-                    },
-                  }
-                )
-              }
-            }}
+        <div className='flex items-center gap-2 px-2'>
+          <Checkbox
+            id={deleteDocumentsId}
+            checked={deleteDocuments}
+            onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
+          />
+          <label
+            htmlFor={deleteDocumentsId}
+            className='cursor-pointer text-[var(--text-secondary)] text-small'
           >
-            {isDeleting ? 'Removing...' : 'Remove'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+            Also delete all synced documents
+          </label>
+        </div>
+      </ChipConfirmModal>
     </div>
   )
 }

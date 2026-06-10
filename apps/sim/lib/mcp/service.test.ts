@@ -13,11 +13,38 @@ const {
   mockValidateDomain,
   mockValidateSsrf,
   mockIsDomainAllowed,
+  mockCacheAdapter,
 } = vi.hoisted(() => {
   const mockListTools = vi.fn()
   const mockConnect = vi.fn()
   const mockDisconnect = vi.fn()
+  // In-memory cache adapter so the service never touches the real Redis the
+  // local .env points at (unreachable in CI/sandbox → hangs). Honors TTL via
+  // an expiry timestamp so negative-cache assertions behave like production.
+  const cacheStore = new Map<string, { tools: unknown[]; expiry: number }>()
+  const mockCacheAdapter = {
+    get: async (key: string) => {
+      const entry = cacheStore.get(key)
+      if (!entry) return null
+      if (entry.expiry <= Date.now()) {
+        cacheStore.delete(key)
+        return null
+      }
+      return entry
+    },
+    set: async (key: string, tools: unknown[], ttlMs: number) => {
+      cacheStore.set(key, { tools, expiry: Date.now() + ttlMs })
+    },
+    delete: async (key: string) => {
+      cacheStore.delete(key)
+    },
+    clear: async () => {
+      cacheStore.clear()
+    },
+    dispose: () => {},
+  }
   return {
+    mockCacheAdapter,
     MockMcpClient: vi.fn().mockImplementation(
       class {
         constructor() {
@@ -89,6 +116,11 @@ vi.mock('@/lib/mcp/oauth', () => ({
 
 vi.mock('@/lib/mcp/resolve-config', () => ({
   resolveMcpConfigEnvVars: (...args: unknown[]) => mockResolveEnvVars(...args),
+}))
+
+vi.mock('@/lib/mcp/storage', () => ({
+  createMcpCacheAdapter: () => mockCacheAdapter,
+  getMcpCacheType: () => 'memory',
 }))
 
 import { mcpService } from '@/lib/mcp/service'

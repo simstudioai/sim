@@ -34,3 +34,4 @@ export type {
   SelectableConfig,
 } from './resource/resource'
 export { EMPTY_CELL_PLACEHOLDER, Resource } from './resource/resource'
+export { SkillTile } from './skill-tile'

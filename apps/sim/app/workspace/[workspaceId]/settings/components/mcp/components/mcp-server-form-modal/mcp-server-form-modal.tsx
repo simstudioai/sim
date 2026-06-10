@@ -6,13 +6,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Button,
-  Chip,
   ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
+  type ChipModalFooterAction,
   ChipModalHeader,
   SecretInput,
 } from '@/components/emcn'
@@ -612,6 +612,40 @@ export function McpServerFormModal({
   const title = mode === 'add' ? 'Add New MCP Server' : 'Edit MCP Server'
   const submitLabel = mode === 'add' ? 'Add MCP' : 'Save'
 
+  const handleToggleJsonMode = () => {
+    if (testResult) clearTestResult()
+    setFormMode(formMode === 'form' ? 'json' : 'form')
+    setJsonError(null)
+    setSubmitError(null)
+  }
+
+  const secondaryAction: ChipModalFooterAction | undefined =
+    mode === 'add'
+      ? {
+          label: formMode === 'form' ? 'Edit JSON' : 'Edit Form',
+          onClick: handleToggleJsonMode,
+        }
+      : formMode === 'form'
+        ? {
+            label: testButtonLabel,
+            onClick: handleTestConnection,
+            disabled: isTestingConnection || !isFormValid || isDomainBlocked,
+          }
+        : undefined
+
+  const primaryAction: ChipModalFooterAction =
+    formMode === 'json'
+      ? {
+          label: isSubmitting ? 'Adding...' : submitLabel,
+          onClick: handleSubmitJson,
+          disabled: isSubmitting || !jsonInput.trim(),
+        }
+      : {
+          label: isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel,
+          onClick: handleSubmitForm,
+          disabled: isSubmitDisabled,
+        }
+
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title} size='lg'>
       <ChipModalHeader onClose={() => onOpenChange(false)}>{title}</ChipModalHeader>
@@ -771,60 +805,10 @@ export function McpServerFormModal({
         <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
-        leading={
-          <>
-            {mode === 'add' && (
-              <Chip
-                type='button'
-                flush
-                onClick={() => {
-                  if (testResult) clearTestResult()
-                  setFormMode(formMode === 'form' ? 'json' : 'form')
-                  setJsonError(null)
-                  setSubmitError(null)
-                }}
-              >
-                {formMode === 'form' ? 'Edit JSON' : 'Edit Form'}
-              </Chip>
-            )}
-            {mode === 'edit' && formMode === 'form' && (
-              <Chip
-                type='button'
-                flush
-                onClick={handleTestConnection}
-                disabled={isTestingConnection || !isFormValid || isDomainBlocked}
-              >
-                {testButtonLabel}
-              </Chip>
-            )}
-          </>
-        }
-      >
-        <Chip type='button' flush onClick={() => onOpenChange(false)}>
-          Cancel
-        </Chip>
-        {formMode === 'json' ? (
-          <Chip
-            type='button'
-            variant='primary'
-            flush
-            onClick={handleSubmitJson}
-            disabled={isSubmitting || !jsonInput.trim()}
-          >
-            {isSubmitting ? 'Adding...' : submitLabel}
-          </Chip>
-        ) : (
-          <Chip
-            type='button'
-            variant='primary'
-            flush
-            onClick={handleSubmitForm}
-            disabled={isSubmitDisabled}
-          >
-            {isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel}
-          </Chip>
-        )}
-      </ChipModalFooter>
+        onCancel={() => onOpenChange(false)}
+        secondaryAction={secondaryAction}
+        primaryAction={primaryAction}
+      />
     </ChipModal>
   )
 }

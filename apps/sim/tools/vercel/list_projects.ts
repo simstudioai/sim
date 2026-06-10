@@ -61,7 +61,6 @@ export const vercelListProjectsTool: ToolConfig<
       framework: p.framework ?? null,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
-      domains: p.domains ?? [],
     }))
 
     return {
@@ -86,11 +85,6 @@ export const vercelListProjectsTool: ToolConfig<
           framework: { type: 'string', description: 'Framework', optional: true },
           createdAt: { type: 'number', description: 'Creation timestamp' },
           updatedAt: { type: 'number', description: 'Last updated timestamp' },
-          domains: {
-            type: 'array',
-            description: 'Project domains',
-            items: { type: 'string', description: 'Domain' },
-          },
         },
       },
     },

@@ -6,7 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Checkbox,
-  Chip,
+  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -123,34 +123,30 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     const isSingleRow = deleteCount === 1
 
     return (
-      <ChipModal
+      <ChipConfirmModal
         open={isOpen}
         onOpenChange={handleClose}
         srTitle={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
-      >
-        <ChipModalHeader showDivider={false}>
-          Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
+        description={
+          <>
             Are you sure you want to delete {isSingleRow ? 'this row' : `these ${deleteCount} rows`}
             ?{' '}
             <span className='text-[var(--text-error)]'>
               This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
             </span>{' '}
             This action cannot be undone.
-          </p>
-          <ChipModalError>{error}</ChipModalError>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush onClick={handleClose} disabled={isSubmitting}>
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDelete} disabled={isSubmitting}>
-            {isSubmitting ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: isSubmitting,
+          pendingLabel: 'Deleting...',
+        }}
+      >
+        <ChipModalError>{error}</ChipModalError>
+      </ChipConfirmModal>
     )
   }
 
@@ -162,6 +158,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           Update values for {table?.name ?? 'table'}
         </p>
         <form onSubmit={handleFormSubmit} className='contents'>
+          <button type='submit' hidden disabled={isSubmitting} />
           {columns.map((column) => (
             <ColumnField
               key={column.name}
@@ -173,14 +170,15 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         </form>
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip flush onClick={handleClose} disabled={isSubmitting}>
-          Cancel
-        </Chip>
-        <Chip variant='primary' flush onClick={() => handleFormSubmit()} disabled={isSubmitting}>
-          {isSubmitting ? 'Updating...' : 'Update Row'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={handleClose}
+        cancelDisabled={isSubmitting}
+        primaryAction={{
+          label: isSubmitting ? 'Updating...' : 'Update Row',
+          onClick: () => handleFormSubmit(),
+          disabled: isSubmitting,
+        }}
+      />
     </ChipModal>
   )
 }

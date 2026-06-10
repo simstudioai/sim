@@ -45,7 +45,7 @@ export const vercelCreateEnvVarTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Variable type: system, secret, encrypted, plain, or sensitive (default: plain)',
+      description: 'Variable type: system, encrypted, plain, or sensitive (default: plain)',
     },
     gitBranch: {
       type: 'string',
@@ -105,6 +105,8 @@ export const vercelCreateEnvVarTool: ToolConfig<
         target: env.target ?? [],
         gitBranch: env.gitBranch ?? null,
         comment: env.comment ?? null,
+        createdAt: env.createdAt ?? null,
+        updatedAt: env.updatedAt ?? null,
       },
     }
   },
@@ -141,5 +143,7 @@ export const vercelCreateEnvVarTool: ToolConfig<
       description: 'Comment providing context for the variable',
       optional: true,
     },
+    createdAt: { type: 'number', description: 'Creation timestamp', optional: true },
+    updatedAt: { type: 'number', description: 'Last update timestamp', optional: true },
   },
 }

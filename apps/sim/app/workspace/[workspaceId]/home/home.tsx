@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -8,6 +8,12 @@ import { Button } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import {
+  buildWorkflowAliasWorkflowEntries,
+  resolveWorkflowAliasPath,
+  resolveWorkspacePlanAliasPath,
+} from '@/lib/copilot/vfs/workflow-aliases'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -19,10 +25,13 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { useFolders } from '@/hooks/queries/folders'
 import {
   useMarkMothershipChatRead,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
+import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -50,6 +59,9 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   const firstName = userName?.split(' ')[0] ?? ''
+  const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
+  const { data: workflows = [] } = useWorkflows(workspaceId)
+  const { data: folders = [] } = useFolders(workspaceId)
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
@@ -291,10 +303,61 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     removeResource(resolved.type, resolved.id)
   }
 
+  const workflowAliasEntries = useMemo(
+    () =>
+      buildWorkflowAliasWorkflowEntries(
+        workflows.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name,
+          folderId: workflow.folderId ?? null,
+        })),
+        folders.map((folder) => ({
+          folderId: folder.id,
+          folderName: folder.name,
+          parentId: folder.parentId ?? null,
+        }))
+      ),
+    [folders, workflows]
+  )
+
+  const resolveFileResource = useCallback(
+    (resource: MothershipResource): MothershipResource => {
+      if (resource.type !== 'file') return resource
+
+      const reference = (resource.path || resource.id).trim()
+      const workspacePlanAlias = resolveWorkspacePlanAliasPath(reference)
+      const workflowAlias = workspacePlanAlias
+        ? null
+        : resolveWorkflowAliasPath(reference, workflowAliasEntries)
+      const alias = workspacePlanAlias || workflowAlias
+      const targetPath = alias && alias.kind !== 'plans_dir' ? alias.backingPath : reference
+
+      const file = workspaceFiles.find((candidate) => {
+        const candidatePath = canonicalWorkspaceFilePath({
+          folderPath: candidate.folderPath,
+          name: candidate.name,
+        })
+        return (
+          candidate.id === reference || candidatePath === reference || candidatePath === targetPath
+        )
+      })
+
+      if (!file) return resource
+      return {
+        ...resource,
+        id: file.id,
+        title: resource.title || file.name,
+        path: alias ? reference : resource.path,
+      }
+    },
+    [workflowAliasEntries, workspaceFiles]
+  )
+
   function handleWorkspaceResourceSelect(resource: MothershipResource) {
-    const wasAdded = addResource(resource)
+    const resolvedResource = resolveFileResource(resource)
+    const wasAdded = addResource(resolvedResource)
     if (!wasAdded) {
-      setActiveResourceId(resource.id)
+      setActiveResourceId(resolvedResource.id)
     }
     handleResourceEvent()
   }
@@ -309,11 +372,12 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
         <div className='absolute top-[8.5px] right-[16px] z-10'>
           <CreditsChip />
         </div>
-        <div className='flex min-h-full flex-col items-center px-6 pt-[24vh] pb-[2vh]'>
+        {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
+        <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
           <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
             What should we get done{firstName ? `, ${firstName}` : ''}?
           </h1>
-          <div ref={initialViewInputRef} className='w-full'>
+          <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
             <UserInput
               ref={initialViewUserInputRef}
               defaultValue={initialPrompt}
@@ -325,9 +389,12 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
               onContextAdd={handleContextAdd}
               onContextRemove={handleInitialContextRemove}
             />
-            <SuggestedActions
-              onSelectPrompt={(prompt) => initialViewUserInputRef.current?.populatePrompt(prompt)}
-            />
+            {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
+            <div className='absolute inset-x-0 top-full'>
+              <SuggestedActions
+                onSelectPrompt={(prompt) => initialViewUserInputRef.current?.populatePrompt(prompt)}
+              />
+            </div>
           </div>
         </div>
       </div>

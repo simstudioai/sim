@@ -7,7 +7,7 @@ import {
   Badge,
   ButtonGroup,
   ButtonGroupItem,
-  Chip,
+  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -273,36 +273,29 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
           <ChipModalError>{saveError}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush onClick={handleCloseAttempt} disabled={isSaving}>
-            Cancel
-          </Chip>
-          <Chip variant='primary' flush onClick={handleSave} disabled={!hasChanges || isSaving}>
-            Save
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={handleCloseAttempt}
+          cancelDisabled={isSaving}
+          primaryAction={{
+            label: 'Save',
+            onClick: handleSave,
+            disabled: !hasChanges || isSaving,
+          }}
+        />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={showUnsavedChangesAlert}
         onOpenChange={setShowUnsavedChangesAlert}
         srTitle='Unsaved Changes'
-      >
-        <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            You have unsaved changes. Are you sure you want to discard them?
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush onClick={() => setShowUnsavedChangesAlert(false)}>
-            Keep Editing
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDiscardChanges}>
-            Discard Changes
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+        title='Unsaved Changes'
+        description='You have unsaved changes. Are you sure you want to discard them?'
+        dismissLabel='Keep editing'
+        confirm={{
+          label: 'Discard Changes',
+          onClick: handleDiscardChanges,
+        }}
+      />
     </>
   )
 }

@@ -6,12 +6,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import {
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipLink,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
   ChipTextarea,
   Send,
   toast,
@@ -292,35 +289,25 @@ export function ConnectedCredentialDetail({
         <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />
       </CredentialDetailLayout>
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteConfirmDialog}
         onOpenChange={setShowDeleteConfirmDialog}
         srTitle='Disconnect Integration'
-      >
-        <ChipModalHeader showDivider={false}>Disconnect Integration</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Disconnect Integration'
+        description={
+          <>
             Are you sure you want to disconnect{' '}
             <span className='font-medium text-[var(--text-primary)]'>{credential.displayName}</span>
             ? This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush onClick={() => setShowDeleteConfirmDialog(false)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleConfirmDelete}
-            disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
-          >
-            {disconnectOAuthService.isPending || deleteCredential.isPending
-              ? 'Disconnecting...'
-              : 'Disconnect'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Disconnect',
+          onClick: handleConfirmDelete,
+          pending: disconnectOAuthService.isPending || deleteCredential.isPending,
+          pendingLabel: 'Disconnecting...',
+        }}
+      />
 
       <AddPeopleModal
         credentialId={credential.id}

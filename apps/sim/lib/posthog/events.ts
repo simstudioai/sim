@@ -567,6 +567,8 @@ export interface PostHogEventMap {
       | 'knowledge_base'
       | 'page'
       | 'docs'
+      | 'connected_account'
+      | 'integration'
     query_length: number
     workspace_id: string
   }
@@ -589,6 +591,18 @@ export interface PostHogEventMap {
   suggested_actions_toggled: {
     workspace_id: string
     expanded: boolean
+  }
+
+  /**
+   * A curated "suggested skill" was added to the workspace from an integration's
+   * detail page. `position` is the skill's index within the integration's list.
+   */
+  integration_skill_added: {
+    workspace_id: string
+    integration_type: string
+    skill_name: string
+    position: number
+    skill_count: number
   }
 
   workflow_imported: {

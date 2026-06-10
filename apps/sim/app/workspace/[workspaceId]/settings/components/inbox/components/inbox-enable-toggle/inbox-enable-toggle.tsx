@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
-  Chip,
+  ChipConfirmModal,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -95,20 +95,23 @@ export function InboxEnableToggle() {
             Leave blank for an auto-generated address.
           </p>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush onClick={() => setIsEnableOpen(false)}>
-            Cancel
-          </Chip>
-          <Chip variant='primary' flush onClick={handleEnable} disabled={toggleInbox.isPending}>
-            Enable
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setIsEnableOpen(false)}
+          primaryAction={{
+            label: 'Enable',
+            onClick: handleEnable,
+            disabled: toggleInbox.isPending,
+          }}
+        />
       </ChipModal>
 
-      <ChipModal open={isDisableOpen} onOpenChange={setIsDisableOpen} srTitle='Disable email inbox'>
-        <ChipModalHeader showDivider={false}>Disable email inbox</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+      <ChipConfirmModal
+        open={isDisableOpen}
+        onOpenChange={setIsDisableOpen}
+        srTitle='Disable email inbox'
+        title='Disable email inbox'
+        description={
+          <>
             Are you sure you want to disable the inbox
             {config?.address && (
               <>
@@ -118,25 +121,19 @@ export function InboxEnableToggle() {
             )}
             ? Any emails sent to this address after disabling will not be delivered. This action
             cannot be undone.
-          </p>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            Your existing conversations and task history will be preserved.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush disabled={toggleInbox.isPending} onClick={() => setIsDisableOpen(false)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            disabled={toggleInbox.isPending}
-            onClick={handleDisable}
-          >
-            {toggleInbox.isPending ? 'Disabling...' : 'Disable inbox'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Disable inbox',
+          onClick: handleDisable,
+          pending: toggleInbox.isPending,
+          pendingLabel: 'Disabling...',
+        }}
+      >
+        <p className='px-2 text-[var(--text-secondary)] text-sm'>
+          Your existing conversations and task history will be preserved.
+        </p>
+      </ChipConfirmModal>
     </>
   )
 }

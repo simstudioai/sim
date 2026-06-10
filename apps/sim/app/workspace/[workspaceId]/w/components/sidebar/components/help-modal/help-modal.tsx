@@ -10,7 +10,6 @@ import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -255,6 +254,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
       <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; support</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+        <button type='submit' hidden disabled={helpMutation.isPending || isProcessing} />
         <ChipModalBody ref={scrollContainerRef} className='max-h-[60vh]'>
           <Controller
             name='type'
@@ -343,30 +343,21 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
           )}
         </ChipModalBody>
 
-        <ChipModalFooter>
-          <Chip
-            flush
-            onClick={() => onOpenChange(false)}
-            type='button'
-            disabled={helpMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            type='submit'
-            variant='primary'
-            flush
-            disabled={helpMutation.isPending || isProcessing}
-          >
-            {helpMutation.isPending
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={helpMutation.isPending}
+          primaryAction={{
+            label: helpMutation.isPending
               ? 'Submitting...'
               : submitStatus === 'error'
                 ? 'Error'
                 : submitStatus === 'success'
                   ? 'Success'
-                  : 'Submit'}
-          </Chip>
-        </ChipModalFooter>
+                  : 'Submit',
+            onClick: () => void handleSubmit(onSubmit)(),
+            disabled: helpMutation.isPending || isProcessing,
+          }}
+        />
       </form>
     </ChipModal>
   )

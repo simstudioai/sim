@@ -645,4 +645,27 @@ export const AhrefsBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'analyze-competitor-backlinks',
+      description:
+        "Pull a competitor domain's backlink profile from Ahrefs and surface link-building opportunities.",
+      content:
+        "# Analyze Competitor Backlinks\n\nUse Ahrefs to study a competitor's backlinks and find outreach targets.\n\n## Steps\n1. Run a backlink/referring-domains report for the competitor URL or domain.\n2. Identify high-authority referring domains and the anchor texts they use.\n3. Compare against your own domain to find sites linking to them but not you.\n\n## Output\nA prioritized list of link opportunities: referring domain, authority, linked page, and why it is worth pursuing.",
+    },
+    {
+      name: 'keyword-research-report',
+      description:
+        'Research keywords in Ahrefs for a topic and report volume, difficulty, and ranking opportunities.',
+      content:
+        '# Keyword Research Report\n\nBuild a keyword opportunity report from Ahrefs data.\n\n## Steps\n1. Pull the organic keywords a competitor domain already ranks for to source candidate keywords for the topic.\n2. Run a keyword overview on the most relevant candidates to collect search volume and keyword difficulty.\n3. Highlight keywords with meaningful volume and lower difficulty as quick wins.\n\n## Output\nA table of keywords with volume and difficulty, grouped into quick wins vs long-term targets, with a short recommendation.',
+    },
+    {
+      name: 'track-organic-rankings',
+      description:
+        "Pull a domain's organic keyword rankings from Ahrefs and report top movers and lost positions.",
+      content:
+        '# Track Organic Rankings\n\nReport how a domain is ranking in organic search using Ahrefs.\n\n## Steps\n1. Pull the organic keywords report for the target domain.\n2. Identify the top-ranking keywords and their positions.\n3. Compare against a prior snapshot if available to find gains and losses.\n\n## Output\nA summary of top organic keywords, notable position gains and drops, and pages that may need attention.',
+    },
+  ],
 } as const satisfies BlockMeta

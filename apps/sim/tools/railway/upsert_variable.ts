@@ -1,9 +1,9 @@
+import { filterUndefined } from '@sim/utils/object'
 import type {
   RailwayUpsertVariableParams,
   RailwayUpsertVariableResponse,
 } from '@/tools/railway/types'
 import {
-  compactVariables,
   optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
@@ -35,7 +35,8 @@ export const railwayUpsertVariableTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Railway token type: account, workspace, project, or oauth',
+      description:
+        'Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens.',
     },
     projectId: {
       type: 'string',
@@ -91,7 +92,7 @@ export const railwayUpsertVariableTool: ToolConfig<
           environmentId: params.environmentId.trim(),
           name: params.name.trim(),
           value: params.value,
-          ...compactVariables({
+          ...filterUndefined({
             serviceId: optionalString(params.serviceId),
             skipDeploys: params.skipDeploys,
           }),

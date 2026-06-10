@@ -194,7 +194,6 @@ export function InboxSettingsTab() {
                       </div>
                       <Chip
                         flush
-                        className='text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                         leftIcon={Trash2}
                         aria-label='Remove sender'
                         onClick={() => handleRemoveSender(sender.id)}
@@ -263,19 +262,14 @@ export function InboxSettingsTab() {
           />
           <ChipModalError>{addSenderError}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip flush onClick={() => setIsAddSenderOpen(false)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleAddSender}
-            disabled={!newSenderEmail.trim() || addSender.isPending}
-          >
-            Add
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setIsAddSenderOpen(false)}
+          primaryAction={{
+            label: 'Add',
+            onClick: handleAddSender,
+            disabled: !newSenderEmail.trim() || addSender.isPending,
+          }}
+        />
       </ChipModal>
 
       <ChipModal
@@ -283,7 +277,9 @@ export function InboxSettingsTab() {
         onOpenChange={setIsEditAddressOpen}
         srTitle='Change email address'
       >
-        <ChipModalHeader showDivider={false}>Change email address</ChipModalHeader>
+        <ChipModalHeader onClose={() => setIsEditAddressOpen(false)}>
+          Change email address
+        </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Changing your email address will create a new inbox.{' '}
@@ -304,23 +300,16 @@ export function InboxSettingsTab() {
             error={editAddressError}
           />
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            flush
-            disabled={updateAddress.isPending}
-            onClick={() => setIsEditAddressOpen(false)}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleEditAddress}
-            disabled={!newUsername.trim() || updateAddress.isPending}
-          >
-            {updateAddress.isPending ? 'Updating...' : 'Change address'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setIsEditAddressOpen(false)}
+          cancelDisabled={updateAddress.isPending}
+          primaryAction={{
+            label: updateAddress.isPending ? 'Updating...' : 'Change address',
+            onClick: handleEditAddress,
+            disabled: !newUsername.trim() || updateAddress.isPending,
+            variant: 'destructive',
+          }}
+        />
       </ChipModal>
     </>
   )

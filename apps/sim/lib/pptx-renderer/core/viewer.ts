@@ -587,6 +587,31 @@ export class PptxViewer extends EventTarget {
     }
   }
 
+  /**
+   * Yield to the event loop between render batches so the browser can paint.
+   *
+   * We intentionally do NOT rely solely on `requestAnimationFrame`: rAF callbacks
+   * are paused while the document is hidden (backgrounded tab). A render kicked
+   * off in that state would otherwise stall forever on the batch yield and the
+   * `open()` promise would never settle (perma-loading preview). The `setTimeout`
+   * fallback fires regardless of visibility, so the render always completes —
+   * matching the server-side renderer, which has no visibility dependency.
+   */
+  private yieldToNextFrame(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        resolve()
+      }
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(finish)
+      }
+      setTimeout(finish, 32)
+    })
+  }
+
   private disposeAllCharts(): void {
     for (const chart of this.chartInstances) {
       if (!chart.isDisposed()) {
@@ -704,7 +729,7 @@ export class PptxViewer extends EventTarget {
       if ((i + 1) % batchSize === 0) {
         this.container.appendChild(batchFragment)
         batchFragment = document.createDocumentFragment()
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        await this.yieldToNextFrame()
       }
     }
 
@@ -733,7 +758,7 @@ export class PptxViewer extends EventTarget {
       if ((i + 1) % batchSize === 0) {
         this.container.appendChild(batchFragment)
         batchFragment = document.createDocumentFragment()
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        await this.yieldToNextFrame()
       }
     }
 

@@ -4,17 +4,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import {
-  Badge,
-  Chip,
-  ChipCombobox,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  Plus,
-  Trash,
-} from '@/components/emcn'
+import { Badge, ChipCombobox, ChipConfirmModal, Plus, Trash } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import type { ChunkData } from '@/lib/knowledge/types'
@@ -61,33 +51,20 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 interface UnsavedChangesModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onKeepEditing: () => void
   onDiscard: () => void
 }
 
-function UnsavedChangesModal({
-  open,
-  onOpenChange,
-  onKeepEditing,
-  onDiscard,
-}: UnsavedChangesModalProps) {
+function UnsavedChangesModal({ open, onOpenChange, onDiscard }: UnsavedChangesModalProps) {
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Unsaved Changes'>
-      <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
-      <ChipModalBody>
-        <p className='px-2 text-[var(--text-secondary)] text-sm'>
-          You have unsaved changes. Are you sure you want to discard them?
-        </p>
-      </ChipModalBody>
-      <ChipModalFooter>
-        <Chip flush onClick={onKeepEditing}>
-          Keep Editing
-        </Chip>
-        <Chip variant='destructive' flush onClick={onDiscard}>
-          Discard Changes
-        </Chip>
-      </ChipModalFooter>
-    </ChipModal>
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle='Unsaved Changes'
+      title='Unsaved Changes'
+      description='You have unsaved changes. Are you sure you want to discard them?'
+      dismissLabel='Keep editing'
+      confirm={{ label: 'Discard Changes', onClick: onDiscard }}
+    />
   )
 }
 
@@ -356,6 +333,13 @@ export function Document({
       await saveRef.current()
     }
   }, [isDirty, isCreatingNewChunk])
+
+  const handleUnsavedChangesOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setShowUnsavedChangesAlert(false)
+      setPendingAction(null)
+    }
+  }, [])
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
@@ -1094,11 +1078,7 @@ export function Document({
 
         <UnsavedChangesModal
           open={showUnsavedChangesAlert}
-          onOpenChange={setShowUnsavedChangesAlert}
-          onKeepEditing={() => {
-            setShowUnsavedChangesAlert(false)
-            setPendingAction(null)
-          }}
+          onOpenChange={handleUnsavedChangesOpenChange}
           onDiscard={handleDiscardChanges}
         />
       </>
@@ -1140,11 +1120,7 @@ export function Document({
 
         <UnsavedChangesModal
           open={showUnsavedChangesAlert}
-          onOpenChange={setShowUnsavedChangesAlert}
-          onKeepEditing={() => {
-            setShowUnsavedChangesAlert(false)
-            setPendingAction(null)
-          }}
+          onOpenChange={handleUnsavedChangesOpenChange}
           onDiscard={handleDiscardChanges}
         />
       </>
@@ -1214,14 +1190,13 @@ export function Document({
         isLoading={isBulkOperating}
       />
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteDocumentDialog}
         onOpenChange={setShowDeleteDocumentDialog}
         srTitle='Delete Document'
-      >
-        <ChipModalHeader showDivider={false}>Delete Document</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Document'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{effectiveDocumentName}</span>?{' '}
             <span className='text-[var(--text-error)]'>
@@ -1237,26 +1212,15 @@ export function Document({
             ) : (
               <>This action cannot be undone.</>
             )}
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            flush
-            onClick={() => setShowDeleteDocumentDialog(false)}
-            disabled={isDeletingDocument}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDeleteDocument}
-            disabled={isDeletingDocument}
-          >
-            {isDeletingDocument ? 'Deleting...' : 'Delete Document'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete Document',
+          onClick: handleDeleteDocument,
+          pending: isDeletingDocument,
+          pendingLabel: 'Deleting...',
+        }}
+      />
 
       <ChunkContextMenu
         isOpen={isContextMenuOpen}

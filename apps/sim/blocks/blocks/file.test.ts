@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FileV4Block } from '@/blocks/blocks/file'
+import { FileV4Block, FileV5Block } from '@/blocks/blocks/file'
 
 describe('FileV4Block', () => {
   const buildParams = FileV4Block.tools.config.params
@@ -48,5 +48,73 @@ describe('FileV4Block', () => {
         fileUrl: 'ftp://example.com/file.pdf',
       })
     ).toThrow('File URL must use http or https')
+  })
+})
+
+describe('FileV5Block', () => {
+  const buildParams = FileV5Block.tools.config.params
+
+  it('maps each operation directly to its tool', () => {
+    expect(FileV5Block.tools.config.tool({ operation: 'file_read' })).toBe('file_read')
+    expect(FileV5Block.tools.config.tool({ operation: 'file_get_content' })).toBe(
+      'file_get_content'
+    )
+    expect(FileV5Block.tools.config.tool({ operation: 'file_fetch' })).toBe('file_fetch')
+    expect(FileV5Block.tools.config.tool({ operation: 'file_write' })).toBe('file_write')
+    expect(FileV5Block.tools.config.tool({ operation: 'file_append' })).toBe('file_append')
+  })
+
+  it('read returns only the files output (no redundant file)', () => {
+    expect(FileV5Block.outputs.files).toBeDefined()
+    expect(FileV5Block.outputs.contents).toBeDefined()
+    expect(FileV5Block.outputs.file).toBeUndefined()
+  })
+
+  it('resolves canonical IDs for get content', () => {
+    expect(
+      buildParams({
+        operation: 'file_get_content',
+        getContentInput: '["file-1","file-2"]',
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toEqual({
+      fileId: ['file-1', 'file-2'],
+      workspaceId: 'workspace-1',
+    })
+  })
+
+  it('resolves selected file objects for get content', () => {
+    expect(
+      buildParams({
+        operation: 'file_get_content',
+        getContentInput: [
+          {
+            key: 'workspace/workspace-1/notes.md',
+            name: 'notes.md',
+            path: '/api/files/serve/workspace%2Fworkspace-1%2Fnotes.md?context=workspace',
+            size: 10,
+            type: 'text/markdown',
+          },
+        ],
+        _context: { workspaceId: 'workspace-1' },
+      })
+    ).toEqual({
+      fileInput: [
+        {
+          key: 'workspace/workspace-1/notes.md',
+          name: 'notes.md',
+          path: '/api/files/serve/workspace%2Fworkspace-1%2Fnotes.md?context=workspace',
+          size: 10,
+          type: 'text/markdown',
+        },
+      ],
+      workspaceId: 'workspace-1',
+    })
+  })
+
+  it('throws when no file is provided for get content', () => {
+    expect(() => buildParams({ operation: 'file_get_content' })).toThrow(
+      'File is required for get content'
+    )
   })
 })

@@ -917,4 +917,32 @@ export const StripeBlockMeta = {
       alsoIntegrations: ['slack'],
     },
   ],
+  skills: [
+    {
+      name: 'collect-payment',
+      description:
+        'Create and confirm a Stripe payment intent to collect a charge from a customer.',
+      content:
+        '# Collect Payment\n\nCharge a customer by creating and confirming a payment intent.\n\n## Steps\n1. Run Create Payment Intent with the amount, currency, and customer.\n2. Confirm the intent with Confirm Payment Intent, or Capture Payment Intent if it was created for manual capture.\n3. If a charge needs to be aborted, run Cancel Payment Intent instead.\n\n## Output\nReturn the payment intent ID, its status (succeeded, requires action, or canceled), and the captured amount.',
+    },
+    {
+      name: 'manage-subscription',
+      description: 'Create, update, pause, or cancel a Stripe subscription for a customer.',
+      content:
+        '# Manage Subscription\n\nHandle the lifecycle of a recurring subscription.\n\n## Steps\n1. To start a subscription, run Create Subscription with the customer and price items.\n2. To change a plan, run Update Subscription with the new items. To pause and later restart, use Cancel Subscription or Resume Subscription as appropriate.\n3. Confirm the current state with Retrieve Subscription.\n\n## Output\nReturn the subscription ID, its status, current period end, and the plan items, and note exactly what changed.',
+    },
+    {
+      name: 'issue-invoice',
+      description: 'Create, finalize, and send a Stripe invoice to a customer, then track payment.',
+      content:
+        '# Issue Invoice\n\nBill a customer with a Stripe invoice.\n\n## Steps\n1. Run Create Invoice for the customer with the line items.\n2. Run Finalize Invoice to lock it, then Send Invoice to deliver it to the customer.\n3. Track payment with Retrieve Invoice, or run Pay Invoice to charge a saved payment method. Use Void Invoice to cancel an unpaid invoice.\n\n## Output\nReturn the invoice ID, its status (draft, open, paid, or void), the amount due, and the hosted invoice URL when available.',
+    },
+    {
+      name: 'find-customer-activity',
+      description:
+        'Look up a Stripe customer and search their charges and payments for a financial summary.',
+      content:
+        '# Find Customer Activity\n\nBuild a payment history view for a single customer.\n\n## Steps\n1. Run Search Customers or Retrieve Customer to identify the customer and their ID.\n2. Run Search Charges or List Charges filtered to that customer to pull their transactions.\n3. Optionally run Search Payment Intents and List Invoices for a complete picture.\n\n## Output\nReturn the customer ID and email plus a summary of their charges and invoices, including total amount, successful versus failed payments, and any refunds.',
+    },
+  ],
 } as const satisfies BlockMeta

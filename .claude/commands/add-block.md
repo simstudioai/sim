@@ -807,10 +807,24 @@ export const {Service}BlockMeta = {
     },
     // ... at least 6 more
   ],
+  skills: [                                // SuggestedSkill[] — 3–5 mainstream, 2–3 niche
+    {
+      name: 'summarize-thread',            // kebab-case, ≤64 chars, unique, verb-led
+      description: 'One line: what it does and when to use it.',  // ≤1024 chars
+      content:
+        '# Summarize Thread\n\n...\n\n## Steps\n1. ...\n\n## Output\n...',  // markdown
+    },
+    // ... more
+  ],
 } as const satisfies BlockMeta
 ```
 
 Derive templates from the service's real use cases. Each prompt should name a concrete trigger, transformation, and output — not a generic description of what the service does.
+
+`skills` are curated, ready-to-add agent skills shown on the integration's detail page (users click **Add** to create them in their workspace). Two hard rules:
+
+- **Ground every skill in operations the block actually exposes** — cross-check each skill's steps against `tools.access`. Never describe an action the integration cannot perform.
+- **Derive skills from real, popular use cases found online — never invent them.** Web-search the service's documented use cases (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles) and only add a skill you can source as something people genuinely do with the service. Do not hallucinate skills.
 
 ## Checklist Before Finishing
 
@@ -831,6 +845,7 @@ Derive templates from the service's real use cases. Each prompt should name a co
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`
 - [ ] Timestamps and complex inputs have `wandConfig` enabled
 - [ ] Exported `{Service}BlockMeta` with at least 7 templates
+- [ ] `skills` added to `{Service}BlockMeta`, each grounded in `tools.access` and sourced from a real online use case (not invented)
 
 ## Final Validation (Required)
 

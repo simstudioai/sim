@@ -497,10 +497,63 @@ type DeployWorkflowValidationResult =
   | { success: true }
   | { success: false; error: string; errorCode?: 'validation' }
 
+/**
+ * Update the name and/or description metadata of an existing deployment version.
+ * Shared by the workflow deployment-version PATCH route and the copilot
+ * `update_deployment_version` tool so both behave identically. Returns the
+ * resulting name/description, or null if the version does not exist.
+ */
+export async function updateDeploymentVersionMetadata(params: {
+  workflowId: string
+  version: number
+  name?: string | null
+  description?: string | null
+}): Promise<{ name: string | null; description: string | null } | null> {
+  const updateData: { name?: string | null; description?: string | null } = {}
+  if (params.name !== undefined) updateData.name = params.name
+  if (params.description !== undefined) updateData.description = params.description
+
+  if (Object.keys(updateData).length === 0) {
+    const [row] = await db
+      .select({
+        name: workflowDeploymentVersion.name,
+        description: workflowDeploymentVersion.description,
+      })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, params.workflowId),
+          eq(workflowDeploymentVersion.version, params.version)
+        )
+      )
+      .limit(1)
+    return row ?? null
+  }
+
+  const [updated] = await db
+    .update(workflowDeploymentVersion)
+    .set(updateData)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, params.workflowId),
+        eq(workflowDeploymentVersion.version, params.version)
+      )
+    )
+    .returning({
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
+    })
+  return updated ?? null
+}
+
 export async function deployWorkflow(params: {
   workflowId: string
   deployedBy: string
   workflowName?: string
+  /** Optional human-readable summary of what changed, stored on the deployment version. */
+  description?: string | null
+  /** Optional human-readable name/label for the deployment version. */
+  name?: string | null
   workflowState?: WorkflowState
   validateWorkflowState?: (
     workflowState: WorkflowState
@@ -585,6 +638,8 @@ export async function deployWorkflow(params: {
         isActive: true,
         createdBy: deployedBy,
         createdAt: now,
+        description: params.description?.trim() || null,
+        name: params.name?.trim() || null,
       })
 
       const updateData: Record<string, unknown> = {

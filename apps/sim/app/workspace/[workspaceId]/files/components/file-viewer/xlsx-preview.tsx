@@ -1,19 +1,15 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import {
-  useUpdateWorkspaceFileContent,
-  useWorkspaceFileBinary,
-} from '@/hooks/queries/workspace-files'
-import type { DataTableHandle } from './data-table'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 const logger = createLogger('XlsxPreview')
 
@@ -29,37 +25,18 @@ interface XlsxSheet {
 export const XlsxPreview = memo(function XlsxPreview({
   file,
   workspaceId,
-  canEdit,
-  onSaveStatusChange,
-  saveRef,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
-  canEdit: boolean
-  onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
-  saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
 }) {
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  const preview = useDocPreviewBinary(workspaceId, file)
+  const fileData = preview.data
 
   const [sheetNames, setSheetNames] = useState<string[]>([])
   const [activeSheet, setActiveSheet] = useState(0)
   const [currentSheet, setCurrentSheet] = useState<XlsxSheet | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
-  const [isDirty, setIsDirty] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const isSavingRef = useRef(false)
   const workbookRef = useRef<WorkBook | null>(null)
-  const xlsxModuleRef = useRef<typeof import('xlsx') | null>(null)
-  const dataTableRef = useRef<DataTableHandle>(null)
-  const updateContent = useUpdateWorkspaceFileContent()
-  const updateContentRef = useRef(updateContent)
-  updateContentRef.current = updateContent
-  const onSaveStatusChangeRef = useRef(onSaveStatusChange)
-  onSaveStatusChangeRef.current = onSaveStatusChange
 
   useEffect(() => {
     if (!fileData) return
@@ -70,9 +47,7 @@ export const XlsxPreview = memo(function XlsxPreview({
     async function parse() {
       try {
         setRenderError(null)
-        setIsDirty(false)
         const XLSX = await import('xlsx')
-        xlsxModuleRef.current = XLSX
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
         if (!cancelled) {
           workbookRef.current = workbook
@@ -132,122 +107,9 @@ export const XlsxPreview = memo(function XlsxPreview({
     }
   }, [sheetNames, activeSheet])
 
-  const handleCellChange = useCallback(
-    (row: number, col: number, value: string) => {
-      const wb = workbookRef.current
-      const XLSX = xlsxModuleRef.current
-      if (wb && XLSX) {
-        const sheetName = sheetNames[activeSheet]
-        const ws = wb.Sheets[sheetName]
-        if (ws) {
-          const cellAddr = XLSX.utils.encode_cell({ r: row + 1, c: col })
-          const numValue = Number(value)
-          ws[cellAddr] =
-            value !== '' && !Number.isNaN(numValue) ? { t: 'n', v: numValue } : { t: 's', v: value }
-        }
-      }
-      setCurrentSheet((prev) => {
-        if (!prev) return prev
-        const newRows = prev.rows.map((r, ri) =>
-          ri === row ? r.map((v, ci) => (ci === col ? value : v)) : r
-        )
-        return { ...prev, rows: newRows }
-      })
-      setIsDirty(true)
-    },
-    [activeSheet, sheetNames]
-  )
-
-  const handleHeaderChange = useCallback(
-    (col: number, value: string) => {
-      const wb = workbookRef.current
-      const XLSX = xlsxModuleRef.current
-      if (wb && XLSX) {
-        const sheetName = sheetNames[activeSheet]
-        const ws = wb.Sheets[sheetName]
-        if (ws) {
-          const cellAddr = XLSX.utils.encode_cell({ r: 0, c: col })
-          ws[cellAddr] = { t: 's', v: value }
-        }
-      }
-      setCurrentSheet((prev) => {
-        if (!prev) return prev
-        const newHeaders = prev.headers.map((h, i) => (i === col ? value : h))
-        return { ...prev, headers: newHeaders }
-      })
-      setIsDirty(true)
-    },
-    [activeSheet, sheetNames]
-  )
-
-  const handleSave = useCallback(async () => {
-    dataTableRef.current?.commitEdit()
-    const wb = workbookRef.current
-    if (!wb || isSavingRef.current) return
-
-    try {
-      isSavingRef.current = true
-      setIsSaving(true)
-      onSaveStatusChangeRef.current?.('saving')
-
-      const XLSX = await import('xlsx')
-      const binary: number[] = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
-      const bytes = new Uint8Array(binary)
-
-      const chunkSize = 8192
-      const parts: string[] = []
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        parts.push(String.fromCharCode(...bytes.slice(i, i + chunkSize)))
-      }
-      const base64 = btoa(parts.join(''))
-
-      await updateContentRef.current.mutateAsync({
-        workspaceId,
-        fileId: file.id,
-        content: base64,
-        encoding: 'base64',
-      })
-
-      setIsDirty(false)
-      onSaveStatusChangeRef.current?.('saved')
-    } catch (err) {
-      logger.error('XLSX save failed', { error: toError(err).message })
-      onSaveStatusChangeRef.current?.('error')
-    } finally {
-      isSavingRef.current = false
-      setIsSaving(false)
-    }
-  }, [workspaceId, file.id])
-
-  useEffect(() => {
-    if (!saveRef) return
-    saveRef.current = handleSave
-    return () => {
-      if (saveRef.current === handleSave) saveRef.current = null
-    }
-  }, [handleSave, saveRef])
-
-  useEffect(() => {
-    if (!canEdit) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault()
-        handleSave()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [canEdit, handleSave])
-
-  const editConfig = useMemo(
-    () =>
-      canEdit ? { onCellChange: handleCellChange, onHeaderChange: handleHeaderChange } : undefined,
-    [canEdit, handleCellChange, handleHeaderChange]
-  )
-
-  const error = resolvePreviewError(fetchError, renderError)
+  const error = resolvePreviewError(preview.error, renderError)
   if (error) return <PreviewError label='spreadsheet' error={error} />
-  if (isLoading || currentSheet === null) {
+  if (!fileData || currentSheet === null) {
     return <PreviewLoadingFrame className='flex flex-1 flex-col overflow-hidden' />
   }
 
@@ -272,25 +134,9 @@ export const XlsxPreview = memo(function XlsxPreview({
             </Button>
           ))}
         </div>
-        {canEdit && isDirty && (
-          <Button
-            variant='primary'
-            size='sm'
-            onClick={handleSave}
-            disabled={isSaving}
-            className='mr-3'
-          >
-            {isSaving ? 'Saving…' : 'Save'}
-          </Button>
-        )}
       </div>
       <div className='flex-1 overflow-auto p-6'>
-        <DataTable
-          ref={dataTableRef}
-          headers={currentSheet.headers}
-          rows={currentSheet.rows}
-          editConfig={editConfig}
-        />
+        <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
         {currentSheet.truncated && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
             Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all data.

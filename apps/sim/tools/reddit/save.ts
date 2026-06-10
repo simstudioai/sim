@@ -61,8 +61,7 @@ export const saveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
   },
 
   transformResponse: async (response: Response, requestParams?: RedditSaveParams) => {
-    // Reddit save API returns empty JSON {} on success
-    await response.json()
+    await response.json().catch(() => ({}))
 
     if (response.ok) {
       return {
@@ -145,8 +144,7 @@ export const unsaveTool: ToolConfig<RedditSaveParams, RedditWriteResponse> = {
   },
 
   transformResponse: async (response: Response, requestParams?: RedditSaveParams) => {
-    // Reddit unsave API returns empty JSON {} on success
-    await response.json()
+    await response.json().catch(() => ({}))
 
     if (response.ok) {
       return {

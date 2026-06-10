@@ -12,7 +12,7 @@ export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
   docsLink: 'https://docs.sim.ai/tools/neverbounce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  bgColor: '#1A6DF0',
+  bgColor: '#064AF4',
   icon: NeverBounceIcon,
   subBlocks: [
     {

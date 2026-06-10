@@ -557,4 +557,27 @@ export const RDSBlockMeta = {
       alsoIntegrations: ['google_bigquery'],
     },
   ],
+  skills: [
+    {
+      name: 'run-readonly-query',
+      description:
+        'Run a parameterized SELECT against Amazon RDS via the Data API and return the rows.',
+      content:
+        '# Run Read-only Query\n\nQuery an RDS database through the Data API to answer a question.\n\n## Steps\n1. Write a SELECT statement that returns only the columns needed.\n2. Use parameters for any user-supplied values instead of string concatenation.\n3. Execute the statement and collect the result rows.\n\n## Output\nThe returned rows in a readable table plus a row count. If the result is large, summarize and note that it was limited.',
+    },
+    {
+      name: 'lookup-record',
+      description:
+        'Fetch a specific record from Amazon RDS by an identifier and return its fields.',
+      content:
+        '# Lookup Record\n\nRetrieve one row from an RDS table by a key.\n\n## Steps\n1. Identify the table and the unique identifier (id, email, order number).\n2. Run a parameterized SELECT filtered by that identifier.\n3. Return the matching row, or report that no record was found.\n\n## Output\nThe record fields if found, or a clear "not found" result. Do not invent field values.',
+    },
+    {
+      name: 'insert-record',
+      description:
+        'Insert a new row into an Amazon RDS table from provided field values via the Data API.',
+      content:
+        '# Insert Record\n\nWrite a new record into an RDS table through the Data API.\n\n## Steps\n1. Identify the target table and map the input values to its columns as key-value pairs.\n2. Run the insert operation with that data object.\n3. To load several rows, repeat the insert for each item, or use the Execute Raw SQL operation with a multi-row INSERT statement.\n\n## Output\nConfirm the table written to and how many rows were inserted. Flag any items skipped for missing required fields.',
+    },
+  ],
 } as const satisfies BlockMeta
