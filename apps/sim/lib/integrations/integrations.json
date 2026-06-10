@@ -5,7 +5,7 @@
     "name": "1Password",
     "description": "Manage secrets and items in 1Password vaults",
     "longDescription": "Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, create new items, update existing ones, delete items, and resolve secret references.",
-    "bgColor": "#145FE4",
+    "bgColor": "#FFFFFF",
     "iconName": "OnePasswordIcon",
     "docsUrl": "https://docs.sim.ai/tools/onepassword",
     "operations": [
@@ -2173,7 +2173,7 @@
     "name": "Bright Data",
     "description": "Scrape websites, search engines, and extract structured data",
     "longDescription": "Integrate Bright Data into the workflow. Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.",
-    "bgColor": "#0F4C81",
+    "bgColor": "#FFFFFF",
     "iconName": "BrightDataIcon",
     "docsUrl": "https://docs.sim.ai/tools/brightdata",
     "operations": [
@@ -3371,8 +3371,20 @@
         "description": "Execute a SQL statement against a Databricks SQL warehouse and return results inline. Supports parameterized queries and Unity Catalog."
       },
       {
+        "name": "Get Statement",
+        "description": "Poll a SQL statement by its ID to retrieve status and results. Use this after Execute SQL when a query runs longer than the wait timeout."
+      },
+      {
+        "name": "List Warehouses",
+        "description": "List all SQL warehouses in a Databricks workspace including their size, state, and type. Use this to discover the warehouse ID needed for Execute SQL."
+      },
+      {
         "name": "List Jobs",
         "description": "List all jobs in a Databricks workspace with optional filtering by name."
+      },
+      {
+        "name": "Get Job",
+        "description": "Get the full definition and settings of a single Databricks job by its job ID."
       },
       {
         "name": "Run Job",
@@ -3397,9 +3409,13 @@
       {
         "name": "List Clusters",
         "description": "List all clusters in a Databricks workspace including their state, configuration, and resource details."
+      },
+      {
+        "name": "Get Cluster",
+        "description": "Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID."
       }
     ],
-    "operationCount": 8,
+    "operationCount": 12,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -3872,11 +3888,35 @@
         "description": "Retrieve a paginated list of short links for the authenticated workspace. Supports filtering by domain, search query, tags, and sorting."
       },
       {
+        "name": "Count Links",
+        "description": "Retrieve the number of short links for the authenticated workspace, optionally filtered and grouped by domain, tag, user, or folder."
+      },
+      {
+        "name": "Bulk Create Links",
+        "description": "Create up to 100 short links in a single request. Returns the created links alongside any per-link errors."
+      },
+      {
+        "name": "Bulk Update Links",
+        "description": "Apply the same set of field updates to up to 100 links at once, selected by link IDs or external IDs."
+      },
+      {
+        "name": "Bulk Delete Links",
+        "description": "Delete up to 100 short links in a single request by their link IDs. Non-existing IDs are ignored."
+      },
+      {
         "name": "Get Analytics",
         "description": "Retrieve analytics for links including clicks, leads, and sales. Supports filtering by link, time range, and grouping by various dimensions."
+      },
+      {
+        "name": "List Events",
+        "description": "Retrieve a paginated stream of individual click, lead, and sale events for links, with filtering by link, time range, and location."
+      },
+      {
+        "name": "Get QR Code",
+        "description": "Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin."
       }
     ],
-    "operationCount": 7,
+    "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -4171,6 +4211,10 @@
         "description": "Advanced people search with complex filters for location, company size, seniority, experience, and more."
       },
       {
+        "name": "Search Jobs",
+        "description": "Search LinkedIn job postings by keywords with filters for location, job type, workplace type, experience level, and company."
+      },
+      {
         "name": "Search Posts",
         "description": "Search LinkedIn posts by keywords with date filtering."
       },
@@ -4183,8 +4227,16 @@
         "description": "Get reactions on a LinkedIn post with filtering by reaction type."
       },
       {
+        "name": "Search Post Reactions (by URL)",
+        "description": "Get reactions on a LinkedIn post by its URL, filtered by reaction type."
+      },
+      {
         "name": "Search Post Comments",
         "description": "Get comments on a LinkedIn post."
+      },
+      {
+        "name": "Search Post Comments (by URL)",
+        "description": "Get comments on a LinkedIn post by its URL."
       },
       {
         "name": "Search People Activities",
@@ -4207,7 +4259,7 @@
         "description": "Check your Enrich API credit usage and remaining balance."
       }
     ],
-    "operationCount": 29,
+    "operationCount": 32,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -5206,7 +5258,7 @@
       },
       {
         "name": "Get Extensive Calls",
-        "description": "Retrieve detailed call data including trackers, topics, and highlights from Gong."
+        "description": "Retrieve detailed call data including trackers, topics, highlights, and AI spotlight content (brief, outline, key points, call outcome) from Gong."
       },
       {
         "name": "List Users",
@@ -5219,6 +5271,14 @@
       {
         "name": "Aggregate Activity",
         "description": "Retrieve aggregated activity statistics for users by date range from Gong."
+      },
+      {
+        "name": "Day-by-Day Activity",
+        "description": "Retrieve detailed day-by-day activity (call IDs per activity type) for users by date range from Gong."
+      },
+      {
+        "name": "Aggregate by Period",
+        "description": "Retrieve aggregated user activity grouped into time periods (day, week, month, quarter, year) by date range from Gong."
       },
       {
         "name": "Interaction Stats",
@@ -5265,7 +5325,7 @@
         "description": "Find all references to a phone number in Gong (calls, email messages, meetings, CRM data, and associated contacts)."
       }
     ],
-    "operationCount": 19,
+    "operationCount": 21,
     "triggers": [
       {
         "id": "gong_webhook",
@@ -7402,7 +7462,7 @@
     "name": "Intercom",
     "description": "Manage contacts, companies, conversations, tickets, and messages in Intercom",
     "longDescription": "Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.",
-    "bgColor": "#1F8DED",
+    "bgColor": "#FFFFFF",
     "iconName": "IntercomIcon",
     "docsUrl": "https://docs.sim.ai/tools/intercom",
     "operations": [
@@ -9025,7 +9085,7 @@
     "name": "Mailchimp",
     "description": "Manage audiences, campaigns, and marketing automation in Mailchimp",
     "longDescription": "Integrate Mailchimp into the workflow. Can manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.",
-    "bgColor": "#1A1A1A",
+    "bgColor": "#FFE01B",
     "iconName": "MailchimpIcon",
     "docsUrl": "https://docs.sim.ai/tools/mailchimp",
     "operations": [
@@ -9684,7 +9744,7 @@
     "name": "MillionVerifier",
     "description": "Verify email deliverability and check account credits",
     "longDescription": "Integrate MillionVerifier to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.",
-    "bgColor": "#00B67A",
+    "bgColor": "#FFFFFF",
     "iconName": "MillionVerifierIcon",
     "docsUrl": "https://docs.sim.ai/tools/millionverifier",
     "operations": [
@@ -13273,9 +13333,25 @@
       {
         "name": "Delete Record",
         "description": "Delete a record from a ServiceNow table"
+      },
+      {
+        "name": "Aggregate Records",
+        "description": "Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table"
+      },
+      {
+        "name": "List Attachments",
+        "description": "List the attachments on a ServiceNow record"
+      },
+      {
+        "name": "Download Attachment",
+        "description": "Download an attachment file from ServiceNow by its sys_id"
+      },
+      {
+        "name": "Upload Attachment",
+        "description": "Attach a file to a ServiceNow record"
       }
     ],
-    "operationCount": 4,
+    "operationCount": 8,
     "triggers": [
       {
         "id": "servicenow_incident_created",
@@ -13304,7 +13380,7 @@
       }
     ],
     "triggerCount": 5,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "support",
     "tags": ["customer-support", "ticketing", "incident-management"]
@@ -13572,6 +13648,30 @@
         "description": "Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context."
       },
       {
+        "name": "Get Thread Replies",
+        "description": "Fetch every message in a Slack thread, automatically following pagination across all pages. Returns the parent message and the full set of replies."
+      },
+      {
+        "name": "Get Channel History",
+        "description": "Fetch message history from a Slack channel, automatically following pagination. Optionally filter by a time range to scrape messages since a given timestamp."
+      },
+      {
+        "name": "Get Message Permalink",
+        "description": "Get a stable permalink URL to a specific Slack message."
+      },
+      {
+        "name": "Set Assistant Status",
+        "description": "Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it."
+      },
+      {
+        "name": "Set Assistant Title",
+        "description": "Set the title of a Slack assistant thread (shown in the AI app thread header)."
+      },
+      {
+        "name": "Set Suggested Prompts",
+        "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
+      },
+      {
         "name": "List Channels",
         "description": "List all channels in a Slack workspace. Returns public and private channels the bot has access to."
       },
@@ -13664,7 +13764,7 @@
         "description": "Publish a static view to a user"
       }
     ],
-    "operationCount": 29,
+    "operationCount": 35,
     "triggers": [
       {
         "id": "slack_webhook",
@@ -15567,7 +15667,7 @@
     "name": "ZeroBounce",
     "description": "Validate email deliverability and check account credits",
     "longDescription": "Integrate ZeroBounce to validate email deliverability in real time — detect invalid, catch-all, spamtrap, abuse, and do-not-mail addresses — and check your remaining validation credits.",
-    "bgColor": "#330D49",
+    "bgColor": "#FFFFFF",
     "iconName": "ZeroBounceIcon",
     "docsUrl": "https://docs.sim.ai/tools/zerobounce",
     "operations": [

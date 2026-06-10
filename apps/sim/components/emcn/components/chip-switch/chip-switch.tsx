@@ -79,7 +79,7 @@ export function ChipSwitch<T extends string>({
             onClick={() => onChange(option.value)}
             className={cn(
               chipVariants({
-                variant: isActive ? 'border-shadow' : 'ghost',
+                variant: isActive ? 'border-shadow' : 'default',
                 flush: true,
               }),
               'justify-center',

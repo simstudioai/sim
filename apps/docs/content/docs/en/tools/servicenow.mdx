@@ -123,4 +123,105 @@ Delete a record from a ServiceNow table
 | `success` | boolean | Whether the deletion was successful |
 | `metadata` | json | Operation metadata |
 
+### `servicenow_aggregate`
+
+Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, change_request, task\) |
+| `query` | string | No | Encoded query string to filter records before aggregating \(e.g., "active=true"\) |
+| `count` | boolean | No | Return the count of matching records |
+| `groupBy` | string | No | Comma-separated fields to group results by \(e.g., category,priority\) |
+| `avgFields` | string | No | Comma-separated numeric fields to average \(e.g., reassignment_count\) |
+| `sumFields` | string | No | Comma-separated numeric fields to sum |
+| `minFields` | string | No | Comma-separated fields to compute the minimum of |
+| `maxFields` | string | No | Comma-separated fields to compute the maximum of |
+| `having` | string | No | Filter on aggregate results \(e.g., "count&gt;5"\) |
+| `displayValue` | string | No | Return display values for grouped reference fields: "true", "false", or "all" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | json | Aggregate result. Ungrouped: \{stats: \{count, sum, avg, min, max\}\}. Grouped: array of \{stats, groupby_fields\}. |
+| `count` | number | Total matching record count \(only present for ungrouped count queries\) |
+| `metadata` | json | Operation metadata \(grouped, groupCount\) |
+
+### `servicenow_list_attachments`
+
+List the attachments on a ServiceNow record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table that owns the record \(e.g., incident, change_request\) |
+| `recordSysId` | string | Yes | sys_id of the record whose attachments should be listed |
+| `limit` | number | No | Maximum number of attachments to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachments` | array | Attachment metadata records |
+|   ↳ `sys_id` | string | Attachment sys_id |
+|   ↳ `file_name` | string | File name |
+|   ↳ `content_type` | string | MIME type |
+|   ↳ `size_bytes` | string | File size in bytes |
+|   ↳ `download_link` | string | Direct download URL for the file |
+| `metadata` | json | Operation metadata \(recordCount\) |
+
+### `servicenow_download_attachment`
+
+Download an attachment file from ServiceNow by its sys_id
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `attachmentSysId` | string | Yes | sys_id of the attachment to download \(from List Attachments\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded attachment stored in execution files |
+| `content` | string | Base64 encoded file content |
+
+### `servicenow_upload_attachment`
+
+Attach a file to a ServiceNow record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table that owns the record \(e.g., incident, change_request\) |
+| `recordSysId` | string | Yes | sys_id of the record to attach the file to |
+| `fileName` | string | Yes | Name to give the uploaded file \(e.g., logs.txt\) |
+| `file` | file | No | File to upload \(UserFile object\) |
+| `fileContent` | string | No | Base64-encoded file content \(legacy\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | json | Created attachment metadata \(sys_id, file_name, content_type, download_link\) |
+| `metadata` | json | Operation metadata |
+
 

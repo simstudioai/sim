@@ -4,7 +4,6 @@ import { memo, useCallback, useEffect, useReducer, useRef, useState } from 'reac
 import type { OnMount } from '@monaco-editor/react'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
-import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -16,6 +15,7 @@ import { useAutosave } from '@/hooks/use-autosave'
 import { EditorContextMenu } from './editor-context-menu'
 import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
+import { PreviewLoadingFrame } from './preview-shared'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
   type StreamingMode,
@@ -373,20 +373,6 @@ function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: 
   })
 }
 
-const DOCUMENT_SKELETON = (
-  <div className='flex flex-1 flex-col gap-[6px] p-[24px]'>
-    <Skeleton className='h-[14px] w-[45%]' />
-    <Skeleton className='h-[14px] w-[70%]' />
-    <Skeleton className='h-[14px] w-[55%]' />
-    <Skeleton className='mt-2 h-[14px] w-[80%]' />
-    <Skeleton className='h-[14px] w-[60%]' />
-    <Skeleton className='h-[14px] w-[75%]' />
-    <Skeleton className='h-[14px] w-[50%]' />
-    <Skeleton className='mt-2 h-[14px] w-[65%]' />
-    <Skeleton className='h-[14px] w-[40%]' />
-  </div>
-)
-
 interface TextEditorProps {
   file: WorkspaceFileRecord
   workspaceId: string
@@ -672,7 +658,7 @@ export const TextEditor = memo(function TextEditor({
   const showPreviewPane = effectiveMode !== 'editor'
 
   if (streamingContent === undefined) {
-    if (isLoading) return DOCUMENT_SKELETON
+    if (isLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
 
     if (error && !isInitialized) {
       return (

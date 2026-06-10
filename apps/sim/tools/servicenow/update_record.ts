@@ -52,11 +52,11 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.replace(/\/$/, '')
+      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
       if (!baseUrl) {
         throw new Error('ServiceNow instance URL is required')
       }
-      return `${baseUrl}/api/now/table/${params.tableName}/${params.sysId}`
+      return `${baseUrl}/api/now/table/${params.tableName.trim()}/${params.sysId.trim()}`
     },
     method: 'PATCH',
     headers: (params) => {

@@ -57,7 +57,7 @@ Intent-to-variant mapping (read the actual `buttonVariants` in `apps/sim/compone
 
 ## Delete/Remove Confirmations
 
-Modal `size="sm"`, title "Delete/Remove {ItemType}", `variant="destructive"` action button, `variant="default"` cancel. Cancel left, action right (100% compliance). Use `text-[var(--text-error)]` for irreversible warnings.
+`ChipModal` `size='sm'`, title "Delete/Remove {ItemType}", destructive confirm button, plain Cancel (follow the chip footer layout in `.claude/rules/emcn-components.md`). Use `text-[var(--text-error)]` for irreversible warnings.
 
 ## Toast
 
@@ -73,7 +73,8 @@ Default: `size-[14px]`. Color: `text-[var(--text-icon)]`. Scale: 14px > 16px > 1
 
 ## Anti-patterns to flag
 
-- Raw `<button>`/`<input>` instead of emcn components
+- Raw `<button>`/`<input>`, or legacy `Input`/`Textarea`/`Modal`, instead of the canonical chip components (`ChipInput`/`ChipTextarea`/`ChipModal`)
+- Hand-rolled field rows inside a `ChipModalBody` instead of `ChipModalField`
 - Hardcoded colors (`text-gray-*`, `#hex`, `rgb()`)
 - Tailwind semantics (`text-muted-foreground`) instead of CSS variables
 - Template literal className instead of `cn()`

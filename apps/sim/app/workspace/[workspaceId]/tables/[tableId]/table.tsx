@@ -4,7 +4,7 @@ import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { ChipConfirmModal, toast } from '@/components/emcn'
+import { Chip, ChipConfirmModal, toast } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
@@ -12,8 +12,7 @@ import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup 
 import { getColumnId } from '@/lib/table/column-keys'
 import {
   type ColumnOption,
-  ResourceHeader,
-  ResourceOptionsBar,
+  Resource,
   type SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
@@ -171,7 +170,7 @@ export function Table({
   }, [])
   const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
   const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
-  // useCallback because <ResourceHeader> is memo-wrapped — these flow into
+  // useCallback because <Resource.Header> is memo-wrapped — these flow into
   // the breadcrumbs / headerActions memos, whose identity drives that re-render.
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
   const onRequestImportCsv = useCallback(() => setIsImportCsvOpen(true), [])
@@ -344,7 +343,7 @@ export function Table({
     onSave: (_id, name) => {
       const data = tableDataRef.current
       if (data) pushTableRenameUndoSinkRef.current?.(data.name, name)
-      renameTableMutation.mutate({ tableId, name })
+      return renameTableMutation.mutateAsync({ tableId, name })
     },
   })
 
@@ -528,13 +527,11 @@ export function Table({
   return (
     <div className='relative flex h-full flex-col overflow-hidden'>
       {!embedded && (
-        <ResourceHeader
+        <Resource.Header
           icon={TableIcon}
           breadcrumbs={breadcrumbs}
-          createTrigger={createTrigger}
-          actions={headerActions}
-          leadingActions={
-            <>
+          aside={
+            <div className='flex items-center gap-1.5'>
               <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
               {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
                 <RunStatusControl
@@ -543,18 +540,32 @@ export function Table({
                   isStopping={cancelRunsMutation.isPending}
                 />
               ) : null}
-            </>
+              {headerActions?.map((action) => (
+                <Chip
+                  key={action.label}
+                  leftIcon={action.icon}
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                >
+                  {action.label}
+                </Chip>
+              ))}
+              {createTrigger}
+            </div>
           }
         />
       )}
       {/* Sort + filter render in both modes (left-aligned). In embedded (mothership)
-          mode there's no ResourceHeader, so the run/stop control rides in the options
-          bar's right-aligned `trailing` slot — opposite the left-aligned filter/sort. */}
-      <ResourceOptionsBar
+          mode there's no Resource.Header, so the run/stop control rides in the options
+          bar's right-aligned `aside` slot — opposite the left-aligned filter/sort. */}
+      <Resource.Options
         sort={sortConfig}
-        onFilterToggle={() => setFilterOpen((prev) => !prev)}
-        filterActive={filterOpen || !!queryOptions.filter}
-        trailing={
+        filter={{
+          mode: 'toggle',
+          active: filterOpen || !!queryOptions.filter,
+          onToggle: () => setFilterOpen((prev) => !prev),
+        }}
+        aside={
           embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
             <RunStatusControl
               running={selection.totalRunning}
@@ -740,7 +751,9 @@ export function Table({
               <>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>
-                  {deletingColumns?.[0]}
+                  {(deletingColumns &&
+                    columns.find((c) => getColumnId(c) === deletingColumns[0])?.name) ??
+                    deletingColumns?.[0]}
                 </span>
                 ?{' '}
               </>

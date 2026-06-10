@@ -158,7 +158,7 @@ function AddMembersModal({
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className='min-w-0 flex-1'
                 />
-                <Chip variant='filled' onClick={handleToggleAll}>
+                <Chip onClick={handleToggleAll}>
                   {allFilteredSelected ? 'Deselect All' : 'Select All'}
                 </Chip>
               </div>
@@ -277,10 +277,7 @@ function ModelCheckboxGrid({
           onChange={(e) => setSearch(e.target.value)}
           className='min-w-0 flex-1'
         />
-        <Chip
-          variant='filled'
-          onClick={() => onSetModelsDenied(filteredModels, allFilteredAllowed)}
-        >
+        <Chip onClick={() => onSetModelsDenied(filteredModels, allFilteredAllowed)}>
           {allFilteredAllowed ? 'Block All' : 'Allow All'}
         </Chip>
       </div>
@@ -1111,7 +1108,6 @@ export function AccessControl() {
                           </div>
 
                           <Chip
-                            variant='ghost'
                             onClick={() => handleRemoveMember(member.id)}
                             disabled={removeMember.isPending}
                             className='flex-shrink-0'
@@ -1159,7 +1155,7 @@ export function AccessControl() {
           >
             Configure Permissions
           </ChipModalHeader>
-          <ChipModalBody className='max-h-[70vh] overflow-y-auto'>
+          <ChipModalBody>
             <ChipModalTabs
               tabs={[
                 { value: 'providers', label: 'Model Providers' },
@@ -1180,7 +1176,6 @@ export function AccessControl() {
                     className='min-w-0 flex-1'
                   />
                   <Chip
-                    variant='filled'
                     onClick={() => {
                       const allAllowed =
                         editingConfig?.allowedModelProviders === null ||
@@ -1226,7 +1221,6 @@ export function AccessControl() {
                     className='min-w-0 flex-1'
                   />
                   <Chip
-                    variant='filled'
                     onClick={() => {
                       const allAllowed =
                         editingConfig?.allowedIntegrations === null ||
@@ -1332,7 +1326,6 @@ export function AccessControl() {
                     className='min-w-0 flex-1'
                   />
                   <Chip
-                    variant='filled'
                     onClick={() => {
                       const allVisible = platformFeatures.every(
                         (f) => !editingConfig?.[f.configKey]

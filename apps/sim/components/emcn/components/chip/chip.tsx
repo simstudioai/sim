@@ -9,7 +9,12 @@ import {
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import Link, { type LinkProps } from 'next/link'
-import { chipFilledSurfaceTokens } from '@/components/emcn/components/chip-input/chip-field-chrome'
+import {
+  chipContentIconClass,
+  chipContentLabelClass,
+  chipFilledFillTokens,
+  chipGeometryClass,
+} from '@/components/emcn/components/chip/chip-chrome'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -21,20 +26,23 @@ import { cn } from '@/lib/core/utils/cn'
  * - `chipVariants({...})` → any other element (`<div role='button'>`, `<DropdownMenuTrigger asChild>` inner, etc.)
  *
  * @remarks
- * Variants: `ghost` (transparent → `--surface-active` hover), `filled` (`--surface-active` → `--surface-6` hover),
- * `primary` (inverse surface), `destructive` (error-token surface, `--text-error`),
- * `border-shadow` (raised card-like surface with `--border-1` border and `--shadow-card`).
- * `active` renders ghost/filled in their selected state. `fullWidth` swaps `inline-flex` for block-level `flex`.
- * `flush` removes the default horizontal margin (`mx-0.5`) used by chip clusters — use when a single chip sits
- * inside its own layout slot (grid cell, table cell) where the cluster spacing is unwanted.
+ * The implicit **default** variant is the bare pill — transparent, `--surface-active` on hover. Omit `variant`
+ * to get it (shadcn-style); never write `variant='default'`. Named variants:
+ * `filled` (`--surface-5` light / `--surface-4` dark fill, `--surface-active` hover) — a borderless surface reserved for
+ * chip FIELDS/TRIGGERS ({@link ChipInput}/{@link ChipDropdown}/{@link ChipSelect}/{@link ChipDatePicker}), **never `Chip`
+ * itself**; those triggers add the `--border-1` outline themselves via `TRIGGER_BORDER_CLASS`;
+ * `primary` (inverse surface), `destructive` (error-token surface), `border-shadow` (raised card-like surface).
+ * `active` renders the default/filled chip in its selected state — `--surface-active` at rest, one surface darker
+ * (`--surface-6`) on hover. `fullWidth` swaps `inline-flex` for block-level `flex`. `flush` removes the default
+ * `mx-0.5` cluster margin — use when a single chip sits in its own layout slot (grid/table cell).
  */
 const chipVariants = cva(
-  'group h-[30px] cursor-pointer items-center gap-1.5 rounded-lg px-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+  `group cursor-pointer ${chipGeometryClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
   {
     variants: {
       variant: {
-        ghost: 'hover-hover:bg-[var(--surface-active)]',
-        filled: `${chipFilledSurfaceTokens} hover-hover:bg-[var(--surface-active)]`,
+        default: 'hover-hover:bg-[var(--surface-active)]',
+        filled: `${chipFilledFillTokens} hover-hover:bg-[var(--surface-active)]`,
         primary:
           'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
         destructive:
@@ -47,16 +55,33 @@ const chipVariants = cva(
       flush: { true: 'mx-0', false: 'mx-0.5' },
     },
     compoundVariants: [
-      { variant: 'ghost', active: true, className: 'bg-[var(--surface-active)]' },
-      { variant: 'filled', active: true, className: 'bg-[var(--surface-active)]' },
+      {
+        variant: 'default',
+        active: true,
+        className: 'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-6)]',
+      },
+      {
+        variant: 'filled',
+        active: true,
+        className: 'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-6)]',
+      },
     ],
-    defaultVariants: { variant: 'ghost', active: false, fullWidth: false, flush: false },
+    defaultVariants: { variant: 'default', active: false, fullWidth: false, flush: false },
   }
 )
 
 type ChipIcon = ComponentType<{ className?: string }>
 
-interface ChipBaseProps extends VariantProps<typeof chipVariants> {
+/**
+ * Variants a `Chip`/`ChipLink` may render. The `default` (bare) chip is implicit
+ * — omit `variant` to get it — and `filled` is excluded by design: it is reserved
+ * for chip fields/triggers, never `Chip` itself. For a selected/toggle chip use
+ * the `active` prop, not a variant.
+ */
+type ChipVariant = 'primary' | 'destructive' | 'border-shadow'
+
+interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant'> {
+  variant?: ChipVariant
   /** Icon component rendered before the label. */
   leftIcon?: ChipIcon
   /** Icon component rendered after the label. */
@@ -66,8 +91,8 @@ interface ChipBaseProps extends VariantProps<typeof chipVariants> {
 
 /**
  * `primary` and `destructive` set text color on the chip itself — their icon
- * and label inherit via `currentColor`. `ghost` and `filled` need explicit
- * icon (`--text-icon`) and label (`--text-body`) colors.
+ * and label inherit via `currentColor`. The default and `filled` chips need
+ * explicit icon (`--text-icon`) and label (`--text-body`) colors.
  */
 function ChipContent({
   variant,
@@ -76,8 +101,8 @@ function ChipContent({
   children,
 }: ChipBaseProps) {
   const isInverse = variant === 'primary' || variant === 'destructive'
-  const iconClass = cn('size-[16px] flex-shrink-0', !isInverse && 'text-[var(--text-icon)]')
-  const labelClass = cn('min-w-0 flex-1 truncate', !isInverse && 'text-[var(--text-body)]')
+  const iconClass = cn(chipContentIconClass, isInverse && 'text-current')
+  const labelClass = cn(chipContentLabelClass, 'flex-1', isInverse && 'text-current')
   return (
     <>
       {LeftIcon ? <LeftIcon className={iconClass} /> : null}
@@ -140,7 +165,7 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
 })
 
 /**
- * 1px border applied to `filled` and `ghost` chip triggers to read as
+ * 1px border applied to `filled` and default chip triggers to read as
  * interactive form controls rather than static pills. Omitted on `primary`,
  * `destructive`, and `border-shadow` variants which carry their own surface
  * treatment.

@@ -205,7 +205,6 @@ function WorkspaceVariableRow({
         name={`workspace_env_value_${envKey}_${generateShortId()}`}
       />
       <Chip
-        variant='ghost'
         onClick={() => onViewDetails(envKey)}
         disabled={!hasCredential}
         className={cn('ml-2', !hasCredential && 'opacity-40')}

@@ -7,7 +7,6 @@ import { ChevronDown, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
-  Callout,
   Chip,
   ChipConfirmModal,
   ChipInput,
@@ -38,6 +37,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { InfoNote } from '@/ee/components/info-note'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import {
   useCreateDataDrain,
@@ -144,10 +144,10 @@ export function DataDrainsSettings() {
 
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-          <Callout>
+          <InfoNote>
             Drains continuously export Sim data to your own storage on a schedule. Combine with Data
             Retention to satisfy long-term compliance archives.
-          </Callout>
+          </InfoNote>
 
           <ChipInput
             icon={Search}
@@ -198,7 +198,7 @@ export function DataDrainsSettings() {
               )
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "New drain" above to get started
+                Click "New Drain" above to get started
               </div>
             )}
           </div>
@@ -292,7 +292,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <Badge>{DESTINATION_LABELS[drain.destinationType]}</Badge>
         </TableCell>
         <TableCell>{CADENCE_LABELS[drain.scheduleCadence]}</TableCell>
-        <TableCell className='text-[13px] text-[var(--text-muted)]' suppressHydrationWarning>
+        <TableCell className='text-[var(--text-muted)] text-small' suppressHydrationWarning>
           {drain.lastRunAt ? new Date(drain.lastRunAt).toLocaleString() : 'Never'}
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -360,15 +360,15 @@ function DrainRunsPanel({ organizationId, drainId }: DrainRunsPanelProps) {
   const { data: runs, isLoading } = useDataDrainRuns(organizationId, drainId, 10)
 
   if (isLoading) {
-    return <div className='text-[13px] text-[var(--text-muted)]'>Loading runs...</div>
+    return <div className='text-[var(--text-muted)] text-small'>Loading runs...</div>
   }
   if (!runs || runs.length === 0) {
-    return <div className='text-[13px] text-[var(--text-muted)]'>No runs yet.</div>
+    return <div className='text-[var(--text-muted)] text-small'>No runs yet.</div>
   }
 
   return (
     <div className='flex flex-col gap-2'>
-      <div className='font-medium text-[13px] text-[var(--text-primary)]'>Recent runs</div>
+      <div className='font-medium text-[var(--text-primary)] text-small'>Recent runs</div>
       {runs.map((run) => (
         <RunRow key={run.id} run={run} />
       ))}
@@ -384,7 +384,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
         ? 'text-[var(--text-error)]'
         : 'text-[var(--text-muted)]'
   return (
-    <div className='flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] px-3 py-2 text-[12px]'>
+    <div className='flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] px-3 py-2 text-caption'>
       <div className='flex flex-col gap-0.5'>
         <div className='flex items-center gap-2'>
           <span className={cn('font-medium', statusColor)}>{run.status}</span>
@@ -488,7 +488,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
           />
         </ChipModalField>
 
-        <section className='flex flex-col gap-3 px-2'>
+        <section className='flex flex-col gap-4 px-2'>
           <spec.FormFields state={destState} setState={setDestState} />
         </section>
         <ChipModalError>{submitError}</ChipModalError>

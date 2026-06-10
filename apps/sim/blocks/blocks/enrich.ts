@@ -47,11 +47,14 @@ export const EnrichBlock: BlockConfig = {
         { label: 'Search Company Employees', id: 'search_company_employees' },
         { label: 'Search Similar Companies', id: 'search_similar_companies' },
         { label: 'Sales Pointer (People)', id: 'sales_pointer_people' },
+        { label: 'Search Jobs', id: 'search_jobs' },
         // LinkedIn Posts/Activities
         { label: 'Search Posts', id: 'search_posts' },
         { label: 'Get Post Details', id: 'get_post_details' },
         { label: 'Search Post Reactions', id: 'search_post_reactions' },
+        { label: 'Search Post Reactions (by URL)', id: 'search_post_reactions_by_url' },
         { label: 'Search Post Comments', id: 'search_post_comments' },
+        { label: 'Search Post Comments (by URL)', id: 'search_post_comments_by_url' },
         { label: 'Search People Activities', id: 'search_people_activities' },
         { label: 'Search Company Activities', id: 'search_company_activities' },
         // Other
@@ -351,8 +354,8 @@ export const EnrichBlock: BlockConfig = {
       title: 'Keywords',
       type: 'short-input',
       placeholder: 'AI automation',
-      condition: { field: 'operation', value: 'search_posts' },
-      required: { field: 'operation', value: 'search_posts' },
+      condition: { field: 'operation', value: ['search_posts', 'search_jobs'] },
+      required: { field: 'operation', value: ['search_posts', 'search_jobs'] },
     },
     {
       id: 'datePosted',
@@ -368,12 +371,102 @@ export const EnrichBlock: BlockConfig = {
     },
 
     {
+      id: 'jobLocation',
+      title: 'Location',
+      type: 'short-input',
+      placeholder: 'London',
+      condition: { field: 'operation', value: 'search_jobs' },
+    },
+    {
+      id: 'timePosted',
+      title: 'Time Posted',
+      type: 'dropdown',
+      options: [
+        { label: 'Any time', id: '' },
+        { label: 'Past 24 hours', id: 'past_24hrs' },
+        { label: 'Past week', id: 'past_week' },
+        { label: 'Past month', id: 'past_month' },
+      ],
+      condition: { field: 'operation', value: 'search_jobs' },
+    },
+    {
+      id: 'jobTypes',
+      title: 'Job Types',
+      type: 'short-input',
+      placeholder: 'full time, part time',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe the job types to include',
+        prompt:
+          'Convert the request into a comma-separated list of LinkedIn job types (e.g., full time, part time, contract, internship, temporary). Return ONLY the comma-separated list - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'workplaceTypes',
+      title: 'Workplace Types',
+      type: 'short-input',
+      placeholder: 'on site, remote',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe the workplace types to include',
+        prompt:
+          'Convert the request into a comma-separated list of LinkedIn workplace types (on site, remote, hybrid). Return ONLY the comma-separated list - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'experienceLevels',
+      title: 'Experience Levels',
+      type: 'short-input',
+      placeholder: 'internship, associate',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe the experience levels to include',
+        prompt:
+          'Convert the request into a comma-separated list of LinkedIn experience levels (internship, entry level, associate, mid-senior level, director, executive). Return ONLY the comma-separated list - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'jobCompanyIds',
+      title: 'Company IDs',
+      type: 'short-input',
+      placeholder: '2048, 3050',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe the companies to filter by',
+        prompt:
+          'Convert the request into a comma-separated list of LinkedIn company IDs (numeric). Return ONLY the comma-separated list - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'start',
+      title: 'Start Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+    },
+
+    {
       id: 'postUrl',
       title: 'LinkedIn Post URL',
       type: 'short-input',
       placeholder: 'https://www.linkedin.com/posts/...',
-      condition: { field: 'operation', value: 'get_post_details' },
-      required: { field: 'operation', value: 'get_post_details' },
+      condition: {
+        field: 'operation',
+        value: ['get_post_details', 'search_post_reactions_by_url', 'search_post_comments_by_url'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_post_details', 'search_post_reactions_by_url', 'search_post_comments_by_url'],
+      },
     },
 
     {
@@ -402,7 +495,11 @@ export const EnrichBlock: BlockConfig = {
         { label: 'Insightful', id: 'insightful' },
         { label: 'Funny', id: 'funny' },
       ],
-      condition: { field: 'operation', value: 'search_post_reactions' },
+      value: () => 'all',
+      condition: {
+        field: 'operation',
+        value: ['search_post_reactions', 'search_post_reactions_by_url'],
+      },
     },
 
     {
@@ -422,6 +519,7 @@ export const EnrichBlock: BlockConfig = {
         { label: 'Comments', id: 'comments' },
         { label: 'Articles', id: 'articles' },
       ],
+      value: () => 'posts',
       condition: {
         field: 'operation',
         value: ['search_people_activities', 'search_company_activities'],
@@ -469,10 +567,15 @@ export const EnrichBlock: BlockConfig = {
           'sales_pointer_people',
           'search_posts',
           'search_post_reactions',
+          'search_post_reactions_by_url',
           'search_post_comments',
+          'search_post_comments_by_url',
         ],
       },
-      required: { field: 'operation', value: 'sales_pointer_people' },
+      required: {
+        field: 'operation',
+        value: ['sales_pointer_people', 'search_post_reactions', 'search_post_reactions_by_url'],
+      },
     },
     {
       id: 'pageSize',
@@ -519,10 +622,13 @@ export const EnrichBlock: BlockConfig = {
       'enrich_search_company_employees',
       'enrich_search_similar_companies',
       'enrich_sales_pointer_people',
+      'enrich_search_jobs',
       'enrich_search_posts',
       'enrich_get_post_details',
       'enrich_search_post_reactions',
+      'enrich_search_post_reactions_by_url',
       'enrich_search_post_comments',
+      'enrich_search_post_comments_by_url',
       'enrich_search_people_activities',
       'enrich_search_company_activities',
       'enrich_reverse_hash_lookup',
@@ -594,6 +700,12 @@ export const EnrichBlock: BlockConfig = {
         if (operation === 'search_logo') {
           parsedParams.url = rest.domain
         }
+        if (operation === 'search_jobs') {
+          parsedParams.location = rest.jobLocation
+          parsedParams.jobLocation = undefined
+          parsedParams.companyIds = rest.jobCompanyIds
+          parsedParams.jobCompanyIds = undefined
+        }
 
         if (parsedParams.page) {
           const pageNum = Number(parsedParams.page)
@@ -607,6 +719,7 @@ export const EnrichBlock: BlockConfig = {
         if (parsedParams.pageSize) parsedParams.pageSize = Number(parsedParams.pageSize)
         if (parsedParams.num) parsedParams.num = Number(parsedParams.num)
         if (parsedParams.offset) parsedParams.offset = Number(parsedParams.offset)
+        if (parsedParams.start) parsedParams.start = Number(parsedParams.start)
         if (parsedParams.staffCountMin)
           parsedParams.staffCountMin = Number(parsedParams.staffCountMin)
         if (parsedParams.staffCountMax)
