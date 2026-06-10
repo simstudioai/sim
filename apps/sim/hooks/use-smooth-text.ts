@@ -10,11 +10,13 @@ const MIN_STEP = 1
 const MAX_STEP = 400
 
 /**
- * Content already longer than this at mount is assumed to be an in-progress
- * resume (or restored history), so it is shown immediately rather than replayed
- * from the first character.
+ * Content already longer than this when streaming begins is assumed to be
+ * pre-existing (an in-progress resume, restored history, or an in-place edit
+ * of an existing document), so it is shown immediately rather than replayed
+ * from the first character. Consumers gating reveal animations should use the
+ * same threshold so pacing and animation agree on what counts as "new".
  */
-const RESUME_SKIP_THRESHOLD = 60
+export const RESUME_SKIP_THRESHOLD = 60
 
 interface SmoothTextOptions {
   /**

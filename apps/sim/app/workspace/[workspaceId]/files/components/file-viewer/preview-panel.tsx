@@ -35,7 +35,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useScrollAnchor } from '@/hooks/use-scroll-anchor'
-import { useSmoothText } from '@/hooks/use-smooth-text'
+import { RESUME_SKIP_THRESHOLD, useSmoothText } from '@/hooks/use-smooth-text'
 import { DataTable } from './data-table'
 import { PreviewLoadingFrame } from './preview-shared'
 import { ZoomablePreview } from './zoomable-preview'
@@ -185,6 +185,10 @@ function remarkCallouts() {
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMermaid, remarkCallouts]
 const REHYPE_PLUGINS = [rehypeSlug]
 
+const STREAMDOWN_ALLOWED_TAGS: Record<string, string[]> = {
+  'mermaid-diagram': ['definition'],
+}
+
 /**
  * Soft per-character fade for newly revealed markdown while streaming. Mirrors
  * the chat surface so a streamed file preview reveals with the same cadence;
@@ -196,6 +200,33 @@ const STREAM_ANIMATION = {
   stagger: 0,
   sep: 'char',
 } as const
+
+/**
+ * Gates the per-character fade to streams that build the document from
+ * scratch. Enabling the fade over an already-rendered document, or during
+ * in-place rewrites (patch snapshots), replays it on text that is already
+ * visible, so the gate latches off for those sessions.
+ */
+function useStreamAnimationGate(content: string, isStreaming: boolean): boolean {
+  const prevIsStreamingRef = useRef(false)
+  const prevContentRef = useRef(content)
+  const animateRef = useRef(false)
+
+  if (isStreaming !== prevIsStreamingRef.current) {
+    animateRef.current = isStreaming && content.length <= RESUME_SKIP_THRESHOLD
+  } else if (
+    isStreaming &&
+    animateRef.current &&
+    content !== prevContentRef.current &&
+    !content.startsWith(prevContentRef.current)
+  ) {
+    animateRef.current = false
+  }
+  prevIsStreamingRef.current = isStreaming
+  prevContentRef.current = content
+
+  return isStreaming && animateRef.current
+}
 
 /**
  * Carries the contentRef and toggle handler from MarkdownPreview down to the
@@ -876,6 +907,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
   // jumping per server chunk. `snapOnNonAppend` shows in-place rewrites (patch)
   // in full immediately so a diff never appears to retype from the top.
   const revealedContent = useSmoothText(content, isStreaming, { snapOnNonAppend: true })
+  const shouldAnimateStream = useStreamAnimationGate(content, isStreaming)
   const { ref: autoScrollRef, spacerRef } = useScrollAnchor(
     isStreaming && !disableAutoScroll,
     revealedContent
@@ -927,12 +959,12 @@ const MarkdownPreview = memo(function MarkdownPreview({
       {frontMatterData && <FrontMatterCard data={frontMatterData} />}
       <Streamdown
         mode={streamdownMode}
-        animated={isStreaming ? STREAM_ANIMATION : false}
+        animated={shouldAnimateStream ? STREAM_ANIMATION : false}
         isAnimating={isStreaming}
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={REHYPE_PLUGINS}
         components={markdownComponents}
-        allowedTags={{ 'mermaid-diagram': ['definition'] }}
+        allowedTags={STREAMDOWN_ALLOWED_TAGS}
       >
         {markdownContent}
       </Streamdown>
