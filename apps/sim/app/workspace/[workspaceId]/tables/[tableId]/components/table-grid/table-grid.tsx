@@ -3196,6 +3196,20 @@ export function TableGrid({
 
   const selectedRowCount = contextMenuRowIds.length || 1
 
+  /**
+   * Rows the context-menu Delete covers. Under select-all the delete runs a
+   * background job over EVERY row matching the filter — not just the loaded
+   * page `contextMenuRowIds` reflects — so count from the filter-aware total
+   * minus deselections (mirrors handleContextMenuDelete's estimate).
+   */
+  const contextMenuDeleteCount =
+    contextMenu.isOpen &&
+    contextMenu.row &&
+    rowSelection.kind === 'all' &&
+    rowSelectionIncludes(rowSelection, contextMenu.row.id)
+      ? Math.max(1, selectAllTotalRef.current - (rowSelection.excluded?.size ?? 0))
+      : selectedRowCount
+
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
   /**
@@ -3818,6 +3832,7 @@ export function TableGrid({
         canViewExecution={Boolean(contextMenuExecutionId) && contextMenuHasStartedRun}
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
+        deleteRowCount={contextMenuDeleteCount}
         onRunWorkflows={
           userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasIncompleteOrFailed
             ? handleRunWorkflowsOnSelection
