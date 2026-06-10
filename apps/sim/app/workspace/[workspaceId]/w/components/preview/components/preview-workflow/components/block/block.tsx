@@ -123,6 +123,34 @@ function resolveWorkflowName(
 }
 
 /**
+ * Resolves multi-select workflow dropdowns (e.g. the Sim trigger's workflow
+ * scope) to workflow names.
+ */
+function resolveWorkflowMultiSelectionNames(
+  subBlock: SubBlockConfig | undefined,
+  rawValue: unknown,
+  workflowMap: Record<string, WorkflowMetadata>,
+  workflowLabelsReady: boolean
+): string | null {
+  const isWorkflowMultiSelect =
+    subBlock?.type === 'dropdown' &&
+    subBlock.multiSelect &&
+    (subBlock.id === 'workflowIds' || subBlock.canonicalParamId === 'workflowIds')
+  if (!isWorkflowMultiSelect) return null
+  if (!Array.isArray(rawValue) || rawValue.length === 0) return null
+  if (!workflowLabelsReady) return null
+
+  const names = rawValue
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    .map((id) => workflowMap[id]?.name ?? DELETED_WORKFLOW_LABEL)
+
+  if (names.length === 0) return null
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]}, ${names[1]}`
+  return `${names[0]}, ${names[1]} +${names.length - 2}`
+}
+
+/**
  * Type guard for variable assignments array
  */
 function isVariableAssignmentsArray(
@@ -244,10 +272,17 @@ const SubBlockRow = memo(function SubBlockRow({
   const variablesDisplay = resolveVariablesDisplay(subBlock, rawValue)
   const toolsDisplay = resolveToolsDisplay(subBlock, rawValue)
   const workflowName = resolveWorkflowName(subBlock, rawValue, workflowMap, workflowLabelsReady)
+  const workflowMultiSelectionNames = resolveWorkflowMultiSelectionNames(
+    subBlock,
+    rawValue,
+    workflowMap,
+    workflowLabelsReady
+  )
 
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
 
-  const hydratedName = dropdownLabel || variablesDisplay || toolsDisplay || workflowName
+  const hydratedName =
+    dropdownLabel || variablesDisplay || toolsDisplay || workflowName || workflowMultiSelectionNames
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (

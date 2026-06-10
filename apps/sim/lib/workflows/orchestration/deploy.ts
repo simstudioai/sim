@@ -22,6 +22,7 @@ import {
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
+import { emitWorkflowDeployedEvent } from '@/lib/workspace-events/emitter'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
@@ -187,6 +188,16 @@ export async function performFullDeploy(
 
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
   await notifySocketDeploymentChanged(workflowId)
+
+  const workspaceId = workflowData.workspaceId as string | null
+  if (workspaceId) {
+    void emitWorkflowDeployedEvent({
+      workflowId,
+      workflowName: (workflowData.name as string) || workflowId,
+      workspaceId,
+      version: deployResult.version ?? null,
+    })
+  }
 
   return {
     success: true,
@@ -418,6 +429,16 @@ export async function performActivateVersion(
 
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
   await notifySocketDeploymentChanged(workflowId)
+
+  const activationWorkspaceId = (workflow.workspaceId as string) || null
+  if (activationWorkspaceId) {
+    void emitWorkflowDeployedEvent({
+      workflowId,
+      workflowName: (workflow.name as string) || workflowId,
+      workspaceId: activationWorkspaceId,
+      version,
+    })
+  }
 
   return {
     success: true,

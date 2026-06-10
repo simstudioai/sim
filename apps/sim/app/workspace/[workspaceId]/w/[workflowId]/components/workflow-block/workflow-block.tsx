@@ -611,6 +611,25 @@ const SubBlockRow = memo(function SubBlockRow({
     return workflowMapForLookup[rawValue]?.name ?? null
   }, [workflowMapForLookup, subBlock?.type, rawValue])
 
+  /** Hydrates multi-select workflow dropdowns (e.g. the Sim trigger's workflow scope). */
+  const workflowMultiSelectionName = useMemo(() => {
+    const isWorkflowMultiSelect =
+      subBlock?.type === 'dropdown' &&
+      subBlock.multiSelect &&
+      (subBlock.id === 'workflowIds' || subBlock.canonicalParamId === 'workflowIds')
+    if (!isWorkflowMultiSelect) return null
+    if (!Array.isArray(rawValue) || rawValue.length === 0) return null
+
+    const names = rawValue
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      .map((id) => workflowMapForLookup[id]?.name ?? id)
+
+    if (names.length === 0) return null
+    if (names.length === 1) return names[0]
+    if (names.length === 2) return `${names[0]}, ${names[1]}`
+    return `${names[0]}, ${names[1]} +${names.length - 2}`
+  }, [workflowMapForLookup, subBlock?.id, subBlock?.type, subBlock?.multiSelect, rawValue])
+
   const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
   const mcpServerDisplayName = useMemo(() => {
     if (subBlock?.type !== 'mcp-server-selector' || typeof rawValue !== 'string') {
@@ -825,6 +844,7 @@ const SubBlockRow = memo(function SubBlockRow({
     skillsDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
+    workflowMultiSelectionName ||
     mcpServerDisplayName ||
     mcpToolDisplayName ||
     tableDisplayName ||

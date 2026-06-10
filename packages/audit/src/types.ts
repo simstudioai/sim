@@ -102,11 +102,6 @@ export const AuditAction = {
   MEMBER_REMOVED: 'member.removed',
   MEMBER_ROLE_CHANGED: 'member.role_changed',
 
-  // Notifications
-  NOTIFICATION_CREATED: 'notification.created',
-  NOTIFICATION_UPDATED: 'notification.updated',
-  NOTIFICATION_DELETED: 'notification.deleted',
-
   // OAuth / Credentials
   OAUTH_DISCONNECTED: 'oauth.disconnected',
   CREDENTIAL_CREATED: 'credential.created',
@@ -207,7 +202,6 @@ export const AuditResourceType = {
   FOLDER: 'folder',
   KNOWLEDGE_BASE: 'knowledge_base',
   MCP_SERVER: 'mcp_server',
-  NOTIFICATION: 'notification',
   OAUTH: 'oauth',
   ORGANIZATION: 'organization',
   PASSWORD: 'password',

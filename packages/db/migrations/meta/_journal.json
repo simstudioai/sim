@@ -1611,6 +1611,13 @@
       "when": 1781027249389,
       "tag": "0230_thick_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 231,
+      "version": "7",
+      "when": 1781053629977,
+      "tag": "0231_sim_trigger_workspace_events",
+      "breakpoints": true
     }
   ]
 }
