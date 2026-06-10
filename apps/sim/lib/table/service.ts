@@ -2692,10 +2692,15 @@ const FIND_MATCH_LIMIT = 1000
  * reveal it). `filter`/`sort` mirror the active list view via
  * {@link buildRowOrderBySql}, keeping ordinals aligned.
  *
- * Cost: sequential scan bounded by the `table_id` btree prefix — `ILIKE` over
- * `jsonb_each_text` cannot use the JSONB GIN index. Acceptable for tables
- * ≪1M rows; a `pg_trgm` GIN index on a text projection is the future
- * accelerator if needed.
+ * Cost: one pass over the table's rows — `ILIKE` over `jsonb_each_text` cannot
+ * use the JSONB GIN index, and the ordinal's `row_number()` needs every row
+ * counted regardless. The planner can't estimate the lateral ILIKE (jsonb is
+ * opaque to it), so left alone it seq-scans the entire shared relation and
+ * disk-sorts the window input (measured 75s on a 1M-row table in a 12M-row
+ * relation). `SET LOCAL` planner flags keep it tenant-bounded; on the default
+ * order they additionally force the streaming `(table_id, order_key, id)` index
+ * walk where `row_number()` needs no sort at all (measured 2s). A `pg_trgm` GIN
+ * index on a text projection is the future accelerator if needed.
  */
 export async function findRowMatches(
   table: TableDefinition,
@@ -2725,24 +2730,39 @@ export async function findRowMatches(
   const orderBySql = buildRowOrderBySql(options.sort, tableName, columns)
   const pattern = `%${escapeLikePattern(options.q)}%`
 
-  const result = await db.execute<{
-    ordinal: string | number
-    id: string
-    column_name: string
-  }>(sql`
-    WITH ordered AS (
-      SELECT id, data, row_number() OVER (ORDER BY ${orderBySql}) - 1 AS ordinal
-      FROM ${userTableRows}
-      WHERE ${whereClause}
-    )
-    SELECT o.ordinal, o.id, kv.key AS column_name
-    FROM ordered o
-    CROSS JOIN LATERAL jsonb_each_text(o.data) kv
-    WHERE kv.value ILIKE ${pattern}
-      AND ${inArray(sql`kv.key`, columnIds)}
-    ORDER BY o.ordinal
-    LIMIT ${FIND_MATCH_LIMIT + 1}
-  `)
+  const result = await db.transaction(async (trx) => {
+    // Planner flags, not correctness: `enable_* = off` only penalizes a plan shape, so a
+    // genuinely required sort still runs. Seqscan off keeps the scan inside the tenant's rows
+    // (the lateral ILIKE is unestimatable, so the planner otherwise walks the whole shared
+    // relation). On the default order, the remaining flags steer to the already-sorted
+    // `(table_id, order_key, id)` index walk so the window function streams without a 100MB+
+    // disk sort; a custom sort has no index to stream from, so those flags would only distort
+    // that plan.
+    await trx.execute(sql`SET LOCAL enable_seqscan = off`)
+    if (!options.sort) {
+      await trx.execute(sql`SET LOCAL enable_bitmapscan = off`)
+      await trx.execute(sql`SET LOCAL enable_sort = off`)
+      await trx.execute(sql`SET LOCAL max_parallel_workers_per_gather = 0`)
+    }
+    return trx.execute<{
+      ordinal: string | number
+      id: string
+      column_name: string
+    }>(sql`
+      WITH ordered AS (
+        SELECT id, data, row_number() OVER (ORDER BY ${orderBySql}) - 1 AS ordinal
+        FROM ${userTableRows}
+        WHERE ${whereClause}
+      )
+      SELECT o.ordinal, o.id, kv.key AS column_name
+      FROM ordered o
+      CROSS JOIN LATERAL jsonb_each_text(o.data) kv
+      WHERE kv.value ILIKE ${pattern}
+        AND ${inArray(sql`kv.key`, columnIds)}
+      ORDER BY o.ordinal
+      LIMIT ${FIND_MATCH_LIMIT + 1}
+    `)
+  })
 
   const all = Array.from(result)
   const truncated = all.length > FIND_MATCH_LIMIT
