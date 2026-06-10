@@ -35,6 +35,7 @@ vi.mock('@/lib/workspace-events/rules', () => ({
 
 import {
   NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE,
+  NO_ACTIVITY_WORKFLOW_PAGE_SIZE,
   pollNoActivityEvents,
 } from '@/lib/workspace-events/no-activity'
 import type { SimSubscriptionConfig } from '@/lib/workspace-events/types'
@@ -234,6 +235,37 @@ describe('pollNoActivityEvents', () => {
       expect.objectContaining({
         type: 'gt',
         right: `wh-page1-${NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE - 1}`,
+      })
+    )
+  })
+
+  it('pages through watched workflows past the page size with a keyset cursor (no lost coverage)', async () => {
+    // Full first page of watched workflows all inside their cooldown (skipped
+    // without activity queries), then a second page holding the quiet
+    // workflow that must still be reached.
+    mockReadLastFiredAt.mockImplementation((_wf: string, _block: string, scopeKey: string) =>
+      Promise.resolve(scopeKey.startsWith('wf-p1-') ? new Date() : null)
+    )
+    const firstPage = Array.from({ length: NO_ACTIVITY_WORKFLOW_PAGE_SIZE }, (_, i) => ({
+      id: `wf-p1-${i}`,
+      name: `Workflow ${i}`,
+    }))
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([makeSubscriptionRow(makeConfig())])
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([{ id: 'wf-quiet', name: 'Quiet Workflow' }])
+      .mockResolvedValueOnce([])
+
+    const result = await pollNoActivityEvents()
+
+    expect(result.checked).toBe(NO_ACTIVITY_WORKFLOW_PAGE_SIZE + 1)
+    expect(result.skipped).toBe(NO_ACTIVITY_WORKFLOW_PAGE_SIZE)
+    expect(result.fired).toBe(1)
+    expect(mockDispatchSimEvent.mock.calls[0][1]).toMatchObject({ workflowId: 'wf-quiet' })
+    expect(allWhereConditions()).toContainEqual(
+      expect.objectContaining({
+        type: 'gt',
+        right: `wf-p1-${NO_ACTIVITY_WORKFLOW_PAGE_SIZE - 1}`,
       })
     )
   })
