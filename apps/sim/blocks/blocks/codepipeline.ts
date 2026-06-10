@@ -1,6 +1,11 @@
 import { CodePipelineIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import {
+  parseOptionalBooleanInput,
+  parseOptionalJsonInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
 import type {
   CodePipelineGetPipelineExecutionResponse,
   CodePipelineGetPipelineStateResponse,
@@ -269,7 +274,10 @@ export const CodePipelineBlock: BlockConfig<
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
         const awsSecretAccessKey = rest.awsSecretAccessKey
-        const parsedMaxResults = maxResults ? Number.parseInt(String(maxResults), 10) : undefined
+        const parsedMaxResults = parseOptionalNumberInput(maxResults, 'Max results', {
+          integer: true,
+          min: 1,
+        })
 
         switch (operation) {
           case 'list_pipelines':
@@ -310,27 +318,20 @@ export const CodePipelineBlock: BlockConfig<
             }
 
           case 'start_execution': {
-            const rawVariables = rest.pipelineVariables
+            const rows = parseOptionalJsonInput(rest.pipelineVariables, 'Pipeline variables')
             const variables = (() => {
-              if (!rawVariables) return undefined
-              if (typeof rawVariables === 'string') {
-                const parsed = JSON.parse(rawVariables)
-                if (!Array.isArray(parsed)) {
-                  throw new Error('Pipeline variables must be an array of { name, value } objects')
-                }
-                return parsed
+              if (rows === undefined) return undefined
+              if (!Array.isArray(rows)) {
+                throw new Error('Pipeline variables must be an array of { name, value } objects')
               }
-              if (Array.isArray(rawVariables)) {
-                const entries = rawVariables
-                  .map((row) => ({
-                    name: row.cells?.name ?? row.name,
-                    value: row.cells?.value ?? row.value,
-                  }))
-                  .filter((entry) => entry.name && entry.value !== undefined && entry.value !== '')
-                  .map((entry) => ({ name: String(entry.name), value: String(entry.value) }))
-                return entries.length > 0 ? entries : undefined
-              }
-              throw new Error('Pipeline variables must be an array of { name, value } objects')
+              const entries = rows
+                .map((row) => ({
+                  name: row?.cells?.name ?? row?.name,
+                  value: row?.cells?.value ?? row?.value,
+                }))
+                .filter((entry) => entry.name && entry.value !== undefined && entry.value !== '')
+                .map((entry) => ({ name: String(entry.name), value: String(entry.value) }))
+              return entries.length > 0 ? entries : undefined
             })()
 
             return {
@@ -343,16 +344,18 @@ export const CodePipelineBlock: BlockConfig<
             }
           }
 
-          case 'stop_execution':
+          case 'stop_execution': {
+            const abandon = parseOptionalBooleanInput(rest.abandon)
             return {
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
               pipelineName: rest.pipelineName,
               pipelineExecutionId: rest.pipelineExecutionId,
-              ...(rest.abandon !== undefined && { abandon: Boolean(rest.abandon) }),
+              ...(abandon !== undefined && { abandon }),
               ...(rest.stopReason && { reason: rest.stopReason }),
             }
+          }
 
           case 'retry_stage_execution':
             return {

@@ -9,7 +9,7 @@ interface UseInlineRenameProps {
    * `mutateAsync(...)`) — NOT a fire-and-forget `mutate(...)` — so `isSaving`
    * spans the in-flight request and a rejection can revive the edit session.
    */
-  onSave: (id: string, newName: string) => void | Promise<unknown>
+  onSave: (id: string, newName: string) => undefined | Promise<unknown>
 }
 
 /**

@@ -10,6 +10,7 @@ import { awsCodepipelinePutApprovalResultContract } from '@/lib/api/contracts/to
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { awsErrorStatus } from '@/app/api/tools/codepipeline/utils'
 
 const logger = createLogger('CodePipelinePutApprovalResult')
 
@@ -67,7 +68,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.error('PutApprovalResult failed', { error: toError(error).message })
     return NextResponse.json(
       { error: `Failed to submit CodePipeline approval result: ${toError(error).message}` },
-      { status: 500 }
+      { status: awsErrorStatus(error) }
     )
   }
 })

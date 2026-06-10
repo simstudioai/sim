@@ -6,6 +6,7 @@ import { awsCodepipelineGetPipelineStateContract } from '@/lib/api/contracts/too
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { awsErrorStatus } from '@/app/api/tools/codepipeline/utils'
 
 const logger = createLogger('CodePipelineGetPipelineState')
 
@@ -77,7 +78,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.error('GetPipelineState failed', { error: toError(error).message })
     return NextResponse.json(
       { error: `Failed to get CodePipeline pipeline state: ${toError(error).message}` },
-      { status: 500 }
+      { status: awsErrorStatus(error) }
     )
   }
 })

@@ -6,6 +6,7 @@ import { awsCodepipelineStartExecutionContract } from '@/lib/api/contracts/tools
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { awsErrorStatus } from '@/app/api/tools/codepipeline/utils'
 
 const logger = createLogger('CodePipelineStartExecution')
 
@@ -62,7 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.error('StartPipelineExecution failed', { error: toError(error).message })
     return NextResponse.json(
       { error: `Failed to start CodePipeline pipeline execution: ${toError(error).message}` },
-      { status: 500 }
+      { status: awsErrorStatus(error) }
     )
   }
 })
