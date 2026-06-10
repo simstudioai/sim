@@ -702,8 +702,12 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
+          'assistant:write',
           'im:write',
           'im:read',
+          'im:history',
+          'mpim:read',
+          'mpim:history',
           'users:read',
           // TODO: Add 'users:read.email' once Slack app review is approved
           'files:write',
