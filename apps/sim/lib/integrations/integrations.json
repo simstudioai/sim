@@ -2827,6 +2827,57 @@
     "tags": ["cloud", "monitoring"]
   },
   {
+    "type": "codepipeline",
+    "slug": "codepipeline",
+    "name": "CodePipeline",
+    "description": "Run, monitor, and approve AWS CodePipeline pipelines",
+    "longDescription": "Integrate AWS CodePipeline into workflows. Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
+    "iconName": "CodePipelineIcon",
+    "docsUrl": "https://docs.sim.ai/tools/codepipeline",
+    "operations": [
+      {
+        "name": "Start Execution",
+        "description": "Start a CodePipeline pipeline execution, optionally overriding pipeline variables"
+      },
+      {
+        "name": "Get Pipeline State",
+        "description": "Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens"
+      },
+      {
+        "name": "List Pipelines",
+        "description": "List all CodePipeline pipelines in an AWS account and region"
+      },
+      {
+        "name": "List Executions",
+        "description": "List recent executions of a CodePipeline pipeline with status and source revisions"
+      },
+      {
+        "name": "Get Execution",
+        "description": "Get details of a CodePipeline execution, including status, trigger, source revisions, and resolved variables"
+      },
+      {
+        "name": "Stop Execution",
+        "description": "Stop a CodePipeline pipeline execution, either finishing in-progress actions or abandoning them"
+      },
+      {
+        "name": "Retry Stage",
+        "description": "Retry the failed actions (or all actions) of a failed CodePipeline stage"
+      },
+      {
+        "name": "Approve / Reject Approval",
+        "description": "Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action"
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["cloud", "ci-cd"]
+  },
+  {
     "type": "confluence_v2",
     "slug": "confluence",
     "name": "Confluence",
