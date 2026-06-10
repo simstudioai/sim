@@ -44,7 +44,7 @@ interface ChatRequestPayload {
 }
 
 const DEFAULT_VOICE_SETTINGS = {
-  voiceId: 'EXAVITQu4vr4xnSDxMaL', // Default ElevenLabs voice (Bella)
+  voiceId: 'cgSgspJ2msm6clMCkdW9', // Default ElevenLabs voice (Jessica) — Flash v2.5-optimized
 }
 
 /**
