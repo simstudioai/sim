@@ -2047,6 +2047,38 @@ export async function updateJobProgress(
   return updated.length > 0
 }
 
+/**
+ * One keyset page of rows for the export worker, ordered by `(position, id)`. Keyset (not
+ * OFFSET) keeps each page O(page) — offset paging re-scans every prior row per page, which is
+ * O(N²) across a large export. `(position, id)` is total (position exists on every row; id breaks
+ * ties) and served by the `(table_id, position)` index; under fractional ordering a manually
+ * reordered table may export in near-grid rather than exact grid order — the right trade for a
+ * bulk dump. The delete-job visibility mask applies, like every user-facing read.
+ */
+export async function selectExportRowPage(
+  table: TableDefinition,
+  after: { position: number; id: string } | null,
+  limit: number
+): Promise<Array<{ id: string; data: RowData; position: number }>> {
+  const deleteMask = await pendingDeleteMask(table)
+  const rows = await db
+    .select({ id: userTableRows.id, data: userTableRows.data, position: userTableRows.position })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, table.id),
+        eq(userTableRows.workspaceId, table.workspaceId),
+        deleteMask,
+        after
+          ? sql`(${userTableRows.position}, ${userTableRows.id}) > (${after.position}, ${after.id})`
+          : undefined
+      )
+    )
+    .orderBy(asc(userTableRows.position), asc(userTableRows.id))
+    .limit(limit)
+  return rows as Array<{ id: string; data: RowData; position: number }>
+}
+
 /** How long a terminal export stays listable (and re-downloadable from the tray). */
 const EXPORT_JOB_VISIBILITY_MS = 10 * 60 * 1000
 

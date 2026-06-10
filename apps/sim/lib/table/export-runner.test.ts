@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetTableById,
-  mockQueryRows,
+  mockSelectExportRowPage,
   mockUpdateJobProgress,
   mockMarkJobReady,
   mockMarkJobFailed,
@@ -15,7 +15,7 @@ const {
   mockDeleteFile,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
-  mockQueryRows: vi.fn(),
+  mockSelectExportRowPage: vi.fn(),
   mockUpdateJobProgress: vi.fn(),
   mockMarkJobReady: vi.fn(),
   mockMarkJobFailed: vi.fn(),
@@ -27,7 +27,7 @@ const {
 
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
-  queryRows: mockQueryRows,
+  selectExportRowPage: mockSelectExportRowPage,
   updateJobProgress: mockUpdateJobProgress,
   markJobReady: mockMarkJobReady,
   markJobFailed: mockMarkJobFailed,
@@ -64,7 +64,9 @@ describe('runTableExport', () => {
       Promise.resolve({ key: opts.customKey })
     )
     mockDeleteFile.mockResolvedValue(undefined)
-    mockQueryRows.mockResolvedValue({ rows: [{ id: 'r1', data: { col_name: 'Ada' } }] })
+    mockSelectExportRowPage.mockResolvedValue([
+      { id: 'r1', data: { col_name: 'Ada' }, position: 0 },
+    ])
   })
 
   it('pages rows, uploads the file, stamps the result key, and marks ready', async () => {
@@ -117,7 +119,7 @@ describe('runTableExport', () => {
   })
 
   it('marks the job failed and emits a failed event on error', async () => {
-    mockQueryRows.mockRejectedValue(new Error('boom'))
+    mockSelectExportRowPage.mockRejectedValue(new Error('boom'))
 
     await runTableExport(payload)
 

@@ -13,7 +13,7 @@ import {
   getTableById,
   markJobFailed,
   markJobReady,
-  queryRows,
+  selectExportRowPage,
   setJobResultKey,
   updateJobProgress,
 } from '@/lib/table/service'
@@ -65,21 +65,18 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       chunks.push('[')
     }
 
-    let offset = 0
     let exported = 0
     let firstJsonRow = true
+    let after: { position: number; id: string } | null = null
     while (true) {
       // Ownership gate before every page: a canceled job stops within one batch.
       const owns = await updateJobProgress(tableId, exported, jobId)
       if (!owns) throw new JobSupersededError()
 
-      const result = await queryRows(
-        table,
-        { limit: EXPORT_BATCH_SIZE, offset, includeTotal: false, withExecutions: false },
-        requestId
-      )
+      const page = await selectExportRowPage(table, after, EXPORT_BATCH_SIZE)
+      if (page.length === 0) break
 
-      for (const row of result.rows) {
+      for (const row of page) {
         if (format === 'csv') {
           chunks.push(`${toCsvRow(columns.map((c) => formatCsvValue(row.data[getColumnId(c)])))}\n`)
         } else {
@@ -89,9 +86,10 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
         }
       }
 
-      exported += result.rows.length
-      if (result.rows.length < EXPORT_BATCH_SIZE) break
-      offset += result.rows.length
+      exported += page.length
+      const last = page[page.length - 1]
+      after = { position: last.position, id: last.id }
+      if (page.length < EXPORT_BATCH_SIZE) break
     }
     if (format === 'json') chunks.push(']')
 
