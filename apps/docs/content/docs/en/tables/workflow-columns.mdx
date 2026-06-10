@@ -21,8 +21,9 @@ The running example is a table of AI startups, `ai_startup_customers`. The compa
   height={467}
 />
 
-- **Company Domain** and **Company Info** are **enrichments**: built-in lookups that find each company's `domain`, then read it to fill `employee_count` and `description`.
-- **Lead Score Enrichment** is a **workflow group**: it runs your own workflow against each row and writes `lead_score`, `priority`, and `score_reasoning`.
+- **Company Domain** finds each company's `domain`.
+- **Company Info** reads the domain and fills `employee_count` and `description`.
+- **Lead Score Enrichment** runs the lead-scoring workflow and writes `lead_score`, `priority`, and `score_reasoning`.
 
 Each group's header spans the columns it owns, every row has a run button (▷), and the toolbar shows the work in flight: here, **21 running**, with **Stop all** beside it.
 
@@ -47,16 +48,7 @@ The unit you configure is a **group**: something that runs once per row, fed by 
 
 ### Enrichments
 
-An **enrichment** is a built-in lookup Sim provides: find a company's domain from its name, look up company info from a domain, verify an email, find a phone number, or find a work email. Pick one from the **Enrichments** panel, bind its inputs to columns, and name the columns its outputs should fill — there's no workflow to build. Under the hood each enrichment tries a cascade of data providers in order, which is why a cell can come back **Not found**: every provider ran and none had the answer.
-
-In the example, Company Info is an enrichment. Its required `Company domain` input is bound to the `domain` column, and its `employee count` and `description` outputs write to their columns:
-
-<Image
-  src="/static/tables/workflow-columns/column-mapping.png"
-  alt="The Company Info enrichment's configuration: the required Company domain input bound to the domain column, and the employee count and description outputs bound to their column names"
-  width={380}
-  height={499}
-/>
+An **enrichment** is a built-in lookup that Sim provides and maintains — browse the **Enrichments** panel for what's available. Pick one, bind its inputs to columns, and name the columns its outputs should fill; there's no workflow to build. Under the hood an enrichment tries a cascade of data providers in order, which is why a cell can come back **Not found**: every provider ran and none had the answer.
 
 ### Workflow groups
 
@@ -78,7 +70,16 @@ One group can produce several result columns from a single run per row: Lead Sco
 
 ## How groups run
 
-Everything from here applies to both kinds. When a group runs a row, the bound column values become its inputs; it only sees the columns you mapped, the rest of the row is untouched, and inputs are read-only during the run. Every output you selected is written to its column, and outputs you didn't select are discarded.
+Everything from here applies to both kinds. A group's configuration is a set of bindings: each input is bound to a column, and each output is bound to the column name it writes. Here, Company Info's required `Company domain` input reads the `domain` column, and its outputs write `employee_count_0` and `description`:
+
+<Image
+  src="/static/tables/workflow-columns/column-mapping.png"
+  alt="A group's bindings: the required Company domain input bound to the domain column, and the employee count and description outputs bound to their column names"
+  width={380}
+  height={499}
+/>
+
+When a group runs a row, the bound column values become its inputs; it only sees the columns you mapped, the rest of the row is untouched, and inputs are read-only during the run. Every output you selected is written to its column, and outputs you didn't select are discarded.
 
 ### Run after
 
@@ -142,7 +143,7 @@ Every value in a workflow column comes from a real workflow run, and each one is
 
 ## Cascades
 
-Because a group can run after another group's output column, you can chain groups across the table — enrichments and workflow groups freely mixed. The example is a three-stage **cascade**: the Company Domain enrichment fills `domain` from the company name, the Company Info enrichment runs after `domain` and fills the info columns, and the Lead Score workflow group runs after those and writes the score. Each row advances through the stages independently: the moment its own Run-after columns are filled, it becomes eligible for the next group. That's why some rows in the screenshot are fully scored while others are still mid-pipeline.
+Because a group can run after another group's output column, you can chain groups across the table — enrichments and workflow groups freely mixed. The example is a three-stage **cascade**: Company Domain fills `domain` from the company name, Company Info runs after `domain` and fills the info columns, and the Lead Score workflow group runs after those and writes the score. Each row advances through the stages independently: the moment its own Run-after columns are filled, it becomes eligible for the next group. That's why some rows in the screenshot are fully scored while others are still mid-pipeline.
 
 ## When to use a workflow column
 
