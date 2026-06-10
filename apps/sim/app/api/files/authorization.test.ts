@@ -12,15 +12,18 @@
 import { dbChainMock, dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetFileMetadataByKey, mockGetUserEntityPermissions } = vi.hoisted(() => ({
-  mockGetFileMetadataByKey: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-}))
+const { mockGetFileMetadataByKey, mockGetUserEntityPermissions, mockGetFileMetadata } = vi.hoisted(
+  () => ({
+    mockGetFileMetadataByKey: vi.fn(),
+    mockGetUserEntityPermissions: vi.fn(),
+    mockGetFileMetadata: vi.fn(),
+  })
+)
 
 vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/uploads', () => ({
-  getFileMetadata: vi.fn(),
+  getFileMetadata: mockGetFileMetadata,
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
@@ -149,5 +152,61 @@ describe('verifyKBFileWriteAccess (binding-only delete authorization)', () => {
     mockGetFileMetadataByKey.mockRejectedValue(new Error('db down'))
 
     await expect(verifyKBFileWriteAccess(CLOUD_KEY, USER_ID)).resolves.toBe(false)
+  })
+})
+
+describe('public-context access (profile-pictures / og-images / workspace-logos)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function read(cloudKey: string, context: 'profile-pictures' | 'og-images' | 'workspace-logos') {
+    return verifyFileAccess(cloudKey, USER_ID, undefined, context, false)
+  }
+
+  function write(cloudKey: string, context: 'profile-pictures' | 'og-images' | 'workspace-logos') {
+    return verifyFileAccess(cloudKey, USER_ID, undefined, context, false, { requireWrite: true })
+  }
+
+  it('grants public reads without any ownership check', async () => {
+    await expect(read('og-images/banner.png', 'og-images')).resolves.toBe(true)
+    await expect(read('profile-pictures/123-avatar.png', 'profile-pictures')).resolves.toBe(true)
+    await expect(read('workspace-logos/123-logo.png', 'workspace-logos')).resolves.toBe(true)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+    expect(mockGetFileMetadata).not.toHaveBeenCalled()
+  })
+
+  it('denies a cross-tenant delete that names a workspace key under a public context', async () => {
+    await expect(write('workspace/victim-ws/123-report.pdf', 'og-images')).resolves.toBe(false)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+
+  it('grants a profile-picture delete only to the owning user', async () => {
+    mockGetFileMetadata.mockResolvedValue({ userId: USER_ID })
+    await expect(write('profile-pictures/123-avatar.png', 'profile-pictures')).resolves.toBe(true)
+  })
+
+  it('denies a profile-picture delete for a non-owner', async () => {
+    mockGetFileMetadata.mockResolvedValue({ userId: 'other-user' })
+    await expect(write('profile-pictures/123-avatar.png', 'profile-pictures')).resolves.toBe(false)
+  })
+
+  it('grants a workspace-logo delete to write/admin on the owning workspace', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'ws-1' })
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+    await expect(write('workspace-logos/123-logo.png', 'workspace-logos')).resolves.toBe(true)
+    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(USER_ID, 'workspace', 'ws-1')
+  })
+
+  it('denies a workspace-logo delete for a non-member of the owning workspace', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue({ workspaceId: 'victim-ws' })
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    await expect(write('workspace-logos/123-logo.png', 'workspace-logos')).resolves.toBe(false)
+  })
+
+  it('denies a workspace-logo delete when no ownership binding exists', async () => {
+    mockGetFileMetadataByKey.mockResolvedValue(null)
+    await expect(write('workspace-logos/123-logo.png', 'workspace-logos')).resolves.toBe(false)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 })

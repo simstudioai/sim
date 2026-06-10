@@ -1,1 +1,1 @@
-export { getDisplayValue, WorkflowBlock } from './workflow-block'
+export { WorkflowBlock } from './workflow-block'

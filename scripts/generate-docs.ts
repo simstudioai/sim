@@ -47,13 +47,21 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
  * integration page. The writer's filter and the stale-doc cleanup must both
  * honor this set, or cleanup deletes what the writer emits (losing manual content).
  */
-const NATIVE_RESOURCE_BLOCK_TYPES = new Set(['memory', 'knowledge', 'table'])
+const NATIVE_RESOURCE_BLOCK_TYPES = new Set(['memory', 'knowledge', 'table', 'enrichment', 'logs'])
 
 /** Trigger doc pages that are hand-written and must never be overwritten. */
-const HANDWRITTEN_TRIGGER_DOCS = new Set(['index', 'start', 'schedule', 'webhook', 'rss', 'table'])
+const HANDWRITTEN_TRIGGER_DOCS = new Set([
+  'index',
+  'start',
+  'schedule',
+  'webhook',
+  'rss',
+  'table',
+  'sim',
+])
 
 /** Providers whose docs are already covered by hand-written pages. */
-const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss', 'table'])
+const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss', 'table', 'sim'])
 
 /**
  * Maps trigger provider names (from TriggerConfig.provider) to their
@@ -1059,7 +1067,7 @@ function isIntegrationBlock(config: { category?: string; hideFromToolbar?: boole
  * generators, vision, and STT/TTS — is excluded from the integrations icon
  * map, matching {@link isIntegrationBlock}.
  */
-const ICON_MAP_BLOCK_CATEGORY_ALLOWLIST = new Set(['memory', 'knowledge'])
+const ICON_MAP_BLOCK_CATEGORY_ALLOWLIST = new Set(['memory', 'knowledge', 'enrichment'])
 
 /**
  * Block types that never belong in the integrations icon map regardless of

@@ -32,7 +32,6 @@ import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
-import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import {
   externalizeExecutionData,
@@ -50,6 +49,7 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
+import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('ExecutionLogger')
@@ -991,8 +991,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       createdAt: updatedLog.createdAt.toISOString(),
     }
 
-    emitWorkflowExecutionCompleted(completedLog).catch((error) => {
-      execLog.error('Failed to emit workflow execution completed event', { error })
+    emitExecutionCompletedEvent(completedLog).catch((error) => {
+      execLog.error('Failed to emit workspace execution event', { error })
     })
 
     return completedLog

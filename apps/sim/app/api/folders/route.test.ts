@@ -127,6 +127,7 @@ describe('Folders API Route', () => {
   const mockSelect = mockDb.select
   const mockFrom = vi.fn()
   const mockWhere = vi.fn()
+  const mockLimit = vi.fn()
   const mockOrderBy = vi.fn()
   const mockInsert = mockDb.insert
   const mockValues = vi.fn()
@@ -152,9 +153,12 @@ describe('Folders API Route', () => {
     mockFrom.mockReturnValue({ where: mockWhere })
     const defaultWhereResult = [] as Array<Record<string, unknown>> & {
       orderBy: typeof mockOrderBy
+      limit: typeof mockLimit
     }
     defaultWhereResult.orderBy = mockOrderBy
+    defaultWhereResult.limit = mockLimit
     mockWhere.mockReturnValue(defaultWhereResult)
+    mockLimit.mockReturnValue([])
     mockOrderBy.mockReturnValue(mockFolders)
 
     mockInsert.mockReturnValue({ values: mockValues })
@@ -367,6 +371,7 @@ describe('Folders API Route', () => {
           insertResult: [{ ...mockFolders[1] }],
         })
       )
+      mockLimit.mockReturnValueOnce([{ ...mockFolders[0] }])
       mockReturning.mockReturnValueOnce([{ ...mockFolders[1] }])
 
       const req = createMockRequest('POST', {
@@ -383,6 +388,24 @@ describe('Folders API Route', () => {
       expect(data.folder).toMatchObject({
         parentId: 'folder-1',
       })
+    })
+
+    it('should reject a parentId that does not resolve to a folder in the workspace', async () => {
+      mockAuthenticatedUser()
+
+      mockLimit.mockReturnValueOnce([])
+
+      const req = createMockRequest('POST', {
+        name: 'Subfolder',
+        workspaceId: 'workspace-123',
+        parentId: 'folder-in-other-workspace',
+      })
+
+      const response = await POST(req)
+
+      expect(response.status).toBe(400)
+      const data = await response.json()
+      expect(data.error).toBe('Parent folder not found')
     })
 
     it('should return 401 for unauthenticated requests', async () => {

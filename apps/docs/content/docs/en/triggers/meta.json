@@ -1,4 +1,4 @@
 {
   "title": "Core Triggers",
-  "pages": ["start", "schedule", "webhook", "rss", "table"]
+  "pages": ["start", "schedule", "webhook", "rss", "table", "sim"]
 }

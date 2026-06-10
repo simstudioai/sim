@@ -1,5 +1,3 @@
-import { createLogger } from '@sim/logger'
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import type {
   AgiloftAttachmentInfoParams,
   AgiloftBaseParams,
@@ -13,108 +11,7 @@ import type {
   AgiloftSearchRecordsParams,
   AgiloftSelectRecordsParams,
 } from '@/tools/agiloft/types'
-import type { HttpMethod, ToolResponse } from '@/tools/types'
-
-const logger = createLogger('AgiloftAuth')
-
-interface AgiloftRequestConfig {
-  url: string
-  method: HttpMethod
-  headers?: Record<string, string>
-  body?: BodyInit
-}
-
-/**
- * Exchanges login/password for a short-lived Bearer token via EWLogin.
- */
-async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
-  const base = params.instanceUrl.replace(/\/$/, '')
-
-  const urlValidation = validateExternalUrl(params.instanceUrl, 'instanceUrl')
-  if (!urlValidation.isValid) {
-    throw new Error(`Invalid Agiloft instance URL: ${urlValidation.error}`)
-  }
-
-  const kb = encodeURIComponent(params.knowledgeBase)
-  const login = encodeURIComponent(params.login)
-  const password = encodeURIComponent(params.password)
-
-  const url = `${base}/ewws/EWLogin?$KB=${kb}&$login=${login}&$password=${password}`
-  const response = await fetch(url, { method: 'POST' })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Agiloft login failed: ${response.status} - ${errorText}`)
-  }
-
-  const data = (await response.json()) as { access_token?: string }
-  const token = data.access_token
-
-  if (!token) {
-    throw new Error('Agiloft login did not return an access token')
-  }
-
-  return token
-}
-
-/**
- * Cleans up the server session. Best-effort — failures are logged but not thrown.
- */
-async function agiloftLogout(
-  instanceUrl: string,
-  knowledgeBase: string,
-  token: string
-): Promise<void> {
-  try {
-    const base = instanceUrl.replace(/\/$/, '')
-    const kb = encodeURIComponent(knowledgeBase)
-    await fetch(`${base}/ewws/EWLogout?$KB=${kb}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-  } catch (error) {
-    logger.warn('Agiloft logout failed (best-effort)', { error })
-  }
-}
-
-/**
- * Shared wrapper that handles the full auth lifecycle:
- * 1. Login to get Bearer token
- * 2. Execute the request with the token
- * 3. Logout to clean up the session
- *
- * The `buildRequest` callback receives the token and base URL, and returns
- * the request config. The `transformResponse` callback converts the raw
- * Response into the tool's output format.
- */
-export async function executeAgiloftRequest<R extends ToolResponse>(
-  params: AgiloftBaseParams,
-  buildRequest: (base: string) => AgiloftRequestConfig,
-  transformResponse: (response: Response) => Promise<R>
-): Promise<R> {
-  const token = await agiloftLogin(params)
-  const base = params.instanceUrl.replace(/\/$/, '')
-
-  try {
-    const req = buildRequest(base)
-    const response = await fetch(req.url, {
-      method: req.method,
-      headers: {
-        ...req.headers,
-        Authorization: `Bearer ${token}`,
-      },
-      body: req.body,
-    })
-    return await transformResponse(response)
-  } finally {
-    await agiloftLogout(params.instanceUrl, params.knowledgeBase, token)
-  }
-}
-
-/**
- * Login helper exported for use in the attach file API route.
- */
-export { agiloftLogin, agiloftLogout }
+import type { HttpMethod } from '@/tools/types'
 
 /** URL builders (credential-free -- auth is via Bearer token header) */
 

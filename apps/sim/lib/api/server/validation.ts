@@ -8,6 +8,23 @@ import type {
   ContractParams,
   ContractQuery,
 } from '@/lib/api/contracts'
+import { env } from '@/lib/core/config/env'
+import {
+  assertContentLengthWithinLimit,
+  isPayloadSizeLimitError,
+  readStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
+
+/**
+ * Default upper bound on the JSON request body that contract routes will read
+ * and parse into memory. Next.js App Router imposes no body cap, so without
+ * this an unauthenticated caller could buffer an arbitrarily large body before
+ * schema validation runs. Override per-route via `ParseRequestOptions.maxBodyBytes`.
+ * Falls back to 50 MB if the env value is missing or non-numeric so a misconfig
+ * can never silently disable the cap (a NaN limit would never reject).
+ */
+export const DEFAULT_MAX_JSON_BODY_BYTES =
+  Number.parseInt(env.API_MAX_JSON_BODY_BYTES, 10) || 50 * 1024 * 1024
 
 export interface ValidationErrorBody {
   error: string
@@ -35,6 +52,12 @@ export interface ParseRequestOptions {
   validationErrorResponse?: (error: z.ZodError) => NextResponse<unknown>
   invalidJsonResponse?: () => NextResponse<unknown>
   invalidJson?: 'response' | 'throw'
+  /**
+   * Maximum number of bytes to read for the JSON body before rejecting with a
+   * 413. Defaults to {@link DEFAULT_MAX_JSON_BODY_BYTES}. Raise this only for
+   * routes that legitimately accept large JSON payloads (e.g. inline file uploads).
+   */
+  maxBodyBytes?: number
 }
 
 export function serializeZodIssues(error: z.ZodError): z.core.$ZodIssue[] {
@@ -69,18 +92,61 @@ export function validationErrorResponseFromError(
   return validationErrorResponse(error, message, status)
 }
 
+const REQUEST_BODY_LABEL = 'Request body'
+
+/**
+ * Reads the JSON body while enforcing a byte cap. The body is read through a
+ * size-limited stream so chunked/streamed bodies are bounded even when the
+ * `content-length` header is absent or lies about the true size. When no
+ * readable stream is available (e.g. a mocked request) the content-length guard
+ * is the only bound and parsing falls back to {@link Request.json}. Decoding
+ * uses {@link TextDecoder} so a leading UTF-8 BOM is stripped, matching the spec
+ * "UTF-8 decode" behavior of `request.json()`.
+ */
+async function readJsonBodyWithLimit(request: Request, maxBytes: number): Promise<unknown> {
+  assertContentLengthWithinLimit(request.headers, maxBytes, REQUEST_BODY_LABEL)
+
+  const stream = request.body
+  if (!stream) {
+    return request.json()
+  }
+
+  const buffer = await readStreamToBufferWithLimit(stream, {
+    maxBytes,
+    label: REQUEST_BODY_LABEL,
+  })
+  return JSON.parse(new TextDecoder().decode(buffer))
+}
+
 export async function parseJsonBody(
   request: Request,
-  invalidJson: ParseRequestOptions['invalidJson'] = 'response'
+  invalidJson: ParseRequestOptions['invalidJson'] = 'response',
+  maxBytes: number = DEFAULT_MAX_JSON_BODY_BYTES
 ): Promise<
-  { success: true; data: unknown } | { success: false; response: NextResponse<{ error: string }> }
+  | { success: true; data: unknown }
+  | {
+      success: false
+      reason: 'too_large' | 'invalid_json'
+      response: NextResponse<{ error: string }>
+    }
 > {
   try {
-    return { success: true, data: await request.json() }
+    return { success: true, data: await readJsonBodyWithLimit(request, maxBytes) }
   } catch (error) {
     if (invalidJson === 'throw') throw error
+    if (isPayloadSizeLimitError(error)) {
+      return {
+        success: false,
+        reason: 'too_large',
+        response: NextResponse.json(
+          { error: `Request body exceeds the maximum allowed size of ${maxBytes} bytes` },
+          { status: 413 }
+        ),
+      }
+    }
     return {
       success: false,
+      reason: 'invalid_json',
       response: NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 }),
     }
   }
@@ -133,9 +199,9 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
 
   let body: unknown
   if (shouldReadJsonBody(contract)) {
-    const parsedBody = await parseJsonBody(request, options?.invalidJson)
+    const parsedBody = await parseJsonBody(request, options?.invalidJson, options?.maxBodyBytes)
     if (!parsedBody.success) {
-      return options?.invalidJsonResponse
+      return options?.invalidJsonResponse && parsedBody.reason === 'invalid_json'
         ? { success: false, response: options.invalidJsonResponse() }
         : parsedBody
     }
