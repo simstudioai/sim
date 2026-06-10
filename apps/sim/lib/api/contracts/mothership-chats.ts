@@ -78,6 +78,12 @@ export const mothershipExecuteBodySchema = z.object({
   fileAttachments: z.array(mothershipExecuteFileAttachmentSchema).optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
+  userMetadata: z
+    .object({
+      name: z.string().optional(),
+      timezone: z.string().optional(),
+    })
+    .optional(),
 })
 export type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
 

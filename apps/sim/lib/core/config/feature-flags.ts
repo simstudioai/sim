@@ -175,9 +175,28 @@ export const isWorkflowColumnsEnabledClient = isTruthy(
 )
 
 /**
+ * Enables beta Mothership plan/changelog artifact surfaces.
+ */
+export const isMothershipBetaFeaturesEnabled = isTruthy(env.MOTHERSHIP_BETA_FEATURES)
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
+
+/**
+ * Whether the E2B document-generation sandbox is enabled.
+ *
+ * Requires E2B (with an API key) AND a dedicated doc-generation template id.
+ * When true, ALL four formats compile in the E2B doc sandbox: pptx/docx via Node
+ * (pptxgenjs/docx + react-icons/sharp icons), pdf/xlsx via Python
+ * (reportlab/openpyxl). When false, compilation stays on the JavaScript
+ * (isolated-vm) path, byte-identical to its prior behavior (and xlsx is
+ * unavailable). Drives both the Sim compile backend and the `docCompiler` flag
+ * sent to the copilot file subagent so the agent's output and compiler agree.
+ */
+export const isE2BDocEnabled =
+  isE2bEnabled && Boolean(env.E2B_API_KEY) && Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
 
 /**
  * Whether Ollama is configured (OLLAMA_URL is set).

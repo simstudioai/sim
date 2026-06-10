@@ -271,6 +271,9 @@ export const MessageActions = memo(function MessageActions({
             title='Feedback'
             value={feedbackText}
             onChange={setFeedbackText}
+            rows={6}
+            minHeight={140}
+            resizable
             placeholder={
               pendingFeedback === 'up'
                 ? 'Tell us what was helpful...'

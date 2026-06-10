@@ -330,6 +330,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
         filter: filterNamesToIds(validated.filter as Filter, idByName),
         data: patchData,
         limit: validated.limit,
+        actorUserId: userId,
       },
       requestId
     )

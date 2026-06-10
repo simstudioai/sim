@@ -1,2 +1,0 @@
-DROP INDEX "table_jobs_one_active_per_table";--> statement-breakpoint
-CREATE UNIQUE INDEX "table_jobs_one_active_per_table" ON "table_jobs" USING btree ("table_id") WHERE "table_jobs"."status" = 'running' AND "table_jobs"."type" <> 'export';

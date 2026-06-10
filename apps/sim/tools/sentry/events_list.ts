@@ -38,7 +38,7 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Search query to filter events. Supports Sentry search syntax (e.g., "user.email:*@example.com")',
+        'Search query to filter events. Only applied when an Issue ID is provided (the issue events endpoint); the project events endpoint ignores it. Supports Sentry search syntax (e.g., "user.email:*@example.com")',
     },
     cursor: {
       type: 'string',
@@ -50,14 +50,14 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of events to return per page (default: 50, max: 100)',
+      description: 'Number of events to return per page (max: 100)',
     },
     statsPeriod: {
       type: 'string',
       required: false,
       visibility: 'user-only',
       description:
-        'Time period to query (e.g., "24h", "7d", "30d"). Defaults to 90d if not specified.',
+        'Time period to query (e.g., "24h", "7d", "14d"). Cannot be combined with absolute start/end.',
     },
   },
 
@@ -66,16 +66,17 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
       let baseUrl: string
 
       if (params.issueId && params.issueId !== null && params.issueId !== '') {
-        // List events for a specific issue
         baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/issues/${params.issueId}/events/`
       } else {
-        // List events for a project
         baseUrl = `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/events/`
       }
 
+      const isIssueScoped = Boolean(
+        params.issueId && params.issueId !== null && params.issueId !== ''
+      )
       const queryParams: string[] = []
 
-      if (params.query && params.query !== null && params.query !== '') {
+      if (isIssueScoped && params.query && params.query !== null && params.query !== '') {
         queryParams.push(`query=${encodeURIComponent(params.query)}`)
       }
 
@@ -84,14 +85,16 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
       }
 
       if (params.limit && params.limit !== null) {
-        queryParams.push(`limit=${Number(params.limit)}`)
+        queryParams.push(`per_page=${Number(params.limit)}`)
       }
 
       if (params.statsPeriod && params.statsPeriod !== null && params.statsPeriod !== '') {
         queryParams.push(`statsPeriod=${encodeURIComponent(params.statsPeriod)}`)
       }
 
-      return queryParams.length > 0 ? `${baseUrl}?${queryParams.join('&')}` : baseUrl
+      queryParams.push('full=1')
+
+      return `${baseUrl}?${queryParams.join('&')}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -103,7 +106,6 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // Extract pagination info from Link header
     const linkHeader = response.headers.get('Link')
     let nextCursor: string | undefined
     let hasMore = false
@@ -118,10 +120,12 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
       }
     }
 
+    const events = Array.isArray(data) ? data : []
+
     return {
       success: true,
       output: {
-        events: data.map((event: any) => ({
+        events: events.map((event: any) => ({
           id: event.id,
           eventID: event.eventID,
           projectID: event.projectID,
@@ -158,6 +162,8 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
           errors: event.errors || [],
           dist: event.dist ?? null,
           fingerprints: event.fingerprints || [],
+          size: event.size ?? null,
+          release: event.release ?? null,
           sdk: event.sdk
             ? {
                 name: event.sdk.name,
@@ -242,6 +248,12 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
           errors: { type: 'array', description: 'Processing errors' },
           dist: { type: 'string', description: 'Distribution identifier', optional: true },
           fingerprints: { type: 'array', description: 'Fingerprints for grouping' },
+          size: { type: 'number', description: 'Event size in bytes', optional: true },
+          release: {
+            type: 'object',
+            description: 'Release associated with the event (version, dateCreated)',
+            optional: true,
+          },
           sdk: {
             type: 'object',
             description: 'SDK information',

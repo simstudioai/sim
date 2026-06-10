@@ -65,6 +65,8 @@ export interface DispatchRow {
   /** Units of `limit.type` already consumed (eligible rows dispatched). */
   processedCount: number
   isManualRun: boolean
+  /** User who triggered the run (for usage attribution); null for auto-fire. */
+  triggeredByUserId: string | null
   requestedAt: Date
 }
 
@@ -161,6 +163,7 @@ export async function insertDispatch(input: {
   scope: DispatchScope
   limit?: DispatchLimit | null
   isManualRun: boolean
+  triggeredByUserId?: string | null
 }): Promise<string> {
   const id = `tdsp_${generateId().replace(/-/g, '')}`
   await db.insert(tableRunDispatches).values({
@@ -177,6 +180,7 @@ export async function insertDispatch(input: {
     // correctly excludes already-processed rows.
     cursor: -1,
     isManualRun: input.isManualRun,
+    triggeredByUserId: input.triggeredByUserId ?? null,
   })
   return id
 }
@@ -303,6 +307,7 @@ export async function listActiveDispatches(tableId: string): Promise<DispatchRow
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
+    triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
   }))
 }
@@ -326,6 +331,7 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
+    triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
   }
 }
@@ -491,7 +497,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     isManualRun: dispatch.isManualRun,
     groupIds: dispatch.scope.groupIds,
     mode: dispatch.mode,
-  }).map((p) => ({ ...p, dispatchId }))
+  }).map((p) => ({ ...p, dispatchId, triggeredByUserId: dispatch.triggeredByUserId ?? undefined }))
 
   // Cursor advances to the last position in this chunk regardless of
   // eligibility — otherwise a window full of skipped cells loops forever.
@@ -731,6 +737,7 @@ export async function markActiveDispatchesCancelled(tableId: string): Promise<Di
     limit: (row.limit as DispatchLimit | null) ?? null,
     processedCount: row.processedCount,
     isManualRun: row.isManualRun,
+    triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
   }))
   await Promise.all(

@@ -17,6 +17,7 @@ export interface MothershipResource {
   type: MothershipResourceType
   id: string
   title: string
+  path?: string
 }
 
 export function isEphemeralResource(resource: MothershipResource): boolean {

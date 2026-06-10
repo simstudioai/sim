@@ -302,6 +302,59 @@ describe('MothershipBlockHandler', () => {
     })
   })
 
+  it('preserves failed tool calls as output metadata without throwing', async () => {
+    mockGenerateId.mockReturnValueOnce('chat-uuid')
+    mockGenerateId.mockReturnValueOnce('message-uuid')
+    mockGenerateId.mockReturnValueOnce('request-uuid')
+
+    fetchMock.mockResolvedValue(
+      createNdjsonResponse([
+        {
+          type: 'final',
+          data: {
+            content: 'The lookup failed, so I could not use that result.',
+            model: 'mothership',
+            conversationId: 'chat-uuid',
+            tokens: { total: 7 },
+            toolCalls: [
+              {
+                name: 'lookup_customer',
+                status: 'error',
+                params: { email: 'missing@example.com' },
+                result: { success: false, error: 'Customer not found' },
+                error: 'Customer not found',
+                durationMs: 42,
+              },
+            ],
+          },
+        },
+      ])
+    )
+
+    const result = await handler.execute(context, block, { prompt: 'Hello from workflow' })
+
+    expect(result).toEqual({
+      content: 'The lookup failed, so I could not use that result.',
+      model: 'mothership',
+      conversationId: 'chat-uuid',
+      tokens: { total: 7 },
+      toolCalls: {
+        list: [
+          expect.objectContaining({
+            name: 'lookup_customer',
+            status: 'error',
+            arguments: { email: 'missing@example.com' },
+            result: { success: false, error: 'Customer not found' },
+            error: 'Customer not found',
+            duration: 42,
+          }),
+        ],
+        count: 1,
+      },
+      cost: undefined,
+    })
+  })
+
   it('surfaces mothership execute stream errors', async () => {
     mockGenerateId.mockReturnValueOnce('chat-uuid')
     mockGenerateId.mockReturnValueOnce('message-uuid')

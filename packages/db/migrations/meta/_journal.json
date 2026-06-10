@@ -1608,22 +1608,15 @@
     {
       "idx": 230,
       "version": "7",
-      "when": 1780990013565,
-      "tag": "0230_table_jobs",
+      "when": 1781027249389,
+      "tag": "0230_thick_stranger",
       "breakpoints": true
     },
     {
       "idx": 231,
       "version": "7",
-      "when": 1781026179182,
-      "tag": "0231_table_rows_id_keyset",
-      "breakpoints": true
-    },
-    {
-      "idx": 232,
-      "version": "7",
-      "when": 1781036837982,
-      "tag": "0232_table_jobs_export_gate",
+      "when": 1781055027957,
+      "tag": "0231_table_jobs_and_keyset",
       "breakpoints": true
     }
   ]

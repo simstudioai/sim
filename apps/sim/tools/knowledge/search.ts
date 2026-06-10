@@ -121,6 +121,9 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
           ...(rerankerApiKey && { rerankerApiKey }),
         }),
         ...(workflowId && { workflowId }),
+        // The executor rolls this search's cost up at workflow completion, so
+        // tell the route not to also meter it (avoids double-billing).
+        skipUsageBilling: true,
       }
 
       return requestBody

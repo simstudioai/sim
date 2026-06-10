@@ -42,6 +42,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       filter,
       limit,
       requestId,
+      triggeredByUserId: auth.userId,
     })
 
     return NextResponse.json({ success: true, data: { dispatchId } })

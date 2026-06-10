@@ -68,7 +68,7 @@ export const kalshiGetOrdersTool: ToolConfig<KalshiGetOrdersParams, KalshiGetOrd
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results to return (1-200, default: 100)',
+      description: 'Number of results to return (1-1000, default: 100)',
     },
     cursor: {
       type: 'string',
@@ -249,7 +249,7 @@ export const kalshiGetOrdersV2Tool: ToolConfig<KalshiGetOrdersV2Params, KalshiGe
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of results to return (1-200, default: 100)',
+        description: 'Number of results to return (1-1000, default: 100)',
       },
       cursor: {
         type: 'string',

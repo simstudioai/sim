@@ -43,6 +43,8 @@ export interface TableBackfillPayload {
   groupId: string
   outputs: WorkflowGroupOutput[]
   overwrite: boolean
+  /** User who triggered the schema change, for usage attribution on the row writes. */
+  actorUserId?: string | null
 }
 
 /** Minimal shape of a trace span we care about for backfill. */
@@ -102,8 +104,9 @@ async function processBackfillPage(opts: {
   overwrite: boolean
   execs: Array<{ rowId: string; executionId: string | null }>
   requestId: string
+  actorUserId?: string | null
 }): Promise<number> {
-  const { table, outputs, overwrite, execs, requestId } = opts
+  const { table, outputs, overwrite, execs, requestId, actorUserId } = opts
 
   const executionIdsByRow = new Map<string, string>()
   for (const e of execs) {
@@ -171,7 +174,7 @@ async function processBackfillPage(opts: {
   if (updates.length === 0) return 0
 
   await batchUpdateRows(
-    { tableId: table.id, updates, workspaceId: table.workspaceId },
+    { tableId: table.id, updates, workspaceId: table.workspaceId, actorUserId },
     table,
     requestId
   )
@@ -185,7 +188,7 @@ async function processBackfillPage(opts: {
  * passes skip already-filled cells).
  */
 export async function runTableBackfill(payload: TableBackfillPayload): Promise<void> {
-  const { jobId, tableId, groupId, outputs, overwrite } = payload
+  const { jobId, tableId, groupId, outputs, overwrite, actorUserId } = payload
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -204,7 +207,14 @@ export async function runTableBackfill(payload: TableBackfillPayload): Promise<v
       if (execs.length === 0) break
       afterRowId = execs[execs.length - 1].rowId
 
-      updated += await processBackfillPage({ table, outputs, overwrite, execs, requestId })
+      updated += await processBackfillPage({
+        table,
+        outputs,
+        overwrite,
+        execs,
+        requestId,
+        actorUserId,
+      })
       processed += execs.length
     }
 
@@ -257,8 +267,9 @@ export async function maybeBackfillGroupOutputs(opts: {
   outputs: WorkflowGroupOutput[]
   overwrite: boolean
   requestId: string
+  actorUserId?: string | null
 }): Promise<void> {
-  const { table, groupId, outputs, overwrite, requestId } = opts
+  const { table, groupId, outputs, overwrite, requestId, actorUserId } = opts
   if (outputs.length === 0) return
 
   const [{ count: completedCount }] = await db
@@ -282,7 +293,7 @@ export async function maybeBackfillGroupOutputs(opts: {
       const execs = await selectCompletedExecPage(table.id, groupId, afterRowId, BACKFILL_PAGE_SIZE)
       if (execs.length === 0) break
       afterRowId = execs[execs.length - 1].rowId
-      await processBackfillPage({ table, outputs, overwrite, execs, requestId })
+      await processBackfillPage({ table, outputs, overwrite, execs, requestId, actorUserId })
     }
     return
   }
@@ -304,6 +315,7 @@ export async function maybeBackfillGroupOutputs(opts: {
     groupId,
     outputs,
     overwrite,
+    actorUserId,
   }
   if (isTriggerDevEnabled) {
     const [{ tableBackfillTask }, { tasks }] = await Promise.all([

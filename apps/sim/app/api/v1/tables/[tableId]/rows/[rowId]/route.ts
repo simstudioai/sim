@@ -144,6 +144,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
         rowId,
         data: rowDataNameToId(validated.data as RowData, idByName),
         workspaceId: validated.workspaceId,
+        actorUserId: userId,
       },
       table,
       requestId

@@ -58,6 +58,6 @@ export interface Integration {
   triggerCount: number
   /** Authentication mode inferred from `BlockConfig.subBlocks`. */
   authType: AuthType
-  /** Hand-authored landing content baked in at generation time (see landing-content.ts). */
+  /** Hand-authored landing content baked in at generation time (see `landing-content.ts`). */
   landingContent?: IntegrationLandingContent
 }

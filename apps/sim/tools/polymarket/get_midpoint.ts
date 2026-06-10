@@ -50,10 +50,11 @@ export const polymarketGetMidpointTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_midpoint')
     }
 
+    // CLOB /midpoint returns { mid: "0.52" } (docs label it mid_price — handle both)
     return {
       success: true,
       output: {
-        midpoint: data.mid || data.midpoint || data,
+        midpoint: String(data.mid ?? data.mid_price ?? data.midpoint ?? ''),
       },
     }
   },

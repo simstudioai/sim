@@ -14,11 +14,14 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import {
+  findWorkspaceFileFolderIdByPath,
   getWorkspaceFileFolder,
   listWorkspaceFileFolders,
   type WorkspaceFileFolderRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   performCreateWorkspaceFileFolder,
   performDeleteWorkspaceFileItems,
@@ -36,26 +39,36 @@ interface WorkspaceScopedArgs {
 type ListFileFoldersArgs = WorkspaceScopedArgs
 
 interface CreateFileFolderArgs extends WorkspaceScopedArgs {
+  path?: string
   name?: string
   parentId?: string | null
+  parentPath?: string | null
 }
 
 interface RenameFileFolderArgs extends WorkspaceScopedArgs {
+  path?: string
   folderId?: string
   name?: string
 }
 
 interface MoveFileFolderArgs extends WorkspaceScopedArgs {
+  path?: string
   folderId?: string
+  destinationPath?: string | null
   parentId?: string | null
 }
 
 interface DeleteFileFolderArgs extends WorkspaceScopedArgs {
+  paths?: string[]
+  path?: string
   folderIds?: string[]
   folderId?: string
 }
 
 interface MoveFileArgs extends WorkspaceScopedArgs {
+  paths?: string[]
+  path?: string
+  destinationPath?: string | null
   fileIds?: string[]
   fileId?: string
   folderId?: string | null
@@ -85,6 +98,73 @@ function nullableStringValue(value: unknown): string | null | undefined {
   if (value === null) return null
   if (typeof value !== 'string') return undefined
   return value.trim() ? value : null
+}
+
+function stringListFromValues(...values: unknown[]): string[] {
+  for (const value of values) {
+    const arr = stringArrayValue(value)
+    if (arr && arr.length > 0) return arr
+  }
+  return values
+    .map((value) => stringValue(value))
+    .filter((value): value is string => Boolean(value))
+}
+
+function decodeFileFolderPath(path: string): string[] | null {
+  const trimmed = path.trim().replace(/\/+$/, '')
+  if (!trimmed || trimmed === 'files') return null
+  const withoutPrefix = trimmed.startsWith('files/') ? trimmed.slice('files/'.length) : trimmed
+  const withoutMarker = withoutPrefix.endsWith('/.folder')
+    ? withoutPrefix.slice(0, -'/.folder'.length)
+    : withoutPrefix
+  const segments = decodeVfsPathSegments(withoutMarker).filter(Boolean)
+  return segments.length > 0 ? segments : null
+}
+
+async function resolveFolderIdFromPath(
+  workspaceId: string,
+  path: string,
+  label = 'Folder'
+): Promise<string> {
+  const segments = decodeFileFolderPath(path)
+  if (!segments) throw new Error(`${label} path must identify a folder under files/`)
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments)
+  if (!folderId) throw new Error(`${label} not found at files/${segments.join('/')}`)
+  return folderId
+}
+
+async function resolveOptionalFolderId(
+  workspaceId: string,
+  value: unknown
+): Promise<string | null | undefined> {
+  const raw = nullableStringValue(value)
+  if (raw === undefined) return undefined
+  if (raw === null) return null
+  const segments = decodeFileFolderPath(raw)
+  if (!segments) return null
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments)
+  if (!folderId) throw new Error(`Target folder not found at files/${segments.join('/')}`)
+  return folderId
+}
+
+async function resolveFileIdsFromPaths(
+  workspaceId: string,
+  paths: string[]
+): Promise<{
+  fileIds: string[]
+  failed: string[]
+}> {
+  const fileIds: string[] = []
+  const failed: string[] = []
+  for (const path of paths) {
+    const file = await resolveWorkspaceFileReference(workspaceId, path)
+    if (!file) {
+      failed.push(path)
+      continue
+    }
+    fileIds.push(file.id)
+  }
+  return { fileIds, failed }
 }
 
 async function resolveWorkspaceId(
@@ -146,10 +226,33 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
       if (!context?.userId) throw new Error('Authentication required')
 
       const payload = nested(params)
-      const name = (stringValue(params.name) || stringValue(payload?.name) || '').trim()
+      const rawPath = stringValue(params.path) || stringValue(payload?.path)
+      const pathSegments = rawPath ? decodeFileFolderPath(rawPath) : undefined
+      const name = (
+        pathSegments?.at(-1) ||
+        stringValue(params.name) ||
+        stringValue(payload?.name) ||
+        ''
+      ).trim()
       if (!name) return { success: false, message: 'name is required' }
 
-      const parentId = nullableStringValue(params.parentId ?? payload?.parentId) ?? null
+      let parentId =
+        (await resolveOptionalFolderId(workspaceId, params.parentPath ?? payload?.parentPath)) ??
+        nullableStringValue(params.parentId ?? payload?.parentId) ??
+        null
+      if (pathSegments && pathSegments.length > 1) {
+        const resolvedParentId = await findWorkspaceFileFolderIdByPath(
+          workspaceId,
+          pathSegments.slice(0, -1)
+        )
+        if (!resolvedParentId) {
+          return {
+            success: false,
+            message: `Parent folder not found at files/${pathSegments.slice(0, -1).join('/')}`,
+          }
+        }
+        parentId = resolvedParentId
+      }
 
       assertServerToolNotAborted(context)
       const result = await performCreateWorkspaceFileFolder({
@@ -193,9 +296,14 @@ export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, Fi
       if (!context?.userId) throw new Error('Authentication required')
 
       const payload = nested(params)
-      const folderId = stringValue(params.folderId) || stringValue(payload?.folderId) || ''
+      const folderPath = stringValue(params.path) || stringValue(payload?.path)
+      const folderId =
+        (folderPath ? await resolveFolderIdFromPath(workspaceId, folderPath) : undefined) ||
+        stringValue(params.folderId) ||
+        stringValue(payload?.folderId) ||
+        ''
       const name = (stringValue(params.name) || stringValue(payload?.name) || '').trim()
-      if (!folderId) return { success: false, message: 'folderId is required' }
+      if (!folderId) return { success: false, message: 'path is required' }
       if (!name) return { success: false, message: 'name is required' }
 
       const existing = await getWorkspaceFileFolder(workspaceId, folderId)
@@ -244,9 +352,20 @@ export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFo
       if (!context?.userId) throw new Error('Authentication required')
 
       const payload = nested(params)
-      const folderId = stringValue(params.folderId) || stringValue(payload?.folderId) || ''
-      if (!folderId) return { success: false, message: 'folderId is required' }
-      const parentId = nullableStringValue(params.parentId ?? payload?.parentId) ?? null
+      const folderPath = stringValue(params.path) || stringValue(payload?.path)
+      const folderId =
+        (folderPath ? await resolveFolderIdFromPath(workspaceId, folderPath) : undefined) ||
+        stringValue(params.folderId) ||
+        stringValue(payload?.folderId) ||
+        ''
+      if (!folderId) return { success: false, message: 'path is required' }
+      const parentId =
+        (await resolveOptionalFolderId(
+          workspaceId,
+          params.destinationPath ?? payload?.destinationPath
+        )) ??
+        nullableStringValue(params.parentId ?? payload?.parentId) ??
+        null
 
       assertServerToolNotAborted(context)
       const result = await performUpdateWorkspaceFileFolder({
@@ -292,11 +411,14 @@ export const deleteFileFolderServerTool: BaseServerTool<DeleteFileFolderArgs, Fi
       if (!context?.userId) throw new Error('Authentication required')
 
       const payload = nested(params)
+      const paths = stringListFromValues(params.paths, payload?.paths, params.path, payload?.path)
       const folderIds =
-        params.folderIds ??
-        stringArrayValue(payload?.folderIds) ??
-        [stringValue(params.folderId) || stringValue(payload?.folderId) || ''].filter(Boolean)
-      if (folderIds.length === 0) return { success: false, message: 'folderIds is required' }
+        paths.length > 0
+          ? await Promise.all(paths.map((path) => resolveFolderIdFromPath(workspaceId, path)))
+          : (params.folderIds ??
+            stringArrayValue(payload?.folderIds) ??
+            [stringValue(params.folderId) || stringValue(payload?.folderId) || ''].filter(Boolean))
+      if (folderIds.length === 0) return { success: false, message: 'paths is required' }
 
       assertServerToolNotAborted(context)
       const result = await performDeleteWorkspaceFileItems({
@@ -336,13 +458,29 @@ export const moveFileServerTool: BaseServerTool<MoveFileArgs, FileFolderResult> 
       if (!context?.userId) throw new Error('Authentication required')
 
       const payload = nested(params)
+      const paths = stringListFromValues(params.paths, payload?.paths, params.path, payload?.path)
+      const resolvedByPath =
+        paths.length > 0 ? await resolveFileIdsFromPaths(workspaceId, paths) : undefined
+      if (resolvedByPath?.failed.length) {
+        return {
+          success: false,
+          message: `Files not found: ${resolvedByPath.failed.join(', ')}`,
+        }
+      }
       const fileIds =
+        resolvedByPath?.fileIds ??
         params.fileIds ??
         stringArrayValue(payload?.fileIds) ??
         [stringValue(params.fileId) || stringValue(payload?.fileId) || ''].filter(Boolean)
-      if (fileIds.length === 0) return { success: false, message: 'fileIds is required' }
+      if (fileIds.length === 0) return { success: false, message: 'paths is required' }
 
-      const folderId = nullableStringValue(params.folderId ?? payload?.folderId) ?? null
+      const folderId =
+        (await resolveOptionalFolderId(
+          workspaceId,
+          params.destinationPath ?? payload?.destinationPath
+        )) ??
+        nullableStringValue(params.folderId ?? payload?.folderId) ??
+        null
 
       assertServerToolNotAborted(context)
       const result = await performMoveWorkspaceFileItems({

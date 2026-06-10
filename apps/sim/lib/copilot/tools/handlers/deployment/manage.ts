@@ -7,22 +7,31 @@ import {
   workflowMcpTool,
 } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
   performCreateWorkflowMcpServer,
   performDeleteWorkflowMcpServer,
   performUpdateWorkflowMcpServer,
 } from '@/lib/mcp/orchestration'
-import { performRevertToVersion } from '@/lib/workflows/orchestration'
+import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison'
+import { performActivateVersion, performRevertToVersion } from '@/lib/workflows/orchestration'
+import { updateDeploymentVersionMetadata } from '@/lib/workflows/persistence/utils'
+import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess } from '../access'
 import type {
   CheckDeploymentStatusParams,
   CreateWorkspaceMcpServerParams,
   DeleteWorkspaceMcpServerParams,
+  DiffWorkflowsParams,
+  GetDeploymentLogParams,
   ListWorkspaceMcpServersParams,
+  LoadDeploymentParams,
+  PromoteToLiveParams,
+  UpdateDeploymentVersionParams,
   UpdateWorkspaceMcpServerParams,
 } from '../param-types'
+import { resolveWorkflowStateRef } from './state-refs'
 
 export async function executeCheckDeploymentStatus(
   params: CheckDeploymentStatusParams,
@@ -60,12 +69,13 @@ export async function executeCheckDeploymentStatus(
     ])
 
     const isApiDeployed = apiDeploy[0]?.isDeployed || false
+    const needsRedeployment = isApiDeployed ? await checkNeedsRedeployment(workflowId) : false
     const apiDetails = {
       isDeployed: isApiDeployed,
       deployedAt: apiDeploy[0]?.deployedAt || null,
       endpoint: isApiDeployed ? `/api/workflows/${workflowId}/execute` : null,
       apiKey: workflowRecord.workspaceId ? 'Workspace API keys' : 'Personal API keys',
-      needsRedeployment: false,
+      needsRedeployment,
     }
 
     const isChatDeployed = !!chatDeploy[0]
@@ -336,8 +346,8 @@ export async function executeDeleteWorkspaceMcpServer(
   }
 }
 
-export async function executeGetDeploymentVersion(
-  params: { workflowId?: string; version?: number },
+export async function executeGetDeploymentLog(
+  params: GetDeploymentLogParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -345,36 +355,56 @@ export async function executeGetDeploymentVersion(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    const version = params.version
-    if (version === undefined || version === null) {
-      return { success: false, error: 'version is required' }
-    }
-
     await ensureWorkflowAccess(workflowId, context.userId)
 
-    const [row] = await db
-      .select({ state: workflowDeploymentVersion.state })
+    const rows = await db
+      .select({
+        id: workflowDeploymentVersion.id,
+        version: workflowDeploymentVersion.version,
+        name: workflowDeploymentVersion.name,
+        description: workflowDeploymentVersion.description,
+        isActive: workflowDeploymentVersion.isActive,
+        createdAt: workflowDeploymentVersion.createdAt,
+        createdBy: workflowDeploymentVersion.createdBy,
+      })
       .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.version, version)
-        )
-      )
-      .limit(1)
+      .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+      .orderBy(desc(workflowDeploymentVersion.version))
 
-    if (!row?.state) {
-      return { success: false, error: `Deployment version ${version} not found` }
-    }
+    const versions = rows.map((r) => ({
+      id: r.id,
+      version: r.version,
+      name: r.name ?? undefined,
+      description: r.description ?? undefined,
+      isActive: r.isActive,
+      createdAt: r.createdAt.toISOString(),
+      createdBy: r.createdBy ?? undefined,
+    }))
 
-    return { success: true, output: { version, deployedState: row.state } }
+    return { success: true, output: { workflowId, count: versions.length, versions } }
   } catch (error) {
     return { success: false, error: toError(error).message }
   }
 }
 
-export async function executeRevertToVersion(
-  params: { workflowId?: string; version?: number },
+// Cap individual sub-block before/after values so a large diff can't blow the
+// tool-result budget. Oversized values are replaced with an elision marker.
+const MAX_DIFF_VALUE_BYTES = 2000
+
+function guardDiffValue(value: unknown): unknown {
+  try {
+    const json = JSON.stringify(value)
+    if (json && json.length > MAX_DIFF_VALUE_BYTES) {
+      return { elided: true, bytes: json.length }
+    }
+  } catch {
+    return { elided: true, reason: 'unserializable' }
+  }
+  return value
+}
+
+export async function executeDiffWorkflows(
+  params: DiffWorkflowsParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
@@ -382,9 +412,80 @@ export async function executeRevertToVersion(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    const version = params.version
-    if (version === undefined || version === null) {
+    if (params.ref1 === undefined || params.ref2 === undefined) {
+      return { success: false, error: 'ref1 and ref2 are required' }
+    }
+
+    // resolveWorkflowStateRef enforces read access on the workflow.
+    const [side1, side2] = await Promise.all([
+      resolveWorkflowStateRef(workflowId, params.ref1, context.userId),
+      resolveWorkflowStateRef(workflowId, params.ref2, context.userId),
+    ])
+
+    // ref1 = base/previous, ref2 = target/current: added = present in ref2 only.
+    const summary = generateWorkflowDiffSummary(side2.state, side1.state)
+    const diff = {
+      ...summary,
+      modifiedBlocks: summary.modifiedBlocks.map((block) => ({
+        ...block,
+        changes: block.changes.map((change) => ({
+          field: change.field,
+          oldValue: guardDiffValue(change.oldValue),
+          newValue: guardDiffValue(change.newValue),
+        })),
+      })),
+    }
+
+    return {
+      success: true,
+      output: {
+        workflowId,
+        ref1: { ref: side1.ref, version: side1.version, isActive: side1.isActive },
+        ref2: { ref: side2.ref, version: side2.version, isActive: side2.isActive },
+        diff,
+      },
+    }
+  } catch (error) {
+    return { success: false, error: toError(error).message }
+  }
+}
+
+function resolveLoadVersion(
+  raw: number | string
+): { ok: true; version: number | 'active' } | { ok: false; error: string } {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return { ok: true, version: raw }
+  if (typeof raw === 'string') {
+    const t = raw.trim().toLowerCase()
+    if (t === 'live' || t === 'active') return { ok: true, version: 'active' }
+    if (t === 'draft' || t === 'current') {
+      return {
+        ok: false,
+        error: 'Cannot load "draft" — load_deployment restores a deployed version into the draft',
+      }
+    }
+    if (/^\d+$/.test(t)) return { ok: true, version: Number.parseInt(t, 10) }
+  }
+  return {
+    ok: false,
+    error: `Invalid version "${String(raw)}": expected a version number or "live"`,
+  }
+}
+
+export async function executeLoadDeployment(
+  params: LoadDeploymentParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    if (params.version === undefined || params.version === null) {
       return { success: false, error: 'version is required' }
+    }
+    const target = resolveLoadVersion(params.version)
+    if (!target.ok) {
+      return { success: false, error: target.error }
     }
 
     const { workflow: workflowRecord } = await ensureWorkflowAccess(
@@ -394,21 +495,129 @@ export async function executeRevertToVersion(
     )
     const result = await performRevertToVersion({
       workflowId,
+      version: target.version,
+      userId: context.userId,
+      workflow: workflowRecord as Record<string, unknown>,
+    })
+
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to load deployment' }
+    }
+
+    const label = target.version === 'active' ? 'the live deployment' : `version ${target.version}`
+    return {
+      success: true,
+      output: {
+        workflowId,
+        message: `Loaded ${label} into the workflow draft`,
+        lastSaved: result.lastSaved,
+      },
+    }
+  } catch (error) {
+    return { success: false, error: toError(error).message }
+  }
+}
+
+function normalizePromoteVersion(raw: number | string): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) return Number.parseInt(raw.trim(), 10)
+  return null
+}
+
+export async function executePromoteToLive(
+  params: PromoteToLiveParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    if (params.version === undefined || params.version === null) {
+      return { success: false, error: 'version is required' }
+    }
+    const version = normalizePromoteVersion(params.version)
+    if (version === null) {
+      return {
+        success: false,
+        error:
+          'version must be a deployment version number (use load_deployment to change the draft; "live" is already live)',
+      }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'admin'
+    )
+    const result = await performActivateVersion({
+      workflowId,
       version,
       userId: context.userId,
       workflow: workflowRecord as Record<string, unknown>,
     })
 
     if (!result.success) {
-      return { success: false, error: result.error || 'Failed to revert' }
+      return { success: false, error: result.error || 'Failed to promote version' }
     }
 
     return {
       success: true,
       output: {
-        message: `Reverted workflow to deployment version ${version}`,
-        lastSaved: result.lastSaved,
+        workflowId,
+        version,
+        message: `Promoted version ${version} to live`,
+        deployedAt: result.deployedAt ? new Date(result.deployedAt).toISOString() : undefined,
+        warnings: result.warnings,
       },
+    }
+  } catch (error) {
+    return { success: false, error: toError(error).message }
+  }
+}
+
+export async function executeUpdateDeploymentVersion(
+  params: UpdateDeploymentVersionParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    if (params.version === undefined || params.version === null) {
+      return { success: false, error: 'version is required' }
+    }
+    const version = normalizePromoteVersion(params.version)
+    if (version === null) {
+      return {
+        success: false,
+        error: 'version must be a deployment version number (use get_deployment_log to find it)',
+      }
+    }
+
+    const name = typeof params.name === 'string' ? params.name.trim() : undefined
+    const description =
+      typeof params.description === 'string' ? params.description.trim() : undefined
+    if (name === undefined && description === undefined) {
+      return { success: false, error: 'Provide a name and/or description to update' }
+    }
+
+    await ensureWorkflowAccess(workflowId, context.userId, 'write')
+
+    const updated = await updateDeploymentVersionMetadata({
+      workflowId,
+      version,
+      ...(name !== undefined ? { name: name || null } : {}),
+      ...(description !== undefined ? { description: description || null } : {}),
+    })
+    if (!updated) {
+      return { success: false, error: `Deployment version ${version} not found` }
+    }
+
+    return {
+      success: true,
+      output: { workflowId, version, name: updated.name, description: updated.description },
     }
   } catch (error) {
     return { success: false, error: toError(error).message }
