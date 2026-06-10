@@ -1099,9 +1099,10 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
     // Adopt value changes that bypassed React's change tracking (browser
     // autofill, password managers, grammar extensions — see facebook/react#2125)
-    // so state never drifts from the DOM. The render rebuilds the overlay and
-    // selection logic resumes on the next event.
-    if (textarea.value !== valueRef.current) {
+    // so state never drifts from the DOM. Skip when state is empty: submit clears
+    // `value` synchronously, but a select/mouseUp can fire while the textarea
+    // still holds the just-sent text, and adopting it would resurrect the message.
+    if (valueRef.current !== '' && textarea.value !== valueRef.current) {
       adoptDomValue(textarea)
       return
     }
