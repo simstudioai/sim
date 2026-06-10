@@ -78,19 +78,6 @@ return 1
 `
 
 /**
- * Release a previously reserved slot. Idempotent: a no-op when the pointer is
- * absent (already released or expired). The in-flight set key is rebuilt from
- * the pointer value with a fixed prefix (single-instance Redis).
- */
-const RELEASE_SCRIPT = `
-local entity = redis.call('GET', KEYS[1])
-if not entity then return 0 end
-redis.call('DEL', KEYS[1])
-redis.call('ZREM', '${INFLIGHT_KEY_PREFIX}' .. entity, ARGV[1])
-return 1
-`
-
-/**
  * Stable per-entity reservation key. Org-scoped subscriptions reserve against
  * the organization's pooled cap; everyone else against their personal cap —
  * mirroring the entity the usage limit itself is enforced on.
@@ -192,6 +179,11 @@ export async function reserveExecutionSlot(
  * idempotent — safe to call for executions that never reserved (Redis down,
  * billing disabled) or are released more than once. Must NOT be called for a
  * paused execution that may still resume.
+ *
+ * Uses discrete single-key commands rather than a Lua script that rebuilds the
+ * in-flight key from the pointer value: the entity that owns the slot is only
+ * known after reading the pointer, and constructing a key inside Lua bypasses
+ * the `KEYS` declaration that Redis Cluster relies on for slot routing.
  */
 export async function releaseExecutionSlot(executionId: string): Promise<void> {
   if (!isBillingEnabled) {
@@ -204,7 +196,11 @@ export async function releaseExecutionSlot(executionId: string): Promise<void> {
   }
 
   try {
-    await redis.eval(RELEASE_SCRIPT, 1, `${POINTER_KEY_PREFIX}${executionId}`, executionId)
+    const pointerKey = `${POINTER_KEY_PREFIX}${executionId}`
+    const entityKey = await redis.getdel(pointerKey)
+    if (entityKey) {
+      await redis.zrem(`${INFLIGHT_KEY_PREFIX}${entityKey}`, executionId)
+    }
   } catch (error) {
     logger.warn('Failed to release usage reservation', {
       error: toError(error).message,

@@ -24,7 +24,9 @@ import {
 } from '@/lib/billing/calculations/usage-reservation'
 
 const evalMock = vi.fn()
-const fakeRedis = { eval: evalMock }
+const getdelMock = vi.fn()
+const zremMock = vi.fn()
+const fakeRedis = { eval: evalMock, getdel: getdelMock, zrem: zremMock }
 
 const baseParams = {
   userId: 'user-1',
@@ -117,22 +119,33 @@ describe('usage-reservation', () => {
   })
 
   describe('releaseExecutionSlot', () => {
-    it('runs the release script for the execution pointer', async () => {
-      evalMock.mockResolvedValueOnce(1)
+    it('reads the pointer then removes the slot from that entity set', async () => {
+      getdelMock.mockResolvedValueOnce('org:org-9')
       await releaseExecutionSlot('exec-1')
-      const args = evalMock.mock.calls[0]
-      expect(args[2]).toBe('usage:reservation:exec-1')
-      expect(args[3]).toBe('exec-1')
+      expect(getdelMock).toHaveBeenCalledWith('usage:reservation:exec-1')
+      expect(zremMock).toHaveBeenCalledWith('usage:inflight:org:org-9', 'exec-1')
+    })
+
+    it('does not touch the in-flight set when the pointer is already gone', async () => {
+      getdelMock.mockResolvedValueOnce(null)
+      await releaseExecutionSlot('exec-1')
+      expect(zremMock).not.toHaveBeenCalled()
+    })
+
+    it('uses only single-key commands (cluster-safe; no key built inside Lua)', async () => {
+      getdelMock.mockResolvedValueOnce('user:user-1')
+      await releaseExecutionSlot('exec-1')
+      expect(evalMock).not.toHaveBeenCalled()
     })
 
     it('is a no-op when billing enforcement is disabled', async () => {
       mockFlags.isBillingEnabled = false
       await releaseExecutionSlot('exec-1')
-      expect(evalMock).not.toHaveBeenCalled()
+      expect(getdelMock).not.toHaveBeenCalled()
     })
 
     it('swallows release errors', async () => {
-      evalMock.mockRejectedValueOnce(new Error('boom'))
+      getdelMock.mockRejectedValueOnce(new Error('boom'))
       await expect(releaseExecutionSlot('exec-1')).resolves.toBeUndefined()
     })
   })

@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import {
@@ -703,7 +704,11 @@ async function handleExecutePost(
       )
     }
 
+    // Preprocessing reserved an admission slot (released when the LoggingSession
+    // finalizes). Any path that exits before execution starts must release it
+    // here, or the slot leaks until its TTL and wrongly throttles later runs.
     if (req.signal.aborted) {
+      await releaseExecutionSlot(executionId)
       return clientCancelledResponse()
     }
 
@@ -712,12 +717,14 @@ async function handleExecutePost(
 
     if (!workflow.workspaceId) {
       reqLogger.error('Workflow has no workspaceId')
+      await releaseExecutionSlot(executionId)
       return NextResponse.json({ error: 'Workflow has no associated workspace' }, { status: 500 })
     }
     const workspaceId = workflow.workspaceId
     reqLogger = reqLogger.withMetadata({ workspaceId, userId: actorUserId })
 
     if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workspaceId) {
+      await releaseExecutionSlot(executionId)
       return NextResponse.json(
         { error: 'API key is not authorized for this workspace' },
         { status: 403 }
@@ -751,6 +758,7 @@ async function handleExecutePost(
     let processedInput = input
     try {
       if (req.signal.aborted) {
+        await releaseExecutionSlot(executionId)
         return clientCancelledResponse()
       }
       const workflowData = shouldUseDraftState
@@ -758,6 +766,7 @@ async function handleExecutePost(
         : await loadDeployedWorkflowState(workflowId, workspaceId)
 
       if (req.signal.aborted) {
+        await releaseExecutionSlot(executionId)
         return clientCancelledResponse()
       }
 
