@@ -2,6 +2,7 @@ import { createServer } from 'http'
 import { createLogger } from '@sim/logger'
 import type { Server as SocketIOServer } from 'socket.io'
 import { createSocketIOServer, shutdownSocketIOAdapter } from '@/config/socket'
+import { assertSchemaCompatibility } from '@/database/preflight'
 import { env } from '@/env'
 import { setupAllHandlers } from '@/handlers'
 import { type AuthenticatedSocket, authenticateSocket } from '@/middleware/auth'
@@ -92,6 +93,8 @@ async function main() {
     logger.info(`New socket connection: ${socket.id}`)
     setupAllHandlers(socket, roomManager)
   })
+
+  await assertSchemaCompatibility()
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     logger.info(`Socket.IO server running on port ${PORT}`)
