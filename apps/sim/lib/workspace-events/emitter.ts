@@ -105,6 +105,10 @@ export async function emitExecutionCompletedEvent(log: WorkflowExecutionLog): Pr
       const config = parseSubscriptionConfig(subscription.webhook.providerConfig)
       if (!config) continue
       if (config.eventType === 'workflow_deployed') continue
+      // no_activity is owned by the inactivity poller and can never fire from
+      // a completed execution; skip before the rule branch costs a cooldown
+      // read on this hot path.
+      if (config.eventType === 'no_activity') continue
 
       if (subscription.webhook.workflowId === log.workflowId) continue
       if (!matchesWorkflowScope(config, log.workflowId)) continue

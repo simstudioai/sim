@@ -256,6 +256,18 @@ describe('emitExecutionCompletedEvent', () => {
     })
   })
 
+  it('skips no_activity subscriptions before any cooldown read or rule evaluation (poller-owned)', async () => {
+    const sub = makeSubscription(makeConfig({ eventType: 'no_activity' }))
+    mockFetchSubscriptions.mockResolvedValueOnce([sub])
+
+    await emitExecutionCompletedEvent(makeLog())
+
+    expect(mockReadLastFiredAt).not.toHaveBeenCalled()
+    expect(mockEvaluateRule).not.toHaveBeenCalled()
+    expect(mockClaimCooldown).not.toHaveBeenCalled()
+    expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
+  })
+
   it('skips rule evaluation while within the cooldown window', async () => {
     mockReadLastFiredAt.mockResolvedValueOnce(new Date())
     mockFetchSubscriptions.mockResolvedValueOnce([
