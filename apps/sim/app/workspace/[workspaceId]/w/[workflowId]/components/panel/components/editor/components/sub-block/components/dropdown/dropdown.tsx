@@ -8,11 +8,11 @@ import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/sub
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -69,7 +69,6 @@ interface DropdownProps {
   dependsOn?: SubBlockConfig['dependsOn']
   /** Enable search input in dropdown */
   searchable?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -96,8 +95,8 @@ export const Dropdown = memo(function Dropdown({
   fetchOptionById,
   dependsOn,
   searchable = false,
-  activeSearchTarget,
 }: DropdownProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
