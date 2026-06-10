@@ -15,6 +15,7 @@ import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
+  withErrorContentBlock,
   withStoppedContentBlock,
 } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -465,12 +466,14 @@ function buildOnComplete(params: {
         return
       }
 
+      // Failed turns persist too (partial work + an inline error marker) so the
+      // history refetch after finalize doesn't silently erase the streamed turn.
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
-        ...(result.success
-          ? { assistantMessage: buildPersistedAssistantMessage(result, requestId) }
-          : {}),
+        assistantMessage: result.success
+          ? buildPersistedAssistantMessage(result, requestId)
+          : withErrorContentBlock(buildPersistedAssistantMessage(result, requestId)),
       })
 
       if (notifyWorkspaceStatus && workspaceId) {
@@ -503,7 +506,19 @@ function buildOnError(params: {
     if (!chatId) return
 
     try {
-      await finalizeAssistantTurn({ chatId, userMessageId })
+      // Persist an errored assistant turn so the failure stays visible in the
+      // transcript instead of the turn vanishing on the next history refetch.
+      await finalizeAssistantTurn({
+        chatId,
+        userMessageId,
+        assistantMessage: withErrorContentBlock({
+          id: generateId(),
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          requestId,
+        }),
+      })
 
       if (notifyWorkspaceStatus && workspaceId) {
         chatPubSub?.publishStatusChanged({
