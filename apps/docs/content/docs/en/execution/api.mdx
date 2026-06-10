@@ -6,7 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Video } from '@/components/ui/video'
 
-Sim provides a comprehensive external API for querying workflow run logs. To react to workflow runs in real time, use the Sim Trigger block to run a workflow on workspace events like execution errors, successes, and deployments.
+Sim provides a comprehensive external API for querying workflow run logs. To react to workflow runs in real time, use the Sim trigger block to run a workflow on workspace events like execution errors, successes, and deployments.
 
 ## Authentication
 
@@ -329,5 +329,5 @@ import { FAQ } from '@/components/ui/faq'
   { question: "How do I trigger an async run via the API?", answer: "Set the X-Execution-Mode header to 'async' on your POST request to /api/workflows/{id}/execute. The API returns a 202 response with a jobId, executionId, and a statusUrl you can poll to check when the job completes. Async mode does not support draft state, workflow overrides, or selective output options." },
   { question: "What authentication methods does the API support?", answer: "The API supports two authentication methods: API keys passed in the x-api-key header, and session-based authentication for logged-in users. API keys can be generated from Settings > Sim Keys in the platform. Workflows with public API access enabled can also be called without authentication." },
   { question: "What rate limits apply to the Logs API?", answer: "Rate limits use a token bucket algorithm. Free plans get 30 requests/minute with 60 burst capacity, Pro gets 100/200, Team gets 200/400, and Enterprise gets 500/1000. These are separate from workflow run rate limits, which are shown in the response body." },
-  { question: "How do I get notified when a workflow run completes or fails?", answer: "Add the Sim Trigger block to a workflow and deploy it. It runs on workspace events like execution successes, errors, deployments, and alert conditions such as latency spikes or cost thresholds — and you can compose any blocks downstream (Slack, email, webhooks, custom logic) to deliver the alert." },
+  { question: "How do I get notified when a workflow run completes or fails?", answer: "Add the Sim trigger block to a workflow and deploy it. It runs on workspace events like execution successes, errors, deployments, and alert conditions such as latency spikes or cost thresholds — and you can compose any blocks downstream (Slack, email, webhooks, custom logic) to deliver the alert." },
 ]} />

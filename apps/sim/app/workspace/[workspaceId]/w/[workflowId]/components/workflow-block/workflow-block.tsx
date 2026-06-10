@@ -24,6 +24,7 @@ import {
   isSubBlockVisibleForMode,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
+import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
 import {
@@ -605,7 +606,8 @@ const SubBlockRow = memo(function SubBlockRow({
   )
   const knowledgeBaseDisplayName = kbForDisplayName?.name ?? null
 
-  const { data: workflowMapForLookup = {} } = useWorkflowMap(workspaceId)
+  const { data: workflowMapForLookup = {}, isPending: workflowMapPending } =
+    useWorkflowMap(workspaceId)
   const workflowSelectionName = useMemo(() => {
     if (subBlock?.type !== 'workflow-selector' || typeof rawValue !== 'string') return null
     return workflowMapForLookup[rawValue]?.name ?? null
@@ -619,16 +621,24 @@ const SubBlockRow = memo(function SubBlockRow({
       (subBlock.id === 'workflowIds' || subBlock.canonicalParamId === 'workflowIds')
     if (!isWorkflowMultiSelect) return null
     if (!Array.isArray(rawValue) || rawValue.length === 0) return null
+    if (workflowMapPending) return null
 
     const names = rawValue
       .filter((id): id is string => typeof id === 'string' && id.length > 0)
-      .map((id) => workflowMapForLookup[id]?.name ?? id)
+      .map((id) => workflowMapForLookup[id]?.name ?? DELETED_WORKFLOW_LABEL)
 
     if (names.length === 0) return null
     if (names.length === 1) return names[0]
     if (names.length === 2) return `${names[0]}, ${names[1]}`
     return `${names[0]}, ${names[1]} +${names.length - 2}`
-  }, [workflowMapForLookup, subBlock?.id, subBlock?.type, subBlock?.multiSelect, rawValue])
+  }, [
+    workflowMapForLookup,
+    workflowMapPending,
+    subBlock?.id,
+    subBlock?.type,
+    subBlock?.multiSelect,
+    rawValue,
+  ])
 
   const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
   const mcpServerDisplayName = useMemo(() => {

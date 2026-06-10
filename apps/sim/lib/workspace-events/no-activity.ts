@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { webhook, workflow, workflowDeploymentVersion, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gte, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { SIM_RULE_COOLDOWN_HOURS, SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
 import { dispatchSimEvent } from '@/lib/workspace-events/emitter'
 import { buildNoActivityEventPayload } from '@/lib/workspace-events/payload'
@@ -73,23 +73,26 @@ async function fetchWatchedWorkflows(
   subscriberWorkflowId: string,
   config: SimSubscriptionConfig
 ): Promise<Array<{ id: string; name: string }>> {
-  const rows = await db
+  // Subscriber exclusion and the explicit selection must be SQL conditions:
+  // filtering in memory after an unordered LIMIT could permanently drop an
+  // explicitly watched workflow in workspaces above the cap. The ORDER BY
+  // keeps the capped scan deterministic across polls.
+  const conditions = [
+    eq(workflow.workspaceId, workspaceId),
+    eq(workflow.isDeployed, true),
+    isNull(workflow.archivedAt),
+    ne(workflow.id, subscriberWorkflowId),
+  ]
+  if (config.workflowIds.length > 0) {
+    conditions.push(inArray(workflow.id, config.workflowIds))
+  }
+
+  return db
     .select({ id: workflow.id, name: workflow.name })
     .from(workflow)
-    .where(
-      and(
-        eq(workflow.workspaceId, workspaceId),
-        eq(workflow.isDeployed, true),
-        isNull(workflow.archivedAt)
-      )
-    )
+    .where(and(...conditions))
+    .orderBy(asc(workflow.id))
     .limit(MAX_WORKFLOWS_PER_SUBSCRIPTION)
-
-  return rows.filter((candidate) => {
-    if (candidate.id === subscriberWorkflowId) return false
-    if (config.workflowIds.length > 0 && !config.workflowIds.includes(candidate.id)) return false
-    return true
-  })
 }
 
 /** True when the workflow had at least one qualifying execution inside the window. */
@@ -105,7 +108,7 @@ async function hasRecentActivity(
     .where(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
-        gte(workflowExecutionLogs.createdAt, windowStart),
+        gte(workflowExecutionLogs.startedAt, windowStart),
         excludeSimExecutionsCondition()
       )
     )

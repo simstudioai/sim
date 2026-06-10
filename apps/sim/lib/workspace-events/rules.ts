@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, avg, count, desc, eq, gte, ne, type SQL } from 'drizzle-orm'
+import { and, avg, count, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 import { creditsToDollars } from '@/lib/billing/credits/conversion'
 import {
   SIM_MIN_EXECUTIONS_FOR_RATE_RULES,
@@ -26,7 +26,7 @@ async function checkConsecutiveFailures(workflowId: string, threshold: number): 
     .select({ level: workflowExecutionLogs.level })
     .from(workflowExecutionLogs)
     .where(and(eq(workflowExecutionLogs.workflowId, workflowId), excludeSimExecutionsCondition()))
-    .orderBy(desc(workflowExecutionLogs.createdAt))
+    .orderBy(desc(workflowExecutionLogs.startedAt))
     .limit(threshold)
 
   if (recentLogs.length < threshold) return false
@@ -49,21 +49,27 @@ async function checkFailureRate(
 ): Promise<boolean> {
   const windowStart = new Date(Date.now() - windowHours * 60 * 60 * 1000)
 
-  const logs = await db
-    .select({ level: workflowExecutionLogs.level })
+  // Single DB-side aggregate: the window is user-configured and this runs on
+  // the execution-completion path, so never materialize the in-window rows.
+  const result = await db
+    .select({
+      total: count(),
+      errors: count(sql`case when ${workflowExecutionLogs.level} = 'error' then 1 end`),
+    })
     .from(workflowExecutionLogs)
     .where(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
-        gte(workflowExecutionLogs.createdAt, windowStart),
+        gte(workflowExecutionLogs.startedAt, windowStart),
         excludeSimExecutionsCondition()
       )
     )
 
-  if (logs.length < SIM_MIN_EXECUTIONS_FOR_RATE_RULES) return false
+  const total = result[0]?.total ?? 0
+  if (total < SIM_MIN_EXECUTIONS_FOR_RATE_RULES) return false
 
-  const errorCount = logs.filter((log) => log.level === 'error').length
-  const failureRate = (errorCount / logs.length) * 100
+  const errorCount = result[0]?.errors ?? 0
+  const failureRate = (errorCount / total) * 100
 
   return failureRate >= ratePercent
 }
@@ -85,7 +91,7 @@ async function checkLatencySpike(
     .where(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
-        gte(workflowExecutionLogs.createdAt, windowStart),
+        gte(workflowExecutionLogs.startedAt, windowStart),
         excludeSimExecutionsCondition()
       )
     )
@@ -115,7 +121,7 @@ async function checkErrorCount(
       and(
         eq(workflowExecutionLogs.workflowId, workflowId),
         eq(workflowExecutionLogs.level, 'error'),
-        gte(workflowExecutionLogs.createdAt, windowStart),
+        gte(workflowExecutionLogs.startedAt, windowStart),
         excludeSimExecutionsCondition()
       )
     )

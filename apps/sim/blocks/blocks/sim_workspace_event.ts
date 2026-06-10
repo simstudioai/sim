@@ -4,7 +4,10 @@ import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const SimWorkspaceEventBlock: BlockConfig = {
-  type: SIM_WORKSPACE_EVENT_TRIGGER_ID,
+  // Literal (not SIM_WORKSPACE_EVENT_TRIGGER_ID) so scripts/generate-docs.ts
+  // can scrape the type for icon-map keys; a test asserts it stays equal to
+  // the constant.
+  type: 'sim_workspace_event',
   name: 'Sim',
   description:
     'Run this workflow when workspace events occur: execution errors or successes, deployments, and alert conditions like latency or cost spikes.',

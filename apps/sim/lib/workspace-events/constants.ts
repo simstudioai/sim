@@ -40,14 +40,14 @@ export type SimEventType = (typeof SIM_EVENT_TYPES)[number]
  * Plain events that ARE a run completing. These carry the run summary fields
  * (runId, durationMs, cost, finalOutput) at the top level.
  */
-export const SIM_PLAIN_RUN_EVENT_TYPES = ['execution_success', 'execution_error'] as const
+const SIM_PLAIN_RUN_EVENT_TYPES = ['execution_success', 'execution_error'] as const
 
 /**
  * Rule events tripped by a run completing. The run is evidence for the
  * condition rather than the event itself, so its summary nests under
  * `triggeringRun`. no_activity is excluded — it has no triggering run.
  */
-export const SIM_RUN_BACKED_RULE_EVENT_TYPES = SIM_RULE_EVENT_TYPES.filter(
+const SIM_RUN_BACKED_RULE_EVENT_TYPES = SIM_RULE_EVENT_TYPES.filter(
   (eventType) => eventType !== 'no_activity'
 )
 

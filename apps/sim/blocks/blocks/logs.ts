@@ -507,7 +507,7 @@ export const LogsV2Block: BlockConfig = {
         const durationValue = toNumber(params.durationValue)
 
         return {
-          workflowIds: joinIds(params.workflowSelector ?? params.manualWorkflowIds),
+          workflowIds: joinIds(params.workflowIds),
           level,
           startDate: params.startDate || presetStartDate,
           endDate: params.endDate || undefined,
@@ -525,8 +525,7 @@ export const LogsV2Block: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    workflowSelector: { type: 'array', description: 'Workflow IDs to filter by' },
-    manualWorkflowIds: { type: 'string', description: 'Comma-separated workflow IDs' },
+    workflowIds: { type: 'array', description: 'Workflow IDs to filter by (canonical param)' },
     level: { type: 'array', description: 'Statuses to include (empty for all)' },
     timeRange: { type: 'string', description: 'Preset time window' },
     startDate: { type: 'string', description: 'ISO 8601 lower bound (overrides Time Range)' },

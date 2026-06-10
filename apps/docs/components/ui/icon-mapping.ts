@@ -407,7 +407,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   sharepoint_v2: MicrosoftSharepointIcon,
   shopify: ShopifyIcon,
   similarweb: SimilarwebIcon,
-  simworkspaceevent: SimTriggerIcon,
+  sim_workspace_event: SimTriggerIcon,
   sixtyfour: SixtyfourIcon,
   slack: SlackIcon,
   sqs: SQSIcon,

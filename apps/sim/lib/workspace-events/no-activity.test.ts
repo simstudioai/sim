@@ -52,6 +52,20 @@ function makeConfig(overrides: Partial<SimSubscriptionConfig> = {}): SimSubscrip
   }
 }
 
+/** Flattens nested and/or condition trees from the drizzle operator mocks. */
+function flattenCondition(condition: unknown): unknown[] {
+  if (!condition || typeof condition !== 'object') return []
+  const node = condition as { type?: string; conditions?: unknown[] }
+  if (node.type === 'and' || node.type === 'or') {
+    return [node, ...(node.conditions ?? []).flatMap(flattenCondition)]
+  }
+  return [node]
+}
+
+function allWhereConditions(): unknown[] {
+  return dbChainMockFns.where.mock.calls.flatMap(([condition]) => flattenCondition(condition))
+}
+
 function makeSubscriptionRow(config: SimSubscriptionConfig) {
   return {
     webhook: {
@@ -179,13 +193,10 @@ describe('pollNoActivityEvents', () => {
     expect(mockDispatchSimEvent).toHaveBeenCalledTimes(1)
   })
 
-  it('respects the explicit workflow selection when one is set', async () => {
+  it('scopes the watched-workflow query to the explicit selection in SQL (before the LIMIT)', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([makeSubscriptionRow(makeConfig({ workflowIds: ['wf-watched'] }))])
-      .mockResolvedValueOnce([
-        { id: 'wf-watched', name: 'Watched' },
-        { id: 'wf-unwatched', name: 'Unwatched' },
-      ])
+      .mockResolvedValueOnce([{ id: 'wf-watched', name: 'Watched' }])
       .mockResolvedValueOnce([])
 
     const result = await pollNoActivityEvents()
@@ -193,16 +204,22 @@ describe('pollNoActivityEvents', () => {
     expect(result.checked).toBe(1)
     expect(mockDispatchSimEvent).toHaveBeenCalledTimes(1)
     expect(mockDispatchSimEvent.mock.calls[0][1]).toMatchObject({ workflowId: 'wf-watched' })
+    expect(allWhereConditions()).toContainEqual(
+      expect.objectContaining({ type: 'inArray', values: ['wf-watched'] })
+    )
   })
 
-  it('never checks the subscriber workflow itself', async () => {
+  it('excludes the subscriber workflow in SQL (before the LIMIT)', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([makeSubscriptionRow(makeConfig())])
-      .mockResolvedValueOnce([{ id: 'wf-subscriber', name: 'Subscriber' }])
+      .mockResolvedValueOnce([])
 
     const result = await pollNoActivityEvents()
 
     expect(result.checked).toBe(0)
     expect(mockDispatchSimEvent).not.toHaveBeenCalled()
+    expect(allWhereConditions()).toContainEqual(
+      expect.objectContaining({ type: 'ne', right: 'wf-subscriber' })
+    )
   })
 })

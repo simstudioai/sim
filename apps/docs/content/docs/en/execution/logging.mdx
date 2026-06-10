@@ -145,7 +145,7 @@ The snapshot provides:
 
 - Learn about [Cost Calculation](/execution/costs) to understand workflow pricing
 - Explore the [External API](/execution/api) for programmatic log access
-- Add the Sim Trigger block to a workflow to react to execution errors, successes, deployments, and alert conditions in real time
+- Add the Sim trigger block to a workflow to react to execution errors, successes, deployments, and alert conditions in real time
 
 import { FAQ } from '@/components/ui/faq'
 
@@ -154,6 +154,6 @@ import { FAQ } from '@/components/ui/faq'
   { question: "What data is captured in each run log?", answer: "Each log entry includes the run ID, workflow ID, trigger type, start and end timestamps, total duration in milliseconds, cost breakdown (total cost, token counts, and per-model breakdowns), run data with trace spans, final output, and any associated files. The log details sidebar lets you inspect block-level inputs and outputs." },
   { question: "Are API keys visible in the logs?", answer: "No. API keys and credentials are automatically redacted in the log input tab for security. You can safely inspect block inputs without exposing sensitive values." },
   { question: "What is a workflow snapshot?", answer: "A workflow snapshot is a frozen copy of the workflow's structure (blocks, connections, and configuration) captured at the time of a run. It lets you see the exact state of the workflow when a particular run happened, which is useful for debugging workflows that have been modified since." },
-  { question: "Can I access logs programmatically?", answer: "Yes. The External API provides endpoints to query logs with filtering by workflow, time range, trigger type, duration, cost, and model. To react to runs in real time, use the Sim Trigger block to run a workflow on execution events." },
+  { question: "Can I access logs programmatically?", answer: "Yes. The External API provides endpoints to query logs with filtering by workflow, time range, trigger type, duration, cost, and model. To react to runs in real time, use the Sim trigger block to run a workflow on execution events." },
   { question: "What does Live mode do on the Logs page?", answer: "Live mode automatically refreshes the Logs page in real-time so new log entries appear as they are recorded, without requiring manual page refreshes. This is useful during deployments or when monitoring active workflows." },
 ]} />

@@ -94,41 +94,17 @@ describe('evaluateRule', () => {
 
   describe('failure_rate', () => {
     it('fires when the in-window failure rate meets the threshold (fixed legacy dead code)', async () => {
-      dbChainMockFns.where.mockImplementationOnce(() =>
-        Promise.resolve([
-          { level: 'error' },
-          { level: 'error' },
-          { level: 'error' },
-          { level: 'error' },
-          { level: 'info' },
-          { level: 'info' },
-        ])
-      )
+      dbChainMockFns.where.mockImplementationOnce(() => Promise.resolve([{ total: 6, errors: 4 }]))
       await expect(evaluateRule('failure_rate', makeConfig(), makeContext())).resolves.toBe(true)
     })
 
     it('does not fire below the minimum execution count', async () => {
-      dbChainMockFns.where.mockImplementationOnce(() =>
-        Promise.resolve([
-          { level: 'error' },
-          { level: 'error' },
-          { level: 'error' },
-          { level: 'error' },
-        ])
-      )
+      dbChainMockFns.where.mockImplementationOnce(() => Promise.resolve([{ total: 4, errors: 4 }]))
       await expect(evaluateRule('failure_rate', makeConfig(), makeContext())).resolves.toBe(false)
     })
 
     it('does not fire when the rate is below the threshold', async () => {
-      dbChainMockFns.where.mockImplementationOnce(() =>
-        Promise.resolve([
-          { level: 'error' },
-          { level: 'info' },
-          { level: 'info' },
-          { level: 'info' },
-          { level: 'info' },
-        ])
-      )
+      dbChainMockFns.where.mockImplementationOnce(() => Promise.resolve([{ total: 5, errors: 1 }]))
       await expect(evaluateRule('failure_rate', makeConfig(), makeContext())).resolves.toBe(false)
     })
   })

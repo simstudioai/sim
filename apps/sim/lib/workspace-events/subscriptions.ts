@@ -62,10 +62,32 @@ function parseStringArray(value: unknown): string[] {
   return []
 }
 
-function parsePositiveNumber(value: unknown, fallback: number): number {
+/**
+ * Per-field bounds ported from the legacy notifications contract. Rule SQL
+ * runs on the execution-completion hot path, so windows and counts must stay
+ * inside the designed envelope regardless of what the free-text subblocks
+ * contain. The credit bounds are the legacy dollar bounds ($0.01-$1000) at
+ * 200 credits per dollar.
+ */
+const SIM_RULE_BOUNDS = {
+  consecutiveFailures: { min: 1, max: 100 },
+  failureRatePercent: { min: 1, max: 100 },
+  windowHours: { min: 1, max: 168 },
+  durationThresholdMs: { min: 1000, max: 3_600_000 },
+  latencySpikePercent: { min: 10, max: 1000 },
+  costThresholdCredits: { min: 2, max: 200_000 },
+  errorCountThreshold: { min: 1, max: 1000 },
+  inactivityHours: { min: 1, max: 168 },
+} as const
+
+function parseBoundedNumber(
+  value: unknown,
+  fallback: number,
+  bounds: { min: number; max: number }
+): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback
-  return parsed
+  return Math.min(Math.max(parsed, bounds.min), bounds.max)
 }
 
 /**
@@ -89,31 +111,45 @@ export function parseSubscriptionConfig(providerConfig: unknown): SimSubscriptio
   return {
     eventType: eventType as SimEventType,
     workflowIds: parseStringArray(config.workflowIds),
-    consecutiveFailures: parsePositiveNumber(
+    consecutiveFailures: parseBoundedNumber(
       config.consecutiveFailures,
-      SIM_RULE_DEFAULTS.consecutiveFailures
+      SIM_RULE_DEFAULTS.consecutiveFailures,
+      SIM_RULE_BOUNDS.consecutiveFailures
     ),
-    failureRatePercent: parsePositiveNumber(
+    failureRatePercent: parseBoundedNumber(
       config.failureRatePercent,
-      SIM_RULE_DEFAULTS.failureRatePercent
+      SIM_RULE_DEFAULTS.failureRatePercent,
+      SIM_RULE_BOUNDS.failureRatePercent
     ),
-    windowHours: parsePositiveNumber(config.windowHours, SIM_RULE_DEFAULTS.windowHours),
-    durationThresholdMs: parsePositiveNumber(
+    windowHours: parseBoundedNumber(
+      config.windowHours,
+      SIM_RULE_DEFAULTS.windowHours,
+      SIM_RULE_BOUNDS.windowHours
+    ),
+    durationThresholdMs: parseBoundedNumber(
       config.durationThresholdMs,
-      SIM_RULE_DEFAULTS.durationThresholdMs
+      SIM_RULE_DEFAULTS.durationThresholdMs,
+      SIM_RULE_BOUNDS.durationThresholdMs
     ),
-    latencySpikePercent: parsePositiveNumber(
+    latencySpikePercent: parseBoundedNumber(
       config.latencySpikePercent,
-      SIM_RULE_DEFAULTS.latencySpikePercent
+      SIM_RULE_DEFAULTS.latencySpikePercent,
+      SIM_RULE_BOUNDS.latencySpikePercent
     ),
-    costThresholdCredits: parsePositiveNumber(
+    costThresholdCredits: parseBoundedNumber(
       config.costThresholdCredits,
-      SIM_RULE_DEFAULTS.costThresholdCredits
+      SIM_RULE_DEFAULTS.costThresholdCredits,
+      SIM_RULE_BOUNDS.costThresholdCredits
     ),
-    errorCountThreshold: parsePositiveNumber(
+    errorCountThreshold: parseBoundedNumber(
       config.errorCountThreshold,
-      SIM_RULE_DEFAULTS.errorCountThreshold
+      SIM_RULE_DEFAULTS.errorCountThreshold,
+      SIM_RULE_BOUNDS.errorCountThreshold
     ),
-    inactivityHours: parsePositiveNumber(config.inactivityHours, SIM_RULE_DEFAULTS.inactivityHours),
+    inactivityHours: parseBoundedNumber(
+      config.inactivityHours,
+      SIM_RULE_DEFAULTS.inactivityHours,
+      SIM_RULE_BOUNDS.inactivityHours
+    ),
   }
 }
