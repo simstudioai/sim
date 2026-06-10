@@ -1609,6 +1609,7 @@ export function consumeInitiatedExport(jobId: string): boolean {
  * {@link downloadTableExport}). The SSE job stream auto-downloads the file when the job is ready.
  */
 export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ format }: { format: 'csv' | 'json' }) => {
       const response = await requestJson(exportTableAsyncContract, {
@@ -1617,6 +1618,11 @@ export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext
       })
       initiatedExportJobIds.add(response.data.jobId)
       return response.data
+    },
+    onSuccess: () => {
+      // Surface the new running job in the tray immediately — its poll only
+      // self-sustains once a running job is already in the cache.
+      void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
     },
     onError: (error) => {
       if (isValidationError(error)) return
