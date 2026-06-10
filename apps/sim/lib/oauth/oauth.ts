@@ -705,9 +705,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'assistant:write',
           'im:write',
           'im:read',
-          'im:history',
-          'mpim:read',
-          'mpim:history',
           'users:read',
           // TODO: Add 'users:read.email' once Slack app review is approved
           'files:write',

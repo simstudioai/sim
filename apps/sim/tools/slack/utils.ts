@@ -74,6 +74,17 @@ const SLACK_PAGE_MAX = 999
 /** Hard ceiling on retries for a single rate-limited page. */
 const SLACK_RATE_LIMIT_MAX_RETRIES = 5
 
+/**
+ * Parses a positive integer from possibly string/undefined/NaN input (e.g. an
+ * LLM-supplied param), falling back to `fallback` when the value is not a finite
+ * positive number. Prevents a non-numeric `limit`/`maxPages` from silently
+ * disabling pagination.
+ */
+export function resolvePositiveInt(value: unknown, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback
+}
+
 export interface SlackPaginateOptions {
   /** Bot or OAuth bearer token. */
   token: string

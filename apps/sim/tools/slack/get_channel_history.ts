@@ -3,7 +3,7 @@ import type {
   SlackGetChannelHistoryResponse,
 } from '@/tools/slack/types'
 import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
-import { fetchSlackMessagesPaginated } from '@/tools/slack/utils'
+import { fetchSlackMessagesPaginated, resolvePositiveInt } from '@/tools/slack/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** Default cap on pages fetched per invocation. */
@@ -110,9 +110,9 @@ export const slackGetChannelHistoryTool: ToolConfig<
         latest: params.latest,
         inclusive: params.inclusive ? 'true' : undefined,
       },
-      limit: params.limit ? Number(params.limit) : 200,
+      limit: resolvePositiveInt(params.limit, 200),
       cursor: params.cursor,
-      maxPages: params.maxPages ? Math.max(Number(params.maxPages), 1) : DEFAULT_MAX_PAGES,
+      maxPages: resolvePositiveInt(params.maxPages, DEFAULT_MAX_PAGES),
       missingScopeHint: 'channels:history, groups:history, im:history, mpim:history',
     })
 

@@ -279,8 +279,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'im:write': 'Send direct messages',
   'im:history': 'Read direct message history',
   'im:read': 'View direct message channels',
-  'mpim:read': 'View group direct messages',
-  'mpim:history': 'Read group direct message history',
   'users:read': 'View workspace users',
   'users:read.email': 'View user email addresses',
   'files:write': 'Upload files',
