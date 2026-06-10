@@ -6,6 +6,8 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deployedChatPostContract } from '@/lib/api/contracts/chats'
 import { parseRequest } from '@/lib/api/server'
+import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
+import { env } from '@/lib/core/config/env'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -40,13 +42,21 @@ function toChatConfigResponse(deployment: ChatConfigSource) {
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const CHAT_MAX_REQUEST_BYTES = Number.parseInt(env.CHAT_MAX_REQUEST_BYTES, 10)
+
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
     const { identifier } = await context.params
     const requestId = generateRequestId()
 
+    const ticket = tryAdmit()
+    if (!ticket) {
+      return admissionRejectedResponse()
+    }
+
     try {
       const parsed = await parseRequest(deployedChatPostContract, request, context, {
+        maxBodyBytes: CHAT_MAX_REQUEST_BYTES,
         validationErrorResponse: (err) => {
           const message = err.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')
           return createErrorResponse(`Invalid request body: ${message}`, 400, 'VALIDATION_ERROR')
@@ -125,14 +135,7 @@ export const POST = withRouteHandler(
 
       const authResult = await validateChatAuth(requestId, deployment, request, parsedBody)
       if (!authResult.authorized) {
-        const response = createErrorResponse(
-          authResult.error || 'Authentication required',
-          authResult.status || 401
-        )
-        if (authResult.status === 429 && authResult.retryAfterMs !== undefined) {
-          response.headers.set('Retry-After', String(Math.ceil(authResult.retryAfterMs / 1000)))
-        }
-        return response
+        return createErrorResponse(authResult.error || 'Authentication required', 401)
       }
 
       const { input, password, email, conversationId, files } = parsedBody
@@ -295,6 +298,8 @@ export const POST = withRouteHandler(
     } catch (error: any) {
       logger.error(`[${requestId}] Error processing chat request:`, error)
       return createErrorResponse(error.message || 'Failed to process request', 500)
+    } finally {
+      ticket.release()
     }
   }
 )
