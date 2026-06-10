@@ -13,7 +13,6 @@ import {
   renderPlanWelcomeEmail,
   renderUsageThresholdEmail,
   renderWelcomeEmail,
-  renderWorkflowNotificationEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
 import { emailPreviewQuerySchema } from '@/lib/api/contracts/common'
@@ -94,51 +93,6 @@ const emailTemplates = {
       billingPortalUrl: 'https://sim.ai/settings/billing',
       failureReason: 'Card declined',
     }),
-
-  // Notification emails
-  'workflow-notification-success': () =>
-    renderWorkflowNotificationEmail({
-      workflowName: 'Customer Onboarding Flow',
-      status: 'success',
-      trigger: 'api',
-      duration: '2.3s',
-      cost: '$0.0042',
-      logUrl: 'https://sim.ai/workspace/ws_123/logs?executionId=exec_abc123',
-    }),
-  'workflow-notification-error': () =>
-    renderWorkflowNotificationEmail({
-      workflowName: 'Customer Onboarding Flow',
-      status: 'error',
-      trigger: 'webhook',
-      duration: '1.1s',
-      cost: '$0.0021',
-      logUrl: 'https://sim.ai/workspace/ws_123/logs?executionId=exec_abc123',
-    }),
-  'workflow-notification-alert': () =>
-    renderWorkflowNotificationEmail({
-      workflowName: 'Customer Onboarding Flow',
-      status: 'error',
-      trigger: 'schedule',
-      duration: '45.2s',
-      cost: '$0.0156',
-      logUrl: 'https://sim.ai/workspace/ws_123/logs?executionId=exec_abc123',
-      alertReason: '3 consecutive failures detected',
-    }),
-  'workflow-notification-full': () =>
-    renderWorkflowNotificationEmail({
-      workflowName: 'Data Processing Pipeline',
-      status: 'success',
-      trigger: 'api',
-      duration: '12.5s',
-      cost: '$0.0234',
-      logUrl: 'https://sim.ai/workspace/ws_123/logs?executionId=exec_abc123',
-      finalOutput: { processed: 150, skipped: 3, status: 'completed' },
-      rateLimits: {
-        sync: { requestsPerMinute: 60, remaining: 45 },
-        async: { requestsPerMinute: 120, remaining: 98 },
-      },
-      usageData: { currentPeriodCost: 12.45, limit: 50, percentUsed: 24.9 },
-    }),
 } as const
 
 type EmailTemplate = keyof typeof emailTemplates
@@ -168,12 +122,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         'plan-welcome-team',
         'credit-purchase',
         'payment-failed',
-      ],
-      Notifications: [
-        'workflow-notification-success',
-        'workflow-notification-error',
-        'workflow-notification-alert',
-        'workflow-notification-full',
       ],
     }
 

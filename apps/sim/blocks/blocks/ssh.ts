@@ -11,7 +11,7 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
   longDescription:
     'Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.',
   docsLink: 'https://docs.sim.ai/tools/ssh',
-  category: 'blocks',
+  category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#000000',
   icon: SshIcon,

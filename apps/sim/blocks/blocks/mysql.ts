@@ -11,7 +11,7 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
   longDescription:
     'Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.',
   docsLink: 'https://docs.sim.ai/tools/mysql',
-  category: 'blocks',
+  category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: MySQLIcon,

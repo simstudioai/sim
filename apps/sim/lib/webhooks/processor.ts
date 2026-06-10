@@ -19,6 +19,7 @@ import {
 } from '@/lib/webhooks/pending-verification'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
+import { SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isPollingWebhookProvider } from '@/triggers/constants'
@@ -772,7 +773,9 @@ export async function processPolledWebhookEvent(
       ...(credentialId ? { credentialId } : {}),
     }
 
-    if (isPollingWebhookProvider(payload.provider) && !shouldExecuteInline()) {
+    const isQueueRoutedProvider =
+      isPollingWebhookProvider(payload.provider) || payload.provider === SIM_TRIGGER_PROVIDER
+    if (isQueueRoutedProvider && !shouldExecuteInline()) {
       const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
         metadata: {
           workflowId: foundWorkflow.id,
