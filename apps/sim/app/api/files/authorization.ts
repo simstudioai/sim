@@ -144,10 +144,7 @@ export async function verifyFileAccess(
     // Infer context from key if not explicitly provided
     const inferredContext = context || inferContextFromKey(cloudKey)
 
-    // 0. Public contexts: profile pictures, OG images, and workspace logos are
-    // world-readable, so reads short-circuit. Destructive operations
-    // (`requireWrite`) must NOT short-circuit — they require proof of ownership
-    // of the user/workspace the object belongs to, never an unconditional allow.
+    // 0. Public contexts: profile pictures, OG images, and workspace logos are world-readable, so reads short-circuit; writes require proof of ownership
     if (
       inferredContext === 'profile-pictures' ||
       inferredContext === 'og-images' ||
