@@ -97,7 +97,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: errorMessage }, { status: response.status })
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as { result?: unknown }
 
     logger.info(`[${requestId}] File attached to ServiceNow record successfully`, {
       tableName: body.tableName,
