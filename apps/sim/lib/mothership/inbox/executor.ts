@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
+import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
@@ -90,6 +91,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     if (!claimed) {
       logger.info('Task already claimed by another execution, skipping', { taskId })
+      return
+    }
+
+    // No email response on purpose — never mail a suspended account.
+    const [bannedUserId] = await getActivelyBannedUserIds([userId])
+    if (bannedUserId) {
+      logger.warn('Blocking inbox task: resolved user is banned', { taskId, userId })
+      await markTaskFailed(taskId, 'User account is suspended')
       return
     }
 

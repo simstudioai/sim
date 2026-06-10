@@ -21,6 +21,20 @@ export interface AccessControlConfig {
   blockedEmailMxHosts: string[]
 }
 
+/**
+ * True when the email's domain matches a denylist entry exactly or is a
+ * subdomain of one.
+ */
+export function isEmailInDenylist(
+  email: string | undefined | null,
+  denylist: readonly string[] | null
+): boolean {
+  if (!denylist || denylist.length === 0 || !email) return false
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) return false
+  return denylist.some((entry) => domain === entry || domain.endsWith(`.${entry}`))
+}
+
 function normalizeList(values: unknown): string[] {
   if (!Array.isArray(values)) return []
   return Array.from(new Set(values.map((v) => String(v).trim().toLowerCase()).filter(Boolean)))
