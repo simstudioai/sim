@@ -481,7 +481,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
       id: 'bulkUpdateLinkIds',
       title: 'Link IDs',
       type: 'short-input',
-      placeholder: 'Comma-separated link IDs (max 100)',
+      placeholder: 'Comma-separated link IDs (required unless External IDs is set)',
       condition: { field: 'operation', value: 'bulk_update_links' },
     },
     {

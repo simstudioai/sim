@@ -47,11 +47,28 @@ export const bulkUpdateLinksTool: ToolConfig<DubBulkUpdateLinksParams, DubBulkUp
       }),
       body: (params) => {
         const data = typeof params.data === 'string' ? JSON.parse(params.data) : params.data
+        const linkIds = params.linkIds
+          ? params.linkIds
+              .split(',')
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : []
+        const externalIds = params.externalIds
+          ? params.externalIds
+              .split(',')
+              .map((id) => id.trim())
+              .filter(Boolean)
+          : []
+        if (linkIds.length === 0 && externalIds.length === 0) {
+          throw new Error(
+            'Bulk Update Links requires at least one Link ID or External ID to select which links to update.'
+          )
+        }
         const body: Record<string, unknown> = { data: data ?? {} }
-        if (params.linkIds) {
-          body.linkIds = params.linkIds.split(',').map((id) => id.trim())
-        } else if (params.externalIds) {
-          body.externalIds = params.externalIds.split(',').map((id) => id.trim())
+        if (linkIds.length > 0) {
+          body.linkIds = linkIds
+        } else {
+          body.externalIds = externalIds
         }
         return body
       },
