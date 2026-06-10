@@ -49,8 +49,7 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // Map related topics
-    const relatedTopics = (data.RelatedTopics || []).map((topic: any) => ({
+    const mapTopic = (topic: any) => ({
       FirstURL: topic.FirstURL,
       Text: topic.Text,
       Result: topic.Result,
@@ -61,7 +60,16 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
             Width: topic.Icon.Width,
           }
         : undefined,
-    }))
+    })
+
+    /**
+     * RelatedTopics may contain nested disambiguation groups of the shape
+     * `{ Name, Topics: [...] }`. Flatten those so the actual topics are
+     * surfaced instead of empty objects.
+     */
+    const relatedTopics = (data.RelatedTopics || []).flatMap((topic: any) =>
+      Array.isArray(topic.Topics) ? topic.Topics.map(mapTopic) : [mapTopic(topic)]
+    )
 
     // Map results (external links)
     const results = (data.Results || []).map((result: any) => ({
@@ -85,10 +93,14 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
         abstractText: data.AbstractText || '',
         abstractSource: data.AbstractSource || '',
         abstractURL: data.AbstractURL || '',
+        definition: data.Definition || '',
+        definitionSource: data.DefinitionSource || '',
+        definitionURL: data.DefinitionURL || '',
         image: data.Image || '',
         answer: data.Answer || '',
         answerType: data.AnswerType || '',
         type: data.Type || '',
+        redirect: data.Redirect || '',
         relatedTopics,
         results,
       },
@@ -116,6 +128,18 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
       type: 'string',
       description: 'URL to the source of the abstract',
     },
+    definition: {
+      type: 'string',
+      description: 'Dictionary-style definition if available',
+    },
+    definitionSource: {
+      type: 'string',
+      description: 'The source of the definition',
+    },
+    definitionURL: {
+      type: 'string',
+      description: 'URL to the source of the definition',
+    },
     image: {
       type: 'string',
       description: 'URL to an image related to the topic',
@@ -132,6 +156,10 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
       type: 'string',
       description:
         'Response type: A (article), D (disambiguation), C (category), N (name), E (exclusive)',
+    },
+    redirect: {
+      type: 'string',
+      description: '!bang redirect URL, populated only for bang queries',
     },
     relatedTopics: {
       type: 'array',

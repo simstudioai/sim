@@ -47,7 +47,7 @@ export const oktaActivateUserTool: ToolConfig<OktaActivateUserParams, OktaActiva
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
       const sendEmail = params.sendEmail ?? true
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/activate?sendEmail=${sendEmail}`
+      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/activate?sendEmail=${sendEmail}`
     },
     method: 'POST',
     headers: (params) => ({

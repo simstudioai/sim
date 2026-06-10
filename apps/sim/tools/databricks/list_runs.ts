@@ -73,7 +73,10 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
 
   request: {
     url: (params) => {
-      const host = params.host.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const host = params.host
+        .trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '')
       const url = new URL(`https://${host}/api/2.1/jobs/runs/list`)
       if (params.jobId) url.searchParams.set('job_id', String(params.jobId))
       if (params.activeOnly) url.searchParams.set('active_only', 'true')
