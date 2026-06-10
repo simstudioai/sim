@@ -2824,6 +2824,22 @@ async function pendingDeleteMask(table: TableDefinition): Promise<SQL | undefine
   return sql`(${and(...doomedParts)}) IS NOT TRUE`
 }
 
+/**
+ * `COUNT(*)` for a filtered view, kept inside the tenant's rows. JSONB predicates
+ * (`->>` ILIKE/range casts) are opaque to the planner — it estimates a handful of
+ * matches and picks a parallel seq scan over the entire shared relation (every
+ * tenant's rows) instead of the table's index. `SET LOCAL enable_seqscan = off`
+ * forces the tenant-bounded bitmap plan: measured 12.7s → 1.0s counting a rare
+ * filter on a 1M-row table inside a 12M-row relation.
+ */
+async function countRowsTenantBounded(whereClause: SQL | undefined): Promise<number> {
+  return db.transaction(async (trx) => {
+    await trx.execute(sql`SET LOCAL enable_seqscan = off`)
+    const [result] = await trx.select({ count: count() }).from(userTableRows).where(whereClause)
+    return Number(result.count)
+  })
+}
+
 export async function queryRows(
   table: TableDefinition,
   options: QueryOptions,
@@ -2879,17 +2895,22 @@ export async function queryRows(
     .orderBy(buildRowOrderBySql(sort, tableName, columns))
 
   // Count and page fetch are independent reads — run them concurrently so the
-  // `includeTotal` hot path doesn't pay two serial round-trips.
+  // `includeTotal` hot path doesn't pay two serial round-trips. Filtered counts
+  // go through the tenant-bounded variant (see countRowsTenantBounded); the
+  // unfiltered count already plans an index-only scan on the table_id prefix.
+  const hasFilter = Boolean(filter && Object.keys(filter).length > 0)
   const rowsPromise = after ? query.limit(limit) : query.limit(limit).offset(offset)
   const countPromise = includeTotal
-    ? db
-        .select({ count: count() })
-        .from(userTableRows)
-        .where(whereClause ?? baseConditions)
+    ? hasFilter
+      ? countRowsTenantBounded(whereClause)
+      : db
+          .select({ count: count() })
+          .from(userTableRows)
+          .where(whereClause ?? baseConditions)
+          .then((r) => Number(r[0].count))
     : null
 
-  const [rows, countResult] = await Promise.all([rowsPromise, countPromise])
-  const totalCount = countResult ? Number(countResult[0].count) : null
+  const [rows, totalCount] = await Promise.all([rowsPromise, countPromise])
 
   const executionsByRow = withExecutions
     ? await loadExecutionsByRow(
