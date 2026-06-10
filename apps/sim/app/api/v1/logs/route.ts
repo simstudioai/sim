@@ -68,7 +68,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const params = parsed.data.query
 
-    const scopeError = checkWorkspaceScope(rateLimit, params.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, params.workspaceId)
     if (scopeError) return scopeError
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {

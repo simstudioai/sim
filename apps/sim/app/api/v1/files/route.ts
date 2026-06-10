@@ -117,7 +117,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const { workspaceId } = formFieldsResult.data
 
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
     if (!file) {
