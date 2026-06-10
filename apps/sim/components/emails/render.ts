@@ -1,5 +1,6 @@
 import { render } from '@react-email/render'
 import {
+  ExistingAccountEmail,
   OnboardingFollowupEmail,
   OTPVerificationEmail,
   ResetPasswordEmail,
@@ -47,6 +48,10 @@ export async function renderOTPEmail(
   chatTitle?: string
 ): Promise<string> {
   return await render(OTPVerificationEmail({ otp, email, type, chatTitle }))
+}
+
+export async function renderExistingAccountEmail(username: string): Promise<string> {
+  return await render(ExistingAccountEmail({ username }))
 }
 
 export async function renderPasswordResetEmail(
