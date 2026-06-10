@@ -29,7 +29,7 @@ const logger = createLogger('V1FilesAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024
 const MAX_MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 /** GET /api/v1/files — List all files in a workspace. */
