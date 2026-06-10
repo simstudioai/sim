@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { tableExportFormatSchema, tableIdParamsSchema } from '@/lib/api/contracts/tables'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
@@ -117,14 +118,6 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
 function sanitizeFilename(name: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
   return cleaned || 'table'
-}
-
-/**
- * Prefixes a single quote to values starting with a spreadsheet formula trigger
- * (`=`, `+`, `-`, `@`, tab, CR), neutralizing CSV injection in Excel/Sheets.
- */
-function neutralizeCsvFormula(value: string): string {
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
 }
 
 /**
