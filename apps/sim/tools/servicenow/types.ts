@@ -96,7 +96,7 @@ export interface ServiceNowAggregateResponse extends ToolResponse {
   }
 }
 
-interface ServiceNowAttachment {
+export interface ServiceNowAttachment {
   sys_id: string
   file_name: string
   content_type: string

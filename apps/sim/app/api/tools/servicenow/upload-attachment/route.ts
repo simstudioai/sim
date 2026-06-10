@@ -10,6 +10,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import type { ServiceNowAttachment } from '@/tools/servicenow/types'
 import { createBasicAuthHeader } from '@/tools/servicenow/utils'
 
 export const dynamic = 'force-dynamic'
@@ -97,7 +98,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: errorMessage }, { status: response.status })
     }
 
-    const data = (await response.json()) as { result?: unknown }
+    const data = (await response.json()) as { result?: ServiceNowAttachment }
+    const result = data.result
 
     logger.info(`[${requestId}] File attached to ServiceNow record successfully`, {
       tableName: body.tableName,
@@ -107,7 +109,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({
       success: true,
       output: {
-        attachment: data.result,
+        attachment: result
+          ? {
+              sys_id: result.sys_id ?? null,
+              file_name: result.file_name ?? null,
+              content_type: result.content_type ?? null,
+              size_bytes: result.size_bytes ?? null,
+              table_name: result.table_name ?? null,
+              table_sys_id: result.table_sys_id ?? null,
+              download_link: result.download_link ?? null,
+            }
+          : null,
         metadata: { recordCount: 1 },
       },
     })
