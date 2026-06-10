@@ -428,6 +428,13 @@ export const USER_OUTPUT_PROPERTIES = {
   },
   updated: { type: 'number', description: 'Unix timestamp of last profile update', optional: true },
   has_2fa: { type: 'boolean', description: 'Whether two-factor auth is enabled', optional: true },
+  profile: {
+    type: 'object',
+    description:
+      'Nested profile object mirroring the Slack users.info API shape (profile.email, profile.display_name, etc.)',
+    optional: true,
+    properties: USER_PROFILE_OUTPUT_PROPERTIES,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -1118,6 +1125,32 @@ export interface SlackListMembersResponse extends ToolResponse {
   }
 }
 
+/**
+ * Nested profile object mirroring Slack's users.info response shape,
+ * so references written against the raw API (e.g. user.profile.email) resolve.
+ */
+interface SlackUserProfile {
+  real_name: string
+  real_name_normalized: string
+  display_name: string
+  display_name_normalized: string
+  first_name: string
+  last_name: string
+  title: string
+  phone: string
+  skype: string
+  email: string
+  status_text: string
+  status_emoji: string
+  status_expiration: number | null
+  image_24: string | null
+  image_32: string | null
+  image_48: string | null
+  image_72: string | null
+  image_192: string | null
+  image_512: string | null
+}
+
 interface SlackUser {
   id: string
   team_id?: string | null
@@ -1153,6 +1186,7 @@ interface SlackUser {
   status_expiration?: number | null
   updated?: number | null
   has_2fa?: boolean
+  profile?: SlackUserProfile
 }
 
 export interface SlackListUsersResponse extends ToolResponse {

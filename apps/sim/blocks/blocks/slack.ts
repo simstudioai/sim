@@ -2132,7 +2132,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     user: {
       type: 'json',
       description:
-        'Detailed user object with properties: id, name, real_name, display_name, first_name, last_name, title, is_bot, is_admin, deleted, timezone, avatars, status',
+        'Detailed user object with properties: id, name, real_name, display_name, first_name, last_name, title, email, is_bot, is_admin, deleted, timezone, avatars, status, and a nested profile object mirroring the Slack users.info API shape',
     },
 
     // slack_download outputs
