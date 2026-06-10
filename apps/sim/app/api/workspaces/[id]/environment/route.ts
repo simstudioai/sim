@@ -25,9 +25,48 @@ import {
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserEntityPermissions,
+  getWorkspaceById,
+  type PermissionType,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
+
+/**
+ * Restricts decrypted workspace env values to administrators. Members (including
+ * read-only) receive the variable names with empty values so editor autocomplete
+ * and conflict detection keep working without leaking secret values. A value is
+ * revealed when the caller is a credential admin of that key, or — for legacy
+ * keys predating per-secret ACLs — when they hold workspace `admin` permission.
+ * Mirrors the per-key edit gating in PUT/DELETE: if you can administer a secret,
+ * you can read it.
+ */
+async function maskWorkspaceEnvForViewer({
+  workspaceDecrypted,
+  workspaceId,
+  userId,
+  permission,
+}: {
+  workspaceDecrypted: Record<string, string>
+  workspaceId: string
+  userId: string
+  permission: PermissionType
+}): Promise<Record<string, string>> {
+  const workspaceKeys = Object.keys(workspaceDecrypted)
+  const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+    workspaceId,
+    envKeys: workspaceKeys,
+    userId,
+  })
+
+  const masked: Record<string, string> = {}
+  for (const key of workspaceKeys) {
+    const canViewValue = adminKeys.has(key) || (!knownKeys.has(key) && permission === 'admin')
+    masked[key] = canViewValue ? workspaceDecrypted[key] : ''
+  }
+  return masked
+}
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -43,13 +82,11 @@ export const GET = withRouteHandler(
 
       const userId = session.user.id
 
-      // Validate workspace exists
       const ws = await getWorkspaceById(workspaceId)
       if (!ws) {
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
       }
 
-      // Require any permission to read
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -60,29 +97,17 @@ export const GET = withRouteHandler(
         workspaceId
       )
 
-      // Plaintext workspace secrets are restricted to administrators. Members
-      // (including read-only) receive the variable names with empty values so
-      // editor autocomplete and conflict detection keep working without leaking
-      // secret values. A caller may view a value if they are a credential admin
-      // of that key, or — for legacy keys predating per-secret ACLs — if they
-      // hold workspace `admin` permission. This mirrors the per-key edit gating
-      // in PUT/DELETE: if you can administer a secret, you can read it.
-      const workspaceKeys = Object.keys(workspaceDecrypted)
-      const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+      const workspace = await maskWorkspaceEnvForViewer({
+        workspaceDecrypted,
         workspaceId,
-        envKeys: workspaceKeys,
         userId,
+        permission,
       })
-      const workspaceMasked: Record<string, string> = {}
-      for (const key of workspaceKeys) {
-        const canViewValue = adminKeys.has(key) || (!knownKeys.has(key) && permission === 'admin')
-        workspaceMasked[key] = canViewValue ? workspaceDecrypted[key] : ''
-      }
 
       return NextResponse.json(
         {
           data: {
-            workspace: workspaceMasked,
+            workspace,
             personal: personalDecrypted,
             conflicts,
           },

@@ -85,9 +85,7 @@ describe('GET /api/workspaces/[id]/environment', () => {
     const { status, body } = await callGet()
 
     expect(status).toBe(200)
-    // Variable names are preserved so editor autocomplete keeps working...
     expect(Object.keys(body.data.workspace).sort()).toEqual(['DATABASE_URL', 'OPENAI_API_KEY'])
-    // ...but plaintext values are withheld.
     expect(body.data.workspace.OPENAI_API_KEY).toBe('')
     expect(body.data.workspace.DATABASE_URL).toBe('')
   })
