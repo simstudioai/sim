@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
@@ -34,7 +35,21 @@ import postgres from 'postgres'
  *    `warnOnInvalidIndexes` check below logs any such index after every run.
  */
 
-const url = process.env.DATABASE_URL
+/**
+ * Migrations must run on a DIRECT Postgres connection, never through a
+ * transaction-pooling PgBouncer. Session-level advisory locks, session `SET`s
+ * (`statement_timeout`/`lock_timeout` below), and `pg_advisory_unlock` are all
+ * officially unsupported in transaction pooling — statements can land on
+ * different server connections, so the lock may not guard the migration, the
+ * unlock can strand the lock on a pooled connection (wedging the NEXT deploy
+ * for the full acquisition deadline), and timeout settings can leak into app
+ * traffic. This is the same reason Prisma requires `directUrl` for migrate.
+ *
+ * Set MIGRATION_DATABASE_URL to the direct (non-pooled) DSN in environments
+ * where DATABASE_URL points at a PgBouncer; it falls back to DATABASE_URL for
+ * dev/self-hosted setups that connect directly anyway.
+ */
+const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
 if (!url) {
   console.error('ERROR: Missing DATABASE_URL environment variable.')
   console.error('Ensure packages/db/.env is configured.')
@@ -74,8 +89,8 @@ const LOCK_RETRY_INTERVAL_MS = 5_000
  * world unblocked; we retry below, then let the deploy retry.
  */
 const DDL_LOCK_TIMEOUT = '5s'
-const MAX_MIGRATE_ATTEMPTS = 3
-const MIGRATE_RETRY_DELAY_MS = 15_000
+const MAX_MIGRATE_ATTEMPTS = 8
+const MIGRATE_RETRY_BACKOFF = { baseMs: 2_000, maxMs: 30_000 } as const
 
 try {
   // statement_timeout=0: index builds (esp. CONCURRENTLY on large tables) can run
@@ -130,11 +145,12 @@ async function runMigrationsWithRetry(): Promise<void> {
       return
     } catch (error) {
       if (!isLockNotAvailable(error) || attempt >= MAX_MIGRATE_ATTEMPTS) throw error
+      const delayMs = Math.round(backoffWithJitter(attempt, null, MIGRATE_RETRY_BACKOFF))
       console.warn(
         `WARN: migration DDL hit lock_timeout (attempt ${attempt}/${MAX_MIGRATE_ATTEMPTS}); ` +
-          `retrying in ${MIGRATE_RETRY_DELAY_MS}ms.`
+          `retrying in ${delayMs}ms.`
       )
-      await sleep(MIGRATE_RETRY_DELAY_MS)
+      await sleep(delayMs)
       // Re-assert: a migration file's post-COMMIT `SET lock_timeout = 0` (the
       // CONCURRENTLY convention above) is session-level and would otherwise
       // leak into the retry.
@@ -145,10 +161,17 @@ async function runMigrationsWithRetry(): Promise<void> {
 
 /**
  * SQLSTATE 55P03 (`lock_not_available`) — raised when `lock_timeout` expires
- * while a statement queues for a lock.
+ * while a statement queues for a lock. drizzle's `migrate()` wraps driver
+ * failures (e.g. `DrizzleQueryError` with the Postgres error on `cause`), so
+ * walk the whole cause chain looking for the code.
  */
 function isLockNotAvailable(error: unknown): boolean {
-  return error instanceof Error && (error as { code?: string }).code === '55P03'
+  let current: unknown = error
+  for (let depth = 0; depth < 10 && current instanceof Error; depth++) {
+    if ((current as { code?: string }).code === '55P03') return true
+    current = current.cause
+  }
+  return false
 }
 
 /**
