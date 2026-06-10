@@ -33,6 +33,7 @@ import { ClickHouseBlock, ClickHouseBlockMeta } from '@/blocks/blocks/clickhouse
 import { CloudflareBlock, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock, CloudFormationBlockMeta } from '@/blocks/blocks/cloudformation'
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
+import { CodePipelineBlock, CodePipelineBlockMeta } from '@/blocks/blocks/codepipeline'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CredentialBlock } from '@/blocks/blocks/credential'
@@ -349,6 +350,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
   cloudwatch: CloudWatchBlock,
+  codepipeline: CodePipelineBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,
@@ -635,6 +637,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   cloudflare: CloudflareBlockMeta,
   cloudformation: CloudFormationBlockMeta,
   cloudwatch: CloudWatchBlockMeta,
+  codepipeline: CodePipelineBlockMeta,
   confluence: ConfluenceBlockMeta,
   crowdstrike: CrowdStrikeBlockMeta,
   cursor: CursorBlockMeta,

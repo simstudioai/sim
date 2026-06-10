@@ -330,7 +330,7 @@
     "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
     "tags": ["automation"]
@@ -582,10 +582,10 @@
     "operationCount": 7,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud", "data-analytics"]
   },
   {
     "type": "rds",
@@ -628,7 +628,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "sqs",
@@ -1553,7 +1553,7 @@
     "operationCount": 21,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["cloud", "identity"]
@@ -1620,7 +1620,7 @@
     "operationCount": 12,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["cloud", "identity"]
@@ -1714,10 +1714,10 @@
     "operationCount": 9,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "email",
-    "tags": ["cloud", "marketing"]
+    "tags": ["cloud", "email-marketing", "messaging"]
   },
   {
     "type": "sts",
@@ -1749,10 +1749,10 @@
     "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
-    "tags": ["cloud"]
+    "tags": ["cloud", "identity"]
   },
   {
     "type": "textract_v2",
@@ -1767,7 +1767,7 @@
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "ai",
     "tags": ["document-processing", "ocr", "cloud"]
@@ -2123,7 +2123,7 @@
     "name": "Cal Com",
     "description": "Manage Cal.com bookings, event types, schedules, and availability",
     "longDescription": "Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.",
-    "bgColor": "#FFFFFE",
+    "bgColor": "#292929",
     "iconName": "CalComIcon",
     "docsUrl": "https://docs.sim.ai/tools/calcom",
     "operations": [
@@ -2339,7 +2339,7 @@
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement", "data-analytics"]
@@ -2708,6 +2708,57 @@
     "tags": ["cloud", "monitoring"]
   },
   {
+    "type": "codepipeline",
+    "slug": "codepipeline",
+    "name": "CodePipeline",
+    "description": "Run, monitor, and approve AWS CodePipeline pipelines",
+    "longDescription": "Integrate AWS CodePipeline into workflows. Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
+    "iconName": "CodePipelineIcon",
+    "docsUrl": "https://docs.sim.ai/tools/codepipeline",
+    "operations": [
+      {
+        "name": "Start Execution",
+        "description": "Start a CodePipeline pipeline execution, optionally overriding pipeline variables"
+      },
+      {
+        "name": "Get Pipeline State",
+        "description": "Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens"
+      },
+      {
+        "name": "List Pipelines",
+        "description": "List all CodePipeline pipelines in an AWS account and region"
+      },
+      {
+        "name": "List Executions",
+        "description": "List recent executions of a CodePipeline pipeline with status and source revisions"
+      },
+      {
+        "name": "Get Execution",
+        "description": "Get details of a CodePipeline execution, including status, trigger, source revisions, and resolved variables"
+      },
+      {
+        "name": "Stop Execution",
+        "description": "Stop a CodePipeline pipeline execution, either finishing in-progress actions or abandoning them"
+      },
+      {
+        "name": "Retry Stage",
+        "description": "Retry the failed actions (or all actions) of a failed CodePipeline stage"
+      },
+      {
+        "name": "Approve / Reject Approval",
+        "description": "Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action"
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["cloud", "ci-cd"]
+  },
+  {
     "type": "confluence_v2",
     "slug": "confluence",
     "name": "Confluence",
@@ -3052,7 +3103,7 @@
     "operationCount": 3,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["identity", "monitoring"]
@@ -3572,7 +3623,7 @@
     "operationCount": 35,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "webhooks", "automation"]
@@ -3781,7 +3832,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["web-scraping", "seo"]
+    "tags": ["web-scraping"]
   },
   {
     "type": "elasticsearch",
@@ -3949,7 +4000,7 @@
     "name": "Embeddings",
     "description": "Generate Open AI embeddings",
     "longDescription": "Integrate Embeddings into the workflow. Can generate embeddings from text.",
-    "bgColor": "#10a37f",
+    "bgColor": "#000000",
     "iconName": "OpenAIIcon",
     "docsUrl": "https://docs.sim.ai/tools/openai",
     "operations": [],
@@ -4094,7 +4145,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["enrichment", "data-analytics"]
+    "tags": ["enrichment"]
   },
   {
     "type": "evernote",
@@ -4196,7 +4247,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["web-scraping", "enrichment"]
+    "tags": ["web-scraping"]
   },
   {
     "type": "extend_v2",
@@ -4439,7 +4490,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["meeting", "speech-to-text", "note-taking"]
+    "tags": ["meeting", "note-taking"]
   },
   {
     "type": "gamma",
@@ -5160,7 +5211,7 @@
       }
     ],
     "triggerCount": 2,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["meeting", "sales-engagement", "speech-to-text"]
@@ -6215,7 +6266,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "security",
-    "tags": ["google-workspace", "secrets-management", "document-processing"]
+    "tags": ["google-workspace", "document-processing"]
   },
   {
     "type": "grafana",
@@ -6545,7 +6596,7 @@
     "name": "Greptile",
     "description": "AI-powered codebase search and Q&A",
     "longDescription": "Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.",
-    "bgColor": "#5DE195",
+    "bgColor": "#181C1E",
     "iconName": "GreptileIcon",
     "docsUrl": "https://docs.sim.ai/tools/greptile",
     "operations": [
@@ -6655,7 +6706,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
-    "tags": ["data-warehouse", "data-analytics"]
+    "tags": ["data-analytics"]
   },
   {
     "type": "hubspot",
@@ -7932,7 +7983,7 @@
     "operationCount": 17,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["prediction-markets", "data-analytics"]
@@ -8001,7 +8052,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "observability",
-    "tags": ["monitoring", "llm", "data-analytics"]
+    "tags": ["monitoring", "llm"]
   },
   {
     "type": "launchdarkly",
@@ -8579,7 +8630,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["marketing", "sales-engagement", "enrichment"]
+    "tags": ["marketing", "sales-engagement"]
   },
   {
     "type": "linkup",
@@ -8862,7 +8913,7 @@
     "name": "Mailchimp",
     "description": "Manage audiences, campaigns, and marketing automation in Mailchimp",
     "longDescription": "Integrate Mailchimp into the workflow. Can manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.",
-    "bgColor": "#FFE01B",
+    "bgColor": "#1A1A1A",
     "iconName": "MailchimpIcon",
     "docsUrl": "https://docs.sim.ai/tools/mailchimp",
     "operations": [
@@ -9173,7 +9224,7 @@
     "name": "Mailgun",
     "description": "Send emails and manage mailing lists with Mailgun",
     "longDescription": "Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#C12126",
     "iconName": "MailgunIcon",
     "docsUrl": "https://docs.sim.ai/tools/mailgun",
     "operations": [
@@ -9432,7 +9483,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["project-management", "microsoft-365", "ticketing"]
+    "tags": ["project-management", "microsoft-365"]
   },
   {
     "type": "microsoft_teams",
@@ -9675,7 +9726,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["project-management"]
+    "tags": ["project-management", "ticketing"]
   },
   {
     "type": "mongodb",
@@ -10216,7 +10267,7 @@
     "name": "Parallel AI",
     "description": "Web research with Parallel AI",
     "longDescription": "Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#1D1C1A",
     "iconName": "ParallelIcon",
     "docsUrl": "https://docs.sim.ai/tools/parallel_ai",
     "operations": [
@@ -10746,10 +10797,10 @@
     "operationCount": 43,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
-    "tags": ["data-analytics", "monitoring"]
+    "tags": ["data-analytics", "monitoring", "feature-flags"]
   },
   {
     "type": "profound",
@@ -11336,10 +11387,10 @@
     "operationCount": 22,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "reducto_v2",
@@ -11446,7 +11497,7 @@
       }
     ],
     "triggerCount": 8,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "email",
     "tags": ["email-marketing", "messaging"]
@@ -11516,7 +11567,7 @@
     "name": "Rippling",
     "description": "Manage workers, departments, custom objects, and company data in Rippling",
     "longDescription": "Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.",
-    "bgColor": "#FFCC1C",
+    "bgColor": "#502D3C",
     "iconName": "RipplingIcon",
     "docsUrl": "https://docs.sim.ai/tools/rippling",
     "operations": [
@@ -12034,7 +12085,7 @@
     "operationCount": 5,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "documents",
     "tags": ["cloud", "automation"]
@@ -12523,7 +12574,7 @@
     "operationCount": 70,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
     "tags": ["automation"]
@@ -12694,7 +12745,7 @@
     "operationCount": 38,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "hr",
     "tags": ["automation"]
@@ -12838,7 +12889,7 @@
     "name": "Sentry",
     "description": "Manage Sentry issues, projects, events, and releases",
     "longDescription": "Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#362D59",
     "iconName": "SentryIcon",
     "docsUrl": "https://docs.sim.ai/tools/sentry",
     "operations": [
@@ -13130,7 +13181,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "commerce",
-    "tags": ["payments", "subscriptions"]
+    "tags": ["payments", "automation"]
   },
   {
     "type": "similarweb",
@@ -13917,7 +13968,7 @@
       }
     ],
     "triggerCount": 1,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "webhooks", "automation"]
@@ -13960,7 +14011,7 @@
     "operationCount": 6,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["data-warehouse", "data-analytics"]
@@ -14021,7 +14072,7 @@
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "automation"]
@@ -14058,7 +14109,7 @@
       }
     ],
     "triggerCount": 1,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "text-to-speech"]
@@ -14198,10 +14249,10 @@
     "operationCount": 16,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "vercel",
@@ -14504,7 +14555,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["sales-engagement", "customer-support"]
+    "tags": ["sales-engagement"]
   },
   {
     "type": "webflow",
@@ -14623,7 +14674,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["knowledge-base", "web-scraping"]
+    "tags": ["knowledge-base"]
   },
   {
     "type": "wiza",
@@ -14840,7 +14891,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "hr",
-    "tags": ["hiring", "project-management"]
+    "tags": ["hiring"]
   },
   {
     "type": "x",
@@ -15026,7 +15077,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
-    "tags": ["google-workspace", "marketing", "content-management"]
+    "tags": ["marketing", "content-management"]
   },
   {
     "type": "zendesk",
@@ -15034,7 +15085,7 @@
     "name": "Zendesk",
     "description": "Manage support tickets, users, and organizations in Zendesk",
     "longDescription": "Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#03363D",
     "iconName": "ZendeskIcon",
     "docsUrl": "https://docs.sim.ai/tools/zendesk",
     "operations": [
@@ -15146,7 +15197,7 @@
     "operationCount": 26,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "support",
     "tags": ["customer-support", "ticketing"]
@@ -15204,7 +15255,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "ai",
-    "tags": ["llm", "knowledge-base", "agentic"]
+    "tags": ["knowledge-base", "agentic"]
   },
   {
     "type": "zerobounce",
@@ -15361,7 +15412,7 @@
     "operationCount": 6,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]

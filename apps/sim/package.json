@@ -40,6 +40,7 @@
     "@aws-sdk/client-cloudformation": "3.1032.0",
     "@aws-sdk/client-cloudwatch": "3.1032.0",
     "@aws-sdk/client-cloudwatch-logs": "3.1032.0",
+    "@aws-sdk/client-codepipeline": "3.1032.0",
     "@aws-sdk/client-dynamodb": "3.1032.0",
     "@aws-sdk/client-iam": "3.1032.0",
     "@aws-sdk/client-identitystore": "3.1032.0",
