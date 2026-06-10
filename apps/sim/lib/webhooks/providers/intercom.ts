@@ -49,12 +49,7 @@ export const intercomHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      logger.warn(
-        `[${requestId}] Intercom webhook missing webhookSecret in providerConfig — rejecting request`
-      )
-      return new NextResponse('Unauthorized - Intercom signing secret not configured', {
-        status: 401,
-      })
+      return null
     }
 
     const signature = request.headers.get('X-Hub-Signature')

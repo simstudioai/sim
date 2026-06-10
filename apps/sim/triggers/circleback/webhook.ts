@@ -38,9 +38,8 @@ export const circlebackWebhookTrigger: TriggerConfig = {
       id: 'webhookSecret',
       title: 'Signing Secret',
       type: 'short-input',
-      placeholder: 'Paste signing secret from Circleback',
-      description:
-        'Validates that webhook deliveries originate from Circleback using HMAC-SHA256. Required: deliveries are rejected until this is set.',
+      placeholder: 'Paste signing secret from Circleback (optional)',
+      description: 'Validates that webhook deliveries originate from Circleback using HMAC-SHA256.',
       password: true,
       required: false,
       mode: 'trigger',

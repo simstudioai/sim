@@ -54,7 +54,7 @@ export function buildConfluenceExtraFields(triggerId: string): SubBlockConfig[] 
       type: 'short-input',
       placeholder: 'Enter a strong secret',
       description:
-        'Secret to validate webhook deliveries from Confluence using HMAC signature. Required: deliveries are rejected until this is set.',
+        'Optional secret to validate webhook deliveries from Confluence using HMAC signature',
       password: true,
       required: false,
       mode: 'trigger',

@@ -1,11 +1,6 @@
 import { db, webhook, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, ne } from 'drizzle-orm'
-import * as ipaddr from 'ipaddr.js'
-import { NextResponse } from 'next/server'
-import { getClientIp } from '@/lib/core/utils/request'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -19,63 +14,14 @@ import type {
 
 const logger = createLogger('WebhookProvider:Telegram')
 
-/**
- * Telegram's published source ranges for webhook delivery.
- * @see https://core.telegram.org/bots/webhooks
- */
-const TELEGRAM_WEBHOOK_CIDRS: ReadonlyArray<readonly [string, number]> = [
-  ['149.154.160.0', 20],
-  ['91.108.4.0', 22],
-] as const
-
-/** Whether a client IP falls inside Telegram's documented webhook source ranges. */
-function isTelegramWebhookIp(ip: string): boolean {
-  if (!ip || ip === 'unknown' || !ipaddr.isValid(ip)) {
-    return false
-  }
-  try {
-    const addr = ipaddr.process(ip)
-    if (addr.kind() !== 'ipv4') {
-      return false
-    }
-    return TELEGRAM_WEBHOOK_CIDRS.some(([network, prefix]) =>
-      addr.match([ipaddr.parse(network), prefix])
-    )
-  } catch {
-    return false
-  }
-}
-
 export const telegramHandler: WebhookProviderHandler = {
-  verifyAuth({ request, requestId, providerConfig }: AuthContext): NextResponse | null {
-    const secretToken = (providerConfig.secretToken as string | undefined)?.trim()
-
-    if (secretToken) {
-      const providedToken = request.headers.get('x-telegram-bot-api-secret-token')
-      if (!providedToken) {
-        logger.warn(
-          `[${requestId}] Telegram webhook missing secret token header — rejecting request`
-        )
-        return new NextResponse('Unauthorized - Missing Telegram secret token', { status: 401 })
-      }
-
-      if (!safeCompare(providedToken, secretToken)) {
-        logger.warn(`[${requestId}] Telegram secret token verification failed`)
-        return new NextResponse('Unauthorized - Invalid Telegram secret token', { status: 401 })
-      }
-
-      return null
-    }
-
-    const clientIp = getClientIp(request)
-    if (!isTelegramWebhookIp(clientIp)) {
+  verifyAuth({ request, requestId }: AuthContext) {
+    const userAgent = request.headers.get('user-agent')
+    if (!userAgent) {
       logger.warn(
-        `[${requestId}] Telegram webhook without a registered secret token rejected — source IP is not in Telegram's published ranges. Re-save the trigger to enable secret-token verification.`,
-        { clientIp }
+        `[${requestId}] Telegram webhook request has empty User-Agent header. This may be blocked by middleware.`
       )
-      return new NextResponse('Unauthorized - Untrusted Telegram webhook source', { status: 401 })
     }
-
     return null
   },
 
@@ -179,9 +125,6 @@ export const telegramHandler: WebhookProviderHandler = {
     const notificationUrl = getNotificationUrl(ctx.webhook)
     const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`
 
-    const existingSecretToken = (config.secretToken as string | undefined)?.trim()
-    const secretToken = existingSecretToken || generateId()
-
     try {
       const telegramResponse = await fetch(telegramApiUrl, {
         method: 'POST',
@@ -189,7 +132,7 @@ export const telegramHandler: WebhookProviderHandler = {
           'Content-Type': 'application/json',
           'User-Agent': 'TelegramBot/1.0',
         },
-        body: JSON.stringify({ url: notificationUrl, secret_token: secretToken }),
+        body: JSON.stringify({ url: notificationUrl }),
       })
 
       const responseBody = await telegramResponse.json()
@@ -213,7 +156,7 @@ export const telegramHandler: WebhookProviderHandler = {
       logger.info(
         `[${ctx.requestId}] Successfully created Telegram webhook for webhook ${ctx.webhook.id}`
       )
-      return { providerConfigUpdates: { secretToken } }
+      return {}
     } catch (error: unknown) {
       if (
         error instanceof Error &&

@@ -49,8 +49,7 @@ function jsmWebhookSecretField(triggerId: string): SubBlockConfig {
     title: 'Webhook Secret',
     type: 'short-input',
     placeholder: 'Enter a strong secret',
-    description:
-      'Secret to validate webhook deliveries from Jira using HMAC signature. Required: deliveries are rejected until this is set.',
+    description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
     password: true,
     required: false,
     mode: 'trigger',
