@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { webhook, workflow, workflowDeploymentVersion, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { SIM_RULE_COOLDOWN_HOURS, SIM_TRIGGER_PROVIDER } from '@/lib/workspace-events/constants'
 import { dispatchSimEvent } from '@/lib/workspace-events/emitter'
 import { buildNoActivityEventPayload } from '@/lib/workspace-events/payload'
@@ -12,8 +12,11 @@ import type { SimSubscription, SimSubscriptionConfig } from '@/lib/workspace-eve
 
 const logger = createLogger('WorkspaceEventNoActivity')
 
-/** Bound on subscriptions scanned per poll. */
-const MAX_SUBSCRIPTIONS_PER_POLL = 500
+/**
+ * Page size for the keyset-paginated subscription scan. Every subscription is
+ * visited each poll — pagination bounds memory, not total work.
+ */
+export const NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE = 500
 
 /** Bound on watched workflows checked per subscription per poll. */
 const MAX_WORKFLOWS_PER_SUBSCRIPTION = 500
@@ -26,11 +29,16 @@ export interface NoActivityPollResult {
 }
 
 /**
- * Fetches deployed Sim-trigger subscriptions configured for no_activity,
- * across all workspaces. This runs from a low-frequency cron, so a global
- * (bounded) scan is acceptable — unlike the hot execution-completion path.
+ * Fetches one page of deployed Sim-trigger subscriptions configured for
+ * no_activity, across all workspaces, keyset-paginated by webhook id. A
+ * fixed cap would silently starve subscriptions beyond it; paging visits
+ * every subscription while keeping memory bounded. This runs from a
+ * low-frequency cron, so a global paged scan is acceptable — unlike the hot
+ * execution-completion path.
  */
-async function fetchNoActivitySubscriptions(): Promise<SimSubscription[]> {
+async function fetchNoActivitySubscriptionPage(
+  afterWebhookId: string | null
+): Promise<SimSubscription[]> {
   const rows = await db
     .select({ webhook, workflow })
     .from(webhook)
@@ -53,10 +61,12 @@ async function fetchNoActivitySubscriptions(): Promise<SimSubscription[]> {
         or(
           eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
           and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
-        )
+        ),
+        afterWebhookId === null ? undefined : gt(webhook.id, afterWebhookId)
       )
     )
-    .limit(MAX_SUBSCRIPTIONS_PER_POLL)
+    .orderBy(asc(webhook.id))
+    .limit(NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE)
 
   return rows
 }
@@ -127,8 +137,73 @@ function noActivityCooldownMs(config: SimSubscriptionConfig): number {
 }
 
 /**
+ * Checks a single no_activity subscription's watched workflows and fires
+ * events for the inactive ones, accumulating counts into `result`.
+ */
+async function checkSubscription(
+  subscription: SimSubscription,
+  result: NoActivityPollResult
+): Promise<void> {
+  const config = parseSubscriptionConfig(subscription.webhook.providerConfig)
+  if (!config || config.eventType !== 'no_activity') return
+
+  const workspaceId = subscription.workflow.workspaceId
+  if (!workspaceId) return
+
+  const blockKey = subscription.webhook.blockId ?? subscription.webhook.path
+  const cooldownMs = noActivityCooldownMs(config)
+
+  const watched = await fetchWatchedWorkflows(workspaceId, subscription.webhook.workflowId, config)
+
+  for (const sourceWorkflow of watched) {
+    result.checked++
+
+    const lastFiredAt = await readLastFiredAt(
+      subscription.webhook.workflowId,
+      blockKey,
+      sourceWorkflow.id
+    )
+    if (isWithinCooldown(lastFiredAt, cooldownMs)) {
+      result.skipped++
+      continue
+    }
+
+    if (await hasRecentActivity(sourceWorkflow.id, config)) {
+      result.skipped++
+      continue
+    }
+
+    const claimed = await claimCooldown(
+      subscription.webhook.workflowId,
+      blockKey,
+      sourceWorkflow.id,
+      cooldownMs
+    )
+    if (!claimed) {
+      result.skipped++
+      continue
+    }
+
+    const payload = buildNoActivityEventPayload({
+      workflowId: sourceWorkflow.id,
+      workflowName: sourceWorkflow.name,
+    })
+
+    await dispatchSimEvent(subscription, payload)
+    result.fired++
+
+    logger.info(`no_activity event fired for workflow ${sourceWorkflow.id}`, {
+      subscriberWorkflowId: subscription.webhook.workflowId,
+      inactivityHours: config.inactivityHours,
+    })
+  }
+}
+
+/**
  * Checks every no_activity subscription and fires side-effect workflows for
- * watched workflows with no qualifying executions inside the window.
+ * watched workflows with no qualifying executions inside the window. The
+ * subscription scan is keyset-paginated, so every subscription is visited
+ * each poll regardless of how many exist.
  *
  * Cooldown state is keyed per (subscriber block × watched workflow), so one
  * inactive workflow never suppresses alerts for others — a deliberate fix
@@ -138,73 +213,22 @@ function noActivityCooldownMs(config: SimSubscriptionConfig): number {
 export async function pollNoActivityEvents(): Promise<NoActivityPollResult> {
   const result: NoActivityPollResult = { subscriptions: 0, checked: 0, fired: 0, skipped: 0 }
 
-  const subscriptions = await fetchNoActivitySubscriptions()
-  result.subscriptions = subscriptions.length
-  if (subscriptions.length === 0) return result
+  let cursor: string | null = null
+  while (true) {
+    const page = await fetchNoActivitySubscriptionPage(cursor)
+    if (page.length === 0) break
 
-  if (subscriptions.length >= MAX_SUBSCRIPTIONS_PER_POLL) {
-    logger.warn(`no_activity subscription scan hit the ${MAX_SUBSCRIPTIONS_PER_POLL} cap`)
-  }
+    result.subscriptions += page.length
+    cursor = page[page.length - 1].webhook.id
 
-  for (const subscription of subscriptions) {
-    const config = parseSubscriptionConfig(subscription.webhook.providerConfig)
-    if (!config || config.eventType !== 'no_activity') continue
-
-    const workspaceId = subscription.workflow.workspaceId
-    if (!workspaceId) continue
-
-    const blockKey = subscription.webhook.blockId ?? subscription.webhook.path
-    const cooldownMs = noActivityCooldownMs(config)
-
-    const watched = await fetchWatchedWorkflows(
-      workspaceId,
-      subscription.webhook.workflowId,
-      config
-    )
-
-    for (const sourceWorkflow of watched) {
-      result.checked++
-
-      const lastFiredAt = await readLastFiredAt(
-        subscription.webhook.workflowId,
-        blockKey,
-        sourceWorkflow.id
-      )
-      if (isWithinCooldown(lastFiredAt, cooldownMs)) {
-        result.skipped++
-        continue
-      }
-
-      if (await hasRecentActivity(sourceWorkflow.id, config)) {
-        result.skipped++
-        continue
-      }
-
-      const claimed = await claimCooldown(
-        subscription.webhook.workflowId,
-        blockKey,
-        sourceWorkflow.id,
-        cooldownMs
-      )
-      if (!claimed) {
-        result.skipped++
-        continue
-      }
-
-      const payload = buildNoActivityEventPayload({
-        workflowId: sourceWorkflow.id,
-        workflowName: sourceWorkflow.name,
-      })
-
-      await dispatchSimEvent(subscription, payload)
-      result.fired++
-
-      logger.info(`no_activity event fired for workflow ${sourceWorkflow.id}`, {
-        subscriberWorkflowId: subscription.webhook.workflowId,
-        inactivityHours: config.inactivityHours,
-      })
+    for (const subscription of page) {
+      await checkSubscription(subscription, result)
     }
+
+    if (page.length < NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE) break
   }
+
+  if (result.subscriptions === 0) return result
 
   logger.info(
     `no_activity poll completed: ${result.fired} fired, ${result.skipped} skipped of ${result.checked} checked`

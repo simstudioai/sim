@@ -33,7 +33,10 @@ vi.mock('@/lib/workspace-events/rules', () => ({
   excludeSimExecutionsCondition: vi.fn(() => ({ type: 'ne', right: 'sim' })),
 }))
 
-import { pollNoActivityEvents } from '@/lib/workspace-events/no-activity'
+import {
+  NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE,
+  pollNoActivityEvents,
+} from '@/lib/workspace-events/no-activity'
 import type { SimSubscriptionConfig } from '@/lib/workspace-events/types'
 
 function makeConfig(overrides: Partial<SimSubscriptionConfig> = {}): SimSubscriptionConfig {
@@ -66,10 +69,10 @@ function allWhereConditions(): unknown[] {
   return dbChainMockFns.where.mock.calls.flatMap(([condition]) => flattenCondition(condition))
 }
 
-function makeSubscriptionRow(config: SimSubscriptionConfig) {
+function makeSubscriptionRow(config: SimSubscriptionConfig, webhookId = 'wh-1') {
   return {
     webhook: {
-      id: 'wh-1',
+      id: webhookId,
       workflowId: 'wf-subscriber',
       blockId: 'block-1',
       path: 'block-1',
@@ -206,6 +209,32 @@ describe('pollNoActivityEvents', () => {
     expect(mockDispatchSimEvent.mock.calls[0][1]).toMatchObject({ workflowId: 'wf-watched' })
     expect(allWhereConditions()).toContainEqual(
       expect.objectContaining({ type: 'inArray', values: ['wf-watched'] })
+    )
+  })
+
+  it('pages through subscriptions past the page size with a keyset cursor (no starvation)', async () => {
+    // Full first page of non-matching subscriptions (skipped without further
+    // queries), then a second page holding the one real no_activity
+    // subscription that must still be reached.
+    const firstPage = Array.from({ length: NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE }, (_, i) =>
+      makeSubscriptionRow(makeConfig({ eventType: 'execution_error' }), `wh-page1-${i}`)
+    )
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([makeSubscriptionRow(makeConfig(), 'wh-page2-0')])
+      .mockResolvedValueOnce([{ id: 'wf-quiet', name: 'Quiet Workflow' }])
+      .mockResolvedValueOnce([])
+
+    const result = await pollNoActivityEvents()
+
+    expect(result.subscriptions).toBe(NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE + 1)
+    expect(result.fired).toBe(1)
+    expect(mockDispatchSimEvent.mock.calls[0][1]).toMatchObject({ workflowId: 'wf-quiet' })
+    expect(allWhereConditions()).toContainEqual(
+      expect.objectContaining({
+        type: 'gt',
+        right: `wh-page1-${NO_ACTIVITY_SUBSCRIPTION_PAGE_SIZE - 1}`,
+      })
     )
   })
 
