@@ -21,10 +21,6 @@ import {
   PollingGroupInvitationEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
-import {
-  WorkflowNotificationEmail,
-  type WorkflowNotificationEmailProps,
-} from '@/components/emails/notifications'
 import { HelpConfirmationEmail } from '@/components/emails/support'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
@@ -248,10 +244,4 @@ export async function renderPaymentFailedEmail(params: {
       failureReason: params.failureReason,
     })
   )
-}
-
-export async function renderWorkflowNotificationEmail(
-  params: WorkflowNotificationEmailProps
-): Promise<string> {
-  return await render(WorkflowNotificationEmail(params))
 }

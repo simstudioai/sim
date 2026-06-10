@@ -30,10 +30,56 @@ export interface LogsGetExecutionParams {
   _context?: WorkflowToolExecutionContext
 }
 
+export type LogsComparisonOperator = '=' | '>' | '<' | '>=' | '<=' | '!='
+
+export interface LogsQueryRunsParams {
+  workflowIds?: string
+  folderIds?: string
+  level?: string
+  triggers?: string
+  startDate?: string
+  endDate?: string
+  search?: string
+  costOperator?: LogsComparisonOperator
+  costValue?: number
+  durationOperator?: LogsComparisonOperator
+  durationValue?: number
+  limit?: number
+  sortBy?: 'date' | 'duration' | 'cost' | 'status'
+  sortOrder?: 'asc' | 'desc'
+  _context?: WorkflowToolExecutionContext
+}
+
+export interface LogsGetRunDetailsParams {
+  runId: string
+  _context?: WorkflowToolExecutionContext
+}
+
 export interface LogsQueryResponse extends ToolResponse {
   output: {
     logs: WorkflowLogSummary[]
     nextCursor: string | null
+  }
+}
+
+export interface LogsQueryRunsResponse extends ToolResponse {
+  output: {
+    runIds: string[]
+  }
+}
+
+export interface LogsGetRunDetailsResponse extends ToolResponse {
+  output: {
+    runId: string
+    workflowId: string | null
+    workflowName: string | null
+    status: string
+    trigger: string | null
+    startedAt: string
+    durationMs: number | null
+    cost: number | null
+    traceSpans: unknown[]
+    finalOutput: unknown
   }
 }
 

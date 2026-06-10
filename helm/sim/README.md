@@ -41,7 +41,7 @@ This chart deploys the Sim platform on a Kubernetes cluster using the Helm packa
 * **`realtime`** — the WebSocket service for live workflow updates (Deployment).
 * **`postgresql`** — an in-cluster `pgvector/pgvector` Postgres (StatefulSet, with a headless Service for stable per-pod DNS).
 * **`migrations`** — a Job that applies database migrations on install/upgrade.
-* **`cronjobs`** — scheduled jobs for workflow schedule execution, inbox/calendar/drive polling (Gmail, Outlook, Calendar, Drive, Sheets, IMAP, RSS), inactivity alerts, subscription renewal, data drains, and connector syncs.
+* **`cronjobs`** — scheduled jobs for workflow schedule execution, inbox/calendar/drive polling (Gmail, Outlook, Calendar, Drive, Sheets, IMAP, RSS), workspace event polling, subscription renewal, data drains, and connector syncs.
 * **`serviceaccount`** — a dedicated ServiceAccount with `automountServiceAccountToken: false`.
 
 Optional components (off by default):

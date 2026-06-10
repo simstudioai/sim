@@ -1818,7 +1818,13 @@ import {
   linqUpdateWebhookSubscriptionTool,
 } from '@/tools/linq'
 import { llmChatTool } from '@/tools/llm'
-import { logsGetExecutionTool, logsGetTool, logsQueryTool } from '@/tools/logs'
+import {
+  logsGetExecutionTool,
+  logsGetRunDetailsTool,
+  logsGetTool,
+  logsQueryRunsTool,
+  logsQueryTool,
+} from '@/tools/logs'
 import {
   loopsCreateContactPropertyTool,
   loopsCreateContactTool,
@@ -3758,8 +3764,10 @@ export const tools: Record<string, ToolConfig> = {
   linq_update_contact_card: linqUpdateContactCardTool,
   linq_update_webhook_subscription: linqUpdateWebhookSubscriptionTool,
   logs_query: logsQueryTool,
+  logs_query_runs: logsQueryRunsTool,
   logs_get: logsGetTool,
   logs_get_execution: logsGetExecutionTool,
+  logs_get_run_details: logsGetRunDetailsTool,
   loops_create_contact: loopsCreateContactTool,
   loops_create_contact_property: loopsCreateContactPropertyTool,
   loops_update_contact: loopsUpdateContactTool,

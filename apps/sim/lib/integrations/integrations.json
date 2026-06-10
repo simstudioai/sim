@@ -3339,24 +3339,6 @@
     "tags": ["data-analytics", "automation"]
   },
   {
-    "type": "enrichment",
-    "slug": "data-enrichment",
-    "name": "Data Enrichment",
-    "description": "Enrich data with a Sim enrichment",
-    "longDescription": "Run a Sim enrichment to look up data — work email, phone number, company domain, company info, and more — from the fields you map in. Uses the same provider cascade as table enrichments.",
-    "bgColor": "#9333EA",
-    "iconName": "EnrichmentIcon",
-    "docsUrl": "https://docs.sim.ai/tools/enrichment",
-    "operations": [],
-    "operationCount": 0,
-    "triggers": [],
-    "triggerCount": 0,
-    "authType": "none",
-    "category": "tools",
-    "integrationType": "sales",
-    "tags": ["enrichment", "sales-engagement"]
-  },
-  {
     "type": "databricks",
     "slug": "databricks",
     "name": "Databricks",
@@ -9944,6 +9926,48 @@
     "tags": ["data-warehouse", "cloud"]
   },
   {
+    "type": "mysql",
+    "slug": "mysql",
+    "name": "MySQL",
+    "description": "Connect to MySQL database",
+    "longDescription": "Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.",
+    "bgColor": "#FFFFFF",
+    "iconName": "MySQLIcon",
+    "docsUrl": "https://docs.sim.ai/tools/mysql",
+    "operations": [
+      {
+        "name": "Query (SELECT)",
+        "description": "Execute SELECT query on MySQL database"
+      },
+      {
+        "name": "Insert Data",
+        "description": "Insert new record into MySQL database"
+      },
+      {
+        "name": "Update Data",
+        "description": "Update existing records in MySQL database"
+      },
+      {
+        "name": "Delete Data",
+        "description": "Delete records from MySQL database"
+      },
+      {
+        "name": "Execute Raw SQL",
+        "description": "Execute raw SQL query on MySQL database"
+      },
+      {
+        "name": "Introspect Schema",
+        "description": "Introspect MySQL database schema to retrieve table structures, columns, and relationships"
+      }
+    ],
+    "operationCount": 6,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "databases"
+  },
+  {
     "type": "neo4j",
     "slug": "neo4j",
     "name": "Neo4j",
@@ -10782,6 +10806,48 @@
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["prediction-markets", "data-analytics"]
+  },
+  {
+    "type": "postgresql",
+    "slug": "postgresql",
+    "name": "PostgreSQL",
+    "description": "Connect to PostgreSQL database",
+    "longDescription": "Integrate PostgreSQL into the workflow. Can query, insert, update, delete, and execute raw SQL.",
+    "bgColor": "#336791",
+    "iconName": "PostgresIcon",
+    "docsUrl": "https://docs.sim.ai/tools/postgresql",
+    "operations": [
+      {
+        "name": "Query (SELECT)",
+        "description": "Execute a SELECT query on PostgreSQL database"
+      },
+      {
+        "name": "Insert Data",
+        "description": "Insert data into PostgreSQL database"
+      },
+      {
+        "name": "Update Data",
+        "description": "Update data in PostgreSQL database"
+      },
+      {
+        "name": "Delete Data",
+        "description": "Delete data from PostgreSQL database"
+      },
+      {
+        "name": "Execute Raw SQL",
+        "description": "Execute raw SQL query on PostgreSQL database"
+      },
+      {
+        "name": "Introspect Schema",
+        "description": "Introspect PostgreSQL database schema to retrieve table structures, columns, and relationships"
+      }
+    ],
+    "operationCount": 6,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "databases"
   },
   {
     "type": "posthog",
@@ -13386,6 +13452,48 @@
     "tags": ["customer-support", "ticketing", "incident-management"]
   },
   {
+    "type": "sftp",
+    "slug": "sftp",
+    "name": "SFTP",
+    "description": "Transfer files via SFTP (SSH File Transfer Protocol)",
+    "longDescription": "Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.",
+    "bgColor": "#2D3748",
+    "iconName": "SftpIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sftp",
+    "operations": [
+      {
+        "name": "Upload Files",
+        "description": "Upload files to a remote SFTP server"
+      },
+      {
+        "name": "Create File",
+        "description": ""
+      },
+      {
+        "name": "Download File",
+        "description": "Download a file from a remote SFTP server"
+      },
+      {
+        "name": "List Directory",
+        "description": "List files and directories on a remote SFTP server"
+      },
+      {
+        "name": "Delete File/Directory",
+        "description": "Delete a file or directory on a remote SFTP server"
+      },
+      {
+        "name": "Create Directory",
+        "description": "Create a directory on a remote SFTP server"
+      }
+    ],
+    "operationCount": 6,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "documents"
+  },
+  {
     "type": "sharepoint_v2",
     "slug": "sharepoint",
     "name": "SharePoint",
@@ -13806,6 +13914,93 @@
       },
       "aiDisclaimer": "Sim agents use AI models to generate messages and responses sent to Slack. AI-generated content can be inaccurate or incomplete — review automated outputs before relying on them, especially for important communications."
     }
+  },
+  {
+    "type": "smtp",
+    "slug": "smtp",
+    "name": "SMTP",
+    "description": "Send emails via any SMTP mail server",
+    "longDescription": "Send emails using any SMTP server (Gmail, Outlook, custom servers, etc.). Configure SMTP connection settings and send emails with full control over content, recipients, and attachments.",
+    "bgColor": "#2D3748",
+    "iconName": "SmtpIcon",
+    "docsUrl": "https://docs.sim.ai/tools/smtp",
+    "operations": [],
+    "operationCount": 0,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "email"
+  },
+  {
+    "type": "ssh",
+    "slug": "ssh",
+    "name": "SSH",
+    "description": "Connect to remote servers via SSH",
+    "longDescription": "Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.",
+    "bgColor": "#000000",
+    "iconName": "SshIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ssh",
+    "operations": [
+      {
+        "name": "Execute Command",
+        "description": "Execute a shell command on a remote SSH server"
+      },
+      {
+        "name": "Execute Script",
+        "description": "Upload and execute a multi-line script on a remote SSH server"
+      },
+      {
+        "name": "Check Command Exists",
+        "description": "Check if a command/program exists on the remote SSH server"
+      },
+      {
+        "name": "Upload File",
+        "description": "Upload a file to a remote SSH server"
+      },
+      {
+        "name": "Download File",
+        "description": "Download a file from a remote SSH server"
+      },
+      {
+        "name": "List Directory",
+        "description": "List files and directories in a remote directory"
+      },
+      {
+        "name": "Check File/Directory Exists",
+        "description": "Check if a file or directory exists on the remote SSH server"
+      },
+      {
+        "name": "Create Directory",
+        "description": "Create a directory on the remote SSH server"
+      },
+      {
+        "name": "Delete File/Directory",
+        "description": "Delete a file or directory from the remote SSH server"
+      },
+      {
+        "name": "Move/Rename",
+        "description": "Move or rename a file or directory on the remote SSH server"
+      },
+      {
+        "name": "Get System Info",
+        "description": "Retrieve system information from the remote SSH server"
+      },
+      {
+        "name": "Read File Content",
+        "description": "Read the contents of a remote file"
+      },
+      {
+        "name": "Write File Content",
+        "description": "Write or append content to a remote file"
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops"
   },
   {
     "type": "stagehand",

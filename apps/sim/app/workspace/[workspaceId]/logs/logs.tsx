@@ -14,7 +14,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import {
-  Bell,
   Button,
   ChipCombobox,
   type ComboboxOption,
@@ -74,13 +73,7 @@ import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import {
-  Dashboard,
-  ExecutionSnapshot,
-  LogDetails,
-  LogRowContextMenu,
-  NotificationSettings,
-} from './components'
+import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
 import {
   DELETED_WORKFLOW_LABEL,
   extractRetryInput,
@@ -290,7 +283,6 @@ export default function Logs() {
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
-  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [activeSort, setActiveSort] = useState<{
     column: string
     direction: 'asc' | 'desc'
@@ -720,7 +712,6 @@ export default function Logs() {
   }, [])
 
   const handleCloseContextMenu = useCallback(() => setContextMenuOpen(false), [])
-  const handleOpenNotificationSettings = useCallback(() => setIsNotificationSettingsOpen(true), [])
   function handleClosePreview() {
     setPreviewLogId(null)
   }
@@ -1080,11 +1071,6 @@ export default function Logs() {
         disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
       },
       {
-        text: 'Notifications',
-        icon: Bell,
-        onSelect: handleOpenNotificationSettings,
-      },
-      {
         text: 'Refresh',
         icon: refreshIcon,
         onSelect: handleRefresh,
@@ -1111,7 +1097,6 @@ export default function Logs() {
       userPermissions.canEdit,
       isExporting,
       logs.length,
-      handleOpenNotificationSettings,
     ]
   )
 
@@ -1157,12 +1142,6 @@ export default function Logs() {
           />
         )}
       </Resource>
-
-      <NotificationSettings
-        workspaceId={workspaceId}
-        open={isNotificationSettingsOpen}
-        onOpenChange={setIsNotificationSettingsOpen}
-      />
 
       <LogRowContextMenu
         isOpen={contextMenuOpen}
