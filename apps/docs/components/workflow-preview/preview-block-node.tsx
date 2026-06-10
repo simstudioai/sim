@@ -142,7 +142,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                   <Handle
                     type='source'
                     position={Position.Right}
-                    id={`branch-${branch.id}`}
+                    id={branch.id}
                     className={HANDLE_BRANCH}
                     isConnectableStart={false}
                     isConnectableEnd={false}

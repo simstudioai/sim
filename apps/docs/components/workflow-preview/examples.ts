@@ -253,8 +253,8 @@ export const CONDITION_ROUTE_WORKFLOW: PreviewWorkflow = {
       position: { x: 330, y: 60 },
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: "<start.priority> === 'high'" },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: "<start.priority> === 'high'" },
+        { id: 'condition-else', label: 'else' },
       ],
     },
     {
@@ -282,9 +282,9 @@ export const CONDITION_ROUTE_WORKFLOW: PreviewWorkflow = {
       id: 'condition-escalate',
       source: 'condition',
       target: 'escalate',
-      sourceHandle: 'branch-if',
+      sourceHandle: 'condition-if',
     },
-    { id: 'condition-reply', source: 'condition', target: 'reply', sourceHandle: 'branch-else' },
+    { id: 'condition-reply', source: 'condition', target: 'reply', sourceHandle: 'condition-else' },
   ],
 }
 
@@ -310,8 +310,8 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
       position: { x: 330, y: 60 },
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: '<moderate.toxicity> > 0.7' },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: '<moderate.toxicity> > 0.7' },
+        { id: 'condition-else', label: 'else' },
       ],
     },
     {
@@ -335,12 +335,12 @@ export const CONDITION_MODERATE_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'moderate-condition', source: 'moderate', target: 'condition' },
-    { id: 'condition-block', source: 'condition', target: 'block', sourceHandle: 'branch-if' },
+    { id: 'condition-block', source: 'condition', target: 'block', sourceHandle: 'condition-if' },
     {
       id: 'condition-publish',
       source: 'condition',
       target: 'publish',
-      sourceHandle: 'branch-else',
+      sourceHandle: 'condition-else',
     },
   ],
 }
@@ -367,8 +367,8 @@ export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
       position: { x: 330, y: 60 },
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: "<plan.result.tier> === 'enterprise'" },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: "<plan.result.tier> === 'enterprise'" },
+        { id: 'condition-else', label: 'else' },
       ],
     },
     {
@@ -392,12 +392,12 @@ export const CONDITION_ONBOARD_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'plan-condition', source: 'plan', target: 'condition' },
-    { id: 'condition-guided', source: 'condition', target: 'guided', sourceHandle: 'branch-if' },
+    { id: 'condition-guided', source: 'condition', target: 'guided', sourceHandle: 'condition-if' },
     {
       id: 'condition-quickstart',
       source: 'condition',
       target: 'quickstart',
-      sourceHandle: 'branch-else',
+      sourceHandle: 'condition-else',
     },
   ],
 }
@@ -515,9 +515,9 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
         { title: 'Model', value: 'claude-sonnet-4-6' },
       ],
       branches: [
-        { id: 'sales', label: 'Sales' },
-        { id: 'support', label: 'Support' },
-        { id: 'billing', label: 'Billing' },
+        { id: 'router-sales', label: 'Sales' },
+        { id: 'router-support', label: 'Support' },
+        { id: 'router-billing', label: 'Billing' },
       ],
     },
     {
@@ -550,9 +550,9 @@ export const ROUTER_TRIAGE_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-router', source: 'start', target: 'router' },
-    { id: 'router-sales', source: 'router', target: 'sales', sourceHandle: 'branch-sales' },
-    { id: 'router-support', source: 'router', target: 'support', sourceHandle: 'branch-support' },
-    { id: 'router-billing', source: 'router', target: 'billing', sourceHandle: 'branch-billing' },
+    { id: 'router-sales', source: 'router', target: 'sales', sourceHandle: 'router-sales' },
+    { id: 'router-support', source: 'router', target: 'support', sourceHandle: 'router-support' },
+    { id: 'router-billing', source: 'router', target: 'billing', sourceHandle: 'router-billing' },
   ],
 }
 
@@ -619,8 +619,8 @@ export const ROUTER_CLASSIFY_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 50 },
       rows: [{ title: 'Context', value: '<start.input>' }],
       branches: [
-        { id: 'product', label: 'Product' },
-        { id: 'bug', label: 'Bug report' },
+        { id: 'router-product', label: 'Product' },
+        { id: 'router-bug', label: 'Bug report' },
       ],
     },
     {
@@ -644,8 +644,8 @@ export const ROUTER_CLASSIFY_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-router', source: 'start', target: 'router' },
-    { id: 'router-product', source: 'router', target: 'product', sourceHandle: 'branch-product' },
-    { id: 'router-bug', source: 'router', target: 'bug', sourceHandle: 'branch-bug' },
+    { id: 'router-product', source: 'router', target: 'product', sourceHandle: 'router-product' },
+    { id: 'router-bug', source: 'router', target: 'bug', sourceHandle: 'router-bug' },
   ],
 }
 
@@ -671,8 +671,8 @@ export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 50 },
       rows: [{ title: 'Context', value: '<start.input>' }],
       branches: [
-        { id: 'enterprise', label: 'Enterprise' },
-        { id: 'selfserve', label: 'Self-serve' },
+        { id: 'router-enterprise', label: 'Enterprise' },
+        { id: 'router-selfserve', label: 'Self-serve' },
       ],
     },
     {
@@ -700,13 +700,13 @@ export const ROUTER_LEAD_WORKFLOW: PreviewWorkflow = {
       id: 'router-enterprise',
       source: 'router',
       target: 'enterprise',
-      sourceHandle: 'branch-enterprise',
+      sourceHandle: 'router-enterprise',
     },
     {
       id: 'router-selfserve',
       source: 'router',
       target: 'selfserve',
-      sourceHandle: 'branch-selfserve',
+      sourceHandle: 'router-selfserve',
     },
   ],
 }
@@ -774,8 +774,8 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 60 },
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: '<start.valid>' },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: '<start.valid>' },
+        { id: 'condition-else', label: 'else' },
       ],
     },
     {
@@ -799,8 +799,8 @@ export const RESPONSE_ERROR_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'start-condition', source: 'start', target: 'condition' },
-    { id: 'condition-ok', source: 'condition', target: 'ok', sourceHandle: 'branch-if' },
-    { id: 'condition-bad', source: 'condition', target: 'bad', sourceHandle: 'branch-else' },
+    { id: 'condition-ok', source: 'condition', target: 'ok', sourceHandle: 'condition-if' },
+    { id: 'condition-bad', source: 'condition', target: 'bad', sourceHandle: 'condition-else' },
   ],
 }
 
@@ -835,8 +835,8 @@ export const VARIABLES_RETRY_WORKFLOW: PreviewWorkflow = {
       hideSourceHandle: true,
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: '<variable.retryCount> < 3' },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: '<variable.retryCount> < 3' },
+        { id: 'condition-else', label: 'else' },
       ],
     },
   ],
@@ -1000,8 +1000,8 @@ export const EVALUATOR_GATE_WORKFLOW: PreviewWorkflow = {
       hideSourceHandle: true,
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: '<evaluator.accuracy> >= 4' },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: '<evaluator.accuracy> >= 4' },
+        { id: 'condition-else', label: 'else' },
       ],
     },
   ],
@@ -1085,8 +1085,8 @@ export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
       position: { x: 330, y: 60 },
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: "<variable.env> === 'prod'" },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: "<variable.env> === 'prod'" },
+        { id: 'condition-else', label: 'else' },
       ],
     },
     {
@@ -1110,12 +1110,12 @@ export const CREDENTIAL_ROUTE_WORKFLOW: PreviewWorkflow = {
   ],
   edges: [
     { id: 'pick-condition', source: 'pick', target: 'condition' },
-    { id: 'condition-prod', source: 'condition', target: 'prod', sourceHandle: 'branch-if' },
+    { id: 'condition-prod', source: 'condition', target: 'prod', sourceHandle: 'condition-if' },
     {
       id: 'condition-staging',
       source: 'condition',
       target: 'staging',
-      sourceHandle: 'branch-else',
+      sourceHandle: 'condition-else',
     },
   ],
 }
@@ -1156,8 +1156,8 @@ export const GUARDRAILS_JSON_WORKFLOW: PreviewWorkflow = {
       ...GUARDRAILS_GATE,
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: '<guardrails.passed>' },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: '<guardrails.passed>' },
+        { id: 'condition-else', label: 'else' },
       ],
     },
   ],
@@ -1188,8 +1188,8 @@ export const GUARDRAILS_HALLUCINATION_WORKFLOW: PreviewWorkflow = {
       ...GUARDRAILS_GATE,
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: '<guardrails.score> >= 3' },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: '<guardrails.score> >= 3' },
+        { id: 'condition-else', label: 'else' },
       ],
     },
   ],
@@ -1228,8 +1228,8 @@ export const GUARDRAILS_PII_WORKFLOW: PreviewWorkflow = {
       ...GUARDRAILS_GATE,
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: '<guardrails.passed>' },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: '<guardrails.passed>' },
+        { id: 'condition-else', label: 'else' },
       ],
     },
   ],
@@ -1425,8 +1425,8 @@ export const WEBHOOK_TRIGGER_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 0 },
       rows: [],
       branches: [
-        { id: 'if', label: 'If', value: "<start.status> === 'done'" },
-        { id: 'else', label: 'else' },
+        { id: 'condition-if', label: 'If', value: "<start.status> === 'done'" },
+        { id: 'condition-else', label: 'else' },
       ],
     },
     {
