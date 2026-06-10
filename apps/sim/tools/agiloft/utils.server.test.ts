@@ -80,7 +80,6 @@ describe('executeAgiloftRequest', () => {
     expect(calls[1][0]).toBe('https://example.agiloft.com/ewws/REST/demo/contracts/42')
     expect(calls[2][0]).toBe('https://example.agiloft.com/ewws/EWLogout?$KB=demo')
 
-    // Every hop pins to the single resolved IP.
     for (const call of calls) {
       expect(call[1]).toBe('203.0.113.10')
     }

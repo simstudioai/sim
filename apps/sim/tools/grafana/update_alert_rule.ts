@@ -6,7 +6,6 @@ import { ALERT_RULE_OUTPUT_FIELDS, type GrafanaUpdateAlertRuleParams } from '@/t
 import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
-// Using ToolResponse for intermediate state since this tool fetches existing data first
 export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolResponse> = {
   id: 'grafana_update_alert_rule',
   name: 'Grafana Update Alert Rule',
@@ -137,7 +136,6 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
   },
 
   request: {
-    // First, GET the existing alert rule
     url: (params) =>
       `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
     method: 'GET',
@@ -154,7 +152,6 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
   },
 
   transformResponse: async (response: Response) => {
-    // Store the existing rule data for postProcess to use
     const data = await response.json()
     return {
       success: true,
@@ -165,7 +162,6 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
   },
 
   postProcess: async (result, params) => {
-    // Merge user changes with existing rule and PUT the complete object
     const existingRule = result.output._existingRule
 
     if (!existingRule || !existingRule.uid) {
@@ -176,12 +172,10 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       }
     }
 
-    // Build the updated rule by merging existing data with new params
     const updatedRule: Record<string, unknown> = {
       ...existingRule,
     }
 
-    // Apply user's changes
     if (params.title) updatedRule.title = params.title
     if (params.folderUid) updatedRule.folderUID = params.folderUid
     if (params.ruleGroup) updatedRule.ruleGroup = params.ruleGroup
@@ -261,7 +255,6 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       }
     }
 
-    // Make the PUT request with the complete merged object
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
