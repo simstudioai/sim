@@ -696,10 +696,10 @@ describe.concurrent('Blocks Module', () => {
 
     it('should handle blocks with docsLink', () => {
       const functionBlock = getBlock('function')
-      expect(functionBlock?.docsLink).toBe('https://docs.sim.ai/blocks/function')
+      expect(functionBlock?.docsLink).toBe('https://docs.sim.ai/workflows/blocks/function')
 
       const apiBlock = getBlock('api')
-      expect(apiBlock?.docsLink).toBe('https://docs.sim.ai/blocks/api')
+      expect(apiBlock?.docsLink).toBe('https://docs.sim.ai/workflows/blocks/api')
     })
   })
 

@@ -18,19 +18,19 @@ const RESOURCE_CARDS = [
   {
     title: 'Agent',
     description: 'Build AI agents',
-    href: 'https://docs.sim.ai/blocks/agent',
+    href: 'https://docs.sim.ai/workflows/blocks/agent',
     icon: AgentIcon,
   },
   {
     title: 'MCP',
     description: 'Connect tools',
-    href: 'https://docs.sim.ai/mcp',
+    href: 'https://docs.sim.ai/agents/mcp',
     icon: McpIcon,
   },
   {
     title: 'Self-hosting',
     description: 'Host on your infra',
-    href: 'https://docs.sim.ai/self-hosting',
+    href: 'https://docs.sim.ai/platform/self-hosting',
     icon: GithubOutlineIcon,
   },
 ] as const

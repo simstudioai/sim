@@ -9,7 +9,7 @@ export const AgiloftBlock: BlockConfig = {
   description: 'Manage records in Agiloft CLM',
   longDescription:
     'Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.',
-  docsLink: 'https://docs.sim.ai/tools/agiloft',
+  docsLink: 'https://docs.sim.ai/integrations/agiloft',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#001028',

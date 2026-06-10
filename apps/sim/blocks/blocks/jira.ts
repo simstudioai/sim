@@ -14,7 +14,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   triggerAllowed: true,
   longDescription:
     'Integrate Jira into the workflow. Can read, write, and update issues. Can also trigger workflows based on Jira webhook events.',
-  docsLink: 'https://docs.sim.ai/tools/jira',
+  docsLink: 'https://docs.sim.ai/integrations/jira',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',

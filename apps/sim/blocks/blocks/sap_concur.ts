@@ -162,7 +162,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.',
-  docsLink: 'https://docs.sim.ai/tools/sap_concur',
+  docsLink: 'https://docs.sim.ai/integrations/sap_concur',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',

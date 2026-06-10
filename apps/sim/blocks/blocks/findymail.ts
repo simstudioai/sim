@@ -9,7 +9,7 @@ export const FindymailBlock: BlockConfig<FindymailResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Findymail to find verified work emails by name, domain, or LinkedIn URL, verify deliverability, reverse-lookup profiles from emails, enrich company data, find employees by job title, look up phone numbers, search technology stacks, and check credit usage.',
-  docsLink: 'https://docs.sim.ai/tools/findymail',
+  docsLink: 'https://docs.sim.ai/integrations/findymail',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',

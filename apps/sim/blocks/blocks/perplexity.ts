@@ -11,7 +11,7 @@ export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
   longDescription:
     'Integrate Perplexity into the workflow. Can generate completions using Perplexity AI chat models or perform web searches with advanced filtering.',
   authMode: AuthMode.ApiKey,
-  docsLink: 'https://docs.sim.ai/tools/perplexity',
+  docsLink: 'https://docs.sim.ai/integrations/perplexity',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#20808D', // Perplexity turquoise color

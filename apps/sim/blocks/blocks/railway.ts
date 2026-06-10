@@ -9,7 +9,7 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
   description: 'Manage Railway projects, services, deployments, and variables',
   longDescription:
     'Integrate Railway into workflows to list projects, manage services and environments, monitor deployments, trigger and roll back service deployments, and manage environment variables.',
-  docsLink: 'https://docs.sim.ai/tools/railway',
+  docsLink: 'https://docs.sim.ai/integrations/railway',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#000000',

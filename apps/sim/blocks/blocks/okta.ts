@@ -9,7 +9,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
   description: 'Manage users and groups in Okta',
   longDescription:
     'Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.',
-  docsLink: 'https://docs.sim.ai/tools/okta',
+  docsLink: 'https://docs.sim.ai/integrations/okta',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#191919',

@@ -76,7 +76,7 @@ export const EnrichmentBlock: BlockConfig<EnrichmentRunResponse> = {
   description: 'Enrich data with a Sim enrichment',
   longDescription:
     'Run a Sim enrichment to look up data — work email, phone number, company domain, company info, and more — from the fields you map in. Uses the same provider cascade as table enrichments.',
-  docsLink: 'https://docs.sim.ai/blocks/enrichment',
+  docsLink: 'https://docs.sim.ai/integrations/enrichment',
   category: 'blocks',
   integrationType: IntegrationType.Sales,
   bgColor: '#9333EA',

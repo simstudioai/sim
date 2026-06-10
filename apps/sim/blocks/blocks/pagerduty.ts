@@ -7,7 +7,7 @@ export const PagerDutyBlock: BlockConfig = {
   description: 'Manage incidents and on-call schedules with PagerDuty',
   longDescription:
     'Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.',
-  docsLink: 'https://docs.sim.ai/tools/pagerduty',
+  docsLink: 'https://docs.sim.ai/integrations/pagerduty',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#06AC38',

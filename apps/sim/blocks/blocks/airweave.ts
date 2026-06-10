@@ -10,7 +10,7 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.',
-  docsLink: 'https://docs.sim.ai/tools/airweave',
+  docsLink: 'https://docs.sim.ai/integrations/airweave',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#6366F1',

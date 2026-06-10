@@ -10,7 +10,7 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate RevenueCat into the workflow. Manage subscribers, entitlements, offerings, and Google Play subscriptions. Retrieve customer subscription status, grant or revoke promotional entitlements, record purchases, update subscriber attributes, and manage Google Play subscription billing.',
-  docsLink: 'https://docs.sim.ai/tools/revenuecat',
+  docsLink: 'https://docs.sim.ai/integrations/revenuecat',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
   bgColor: '#F25A5A',

@@ -26,7 +26,7 @@ export const SendblueBlock: BlockConfig = {
   description: 'Send and receive iMessage and SMS',
   longDescription:
     'Send iMessages and SMS to individuals or groups, check whether a number supports iMessage, show typing indicators, and look up message status with Sendblue. Trigger workflows on inbound messages and delivery status updates.',
-  docsLink: 'https://docs.sim.ai/tools/sendblue',
+  docsLink: 'https://docs.sim.ai/integrations/sendblue',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#008BFF',

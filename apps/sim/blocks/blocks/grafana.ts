@@ -10,7 +10,7 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.',
-  docsLink: 'https://docs.sim.ai/tools/grafana',
+  docsLink: 'https://docs.sim.ai/integrations/grafana',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',

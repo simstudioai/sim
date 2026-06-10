@@ -17,7 +17,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via URL or upload.',
-  docsLink: 'https://docs.sim.ai/tools/pulse',
+  docsLink: 'https://docs.sim.ai/integrations/pulse',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#FFFFFF',
