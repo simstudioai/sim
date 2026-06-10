@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: Target GitHub environment (production, staging, or dev)
+        description: Target GitHub environment (db-production, db-staging, or db-dev)
         required: true
         type: string
   workflow_dispatch:
@@ -14,9 +14,9 @@ on:
         required: true
         type: choice
         options:
-          - production
-          - staging
-          - dev
+          - db-production
+          - db-staging
+          - db-dev
 
 permissions:
   contents: read
@@ -67,7 +67,7 @@ jobs:
 
           echo "Applying versioned migrations (db:migrate)"
           bun run ./scripts/migrate.ts
-          if [ "${ENVIRONMENT}" = "dev" ]; then
+          if [ "${ENVIRONMENT}" = "db-dev" ]; then
             echo "Dev environment — also pushing unversioned schema drift (db:push)"
             bun run db:push --force
           fi

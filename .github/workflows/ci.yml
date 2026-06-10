@@ -57,7 +57,7 @@ jobs:
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrations.yml
     with:
-      environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      environment: ${{ github.ref == 'refs/heads/main' && 'db-production' || 'db-staging' }}
     secrets: inherit
 
   # Same ordering for dev (schema push before the dev image lands in ECR)
@@ -66,7 +66,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     uses: ./.github/workflows/migrations.yml
     with:
-      environment: dev
+      environment: db-dev
     secrets: inherit
 
   # Dev: build all 3 images for ECR only (no GHCR, no ARM64)
