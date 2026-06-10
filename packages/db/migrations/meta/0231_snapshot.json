@@ -1,5 +1,5 @@
 {
-  "id": "86e21061-3958-44a5-9e0e-d7d0e13ad678",
+  "id": "1f3a35a9-74f3-453d-b264-a187aa0c8535",
   "prevId": "b6675160-a7cc-4e1b-bbc3-4b050284b789",
   "version": "7",
   "dialect": "postgresql",
@@ -12100,13 +12100,19 @@
           "method": "btree",
           "with": {}
         },
-        "user_table_rows_data_gin_idx": {
-          "name": "user_table_rows_data_gin_idx",
+        "user_table_rows_tenant_data_gin_idx": {
+          "name": "user_table_rows_tenant_data_gin_idx",
           "columns": [
             {
-              "expression": "data",
+              "expression": "table_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "\"data\" jsonb_path_ops",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],

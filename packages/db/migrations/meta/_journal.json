@@ -1618,13 +1618,6 @@
       "when": 1781055027957,
       "tag": "0231_table_jobs_and_keyset",
       "breakpoints": true
-    },
-    {
-      "idx": 232,
-      "version": "7",
-      "when": 1781059160243,
-      "tag": "0232_tenant_scoped_data_gin",
-      "breakpoints": true
     }
   ]
 }
