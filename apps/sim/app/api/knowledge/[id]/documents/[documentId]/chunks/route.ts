@@ -274,7 +274,7 @@ export const PATCH = withRouteHandler(
       }
       const userId = auth.userId
 
-      const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
+      const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
 
       if (!accessCheck.hasAccess) {
         if (accessCheck.notFound) {
