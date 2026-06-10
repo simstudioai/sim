@@ -20,7 +20,7 @@ The running example is a workflow that scores inbound sales leads. It reads a ne
 
 A **block** is a single step that runs at a fixed point on the path, with no model deciding whether to. It always runs when the workflow reaches it. Use one when the action must happen every time: an API call, a data transform, a branch.
 
-In the lead scorer, a [Google Sheets](/integrations) block always appends the scored lead to a tracking sheet, and a [Function](/blocks/function) block always reshapes the enrichment response into the fields the next step expects. There is no judgment call. The work is guaranteed.
+In the lead scorer, a [Google Sheets](/integrations) block always appends the scored lead to a tracking sheet, and a [Function](/workflows/blocks/function) block always reshapes the enrichment response into the fields the next step expects. There is no judgment call. The work is guaranteed.
 
 <WorkflowPreview workflow={LEAD_SCORER_WORKFLOW} height={170} highlightBlock="log" />
 
@@ -28,7 +28,7 @@ Most steps in a workflow are blocks. Reach for the kinds below only when you wan
 
 ## Agent tool
 
-An **agent tool** is an action you hand to an [Agent](/blocks/agent) block. The agent reads the task and decides whether and when to call it. The same catalog of [integrations](/integrations) that exist as standalone blocks can also be attached to an agent as tools.
+An **agent tool** is an action you hand to an [Agent](/workflows/blocks/agent) block. The agent reads the task and decides whether and when to call it. The same catalog of [integrations](/integrations) that exist as standalone blocks can also be attached to an agent as tools.
 
 In the lead scorer, the Agent has a Search tool and a Send Email tool. For a lead with a thin profile it runs Search to gather context; for a strong lead it calls Send Email. A thin, obvious lead might trigger neither. The agent chooses per run.
 
@@ -54,12 +54,12 @@ In the lead scorer, your CRM vendor ships an MCP server. After you connect it on
 
 ## Workflow-as-tool
 
-A **workflow-as-tool** is a whole workflow handed to an agent as one callable tool. You pick the workflow in the [Agent](/blocks/agent) block's tool list; the agent decides when to call it and supplies the inputs, which arrive at the child's [Start](/triggers/start) trigger, and the child's result comes back as the tool's output. Use it when a multi-step procedure should be at the agent's disposal, not on the path.
+A **workflow-as-tool** is a whole workflow handed to an agent as one callable tool. You pick the workflow in the [Agent](/workflows/blocks/agent) block's tool list; the agent decides when to call it and supplies the inputs, which arrive at the child's [Start](/workflows/triggers/start) trigger, and the child's result comes back as the tool's output. Use it when a multi-step procedure should be at the agent's disposal, not on the path.
 
 In the lead scorer, the agent has a `Deep Enrich` workflow as a tool — its own five-step procedure. For a thin lead, the agent calls it to fill out the profile before scoring; for a complete lead, it never runs. The agent weighs a whole procedure the same way it weighs a single action.
 
 <Callout type="info">
-A workflow can also run as a fixed step: the [Workflow](/blocks/workflow) block calls a child workflow because the path reached it. Same child workflow, same Start trigger — the difference, as with blocks and agent tools, is who decides. The Enrich step in the diagram is that deterministic case.
+A workflow can also run as a fixed step: the [Workflow](/workflows/blocks/workflow) block calls a child workflow because the path reached it. Same child workflow, same Start trigger — the difference, as with blocks and agent tools, is who decides. The Enrich step in the diagram is that deterministic case.
 </Callout>
 
 <WorkflowPreview workflow={LEAD_SCORER_WORKFLOW} height={170} highlightBlock="enrich" />
@@ -87,7 +87,7 @@ The lead scorer uses six kinds at once: blocks for the steps that must always ru
 
 <Cards>
   <Card title="Building agents" href="/agents" description="The features that let an agent act, follow instructions, and use your data." />
-  <Card title="Agent block reference" href="/blocks/agent" description="Every model, setting, and output field." />
+  <Card title="Agent block reference" href="/workflows/blocks/agent" description="Every model, setting, and output field." />
   <Card title="Using MCP tools" href="/agents/mcp" description="Connect an external MCP server to your agents." />
   <Card title="Skills" href="/agents/skills" description="Write reusable instructions agents can load." />
 </Cards>

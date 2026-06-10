@@ -62,7 +62,7 @@ Once a file is read, a processing block reads that output by name. Two blocks do
 
 ### Agent block
 
-An [Agent](/blocks/agent) block has a **Files** input. Reference the read file there, `<file1.files[0]>`, and write the instruction in the prompt: "Summarize this document." The agent receives the file object, not just its text, so a **vision-capable model** (such as Claude or GPT-4o) can analyze images and scanned pages directly. Other models work from the file's text content.
+An [Agent](/workflows/blocks/agent) block has a **Files** input. Reference the read file there, `<file1.files[0]>`, and write the instruction in the prompt: "Summarize this document." The agent receives the file object, not just its text, so a **vision-capable model** (such as Claude or GPT-4o) can analyze images and scanned pages directly. Other models work from the file's text content.
 
 In our example the Agent reads `<file1.files[0]>`, summarizes it, and keeps the summary under its own name as `<agent1.content>`.
 
@@ -70,7 +70,7 @@ In our example the Agent reads `<file1.files[0]>`, summarizes it, and keeps the 
 
 ### Function block
 
-A [Function](/blocks/function) block runs code, and it works with file **text**, not the file object. It doesn't reach into workspace storage on its own. Pass it the extracted text, `<file1.combinedContent>`, and it can parse, filter, or reshape that text and return the result as its own output. Use a Function when the file is structured text (a CSV or JSON dump) and you want exact, deterministic processing instead of a model's interpretation.
+A [Function](/workflows/blocks/function) block runs code, and it works with file **text**, not the file object. It doesn't reach into workspace storage on its own. Pass it the extracted text, `<file1.combinedContent>`, and it can parse, filter, or reshape that text and return the result as its own output. Use a Function when the file is structured text (a CSV or JSON dump) and you want exact, deterministic processing instead of a model's interpretation.
 
 <Callout type="info">
 The two blocks differ in what they take. An **Agent** takes the file object on its Files input, while a **Function** takes the file's text from `combinedContent`. Both store their result under their own name for the next block to read.
@@ -105,6 +105,6 @@ For the file-object schema in full, base64 access, and how files move across API
   <Card title="Passing files" href="/files/passing-files" description="The file object in full: properties, base64, and references across blocks." />
   <Card title="Generating & storing files" href="/files/generating" description="Produce files from a run and save them to your workspace." />
   <Card title="File block reference" href="/files" description="Every operation, input, and output in detail." />
-  <Card title="Agent block" href="/blocks/agent" description="Give an agent files to read, summarize, or analyze." />
+  <Card title="Agent block" href="/workflows/blocks/agent" description="Give an agent files to read, summarize, or analyze." />
   <Card title="Using tables in workflows" href="/tables/using-in-workflows" description="Read and write structured rows the same way you read and write files." />
 </Cards>

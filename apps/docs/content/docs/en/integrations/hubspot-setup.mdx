@@ -11,7 +11,7 @@ Sim connects your HubSpot CRM to AI workflows. Once connected, your workflows ca
 
 - **Read and write CRM records** — create, look up, search, and update contacts, companies, deals, and tickets from any workflow.
 - **React to CRM changes** — start a workflow when a contact, company, deal, or ticket is created or updated in HubSpot.
-- **Combine HubSpot with AI steps** — enrich a new contact with an [Agent block](/blocks/agent), route deals with a [Condition](/blocks/condition), or sync records into [Tables](/tables).
+- **Combine HubSpot with AI steps** — enrich a new contact with an [Agent block](/workflows/blocks/agent), route deals with a [Condition](/workflows/blocks/condition), or sync records into [Tables](/tables).
 
 This guide covers installing the integration, connecting a HubSpot account, configuring it in a workflow, and disconnecting or uninstalling it.
 
@@ -88,7 +88,7 @@ The full list of operations, with every input and output, is on the [HubSpot int
 
 The HubSpot block can also act as a trigger. Toggle **Use as Trigger**, select the connection, and choose which events to watch — contacts, companies, deals, or tickets, created or updated. Sim polls HubSpot for changes and runs the workflow once per changed record, with the record's fields available to downstream blocks.
 
-Triggers run against your workflow's active [deployment](/deployment), so deploy the workflow to activate them.
+Triggers run against your workflow's active [deployment](/workflows/deployment), so deploy the workflow to activate them.
 
 ## Use the app
 

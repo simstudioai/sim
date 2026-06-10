@@ -28,11 +28,11 @@ The Function block here runs after both agents complete, with both of their outp
 
 ## Branches follow one path
 
-A workflow can split. A [Condition](/blocks/condition) block branches on an explicit rule; a [Router](/blocks/router) block lets a model choose the path. Only the branch that is taken runs. A block on a branch that didn't run produces no output, which is why a [connection tag](/workflows/connections) pointing at it comes back empty.
+A workflow can split. A [Condition](/workflows/blocks/condition) block branches on an explicit rule; a [Router](/workflows/blocks/router) block lets a model choose the path. Only the branch that is taken runs. A block on a branch that didn't run produces no output, which is why a [connection tag](/workflows/connections) pointing at it comes back empty.
 
 <Image src="/static/execution/routing.png" alt="A workflow branching by condition and by router" width={800} height={500} />
 
-To repeat work, a [Loop](/blocks/loop) block runs its inner blocks over a list, a count, or while a condition holds, and a [Parallel](/blocks/parallel) block runs them for several items at once.
+To repeat work, a [Loop](/workflows/blocks/loop) block runs its inner blocks over a list, a count, or while a condition holds, and a [Parallel](/workflows/blocks/parallel) block runs them for several items at once.
 
 <Callout type="info">
 A workflow can call other workflows, through a Workflow block, an MCP tool, or an API block. Sim tracks the call chain and stops a run that exceeds 25 hops, so workflows that call each other can't loop forever.

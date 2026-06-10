@@ -83,10 +83,10 @@ Most errors come down to a handful of input mismatches. Knowing the shape speeds
 - **Wrong reference.** The tag names an output that does not exist, or uses the wrong field name.
 - **Type mismatch.** A string where an object was expected, or the reverse.
 - **Missing nested key.** The referenced object exists, but the specific field inside it does not.
-- **Empty agent message.** An [Agent](/blocks/agent) returned nothing, so the next block had nothing to read.
+- **Empty agent message.** An [Agent](/workflows/blocks/agent) returned nothing, so the next block had nothing to read.
 - **External error.** A tool or API the block called returned an error of its own, surfaced in the block's error message.
 
-When a value is the wrong shape, reshape it in a [Function](/blocks/function) block, whose result becomes its own output that later blocks can read.
+When a value is the wrong shape, reshape it in a [Function](/workflows/blocks/function) block, whose result becomes its own output that later blocks can read.
 
 ## AI-assisted debugging
 
@@ -103,5 +103,5 @@ Logs are kept so you can debug a run after it happened. Free plans retain logs f
   <Card title="How blocks pass data" href="/workflows/data-flow" description="How a block reads earlier outputs by reference." />
   <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, branches, and what runs." />
   <Card title="External API" href="/api-reference/getting-started" description="Query logs programmatically and set up run notifications." />
-  <Card title="Cost calculation" href="/costs" description="How per-block and per-run costs are computed." />
+  <Card title="Cost calculation" href="/platform/costs" description="How per-block and per-run costs are computed." />
 </Cards>

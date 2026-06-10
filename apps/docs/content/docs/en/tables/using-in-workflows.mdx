@@ -93,7 +93,7 @@ The output is the inserted row, including the `id` and timestamps Sim generated 
 **Upsert Row** inserts a row, or updates the existing one if it matches a unique column. Its output includes an `operation` field set to `insert` or `update`, so a later block can tell which happened.
 
 <Callout type="info">
-Row data must match the table's columns and types. A `number` column rejects `"twenty"`; a `boolean` column wants `true`, not `"true"`. If an Agent produces the value, give it a [structured output](/blocks/agent) so the shape is predictable before it reaches the table.
+Row data must match the table's columns and types. A `number` column rejects `"twenty"`; a `boolean` column wants `true`, not `"true"`. If an Agent produces the value, give it a [structured output](/workflows/blocks/agent) so the shape is predictable before it reaches the table.
 </Callout>
 
 ## Updating rows
@@ -113,7 +113,7 @@ To change an existing row you either name it or filter for it.
 One way to combine the operations is to query rows, process them, and write the results back. Here, the workflow classifies unprocessed leads:
 
 1. **Table (Query Rows)** reads `leads` where `status` is `unprocessed`.
-2. **Agent** reads a row's fields, classifies it, and returns a [structured output](/blocks/agent) like `{ category: "enterprise", score: 0.9 }`.
+2. **Agent** reads a row's fields, classifies it, and returns a [structured output](/workflows/blocks/agent) like `{ category: "enterprise", score: 0.9 }`.
 3. **Table (Update Rows by Filter)** writes the category back and flips `status` to `qualified`.
 
 After the run, the table holds the enriched rows. The next run queries them again, and the `status` column keeps the workflow from reprocessing what it already handled. So the table serves as both the queue the workflow pulls from and the record of what it has already done.
@@ -124,7 +124,7 @@ After the run, the table holds the enriched rows. The next run queries them agai
 
 **Lookup mid-run.** A Table block doesn't have to be the first or last step. Place a Query Rows in the middle to fetch reference data while processing: query a `pricing` table by the order's currency, then let the Agent use the result to compute a total.
 
-**Iterate row by row.** Wrap a Query → process → update cycle in a [Loop block](/blocks/loop) to handle one row at a time. This runs sequentially, slower than a batch update but useful when each row needs its own multi-step logic. Inside the loop the Agent reads the current row and an Update Row by ID writes its result.
+**Iterate row by row.** Wrap a Query → process → update cycle in a [Loop block](/workflows/blocks/loop) to handle one row at a time. This runs sequentially, slower than a batch update but useful when each row needs its own multi-step logic. Inside the loop the Agent reads the current row and an Update Row by ID writes its result.
 
 **Paginate large reads.** Query Rows returns at most 1000 rows. When `totalCount` exceeds your **Limit**, increase **Offset** on each pass (0, then 100, then 200) to walk through the whole table, typically inside a Loop.
 

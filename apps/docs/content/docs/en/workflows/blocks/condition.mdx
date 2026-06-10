@@ -1,0 +1,80 @@
+---
+title: Condition
+description: The Condition block branches a workflow on boolean expressions, with no model call.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  CONDITION_MODERATE_WORKFLOW,
+  CONDITION_ONBOARD_WORKFLOW,
+  CONDITION_ROUTE_WORKFLOW,
+} from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Condition block** branches a workflow on boolean expressions. It checks each branch in order and runs the path of the first one that is true, with no model call. When you want a model to decide the route, use a [Router](/workflows/blocks/router) instead.
+
+<BlockPreview type="condition" />
+
+## Configuration
+
+### Conditions
+
+A list of branches: an **if**, any number of **else if** rows, and a final **else**. Each branch holds a JavaScript expression that evaluates to true or false, and connects to its own path. Sim checks them top to bottom and takes the first branch that is true; the **else** branch runs when none match.
+
+Reference an earlier output inside an expression with a [connection tag](/workflows/connections):
+
+```javascript
+<agent.score> > 75
+<ticket.subject>.toLowerCase().includes('urgent')
+<user.email>.endsWith('@company.com') && <user.plan> === 'pro'
+```
+
+<Callout type="info">
+If an expression throws, for example because it reads a field that is not there, the block errors and the run follows the [error path](/workflows/connections) if one is connected. Guard missing values with optional chaining (`?.`) or a null check.
+</Callout>
+
+## Outputs
+
+| Output | What it is |
+| --- | --- |
+| `<condition.conditionResult>` | The boolean result of the branch that matched |
+| `<condition.selectedOption>` | The id of the matched branch |
+| `<condition.selectedPath>` | The destination block the workflow routed to |
+
+## Examples
+
+### Route a support ticket by priority
+
+<WorkflowPreview workflow={CONDITION_ROUTE_WORKFLOW} />
+
+The Condition checks `<start.priority>` and runs one downstream path. The other does not run, so a reference to a block on the path that did not run comes back empty.
+
+### Moderate content by score
+
+<WorkflowPreview workflow={CONDITION_MODERATE_WORKFLOW} />
+
+An Agent scores the content, and the Condition publishes it or blocks it on `<moderate.toxicity>`.
+
+### Branch onboarding by account tier
+
+<WorkflowPreview workflow={CONDITION_ONBOARD_WORKFLOW} />
+
+A Function reads the account, and the Condition sends enterprise accounts through guided setup and everyone else through the quick start.
+
+## Best Practices
+
+- **Order branches from specific to general.** The first true branch wins, so put narrow checks before catch-alls.
+- **Always give unmatched runs a path.** Connect the **else** branch, or make the last condition `true`, so nothing dead-ends silently.
+- **Keep expressions simple.** Short boolean checks are easy to read and debug. Do heavy logic in a [Function](/workflows/blocks/function) block first and branch on its result.
+- **Guard missing values.** Use optional chaining (`?.`) or a null check so an absent field does not throw.
+
+<FAQ items={[
+  { question: "Does the Condition block use an LLM?", answer: "No. It evaluates boolean expressions using JavaScript syntax directly, with no model call. That makes it fast, deterministic, and free of API cost. For AI-powered routing, use the Router block instead." },
+  { question: "What happens if no condition matches?", answer: "The workflow follows the else branch. If the else branch is not connected to a downstream block, that path ends gracefully without an error. Add a final condition of simply true to guarantee a match." },
+  { question: "In what order are conditions evaluated?", answer: "Top to bottom, in the order they are defined. The first branch that evaluates to true determines the path, and later branches are not checked after a match. Place more specific conditions before general ones." },
+  { question: "What JavaScript features can I use in condition expressions?", answer: "Standard operators and methods: comparisons (===, !==, >, <), logical operators (&&, ||, !), string methods (.includes(), .endsWith(), .toLowerCase()), array methods (.includes(), .length), math, and Date comparisons. Reference block outputs with <blockName.output> syntax." },
+  { question: "How does the Condition block handle null or undefined values?", answer: "If an expression references an undefined variable or throws at runtime, the block errors and the run fails, or follows the error path if one is connected. Use optional chaining (?.) or explicit null checks to handle missing values safely." },
+]} />

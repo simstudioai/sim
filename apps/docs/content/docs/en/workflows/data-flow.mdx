@@ -39,7 +39,7 @@ An output is usually a set of named values, not a single thing. You read one by 
   ]}
 />
 
-Different blocks produce different values. An [Agent](/blocks/agent) keeps its `content`; an [API](/blocks/api) keeps the `data` it received; a Table block keeps a `rowCount` and the rows it read, reached with `<table1.rowCount>`.
+Different blocks produce different values. An [Agent](/workflows/blocks/agent) keeps its `content`; an [API](/workflows/blocks/api) keeps the `data` it received; a Table block keeps a `rowCount` and the rows it read, reached with `<table1.rowCount>`.
 
 <Callout type="info">
 A block's output is not the same as the **workflow's** output. Every block has its own, kept under its own name. The workflow's output is simply one of them: whatever the last block produced.
@@ -66,7 +66,7 @@ Each value inside an output has a type, shown next to it in the output panel. Th
 | `array` | An ordered list of values | `["billing", "urgent"]` |
 | `null` | No value | `null` |
 
-A file shows up as an `object` carrying the file's details, like its name and URL. When a value isn't the type the next step needs, reshape it in a [Function](/blocks/function) block, which runs a short snippet of code and stores the result as its own output.
+A file shows up as an `object` carrying the file's details, like its name and URL. When a value isn't the type the next step needs, reshape it in a [Function](/workflows/blocks/function) block, which runs a short snippet of code and stores the result as its own output.
 
 ## Next
 

@@ -8,7 +8,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { WorkflowPreview, BUILD_AGENT_WORKFLOW } from '@/components/workflow-preview'
 
-An **agent** is a [workflow](/workflows) that reasons and acts on its own. It reads an input, decides what to do, and carries it out, calling tools and using your data along the way. You build a custom agent in Sim by composing a workflow whose thinking runs through one or more [Agent blocks](/blocks/agent).
+An **agent** is a [workflow](/workflows) that reasons and acts on its own. It reads an input, decides what to do, and carries it out, calling tools and using your data along the way. You build a custom agent in Sim by composing a workflow whose thinking runs through one or more [Agent blocks](/workflows/blocks/agent).
 
 An **Agent block** is the reasoning step inside that workflow: a model reads the values available to it, decides, and returns a result that later blocks read by reference. A simple agent is a single Agent block; a larger one wires several together with other blocks. The Agent block is where the model thinks; the rest of the workflow is what it acts on and through.
 
@@ -20,7 +20,7 @@ The example throughout is an agent that scores inbound sales leads.
 
 You set up the reasoning step by giving the Agent block a **model** and a **prompt**. The model is the LLM that powers it; you pick one from the available providers, and the default is `claude-sonnet-4-6`. The prompt is a system message that defines who the agent is and how it should behave, plus a user message that carries the input, usually a reference like `<start.input>`.
 
-When it runs, the Agent block reasons, calls any tools it needs, and stores its result under its own name. By default that result is free text in `content`, read by a later block as `<agent.content>`, alongside run details like the model used, token counts, tool calls, and cost. Every setting and output field is in the [Agent block reference](/blocks/agent).
+When it runs, the Agent block reasons, calls any tools it needs, and stores its result under its own name. By default that result is free text in `content`, read by a later block as `<agent.content>`, alongside run details like the model used, token counts, tool calls, and cost. Every setting and output field is in the [Agent block reference](/workflows/blocks/agent).
 
 ## What you give an agent
 
@@ -55,7 +55,7 @@ To let an agent reuse information from one run to the next, give it [memory](/in
 
 ### Return a usable result: structured output
 
-To make an agent's result something later blocks can act on, give it a **structured output**: a typed object you define instead of free text. In the lead scorer, the agent returns `{ score, tier, reason }`, and a later [Condition](/blocks/condition) block reads `<agent.tier>` to branch. See [how blocks pass data](/workflows/data-flow) for reading fields.
+To make an agent's result something later blocks can act on, give it a **structured output**: a typed object you define instead of free text. In the lead scorer, the agent returns `{ score, tier, reason }`, and a later [Condition](/workflows/blocks/condition) block reads `<agent.tier>` to branch. See [how blocks pass data](/workflows/data-flow) for reading fields.
 
 ## Choosing what to use
 
@@ -66,7 +66,7 @@ Start with one Agent block and a prompt, then add only what the task needs: a to
 ## Next
 
 <Cards>
-  <Card title="Agent block reference" href="/blocks/agent" description="Every model, setting, and output field of the Agent block." />
+  <Card title="Agent block reference" href="/workflows/blocks/agent" description="Every model, setting, and output field of the Agent block." />
   <Card title="Choosing what to use" href="/agents/choosing" description="Pick the right feature for each task." />
   <Card title="Custom tools" href="/agents/custom-tools" description="Define a reusable tool with a schema and code." />
   <Card title="Using MCP tools" href="/agents/mcp" description="Connect an external MCP server to your agents." />

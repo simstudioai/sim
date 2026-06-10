@@ -62,7 +62,7 @@ const greeting = `Hello, ${"<userBlock.name>"}!`
 const total = <apiBlock.data.total> * 1.1
 ```
 
-Values are formatted to fit their context. In a [Function](/blocks/function) block, a resolved value becomes a code literal, so strings are quoted, objects are JSON, and `null` stays `null`, ready to drop into JavaScript or Python. In other blocks, objects are JSON-stringified and primitives become plain strings.
+Values are formatted to fit their context. In a [Function](/workflows/blocks/function) block, a resolved value becomes a code literal, so strings are quoted, objects are JSON, and `null` stays `null`, ready to drop into JavaScript or Python. In other blocks, objects are JSON-stringified and primitives become plain strings.
 
 <Callout type="warning">
 In a numeric context, confirm the referenced value is actually a number. A tag that resolves to text will not behave as a number.

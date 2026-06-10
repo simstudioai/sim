@@ -16,7 +16,7 @@ Everything in angle brackets is the same mechanism: `<name.path>` reads a value 
 
 | Syntax | Reads | Example |
 |--------|-------|---------|
-| `<loop.index>`, `<parallel.index>` | The current [Loop](/blocks/loop) iteration or [Parallel](/blocks/parallel) instance, inside that container | `<loop.currentItem>` |
+| `<loop.index>`, `<parallel.index>` | The current [Loop](/workflows/blocks/loop) iteration or [Parallel](/workflows/blocks/parallel) instance, inside that container | `<loop.currentItem>` |
 | `<variable.name>` | A workflow variable | `<variable.counter>` |
 | `{{KEY}}` | An environment variable | `{{OPENAI_API_KEY}}` |
 | `<blockname.field>` | A block's output — a connection tag, not a variable | `<agent.content>` |
@@ -68,7 +68,7 @@ Reference one anywhere a field accepts input. For an object or array variable, u
 
 ### Scope
 
-Workflow variables are global: every block in the workflow can read and modify them. Use the [Variables block](/blocks/variables) to update a value mid-run.
+Workflow variables are global: every block in the workflow can read and modify them. Use the [Variables block](/workflows/blocks/variables) to update a value mid-run.
 
 Each run starts fresh from the values defined in the panel. A change made during a run is visible to later blocks in that same run, but it never alters the saved initial value for future runs.
 
@@ -95,12 +95,12 @@ Reference them with double curly braces in any block field, including Agent syst
 
 When a workspace and a personal variable share a key, the workspace value wins.
 
-Use an environment variable for a raw API key or config value. When a service needs OAuth or managed token refresh (Slack, GitHub, Google), use a [credential](/credentials) instead, selected from a dropdown in the block's config.
+Use an environment variable for a raw API key or config value. When a service needs OAuth or managed token refresh (Slack, GitHub, Google), use a [credential](/platform/credentials) instead, selected from a dropdown in the block's config.
 
 ## Next
 
 <Cards>
   <Card title="How blocks pass data" href="/workflows/data-flow" description="Block outputs and connection tags." />
-  <Card title="Variables block" href="/blocks/variables" description="Update a variable mid-run." />
-  <Card title="Secrets" href="/credentials" description="Manage environment variables and credentials." />
+  <Card title="Variables block" href="/workflows/blocks/variables" description="Update a variable mid-run." />
+  <Card title="Secrets" href="/platform/credentials" description="Manage environment variables and credentials." />
 </Cards>

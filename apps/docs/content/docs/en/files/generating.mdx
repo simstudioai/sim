@@ -17,7 +17,7 @@ Like a build pipeline that produces artifacts and stores them in an artifact rep
 
 Most generated files start as the output of an earlier block. Two patterns are common.
 
-A block returns **text content** you want to keep. An [Agent](/blocks/agent) writes an analysis or summary; a [Function](/blocks/function) builds a CSV or formats a report. That text is part of the block's output, read by reference as `<agent.content>` or `<function.result>`. To make it a file, you pass that value into a File block set to Write.
+A block returns **text content** you want to keep. An [Agent](/workflows/blocks/agent) writes an analysis or summary; a [Function](/workflows/blocks/function) builds a CSV or formats a report. That text is part of the block's output, read by reference as `<agent.content>` or `<function.result>`. To make it a file, you pass that value into a File block set to Write.
 
 A block returns a **file object** directly. ElevenLabs text-to-speech returns an `audioFile`; an image generator returns a generated image; the File block's own Read operation returns parsed files. These are already [UserFile](/files/passing-files) objects (an object with `id`, `name`, `url`, `size`, and `type`), so they appear in the output panel as files with no Write step. You can hand one to a downstream block, or write its content to the Files store to persist it.
 
@@ -56,7 +56,7 @@ During a run, the file also appears in the output panel as the File block's outp
 
 ## Returning a generated file from a deployment
 
-When a workflow is deployed as an [API](/deployment/api), a generated file can be part of the response. Reference the file in a [Response](/blocks/response) block, or include its ID in the object you return. The caller uses the `url` or `id` to fetch the file from the workspace store. The file itself stays in the Files store, and the response carries a pointer to it, not the bytes.
+When a workflow is deployed as an [API](/workflows/deployment/api), a generated file can be part of the response. Reference the file in a [Response](/workflows/blocks/response) block, or include its ID in the object you return. The caller uses the `url` or `id` to fetch the file from the workspace store. The file itself stays in the Files store, and the response carries a pointer to it, not the bytes.
 
 ## Next
 
@@ -64,5 +64,5 @@ When a workflow is deployed as an [API](/deployment/api), a generated file can b
   <Card title="Files overview" href="/files" description="The artifact layer of your workspace." />
   <Card title="Using files in workflows" href="/files/passing-files" description="Provide files to a workflow and receive files back." />
   <Card title="File block" href="/files" description="Read, Get, Write, and Append operations in full." />
-  <Card title="API deployment" href="/deployment/api" description="Expose a workflow as an API and return file references." />
+  <Card title="API deployment" href="/workflows/deployment/api" description="Expose a workflow as an API and return file references." />
 </Cards>
