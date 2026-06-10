@@ -5,6 +5,7 @@ import {
   checkOrgMemberUsageLimit,
   checkServerSideUsageLimits,
 } from '@/lib/billing/calculations/usage-monitor'
+import { reserveExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
@@ -315,9 +316,14 @@ export async function preprocessExecution(
   const userSubscription = await getHighestPrioritySubscription(actorUserId)
 
   // ========== STEP 5: Check Usage Limits ==========
+  // Recorded-usage snapshot captured here and reused by the admission
+  // reservation (STEP 7) so concurrent executions can't all pass the cap before
+  // any of their costs are recorded.
+  let usageSnapshot: { currentUsage: number; limit: number } | null = null
   if (!skipUsageLimits) {
     try {
       const usageCheck = await checkServerSideUsageLimits(actorUserId, userSubscription)
+      usageSnapshot = { currentUsage: usageCheck.currentUsage, limit: usageCheck.limit }
       if (usageCheck.isExceeded) {
         logger.warn(
           `[${requestId}] User ${actorUserId} has exceeded usage limits. Blocking execution.`,
@@ -493,6 +499,63 @@ export async function preprocessExecution(
           cause: describeRetryableInfrastructureError(error),
         },
       }
+    }
+  }
+
+  // ========== STEP 7: Reserve Admission Slot ==========
+  // Atomic check-then-reserve that closes the usage-cap race: cost is only
+  // recorded when an execution finishes, so without a reservation a burst of
+  // concurrent executions all observe the same pre-burst usage and all pass the
+  // gate above. Reserving here bounds in-flight (un-costed) executions per
+  // billing entity. Done last so an earlier rejection never leaves a slot held;
+  // the slot is released at execution completion (see LoggingSession).
+  if (!skipUsageLimits && usageSnapshot) {
+    try {
+      const { reserved } = await reserveExecutionSlot({
+        userId: actorUserId,
+        executionId,
+        subscription: userSubscription,
+        currentUsage: usageSnapshot.currentUsage,
+        limit: usageSnapshot.limit,
+      })
+
+      if (!reserved) {
+        logger.warn(`[${requestId}] Admission reservation full for user ${actorUserId}`, {
+          workflowId,
+          triggerType,
+        })
+
+        await recordPreprocessingError({
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: actorUserId,
+          workspaceId,
+          errorMessage:
+            'Too many concurrent executions in flight for this account. Please wait for in-progress runs to finish and try again.',
+          loggingSession: providedLoggingSession,
+          triggerData,
+        })
+
+        return {
+          success: false,
+          error: {
+            message:
+              'Too many concurrent executions in flight. Please wait for in-progress runs to finish and try again.',
+            statusCode: 429,
+            logCreated: true,
+            retryable: true,
+          },
+        }
+      }
+    } catch (error) {
+      // reserveExecutionSlot fails open internally; a throw here is unexpected.
+      // Don't block execution the recorded-usage gate already admitted.
+      logger.error(`[${requestId}] Unexpected error reserving admission slot`, {
+        error,
+        actorUserId,
+      })
     }
   }
 
