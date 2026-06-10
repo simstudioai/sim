@@ -35,7 +35,7 @@ interface ChatSwitcherProps {
 }
 
 /**
- * The chat-switcher chip — a "Chats / {title}" breadcrumb that lives at the
+ * The chat-switcher chip — a chat icon + title that lives at the
  * top-left of every page's title bar. Clicking it opens the workspace's chat
  * list inline; selecting a chat navigates to it from anywhere.
  */
@@ -84,13 +84,6 @@ export function ChatSwitcher({ chatId, isNewChat = false, onSelectChat }: ChatSw
           )}
         >
           <MessageCircle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span className='flex-shrink-0 text-[14px] text-[var(--text-muted)]'>Chats</span>
-          <span
-            aria-hidden='true'
-            className='flex-shrink-0 select-none text-[14px] text-[var(--text-icon)]'
-          >
-            /
-          </span>
           <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
             {title}
           </span>
