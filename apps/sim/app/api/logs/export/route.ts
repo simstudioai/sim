@@ -5,6 +5,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
@@ -13,14 +14,6 @@ import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 const logger = createLogger('LogsExportAPI')
 
 export const revalidate = 0
-
-/**
- * Prefixes a single quote to values starting with a spreadsheet formula trigger
- * (`=`, `+`, `-`, `@`, tab, CR), neutralizing CSV injection in Excel/Sheets.
- */
-function neutralizeCsvFormula(value: string): string {
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
-}
 
 function escapeCsv(value: any): string {
   if (value === null || value === undefined) return ''
