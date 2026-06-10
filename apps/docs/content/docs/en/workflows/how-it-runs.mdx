@@ -38,9 +38,17 @@ To repeat work, a [Loop](/blocks/loop) block runs its inner blocks over a list, 
 A workflow can call other workflows, through a Workflow block, an MCP tool, or an API block. Sim tracks the call chain and stops a run that exceeds 25 hops, so workflows that call each other can't loop forever.
 </Callout>
 
+## When a block fails
+
+A block that errors fails the run: blocks already running finish, and nothing new starts. To handle the failure instead, connect the block's **error port** — the run follows the [error path](/workflows/connections) and continues.
+
+<Image src="/static/execution/error-path.png" alt="A Function block whose error port routes to a handler block, with the normal path continuing to a success block" width={800} height={319} />
+
+Here `throwError` fails, so the run leaves through its red error port to `handleError`; `handleSuccess` on the normal path never runs.
+
 ## Watching a run
 
-While a workflow runs, the editor shows each block's state live: queued, running, done, or errored. When a block fails, the run fails with it — blocks already running finish, but nothing new starts. The exception is a block with its error port connected: the failure routes down the [error path](/workflows/connections) and the run continues. Every run is recorded, so you can open the [logs](/logs-debugging) to see what each block received and returned after it finishes.
+While a workflow runs, the editor shows each block's state live: queued, running, done, or errored. Every run is recorded, so you can open the [logs](/logs-debugging) to see what each block received and returned after it finishes.
 
 ## Next
 
