@@ -48,7 +48,12 @@ export const githubHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      return null
+      logger.warn(
+        `[${requestId}] GitHub webhook missing webhookSecret in providerConfig — rejecting request`
+      )
+      return new NextResponse('Unauthorized - GitHub signing secret not configured', {
+        status: 401,
+      })
     }
 
     const signature =

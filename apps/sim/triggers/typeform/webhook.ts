@@ -45,9 +45,9 @@ export const typeformWebhookTrigger: TriggerConfig = {
       id: 'secret',
       title: 'Webhook Secret',
       type: 'short-input',
-      placeholder: 'Enter a secret for webhook signature verification (optional)',
+      placeholder: 'Enter a secret for webhook signature verification',
       description:
-        'A secret string used to verify webhook authenticity. Highly recommended for security. Generate a secure random string (min 20 characters recommended).',
+        'A secret string used to verify webhook authenticity. Required: deliveries are rejected until this is set. Generate a secure random string (min 20 characters recommended).',
       password: true,
       required: false,
       mode: 'trigger',

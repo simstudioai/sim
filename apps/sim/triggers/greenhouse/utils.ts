@@ -62,17 +62,17 @@ export function isGreenhouseEventMatch(triggerId: string, action: string): boole
 
 /**
  * Builds extra fields for Greenhouse triggers.
- * Includes an optional secret key for HMAC signature verification.
+ * Includes the secret key used for HMAC signature verification.
  */
 export function buildGreenhouseExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     {
       id: 'secretKey',
-      title: 'Secret Key (Optional)',
+      title: 'Secret Key',
       type: 'short-input',
       placeholder: 'Enter the same secret key configured in Greenhouse',
       description:
-        'When set, requests must include a valid Signature header (HMAC-SHA256). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control.',
+        'Used to verify the HMAC-SHA256 Signature header. Required: deliveries are rejected until a secret key is configured here and in Greenhouse.',
       password: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
@@ -101,7 +101,7 @@ export function greenhouseSetupInstructions(eventType: string): string {
     'In Greenhouse, go to <strong>Configure &gt; Dev Center &gt; Webhooks</strong>.',
     'Click <strong>Create New Webhook</strong>.',
     'Paste the Webhook URL into the <strong>Endpoint URL</strong> field.',
-    'Enter a <strong>Secret Key</strong> for HMAC signature verification (recommended). Leave empty only if you accept unauthenticated POSTs to this URL.',
+    'Enter a <strong>Secret Key</strong> for HMAC signature verification. This is required — deliveries without a valid signature are rejected.',
     `Under <strong>When</strong>, select the appropriate <strong>${eventType}</strong>.`,
     'Click <strong>Create Webhook</strong> to save.',
     'Click "Save" above to activate your trigger.',

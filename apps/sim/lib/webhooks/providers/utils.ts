@@ -16,6 +16,10 @@ interface HmacVerifierOptions {
 /**
  * Factory that creates a `verifyAuth` implementation for HMAC-signature-based providers.
  * Covers the common pattern: get secret → check header → validate signature → return 401 or null.
+ *
+ * Fails closed: when no signing secret is configured the request is rejected (401), matching
+ * Stripe/WhatsApp/Vercel. A signed-provider webhook with no secret would otherwise accept any
+ * unauthenticated body that knows the URL, downgrading the provider's mandatory signature check.
  */
 export function createHmacVerifier({
   configKey,
@@ -31,7 +35,12 @@ export function createHmacVerifier({
   }: AuthContext): Promise<NextResponse | null> => {
     const secret = providerConfig[configKey] as string | undefined
     if (!secret) {
-      return null
+      logger.warn(
+        `[${requestId}] ${providerLabel} webhook missing signing secret in providerConfig — rejecting request`
+      )
+      return new NextResponse(`Unauthorized - ${providerLabel} signing secret not configured`, {
+        status: 401,
+      })
     }
 
     const signature = request.headers.get(headerName)

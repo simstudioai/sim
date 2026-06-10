@@ -34,7 +34,8 @@ export const jiraWebhookTrigger: TriggerConfig = {
       title: 'Webhook Secret',
       type: 'short-input',
       placeholder: 'Enter a strong secret',
-      description: 'Optional secret to validate webhook deliveries from Jira using HMAC signature',
+      description:
+        'Secret to validate webhook deliveries from Jira using HMAC signature. Required: deliveries are rejected until this is set.',
       password: true,
       required: false,
       mode: 'trigger',

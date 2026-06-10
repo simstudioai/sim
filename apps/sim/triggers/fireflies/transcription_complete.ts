@@ -25,7 +25,8 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
       title: 'Webhook Secret',
       type: 'short-input',
       placeholder: 'Enter your 16-32 character secret',
-      description: 'Secret key for HMAC signature verification (set in Fireflies dashboard)',
+      description:
+        'Secret key for HMAC signature verification (set in Fireflies dashboard). Required: deliveries are rejected until this is set.',
       password: true,
       required: false,
       mode: 'trigger',

@@ -111,6 +111,11 @@ async function handleWebhookPost(
   const responses: NextResponse[] = []
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
+    const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
+    if (reachabilityResponse) {
+      return reachabilityResponse
+    }
+
     const authError = await verifyProviderAuth(
       foundWebhook,
       foundWorkflow,
@@ -124,11 +129,6 @@ async function handleWebhookPost(
         continue
       }
       return authError
-    }
-
-    const reachabilityResponse = handleProviderReachabilityTest(foundWebhook, body, requestId)
-    if (reachabilityResponse) {
-      return reachabilityResponse
     }
 
     const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
