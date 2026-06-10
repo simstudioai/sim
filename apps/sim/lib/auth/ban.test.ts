@@ -21,7 +21,7 @@ vi.mock('@/lib/core/config/env', () => ({
 }))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isAppConfigEnabled: false }))
 
-import { getActivelyBannedUserIds, isBanActive } from '@/lib/auth/ban'
+import { getActivelyBannedUserIds, isBanActive, isEmailDomainBlocked } from '@/lib/auth/ban'
 
 describe('isBanActive', () => {
   it('returns true for a permanent ban', () => {
@@ -39,6 +39,23 @@ describe('isBanActive', () => {
   it('returns false when not banned', () => {
     expect(isBanActive({ banned: false, banExpires: null })).toBe(false)
     expect(isBanActive({ banned: null, banExpires: null })).toBe(false)
+  })
+})
+
+describe('isEmailDomainBlocked', () => {
+  beforeEach(() => {
+    envRef.BLOCKED_SIGNUP_DOMAINS = 'bad.com'
+  })
+
+  it('returns true for blocked domains and subdomains', async () => {
+    expect(await isEmailDomainBlocked('a@bad.com')).toBe(true)
+    expect(await isEmailDomainBlocked('a@mail.bad.com')).toBe(true)
+  })
+
+  it('returns false for clean domains and missing emails', async () => {
+    expect(await isEmailDomainBlocked('a@good.com')).toBe(false)
+    expect(await isEmailDomainBlocked(null)).toBe(false)
+    expect(await isEmailDomainBlocked(undefined)).toBe(false)
   })
 })
 

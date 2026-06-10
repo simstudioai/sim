@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import { getActivelyBannedUserIds } from '@/lib/auth/ban'
+import { getActivelyBannedUserIds, isEmailDomainBlocked } from '@/lib/auth/ban'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
@@ -94,11 +94,34 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       return
     }
 
-    // No email response on purpose — never mail a suspended account.
-    const [bannedUserId] = await getActivelyBannedUserIds([userId])
-    if (bannedUserId) {
-      logger.warn('Blocking inbox task: resolved user is banned', { taskId, userId })
-      await markTaskFailed(taskId, 'User account is suspended')
+    // Blocked senders and banned accounts must not drive the agent; the sender
+    // email is checked directly because non-members resolve to the workspace
+    // owner. Fails closed on lookup errors. No email response in any of these
+    // paths — never mail a suspended account.
+    let blockReason: string | null = null
+    try {
+      const [senderBlocked, [bannedUserId]] = await Promise.all([
+        isEmailDomainBlocked(inboxTask.fromEmail),
+        getActivelyBannedUserIds([userId]),
+      ])
+      if (senderBlocked || bannedUserId) {
+        logger.warn('Blocking inbox task: sender or resolved user is banned', {
+          taskId,
+          userId,
+          senderBlocked,
+        })
+        blockReason = 'User account is suspended'
+      }
+    } catch (error) {
+      logger.error('Inbox task ban check failed; failing closed', {
+        taskId,
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      blockReason = 'Unable to verify account status'
+    }
+    if (blockReason) {
+      responseSent = true
+      await markTaskFailed(taskId, blockReason)
       return
     }
 

@@ -13,6 +13,16 @@ export function isBanActive(row: { banned: boolean | null; banExpires: Date | nu
 }
 
 /**
+ * True when the email's domain is in the appconfig blocked-domains list.
+ * For gating raw emails (e.g. inbound senders) that have no user row.
+ */
+export async function isEmailDomainBlocked(email: string | null | undefined): Promise<boolean> {
+  if (!email) return false
+  const accessControl = await getAccessControlConfig()
+  return isEmailInDenylist(email, accessControl.blockedSignupDomains)
+}
+
+/**
  * Returns the subset of the given user ids that are currently blocked: an
  * active account ban, or an email domain in the appconfig blocked-domains
  * list. One user query plus the cached access-control fetch. Throws on db
