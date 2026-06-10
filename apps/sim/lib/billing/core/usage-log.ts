@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { usageLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -579,7 +579,7 @@ export async function getUserUsageLogs(
     }
 
     if (cursor) {
-      const cursorLog = await db
+      const cursorLog = await dbReplica
         .select({ createdAt: usageLog.createdAt })
         .from(usageLog)
         .where(eq(usageLog.id, cursor))
@@ -592,7 +592,7 @@ export async function getUserUsageLogs(
       }
     }
 
-    const logs = await db
+    const logs = await dbReplica
       .select()
       .from(usageLog)
       .where(and(...conditions))
@@ -621,7 +621,7 @@ export async function getUserUsageLogs(
     if (startDate) summaryConditions.push(gte(usageLog.createdAt, startDate))
     if (endDate) summaryConditions.push(lte(usageLog.createdAt, endDate))
 
-    const summaryResult = await db
+    const summaryResult = await dbReplica
       .select({
         source: usageLog.source,
         totalCost: sql<string>`SUM(${usageLog.cost})`,

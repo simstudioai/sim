@@ -10,6 +10,9 @@ vi.mock('@sim/db', () => ({
   db: {
     select: selectMock,
   },
+  dbReplica: {
+    select: selectMock,
+  },
 }))
 
 // Local drizzle-orm mock: the global mock's `sql` lacks `.as()` and the chain

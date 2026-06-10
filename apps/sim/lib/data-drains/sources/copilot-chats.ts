@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { and, asc, inArray, isNull, sql } from 'drizzle-orm'
 import {
@@ -55,7 +55,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(copilotChats.createdAt, copilotChats.id, cursor)
 
-    const metaRows = await db
+    const metaRows = await dbReplica
       .select(chatColumns)
       .from(copilotChats)
       .where(and(inArray(copilotChats.workspaceId, workspaceIds), cursorClause))
@@ -65,7 +65,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
     if (metaRows.length === 0) return
 
     const chatIds = metaRows.map((r) => r.id)
-    const messageRows = await db
+    const messageRows = await dbReplica
       .select({ chatId: copilotMessages.chatId, content: copilotMessages.content })
       .from(copilotMessages)
       .where(and(inArray(copilotMessages.chatId, chatIds), isNull(copilotMessages.deletedAt)))

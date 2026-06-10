@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { and, inArray, isNotNull } from 'drizzle-orm'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -33,7 +33,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
       cursor
     )
 
-    const rows = await db
+    const rows = await dbReplica
       .select()
       .from(workflowExecutionLogs)
       .where(

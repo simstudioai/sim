@@ -1,5 +1,5 @@
 import { AuditResourceType } from '@sim/audit'
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
@@ -73,7 +73,7 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
  * Returns the IDs of all workspaces attached to the organization.
  */
 export async function getOrgWorkspaceIds(organizationId: string): Promise<string[]> {
-  const rows = await db
+  const rows = await dbReplica
     .select({ id: workspace.id })
     .from(workspace)
     .where(eq(workspace.organizationId, organizationId))
@@ -156,7 +156,7 @@ export async function queryAuditLogs(
     if (cursorCondition) allConditions.push(cursorCondition)
   }
 
-  const rows = await db
+  const rows = await dbReplica
     .select()
     .from(auditLog)
     .where(allConditions.length > 0 ? and(...allConditions) : undefined)

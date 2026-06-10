@@ -28,6 +28,10 @@ vi.mock('@sim/db', () => ({
     insert: mockInsert,
     transaction: mockTransaction,
   },
+  dbReplica: {
+    insert: mockInsert,
+    transaction: mockTransaction,
+  },
 }))
 
 vi.mock('@sim/db/schema', () => ({

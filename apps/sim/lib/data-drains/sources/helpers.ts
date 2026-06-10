@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 
@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
  * sources whose underlying tables are workspace-scoped rather than org-scoped.
  */
 export async function getOrganizationWorkspaceIds(organizationId: string): Promise<string[]> {
-  const rows = await db
+  const rows = await dbReplica
     .select({ id: workspace.id })
     .from(workspace)
     .where(eq(workspace.organizationId, organizationId))
