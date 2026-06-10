@@ -11,7 +11,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
   longDescription:
     'Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.',
   docsLink: 'https://docs.sim.ai/tools/sftp',
-  category: 'blocks',
+  category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#2D3748',
   icon: SftpIcon,
