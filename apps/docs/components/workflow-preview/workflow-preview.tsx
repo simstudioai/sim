@@ -116,7 +116,7 @@ const SELECT_TITLES = new Set([
 ])
 
 function inspectorFieldsFor(block: PreviewBlock) {
-  return block.rows.map((row) => ({
+  const rowFields = block.rows.map((row) => ({
     label: row.title,
     kind:
       TEXTAREA_TITLES.has(row.title) || row.value.length > 40
@@ -126,6 +126,13 @@ function inspectorFieldsFor(block: PreviewBlock) {
           : ('input' as const),
     value: row.value,
   }))
+  const branchFields = (block.branches ?? []).map((branch) => ({
+    label: branch.label,
+    kind: 'code' as const,
+    value: branch.value,
+    placeholder: '—',
+  }))
+  return [...rowFields, ...branchFields]
 }
 
 function PreviewFlow({
