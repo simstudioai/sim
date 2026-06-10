@@ -124,6 +124,12 @@ export const GET = withRouteHandler(
   }
 )
 
+/**
+ * Upserts workspace environment variables under tiered authorization: the caller
+ * needs some workspace permission, editing an existing secret requires
+ * credential-admin on that key, and adding a brand-new key requires workspace
+ * write/admin.
+ */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -142,9 +148,6 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { variables } = parsed.data.body
 
-      // Caller must have workspace access at all (blocks non-member writes);
-      // per-key gating below then requires credential-admin to edit existing
-      // secrets and write/admin to add brand-new keys.
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -265,6 +268,11 @@ export const PUT = withRouteHandler(
   }
 )
 
+/**
+ * Removes workspace environment variables. Deleting an existing secret requires
+ * credential-admin on that key; a key with no credential yet (legacy) falls back
+ * to workspace write/admin.
+ */
 export const DELETE = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -283,9 +291,6 @@ export const DELETE = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { keys } = parsed.data.body
 
-      // Caller must have workspace access at all; deleting an existing secret then
-      // requires being its credential admin, while a key with no credential yet
-      // (legacy) falls back to workspace write/admin.
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
