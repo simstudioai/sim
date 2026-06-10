@@ -27,6 +27,32 @@ export function getImportStage(entry: ImportRow): ImportStageView {
   const name = entry.title
   const meta = typeof entry.percent === 'number' ? `${entry.percent}%` : undefined
 
+  if (entry.jobType === 'export') {
+    if (entry.phase === 'failed') {
+      return {
+        status: 'error',
+        title: `Export failed for ${name}`,
+        detail: entry.error ?? 'Something went wrong',
+        dismissible: true,
+      }
+    }
+    if (entry.phase === 'ready') {
+      // The menu replaces `detail` with a Download action for ready exports.
+      return {
+        status: 'success',
+        title: `Exported ${name}`,
+        detail: `${rows} rows`,
+        dismissible: true,
+      }
+    }
+    return {
+      status: 'pending',
+      title: `Exporting ${name}`,
+      detail: `${rows} rows`,
+      dismissible: false,
+    }
+  }
+
   if (entry.phase === 'failed') {
     return {
       status: 'error',

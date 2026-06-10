@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/components/emcn'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { RowData, RowExecutionMetadata, RowExecutions, TableDefinition } from '@/lib/table'
 import { isExecInFlight } from '@/lib/table/deps'
@@ -239,15 +240,17 @@ export function useTableEventStream({
       // file when an export this session kicked off completes. The initiated-set guard is what
       // keeps replayed `ready` events (SSE re-delivers up to 1h on reconnect) from re-downloading.
       if (type === 'export') {
-        // Refresh the export-jobs query promptly — `useExportJobToasts` derives the running/
-        // ready/failed toasts (with Cancel/Download actions) from it, so messaging lives there.
+        // Keep the tray's export list fresh between its polls.
         void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
-        // Auto-download for the session that kicked the export off; the derived ready-toast's
-        // Download action covers everyone else (and re-downloads).
         if (status === 'ready' && jobId && consumeInitiatedExport(jobId)) {
-          void downloadExportResult(workspaceId, tableId, jobId).catch((err) => {
-            logger.error('Export auto-download failed', { tableId, jobId, err })
-          })
+          void downloadExportResult(workspaceId, tableId, jobId)
+            .then(() => toast.success('Export ready — downloading'))
+            .catch((err) => {
+              logger.error('Export download failed', { tableId, jobId, err })
+              toast.error('Export finished but the download failed — try again from the table menu')
+            })
+        } else if (status === 'failed' && jobId && consumeInitiatedExport(jobId)) {
+          toast.error(error || 'Export failed')
         }
         return
       }

@@ -21,7 +21,6 @@ import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
-import { useExportJobToasts } from '@/app/workspace/[workspaceId]/tables/hooks/use-export-job-toasts'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadTableExport,
@@ -136,7 +135,6 @@ export function Table({
     })
   }
   useTableEventStream({ tableId, workspaceId, onUsageLimitReached })
-  useExportJobToasts(workspaceId)
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
