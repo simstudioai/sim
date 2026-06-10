@@ -32,8 +32,12 @@ const MAX_CONCURRENT_EXECUTIONS: Record<SubscriptionPlan, number> = {
 /**
  * Per-slot reserved cost estimate (dollars). The guaranteed-minimum charge
  * every execution incurs, used to taper admission as recorded usage approaches
- * the cap: an entity may hold at most `floor(headroom / estimate)` slots, so
- * `recordedUsage + reservedSlots * estimate <= limit` always holds.
+ * the cap: an entity may hold at most `floor(headroom / estimate)` concurrent
+ * slots, keeping `recordedUsage + reservedSlots * estimate <= limit`. A lone
+ * execution is never blocked on headroom alone — the recorded-usage gate
+ * (`isExceeded`) governs the single-execution case, so the only residual
+ * overshoot is the one already inherent to admission (cost is unknown until the
+ * execution finishes).
  */
 const SLOT_COST_ESTIMATE = BASE_EXECUTION_CHARGE
 
@@ -48,8 +52,10 @@ const POINTER_KEY_PREFIX = 'usage:reservation:'
  * and the remaining usage headroom permit it, then record the in-flight slot.
  *
  * Prune expired members (crash safety) -> `count = ZCARD` -> reject when
- * `count >= min(maxConcurrency, headroomSlots)` -> otherwise `ZADD` the slot,
- * refresh the set TTL, and write the per-execution pointer for release.
+ * `count >= min(maxConcurrency, max(1, headroomSlots))` -> otherwise `ZADD` the
+ * slot, refresh the set TTL, and write the per-execution pointer for release.
+ * The `max(1, ...)` floor guarantees a lone execution is never blocked on
+ * headroom alone; concurrency above the first slot still tapers with headroom.
  */
 const RESERVE_SCRIPT = `
 local now = tonumber(ARGV[1])
@@ -59,6 +65,7 @@ local headroomSlots = tonumber(ARGV[4])
 local pttl = tonumber(ARGV[7])
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now)
 local count = redis.call('ZCARD', KEYS[1])
+if headroomSlots < 1 then headroomSlots = 1 end
 local allowed = maxConcurrency
 if headroomSlots < allowed then allowed = headroomSlots end
 if count >= allowed then
