@@ -329,6 +329,9 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     )
   } catch (error: any) {
     asyncLogger.error('Failed to queue async execution', error)
+    // Enqueue failed: no background job will run or finalize a session, so
+    // release the admission slot reserved during preprocessing.
+    await releaseExecutionSlot(executionId)
     return NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 })
   }
 }
