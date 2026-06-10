@@ -3339,24 +3339,6 @@
     "tags": ["data-analytics", "automation"]
   },
   {
-    "type": "enrichment",
-    "slug": "data-enrichment",
-    "name": "Data Enrichment",
-    "description": "Enrich data with a Sim enrichment",
-    "longDescription": "Run a Sim enrichment to look up data — work email, phone number, company domain, company info, and more — from the fields you map in. Uses the same provider cascade as table enrichments.",
-    "bgColor": "#9333EA",
-    "iconName": "EnrichmentIcon",
-    "docsUrl": "https://docs.sim.ai/tools/enrichment",
-    "operations": [],
-    "operationCount": 0,
-    "triggers": [],
-    "triggerCount": 0,
-    "authType": "none",
-    "category": "tools",
-    "integrationType": "sales",
-    "tags": ["enrichment", "sales-engagement"]
-  },
-  {
     "type": "databricks",
     "slug": "databricks",
     "name": "Databricks",

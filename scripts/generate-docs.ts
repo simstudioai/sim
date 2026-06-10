@@ -1041,7 +1041,7 @@ function isIntegrationBlock(config: { category?: string; hideFromToolbar?: boole
  * generators, vision, and STT/TTS — is excluded from the integrations icon
  * map, matching {@link isIntegrationBlock}.
  */
-const ICON_MAP_BLOCK_CATEGORY_ALLOWLIST = new Set(['memory', 'knowledge'])
+const ICON_MAP_BLOCK_CATEGORY_ALLOWLIST = new Set(['memory', 'knowledge', 'enrichment'])
 
 /**
  * Block types that never belong in the integrations icon map regardless of

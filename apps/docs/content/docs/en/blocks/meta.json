@@ -5,6 +5,7 @@
     "api",
     "condition",
     "credential",
+    "enrichment",
     "evaluator",
     "function",
     "guardrails",
