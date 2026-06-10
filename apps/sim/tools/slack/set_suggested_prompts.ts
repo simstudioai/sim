@@ -103,6 +103,11 @@ export const slackSetSuggestedPromptsTool: ToolConfig<
     }),
     body: (params: SlackSetSuggestedPromptsParams) => {
       const prompts = normalizePrompts(params.prompts).slice(0, 4)
+      if (prompts.length === 0) {
+        throw new Error(
+          'At least one suggested prompt with a non-empty "title" and "message" is required.'
+        )
+      }
       const title = params.promptsTitle?.trim()
       return {
         channel_id: params.channel?.trim(),

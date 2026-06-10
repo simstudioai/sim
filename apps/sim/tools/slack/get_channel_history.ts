@@ -113,7 +113,7 @@ export const slackGetChannelHistoryTool: ToolConfig<
       limit: params.limit ? Number(params.limit) : 200,
       cursor: params.cursor,
       maxPages: params.maxPages ? Math.max(Number(params.maxPages), 1) : DEFAULT_MAX_PAGES,
-      missingScopeHint: 'channels:history, groups:history',
+      missingScopeHint: 'channels:history, groups:history, im:history, mpim:history',
     })
 
     return {

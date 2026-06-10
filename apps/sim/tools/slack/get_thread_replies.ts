@@ -120,12 +120,16 @@ export const slackGetThreadRepliesTool: ToolConfig<
       limit: params.limit ? Number(params.limit) : 200,
       cursor: params.cursor,
       maxPages: params.maxPages ? Math.max(Number(params.maxPages), 1) : DEFAULT_MAX_PAGES,
-      missingScopeHint: 'channels:history, groups:history',
+      missingScopeHint: 'channels:history, groups:history, im:history, mpim:history',
     })
 
     const messages = result.messages
-    const parentMessage = messages.length > 0 ? messages[0] : null
-    const replies = messages.slice(1)
+    const threadTs = params.threadTs?.trim()
+    // The thread parent is the message whose ts equals the requested thread_ts.
+    // It is only present on the first page; cursor-resumed pages contain replies
+    // only, so identify the parent by ts rather than assuming index 0.
+    const parentMessage = messages.find((msg) => msg.ts === threadTs) ?? null
+    const replies = parentMessage ? messages.filter((msg) => msg !== parentMessage) : messages
 
     return {
       success: true,
