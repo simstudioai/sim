@@ -14,7 +14,7 @@ import { isZodError, validationErrorResponse } from '@/lib/api/server/validation
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
+import type { Filter, RowData, Sort, TableRowsCursor, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -225,12 +225,14 @@ export const GET = withRouteHandler(
       const workspaceId = searchParams.get('workspaceId')
       const filterParam = searchParams.get('filter')
       const sortParam = searchParams.get('sort')
+      const afterParam = searchParams.get('after')
       const limit = searchParams.get('limit')
       const offset = searchParams.get('offset')
       const includeTotalParam = searchParams.get('includeTotal')
 
       let filter: Record<string, unknown> | undefined
       let sort: Sort | undefined
+      let after: TableRowsCursor | undefined
 
       try {
         if (filterParam) {
@@ -239,14 +241,18 @@ export const GET = withRouteHandler(
         if (sortParam) {
           sort = JSON.parse(sortParam) as Sort
         }
+        if (afterParam) {
+          after = JSON.parse(afterParam) as TableRowsCursor
+        }
       } catch {
-        return NextResponse.json({ error: 'Invalid filter or sort JSON' }, { status: 400 })
+        return NextResponse.json({ error: 'Invalid filter, sort, or after JSON' }, { status: 400 })
       }
 
       const validated = tableRowsQuerySchema.parse({
         workspaceId,
         filter,
         sort,
+        after,
         limit,
         offset,
         includeTotal: includeTotalParam,
@@ -271,6 +277,7 @@ export const GET = withRouteHandler(
           sort: validated.sort,
           limit: validated.limit,
           offset: validated.offset,
+          after: validated.after,
           includeTotal: validated.includeTotal,
         },
         requestId

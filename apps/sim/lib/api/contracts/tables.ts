@@ -8,6 +8,7 @@ import type {
   TableDefinition,
   TableMetadata,
   TableRow,
+  TableRowsCursor,
 } from '@/lib/table'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
@@ -293,10 +294,17 @@ export const deleteTableRowsBodySchema = z
     message: 'Provide either filter or rowIds, but not both',
   })
 
-export const tableRowsQuerySchema = z.object({
+/** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
+export const tableRowsQueryBaseSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: domainObjectSchema<Filter>().optional(),
   sort: domainObjectSchema<Sort>().optional(),
+  /**
+   * Keyset cursor `(orderKey, id)` for the default row order — each page is an index seek
+   * instead of OFFSET's scan-and-discard. Mutually exclusive with `sort` (cursors only make
+   * sense on the default order); takes precedence over `offset`.
+   */
+  after: domainObjectSchema<TableRowsCursor>().optional(),
   limit: z
     .preprocess(
       (value) =>
@@ -328,6 +336,11 @@ export const tableRowsQuerySchema = z.object({
     )
     .default(true),
 })
+
+export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
+  (data) => !(data.after && data.sort),
+  { message: 'after cursor cannot be combined with sort — cursors paginate the default order' }
+)
 
 export const updateRowsByFilterBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),

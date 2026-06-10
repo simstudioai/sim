@@ -224,6 +224,17 @@ export interface TableExportJobPayload {
   resultKey?: string
 }
 
+/**
+ * Keyset cursor for paginating a table's default row order, `(order_key, id)`. The grid's
+ * infinite scroll threads this instead of an OFFSET — offset paging re-scans every prior row per
+ * page (O(N²) to drain a table); the cursor makes each page an index seek on
+ * `(table_id, order_key, id)`. Only valid for the default order: sorted views fall back to offset.
+ */
+export interface TableRowsCursor {
+  orderKey: string
+  id: string
+}
+
 /** Persisted scope of an output-column backfill job (`table_jobs.payload`). */
 export interface TableBackfillJobPayload {
   groupId: string
@@ -357,6 +368,9 @@ export interface QueryOptions {
   sort?: Sort
   limit?: number
   offset?: number
+  /** Keyset cursor for the default `(order_key, id)` order — see {@link TableRowsCursor}.
+   *  Mutually exclusive with `sort` and `offset`; takes precedence over `offset` when set. */
+  after?: TableRowsCursor
   /**
    * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
    * Pass `false` to skip the count query (grid UI doesn't need it); `totalCount`

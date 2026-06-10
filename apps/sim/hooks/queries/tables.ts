@@ -79,6 +79,7 @@ import type {
   TableDefinition,
   TableMetadata,
   TableRow,
+  TableRowsCursor,
   WorkflowGroup,
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
@@ -121,6 +122,12 @@ type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
     sort?: Sort | null
   }
 
+/**
+ * Infinite-rows page param: a keyset cursor on the default `(order_key, id)` order, or a numeric
+ * offset for sorted views / legacy rows without an order key. `0` doubles as the first page.
+ */
+export type TableRowsPageParam = number | TableRowsCursor
+
 export type TableRowsResponse = Pick<
   ContractJsonResponse<typeof listTableRowsContract>['data'],
   'rows' | 'totalCount'
@@ -159,6 +166,7 @@ async function fetchTableRows({
   tableId,
   limit,
   offset,
+  after,
   filter,
   sort,
   includeTotal,
@@ -170,6 +178,7 @@ async function fetchTableRows({
       workspaceId,
       limit,
       offset,
+      after,
       filter: filter ?? undefined,
       sort: sort ?? undefined,
       includeTotal,
@@ -446,21 +455,31 @@ export function tableRowsInfiniteOptions({
   const paramsKey = tableRowsParamsKey({ pageSize, filter, sort })
   return infiniteQueryOptions({
     queryKey: tableKeys.infiniteRows(tableId, paramsKey),
-    queryFn: ({ pageParam, signal }) =>
-      fetchTableRows({
+    queryFn: ({ pageParam, signal }) => {
+      const param = pageParam as TableRowsPageParam
+      return fetchTableRows({
         workspaceId,
         tableId,
         limit: pageSize,
-        offset: pageParam as number,
+        ...(typeof param === 'number' ? { offset: param } : { after: param }),
         filter,
         sort,
-        includeTotal: pageParam === 0,
+        includeTotal: param === 0,
         signal,
-      }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
+      })
+    },
+    initialPageParam: 0 as TableRowsPageParam,
+    getNextPageParam: (lastPage, _allPages, lastPageParam): TableRowsPageParam | undefined => {
       if (lastPage.rows.length < pageSize) return undefined
-      return (lastPageParam as number) + pageSize
+      // Default order pages by keyset cursor — each page is an index seek on (order_key, id),
+      // where OFFSET would re-scan every prior row (O(N²) across a deep scroll / full drain).
+      // Sorted views (and legacy rows without an order key) fall back to offset paging.
+      if (!sort) {
+        const last = lastPage.rows[lastPage.rows.length - 1]
+        if (last?.orderKey) return { orderKey: last.orderKey, id: last.id }
+      }
+      const param = lastPageParam as TableRowsPageParam
+      return (typeof param === 'number' ? param : 0) + lastPage.rows.length
     },
     staleTime: 30 * 1000,
   })
@@ -661,7 +680,7 @@ function patchCachedRows(
   tableId: string,
   patchRow: (row: TableRow) => TableRow
 ) {
-  queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
+  queryClient.setQueriesData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
     { queryKey: tableKeys.rowsRoot(tableId), exact: false },
     (old) => {
       if (!old) return old
@@ -708,7 +727,7 @@ function reconcileCreatedRow(
   tableId: string,
   row: TableRow
 ) {
-  queryClient.setQueriesData<InfiniteData<TableRowsResponse, number>>(
+  queryClient.setQueriesData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
     {
       queryKey: tableKeys.rowsRoot(tableId),
       exact: false,
@@ -835,7 +854,9 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
     onMutate: async ({ rowId, data }) => {
       await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
-      const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
+      const previousQueries = queryClient.getQueriesData<
+        InfiniteData<TableRowsResponse, TableRowsPageParam>
+      >({
         queryKey: tableKeys.rowsRoot(tableId),
       })
 
@@ -922,7 +943,9 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
     onMutate: async ({ updates }) => {
       await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
-      const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
+      const previousQueries = queryClient.getQueriesData<
+        InfiniteData<TableRowsResponse, TableRowsPageParam>
+      >({
         queryKey: tableKeys.rowsRoot(tableId),
       })
 
@@ -1076,19 +1099,21 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
       )
       await queryClient.cancelQueries({ queryKey: activeKey })
       const previousRows =
-        queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(activeKey)
+        queryClient.getQueryData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(activeKey)
       const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
       const keep = new Set(excludeRowIds ?? [])
-      queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(activeKey, (old) =>
-        old
-          ? {
-              ...old,
-              pages: old.pages.map((page) => ({
-                ...page,
-                rows: page.rows.filter((r) => keep.has(r.id)),
-              })),
-            }
-          : old
+      queryClient.setQueryData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
+        activeKey,
+        (old) =>
+          old
+            ? {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  rows: page.rows.filter((r) => keep.has(r.id)),
+                })),
+              }
+            : old
       )
       return { activeKey, previousRows, previousDetail }
     },
@@ -1727,7 +1752,7 @@ interface RunColumnVariables {
   limit?: RunLimit
 }
 
-type InfiniteRowsCache = { pages: TableRowsResponse[]; pageParams: number[] }
+type InfiniteRowsCache = { pages: TableRowsResponse[]; pageParams: TableRowsPageParam[] }
 /**
  * Cache shapes that hold table-row data. Single-page (`useTableRows`) and
  * infinite (`useInfiniteTableRows`) live under the same `rowsRoot(tableId)`

@@ -2830,6 +2830,7 @@ export async function queryRows(
     sort,
     limit = TABLE_LIMITS.DEFAULT_QUERY_LIMIT,
     offset = 0,
+    after,
     includeTotal = true,
     withExecutions = true,
   } = options
@@ -2855,15 +2856,27 @@ export async function queryRows(
     }
   }
 
+  // Keyset page: seek past the cursor on the default `(order_key, id)` order instead of paying
+  // OFFSET's scan-and-discard of every prior row (O(N²) across a deep scroll / full drain). Only
+  // valid without a custom sort — the contract rejects `after` + `sort` together. The count below
+  // deliberately excludes the cursor: totals cover the whole view, not the remaining pages.
+  const pageWhere =
+    after && !sort
+      ? and(
+          whereClause,
+          sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${after.orderKey}, ${after.id})`
+        )
+      : whereClause
+
   const query = db
     .select()
     .from(userTableRows)
-    .where(whereClause ?? baseConditions)
+    .where(pageWhere ?? baseConditions)
     .orderBy(buildRowOrderBySql(sort, tableName, columns))
 
   // Count and page fetch are independent reads — run them concurrently so the
   // `includeTotal` hot path doesn't pay two serial round-trips.
-  const rowsPromise = query.limit(limit).offset(offset)
+  const rowsPromise = after ? query.limit(limit) : query.limit(limit).offset(offset)
   const countPromise = includeTotal
     ? db
         .select({ count: count() })
