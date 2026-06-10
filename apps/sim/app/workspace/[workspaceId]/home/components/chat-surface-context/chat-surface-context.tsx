@@ -1,6 +1,14 @@
 'use client'
 
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef } from 'react'
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from 'react'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
@@ -55,11 +63,14 @@ export function ChatSurfaceProvider({
   children,
 }: ChatSurfaceProviderProps) {
   const onContextAddRef = useRef(onContextAdd)
-  onContextAddRef.current = onContextAdd
   const onContextRemoveRef = useRef(onContextRemove)
-  onContextRemoveRef.current = onContextRemove
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
-  onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
+
+  useLayoutEffect(() => {
+    onContextAddRef.current = onContextAdd
+    onContextRemoveRef.current = onContextRemove
+    onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
+  })
 
   const stableOnContextAdd = useCallback((context: ChatContext) => {
     onContextAddRef.current?.(context)
