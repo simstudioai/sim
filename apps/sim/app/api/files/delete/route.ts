@@ -62,7 +62,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     try {
       const key = extractStorageKeyFromPath(filePath)
 
-      const storageContext: StorageContext = context || inferContextFromKey(key)
+      // The context is derived from the trusted key prefix, never the
+      // client-supplied `context`. A caller cannot name a workspace key while
+      // claiming a public context (e.g. `og-images`) to dodge the ownership
+      // check. If a `context` is supplied it must agree with the key.
+      const storageContext: StorageContext = inferContextFromKey(key)
+      if (context && context !== storageContext) {
+        logger.warn('File delete context mismatch', { key, context, inferred: storageContext })
+        throw new InvalidRequestError(`Provided context "${context}" does not match the file key`)
+      }
 
       // Deletes require write/admin on the owning workspace (owner-scoped files
       // like copilot/regular uploads still authorize by ownership). KB deletes

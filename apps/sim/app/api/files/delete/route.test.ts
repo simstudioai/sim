@@ -198,4 +198,22 @@ describe('File Delete API Route', () => {
     expect(data).toHaveProperty('error', 'InvalidRequestError')
     expect(data).toHaveProperty('message', 'No file path provided')
   })
+
+  it('rejects a client context that disagrees with the key prefix', async () => {
+    // Reported attack: a workspace file key passed with a public context to dodge
+    // the ownership check. The context is derived from the key, so this is denied
+    // before authorization or deletion ever runs.
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/s3/workspace/victim-ws/1234-report.pdf',
+      context: 'og-images',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data).toHaveProperty('error', 'InvalidRequestError')
+    expect(mocks.mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+  })
 })
