@@ -44,7 +44,7 @@ import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } fr
 import { areGroupDepsSatisfied } from './deps'
 import { CSV_MAX_BATCH_SIZE } from './import'
 import { keyBetween, nKeysBetween } from './order-key'
-import { withSeqscanOff } from './planner'
+import { type DbExecutor, type DbTransaction, withSeqscanOff } from './planner'
 import { buildFilterClause, buildSortClause, escapeLikePattern } from './sql'
 import { fireTableTrigger } from './trigger'
 import type {
@@ -114,8 +114,6 @@ export class TableConflictError extends Error {
 }
 
 export type TableScope = 'active' | 'archived' | 'all'
-
-type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 /**
  * Sets per-transaction Postgres timeouts via `SET LOCAL`.
@@ -1607,7 +1605,7 @@ export async function selectRowIdPage(params: {
   limit: number
 }): Promise<string[]> {
   const { tableId, workspaceId, cutoff, filterClause, afterId, limit } = params
-  const selectPage = (executor: typeof db | DbTransaction) =>
+  const selectPage = (executor: DbExecutor) =>
     executor
       .select({ id: userTableRows.id })
       .from(userTableRows)
@@ -2915,7 +2913,7 @@ export async function queryRows(
         )
       : whereClause
 
-  const buildPageQuery = (executor: typeof db | DbTransaction) => {
+  const buildPageQuery = (executor: DbExecutor) => {
     const query = executor
       .select()
       .from(userTableRows)
