@@ -60,10 +60,29 @@ export const GET = withRouteHandler(
         workspaceId
       )
 
+      // Plaintext workspace secrets are restricted to administrators. Members
+      // (including read-only) receive the variable names with empty values so
+      // editor autocomplete and conflict detection keep working without leaking
+      // secret values. A caller may view a value if they are a credential admin
+      // of that key, or — for legacy keys predating per-secret ACLs — if they
+      // hold workspace `admin` permission. This mirrors the per-key edit gating
+      // in PUT/DELETE: if you can administer a secret, you can read it.
+      const workspaceKeys = Object.keys(workspaceDecrypted)
+      const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+        workspaceId,
+        envKeys: workspaceKeys,
+        userId,
+      })
+      const workspaceMasked: Record<string, string> = {}
+      for (const key of workspaceKeys) {
+        const canViewValue = adminKeys.has(key) || (!knownKeys.has(key) && permission === 'admin')
+        workspaceMasked[key] = canViewValue ? workspaceDecrypted[key] : ''
+      }
+
       return NextResponse.json(
         {
           data: {
-            workspace: workspaceDecrypted,
+            workspace: workspaceMasked,
             personal: personalDecrypted,
             conflicts,
           },
