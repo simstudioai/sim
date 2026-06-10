@@ -82,13 +82,21 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   }
   if (isTriggerDevEnabled) {
     // Trigger.dev runs the import outside the web container, so it survives app deploys.
-    const [{ tableImportTask }, { tasks }] = await Promise.all([
-      import('@/background/table-import'),
-      import('@trigger.dev/sdk'),
-    ])
-    await tasks.trigger<typeof tableImportTask>('table-import', importPayload, {
-      tags: [`tableId:${tableId}`, `jobId:${importId}`],
-    })
+    try {
+      const [{ tableImportTask }, { tasks }] = await Promise.all([
+        import('@/background/table-import'),
+        import('@trigger.dev/sdk'),
+      ])
+      await tasks.trigger<typeof tableImportTask>('table-import', importPayload, {
+        tags: [`tableId:${tableId}`, `jobId:${importId}`],
+      })
+    } catch (error) {
+      // A failed dispatch must not leave a ghost `running` job holding the
+      // table's one-write-job slot until the stale-job janitor fires.
+      const { releaseJobClaim } = await import('@/lib/table/service')
+      await releaseJobClaim(tableId, importId).catch(() => {})
+      throw error
+    }
   } else {
     runDetached('table-import', () => runTableImport(importPayload))
   }

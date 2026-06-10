@@ -60,13 +60,21 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
   const payload: TableExportPayload = { jobId, tableId, workspaceId, format }
   if (isTriggerDevEnabled) {
-    const [{ tableExportTask }, { tasks }] = await Promise.all([
-      import('@/background/table-export'),
-      import('@trigger.dev/sdk'),
-    ])
-    await tasks.trigger<typeof tableExportTask>('table-export', payload, {
-      tags: [`tableId:${tableId}`, `jobId:${jobId}`],
-    })
+    try {
+      const [{ tableExportTask }, { tasks }] = await Promise.all([
+        import('@/background/table-export'),
+        import('@trigger.dev/sdk'),
+      ])
+      await tasks.trigger<typeof tableExportTask>('table-export', payload, {
+        tags: [`tableId:${tableId}`, `jobId:${jobId}`],
+      })
+    } catch (error) {
+      // A failed dispatch must not leave a ghost `running` job holding the
+      // table's one-write-job slot until the stale-job janitor fires.
+      const { releaseJobClaim } = await import('@/lib/table/service')
+      await releaseJobClaim(tableId, jobId).catch(() => {})
+      throw error
+    }
   } else {
     runDetached('table-export', () => runTableExport(payload))
   }

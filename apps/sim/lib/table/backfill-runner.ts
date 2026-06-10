@@ -318,13 +318,25 @@ export async function maybeBackfillGroupOutputs(opts: {
     actorUserId,
   }
   if (isTriggerDevEnabled) {
-    const [{ tableBackfillTask }, { tasks }] = await Promise.all([
-      import('@/background/table-backfill'),
-      import('@trigger.dev/sdk'),
-    ])
-    await tasks.trigger<typeof tableBackfillTask>('table-backfill', payload, {
-      tags: [`tableId:${table.id}`, `jobId:${jobId}`],
-    })
+    try {
+      const [{ tableBackfillTask }, { tasks }] = await Promise.all([
+        import('@/background/table-backfill'),
+        import('@trigger.dev/sdk'),
+      ])
+      await tasks.trigger<typeof tableBackfillTask>('table-backfill', payload, {
+        tags: [`tableId:${table.id}`, `jobId:${jobId}`],
+      })
+    } catch (error) {
+      // Release the claim so a ghost `running` job doesn't block imports/deletes.
+      // Swallowed (warn only): a failed backfill never fails the schema change —
+      // the data stays backfillable.
+      const { releaseJobClaim } = await import('./service')
+      await releaseJobClaim(table.id, jobId).catch(() => {})
+      logger.warn(
+        `[${requestId}] Backfill dispatch failed for table ${table.id} group ${groupId}; skipping`,
+        { error: getErrorMessage(error) }
+      )
+    }
   } else {
     runDetached('table-backfill', () => runTableBackfill(payload))
   }

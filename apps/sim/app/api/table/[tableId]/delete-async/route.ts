@@ -78,15 +78,23 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   if (isTriggerDevEnabled) {
     // Trigger.dev runs the delete outside the web container (survives deploys) and retries —
     // safe: the keyset + cutoff walk just deletes whatever remains.
-    const [{ tableDeleteTask }, { tasks }] = await Promise.all([
-      import('@/background/table-delete'),
-      import('@trigger.dev/sdk'),
-    ])
-    await tasks.trigger<typeof tableDeleteTask>(
-      'table-delete',
-      { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff: cutoff.toISOString() },
-      { tags: [`tableId:${tableId}`, `jobId:${jobId}`] }
-    )
+    try {
+      const [{ tableDeleteTask }, { tasks }] = await Promise.all([
+        import('@/background/table-delete'),
+        import('@trigger.dev/sdk'),
+      ])
+      await tasks.trigger<typeof tableDeleteTask>(
+        'table-delete',
+        { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff: cutoff.toISOString() },
+        { tags: [`tableId:${tableId}`, `jobId:${jobId}`] }
+      )
+    } catch (error) {
+      // A failed dispatch must not leave a ghost `running` job holding the
+      // table's one-write-job slot until the stale-job janitor fires.
+      const { releaseJobClaim } = await import('@/lib/table/service')
+      await releaseJobClaim(tableId, jobId).catch(() => {})
+      throw error
+    }
   } else {
     runDetached('table-delete', () =>
       runTableDelete({

@@ -9,6 +9,7 @@ import type { TableDefinition } from '@/lib/table'
 const {
   mockCheckAccess,
   mockMarkTableJobRunning,
+  mockReleaseJobClaim,
   mockRunTableDelete,
   mockTableFilterError,
   mockTasksTrigger,
@@ -16,6 +17,7 @@ const {
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockMarkTableJobRunning: vi.fn(),
+  mockReleaseJobClaim: vi.fn(),
   mockRunTableDelete: vi.fn(),
   mockTableFilterError: vi.fn(),
   mockTasksTrigger: vi.fn(),
@@ -26,7 +28,10 @@ vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('job-id-xyz'),
   generateShortId: vi.fn().mockReturnValue('short-id'),
 }))
-vi.mock('@/lib/table/service', () => ({ markTableJobRunning: mockMarkTableJobRunning }))
+vi.mock('@/lib/table/service', () => ({
+  markTableJobRunning: mockMarkTableJobRunning,
+  releaseJobClaim: mockReleaseJobClaim,
+}))
 vi.mock('@/lib/table/delete-runner', () => ({ runTableDelete: mockRunTableDelete }))
 vi.mock('@/lib/core/config/feature-flags', () => ({
   get isTriggerDevEnabled() {
@@ -193,5 +198,16 @@ describe('POST /api/table/[tableId]/delete-async', () => {
       }),
       { tags: ['tableId:tbl_1', 'jobId:job-id-xyz'] }
     )
+  })
+
+  it('releases the job claim when the trigger.dev dispatch fails (no ghost running job)', async () => {
+    flags.triggerDev = true
+    mockTasksTrigger.mockRejectedValueOnce(new Error('trigger.dev unreachable'))
+
+    const response = await makeRequest(validBody)
+
+    expect(response.status).toBe(500)
+    expect(mockReleaseJobClaim).toHaveBeenCalledWith('tbl_1', 'job-id-xyz')
+    expect(mockRunTableDelete).not.toHaveBeenCalled()
   })
 })
