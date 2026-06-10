@@ -285,15 +285,21 @@ export function Table({
   )
 
   const onRunColumn = useCallback(
-    (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit) => {
-      runScope({ groupIds: [groupId], rowIds, runMode, limit, source: 'column' })
+    (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit, filter?: Filter) => {
+      runScope({ groupIds: [groupId], rowIds, filter, runMode, limit, source: 'column' })
     },
     [runScope]
   )
 
   const onRunRows = useCallback(
-    (rowIds: string[], runMode: RunMode) => {
-      runScope({ groupIds: tableWorkflowGroups.map((g) => g.id), rowIds, runMode, source: 'rows' })
+    (rowIds: string[] | undefined, runMode: RunMode, filter?: Filter) => {
+      runScope({
+        groupIds: tableWorkflowGroups.map((g) => g.id),
+        rowIds,
+        filter,
+        runMode,
+        source: 'rows',
+      })
     },
     [runScope, tableWorkflowGroups]
   )
@@ -361,6 +367,20 @@ export function Table({
       row_count: null,
     })
   }
+
+  /** Select-all Stop from the grid's context menu — filter-scoped when a filter is active. */
+  const onStopAllRows = useCallback(
+    (filter?: Filter) => {
+      cancelRunsMutate({ scope: 'all', filter })
+      captureEvent(posthogRef.current, 'table_workflow_stopped', {
+        table_id: tableId,
+        workspace_id: workspaceId,
+        scope: 'all',
+        row_count: null,
+      })
+    },
+    [cancelRunsMutate, tableId, workspaceId]
+  )
 
   const onSelectionChange = (next: SelectionSnapshot) => {
     setSelection(next)
@@ -640,6 +660,7 @@ export function Table({
         onRunRow={onRunRow}
         onRunRows={onRunRows}
         onStopRows={onStopRows}
+        onStopAllRows={onStopAllRows}
         onStopRow={onStopRow}
         onSelectionChange={onSelectionChange}
         queryOptions={queryOptions}

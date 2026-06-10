@@ -162,14 +162,24 @@ interface TableGridProps {
   onRequestDeleteAllByFilter: (params: { excludeRowIds: string[]; estimatedCount: number }) => void
   /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
   onRequestDeleteColumns: (names: string[]) => void
-  /** Fire run for a single column (meta-cell Run menu). */
-  onRunColumn: (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit) => void
+  /** Fire run for a single column (meta-cell Run menu). `filter` (mutually
+   *  exclusive with `rowIds`) scopes a select-all run to the active filter. */
+  onRunColumn: (
+    groupId: string,
+    runMode: RunMode,
+    rowIds?: string[],
+    limit?: RunLimit,
+    filter?: Filter
+  ) => void
   /** Fire every runnable column on a single row (per-row gutter Play). */
   onRunRow: (rowId: string) => void
-  /** Fan out a run across every workflow group on `rowIds`. Used by context menu. */
-  onRunRows: (rowIds: string[], runMode: RunMode) => void
+  /** Fan out a run across every workflow group on `rowIds` — or, with `rowIds`
+   *  undefined, across the whole table / the active filter. Used by context menu. */
+  onRunRows: (rowIds: string[] | undefined, runMode: RunMode, filter?: Filter) => void
   /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
   onStopRows: (rowIds: string[]) => void
+  /** Select-all Stop: table-wide, or scoped to the active filter when one is set. */
+  onStopAllRows: (filter?: Filter) => void
   /** Single-row stop for the per-row gutter button. */
   onStopRow: (rowId: string) => void
   /**
@@ -272,6 +282,7 @@ export function TableGrid({
   onRunRow,
   onRunRows,
   onStopRows,
+  onStopAllRows,
   onStopRow,
   onSelectionChange,
   queryOptions,
@@ -3194,21 +3205,26 @@ export function TableGrid({
     return [contextMenu.row.id]
   }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows])
 
-  const selectedRowCount = contextMenuRowIds.length || 1
-
   /**
-   * Rows the context-menu Delete covers. Under select-all the delete runs a
-   * background job over EVERY row matching the filter — not just the loaded
-   * page `contextMenuRowIds` reflects — so count from the filter-aware total
-   * minus deselections (mirrors handleContextMenuDelete's estimate).
+   * Select-all detection for the context-menu bulk actions: delete, run,
+   * refresh, and stop all act on EVERY row in the (filtered) selection — not
+   * just the loaded page `contextMenuRowIds` reflects — via the filter-scoped
+   * delete job / dispatch / cancel paths.
    */
-  const contextMenuDeleteCount =
+  const contextMenuIsSelectAll = Boolean(
     contextMenu.isOpen &&
-    contextMenu.row &&
-    rowSelection.kind === 'all' &&
-    rowSelectionIncludes(rowSelection, contextMenu.row.id)
-      ? Math.max(1, selectAllTotalRef.current - (rowSelection.excluded?.size ?? 0))
-      : selectedRowCount
+      contextMenu.row &&
+      rowSelection.kind === 'all' &&
+      rowSelectionIncludes(rowSelection, contextMenu.row.id)
+  )
+
+  const selectedRowCount = contextMenuIsSelectAll
+    ? Math.max(
+        1,
+        selectAllTotalRef.current -
+          (rowSelection.kind === 'all' ? (rowSelection.excluded?.size ?? 0) : 0)
+      )
+    : contextMenuRowIds.length || 1
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
@@ -3238,18 +3254,26 @@ export function TableGrid({
   // opened on a workflow-output cell, scope to just that cell's group — the
   // server cascade re-runs dependent groups whose deps it fills. Right-clicking
   // a plain cell has no group, so fall back to every group on the row(s).
-  const handleRunWorkflowsOnSelection = () => {
-    if (contextMenuGroupId) onRunColumn(contextMenuGroupId, 'incomplete', contextMenuRowIds)
-    else onRunRows(contextMenuRowIds, 'incomplete')
+  /** Select-all runs dispatch by filter scope (whole table when unfiltered),
+   *  mirroring the action bar's Play/Refresh. Note: like the action bar,
+   *  filter-scoped runs ignore deselections (the run API has no exclusion set). */
+  const runSelection = (runMode: RunMode) => {
+    if (contextMenuIsSelectAll) {
+      const filter = queryOptions.filter ?? undefined
+      if (contextMenuGroupId) onRunColumn(contextMenuGroupId, runMode, undefined, undefined, filter)
+      else onRunRows(undefined, runMode, filter)
+    } else if (contextMenuGroupId) {
+      onRunColumn(contextMenuGroupId, runMode, contextMenuRowIds)
+    } else {
+      onRunRows(contextMenuRowIds, runMode)
+    }
     closeContextMenu()
   }
-  const handleRefreshWorkflowsOnSelection = () => {
-    if (contextMenuGroupId) onRunColumn(contextMenuGroupId, 'all', contextMenuRowIds)
-    else onRunRows(contextMenuRowIds, 'all')
-    closeContextMenu()
-  }
+  const handleRunWorkflowsOnSelection = () => runSelection('incomplete')
+  const handleRefreshWorkflowsOnSelection = () => runSelection('all')
   const handleStopWorkflowsOnSelection = () => {
-    onStopRows(contextMenuRowIds)
+    if (contextMenuIsSelectAll) onStopAllRows(queryOptions.filter ?? undefined)
+    else onStopRows(contextMenuRowIds)
     closeContextMenu()
   }
 
@@ -3832,7 +3856,6 @@ export function TableGrid({
         canViewExecution={Boolean(contextMenuExecutionId) && contextMenuHasStartedRun}
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
-        deleteRowCount={contextMenuDeleteCount}
         onRunWorkflows={
           userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasIncompleteOrFailed
             ? handleRunWorkflowsOnSelection

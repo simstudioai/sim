@@ -30,10 +30,6 @@ interface ContextMenuProps {
   canViewExecution?: boolean
   canEditCell?: boolean
   selectedRowCount?: number
-  /** Rows the Delete action covers. Diverges from `selectedRowCount` under
-   *  select-all: delete runs a background job over every matching row, while
-   *  the run actions act only on the loaded rows. */
-  deleteRowCount?: number
   /** Fires every workflow group on the row(s), skipping already-completed
    *  cells. Mirrors the action bar's Play. */
   onRunWorkflows?: () => void
@@ -67,7 +63,6 @@ export function ContextMenu({
   canViewExecution = false,
   canEditCell = true,
   selectedRowCount = 1,
-  deleteRowCount = selectedRowCount,
   onRunWorkflows,
   onRefreshWorkflows,
   onStopWorkflows,
@@ -78,21 +73,21 @@ export function ContextMenu({
   disableInsert = false,
   disableDelete = false,
 }: ContextMenuProps) {
-  const deleteLabel =
-    deleteRowCount > 1 ? `Delete ${deleteRowCount.toLocaleString()} rows` : 'Delete row'
+  const count = selectedRowCount.toLocaleString()
+  const deleteLabel = selectedRowCount > 1 ? `Delete ${count} rows` : 'Delete row'
   const runLabel = workflowCellScoped
     ? selectedRowCount > 1
-      ? `Run cell on ${selectedRowCount} rows`
+      ? `Run cell on ${count} rows`
       : 'Run cell'
     : selectedRowCount > 1
-      ? `Run empty or failed cells on ${selectedRowCount} rows`
+      ? `Run empty or failed cells on ${count} rows`
       : 'Run empty or failed cells'
   const refreshLabel = workflowCellScoped
     ? selectedRowCount > 1
-      ? `Re-run cell on ${selectedRowCount} rows`
+      ? `Re-run cell on ${count} rows`
       : 'Re-run cell'
     : selectedRowCount > 1
-      ? `Re-run all cells on ${selectedRowCount} rows`
+      ? `Re-run all cells on ${count} rows`
       : 'Re-run all cells'
   const stopLabel =
     runningInSelectionCount === 1
