@@ -24,6 +24,7 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
+  ImportProgressMenu,
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
@@ -508,6 +509,7 @@ export function Tables() {
         sort={sortConfig}
         filter={filterContent}
         filterTags={filterTags}
+        leadingActions={<ImportProgressMenu workspaceId={workspaceId} />}
         headerActions={[
           {
             label: uploadButtonLabel,
