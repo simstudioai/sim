@@ -1,17 +1,33 @@
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
+import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 import {
   isEmailAllowed,
   setDeploymentAuthCookie,
   validateAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { getClientIp } from '@/lib/core/utils/request'
 
 const logger = createLogger('ChatAuthUtils')
+
+const rateLimiter = new RateLimiter()
+
+/**
+ * Throttles unauthenticated password guesses per client IP against a single
+ * deployment, mirroring the OTP/SSO IP limits.
+ */
+const PASSWORD_IP_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 10,
+  refillRate: 10,
+  refillIntervalMs: 15 * 60_000,
+}
 
 export function setChatAuthCookie(
   response: NextResponse,
@@ -88,7 +104,7 @@ export async function validateChatAuth(
   deployment: any,
   request: NextRequest,
   parsedBody?: any
-): Promise<{ authorized: boolean; error?: string }> {
+): Promise<{ authorized: boolean; error?: string; status?: number; retryAfterMs?: number }> {
   const authType = deployment.authType || 'public'
 
   if (authType === 'public') {
@@ -129,8 +145,25 @@ export async function validateChatAuth(
         return { authorized: false, error: 'Authentication configuration error' }
       }
 
+      const ip = getClientIp(request)
+      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+        `chat-password:ip:${deployment.id}:${ip}`,
+        PASSWORD_IP_RATE_LIMIT
+      )
+      if (!ipRateLimit.allowed) {
+        logger.warn(
+          `[${requestId}] Password attempt IP rate limit exceeded for chat ${deployment.id} from ${ip}`
+        )
+        return {
+          authorized: false,
+          error: 'Too many attempts. Please try again later.',
+          status: 429,
+          retryAfterMs: ipRateLimit.retryAfterMs ?? PASSWORD_IP_RATE_LIMIT.refillIntervalMs,
+        }
+      }
+
       const { decrypted } = await decryptSecret(deployment.password)
-      if (password !== decrypted) {
+      if (!safeCompare(password, decrypted)) {
         return { authorized: false, error: 'Invalid password' }
       }
 
