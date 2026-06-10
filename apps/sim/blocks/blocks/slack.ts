@@ -726,6 +726,7 @@ Return ONLY the JSON array - no explanations, no quotes around the array, no ext
       title: 'Max Pages',
       type: 'short-input',
       placeholder: '10',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['get_channel_history', 'get_thread_replies'],
@@ -737,6 +738,7 @@ Return ONLY the JSON array - no explanations, no quotes around the array, no ext
       title: 'Start Cursor',
       type: 'short-input',
       placeholder: 'Resume from a previous nextCursor',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['get_channel_history', 'get_thread_replies'],
