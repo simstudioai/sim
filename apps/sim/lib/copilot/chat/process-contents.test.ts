@@ -7,8 +7,6 @@ import type { ChatContext } from '@/stores/panel'
 
 const { getSkillById } = vi.hoisted(() => ({ getSkillById: vi.fn() }))
 
-vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => ({ document: {}, knowledgeBase: {} }))
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 
 import { processContextsServer } from './process-contents'
