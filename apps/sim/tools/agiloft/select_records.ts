@@ -1,5 +1,6 @@
 import type { AgiloftSelectRecordsParams, AgiloftSelectResponse } from '@/tools/agiloft/types'
-import { buildSelectRecordsUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildSelectRecordsUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftSelectRecordsTool: ToolConfig<

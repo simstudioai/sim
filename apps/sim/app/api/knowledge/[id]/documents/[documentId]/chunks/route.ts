@@ -160,8 +160,6 @@ export const POST = withRouteHandler(
         )
       }
 
-      // Allow manual chunk creation even if document is not fully processed
-      // but it should exist and not be in failed state
       if (doc.processingStatus === 'failed') {
         logger.warn(`[${requestId}] Document ${documentId} is in failed state, cannot add chunks`)
         return NextResponse.json({ error: 'Cannot add chunks to failed document' }, { status: 400 })
@@ -171,7 +169,6 @@ export const POST = withRouteHandler(
         const validatedData = createChunkBodySchema.parse(searchParams)
 
         const docTags = {
-          // Text tags (7 slots)
           tag1: doc.tag1 ?? null,
           tag2: doc.tag2 ?? null,
           tag3: doc.tag3 ?? null,
@@ -179,16 +176,13 @@ export const POST = withRouteHandler(
           tag5: doc.tag5 ?? null,
           tag6: doc.tag6 ?? null,
           tag7: doc.tag7 ?? null,
-          // Number tags (5 slots)
           number1: doc.number1 ?? null,
           number2: doc.number2 ?? null,
           number3: doc.number3 ?? null,
           number4: doc.number4 ?? null,
           number5: doc.number5 ?? null,
-          // Date tags (2 slots)
           date1: doc.date1 ?? null,
           date2: doc.date2 ?? null,
-          // Boolean tags (3 slots)
           boolean1: doc.boolean1 ?? null,
           boolean2: doc.boolean2 ?? null,
           boolean3: doc.boolean3 ?? null,
@@ -215,7 +209,6 @@ export const POST = withRouteHandler(
           logger.warn(`[${requestId}] Failed to calculate cost for chunk upload`, {
             error: getErrorMessage(error, 'Unknown error'),
           })
-          // Continue without cost information rather than failing the upload
         }
 
         return NextResponse.json({
@@ -274,7 +267,7 @@ export const PATCH = withRouteHandler(
       }
       const userId = auth.userId
 
-      const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
+      const accessCheck = await checkDocumentWriteAccess(knowledgeBaseId, documentId, userId)
 
       if (!accessCheck.hasAccess) {
         if (accessCheck.notFound) {

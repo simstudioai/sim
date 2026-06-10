@@ -28,6 +28,20 @@ export class MockFolderLockedError extends Error {
   }
 }
 
+/**
+ * Real `FolderNotFoundError` subclass used by tests so `instanceof` checks in
+ * route handlers behave the same as in production. Mirrors the shape exported
+ * by `@sim/workflow-authz`.
+ */
+export class MockFolderNotFoundError extends Error {
+  readonly status = 400
+
+  constructor(message = 'Target folder not found') {
+    super(message)
+    this.name = 'FolderNotFoundError'
+  }
+}
+
 const unlockedStatus = {
   locked: false,
   directLocked: false,
@@ -63,6 +77,8 @@ export const workflowAuthzMockFns = {
   mockGetWorkflowLockStatus: vi.fn().mockResolvedValue(unlockedStatus),
   mockAssertWorkflowMutable: vi.fn().mockResolvedValue(undefined),
   mockAssertFolderMutable: vi.fn().mockResolvedValue(undefined),
+  mockIsFolderInWorkspace: vi.fn().mockResolvedValue(true),
+  mockAssertFolderInWorkspace: vi.fn().mockResolvedValue(undefined),
 }
 
 /**
@@ -83,6 +99,9 @@ export const workflowAuthzMock = {
   getWorkflowLockStatus: workflowAuthzMockFns.mockGetWorkflowLockStatus,
   assertWorkflowMutable: workflowAuthzMockFns.mockAssertWorkflowMutable,
   assertFolderMutable: workflowAuthzMockFns.mockAssertFolderMutable,
+  isFolderInWorkspace: workflowAuthzMockFns.mockIsFolderInWorkspace,
+  assertFolderInWorkspace: workflowAuthzMockFns.mockAssertFolderInWorkspace,
   WorkflowLockedError: MockWorkflowLockedError,
   FolderLockedError: MockFolderLockedError,
+  FolderNotFoundError: MockFolderNotFoundError,
 }

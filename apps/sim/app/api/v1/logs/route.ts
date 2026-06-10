@@ -68,7 +68,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const params = parsed.data.query
 
-    const scopeError = checkWorkspaceScope(rateLimit, params.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, params.workspaceId)
     if (scopeError) return scopeError
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
@@ -147,8 +147,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    // Only materialize externalized execution data when the response actually
-    // needs it (details=full + finalOutput/traceSpans requested).
     const needsMaterialize =
       params.details === 'full' && (params.includeFinalOutput || params.includeTraceSpans)
 
@@ -179,9 +177,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return result
     }
 
-    // Only run the bounded-concurrency materialization when the response actually
-    // needs object-storage reads; otherwise a plain synchronous map avoids the
-    // per-row worker/promise overhead.
     const formattedLogs = needsMaterialize
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
           const result = buildBase(log)

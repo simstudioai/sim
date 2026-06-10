@@ -2,7 +2,8 @@ import type {
   AgiloftGetChoiceLineIdParams,
   AgiloftGetChoiceLineIdResponse,
 } from '@/tools/agiloft/types'
-import { buildGetChoiceLineIdUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildGetChoiceLineIdUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftGetChoiceLineIdTool: ToolConfig<

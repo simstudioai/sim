@@ -59,6 +59,12 @@ import type {
 
 const logger = createLogger('AdminWorkspaceImportAPI')
 
+/**
+ * Body cap for admin bulk workflow imports, which can carry many serialized
+ * workflows and legitimately exceed the default contract-route limit.
+ */
+const ADMIN_IMPORT_MAX_BODY_BYTES = 100 * 1024 * 1024
+
 interface RouteParams {
   id: string
 }
@@ -88,10 +94,13 @@ export const POST = withRouteHandler(
       let workflowsToImport: ParsedWorkflow[] = []
 
       if (contentType.includes('application/json')) {
-        const rawBody = await parseJsonBody(request)
+        const rawBody = await parseJsonBody(request, 'response', ADMIN_IMPORT_MAX_BODY_BYTES)
 
         if (!rawBody.success) {
-          return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+          // Preserve the 413 for an oversized body; only invalid JSON maps to 400.
+          return rawBody.reason === 'too_large'
+            ? rawBody.response
+            : badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
         const validation = adminV1WorkspaceImportBodySchema.safeParse(rawBody.data)
