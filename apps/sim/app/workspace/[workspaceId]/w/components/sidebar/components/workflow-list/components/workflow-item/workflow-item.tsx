@@ -17,7 +17,7 @@ import {
   useContextMenu,
   useItemDrag,
   useItemRename,
-  useSidebarDragContext,
+  useSidebarListContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   buildDragResources,
@@ -46,28 +46,19 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
-  dragDisabled?: boolean
-  onWorkflowClick: (workflowId: string, shiftKey: boolean) => void
-  onDragStart?: () => void
-  onDragEnd?: () => void
 }
 
 /**
  * WorkflowItem component displaying a single workflow with drag and selection support.
- * Uses the item drag hook for unified drag behavior.
+ * Selection and drag callbacks come from the sidebar list context; uses the item drag
+ * hook for unified drag behavior.
  *
  * @param props - Component props
  * @returns Workflow item with drag and selection support
  */
-export function WorkflowItem({
-  workflow,
-  active,
-  dragDisabled = false,
-  onWorkflowClick,
-  onDragStart: onDragStartProp,
-  onDragEnd: onDragEndProp,
-}: WorkflowItemProps) {
-  const { isAnyDragActive } = useSidebarDragContext()
+export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
+  const { isAnyDragActive, dragDisabled, onWorkflowClick, onItemDragStart, onItemDragEnd } =
+    useSidebarListContext()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const selectedWorkflows = useFolderStore((state) => state.selectedWorkflows)
@@ -345,9 +336,9 @@ export function WorkflowItem({
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
       dragGhostRef.current = ghost
 
-      onDragStartProp?.()
+      onItemDragStart(workflow.folderId || null)
     },
-    [workflow.id, workflow.name, workspaceId, onDragStartProp]
+    [workflow.id, workflow.name, workflow.folderId, workspaceId, onItemDragStart]
   )
 
   const {
@@ -365,8 +356,8 @@ export function WorkflowItem({
       dragGhostRef.current = null
     }
     handleDragEndBase()
-    onDragEndProp?.()
-  }, [handleDragEndBase, onDragEndProp])
+    onItemDragEnd()
+  }, [handleDragEndBase, onItemDragEnd])
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {

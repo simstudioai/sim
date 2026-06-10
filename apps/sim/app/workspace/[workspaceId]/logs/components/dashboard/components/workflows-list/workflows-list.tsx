@@ -13,28 +13,19 @@ export interface WorkflowExecutionItem {
   overallSuccessRate: number
 }
 
+interface WorkflowsListProps {
+  filteredExecutions: WorkflowExecutionItem[]
+  expandedWorkflowId: string | null
+  onToggleWorkflow: (workflowId: string) => void
+  searchQuery: string
+}
+
 function WorkflowsListInner({
   filteredExecutions,
   expandedWorkflowId,
   onToggleWorkflow,
-  selectedSegments,
-  onSegmentClick,
   searchQuery,
-  segmentDurationMs,
-}: {
-  filteredExecutions: WorkflowExecutionItem[]
-  expandedWorkflowId: string | null
-  onToggleWorkflow: (workflowId: string) => void
-  selectedSegments: Record<string, number[]>
-  onSegmentClick: (
-    workflowId: string,
-    segmentIndex: number,
-    timestamp: string,
-    mode: 'single' | 'toggle' | 'range'
-  ) => void
-  searchQuery: string
-  segmentDurationMs: number
-}) {
+}: WorkflowsListProps) {
   return (
     <div className='flex h-full flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
       {/* Table header */}
@@ -99,10 +90,7 @@ function WorkflowsListInner({
                   <div className='flex-1'>
                     <StatusBar
                       segments={workflow.segments}
-                      selectedSegmentIndices={selectedSegments[workflow.workflowId] || null}
-                      onSegmentClick={onSegmentClick}
                       workflowId={workflow.workflowId}
-                      segmentDurationMs={segmentDurationMs}
                       preferBelow={idx < 2}
                     />
                   </div>

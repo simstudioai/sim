@@ -7,9 +7,9 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface McpToolSelectorProps {
   blockId: string
@@ -18,7 +18,6 @@ interface McpToolSelectorProps {
   isPreview?: boolean
   previewValue?: string | null
   previewContextValues?: Record<string, unknown>
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function McpToolSelector({
@@ -28,8 +27,8 @@ export function McpToolSelector({
   isPreview = false,
   previewValue,
   previewContextValues,
-  activeSearchTarget,
 }: McpToolSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [inputValue, setInputValue] = useState('')

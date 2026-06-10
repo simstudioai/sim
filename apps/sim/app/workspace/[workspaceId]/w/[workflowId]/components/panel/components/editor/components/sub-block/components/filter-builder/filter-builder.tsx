@@ -9,7 +9,7 @@ import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
 import { useCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { FilterRuleRow } from './components/filter-rule-row'
 
 interface FilterBuilderProps {
@@ -20,7 +20,6 @@ interface FilterBuilderProps {
   disabled?: boolean
   columns?: Array<{ value: string; label: string }>
   tableIdSubBlockId?: string
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 const createDefaultRule = (columns: ComboboxOption[]): FilterRule => ({
@@ -41,8 +40,8 @@ export function FilterBuilder({
   disabled = false,
   columns: propColumns,
   tableIdSubBlockId = 'tableId',
-  activeSearchTarget,
 }: FilterBuilderProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<FilterRule[]>(blockId, subBlockId)
   const tableIdValue = useCanonicalSubBlockValue<string>(blockId, tableIdSubBlockId)
 
@@ -120,7 +119,6 @@ export function FilterBuilder({
             onUpdate={updateRule}
             onToggleCollapse={toggleCollapse}
             inputController={inputController}
-            activeSearchTarget={activeSearchTarget}
           />
         )
       })}
