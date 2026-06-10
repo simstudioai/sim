@@ -108,7 +108,7 @@ export const slackSetStatusTool: ToolConfig<SlackSetStatusParams, SlackSetStatus
     if (!data.ok) {
       if (data.error === 'missing_scope') {
         throw new Error(
-          'Missing required permissions. Please reconnect your Slack account with the necessary scopes (chat:write or assistant:write).'
+          'Missing required permissions. Please reconnect your Slack account with the necessary scopes (assistant:write).'
         )
       }
       if (data.error === 'invalid_auth') {
