@@ -34,7 +34,7 @@ Files for the model to read: images for a vision-capable model, or documents for
 
 ### Tools
 
-Capabilities the agent can call while it runs: search a knowledge base, send a Slack message, run a [Function](/workflows/blocks/function), or call any of the [integrations](/integrations). The model decides which to call and when. Each tool has a usage control:
+Capabilities the agent can call while it runs: search a knowledge base, send a Slack message, run a [Function](/workflows/blocks/function), call any of the [integrations](/integrations), or use a [custom tool](/agents/custom-tools) or [MCP server](/agents/mcp) you've added. The model decides which to call and when. (For where tools come from and when to reach for which, see [Agents](/agents).) Each tool has a usage control:
 
 - **Auto.** The model calls it when the context warrants.
 - **Force.** The model must call it on every run.

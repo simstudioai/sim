@@ -56,8 +56,23 @@ JavaScript runs in a fast local sandbox, or in an [E2B](https://e2b.dev) sandbox
 | **Best for** | quick transforms, JSON | data science, charts, complex math |
 
 <Callout type="info">
-Python requires E2B. It is enabled by default on sim.ai; on a self-hosted instance, enable E2B to see Python in the language dropdown. The sandbox includes the Python standard library and common packages like `matplotlib`, and any figures you generate are captured as images automatically.
+Python requires E2B. It is enabled by default on sim.ai; on a self-hosted instance, enable E2B to see Python in the language dropdown. Any figures you generate are captured as images automatically.
 </Callout>
+
+{/* Package list provenance (verified 2026-06-10): E2B code-interpreter template
+    requirements (github.com/e2b-dev/code-interpreter, template/requirements.txt)
+    plus Sim's template additions — pip awscli/yq/csvkit — from
+    simstudioai/copilot scripts/e2b/template.ts. Update if either source changes. */}
+
+Beyond the Python standard library, the sandbox ships E2B's data-science stack plus a few Sim additions:
+
+- **Data:** `pandas`, `numpy`, `scipy`, `xarray`, `numba`, `joblib`
+- **ML and NLP:** `scikit-learn`, `gensim`, `nltk`, `spacy`, `textblob`
+- **Plots and images:** `matplotlib`, `seaborn`, `plotly`, `bokeh`, `pillow`, `opencv-python`, `scikit-image`, `imageio`
+- **Audio:** `librosa`, `soundfile`
+- **Web and files:** `requests`, `aiohttp`, `beautifulsoup4`, `openpyxl`, `xlrd`, `python-docx`, `orjson`
+- **Math and testing:** `sympy`, `pytest`
+- **Sim additions:** `awscli`, `yq`, `csvkit`
 
 ## Examples
 
