@@ -37,7 +37,9 @@ interface ScheduleCalendarProps {
  *
  * Scroll behavior: entering week/day scope, and "Today" presses (signaled via an
  * internal `scrollSignal`), center the current time in the viewport; month scope
- * resets to the top. Plain prev/next navigation never re-centers. Centering is
+ * resets to the top. Plain prev/next navigation never re-centers. Today presses
+ * scroll smoothly as an orientation cue; mount and scope switches position
+ * instantly (animating initial placement would read as a glitch). Centering is
  * computed from the time-grid header height plus {@link timeToOffset} rather than
  * the now-line element, so it works even on first paint before the line mounts.
  *
@@ -57,6 +59,7 @@ export function ScheduleCalendar({
   eventsByHour,
 }: ScheduleCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const lastScrollSignalRef = useRef(0)
   const [scrollSignal, setScrollSignal] = useState(0)
 
   const grid = useMemo(() => buildCalendarGrid(scope, anchor, today), [scope, anchor, today])
@@ -70,14 +73,17 @@ export function ScheduleCalendar({
   useEffect(() => {
     const region = scrollRef.current
     if (!region) return
+    const behavior: ScrollBehavior =
+      scrollSignal !== lastScrollSignalRef.current ? 'smooth' : 'auto'
+    lastScrollSignalRef.current = scrollSignal
     if (scope === 'month') {
-      region.scrollTo({ top: 0 })
+      region.scrollTo({ top: 0, behavior })
       return
     }
     const header = region.querySelector('[data-time-grid-header]')
     const headerHeight = header ? header.getBoundingClientRect().height : 0
     const target = headerHeight + timeToOffset(new Date()) - region.clientHeight / 2
-    region.scrollTo({ top: Math.max(0, target) })
+    region.scrollTo({ top: Math.max(0, target), behavior })
   }, [scope, scrollSignal])
 
   return (

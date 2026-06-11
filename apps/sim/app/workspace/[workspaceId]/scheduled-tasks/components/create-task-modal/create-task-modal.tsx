@@ -12,6 +12,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  toast,
 } from '@/components/emcn'
 import type { CalendarSlot } from '@/app/workspace/[workspaceId]/scheduled-tasks/hooks/use-calendar'
 
@@ -68,8 +69,12 @@ export function CreateTaskModal({ open, onOpenChange, slot, onSubmit }: CreateTa
       launchTime,
       timezone: DEFAULT_TIMEZONE,
     }
-    if (onSubmit) onSubmit(draft)
-    else logger.info('Scheduled task draft captured (not persisted this phase)', draft)
+    if (onSubmit) {
+      onSubmit(draft)
+    } else {
+      logger.info('Scheduled task draft captured (not persisted this phase)', draft)
+      toast.info('Scheduling is not available yet — this task was not created')
+    }
     close()
   }
 
