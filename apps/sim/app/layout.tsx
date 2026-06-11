@@ -119,6 +119,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     }
 
                     var activeTab = panelState && panelState.activeTab;
+                    if (activeTab && activeTab !== 'toolbar' && activeTab !== 'editor') {
+                      activeTab = 'toolbar';
+                    }
                     if (activeTab) {
                       document.documentElement.setAttribute('data-panel-active-tab', activeTab);
                     }
