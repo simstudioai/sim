@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ChipLink } from '@/components/emcn'
+import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
 import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 
 interface IntegrationTabsHeaderProps {
@@ -20,11 +21,15 @@ export function IntegrationTabsHeader({
 }: IntegrationTabsHeaderProps) {
   return (
     <div className='flex h-[44px] flex-shrink-0 items-center bg-[var(--bg)] px-4'>
-      {/* The sidebar toggle matches ResourceHeader's 9px pull-out inside the
-          canonical 44px bar, landing on the same 7px edge spot as every other
-          page. The 44px bar keeps the 27px chips at the same 8.5px inset the
-          old padding produced. */}
-      <SidebarToggle className='-ml-[9px] mr-2' />
+      {/* Chrome controls match ResourceHeader's toggle+switcher cluster (9px
+          pull-out, gap-1 rhythm) inside the canonical 44px bar, so the pair
+          lands on the same 7px/7px spot as every other page and never shifts
+          during navigation. The 44px bar keeps the 27px chips at the same
+          8.5px inset the old padding produced. */}
+      <div className='mr-2 flex flex-shrink-0 items-center gap-1'>
+        <SidebarToggle className='-ml-[9px]' />
+        <ChatSwitcher iconOnly />
+      </div>
       <ChipLink href={`/workspace/${workspaceId}/integrations`} active={active === 'integrations'}>
         Integrations
       </ChipLink>
