@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
-import type { OperationQueueState, QueuedOperation } from './types'
+import type {
+  OperationQueueState,
+  QueuedOperation,
+  SubblockUpdateEmit,
+  VariableUpdateEmit,
+  WorkflowOperationEmit,
+} from './types'
 
 function isBlockStillPresent(blockId: string | undefined): boolean {
   if (!blockId) return true
@@ -41,61 +47,14 @@ const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
 const DEFAULT_WORKFLOW_DRAIN_TIMEOUT_MS = 20000
 
-/**
- * Emit functions return whether the operation was actually sent over the socket.
- * A `false` return means the emit was skipped (room not joined/visible) and the
- * operation should stay pending instead of waiting on a confirmation timeout.
- */
-let emitWorkflowOperation:
-  | ((
-      workflowId: string,
-      operation: string,
-      target: string,
-      payload: any,
-      operationId?: string
-    ) => boolean)
-  | null = null
-let emitSubblockUpdate:
-  | ((
-      blockId: string,
-      subblockId: string,
-      value: any,
-      operationId: string | undefined,
-      workflowId: string
-    ) => boolean)
-  | null = null
-let emitVariableUpdate:
-  | ((
-      variableId: string,
-      field: string,
-      value: any,
-      operationId: string | undefined,
-      workflowId: string
-    ) => boolean)
-  | null = null
+let emitWorkflowOperation: WorkflowOperationEmit | null = null
+let emitSubblockUpdate: SubblockUpdateEmit | null = null
+let emitVariableUpdate: VariableUpdateEmit | null = null
 
 export function registerEmitFunctions(
-  workflowEmit: (
-    workflowId: string,
-    operation: string,
-    target: string,
-    payload: any,
-    operationId?: string
-  ) => boolean,
-  subblockEmit: (
-    blockId: string,
-    subblockId: string,
-    value: any,
-    operationId: string | undefined,
-    workflowId: string
-  ) => boolean,
-  variableEmit: (
-    variableId: string,
-    field: string,
-    value: any,
-    operationId: string | undefined,
-    workflowId: string
-  ) => boolean,
+  workflowEmit: WorkflowOperationEmit,
+  subblockEmit: SubblockUpdateEmit,
+  variableEmit: VariableUpdateEmit,
   workflowId: string | null
 ) {
   emitWorkflowOperation = workflowEmit
@@ -109,16 +68,25 @@ export function registerEmitFunctions(
 
 let currentRegisteredWorkflowId: string | null = null
 
+/** Targets whose payload id refers to a canvas block (subflow ids are loop/parallel blocks). */
+const BLOCK_SCOPED_TARGETS = ['block', 'subblock', 'subflow']
+
 /**
- * Drops a failed operation whose target block or variable no longer exists
- * locally (e.g. it was removed by a remote collaborator while the operation
- * was in flight). Returns true when the operation was dropped, in which case
- * offline mode must not be triggered.
+ * Drops a failed operation whose target entity no longer exists locally (e.g. it
+ * was removed by a remote collaborator while the operation was in flight), so a
+ * stale per-entity failure does not trip offline mode. Applies only to block-,
+ * subblock-, subflow-, and variable-scoped operations; structural operations
+ * (workflow/blocks/edges) have no single target entity and always fall through
+ * to offline mode. Returns true when the operation was dropped.
  */
 function dropOperationForMissingTarget(operation: QueuedOperation): boolean {
   const { target, payload } = operation.operation
 
   const isVariableOperation = target === 'variable'
+  if (!isVariableOperation && !BLOCK_SCOPED_TARGETS.includes(target)) {
+    return false
+  }
+
   const targetId = isVariableOperation
     ? payload?.variableId || payload?.id
     : payload?.blockId || payload?.id

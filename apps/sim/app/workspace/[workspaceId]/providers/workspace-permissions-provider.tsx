@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -18,6 +18,60 @@ import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-u
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
 const logger = createLogger('WorkspacePermissionsProvider')
+
+interface PersistentToastOptions {
+  description?: string
+  action?: { label: string; onClick: () => void }
+}
+
+/**
+ * Shows a persistent error toast while `message` is non-null, replaces it when
+ * the message changes, and dismisses it when the message becomes null or the
+ * owning component unmounts.
+ */
+function usePersistentErrorToast(message: string | null, options?: PersistentToastOptions) {
+  const { toast } = useToast()
+  const toastIdRef = useRef<string | null>(null)
+  const shownMessageRef = useRef<string | null>(null)
+  const optionsRef = useRef(options)
+  optionsRef.current = options
+
+  const dismiss = useCallback(() => {
+    if (!toastIdRef.current) {
+      return
+    }
+
+    toast.dismiss(toastIdRef.current)
+    toastIdRef.current = null
+    shownMessageRef.current = null
+  }, [])
+
+  useEffect(() => {
+    if (!message) {
+      dismiss()
+      return
+    }
+
+    if (toastIdRef.current && shownMessageRef.current === message) {
+      return
+    }
+
+    dismiss()
+
+    try {
+      toastIdRef.current = toast.error(message, {
+        ...optionsRef.current,
+        duration: 0,
+        persistAcrossRoutes: true,
+      })
+      shownMessageRef.current = message
+    } catch (error) {
+      logger.error('Failed to show persistent notification', { error, message })
+    }
+  }, [dismiss, message])
+
+  useEffect(() => dismiss, [dismiss])
+}
 
 interface WorkspacePermissionsContextType {
   workspacePermissions: WorkspacePermissions | null
@@ -55,67 +109,34 @@ interface WorkspacePermissionsProviderProps {
 export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsProviderProps) {
   const params = useParams()
   const workspaceId = params?.workspaceId as string
+  const urlWorkflowId = params?.workflowId as string | undefined
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
-  const [hasShownOfflineNotification, setHasShownOfflineNotification] = useState(false)
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
-  const { isReconnecting, isRetryingWorkflowJoin } = useSocket()
-  const realtimeStatusNotificationIdRef = useRef<string | null>(null)
-  const realtimeStatusNotificationMessageRef = useRef<string | null>(null)
-  const offlineNotificationIdRef = useRef<string | null>(null)
+  const { isReconnecting, isRetryingWorkflowJoin, blockedJoinWorkflowId } = useSocket()
 
   const isOfflineMode = hasOperationError
-  const realtimeStatusMessage = isReconnecting
-    ? 'Reconnecting...'
-    : isRetryingWorkflowJoin
-      ? 'Joining workflow...'
-      : null
+  const isJoinBlocked = Boolean(blockedJoinWorkflowId) && blockedJoinWorkflowId === urlWorkflowId
+  const realtimeStatusMessage = isOfflineMode
+    ? null
+    : isReconnecting
+      ? 'Reconnecting...'
+      : isRetryingWorkflowJoin
+        ? 'Joining workflow...'
+        : null
 
-  const clearRealtimeStatusNotification = useCallback(() => {
-    if (!realtimeStatusNotificationIdRef.current) {
-      return
-    }
-
-    toast.dismiss(realtimeStatusNotificationIdRef.current)
-    realtimeStatusNotificationIdRef.current = null
-    realtimeStatusNotificationMessageRef.current = null
-  }, [])
-
-  const clearOfflineNotification = useCallback(() => {
-    if (offlineNotificationIdRef.current) {
-      toast.dismiss(offlineNotificationIdRef.current)
-      offlineNotificationIdRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isOfflineMode || !realtimeStatusMessage) {
-      clearRealtimeStatusNotification()
-      return
-    }
-
-    if (
-      realtimeStatusNotificationIdRef.current &&
-      realtimeStatusNotificationMessageRef.current === realtimeStatusMessage
-    ) {
-      return
-    }
-
-    clearRealtimeStatusNotification()
-
-    const id = toast.error(realtimeStatusMessage, { duration: 0, persistAcrossRoutes: true })
-
-    realtimeStatusNotificationIdRef.current = id
-    realtimeStatusNotificationMessageRef.current = realtimeStatusMessage
-  }, [clearRealtimeStatusNotification, isOfflineMode, realtimeStatusMessage])
-
-  useEffect(() => {
-    return () => {
-      clearRealtimeStatusNotification()
-      clearOfflineNotification()
-    }
-  }, [clearRealtimeStatusNotification, clearOfflineNotification])
+  usePersistentErrorToast(realtimeStatusMessage)
+  // Offline mode only recovers via workspace switch or refresh; the join block
+  // lifts when the user targets a different workflow or refreshes.
+  usePersistentErrorToast(isOfflineMode ? 'Connection unavailable' : null, {
+    description: 'Recent changes may not have been saved. Refresh to resync.',
+    action: { label: 'Refresh', onClick: () => window.location.reload() },
+  })
+  usePersistentErrorToast(isJoinBlocked ? 'Unable to connect to workflow' : null, {
+    description: 'Changes cannot be saved. Refresh to retry.',
+    action: { label: 'Refresh', onClick: () => window.location.reload() },
+  })
 
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -130,42 +151,6 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
       },
     ])
   )
-
-  useEffect(() => {
-    if (!isOfflineMode) {
-      // Offline mode can recover (successful room rejoin or workspace switch);
-      // dismiss the persistent toast and re-arm the notification for any future
-      // offline transition.
-      clearOfflineNotification()
-      if (hasShownOfflineNotification) {
-        setHasShownOfflineNotification(false)
-      }
-      return
-    }
-
-    if (hasShownOfflineNotification) {
-      return
-    }
-
-    clearRealtimeStatusNotification()
-
-    try {
-      offlineNotificationIdRef.current = toast.error('Connection unavailable', {
-        description: 'Recent changes may not have been saved. Refresh to resync.',
-        duration: 0,
-        persistAcrossRoutes: true,
-        action: { label: 'Refresh', onClick: () => window.location.reload() },
-      })
-      setHasShownOfflineNotification(true)
-    } catch (error) {
-      logger.error('Failed to add offline notification', { error })
-    }
-  }, [
-    clearOfflineNotification,
-    clearRealtimeStatusNotification,
-    hasShownOfflineNotification,
-    isOfflineMode,
-  ])
 
   const {
     data: workspacePermissions,
@@ -195,13 +180,13 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   )
 
   const userPermissions = useMemo((): WorkspaceUserPermissions & { isOfflineMode?: boolean } => {
-    if (isOfflineMode) {
+    if (isOfflineMode || isJoinBlocked) {
       return {
         ...baseUserPermissions,
         canEdit: false,
         canAdmin: false,
         canRead: baseUserPermissions.canRead,
-        isOfflineMode: true,
+        isOfflineMode,
       }
     }
 
@@ -209,7 +194,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
       ...baseUserPermissions,
       isOfflineMode: false,
     }
-  }, [baseUserPermissions, isOfflineMode])
+  }, [baseUserPermissions, isOfflineMode, isJoinBlocked])
 
   const contextValue = useMemo(
     () => ({
