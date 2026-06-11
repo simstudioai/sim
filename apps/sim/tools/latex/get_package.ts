@@ -77,7 +77,9 @@ export const latexGetPackageTool: ToolConfig<LatexGetPackageParams, LatexGetPack
           category: pkg.category ?? null,
           license: pkg['cat-license'] ?? null,
           topics: pkg['cat-topics'] ?? [],
-          relatedPackages: pkg['cat-related']?.split(/\s+/).filter(Boolean) ?? [],
+          relatedPackages: pkg['cat-related']
+            ? pkg['cat-related'].split(/\s+/).filter(Boolean)
+            : [],
           homepage: pkg['cat-contact-home'] ?? null,
           ctanUrl: pkg.url_ctan ?? null,
         },
