@@ -99,7 +99,7 @@ export async function getNextAvailableSlot(
 export async function getDocumentTagDefinitions(
   knowledgeBaseId: string
 ): Promise<DocumentTagDefinition[]> {
-  const definitions = await dbReplica
+  const definitions = await db
     .select({
       id: knowledgeBaseTagDefinitions.id,
       knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
@@ -123,7 +123,7 @@ export async function getDocumentTagDefinitions(
  * Get all tag definitions for a knowledge base (alias for compatibility)
  */
 export async function getTagDefinitions(knowledgeBaseId: string): Promise<TagDefinition[]> {
-  const tagDefinitions = await dbReplica
+  const tagDefinitions = await db
     .select({
       id: knowledgeBaseTagDefinitions.id,
       tagSlot: knowledgeBaseTagDefinitions.tagSlot,
