@@ -31,13 +31,10 @@ When you open Sim, the first thing you meet is **Chat**, a conversation over you
 
 You can mix these on one system, scaffolding in Chat and then fine-tuning in the builder.
 
-<Callout type="info">
-Sim generates the architecture, and you verify the execution. Even when you build conversationally, it helps to understand the resources Sim creates, so you can inspect, run, and improve them.
-</Callout>
 
 ## The anatomy of a workspace
 
-A Sim system is not a single chat response. It is a set of resources that live in a **workspace** and connect to each other. The sidebar mirrors that anatomy, and these are its parts.
+A Sim system is a set of resources that live in a **workspace** and connect to each other. These are its parts:
 
 - **[Chat](/chat)** is where you build conversationally. You describe what you want, and Sim builds and edits the resources for you.
 - **[Workflows](/workflows)** are visual programs made of blocks, where your logic runs. Most other resources become useful through a workflow.
@@ -54,25 +51,18 @@ A Sim system is not a single chat response. It is a set of resources that live i
 
 ## What you can build
 
-- **AI assistants and chatbots.** Conversational agents that search the web, manage calendars, send email, and act on your business systems.
-- **Business process automation.** Data entry, report generation, customer responses, and content workflows.
-- **Data processing and analysis.** Extract from documents, analyze datasets, and sync data across platforms.
-- **API integration workflows.** Unified endpoints that orchestrate multi-service logic and event-driven automation.
+- **Assistants and chatbots.** A support agent that answers from your docs, or a Slack bot that searches the web and acts on your systems.
+- **Process automation.** Invoice extraction into a billing table, lead scoring and outreach, weekly report generation.
+- **Data pipelines.** Pull from a CRM, enrich each record with an agent, and write the results back to a table.
+- **Unified APIs.** One endpoint that orchestrates several services and models behind a single call.
 
 ## Integrations
 
-Sim provides native integrations with 1,000+ services:
-
-- **AI models.** OpenAI, Anthropic, Google Gemini, Groq, Cerebras, and local models via Ollama or VLLM.
-- **Communication.** Gmail, Slack, Microsoft Teams, Telegram, WhatsApp.
-- **Productivity.** Notion, Google Workspace, Airtable.
-- **Development.** GitHub, Jira, Linear, automated browser testing.
-- **Search and data.** Google Search, Perplexity, Firecrawl, Exa AI.
-- **Databases.** PostgreSQL, MySQL, Supabase, Pinecone, Qdrant.
+Sim has native integrations with 1,000+ services — every major AI model provider, and the communication, productivity, development, search, and database tools your work already runs on. Browse the full catalog at [Integrations](/integrations).
 
 For anything not built in, [MCP support](/agents/mcp) connects any external service or tool.
 
-## Deployment options
+## Hosting
 
 - **Cloud-hosted.** Launch immediately at [sim.ai](https://sim.ai) with managed infrastructure, scaling, and observability.
 - **Self-hosted.** Deploy on your own infrastructure with Docker Compose or Kubernetes, with support for local models.
