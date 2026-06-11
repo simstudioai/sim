@@ -3,7 +3,7 @@ import { Checkbox, Label, Tooltip } from '@/components/emcn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 
 interface CheckboxListOption {
   label: string
@@ -19,7 +19,6 @@ interface CheckboxListProps {
   isPreview?: boolean
   subBlockValues?: Record<string, any>
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 interface CheckboxItemProps {
@@ -30,7 +29,6 @@ interface CheckboxItemProps {
   isPreview: boolean
   subBlockValues?: Record<string, any>
   disabled: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -49,8 +47,8 @@ function CheckboxItem({
   isPreview,
   subBlockValues,
   disabled,
-  activeSearchTarget,
 }: CheckboxItemProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, option.id)
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
     activeSearchTarget,
@@ -105,7 +103,6 @@ export function CheckboxList({
   isPreview = false,
   subBlockValues,
   disabled = false,
-  activeSearchTarget,
 }: CheckboxListProps) {
   return (
     <div className='flex flex-col gap-y-2.5 pt-1'>
@@ -119,7 +116,6 @@ export function CheckboxList({
           isPreview={isPreview}
           subBlockValues={subBlockValues}
           disabled={disabled}
-          activeSearchTarget={activeSearchTarget}
         />
       ))}
     </div>

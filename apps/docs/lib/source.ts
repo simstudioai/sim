@@ -92,10 +92,14 @@ export const source = loader(
   }
 )
 
+/** Diátaxis page type surfaced as a badge near the page title. */
+export type DocsPageType = 'tutorial' | 'guide' | 'reference' | 'concept'
+
 /** Full page data type including MDX content and metadata */
 export type PageData = DocData &
   DocMethods & {
     title: string
     description?: string
     full?: boolean
+    pageType?: DocsPageType
   }

@@ -144,12 +144,15 @@ export async function verifyFileAccess(
     // Infer context from key if not explicitly provided
     const inferredContext = context || inferContextFromKey(cloudKey)
 
-    // 0. Public contexts: profile pictures, OG images, and workspace logos are publicly accessible
+    // 0. Public contexts: profile pictures, OG images, and workspace logos are world-readable, so reads short-circuit; writes require proof of ownership
     if (
       inferredContext === 'profile-pictures' ||
       inferredContext === 'og-images' ||
       inferredContext === 'workspace-logos'
     ) {
+      if (requireWrite) {
+        return await verifyPublicAssetWriteAccess(cloudKey, userId, inferredContext, customConfig)
+      }
       logger.info('Public file access allowed', { cloudKey, context: inferredContext })
       return true
     }
@@ -263,6 +266,80 @@ async function verifyWorkspaceFileAccess(
     return false
   } catch (error) {
     logger.error('Error verifying workspace file access', { cloudKey, userId, error })
+    return false
+  }
+}
+
+/**
+ * Authorize a destructive operation (delete) on a "public" asset context:
+ * `profile-pictures`, `workspace-logos`, or `og-images`. These contexts are
+ * world-readable, so {@link verifyFileAccess} short-circuits reads — but a write
+ * must prove ownership of the user/workspace the object belongs to and never
+ * short-circuit to `true`.
+ *
+ * - `workspace-logos` carry a trusted `workspace_files` binding written at upload
+ *   time; require write/admin on the owning workspace.
+ * - `profile-pictures` are owned by a single user, recorded in the storage
+ *   object's `userId` metadata at upload time; require an exact owner match.
+ * - `og-images` are platform/blog assets with no per-user or per-workspace owner
+ *   and no user-facing delete path; always deny.
+ */
+async function verifyPublicAssetWriteAccess(
+  cloudKey: string,
+  userId: string,
+  context: 'profile-pictures' | 'og-images' | 'workspace-logos',
+  customConfig?: StorageConfig
+): Promise<boolean> {
+  try {
+    if (context === 'workspace-logos') {
+      const binding = await getFileMetadataByKey(cloudKey, 'workspace-logos')
+      if (!binding?.workspaceId) {
+        logger.warn('workspace-logos delete denied: no ownership binding', { userId, cloudKey })
+        return false
+      }
+      const permission = await getUserEntityPermissions(userId, 'workspace', binding.workspaceId)
+      if (!workspacePermissionSatisfies(permission, true)) {
+        logger.warn('workspace-logos delete denied: write/admin required on owner workspace', {
+          userId,
+          workspaceId: binding.workspaceId,
+          cloudKey,
+        })
+        return false
+      }
+      return true
+    }
+
+    if (context === 'profile-pictures') {
+      const config: StorageConfig = customConfig || {}
+      const metadata = await getFileMetadata(cloudKey, config)
+      if (metadata.userId && metadata.userId === userId) {
+        return true
+      }
+      // Fail closed when the owner cannot be established. Distinguish a missing
+      // owner record (no `userId` metadata — e.g. an object predating owner
+      // tagging) from a genuine ownership mismatch so the denial is diagnosable.
+      if (!metadata.userId) {
+        logger.warn(
+          'profile-pictures delete denied: file has no owner metadata to verify against',
+          {
+            userId,
+            cloudKey,
+          }
+        )
+      } else {
+        logger.warn('profile-pictures delete denied: caller does not own the file', {
+          userId,
+          fileUserId: metadata.userId,
+          cloudKey,
+        })
+      }
+      return false
+    }
+
+    logger.warn('og-images delete denied: no user-facing delete path', { userId, cloudKey })
+    return false
+  } catch (error) {
+    logger.error('Error verifying public asset write access', { cloudKey, userId, error })
     return false
   }
 }

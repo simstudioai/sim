@@ -9,7 +9,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.',
-  docsLink: 'https://docs.sim.ai/tools/hunter',
+  docsLink: 'https://docs.sim.ai/integrations/hunter',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',

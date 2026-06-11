@@ -1,6 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { truncate } from '@sim/utils/string'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
@@ -11,10 +10,19 @@ import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
-import type { FilterRule, SortRule } from '@/lib/table/types'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
+import {
+  getDisplayValue,
+  resolveDropdownLabel,
+  resolveFilterFieldLabel,
+  resolveSkillsLabel,
+  resolveToolsLabel,
+  resolveVariablesLabel,
+  resolveWorkflowMultiSelectLabel,
+  resolveWorkflowSelectionLabel,
+} from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
@@ -38,7 +46,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
-import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
@@ -62,363 +69,6 @@ const logger = createLogger('WorkflowBlock')
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
-
-/**
- * Type guard for workflow table row structure (sub-block table inputs)
- */
-interface WorkflowTableRow {
-  id: string
-  cells: Record<string, string>
-}
-
-/**
- * Type guard for field format structure (input format, response format)
- */
-interface FieldFormat {
-  id: string
-  name: string
-  type?: string
-  value?: string
-  collapsed?: boolean
-}
-
-/**
- * Checks if a value is a table row array
- */
-const isTableRowArray = (value: unknown): value is WorkflowTableRow[] => {
-  if (!Array.isArray(value) || value.length === 0) return false
-  const firstItem = value[0]
-  return (
-    typeof firstItem === 'object' &&
-    firstItem !== null &&
-    'id' in firstItem &&
-    'cells' in firstItem &&
-    typeof firstItem.cells === 'object'
-  )
-}
-
-/**
- * Checks if a value is a field format array
- */
-const isFieldFormatArray = (value: unknown): value is FieldFormat[] => {
-  if (!Array.isArray(value) || value.length === 0) return false
-  const firstItem = value[0]
-  return (
-    typeof firstItem === 'object' &&
-    firstItem !== null &&
-    'id' in firstItem &&
-    'name' in firstItem &&
-    typeof firstItem.name === 'string'
-  )
-}
-
-/**
- * Checks if a value is a plain object (not array, not null)
- */
-const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/**
- * Type guard for variable assignments array
- */
-const isVariableAssignmentsArray = (
-  value: unknown
-): value is Array<{ id?: string; variableId?: string; variableName?: string; value: any }> => {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(
-      (item) =>
-        typeof item === 'object' &&
-        item !== null &&
-        ('variableName' in item || 'variableId' in item)
-    )
-  )
-}
-
-/**
- * Type guard for agent messages array
- */
-const isMessagesArray = (value: unknown): value is Array<{ role: string; content: string }> => {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(
-      (item) =>
-        typeof item === 'object' &&
-        item !== null &&
-        'role' in item &&
-        'content' in item &&
-        typeof item.role === 'string' &&
-        typeof item.content === 'string'
-    )
-  )
-}
-
-/**
- * Type guard for tag filter array (used in knowledge block filters)
- */
-interface TagFilterItem {
-  id: string
-  tagName: string
-  fieldType?: string
-  operator?: string
-  tagValue: string
-}
-
-const isTagFilterArray = (value: unknown): value is TagFilterItem[] => {
-  if (!Array.isArray(value) || value.length === 0) return false
-  const firstItem = value[0]
-  return (
-    typeof firstItem === 'object' &&
-    firstItem !== null &&
-    'tagName' in firstItem &&
-    'tagValue' in firstItem &&
-    typeof firstItem.tagName === 'string'
-  )
-}
-
-/**
- * Type guard for document tag entry array (used in knowledge block create document)
- */
-interface DocumentTagItem {
-  id: string
-  tagName: string
-  fieldType?: string
-  value: string
-}
-
-const isDocumentTagArray = (value: unknown): value is DocumentTagItem[] => {
-  if (!Array.isArray(value) || value.length === 0) return false
-  const firstItem = value[0]
-  return (
-    typeof firstItem === 'object' &&
-    firstItem !== null &&
-    'tagName' in firstItem &&
-    'value' in firstItem &&
-    !('tagValue' in firstItem) && // Distinguish from tag filters
-    typeof firstItem.tagName === 'string'
-  )
-}
-
-/**
- * Type guard for filter condition array (used in table block filter builder)
- */
-const isFilterConditionArray = (value: unknown): value is FilterRule[] => {
-  if (!Array.isArray(value) || value.length === 0) return false
-  const firstItem = value[0]
-  return (
-    typeof firstItem === 'object' &&
-    firstItem !== null &&
-    'column' in firstItem &&
-    'operator' in firstItem &&
-    'logicalOperator' in firstItem &&
-    typeof firstItem.column === 'string'
-  )
-}
-
-/**
- * Type guard for sort condition array (used in table block sort builder)
- */
-const isSortConditionArray = (value: unknown): value is SortRule[] => {
-  if (!Array.isArray(value) || value.length === 0) return false
-  const firstItem = value[0]
-  return (
-    typeof firstItem === 'object' &&
-    firstItem !== null &&
-    'column' in firstItem &&
-    'direction' in firstItem &&
-    typeof firstItem.column === 'string' &&
-    (firstItem.direction === 'asc' || firstItem.direction === 'desc')
-  )
-}
-
-/**
- * Attempts to parse a JSON string, returns the parsed value or the original value if parsing fails
- */
-const tryParseJson = (value: unknown): unknown => {
-  if (typeof value !== 'string') return value
-  try {
-    const trimmed = value.trim()
-    if (
-      (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
-      (trimmed.startsWith('{') && trimmed.endsWith('}'))
-    ) {
-      return JSON.parse(trimmed)
-    }
-  } catch {
-    // Not valid JSON, return original
-  }
-  return value
-}
-
-/**
- * Formats a subblock value for display, intelligently handling nested objects and arrays.
- * Used by both the canvas workflow blocks and copilot edit summaries.
- */
-export const getDisplayValue = (value: unknown): string => {
-  if (value == null || value === '') return '-'
-
-  const parsedValue = tryParseJson(value)
-
-  if (isMessagesArray(parsedValue)) {
-    const firstMessage = parsedValue[0]
-    if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
-    const content = firstMessage.content.trim()
-    return truncate(content, 50)
-  }
-
-  if (isVariableAssignmentsArray(parsedValue)) {
-    const names = parsedValue.map((a) => a.variableName).filter((name): name is string => !!name)
-    if (names.length === 0) return '-'
-    if (names.length === 1) return names[0]
-    if (names.length === 2) return `${names[0]}, ${names[1]}`
-    return `${names[0]}, ${names[1]} +${names.length - 2}`
-  }
-
-  if (isTagFilterArray(parsedValue)) {
-    const validFilters = parsedValue.filter(
-      (f) => typeof f.tagName === 'string' && f.tagName.trim() !== ''
-    )
-    if (validFilters.length === 0) return '-'
-    if (validFilters.length === 1) return validFilters[0].tagName
-    if (validFilters.length === 2) return `${validFilters[0].tagName}, ${validFilters[1].tagName}`
-    return `${validFilters[0].tagName}, ${validFilters[1].tagName} +${validFilters.length - 2}`
-  }
-
-  if (isDocumentTagArray(parsedValue)) {
-    const validTags = parsedValue.filter(
-      (t) => typeof t.tagName === 'string' && t.tagName.trim() !== ''
-    )
-    if (validTags.length === 0) return '-'
-    if (validTags.length === 1) return validTags[0].tagName
-    if (validTags.length === 2) return `${validTags[0].tagName}, ${validTags[1].tagName}`
-    return `${validTags[0].tagName}, ${validTags[1].tagName} +${validTags.length - 2}`
-  }
-
-  if (isFilterConditionArray(parsedValue)) {
-    const validConditions = parsedValue.filter(
-      (c) => typeof c.column === 'string' && c.column.trim() !== ''
-    )
-    if (validConditions.length === 0) return '-'
-    const formatCondition = (c: FilterRule) => {
-      const opLabels: Record<string, string> = {
-        eq: '=',
-        ne: '≠',
-        gt: '>',
-        gte: '≥',
-        lt: '<',
-        lte: '≤',
-        contains: '~',
-        in: 'in',
-      }
-      const op = opLabels[c.operator] || c.operator
-      return `${c.column} ${op} ${c.value || '?'}`
-    }
-    if (validConditions.length === 1) return formatCondition(validConditions[0])
-    if (validConditions.length === 2) {
-      return `${formatCondition(validConditions[0])}, ${formatCondition(validConditions[1])}`
-    }
-    return `${formatCondition(validConditions[0])}, ${formatCondition(validConditions[1])} +${validConditions.length - 2}`
-  }
-
-  if (isSortConditionArray(parsedValue)) {
-    const validConditions = parsedValue.filter(
-      (c) => typeof c.column === 'string' && c.column.trim() !== ''
-    )
-    if (validConditions.length === 0) return '-'
-    const formatSort = (c: SortRule) => `${c.column} ${c.direction === 'desc' ? '↓' : '↑'}`
-    if (validConditions.length === 1) return formatSort(validConditions[0])
-    if (validConditions.length === 2) {
-      return `${formatSort(validConditions[0])}, ${formatSort(validConditions[1])}`
-    }
-    return `${formatSort(validConditions[0])}, ${formatSort(validConditions[1])} +${validConditions.length - 2}`
-  }
-
-  if (isTableRowArray(parsedValue)) {
-    const nonEmptyRows = parsedValue.filter((row) => {
-      const cellValues = Object.values(row.cells)
-      return cellValues.some((cell) => cell && cell.trim() !== '')
-    })
-
-    if (nonEmptyRows.length === 0) return '-'
-    if (nonEmptyRows.length === 1) {
-      const firstRow = nonEmptyRows[0]
-      const cellEntries = Object.entries(firstRow.cells).filter(([, val]) => val?.trim())
-      if (cellEntries.length === 0) return '-'
-      const preview = cellEntries
-        .slice(0, 2)
-        .map(([key, val]) => `${key}: ${val}`)
-        .join(', ')
-      return cellEntries.length > 2 ? `${preview}...` : preview
-    }
-    return `${nonEmptyRows.length} rows`
-  }
-
-  if (isFieldFormatArray(parsedValue)) {
-    const namedFields = parsedValue.filter(
-      (field) => typeof field.name === 'string' && field.name.trim() !== ''
-    )
-    if (namedFields.length === 0) return '-'
-    if (namedFields.length === 1) return namedFields[0].name
-    if (namedFields.length === 2) return `${namedFields[0].name}, ${namedFields[1].name}`
-    return `${namedFields[0].name}, ${namedFields[1].name} +${namedFields.length - 2}`
-  }
-
-  if (isPlainObject(parsedValue)) {
-    const entries = Object.entries(parsedValue).filter(
-      ([, val]) => val !== null && val !== undefined && val !== ''
-    )
-
-    if (entries.length === 0) return '-'
-    if (entries.length === 1) {
-      const [key, val] = entries[0]
-      const valStr = String(val).slice(0, 30)
-      return `${key}: ${valStr}${String(val).length > 30 ? '...' : ''}`
-    }
-    const preview = entries
-      .slice(0, 2)
-      .map(([key]) => key)
-      .join(', ')
-    return entries.length > 2 ? `${preview} +${entries.length - 2}` : preview
-  }
-
-  if (Array.isArray(parsedValue)) {
-    const nonEmptyItems = parsedValue.filter(
-      (item) => item !== null && item !== undefined && item !== ''
-    )
-    if (nonEmptyItems.length === 0) return '-'
-
-    const getItemDisplayValue = (item: unknown): string => {
-      if (typeof item === 'object' && item !== null) {
-        const obj = item as Record<string, unknown>
-        return String(obj.title || obj.name || obj.label || obj.id || JSON.stringify(item))
-      }
-      return String(item)
-    }
-
-    if (nonEmptyItems.length === 1) return getItemDisplayValue(nonEmptyItems[0])
-    if (nonEmptyItems.length === 2) {
-      return `${getItemDisplayValue(nonEmptyItems[0])}, ${getItemDisplayValue(nonEmptyItems[1])}`
-    }
-    return `${getItemDisplayValue(nonEmptyItems[0])}, ${getItemDisplayValue(nonEmptyItems[1])} +${nonEmptyItems.length - 2}`
-  }
-
-  // For non-array, non-object values, use original value for string conversion
-  const stringValue = String(value)
-  if (stringValue === '[object Object]') {
-    try {
-      const json = JSON.stringify(parsedValue)
-      if (json.length <= 40) return json
-      return `${json.slice(0, 37)}...`
-    } catch {
-      return '-'
-    }
-  }
-
-  return stringValue.trim().length > 0 ? stringValue : '-'
-}
 
 interface SubBlockRowProps {
   title: string
@@ -540,20 +190,10 @@ const SubBlockRow = memo(function SubBlockRow({
 
   const knowledgeBaseId = dependencyValues.knowledgeBaseId
 
-  const dropdownLabel = useMemo(() => {
-    if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
-    if (!rawValue || typeof rawValue !== 'string') return null
-
-    const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
-    if (!options) return null
-
-    const option = options.find((opt) =>
-      typeof opt === 'string' ? opt === rawValue : opt.id === rawValue
-    )
-
-    if (!option) return null
-    return typeof option === 'string' ? option : option.label
-  }, [subBlock, rawValue])
+  const dropdownLabel = useMemo(
+    () => resolveDropdownLabel(subBlock, rawValue),
+    [subBlock, rawValue]
+  )
 
   const resolveContextValue = useCallback(
     (key: string): string | undefined => {
@@ -605,11 +245,26 @@ const SubBlockRow = memo(function SubBlockRow({
   )
   const knowledgeBaseDisplayName = kbForDisplayName?.name ?? null
 
-  const { data: workflowMapForLookup = {} } = useWorkflowMap(workspaceId)
+  const {
+    data: workflowMapForLookup = {},
+    isSuccess: workflowMapLoaded,
+    isPlaceholderData: workflowMapIsPlaceholder,
+  } = useWorkflowMap(workspaceId)
+  /**
+   * Hydrates workflow-selector values and multi-select workflow dropdowns to
+   * names. Ready only on a successful, non-placeholder load — an errored or
+   * stale-placeholder map must not mislabel valid workflows as deleted.
+   */
   const workflowSelectionName = useMemo(() => {
-    if (subBlock?.type !== 'workflow-selector' || typeof rawValue !== 'string') return null
-    return workflowMapForLookup[rawValue]?.name ?? null
-  }, [workflowMapForLookup, subBlock?.type, rawValue])
+    const lookup = {
+      workflowMap: workflowMapForLookup,
+      ready: workflowMapLoaded && !workflowMapIsPlaceholder,
+    }
+    return (
+      resolveWorkflowSelectionLabel(subBlock, rawValue, lookup) ??
+      resolveWorkflowMultiSelectLabel(subBlock, rawValue, lookup)
+    )
+  }, [workflowMapForLookup, workflowMapLoaded, workflowMapIsPlaceholder, subBlock, rawValue])
 
   const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
   const mcpServerDisplayName = useMemo(() => {
@@ -671,145 +326,29 @@ const SubBlockRow = memo(function SubBlockRow({
     isEqual
   )
 
-  const variablesDisplayValue = useMemo(() => {
-    if (subBlock?.type !== 'variables-input' || !isVariableAssignmentsArray(rawValue)) {
-      return null
-    }
+  const variablesDisplayValue = useMemo(
+    () => resolveVariablesLabel(subBlock, rawValue, Object.values(workflowVariables)),
+    [subBlock, rawValue, workflowVariables]
+  )
 
-    const variablesArray = Object.values(workflowVariables)
-
-    const names = rawValue
-      .map((a) => {
-        if (a.variableId) {
-          const variable = variablesArray.find((v: any) => v.id === a.variableId)
-          return variable?.name
-        }
-        if (a.variableName) return a.variableName
-        return null
-      })
-      .filter((name): name is string => !!name)
-
-    if (names.length === 0) return null
-    if (names.length === 1) return names[0]
-    if (names.length === 2) return `${names[0]}, ${names[1]}`
-    return `${names[0]}, ${names[1]} +${names.length - 2}`
-  }, [subBlock?.type, rawValue, workflowVariables])
-
-  /**
-   * Hydrates tool references to display names.
-   * Follows the same pattern as other selectors (Slack channels, MCP tools, etc.)
-   */
+  /** Hydrates tool references to display names. */
   const { data: customTools = [] } = useCustomTools(workspaceId || '')
+  const toolsDisplayValue = useMemo(
+    () => resolveToolsLabel(subBlock, rawValue, customTools),
+    [subBlock, rawValue, customTools]
+  )
 
-  const toolsDisplayValue = useMemo(() => {
-    if (subBlock?.type !== 'tool-input' || !Array.isArray(rawValue) || rawValue.length === 0) {
-      return null
-    }
+  const filterDisplayValue = useMemo(
+    () => resolveFilterFieldLabel(subBlock, rawValue),
+    [subBlock, rawValue]
+  )
 
-    const toolNames = rawValue
-      .map((tool: any) => {
-        if (!tool || typeof tool !== 'object') return null
-
-        // Priority 1: Use tool.title if already populated
-        if (tool.title && typeof tool.title === 'string') return tool.title
-
-        // Priority 2: Resolve custom tools with reference ID from database
-        if (tool.type === 'custom-tool' && tool.customToolId) {
-          const customTool = customTools.find((t) => t.id === tool.customToolId)
-          if (customTool?.title) return customTool.title
-          if (customTool?.schema?.function?.name) return customTool.schema.function.name
-        }
-
-        // Priority 3: Extract from inline schema (legacy format)
-        if (tool.schema?.function?.name) return tool.schema.function.name
-
-        // Priority 4: Extract from OpenAI function format
-        if (tool.function?.name) return tool.function.name
-
-        // Priority 5: Resolve built-in tool blocks from registry
-        if (
-          typeof tool.type === 'string' &&
-          tool.type !== 'custom-tool' &&
-          tool.type !== 'mcp' &&
-          tool.type !== 'workflow' &&
-          tool.type !== 'workflow_input'
-        ) {
-          const blockConfig = getBlock(tool.type)
-          if (blockConfig?.name) return blockConfig.name
-        }
-
-        return null
-      })
-      .filter((name): name is string => !!name)
-
-    if (toolNames.length === 0) return null
-    if (toolNames.length === 1) return toolNames[0]
-    if (toolNames.length === 2) return `${toolNames[0]}, ${toolNames[1]}`
-    return `${toolNames[0]}, ${toolNames[1]} +${toolNames.length - 2}`
-  }, [subBlock?.type, rawValue, customTools, workspaceId])
-
-  const filterDisplayValue = useMemo(() => {
-    const isFilterField =
-      subBlock?.id === 'filter' || subBlock?.id === 'filterCriteria' || subBlock?.id === 'sort'
-
-    if (!isFilterField || !rawValue) return null
-
-    const parsedValue = tryParseJson(rawValue)
-
-    if (isPlainObject(parsedValue) || Array.isArray(parsedValue)) {
-      try {
-        const jsonStr = JSON.stringify(parsedValue, null, 0)
-        if (jsonStr.length <= 35) return jsonStr
-        return `${jsonStr.slice(0, 32)}...`
-      } catch {
-        return null
-      }
-    }
-
-    return null
-  }, [subBlock?.id, rawValue])
-
-  /**
-   * Hydrates skill references to display names.
-   * Resolves skill IDs to their current names from the skills query.
-   */
+  /** Hydrates skill references to display names. */
   const { data: workspaceSkills = [] } = useSkills(workspaceId || '')
-
-  const skillsDisplayValue = useMemo(() => {
-    if (subBlock?.type !== 'skill-input' || !Array.isArray(rawValue) || rawValue.length === 0) {
-      return null
-    }
-
-    interface StoredSkill {
-      skillId: string
-      name?: string
-    }
-
-    const skillNames = rawValue
-      .map((skill: StoredSkill) => {
-        if (!skill || typeof skill !== 'object') return null
-
-        // Priority 1: Resolve skill name from the skills query (fresh data)
-        if (skill.skillId) {
-          const foundSkill = workspaceSkills.find((s) => s.id === skill.skillId)
-          if (foundSkill?.name) return foundSkill.name
-        }
-
-        // Priority 2: Fall back to stored name (for deleted skills)
-        if (skill.name && typeof skill.name === 'string') return skill.name
-
-        // Priority 3: Use skillId as last resort
-        if (skill.skillId) return skill.skillId
-
-        return null
-      })
-      .filter((name): name is string => !!name)
-
-    if (skillNames.length === 0) return null
-    if (skillNames.length === 1) return skillNames[0]
-    if (skillNames.length === 2) return `${skillNames[0]}, ${skillNames[1]}`
-    return `${skillNames[0]}, ${skillNames[1]} +${skillNames.length - 2}`
-  }, [subBlock?.type, rawValue, workspaceSkills])
+  const skillsDisplayValue = useMemo(
+    () => resolveSkillsLabel(subBlock, rawValue, workspaceSkills),
+    [subBlock, rawValue, workspaceSkills]
+  )
 
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null

@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
+import { ArrowUp, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -70,8 +70,6 @@ interface LogsToolbarProps {
   canEdit: boolean
   /** Whether there are logs to export */
   hasLogs: boolean
-  /** Callback when notification settings is clicked */
-  onOpenNotificationSettings: () => void
   /** Search query value */
   searchQuery: string
   /** Callback when search query changes */
@@ -157,7 +155,6 @@ export const LogsToolbar = memo(function LogsToolbar({
   onExport,
   canEdit,
   hasLogs,
-  onOpenNotificationSettings,
   searchQuery,
   onSearchQueryChange,
   onSearchOpenChange,
@@ -439,10 +436,6 @@ export const LogsToolbar = memo(function LogsToolbar({
               <DropdownMenuItem onSelect={onExport} disabled={!canEdit || isExporting || !hasLogs}>
                 <ArrowUp className='size-3' />
                 <span>Export as CSV</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onOpenNotificationSettings}>
-                <Bell className='size-3' />
-                <span>Configure Notifications</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

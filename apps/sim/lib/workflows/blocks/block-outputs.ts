@@ -267,8 +267,15 @@ export function getBlockOutputs(
     if (triggerId && isTriggerValid(triggerId)) {
       const trigger = getTrigger(triggerId)
       if (trigger.outputs) {
-        // TriggerOutput is compatible with OutputFieldDefinition at runtime
-        return trigger.outputs as OutputDefinition
+        // TriggerOutput is compatible with OutputFieldDefinition at runtime.
+        // Conditions narrow outputs to the selected trigger configuration
+        // (e.g. the Sim trigger only surfaces execution fields for
+        // execution-backed event types).
+        return filterOutputsByCondition(
+          trigger.outputs as OutputDefinition,
+          subBlocks,
+          includeHidden
+        )
       }
     }
   }

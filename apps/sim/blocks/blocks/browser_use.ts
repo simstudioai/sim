@@ -9,7 +9,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.',
-  docsLink: 'https://docs.sim.ai/tools/browser_use',
+  docsLink: 'https://docs.sim.ai/integrations/browser_use',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',

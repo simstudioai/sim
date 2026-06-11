@@ -25,7 +25,7 @@ export const NewRelicBlock: BlockConfig<NewRelicResponse> = {
   description: 'Query observability data and record deployments in New Relic',
   longDescription:
     'Integrate New Relic into workflows. Run NRQL queries, search monitored entities, fetch entity details, and record deployment change events.',
-  docsLink: 'https://docs.sim.ai/tools/new_relic',
+  docsLink: 'https://docs.sim.ai/integrations/new_relic',
   category: 'tools',
   authMode: AuthMode.ApiKey,
   integrationType: IntegrationType.Observability,

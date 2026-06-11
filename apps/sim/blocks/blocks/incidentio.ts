@@ -10,7 +10,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.',
-  docsLink: 'https://docs.sim.ai/tools/incidentio',
+  docsLink: 'https://docs.sim.ai/integrations/incidentio',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',

@@ -1,0 +1,122 @@
+---
+title: Agent
+description: The Agent block runs a model over your inputs to reason, call tools, and return text or structured output.
+pageType: reference
+---
+
+import { BlockPreview, WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Agent block** runs a model inside a workflow. You give it instructions, context, and tools; the model reasons over the input, calls tools as needed, and returns plain text or structured JSON that later blocks read by reference. Most workflows are built around one or more Agent blocks.
+
+An *agent* and an *Agent block* are related but distinct. An agent is a whole workflow that reasons and acts on its own; an Agent block is one reasoning step inside it. The simplest agent is a single Agent block with tools, and larger ones wire several together with other blocks. See [Agents](/agents).
+
+<BlockPreview type="agent" />
+
+## Configuration
+
+### Messages
+
+The messages sent to the model. Each message has a role: **System** sets the agent's job and rules, **User** gives it the input to act on. Insert a [connection tag](/workflows/connections) to pass an earlier output, like `<start.input>`.
+
+```markdown
+You are a support assistant for an analytics product.
+Answer in two sentences, cite the doc you used, and never guess a price.
+```
+
+### Model
+
+The model that runs the step. Defaults to `claude-sonnet-4-6`. Type or pick any model from OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Azure, AWS Bedrock, Google Vertex, or OpenRouter, or a local model through Ollama or VLLM.
+
+### Files
+
+Files for the model to read: images for a vision-capable model, or documents for text. Upload them on the block, or pass a file from an earlier block, such as an upload trigger or an [API](/workflows/blocks/api) response, with a connection tag.
+
+### Tools
+
+Capabilities the agent can call while it runs: search a knowledge base, send a Slack message, run a [Function](/workflows/blocks/function), call any of the [integrations](/integrations), or use a [custom tool](/agents/custom-tools) or [MCP server](/agents/mcp) you've added. The model decides which to call and when. (For where tools come from and when to reach for which, see [Agents](/agents).) Each tool has a usage control:
+
+- **Auto.** The model calls it when the context warrants.
+- **Force.** The model must call it on every run.
+- **None.** The tool is hidden from the model, which disables it without removing it from the block.
+
+### Skills
+
+[Agent skills](/agents/skills) the agent can load on demand: reusable instruction packages like a coding standard or a support playbook. Only the skill names sit in context up front, and the agent loads the full instructions when it decides a skill is relevant.
+
+### Memory
+
+Built-in conversation memory, kept across runs by a conversation ID:
+
+- **None.** Each run is independent.
+- **Conversation.** The full history for that conversation ID.
+- **Sliding window (messages).** The most recent N messages.
+- **Sliding window (tokens).** Recent messages up to a token budget.
+
+Memory needs a conversation ID to persist between runs. For memory that's shared across workflows or managed as its own store, use the [Memory](/integrations/memory) block instead.
+
+### Response Format
+
+Give the agent a JSON Schema to force structured output. The response is constrained to match the schema, and each field becomes its own output you read by name, like `<agent.sentiment>`. Without a response format, the agent returns plain text in `content`.
+
+```json
+{
+  "name": "user_analysis",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": { "type": "string", "enum": ["positive", "negative", "neutral"] },
+      "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "required": ["sentiment", "confidence"]
+  }
+}
+```
+
+### Advanced
+
+Some settings live under advanced, or appear only for models that support them:
+
+- **Temperature.** How varied the output is. Stay low (0–0.3) when you need accuracy and repeatability, middle (around 0.5) for everyday work, higher (0.7+) when you want creative variety.
+- **Max output tokens.** Caps the response length. Defaults to the model's full limit.
+- **Reasoning effort / Thinking level.** For models with extended reasoning, how much the model thinks before answering. Higher is more thorough but slower and costs more tokens.
+- **API key.** Your key for the chosen provider. Hidden on hosted Sim, which supplies one.
+
+## Outputs
+
+After the agent runs, later blocks read its result by name:
+
+| Output | What it is |
+| --- | --- |
+| `<agent.content>` | The response: text, or the structured object when a response format is set |
+| `<agent.tokens>` | Token usage, an object `{ input, output, total }` |
+| `<agent.toolCalls>` | The tools the agent called, with their inputs and results |
+| `<agent.model>` | The model that ran the step |
+| `<agent.cost>` | Estimated cost of the call |
+
+When a response format is set, its fields are readable directly, like `<agent.sentiment>`.
+
+## Example
+
+A workflow that reads an incoming customer message and classifies it:
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
+
+The Agent reads the message from Start with `<start.input>` and returns a result that later blocks read as `<agent.content>`.
+
+## Best Practices
+
+- **Write a clear system message.** Define the agent's role, tone, and limits. Specific instructions produce more reliable output than a vague prompt.
+- **Match the model and temperature to the task.** Use a stronger model and lower temperature (0–0.3) for accuracy; raise temperature for creative or varied output.
+- **Give the agent only the tools it needs.** Too many tools dilute its choices. For jobs that don't overlap, use a second Agent block instead of overloading one.
+- **Use a response format when a downstream block needs specific fields.** It guarantees the shape, and you read each field as `<agent.field>`.
+
+<FAQ items={[
+  { question: "What LLM providers does the Agent block support?", answer: "OpenAI, Anthropic, Google (Gemini), xAI (Grok), DeepSeek, Groq, Cerebras, Azure OpenAI, Azure Anthropic, Google Vertex AI, AWS Bedrock, OpenRouter, and local models via Ollama or VLLM. Type or select any supported model from the model combobox." },
+  { question: "What are the memory options for the Agent block?", answer: "Four modes: None (no memory, each run is independent), Conversation (full history keyed by a conversation ID), Sliding window by messages (the N most recent messages), and Sliding window by tokens (messages up to a token budget). Memory needs a conversation ID to persist across runs." },
+  { question: "What is the difference between the tool usage controls (Auto, Force, None)?", answer: "In Auto, the model decides when to call a tool based on context. In Force, the model must call the tool on every run. In None, the tool is hidden from the model and never sent, which disables it without removing it from the block." },
+  { question: "How does the Response Format work?", answer: "It enforces structured output by providing a JSON Schema. When set, the model's response is constrained to match the schema exactly, and each field is read directly by downstream blocks using <agent.fieldName>. Without a response format, the agent returns its standard outputs: content, model, tokens, and toolCalls." },
+  { question: "What does the Reasoning Effort / Thinking Level setting do?", answer: "They appear only for models that support extended reasoning. Reasoning Effort (OpenAI o-series and GPT-5 models) and Thinking Level (Anthropic Claude and Gemini models with thinking) control how much compute the model spends reasoning before responding. Higher levels produce more thorough answers but cost more tokens and take longer." },
+  { question: "How does max output tokens work with Anthropic models?", answer: "The Agent block uses each Anthropic model's full max output token limit by default (for example, 64,000 tokens). You can override this with the Max Output Tokens setting. For non-streaming requests that exceed the SDK's internal threshold, the provider automatically uses internal streaming to avoid timeouts." },
+  { question: "Can I use the Agent block with a custom or self-hosted model?", answer: "Yes. Use any Ollama or VLLM-compatible model by typing the model name directly into the model combobox, as long as it exposes a compatible API endpoint." },
+]} />

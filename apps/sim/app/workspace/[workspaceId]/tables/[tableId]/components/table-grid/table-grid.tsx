@@ -890,7 +890,7 @@ export function TableGrid({
       const oldName = columnsRef.current.find((c) => c.key === columnName)?.name ?? columnName
       pushUndoRef.current({ type: 'rename-column', oldName, newName, columnId: columnName })
       handleColumnRename(columnName, newName)
-      updateColumnMutation.mutate({ columnName, updates: { name: newName } })
+      return updateColumnMutation.mutateAsync({ columnName, updates: { name: newName } })
     },
   })
 

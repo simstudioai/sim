@@ -1,0 +1,71 @@
+---
+title: Schedule
+description: The Schedule trigger runs a workflow on a timer — a simple interval or a cron expression.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { BlockPreview } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Schedule trigger** runs a workflow on a timer, on its own with no input — on a simple interval or a cron expression.
+
+<BlockPreview type="schedule" />
+
+## Schedule
+
+Pick how often it runs:
+
+<Tabs items={['Simple intervals', 'Cron expressions']}>
+  <Tab>
+    - **Every X minutes** — a minute interval (1–1440)
+    - **Hourly** — a set minute each hour
+    - **Daily** — a set time each day
+    - **Weekly** — a set day and time each week
+    - **Monthly** — a set day and time each month
+  </Tab>
+  <Tab>
+    For finer control, use a cron expression:
+
+    - `0 9 * * 1-5` — weekdays at 9 AM
+    - `*/15 * * * *` — every 15 minutes
+    - `0 0 1 * *` — the first of each month
+
+    Cron expressions and intervals are evaluated in the configured timezone, which defaults to UTC.
+  </Tab>
+</Tabs>
+
+## Activation
+
+A schedule is tied to [deployment](/workflows/deployment):
+
+- **Deploy** — the schedule becomes active and starts running
+- **Undeploy** — the schedule is removed
+- **Redeploy** — the schedule is recreated from the current configuration
+
+<Callout>
+A schedule only runs once the workflow is deployed. Configure the trigger, then deploy from the toolbar.
+</Callout>
+
+## Automatic disabling
+
+A schedule disables itself after **100 consecutive failures**, to stop runaway errors. A warning badge appears on the block and it stops running; click the badge to reactivate it. The counter resets to zero on any successful run.
+
+<div className="flex justify-center">
+  <Image src="/static/blocks/schedule-3.png" alt="A disabled schedule" width={500} height={400} className="my-6" />
+</div>
+
+<Callout>
+A Schedule trigger is an entry point only — it can't receive incoming connections.
+</Callout>
+
+<FAQ items={[
+  { question: "Do I need to deploy my workflow for the schedule to start?", answer: "Yes. Schedules are created only when you deploy the workflow. Undeploying removes the schedule, and redeploying recreates it from the current configuration." },
+  { question: "What exactly happens after 100 consecutive failures?", answer: "The schedule is automatically disabled to prevent runaway errors, and a warning badge appears on the block in the editor. Click the badge to reactivate it. The failure counter resets to zero on any successful run." },
+  { question: "Does the schedule support timezones?", answer: "Yes. The configuration includes a timezone, and both cron expressions and simple intervals are evaluated relative to it. It defaults to UTC." },
+  { question: "What happens if my scheduled workflow is rate-limited?", answer: "If a run hits a rate limit (HTTP 429), the schedule retries after a 5-minute delay rather than counting it as a failure." },
+  { question: "Can I have multiple schedule blocks in one workflow?", answer: "Yes. Deployment creates a separate schedule record for each schedule block, and each runs independently with its own expression and failure counter." },
+  { question: "What happens if the workflow is undeployed while a scheduled run is in progress?", answer: "The running workflow completes, but no new runs are triggered. Before each fire, the schedule checks that the workflow is still deployed and the schedule record still exists." },
+]} />

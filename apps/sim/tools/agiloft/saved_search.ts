@@ -1,5 +1,6 @@
 import type { AgiloftSavedSearchParams, AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
-import { buildSavedSearchUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildSavedSearchUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftSavedSearchTool: ToolConfig<

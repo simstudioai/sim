@@ -1,5 +1,5 @@
 {
-  "id": "1f3a35a9-74f3-453d-b264-a187aa0c8535",
+  "id": "4c727ad1-ff15-463f-a929-61b0c74b4e4d",
   "prevId": "b6675160-a7cc-4e1b-bbc3-4b050284b789",
   "version": "7",
   "dialect": "postgresql",
@@ -10288,6 +10288,66 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.sim_trigger_state": {
+      "name": "sim_trigger_state",
+      "schema": "",
+      "columns": {
+        "workflow_id": {
+          "name": "workflow_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "block_id": {
+          "name": "block_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope_key": {
+          "name": "scope_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "last_fired_at": {
+          "name": "last_fired_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sim_trigger_state_workflow_id_workflow_id_fk": {
+          "name": "sim_trigger_state_workflow_id_workflow_id_fk",
+          "tableFrom": "sim_trigger_state",
+          "tableTo": "workflow",
+          "columnsFrom": ["workflow_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "sim_trigger_state_workflow_id_block_id_scope_key_pk": {
+          "name": "sim_trigger_state_workflow_id_block_id_scope_key_pk",
+          "columns": ["workflow_id", "block_id", "scope_key"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.skill": {
       "name": "skill",
       "schema": "",
@@ -10679,167 +10739,6 @@
           "value": "plan != 'enterprise' OR metadata IS NOT NULL"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.table_jobs": {
-      "name": "table_jobs",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "table_id": {
-          "name": "table_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'running'"
-        },
-        "payload": {
-          "name": "payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rows_processed": {
-          "name": "rows_processed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "table_jobs_one_active_per_table": {
-          "name": "table_jobs_one_active_per_table",
-          "columns": [
-            {
-              "expression": "table_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"table_jobs\".\"status\" = 'running' AND \"table_jobs\".\"type\" <> 'export'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "table_jobs_watchdog_idx": {
-          "name": "table_jobs_watchdog_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "table_jobs_table_started_idx": {
-          "name": "table_jobs_table_started_idx",
-          "columns": [
-            {
-              "expression": "table_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "table_jobs_table_id_user_table_definitions_id_fk": {
-          "name": "table_jobs_table_id_user_table_definitions_id_fk",
-          "tableFrom": "table_jobs",
-          "tableTo": "user_table_definitions",
-          "columnsFrom": ["table_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "table_jobs_workspace_id_workspace_id_fk": {
-          "name": "table_jobs_workspace_id_workspace_id_fk",
-          "tableFrom": "table_jobs",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.table_row_executions": {
@@ -11899,6 +11798,37 @@
           "primaryKey": false,
           "notNull": false
         },
+        "import_status": {
+          "name": "import_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "import_id": {
+          "name": "import_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "import_error": {
+          "name": "import_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "import_rows_processed": {
+          "name": "import_rows_processed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "import_started_at": {
+          "name": "import_started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "text",
@@ -12100,19 +12030,13 @@
           "method": "btree",
           "with": {}
         },
-        "user_table_rows_tenant_data_gin_idx": {
-          "name": "user_table_rows_tenant_data_gin_idx",
+        "user_table_rows_data_gin_idx": {
+          "name": "user_table_rows_data_gin_idx",
           "columns": [
             {
-              "expression": "table_id",
+              "expression": "data",
               "isExpression": false,
               "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "\"data\" jsonb_path_ops",
-              "asc": true,
-              "isExpression": true,
               "nulls": "last"
             }
           ],
@@ -12174,27 +12098,6 @@
             },
             {
               "expression": "order_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "user_table_rows_table_id_id_idx": {
-          "name": "user_table_rows_table_id_id_idx",
-          "columns": [
-            {
-              "expression": "table_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -16201,392 +16104,6 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
-    },
-    "public.workspace_notification_delivery": {
-      "name": "workspace_notification_delivery",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "subscription_id": {
-          "name": "subscription_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workflow_id": {
-          "name": "workflow_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "execution_id": {
-          "name": "execution_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "notification_delivery_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "last_attempt_at": {
-          "name": "last_attempt_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "next_attempt_at": {
-          "name": "next_attempt_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "response_status": {
-          "name": "response_status",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "response_body": {
-          "name": "response_body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "workspace_notification_delivery_subscription_id_idx": {
-          "name": "workspace_notification_delivery_subscription_id_idx",
-          "columns": [
-            {
-              "expression": "subscription_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_notification_delivery_execution_id_idx": {
-          "name": "workspace_notification_delivery_execution_id_idx",
-          "columns": [
-            {
-              "expression": "execution_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_notification_delivery_status_idx": {
-          "name": "workspace_notification_delivery_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_notification_delivery_next_attempt_idx": {
-          "name": "workspace_notification_delivery_next_attempt_idx",
-          "columns": [
-            {
-              "expression": "next_attempt_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "workspace_notification_delivery_subscription_id_workspace_notification_subscription_id_fk": {
-          "name": "workspace_notification_delivery_subscription_id_workspace_notification_subscription_id_fk",
-          "tableFrom": "workspace_notification_delivery",
-          "tableTo": "workspace_notification_subscription",
-          "columnsFrom": ["subscription_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workspace_notification_delivery_workflow_id_workflow_id_fk": {
-          "name": "workspace_notification_delivery_workflow_id_workflow_id_fk",
-          "tableFrom": "workspace_notification_delivery",
-          "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.workspace_notification_subscription": {
-      "name": "workspace_notification_subscription",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notification_type": {
-          "name": "notification_type",
-          "type": "notification_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workflow_ids": {
-          "name": "workflow_ids",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "all_workflows": {
-          "name": "all_workflows",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "level_filter": {
-          "name": "level_filter",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "ARRAY['info', 'error']::text[]"
-        },
-        "trigger_filter": {
-          "name": "trigger_filter",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "ARRAY['api', 'webhook', 'schedule', 'manual', 'chat']::text[]"
-        },
-        "include_final_output": {
-          "name": "include_final_output",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "include_trace_spans": {
-          "name": "include_trace_spans",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "include_rate_limits": {
-          "name": "include_rate_limits",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "include_usage_data": {
-          "name": "include_usage_data",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "webhook_config": {
-          "name": "webhook_config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email_recipients": {
-          "name": "email_recipients",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "slack_config": {
-          "name": "slack_config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "alert_config": {
-          "name": "alert_config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_alert_at": {
-          "name": "last_alert_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "workspace_notification_workspace_id_idx": {
-          "name": "workspace_notification_workspace_id_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_notification_active_idx": {
-          "name": "workspace_notification_active_idx",
-          "columns": [
-            {
-              "expression": "active",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_notification_type_idx": {
-          "name": "workspace_notification_type_idx",
-          "columns": [
-            {
-              "expression": "notification_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "workspace_notification_subscription_workspace_id_workspace_id_fk": {
-          "name": "workspace_notification_subscription_workspace_id_workspace_id_fk",
-          "tableFrom": "workspace_notification_subscription",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workspace_notification_subscription_created_by_user_id_fk": {
-          "name": "workspace_notification_subscription_created_by_user_id_fk",
-          "tableFrom": "workspace_notification_subscription",
-          "tableTo": "user",
-          "columnsFrom": ["created_by"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -16704,16 +16221,6 @@
       "name": "invitation_status",
       "schema": "public",
       "values": ["pending", "accepted", "rejected", "cancelled", "expired"]
-    },
-    "public.notification_delivery_status": {
-      "name": "notification_delivery_status",
-      "schema": "public",
-      "values": ["pending", "in_progress", "success", "failed"]
-    },
-    "public.notification_type": {
-      "name": "notification_type",
-      "schema": "public",
-      "values": ["webhook", "email", "slack"]
     },
     "public.permission_type": {
       "name": "permission_type",

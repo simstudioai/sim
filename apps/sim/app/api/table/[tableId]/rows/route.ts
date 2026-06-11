@@ -10,7 +10,7 @@ import {
 } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Filter, RowData, Sort, TableRowsCursor, TableSchema } from '@/lib/table'
@@ -27,6 +27,7 @@ import {
 } from '@/lib/table'
 import { queryRows } from '@/lib/table/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
+import { rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
@@ -39,7 +40,8 @@ async function handleBatchInsert(
   requestId: string,
   tableId: string,
   validated: BatchInsertTableRowsBodyInput,
-  userId: string
+  userId: string,
+  authType: AuthTypeValue | undefined
 ): Promise<NextResponse> {
   const accessResult = await checkAccess(tableId, userId, 'write')
   if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
@@ -53,10 +55,13 @@ async function handleBatchInsert(
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
 
+  const wire = rowWireTranslators(authType, table.schema as TableSchema)
+  const rows = (validated.rows as RowData[]).map((row) => wire.dataIn(row))
+
   // Validate rows before calling service (service also validates, but route-level
   // validation returns structured HTTP responses)
   const validation = await validateBatchRows({
-    rows: validated.rows as RowData[],
+    rows,
     schema: table.schema as TableSchema,
     tableId,
   })
@@ -66,7 +71,7 @@ async function handleBatchInsert(
     const insertedRows = await batchInsertRows(
       {
         tableId,
-        rows: validated.rows as RowData[],
+        rows,
         workspaceId: validated.workspaceId,
         userId,
         positions: validated.positions,
@@ -81,7 +86,7 @@ async function handleBatchInsert(
       data: {
         rows: insertedRows.map((r) => ({
           id: r.id,
-          data: r.data,
+          data: wire.dataOut(r.data),
           position: r.position,
           orderKey: r.orderKey ?? undefined,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
@@ -118,7 +123,7 @@ export const POST = withRouteHandler(
       const body = parsed.data.body
 
       if ('rows' in body) {
-        return handleBatchInsert(requestId, tableId, body, authResult.userId)
+        return handleBatchInsert(requestId, tableId, body, authResult.userId, authResult.authType)
       }
 
       const validated = body
@@ -135,7 +140,8 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      const rowData = validated.data as RowData
+      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+      const rowData = wire.dataIn(validated.data as RowData)
 
       // Validate at route level for structured HTTP error responses
       const validation = await validateRowData({
@@ -165,7 +171,7 @@ export const POST = withRouteHandler(
         data: {
           row: {
             id: row.id,
-            data: row.data,
+            data: wire.dataOut(row.data),
             position: row.position,
             orderKey: row.orderKey ?? undefined,
             createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
@@ -250,11 +256,12 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
+      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
       const result = await queryRows(
         table,
         {
-          filter: validated.filter as Filter | undefined,
-          sort: validated.sort,
+          filter: validated.filter ? wire.filterIn(validated.filter as Filter) : undefined,
+          sort: validated.sort ? wire.sortIn(validated.sort) : undefined,
           limit: validated.limit,
           offset: validated.offset,
           after: validated.after,
@@ -268,7 +275,7 @@ export const GET = withRouteHandler(
         data: {
           rows: result.rows.map((r) => ({
             id: r.id,
-            data: r.data,
+            data: wire.dataOut(r.data),
             executions: r.executions,
             position: r.position,
             orderKey: r.orderKey ?? undefined,
@@ -331,7 +338,10 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      const sizeValidation = validateRowSize(validated.data as RowData)
+      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+      const patchData = wire.dataIn(validated.data as RowData)
+
+      const sizeValidation = validateRowSize(patchData)
       if (!sizeValidation.valid) {
         return NextResponse.json(
           { error: 'Invalid row data', details: sizeValidation.errors },
@@ -342,8 +352,8 @@ export const PUT = withRouteHandler(
       const result = await updateRowsByFilter(
         table,
         {
-          filter: validated.filter as Filter,
-          data: validated.data as RowData,
+          filter: wire.filterIn(validated.filter as Filter),
+          data: patchData,
           limit: validated.limit,
           actorUserId: authResult.userId,
         },
@@ -443,10 +453,11 @@ export const DELETE = withRouteHandler(
         })
       }
 
+      const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
       const result = await deleteRowsByFilter(
         table,
         {
-          filter: validated.filter as Filter,
+          filter: wire.filterIn(validated.filter as Filter),
           limit: validated.limit,
         },
         requestId

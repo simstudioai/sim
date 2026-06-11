@@ -24,8 +24,8 @@ import {
   getWorkflowSearchLabelHighlight,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -45,7 +45,6 @@ interface VariablesInputProps {
   isPreview?: boolean
   previewValue?: VariableAssignment[] | null
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 const DEFAULT_ASSIGNMENT: Omit<VariableAssignment, 'id'> = {
@@ -90,8 +89,8 @@ export function VariablesInput({
   isPreview = false,
   previewValue,
   disabled = false,
-  activeSearchTarget,
 }: VariablesInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workflowId = params.workflowId as string
   const [storeValue, setStoreValue] = useSubBlockValue<VariableAssignment[]>(blockId, subBlockId)

@@ -60,7 +60,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Image Generator into the workflow. Can generate images using DALL-E 3 and GPT Image models.',
-  docsLink: 'https://docs.sim.ai/tools/image_generator',
+  docsLink: 'https://docs.sim.ai/integrations/image_generator',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: '#4D5FFF',
@@ -316,7 +316,7 @@ export const ImageGeneratorV2Block: BlockConfig<ImageGenerationResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Generate images using OpenAI GPT Image, Google Nano Banana, or Fal.ai image models.',
-  docsLink: 'https://docs.sim.ai/tools/image_generator',
+  docsLink: 'https://docs.sim.ai/integrations/image_generator',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: '#4D5FFF',

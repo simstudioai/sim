@@ -767,91 +767,27 @@ export const webhook = pgTable(
   }
 )
 
-export const notificationTypeEnum = pgEnum('notification_type', ['webhook', 'email', 'slack'])
-
-export const notificationDeliveryStatusEnum = pgEnum('notification_delivery_status', [
-  'pending',
-  'in_progress',
-  'success',
-  'failed',
-])
-
-export const workspaceNotificationSubscription = pgTable(
-  'workspace_notification_subscription',
+/**
+ * Cooldown state for Sim workspace-event trigger subscriptions.
+ *
+ * Keyed by (workflowId, blockId, scopeKey) rather than the webhook row because
+ * webhook rows are recreated per deployment version — state stored there would
+ * reset on every redeploy. `scopeKey` is '' for subscription-level cooldowns
+ * and the source workflow ID for per-source-workflow rules (no_activity).
+ */
+export const simTriggerState = pgTable(
+  'sim_trigger_state',
   {
-    id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    notificationType: notificationTypeEnum('notification_type').notNull(),
-    workflowIds: text('workflow_ids').array().notNull().default(sql`'{}'::text[]`),
-    allWorkflows: boolean('all_workflows').notNull().default(false),
-    levelFilter: text('level_filter')
-      .array()
-      .notNull()
-      .default(sql`ARRAY['info', 'error']::text[]`),
-    triggerFilter: text('trigger_filter')
-      .array()
-      .notNull()
-      .default(sql`ARRAY['api', 'webhook', 'schedule', 'manual', 'chat']::text[]`),
-    includeFinalOutput: boolean('include_final_output').notNull().default(false),
-    includeTraceSpans: boolean('include_trace_spans').notNull().default(false),
-    includeRateLimits: boolean('include_rate_limits').notNull().default(false),
-    includeUsageData: boolean('include_usage_data').notNull().default(false),
-
-    // Channel-specific configuration
-    webhookConfig: jsonb('webhook_config'),
-    emailRecipients: text('email_recipients').array(),
-    slackConfig: jsonb('slack_config'),
-
-    // Alert rule configuration (if null, sends on every execution)
-    alertConfig: jsonb('alert_config'),
-    lastAlertAt: timestamp('last_alert_at'),
-
-    active: boolean('active').notNull().default(true),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    workspaceIdIdx: index('workspace_notification_workspace_id_idx').on(table.workspaceId),
-    activeIdx: index('workspace_notification_active_idx').on(table.active),
-    typeIdx: index('workspace_notification_type_idx').on(table.notificationType),
-  })
-)
-
-export const workspaceNotificationDelivery = pgTable(
-  'workspace_notification_delivery',
-  {
-    id: text('id').primaryKey(),
-    subscriptionId: text('subscription_id')
-      .notNull()
-      .references(() => workspaceNotificationSubscription.id, { onDelete: 'cascade' }),
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
-    executionId: text('execution_id').notNull(),
-    status: notificationDeliveryStatusEnum('status').notNull().default('pending'),
-    attempts: integer('attempts').notNull().default(0),
-    lastAttemptAt: timestamp('last_attempt_at'),
-    nextAttemptAt: timestamp('next_attempt_at'),
-    responseStatus: integer('response_status'),
-    responseBody: text('response_body'),
-    errorMessage: text('error_message'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    blockId: text('block_id').notNull(),
+    scopeKey: text('scope_key').notNull().default(''),
+    lastFiredAt: timestamp('last_fired_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    subscriptionIdIdx: index('workspace_notification_delivery_subscription_id_idx').on(
-      table.subscriptionId
-    ),
-    executionIdIdx: index('workspace_notification_delivery_execution_id_idx').on(table.executionId),
-    statusIdx: index('workspace_notification_delivery_status_idx').on(table.status),
-    nextAttemptIdx: index('workspace_notification_delivery_next_attempt_idx').on(
-      table.nextAttemptAt
-    ),
+    pk: primaryKey({ columns: [table.workflowId, table.blockId, table.scopeKey] }),
   })
 )
 

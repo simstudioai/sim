@@ -10,7 +10,7 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
   description: 'Generate and vectorize SVGs',
   longDescription:
     'Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.',
-  docsLink: 'https://docs.sim.ai/tools/quiver',
+  docsLink: 'https://docs.sim.ai/integrations/quiver',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#FFFFFF',

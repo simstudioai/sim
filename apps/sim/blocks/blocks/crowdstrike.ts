@@ -10,7 +10,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
   description: 'Query CrowdStrike Identity Protection sensors and documented aggregates',
   longDescription:
     'Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.',
-  docsLink: 'https://docs.sim.ai/tools/crowdstrike',
+  docsLink: 'https://docs.sim.ai/integrations/crowdstrike',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#E01F3D',

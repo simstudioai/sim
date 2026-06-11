@@ -301,6 +301,7 @@ import {
   servicenowIncidentUpdatedTrigger,
   servicenowWebhookTrigger,
 } from '@/triggers/servicenow'
+import { simWorkspaceEventTrigger } from '@/triggers/sim'
 import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { tableNewRowTrigger } from '@/triggers/table'
@@ -564,6 +565,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   servicenow_change_request_created: servicenowChangeRequestCreatedTrigger,
   servicenow_change_request_updated: servicenowChangeRequestUpdatedTrigger,
   servicenow_webhook: servicenowWebhookTrigger,
+  sim_workspace_event: simWorkspaceEventTrigger,
   stripe_webhook: stripeWebhookTrigger,
   table_new_row: tableNewRowTrigger,
   telegram_webhook: telegramWebhookTrigger,

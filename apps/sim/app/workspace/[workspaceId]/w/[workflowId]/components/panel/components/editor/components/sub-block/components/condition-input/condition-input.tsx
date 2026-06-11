@@ -37,13 +37,13 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { normalizeName } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')
@@ -105,7 +105,6 @@ interface ConditionInputProps {
   disabled?: boolean
   /** Mode: 'condition' for code editor, 'router' for text input */
   mode?: 'condition' | 'router'
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -134,8 +133,8 @@ export function ConditionInput({
   previewValue,
   disabled = false,
   mode = 'condition',
-  activeSearchTarget,
 }: ConditionInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const isRouterMode = mode === 'router'
   const params = useParams()
   const workspaceId = params.workspaceId as string

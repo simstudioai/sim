@@ -38,8 +38,6 @@ export interface UseSubBlockInputOptions {
   onStreamingEnd?: () => void
   /** Optional preview value for read-only preview displays. */
   previewValue?: string | null
-  /** Optional workspace id; if omitted, derived from route params. */
-  workspaceId?: string
   /**
    * Optional callback to force/show the env var dropdown (e.g., API key fields).
    * Return { show: true, searchTerm?: string } to override defaults.
@@ -162,13 +160,12 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
     isStreaming = false,
     onStreamingEnd,
     previewValue,
-    workspaceId: workspaceIdProp,
     shouldForceEnvDropdown,
     shouldForceTagDropdown,
   } = options
 
   const params = useParams()
-  const workspaceId = (workspaceIdProp || (params?.workspaceId as string)) ?? undefined
+  const workspaceId = (params?.workspaceId as string) ?? undefined
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, {
     isStreaming,

@@ -1,0 +1,425 @@
+---
+title: ServiceNow
+description: Create, read, update, and delete ServiceNow records
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="servicenow"
+  color="#032D42"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[ServiceNow](https://www.servicenow.com/) is a powerful cloud platform designed to streamline and automate IT service management (ITSM), workflows, and business processes across your organization. ServiceNow enables you to manage incidents, requests, tasks, users, and more using its extensive API.
+
+With ServiceNow, you can:
+
+- **Automate IT workflows**: Create, read, update, and delete records in any ServiceNow table, such as incidents, tasks, change requests, and users.
+- **Integrate systems**: Connect ServiceNow with your other tools and processes for seamless automation.
+- **Maintain a single source of truth**: Keep all your service and operations data organized and accessible.
+- **Drive operational efficiency**: Reduce manual work and improve service quality with customizable workflows and automation.
+
+In Sim, the ServiceNow integration enables your agents to interact directly with your ServiceNow instance as part of their workflows. Agents can create, read, update, or delete records in any ServiceNow table and leverage ticket or user data for sophisticated automation and decision-making. This integration bridges your workflow automation and IT operations, empowering your agents to manage service requests, incidents, users, and assets without manual intervention. By connecting Sim with ServiceNow, you can automate service management tasks, improve response times, and ensure consistent, secure access to your organization's vital service data.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.
+
+
+
+## Actions
+
+### `servicenow_create_record`
+
+Create a new record in a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user\) |
+| `fields` | json | Yes | Fields to set on the record as JSON object \(e.g., \{"short_description": "Issue title", "priority": "1"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Created ServiceNow record with sys_id and other fields |
+| `metadata` | json | Operation metadata |
+
+### `servicenow_read_record`
+
+Read records from a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | No | Specific record sys_id \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
+| `number` | string | No | Record number \(e.g., INC0010001\) |
+| `query` | string | No | Encoded query string \(e.g., "active=true^priority=1"\) |
+| `limit` | number | No | Maximum number of records to return \(e.g., 10, 50, 100\) |
+| `offset` | number | No | Number of records to skip for pagination \(e.g., 0, 10, 20\) |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., sys_id,number,short_description,state\) |
+| `displayValue` | string | No | Return display values for reference fields: "true" \(display only\), "false" \(sys_id only\), or "all" \(both\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Array of ServiceNow records |
+| `metadata` | json | Operation metadata |
+
+### `servicenow_update_record`
+
+Update an existing record in a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | Yes | Record sys_id to update \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
+| `fields` | json | Yes | Fields to update as JSON object \(e.g., \{"state": "2", "priority": "1"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Updated ServiceNow record |
+| `metadata` | json | Operation metadata |
+
+### `servicenow_delete_record`
+
+Delete a record from a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, task, sys_user, change_request\) |
+| `sysId` | string | Yes | Record sys_id to delete \(e.g., 6816f79cc0a8016401c5a33be04be441\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion was successful |
+| `metadata` | json | Operation metadata |
+
+### `servicenow_aggregate`
+
+Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table name \(e.g., incident, change_request, task\) |
+| `query` | string | No | Encoded query string to filter records before aggregating \(e.g., "active=true"\) |
+| `count` | boolean | No | Return the count of matching records |
+| `groupBy` | string | No | Comma-separated fields to group results by \(e.g., category,priority\) |
+| `avgFields` | string | No | Comma-separated numeric fields to average \(e.g., reassignment_count\) |
+| `sumFields` | string | No | Comma-separated numeric fields to sum |
+| `minFields` | string | No | Comma-separated fields to compute the minimum of |
+| `maxFields` | string | No | Comma-separated fields to compute the maximum of |
+| `having` | string | No | Filter on aggregate results \(e.g., "count&gt;5"\) |
+| `displayValue` | string | No | Return display values for grouped reference fields: "true", "false", or "all" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | json | Aggregate result. Ungrouped: \{stats: \{count, sum, avg, min, max\}\}. Grouped: array of \{stats, groupby_fields\}. |
+| `count` | number | Total matching record count \(only present for ungrouped count queries\) |
+| `metadata` | json | Operation metadata \(grouped, groupCount\) |
+
+### `servicenow_list_attachments`
+
+List the attachments on a ServiceNow record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table that owns the record \(e.g., incident, change_request\) |
+| `recordSysId` | string | Yes | sys_id of the record whose attachments should be listed |
+| `limit` | number | No | Maximum number of attachments to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachments` | array | Attachment metadata records |
+|   ↳ `sys_id` | string | Attachment sys_id |
+|   ↳ `file_name` | string | File name |
+|   ↳ `content_type` | string | MIME type |
+|   ↳ `size_bytes` | string | File size in bytes |
+|   ↳ `download_link` | string | Direct download URL for the file |
+| `metadata` | json | Operation metadata \(recordCount\) |
+
+### `servicenow_download_attachment`
+
+Download an attachment file from ServiceNow by its sys_id
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `attachmentSysId` | string | Yes | sys_id of the attachment to download \(from List Attachments\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded attachment stored in execution files |
+| `content` | string | Base64 encoded file content |
+
+### `servicenow_upload_attachment`
+
+Attach a file to a ServiceNow record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `tableName` | string | Yes | Table that owns the record \(e.g., incident, change_request\) |
+| `recordSysId` | string | Yes | sys_id of the record to attach the file to |
+| `fileName` | string | Yes | Name to give the uploaded file \(e.g., logs.txt\) |
+| `file` | file | No | File to upload \(UserFile object\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachment` | json | Created attachment metadata \(sys_id, file_name, content_type, download_link\) |
+| `metadata` | json | Operation metadata |
+
+
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### ServiceNow Change Request Created
+
+Trigger workflow when a new change request is created in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `type` | string | Change type \(Normal, Standard, Emergency\) |
+| `risk` | string | Risk level of the change |
+| `impact` | string | Impact level of the change |
+| `approval` | string | Approval status |
+| `startDate` | string | Planned start date |
+| `endDate` | string | Planned end date |
+| `category` | string | Change category |
+| `record` | json | Full change request record data |
+
+
+---
+
+### ServiceNow Change Request Updated
+
+Trigger workflow when a change request is updated in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `type` | string | Change type \(Normal, Standard, Emergency\) |
+| `risk` | string | Risk level of the change |
+| `impact` | string | Impact level of the change |
+| `approval` | string | Approval status |
+| `startDate` | string | Planned start date |
+| `endDate` | string | Planned end date |
+| `category` | string | Change category |
+| `record` | json | Full change request record data |
+
+
+---
+
+### ServiceNow Incident Created
+
+Trigger workflow when a new incident is created in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `urgency` | string | Urgency level \(1=High, 2=Medium, 3=Low\) |
+| `impact` | string | Impact level \(1=High, 2=Medium, 3=Low\) |
+| `category` | string | Incident category |
+| `subcategory` | string | Incident subcategory |
+| `caller` | string | Caller/requester of the incident |
+| `resolvedBy` | string | User who resolved the incident |
+| `resolvedAt` | string | When the incident was resolved |
+| `closeNotes` | string | Notes added when the incident was closed |
+| `record` | json | Full incident record data |
+
+
+---
+
+### ServiceNow Incident Updated
+
+Trigger workflow when an incident is updated in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `urgency` | string | Urgency level \(1=High, 2=Medium, 3=Low\) |
+| `impact` | string | Impact level \(1=High, 2=Medium, 3=Low\) |
+| `category` | string | Incident category |
+| `subcategory` | string | Incident subcategory |
+| `caller` | string | Caller/requester of the incident |
+| `resolvedBy` | string | User who resolved the incident |
+| `resolvedAt` | string | When the incident was resolved |
+| `closeNotes` | string | Notes added when the incident was closed |
+| `record` | json | Full incident record data |
+
+
+---
+
+### ServiceNow Webhook (All Events)
+
+Trigger workflow on any ServiceNow webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Unique system ID of the record |
+| `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
+| `tableName` | string | ServiceNow table name |
+| `shortDescription` | string | Short description of the record |
+| `description` | string | Full description of the record |
+| `state` | string | Current state of the record |
+| `priority` | string | Priority level \(1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning\) |
+| `assignedTo` | string | User assigned to this record |
+| `assignmentGroup` | string | Group assigned to this record |
+| `createdBy` | string | User who created the record |
+| `createdOn` | string | When the record was created \(ISO 8601\) |
+| `updatedBy` | string | User who last updated the record |
+| `updatedOn` | string | When the record was last updated \(ISO 8601\) |
+| `eventType` | string | The type of event that triggered this workflow \(e.g., insert, update, delete\) |
+| `category` | string | Record category |
+| `record` | json | Full record data from the webhook payload |
+

@@ -10,7 +10,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Hugging Face into the workflow. Can generate completions using the Hugging Face Inference API.',
-  docsLink: 'https://docs.sim.ai/tools/huggingface',
+  docsLink: 'https://docs.sim.ai/integrations/huggingface',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#0B0F19',

@@ -292,6 +292,11 @@ function ChatContentInner({
 
   const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
   const streamedContent = useSmoothText(displayContent, isStreaming)
+  const isRevealing = isStreaming || streamedContent.length < displayContent.length
+
+  const streamedThisSession = useRef(false)
+  if (isStreaming) streamedThisSession.current = true
+  const keepStreamingTree = isRevealing || streamedThisSession.current
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -308,8 +313,8 @@ function ChatContentInner({
   }, [])
 
   const parsed = useMemo(
-    () => parseSpecialTags(streamedContent, isStreaming),
-    [streamedContent, isStreaming]
+    () => parseSpecialTags(streamedContent, isRevealing),
+    [streamedContent, isRevealing]
   )
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
@@ -365,9 +370,9 @@ function ChatContentInner({
                 className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
               >
                 <Streamdown
-                  mode={isStreaming ? undefined : 'static'}
-                  animated={isStreaming ? STREAM_ANIMATION : false}
-                  isAnimating={isStreaming}
+                  mode={keepStreamingTree ? undefined : 'static'}
+                  animated={keepStreamingTree ? STREAM_ANIMATION : false}
+                  isAnimating={isRevealing}
                   components={MARKDOWN_COMPONENTS}
                 >
                   {group.markdown}
@@ -383,7 +388,7 @@ function ChatContentInner({
             />
           )
         })}
-        {parsed.hasPendingTag && isStreaming && <PendingTagIndicator />}
+        {parsed.hasPendingTag && isRevealing && <PendingTagIndicator />}
       </div>
     )
   }
@@ -391,9 +396,9 @@ function ChatContentInner({
   return (
     <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
       <Streamdown
-        mode={isStreaming ? undefined : 'static'}
-        animated={isStreaming ? STREAM_ANIMATION : false}
-        isAnimating={isStreaming}
+        mode={keepStreamingTree ? undefined : 'static'}
+        animated={keepStreamingTree ? STREAM_ANIMATION : false}
+        isAnimating={isRevealing}
         components={MARKDOWN_COMPONENTS}
       >
         {streamedContent}

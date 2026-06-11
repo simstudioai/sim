@@ -12,7 +12,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.',
-  docsLink: 'https://docs.sim.ai/tools/salesforce',
+  docsLink: 'https://docs.sim.ai/integrations/salesforce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',

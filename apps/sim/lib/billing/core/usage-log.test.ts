@@ -23,12 +23,10 @@ const {
   mockUpdate: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    insert: mockInsert,
-    transaction: mockTransaction,
-  },
-}))
+vi.mock('@sim/db', () => {
+  const instance = { insert: mockInsert, transaction: mockTransaction }
+  return { db: instance, dbReplica: instance }
+})
 
 vi.mock('@sim/db/schema', () => ({
   usageLog: {
@@ -208,6 +206,13 @@ describe('recordCumulativeUsage', () => {
     return { tx, select, updateSet }
   }
 
+  /** True when any tx.execute call ran a sql`` template containing the substring. */
+  const executedSqlContaining = (tx: { execute: ReturnType<typeof vi.fn> }, substring: string) =>
+    tx.execute.mock.calls.some(([arg]) => {
+      const strings = (arg as { strings?: readonly string[] } | null)?.strings
+      return Array.isArray(strings) && strings.some((s) => s.includes(substring))
+    })
+
   it('inserts the full cumulative on the first flush', async () => {
     setupTx(null)
     const result = await recordCumulativeUsage({
@@ -252,5 +257,51 @@ describe('recordCumulativeUsage', () => {
     expect(result).toEqual({ billed: false, delta: 0, total: 0.4662453 })
     expect(updateSet).not.toHaveBeenCalled()
     expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('resolves the billing context before opening the locked transaction, exactly once', async () => {
+    setupTx(null)
+    await recordCumulativeUsage({
+      userId: 'user-1',
+      source: 'workspace-chat',
+      model: 'claude-opus-4.8',
+      cost: 0.3474447,
+      eventKey: 'update-cost:msg-1-billing',
+    })
+    // One lookup total: pre-resolved outside the tx, and the first-flush
+    // insert reuses it instead of re-resolving on the pool inside the tx.
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
+    expect(mockGetHighestPrioritySubscription.mock.invocationCallOrder[0]).toBeLessThan(
+      mockTransaction.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('stamps the pre-resolved billing context onto the first-flush insert', async () => {
+    setupTx(null)
+    await recordCumulativeUsage({
+      userId: 'user-1',
+      source: 'workspace-chat',
+      model: 'claude-opus-4.8',
+      cost: 0.3474447,
+      eventKey: 'update-cost:msg-1-billing',
+    })
+    expect(mockValues.mock.calls[0][0][0]).toMatchObject({
+      billingEntityId: 'org-1',
+      billingEntityType: 'organization',
+    })
+  })
+
+  it('bounds the advisory-lock wait and locks on the 64-bit event-key hash', async () => {
+    const { tx } = setupTx({ id: 'row-1', cost: '0.3474447' })
+    await recordCumulativeUsage({
+      userId: 'user-1',
+      source: 'workspace-chat',
+      model: 'claude-opus-4.8',
+      cost: 0.4662453,
+      eventKey: 'update-cost:msg-1-billing',
+    })
+    expect(executedSqlContaining(tx, 'lock_timeout')).toBe(true)
+    expect(executedSqlContaining(tx, 'pg_advisory_xact_lock')).toBe(true)
+    expect(executedSqlContaining(tx, 'hashtextextended')).toBe(true)
   })
 })

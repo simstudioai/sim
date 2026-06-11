@@ -2,7 +2,8 @@ import type {
   AgiloftAttachmentInfoParams,
   AgiloftAttachmentInfoResponse,
 } from '@/tools/agiloft/types'
-import { buildAttachmentInfoUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildAttachmentInfoUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftAttachmentInfoTool: ToolConfig<

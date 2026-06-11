@@ -34,6 +34,7 @@ import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
 
@@ -179,7 +180,7 @@ export async function ensureUserStatsExists(userId: string): Promise<void> {
 /**
  * Get comprehensive usage data for a user
  */
-export async function getUserUsageData(userId: string): Promise<UsageData> {
+export async function getUserUsageData(userId: string, executor: DbOrTx = db): Promise<UsageData> {
   try {
     await ensureUserStatsExists(userId)
 
@@ -203,7 +204,12 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
     let currentUsageDecimal = toDecimal(stats.currentPeriodCost)
     if (!orgScoped) {
       currentUsageDecimal = currentUsageDecimal.plus(
-        await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
+        await getBillingPeriodUsageCost(
+          { type: 'user', id: userId },
+          billingPeriod,
+          undefined,
+          executor
+        )
       )
     }
 
@@ -242,7 +248,9 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       lastPeriodCost = pooled.lastPeriodCost
       const ledgerUsage = await getBillingPeriodUsageCost(
         { type: 'organization', id: subscription.referenceId },
-        billingPeriod
+        billingPeriod,
+        undefined,
+        executor
       )
       currentUsage = pooled.currentPeriodCost + ledgerUsage
     } else {
@@ -264,24 +272,30 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
               subscription.referenceId,
               billingPeriodStart
             )
-            dailyRefreshConsumed = await computeDailyRefreshConsumed({
-              userIds: orgMemberIds,
+            dailyRefreshConsumed = await computeDailyRefreshConsumed(
+              {
+                userIds: orgMemberIds,
+                periodStart: billingPeriodStart,
+                periodEnd: billingPeriodEnd,
+                planDollars,
+                seats: subscription.seats || 1,
+                userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+                billingEntity: { type: 'organization', id: subscription.referenceId },
+              },
+              executor
+            )
+          }
+        } else {
+          dailyRefreshConsumed = await computeDailyRefreshConsumed(
+            {
+              userIds: [userId],
               periodStart: billingPeriodStart,
               periodEnd: billingPeriodEnd,
               planDollars,
-              seats: subscription.seats || 1,
-              userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-              billingEntity: { type: 'organization', id: subscription.referenceId },
-            })
-          }
-        } else {
-          dailyRefreshConsumed = await computeDailyRefreshConsumed({
-            userIds: [userId],
-            periodStart: billingPeriodStart,
-            periodEnd: billingPeriodEnd,
-            planDollars,
-            billingEntity: { type: 'user', id: userId },
-          })
+              billingEntity: { type: 'user', id: userId },
+            },
+            executor
+          )
         }
       }
     }
@@ -612,7 +626,10 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
  * refresh credits deducted. Org-scoped subs return the pooled sum across
  * all org members; personally-scoped subs return this user's own cost.
  */
-export async function getEffectiveCurrentPeriodCost(userId: string): Promise<number> {
+export async function getEffectiveCurrentPeriodCost(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<number> {
   const subscription = await getHighestPrioritySubscription(userId)
   const orgScoped = isOrgScopedSubscription(subscription, userId)
 
@@ -631,7 +648,9 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
       pooled.currentPeriodCost +
       (await getBillingPeriodUsageCost(
         { type: 'organization', id: subscription.referenceId },
-        billingPeriod
+        billingPeriod,
+        undefined,
+        executor
       ))
   } else {
     const rows = await db
@@ -647,7 +666,12 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
         : defaultBillingPeriod()
     rawCost =
       toNumber(toDecimal(rows[0].current)) +
-      (await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod))
+      (await getBillingPeriodUsageCost(
+        { type: 'user', id: userId },
+        billingPeriod,
+        undefined,
+        executor
+      ))
   }
 
   if (!subscription || !isPaid(subscription.plan) || !subscription.periodStart) {
@@ -662,18 +686,21 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
       ? await getOrgMemberRefreshBounds(subscription.referenceId, subscription.periodStart)
       : {}
 
-  const refreshConsumed = await computeDailyRefreshConsumed({
-    userIds: refreshUserIds,
-    periodStart: subscription.periodStart,
-    periodEnd: subscription.periodEnd ?? null,
-    planDollars,
-    seats: subscription.seats || 1,
-    userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-    billingEntity:
-      orgScoped && subscription
-        ? { type: 'organization', id: subscription.referenceId }
-        : { type: 'user', id: userId },
-  })
+  const refreshConsumed = await computeDailyRefreshConsumed(
+    {
+      userIds: refreshUserIds,
+      periodStart: subscription.periodStart,
+      periodEnd: subscription.periodEnd ?? null,
+      planDollars,
+      seats: subscription.seats || 1,
+      userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+      billingEntity:
+        orgScoped && subscription
+          ? { type: 'organization', id: subscription.referenceId }
+          : { type: 'user', id: userId },
+    },
+    executor
+  )
 
   return Math.max(0, rawCost - refreshConsumed)
 }

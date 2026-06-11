@@ -33,7 +33,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Microsoft Planner into the workflow. Manage tasks, plans, buckets, and task details including checklists and references.',
-  docsLink: 'https://docs.sim.ai/tools/microsoft_planner',
+  docsLink: 'https://docs.sim.ai/integrations/microsoft_planner',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',

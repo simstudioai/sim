@@ -435,6 +435,16 @@ import {
   cloudwatchUnmuteAlarmTool,
 } from '@/tools/cloudwatch'
 import {
+  codepipelineGetPipelineExecutionTool,
+  codepipelineGetPipelineStateTool,
+  codepipelineListPipelineExecutionsTool,
+  codepipelineListPipelinesTool,
+  codepipelinePutApprovalResultTool,
+  codepipelineRetryStageExecutionTool,
+  codepipelineStartExecutionTool,
+  codepipelineStopExecutionTool,
+} from '@/tools/codepipeline'
+import {
   confluenceAddLabelTool,
   confluenceCreateBlogPostTool,
   confluenceCreateCommentTool,
@@ -1818,7 +1828,13 @@ import {
   linqUpdateWebhookSubscriptionTool,
 } from '@/tools/linq'
 import { llmChatTool } from '@/tools/llm'
-import { logsGetExecutionTool, logsGetTool, logsQueryTool } from '@/tools/logs'
+import {
+  logsGetExecutionTool,
+  logsGetRunDetailsTool,
+  logsGetTool,
+  logsQueryRunsTool,
+  logsQueryTool,
+} from '@/tools/logs'
 import {
   loopsCreateContactPropertyTool,
   loopsCreateContactTool,
@@ -3758,8 +3774,10 @@ export const tools: Record<string, ToolConfig> = {
   linq_update_contact_card: linqUpdateContactCardTool,
   linq_update_webhook_subscription: linqUpdateWebhookSubscriptionTool,
   logs_query: logsQueryTool,
+  logs_query_runs: logsQueryRunsTool,
   logs_get: logsGetTool,
   logs_get_execution: logsGetExecutionTool,
+  logs_get_run_details: logsGetRunDetailsTool,
   loops_create_contact: loopsCreateContactTool,
   loops_create_contact_property: loopsCreateContactPropertyTool,
   loops_update_contact: loopsUpdateContactTool,
@@ -4294,6 +4312,14 @@ export const tools: Record<string, ToolConfig> = {
   cloudwatch_put_metric_data: cloudwatchPutMetricDataTool,
   cloudwatch_query_logs: cloudwatchQueryLogsTool,
   cloudwatch_unmute_alarm: cloudwatchUnmuteAlarmTool,
+  codepipeline_get_pipeline_execution: codepipelineGetPipelineExecutionTool,
+  codepipeline_get_pipeline_state: codepipelineGetPipelineStateTool,
+  codepipeline_list_pipeline_executions: codepipelineListPipelineExecutionsTool,
+  codepipeline_list_pipelines: codepipelineListPipelinesTool,
+  codepipeline_put_approval_result: codepipelinePutApprovalResultTool,
+  codepipeline_retry_stage_execution: codepipelineRetryStageExecutionTool,
+  codepipeline_start_execution: codepipelineStartExecutionTool,
+  codepipeline_stop_execution: codepipelineStopExecutionTool,
   crowdstrike_get_sensor_aggregates: crowdstrikeGetSensorAggregatesTool,
   crowdstrike_get_sensor_details: crowdstrikeGetSensorDetailsTool,
   crowdstrike_query_sensors: crowdstrikeQuerySensorsTool,

@@ -8,7 +8,7 @@ export const AshbyBlock: BlockConfig = {
   description: 'Manage candidates, jobs, and applications in Ashby',
   longDescription:
     'Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).',
-  docsLink: 'https://docs.sim.ai/tools/ashby',
+  docsLink: 'https://docs.sim.ai/integrations/ashby',
   category: 'tools',
   integrationType: IntegrationType.HR,
   bgColor: '#5D4ED6',

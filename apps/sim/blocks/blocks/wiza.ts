@@ -10,7 +10,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrates Wiza into the workflow. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.',
-  docsLink: 'https://docs.sim.ai/tools/wiza',
+  docsLink: 'https://docs.sim.ai/integrations/wiza',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#9284BC',

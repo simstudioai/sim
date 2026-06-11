@@ -1,6 +1,9 @@
 import type { Span } from '@opentelemetry/api'
+import { db } from '@sim/db'
+import { workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
@@ -16,6 +19,35 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingUpdateCostAPI')
+
+/**
+ * Resolves the request-supplied workspace to one that exists in this
+ * deployment. Workspace attribution on the usage ledger is best-effort:
+ * self-hosted and headless clients bill through this endpoint with workspace
+ * IDs from their own databases, and `usage_log.workspace_id` carries an FK to
+ * `workspace`, so stamping a foreign ID would fail the entire flush with an
+ * FK violation and strand real cost in the caller's dead-letter queue.
+ * Unknown workspaces are recorded unattributed instead — billing is keyed on
+ * the user's billing entity and never depends on the workspace.
+ */
+async function resolveAttributableWorkspaceId(
+  requestId: string,
+  workspaceId: string | undefined
+): Promise<string | undefined> {
+  if (!workspaceId) return undefined
+
+  const [row] = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+  if (row) return row.id
+
+  logger.warn(`[${requestId}] Workspace not found in this deployment; recording unattributed`, {
+    workspaceId,
+  })
+  return undefined
+}
 
 /**
  * POST /api/billing/update-cost
@@ -129,6 +161,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       source,
     })
 
+    const attributedWorkspaceId = await resolveAttributableWorkspaceId(requestId, workspaceId)
+
     // Go sends the request's CUMULATIVE cost, possibly more than once (a
     // mid-loop provider-error flush, then the recovered terminal flush, plus
     // abort-race duplicates). Record it as a monotonic top-up: one ledger row
@@ -141,7 +175,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     if (idempotencyKey) {
       const result = await recordCumulativeUsage({
         userId,
-        workspaceId,
+        workspaceId: attributedWorkspaceId,
         source,
         model,
         cost,
@@ -160,7 +194,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     } else {
       await recordUsage({
         userId,
-        workspaceId,
+        workspaceId: attributedWorkspaceId,
         entries: [
           {
             category: 'model',
@@ -229,8 +263,16 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
   } catch (error) {
     const duration = Date.now() - startTime
 
+    // Surface the underlying Postgres failure (e.g. 23503 FK violation vs a
+    // lock timeout) — Drizzle's "Failed query" wrapper alone cannot
+    // distinguish them, which made the dead-workspace incident undiagnosable
+    // from logs.
+    const pgCode = getPostgresErrorCode(error)
+    const pgConstraint = getPostgresConstraintName(error)
     logger.error(`[${requestId}] Cost update failed`, {
       error: toError(error).message,
+      ...(pgCode && { pgCode }),
+      ...(pgConstraint && { pgConstraint }),
       stack: error instanceof Error ? error.stack : undefined,
       duration,
     })

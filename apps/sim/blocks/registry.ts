@@ -34,6 +34,7 @@ import { ClickHouseBlock, ClickHouseBlockMeta } from '@/blocks/blocks/clickhouse
 import { CloudflareBlock, CloudflareBlockMeta } from '@/blocks/blocks/cloudflare'
 import { CloudFormationBlock, CloudFormationBlockMeta } from '@/blocks/blocks/cloudformation'
 import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch'
+import { CodePipelineBlock, CodePipelineBlockMeta } from '@/blocks/blocks/codepipeline'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CredentialBlock } from '@/blocks/blocks/credential'
@@ -160,7 +161,7 @@ import { LinearBlock, LinearBlockMeta, LinearV2Block } from '@/blocks/blocks/lin
 import { LinkedInBlock, LinkedInBlockMeta } from '@/blocks/blocks/linkedin'
 import { LinkupBlock, LinkupBlockMeta } from '@/blocks/blocks/linkup'
 import { LinqBlock, LinqBlockMeta } from '@/blocks/blocks/linq'
-import { LogsBlock } from '@/blocks/blocks/logs'
+import { LogsBlock, LogsV2Block } from '@/blocks/blocks/logs'
 import { LoopsBlock, LoopsBlockMeta } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaBlockMeta } from '@/blocks/blocks/luma'
 import { MailchimpBlock, MailchimpBlockMeta } from '@/blocks/blocks/mailchimp'
@@ -252,6 +253,7 @@ import { SESBlock, SESBlockMeta } from '@/blocks/blocks/ses'
 import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock, SharepointBlockMeta, SharepointV2Block } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock, ShopifyBlockMeta } from '@/blocks/blocks/shopify'
+import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
 import { SlackBlock, SlackBlockMeta } from '@/blocks/blocks/slack'
@@ -351,6 +353,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
   cloudwatch: CloudWatchBlock,
+  codepipeline: CodePipelineBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,
@@ -460,6 +463,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   linkup: LinkupBlock,
   linq: LinqBlock,
   logs: LogsBlock,
+  logs_v2: LogsV2Block,
   loops: LoopsBlock,
   luma: LumaBlock,
   mailchimp: MailchimpBlock,
@@ -539,6 +543,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   sharepoint: SharepointBlock,
   sharepoint_v2: SharepointV2Block,
   shopify: ShopifyBlock,
+  sim_workspace_event: SimWorkspaceEventBlock,
   similarweb: SimilarwebBlock,
   sixtyfour: SixtyfourBlock,
   slack: SlackBlock,
@@ -639,6 +644,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   cloudflare: CloudflareBlockMeta,
   cloudformation: CloudFormationBlockMeta,
   cloudwatch: CloudWatchBlockMeta,
+  codepipeline: CodePipelineBlockMeta,
   confluence: ConfluenceBlockMeta,
   crowdstrike: CrowdStrikeBlockMeta,
   cursor: CursorBlockMeta,

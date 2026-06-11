@@ -1850,6 +1850,83 @@ html.dark main article blockquote {
   box-shadow: none !important;
 }
 
+/* Workflow-preview theme scope. Values mirror the app's tokens in
+   apps/sim/app/_styles/globals.css (light from :root/.light, dark from .dark)
+   so the docs previews match the OG repository in both modes. */
+.wp-scope {
+  /* surfaces */
+  --wp-canvas: #fefefe; /* --bg */
+  --wp-panel: #fbfbfb; /* --surface-1 */
+  --wp-surface: #ffffff; /* --surface-2 */
+  --wp-header: #f7f7f7; /* --surface-3 */
+  --wp-btn: #f5f5f5; /* --surface-4 */
+  --wp-control: #f3f3f3; /* --surface-5 */
+  --wp-active: #ececec; /* --surface-active */
+  --wp-container-fill: rgba(0, 0, 0, 0.02);
+
+  /* borders */
+  --wp-border: #dedede; /* --border */
+  --wp-border-1: #e0e0e0; /* --border-1 */
+  --wp-chip-bg: #f3f3f3; /* --surface-5: ChipTag surface (light) */
+  --wp-chip-text: #3b3b3b; /* --text-body */
+  --wp-divider: #ededed; /* --divider */
+  --wp-edge: #e0e0e0; /* --workflow-edge */
+
+  /* text */
+  --wp-text: #1a1a1a; /* --text-primary */
+  --wp-text-2: #525252; /* --text-secondary */
+  --wp-text-3: #5c5c5c; /* --text-tertiary */
+  --wp-text-muted: #707070; /* --text-muted */
+  --wp-text-subtle: #8c8c8c; /* --text-subtle */
+
+  /* type badges (output inspector) */
+  --wp-badge-success-bg: #bbf7d0;
+  --wp-badge-success-text: #15803d;
+  --wp-badge-blue-bg: #bfdbfe;
+  --wp-badge-blue-text: #1d4ed8;
+  --wp-badge-orange-bg: #fed7aa;
+  --wp-badge-orange-text: #c2410c;
+  --wp-badge-purple-bg: #e9d5ff;
+  --wp-badge-purple-text: #7c3aed;
+  --wp-badge-gray-bg: #e7e5e4;
+  --wp-badge-gray-text: #57534e;
+}
+
+.dark .wp-scope {
+  --wp-canvas: #1b1b1b;
+  --wp-panel: #1e1e1e;
+  --wp-surface: #232323;
+  --wp-header: #242424;
+  --wp-btn: #292929;
+  --wp-control: #363636;
+  --wp-active: #2c2c2c;
+  --wp-container-fill: rgba(255, 255, 255, 0.02);
+
+  --wp-border: #333333;
+  --wp-border-1: #3d3d3d;
+  --wp-chip-bg: #292929; /* --surface-4: ChipTag surface (dark) */
+  --wp-chip-text: #cdcdcd; /* --text-body */
+  --wp-divider: #393939;
+  --wp-edge: #454545;
+
+  --wp-text: #e6e6e6;
+  --wp-text-2: #cccccc;
+  --wp-text-3: #b3b3b3;
+  --wp-text-muted: #787878;
+  --wp-text-subtle: #7d7d7d;
+
+  --wp-badge-success-bg: rgba(34, 197, 94, 0.2);
+  --wp-badge-success-text: #86efac;
+  --wp-badge-blue-bg: rgba(59, 130, 246, 0.2);
+  --wp-badge-blue-text: #93c5fd;
+  --wp-badge-orange-bg: rgba(249, 115, 22, 0.2);
+  --wp-badge-orange-text: #fdba74;
+  --wp-badge-purple-bg: rgba(168, 85, 247, 0.2);
+  --wp-badge-purple-text: #d8b4fe;
+  --wp-badge-gray-bg: #3a3a3a;
+  --wp-badge-gray-text: #a8a8a8;
+}
+
 /* Tailwind v4 content sources */
 @source '../app/**/*.{js,ts,jsx,tsx,mdx}';
 @source '../components/**/*.{js,ts,jsx,tsx,mdx}';

@@ -9,8 +9,8 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface EvalMetric {
   id: string
@@ -28,7 +28,6 @@ interface EvalInputProps {
   isPreview?: boolean
   previewValue?: EvalMetric[] | null
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 // Default values
@@ -45,8 +44,8 @@ export function EvalInput({
   isPreview = false,
   previewValue,
   disabled = false,
-  activeSearchTarget,
 }: EvalInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const descriptionInputRefs = useRef<Record<string, HTMLTextAreaElement>>({})

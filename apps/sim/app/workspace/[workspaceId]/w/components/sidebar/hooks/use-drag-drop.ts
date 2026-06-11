@@ -31,6 +31,17 @@ type SiblingItem = {
   createdAt: Date
 }
 
+/** Stable no-op drop-zone handlers returned when drag-and-drop is disabled. */
+const NOOP_DRAG_HANDLERS = {
+  onDragOver: (e: React.DragEvent<HTMLElement>) => e.preventDefault(),
+  onDrop: (e: React.DragEvent<HTMLElement>) => e.preventDefault(),
+  onDragLeave: () => {},
+}
+
+const createNoopDragHandlers = () => NOOP_DRAG_HANDLERS
+
+const noop = () => {}
+
 /** Root folder vs root workflow scope: API/cache may use null or undefined for "no parent". */
 function isSameFolderScope(
   parentOrFolderId: string | null | undefined,
@@ -650,26 +661,20 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     scrollContainerRef.current = element
   }, [])
 
-  const noopDragHandlers = {
-    onDragOver: (e: React.DragEvent<HTMLElement>) => e.preventDefault(),
-    onDrop: (e: React.DragEvent<HTMLElement>) => e.preventDefault(),
-    onDragLeave: () => {},
-  }
-
   if (disabled) {
     return {
       dropIndicator: null,
       isDragging: false,
       disabled: true,
       setScrollContainer,
-      createWorkflowDragHandlers: () => noopDragHandlers,
-      createFolderDragHandlers: () => noopDragHandlers,
-      createEmptyFolderDropZone: () => noopDragHandlers,
-      createFolderContentDropZone: () => noopDragHandlers,
-      createRootDropZone: () => noopDragHandlers,
-      createEdgeDropZone: () => noopDragHandlers,
-      handleDragStart: () => {},
-      handleDragEnd: () => {},
+      createWorkflowDragHandlers: createNoopDragHandlers,
+      createFolderDragHandlers: createNoopDragHandlers,
+      createEmptyFolderDropZone: createNoopDragHandlers,
+      createFolderContentDropZone: createNoopDragHandlers,
+      createRootDropZone: createNoopDragHandlers,
+      createEdgeDropZone: createNoopDragHandlers,
+      handleDragStart: noop,
+      handleDragEnd: noop,
     }
   }
 

@@ -6,11 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { selectMock } = vi.hoisted(() => ({ selectMock: vi.fn() }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: selectMock,
-  },
-}))
+vi.mock('@sim/db', () => {
+  const instance = { select: selectMock }
+  return { db: instance, dbReplica: instance }
+})
 
 // Local drizzle-orm mock: the global mock's `sql` lacks `.as()` and the chain
 // mock doesn't support `.orderBy().limit()`. We only need condition/sql builders

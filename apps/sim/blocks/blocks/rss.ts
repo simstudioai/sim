@@ -15,7 +15,7 @@ export const RssBlock: BlockConfig = {
   bgColor: '#F97316',
   icon: RssIcon,
   triggerAllowed: true,
-  docsLink: 'https://docs.sim.ai/triggers/rss',
+  docsLink: 'https://docs.sim.ai/workflows/triggers/rss',
 
   subBlocks: [...getTrigger('rss_poller').subBlocks],
 

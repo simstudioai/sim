@@ -8,7 +8,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   description: 'Populate Clay workbook',
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate Clay into the workflow. Can populate a table with data.',
-  docsLink: 'https://docs.sim.ai/tools/clay',
+  docsLink: 'https://docs.sim.ai/integrations/clay',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',

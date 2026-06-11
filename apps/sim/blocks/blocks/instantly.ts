@@ -51,7 +51,7 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
   description: 'Manage Instantly leads, campaigns, emails, and lead lists',
   longDescription:
     'Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.',
-  docsLink: 'https://docs.sim.ai/tools/instantly',
+  docsLink: 'https://docs.sim.ai/integrations/instantly',
   category: 'tools',
   integrationType: IntegrationType.Email,
   bgColor: '#FFFFFF',

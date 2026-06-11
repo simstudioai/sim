@@ -11,7 +11,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, manage messages, and access user and subreddit info.',
-  docsLink: 'https://docs.sim.ai/tools/reddit',
+  docsLink: 'https://docs.sim.ai/integrations/reddit',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#FF5700',

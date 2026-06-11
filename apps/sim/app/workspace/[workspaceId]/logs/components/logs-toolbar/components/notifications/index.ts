@@ -1,1 +1,0 @@
-export { NotificationSettings } from './notifications'

@@ -15,7 +15,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   - Python code always requires E2B and runs in a secure sandbox.
   - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
   `,
-  docsLink: 'https://docs.sim.ai/blocks/function',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/function',
   category: 'blocks',
   bgColor: '#FF402F',
   icon: CodeIcon,

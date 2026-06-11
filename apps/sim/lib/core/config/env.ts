@@ -19,6 +19,7 @@ export const env = createEnv({
   server: {
     // Core Database & Authentication
     DATABASE_URL:                          z.string().url(),                       // Primary database connection string
+    DATABASE_REPLICA_URL:                  z.string().url().optional(),            // Read-replica connection string; opt-in reads fall back to the primary when unset
     BETTER_AUTH_URL:                       z.string().url(),                       // Base URL for Better Auth service
     BETTER_AUTH_SECRET:                    z.string().min(32),                     // Secret key for Better Auth JWT signing
     DISABLE_REGISTRATION:                  z.boolean().optional(),                 // Flag to disable new user registration
@@ -243,6 +244,8 @@ export const env = createEnv({
 
     // Admission & Burst Protection
     ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod
+    API_MAX_JSON_BODY_BYTES:               z.string().optional().default('52428800'),// Default max JSON request body size for contract routes (50 MB)
+    CHAT_MAX_REQUEST_BYTES:                z.string().optional().default('230686720'),// Max request body size for the public deployed-chat endpoint (220 MB; covers 15 base64 file attachments)
 
     // Rate Limiting Configuration
     RATE_LIMIT_WINDOW_MS:                  z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { usageLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -169,7 +169,8 @@ async function resolveBillingContext(
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
-  source?: UsageLogSource | UsageLogSource[]
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbOrTx = db
 ): Promise<number> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
@@ -183,7 +184,7 @@ export async function getBillingPeriodUsageCost(
     )
   }
 
-  const [row] = await db
+  const [row] = await executor
     .select({
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
@@ -196,7 +197,8 @@ export async function getBillingPeriodUsageCost(
 export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
-  source?: UsageLogSource | UsageLogSource[]
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbOrTx = db
 ): Promise<Map<string, number>> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
@@ -210,7 +212,7 @@ export async function getBillingPeriodUsageCostByUser(
     )
   }
 
-  const rows = await db
+  const rows = await executor
     .select({
       userId: usageLog.userId,
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
@@ -406,6 +408,16 @@ export interface RecordCumulativeUsageResult {
 }
 
 /**
+ * Bounds the wait for the per-event-key advisory lock (and any row/index lock
+ * waits inside the critical section). The Go mothership gives each UpdateCost
+ * POST a 5s deadline, retries 3x with backoff, then dead-letters the charge
+ * keyed on the same idempotency key — so a stuck lock holder must surface as
+ * a fast, retryable failure (SQLSTATE 55P03) within that budget rather than
+ * an unbounded wait that pins pooled connections.
+ */
+const CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS = 3_000
+
+/**
  * Record a request's CUMULATIVE cost idempotently with monotonic top-up.
  *
  * Keeps exactly ONE usage_log row per `eventKey` holding the MAX cumulative
@@ -413,6 +425,9 @@ export interface RecordCumulativeUsageResult {
  * each flush. A per-key transactional advisory lock serializes concurrent
  * flushes so the read-then-write — including the first insert — is race-free
  * (no two flushes can both believe they are first and clobber each other).
+ * The billing context is resolved BEFORE the transaction and the lock wait is
+ * bounded by `lock_timeout`, keeping the critical section to one SELECT plus
+ * one INSERT/UPDATE on a single pooled connection.
  *
  * Because every leg flushes its cumulative and this converges to the max,
  * there is no under-billing if the request recovers after a partial flush, no
@@ -424,9 +439,22 @@ export async function recordCumulativeUsage(
 ): Promise<RecordCumulativeUsageResult> {
   const { userId, workspaceId, source, model, cost, eventKey, metadata } = params
 
+  // Resolved before the locked transaction on purpose: resolving inside it
+  // ran the subscription lookups on the global pool while this tx already
+  // held a pooled connection plus the advisory lock, so under load N
+  // first-flush transactions each pinned a connection while waiting for one
+  // more — starving the pool and queueing every same-key flush (and the Go
+  // side's retries) behind the stall.
+  const billingContext = await resolveBillingContext(userId)
+
   return db.transaction(async (tx) => {
-    // Serialize all flushes for this request (lock auto-releases at tx end).
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${eventKey}))`)
+    // Serialize all flushes for this request (lock auto-releases at tx end),
+    // with a bounded wait so a pathological holder fails this flush fast and
+    // lets the caller retry instead of hanging the connection.
+    await tx.execute(
+      sql`select set_config('lock_timeout', ${`${CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS}ms`}, true)`
+    )
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${eventKey}, 0))`)
 
     const [existing] = await tx
       .select({ id: usageLog.id, cost: usageLog.cost })
@@ -449,12 +477,14 @@ export async function recordCumulativeUsage(
         .set({ cost: newTotal.toString(), metadata: metadata ?? null })
         .where(eq(usageLog.id, existing.id))
     } else {
-      // First flush for this request: insert the canonical row (recordUsage
-      // resolves billing entity/period). Runs in the same tx + advisory lock.
+      // First flush for this request: insert the canonical row with the
+      // pre-resolved billing context. Runs in the same tx + advisory lock.
       await recordUsage({
         userId,
         workspaceId,
         tx,
+        billingEntity: billingContext.billingEntity,
+        billingPeriod: billingContext.billingPeriod,
         entries: [
           {
             category: 'model',
@@ -551,6 +581,9 @@ export async function getUserUsageLogs(
     }
 
     if (cursor) {
+      // Cursor resolution stays on the primary: the page itself reads a
+      // load-balanced replica, and a laggier sibling replica missing the cursor
+      // row would silently restart pagination from page 1.
       const cursorLog = await db
         .select({ createdAt: usageLog.createdAt })
         .from(usageLog)
@@ -564,7 +597,7 @@ export async function getUserUsageLogs(
       }
     }
 
-    const logs = await db
+    const logs = await dbReplica
       .select()
       .from(usageLog)
       .where(and(...conditions))
@@ -593,7 +626,7 @@ export async function getUserUsageLogs(
     if (startDate) summaryConditions.push(gte(usageLog.createdAt, startDate))
     if (endDate) summaryConditions.push(lte(usageLog.createdAt, endDate))
 
-    const summaryResult = await db
+    const summaryResult = await dbReplica
       .select({
         source: usageLog.source,
         totalCost: sql<string>`SUM(${usageLog.cost})`,

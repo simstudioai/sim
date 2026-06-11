@@ -1,3 +1,5 @@
 export { logsGetExecutionTool } from '@/tools/logs/get_execution'
 export { logsGetTool } from '@/tools/logs/get_log'
+export { logsGetRunDetailsTool } from '@/tools/logs/get_run_details'
 export { logsQueryTool } from '@/tools/logs/query'
+export { logsQueryRunsTool } from '@/tools/logs/query_runs'

@@ -22,6 +22,7 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
+import type { DbOrTx } from '@/lib/db/types'
 
 export { getPlanPricing }
 
@@ -384,7 +385,8 @@ export async function calculateSubscriptionOverage(sub: {
  */
 export async function getSimplifiedBillingSummary(
   userId: string,
-  organizationId?: string
+  organizationId?: string,
+  executor: DbOrTx = db
 ): Promise<{
   type: 'individual' | 'organization'
   plan: string
@@ -432,7 +434,7 @@ export async function getSimplifiedBillingSummary(
       organizationId
         ? getOrganizationSubscription(organizationId)
         : getHighestPrioritySubscription(userId),
-      getUserUsageData(userId),
+      getUserUsageData(userId, executor),
     ])
 
     const plan = subscription?.plan || 'free'
@@ -469,7 +471,9 @@ export async function getSimplifiedBillingSummary(
       const ledgerUsage = orgBillingPeriod
         ? await getBillingPeriodUsageCost(
             { type: 'organization', id: organizationId },
-            orgBillingPeriod
+            orgBillingPeriod,
+            undefined,
+            executor
           )
         : 0
       // Copilot breakdown = member baselines (copilot + MCP) + the copilot-family
@@ -481,7 +485,8 @@ export async function getSimplifiedBillingSummary(
           ? await getBillingPeriodUsageCost(
               { type: 'organization', id: organizationId },
               orgBillingPeriod,
-              COPILOT_USAGE_SOURCES
+              COPILOT_USAGE_SOURCES,
+              executor
             )
           : 0)
       let refreshDeduction = 0
@@ -492,15 +497,18 @@ export async function getSimplifiedBillingSummary(
             organizationId,
             subscription.periodStart
           )
-          refreshDeduction = await computeDailyRefreshConsumed({
-            userIds: pooled.memberIds,
-            periodStart: subscription.periodStart,
-            periodEnd: subscription.periodEnd ?? null,
-            planDollars,
-            seats: subscription.seats || 1,
-            userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-            billingEntity: { type: 'organization', id: organizationId },
-          })
+          refreshDeduction = await computeDailyRefreshConsumed(
+            {
+              userIds: pooled.memberIds,
+              periodStart: subscription.periodStart,
+              periodEnd: subscription.periodEnd ?? null,
+              planDollars,
+              seats: subscription.seats || 1,
+              userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+              billingEntity: { type: 'organization', id: organizationId },
+            },
+            executor
+          )
         }
       }
       const effectiveCurrentUsage = Math.max(0, rawCurrentUsage + ledgerUsage - refreshDeduction)
@@ -609,7 +617,8 @@ export async function getSimplifiedBillingSummary(
       totalCopilotCost += await getBillingPeriodUsageCost(
         copilotEntity,
         copilotBillingPeriod,
-        COPILOT_USAGE_SOURCES
+        COPILOT_USAGE_SOURCES,
+        executor
       )
     }
 

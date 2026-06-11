@@ -14,7 +14,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Build, edit, and export branded Google Slides presentations end-to-end. Copy a template, replace text and image tokens, embed Sheets charts, style text and shapes with brand fonts and colors, manage tables and layouts, group elements, run atomic batch updates, and export to PDF or PPTX.',
-  docsLink: 'https://docs.sim.ai/tools/google_slides',
+  docsLink: 'https://docs.sim.ai/integrations/google_slides',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
