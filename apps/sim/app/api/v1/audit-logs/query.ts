@@ -71,10 +71,6 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
 
 /**
  * Returns the IDs of all workspaces attached to the organization.
- *
- * Reads the primary, not the replica: this list is the tenant/authz boundary
- * for the audit-log API, and a lagging replica could briefly include a
- * workspace that was just detached from the org.
  */
 export async function getOrgWorkspaceIds(organizationId: string): Promise<string[]> {
   const rows = await db
