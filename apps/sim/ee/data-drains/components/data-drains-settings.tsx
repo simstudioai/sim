@@ -56,8 +56,8 @@ const SOURCE_LABELS: Record<(typeof SOURCE_TYPES)[number], string> = {
   workflow_logs: 'Workflow logs',
   job_logs: 'Job logs',
   audit_logs: 'Audit logs',
-  copilot_chats: 'Copilot chats',
-  copilot_runs: 'Copilot runs',
+  copilot_chats: 'Chats',
+  copilot_runs: 'Chat runs',
 }
 
 const DESTINATION_LABELS: Record<(typeof DESTINATION_TYPES)[number], string> = {

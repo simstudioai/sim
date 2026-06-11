@@ -471,7 +471,7 @@ export function AccessControl() {
       },
       {
         id: 'hide-copilot',
-        label: 'Copilot',
+        label: 'Chat',
         category: 'Workflow Panel',
         configKey: 'hideCopilot' as const,
       },

@@ -1089,7 +1089,7 @@ async function createJobLogEntry(params: {
       success,
       responseBody,
     } = params
-    const name = jobTitle || 'Mothership Job'
+    const name = jobTitle || 'Sim Job'
 
     const toolCallsList = (responseBody?.toolCalls || []).map((tc: Record<string, unknown>) => ({
       name: tc.name,
@@ -1274,7 +1274,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
           errorMessage: errorText,
         })
 
-        throw new Error(`Mothership execution failed (${response.status}): ${errorText}`)
+        throw new Error(`Sim execution failed (${response.status}): ${errorText}`)
       }
 
       let responseBody: Record<string, any> = {}

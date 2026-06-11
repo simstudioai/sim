@@ -20,8 +20,11 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  FloatingOverflowText,
+  Resource,
+} from '@/app/workspace/[workspaceId]/components'
 import {
   ChunkContextMenu,
   ChunkEditor,
@@ -123,11 +126,7 @@ export function Document({
   const userPermissions = useUserPermissionsContext()
 
   const { knowledgeBase } = useKnowledgeBase(knowledgeBaseId)
-  const {
-    document: documentData,
-    isLoading: isLoadingDocument,
-    error: documentError,
-  } = useDocument(knowledgeBaseId, documentId)
+  const { document: documentData, error: documentError } = useDocument(knowledgeBaseId, documentId)
 
   const [showTagsModal, setShowTagsModal] = useState(false)
 
@@ -151,8 +150,6 @@ export function Document({
     goToPage: initialGoToPage,
     error: initialError,
     updateChunk: initialUpdateChunk,
-    isLoading: isLoadingChunks,
-    isFetching: isFetchingChunks,
   } = useDocumentChunks(
     knowledgeBaseId,
     documentId,
@@ -811,17 +808,6 @@ export function Document({
     setContextMenuChunk(null)
   }, [closeContextMenu])
 
-  const prevDocumentIdRef = useRef<string>(documentId)
-  const isNavigatingToNewDoc = prevDocumentIdRef.current !== documentId
-
-  useEffect(() => {
-    if (documentData && documentData.id === documentId) {
-      prevDocumentIdRef.current = documentId
-    }
-  }, [documentData, documentId])
-
-  const isFetchingNewDoc = isNavigatingToNewDoc && isFetchingChunks
-
   const selectableConfig: SelectableConfig | undefined = isCompleted
     ? {
         selectedIds: selectedChunks,
@@ -1158,11 +1144,9 @@ export function Document({
         <Resource.Table
           columns={CHUNK_COLUMNS}
           rows={combinedError ? [] : chunkRows}
-          sort={combinedError ? undefined : sortConfig}
           selectable={combinedError ? undefined : selectableConfig}
           onRowClick={isCompleted ? handleChunkClick : undefined}
           onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
-          isLoading={isLoadingDocument || isFetchingNewDoc || (isCompleted && isLoadingChunks)}
           pagination={paginationConfig}
         />
       </Resource>

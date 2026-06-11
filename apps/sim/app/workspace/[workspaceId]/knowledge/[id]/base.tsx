@@ -47,8 +47,7 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
 import {
   ActionBar,
   AddConnectorModal,
@@ -320,7 +319,6 @@ export function KnowledgeBase({
 
   const {
     knowledgeBase,
-    isLoading: isLoadingKnowledgeBase,
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
@@ -333,8 +331,6 @@ export function KnowledgeBase({
   const {
     documents,
     pagination,
-    isLoading: isLoadingDocuments,
-    isFetching: isFetchingDocuments,
     isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
     hasProcessingDocuments,
@@ -792,16 +788,6 @@ export function KnowledgeBase({
     setContextMenuDocument(null)
   }, [closeContextMenu])
 
-  const prevKnowledgeBaseIdRef = useRef<string>(id)
-  const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
-
-  if (knowledgeBase && knowledgeBase.id === id) {
-    prevKnowledgeBaseIdRef.current = id
-  }
-
-  const isInitialLoad = isLoadingKnowledgeBase && !knowledgeBase
-  const isFetchingNewKB = isNavigatingToNewKB && isFetchingDocuments
-
   const breadcrumbs: BreadcrumbItem[] = [
     {
       label: 'Knowledge Base',
@@ -1170,13 +1156,9 @@ export function KnowledgeBase({
         <Resource.Table
           columns={DOCUMENT_COLUMNS}
           rows={documentRows}
-          sort={sortConfig}
           selectable={selectableConfig}
           onRowClick={handleDocumentClick}
           onRowContextMenu={handleDocumentContextMenu}
-          isLoading={
-            isInitialLoad || isFetchingNewKB || (isLoadingDocuments && documents.length === 0)
-          }
           pagination={{
             currentPage,
             totalPages,

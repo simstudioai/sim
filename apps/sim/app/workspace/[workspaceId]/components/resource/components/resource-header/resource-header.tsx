@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom'
 import {
   Chip,
   ChipChevronDown,
+  chipContentIconClass,
   chipGeometryClass,
   chipVariants,
   DropdownMenu,
@@ -188,7 +189,7 @@ export const ResourceHeader = memo(function ResourceHeader({
              * CSS-truncates to "T…" while the `shrink-0` actions hold width.
              */
             <span className={cn(chipGeometryClass, 'inline-flex shrink-0 cursor-default')}>
-              {TitleIcon && <TitleIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+              {TitleIcon && <TitleIcon className={chipContentIconClass} />}
               {titleLabel && (
                 <FloatingOverflowText
                   label={titleLabel}
@@ -274,7 +275,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   if (editing?.isEditing) {
     return (
       <span className={cn(chipGeometryClass, 'inline-flex min-w-0 justify-start', className)}>
-        {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+        {Icon && <Icon className={chipContentIconClass} />}
         <InlineRenameInput
           value={editing.value}
           onChange={editing.onChange}
@@ -288,7 +289,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
 
   const content = (
     <>
-      {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+      {Icon && <Icon className={chipContentIconClass} />}
       <BreadcrumbLabel ref={labelRef} isOverflowing={isOverflowing} label={label} />
     </>
   )
@@ -428,11 +429,11 @@ function BreadcrumbLocationPopover({
               className
             )}
           >
-            <span className='relative inline-grid size-[14px] shrink-0 place-items-center'>
-              <Icon className='col-start-1 row-start-1 size-[14px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
+            <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>
+              <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
               <ArrowUpLeft
                 strokeWidth={1.55}
-                className='col-start-1 row-start-1 size-[14px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none'
+                className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none'
               />
             </span>
             {rootBreadcrumb?.label && (

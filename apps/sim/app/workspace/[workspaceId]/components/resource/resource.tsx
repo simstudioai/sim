@@ -21,7 +21,6 @@ import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
-import type { SortConfig } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 
 export interface ResourceColumn {
@@ -127,26 +126,12 @@ function ResourceRoot({ children, onContextMenu }: ResourceProps) {
 interface ResourceTableProps {
   columns: ResourceColumn[]
   rows: ResourceRow[]
-  /**
-   * Declares that row ordering is managed externally (by the consumer, surfaced
-   * through `Resource.Options`'s Sort chip). The table never sorts rows itself —
-   * `rows` render in the order given — so this prop has no rendering effect; it
-   * exists to document sort ownership at the callsite.
-   */
-  sort?: SortConfig
   selectedRowId?: string | null
   selectable?: SelectableConfig
   rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
-  /**
-   * Reserved. Loading no longer alters rendering — the column headers always
-   * paint and an empty `rows` array renders an empty body, so navigations never
-   * flash placeholder chrome. Kept for API stability and future semantics (e.g.
-   * aria-busy) so consumers can keep threading their query state.
-   */
-  isLoading?: boolean
   onLoadMore?: () => void
   hasMore?: boolean
   isLoadingMore?: boolean

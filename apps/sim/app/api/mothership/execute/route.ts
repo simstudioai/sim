@@ -255,7 +255,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
               allowExplicitAbort = false
 
               if (lifecycleAbortController.signal.aborted) {
-                send({ type: 'error', error: 'Mothership execution aborted' })
+                send({ type: 'error', error: 'Sim execution aborted' })
                 return
               }
 
@@ -274,7 +274,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                 )
                 send({
                   type: 'error',
-                  error: result.error || 'Mothership execution failed',
+                  error: result.error || 'Sim execution failed',
                   content: result.content || '',
                 })
                 return
@@ -296,7 +296,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                     : 'Mothership execute aborted',
                   { requestId }
                 )
-                send({ type: 'error', error: 'Mothership execution aborted' })
+                send({ type: 'error', error: 'Sim execution aborted' })
                 return
               }
 
@@ -350,7 +350,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       if (lifecycleAbortController.signal.aborted || req.signal.aborted) {
         reqLogger.info('Mothership execute aborted after lifecycle completion')
-        return NextResponse.json({ error: 'Mothership execution aborted' }, { status: 499 })
+        return NextResponse.json({ error: 'Sim execution aborted' }, { status: 499 })
       }
 
       if (!result.success) {
@@ -368,7 +368,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         )
         return NextResponse.json(
           {
-            error: result.error || 'Mothership execution failed',
+            error: result.error || 'Sim execution failed',
             content: result.content || '',
           },
           { status: 500 }
@@ -394,7 +394,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         }
       )
 
-      return NextResponse.json({ error: 'Mothership execution aborted' }, { status: 499 })
+      return NextResponse.json({ error: 'Sim execution aborted' }, { status: 499 })
     }
 
     if (isWorkspaceAccessDeniedError(error)) {

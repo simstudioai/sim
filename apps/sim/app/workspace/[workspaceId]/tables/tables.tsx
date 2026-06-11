@@ -67,7 +67,7 @@ export function Tables() {
 
   const userPermissions = useUserPermissionsContext()
 
-  const { data: tables = [], isLoading, error } = useTablesList(workspaceId)
+  const { data: tables = [], error } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
 
   if (error) {
@@ -583,7 +583,6 @@ export function Tables() {
           rows={rows}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
-          isLoading={isLoading}
         />
       </Resource>
 

@@ -757,7 +757,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
                 >
-                  Copilot
+                  Chat
                 </Button>
               )}
               <Button

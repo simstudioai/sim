@@ -190,8 +190,7 @@ export function Files() {
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
-  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS, isLoading: foldersLoading } =
-    useWorkspaceFileFolders(workspaceId)
+  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
   const deleteFile = useDeleteWorkspaceFile()
@@ -1900,12 +1899,10 @@ export function Files() {
         <Resource.Table
           columns={COLUMNS}
           rows={rows}
-          sort={sortConfig}
           selectable={selectableConfig}
           rowDragDrop={rowDragDropConfig}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
-          isLoading={isLoading || foldersLoading}
           overlay={
             <>
               <FilesActionBar
