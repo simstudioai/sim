@@ -21,6 +21,9 @@ const DEFAULT_COMPILER = 'pdflatex'
 const MAX_PDF_BYTES = 25 * 1024 * 1024
 const MAX_ERROR_JSON_BYTES = 4 * 1024 * 1024
 const MAX_ERROR_MESSAGE_CHARS = 4000
+const MAX_ERROR_CODE_CHARS = 100
+/** Leaves headroom within `maxDuration` to store the PDF after compilation. */
+const COMPILE_TIMEOUT_MS = 50_000
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -67,14 +70,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceCount: body.resources?.length ?? 0,
     })
 
-    const upstreamResponse = await fetch(LATEX_COMPILE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        compiler,
-        resources: [{ main: true, content: body.content }, ...(body.resources ?? [])],
-      }),
-    })
+    let upstreamResponse: Response
+    try {
+      upstreamResponse = await fetch(LATEX_COMPILE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          compiler,
+          resources: [{ main: true, content: body.content }, ...(body.resources ?? [])],
+        }),
+        signal: AbortSignal.timeout(COMPILE_TIMEOUT_MS),
+      })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError') {
+        logger.error(`[${requestId}] LaTeX compile service timed out`, {
+          timeoutMs: COMPILE_TIMEOUT_MS,
+        })
+        return NextResponse.json({ error: 'LaTeX compile service timed out' }, { status: 504 })
+      }
+      throw error
+    }
 
     const upstreamContentType = upstreamResponse.headers.get('content-type') || ''
     if (!upstreamResponse.ok || !upstreamContentType.includes('application/pdf')) {
@@ -160,7 +175,10 @@ async function buildCompileErrorResponse(
     typeof errorBody === 'object' && errorBody !== null
       ? (errorBody as Record<string, unknown>)
       : undefined
-  const errorCode = typeof errorRecord?.error === 'string' ? errorRecord.error : undefined
+  const errorCode =
+    typeof errorRecord?.error === 'string'
+      ? truncate(errorRecord.error, MAX_ERROR_CODE_CHARS)
+      : undefined
   const compilationErrors = extractCompilationErrors(errorRecord?.log_files)
   const details = compilationErrors ? `:\n${compilationErrors}` : ''
 

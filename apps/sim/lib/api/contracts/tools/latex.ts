@@ -22,10 +22,12 @@ const latexResourceSchema = z
       .max(512, 'resource path must be at most 512 characters'),
     content: z
       .string()
+      .min(1, 'resource content cannot be empty')
       .max(MAX_LATEX_SOURCE_CHARS, 'resource content must be at most 1,000,000 characters')
       .optional(),
     file: z
       .string()
+      .min(1, 'resource file cannot be empty')
       .max(MAX_LATEX_SOURCE_CHARS, 'resource file must be at most 1,000,000 characters of base64')
       .optional(),
     url: z
