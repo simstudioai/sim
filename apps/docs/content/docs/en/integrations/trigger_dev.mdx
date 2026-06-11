@@ -23,6 +23,8 @@ With Trigger.dev, you can:
 - **Control queues**: Inspect queue depth and concurrency, and pause or resume queues during incidents
 
 In Sim, the Trigger.dev integration lets your agents drive this entire lifecycle. An agent can trigger a deployed task with a payload, poll the run until it completes and use its output downstream, monitor for failed runs and replay the transient ones, manage per-customer cron schedules, and pause a queue when something goes wrong. Connect it with a project-scoped secret API key (starts with `tr_`) — the key determines which environment the runs, schedules, and queues belong to. This makes Sim a natural control plane for the background jobs that power your product.
+
+Note: the environment variable operations (List Env Vars, Get Env Var) return variable values in plaintext, and those values appear in workflow outputs and run history. Scope workflows that read environment variables carefully.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -959,7 +961,7 @@ Deactivate an imperative Trigger.dev schedule so it stops triggering its task.
 
 ### `trigger_dev_list_env_vars`
 
-List the environment variables of a Trigger.dev project environment, including their values.
+List the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully.
 
 #### Input
 
@@ -975,7 +977,7 @@ List the environment variables of a Trigger.dev project environment, including t
 | --------- | ---- | ----------- |
 | `variables` | array | Environment variables in the project environment |
 |   ↳ `name` | string | Name of the environment variable |
-|   ↳ `value` | string | Value of the environment variable |
+|   ↳ `value` | string | Plaintext value of the environment variable; appears in workflow outputs and run history |
 
 ### `trigger_dev_create_env_var`
 
@@ -1000,7 +1002,7 @@ Create an environment variable in a Trigger.dev project environment.
 
 ### `trigger_dev_get_env_var`
 
-Retrieve an environment variable from a Trigger.dev project environment.
+Retrieve an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history.
 
 #### Input
 
@@ -1016,7 +1018,7 @@ Retrieve an environment variable from a Trigger.dev project environment.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `name` | string | Name of the environment variable |
-| `value` | string | Value of the environment variable |
+| `value` | string | Plaintext value of the environment variable; appears in workflow outputs and run history |
 
 ### `trigger_dev_update_env_var`
 

@@ -14904,7 +14904,7 @@
       },
       {
         "name": "List Env Vars",
-        "description": "List the environment variables of a Trigger.dev project environment, including their values."
+        "description": "List the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully."
       },
       {
         "name": "Create Env Var",
@@ -14912,7 +14912,7 @@
       },
       {
         "name": "Get Env Var",
-        "description": "Retrieve an environment variable from a Trigger.dev project environment."
+        "description": "Retrieve an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history."
       },
       {
         "name": "Update Env Var",

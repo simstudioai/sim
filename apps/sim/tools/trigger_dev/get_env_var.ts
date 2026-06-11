@@ -11,7 +11,8 @@ export const triggerDevGetEnvVarTool: ToolConfig<
 > = {
   id: 'trigger_dev_get_env_var',
   name: 'Trigger.dev Get Env Var',
-  description: 'Retrieve an environment variable from a Trigger.dev project environment.',
+  description:
+    'Retrieve an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history.',
   version: '1.0.0',
 
   params: {
@@ -60,6 +61,10 @@ export const triggerDevGetEnvVarTool: ToolConfig<
 
   outputs: {
     name: { type: 'string', description: 'Name of the environment variable' },
-    value: { type: 'string', description: 'Value of the environment variable' },
+    value: {
+      type: 'string',
+      description:
+        'Plaintext value of the environment variable; appears in workflow outputs and run history',
+    },
   },
 }

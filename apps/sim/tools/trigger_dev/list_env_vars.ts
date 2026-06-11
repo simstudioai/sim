@@ -12,7 +12,7 @@ export const triggerDevListEnvVarsTool: ToolConfig<
   id: 'trigger_dev_list_env_vars',
   name: 'Trigger.dev List Env Vars',
   description:
-    'List the environment variables of a Trigger.dev project environment, including their values.',
+    'List the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully.',
   version: '1.0.0',
 
   params: {
@@ -65,7 +65,11 @@ export const triggerDevListEnvVarsTool: ToolConfig<
         description: 'Environment variable',
         properties: {
           name: { type: 'string', description: 'Name of the environment variable' },
-          value: { type: 'string', description: 'Value of the environment variable' },
+          value: {
+            type: 'string',
+            description:
+              'Plaintext value of the environment variable; appears in workflow outputs and run history',
+          },
         },
       },
     },

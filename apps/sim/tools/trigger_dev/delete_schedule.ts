@@ -36,11 +36,21 @@ export const triggerDevDeleteScheduleTool: ToolConfig<
     headers: (params) => buildTriggerDevHeaders(params.apiKey),
   },
 
-  transformResponse: async (_response, params) => {
+  transformResponse: async (response, params) => {
+    const text = await response.text()
+    let deleted = response.ok
+    if (text) {
+      try {
+        const data = JSON.parse(text)
+        if (typeof data.success === 'boolean') deleted = data.success
+      } catch {
+        deleted = response.ok
+      }
+    }
     return {
-      success: true,
+      success: deleted,
       output: {
-        deleted: true,
+        deleted,
         scheduleId: params?.scheduleId ?? '',
       },
     }
