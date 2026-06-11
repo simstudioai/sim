@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
-import { X } from '@/components/emcn/icons'
+import { Workflow as WorkflowIcon, X } from '@/components/emcn/icons'
 import { isMothershipPageId, MOTHERSHIP_PAGES } from '@/lib/copilot/resources/types'
 import {
   MothershipResourcesProvider,
@@ -14,6 +14,7 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { useMothershipTabsStore } from '@/stores/mothership-tabs/store'
 import { DockedChat } from './docked-chat'
 
@@ -38,6 +39,9 @@ export function WorkflowWithChat() {
   const { workspaceId, workflowId } = useParams<{ workspaceId: string; workflowId: string }>()
   const searchParams = useSearchParams()
   const initialChatParam = searchParams.get('chat')
+
+  const { data: workflows = [] } = useWorkflows(workspaceId)
+  const workflowName = workflows.find((workflow) => workflow.id === workflowId)?.name ?? 'Workflow'
 
   const [dock, setDock] = useState<DockState>(() =>
     initialChatParam
@@ -308,17 +312,30 @@ export function WorkflowWithChat() {
         />
         {stackOpen && (
           <>
-            {/* The peek: the editor's own title strip shows through this
-                transparent band — clicking it brings the workflow forward. */}
+            {/* Opaque stage backdrop: the editor stays mounted and live
+                underneath, but the back card shows only its identity — never
+                slices of canvas or controls. */}
+            <div aria-hidden='true' className='absolute inset-0 z-30 bg-[var(--bg)]' />
+            {/* The back card: a slim bar with just the workflow icon + name,
+                peeking above the front card (toast-stack depth). Narrower
+                than the front so it reads as behind; clicking it brings the
+                workflow forward. */}
             <button
               type='button'
               aria-label='Back to workflow'
               onClick={collapseStack}
-              className='absolute inset-x-0 top-0 z-30 h-[44px] cursor-pointer'
-            />
+              className='absolute inset-x-4 top-2 z-30 flex h-[52px] items-start rounded-t-xl border border-[var(--border-1)] bg-[var(--surface-5)] px-3 transition-colors hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
+            >
+              <span className='flex h-[42px] min-w-0 items-center gap-1.5'>
+                <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>
+                  {workflowName}
+                </span>
+              </span>
+            </button>
             {/* The front card: the workspace resource tabs + active content,
-                stacked over the editor with toast-stack depth. */}
-            <div className='absolute inset-x-2 top-[44px] bottom-0 z-30 flex animate-slide-in-bottom flex-col overflow-hidden rounded-t-xl border border-[var(--border-1)] border-b-0 bg-[var(--bg)] shadow-sm'>
+                a fully detached rounded pane over the back card. */}
+            <div className='absolute inset-x-2 top-[46px] bottom-2 z-30 flex animate-slide-in-bottom flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm'>
               <MothershipResourcesProvider
                 selectResource={selectStageTab}
                 addResource={addStageTab}
