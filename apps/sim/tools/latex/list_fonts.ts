@@ -22,7 +22,7 @@ export const latexListFontsTool: ToolConfig<LatexListFontsParams, LatexListFonts
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: `Maximum number of fonts to return (default: ${DEFAULT_MAX_RESULTS}, max: ${MAX_RESULTS_LIMIT})`,
+      description: 'Maximum number of fonts to return (default: 50, max: 200)',
     },
   },
 
@@ -52,10 +52,11 @@ export const latexListFontsTool: ToolConfig<LatexListFontsParams, LatexListFonts
       )
     })
 
-    const maxResults = Math.min(
-      Math.max(Math.trunc(params?.maxResults ?? DEFAULT_MAX_RESULTS), 1),
-      MAX_RESULTS_LIMIT
-    )
+    const requested = Math.trunc(Number(params?.maxResults))
+    const maxResults =
+      Number.isFinite(requested) && requested > 0
+        ? Math.min(requested, MAX_RESULTS_LIMIT)
+        : DEFAULT_MAX_RESULTS
     const fonts: LatexFont[] = matches.slice(0, maxResults).map((font) => ({
       family: font.family ?? '',
       name: font.name ?? '',

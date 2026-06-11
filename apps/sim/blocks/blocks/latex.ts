@@ -8,7 +8,7 @@ export const LatexBlock: BlockConfig<LatexResponse> = {
   name: 'LaTeX',
   description: 'Compile LaTeX documents into PDFs',
   longDescription:
-    'Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key.',
+    'Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key. Compilation runs on the public LaTeX-on-HTTP service (latex.ytotech.com), so document source and resources are sent to that third-party service.',
   docsLink: 'https://docs.sim.ai/integrations/latex',
   category: 'tools',
   integrationType: IntegrationType.Documents,
@@ -150,10 +150,16 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           ...rest
         } = params
 
+        const parsedMaxResults = Number(maxResults)
+        const maxResultsParam =
+          Number.isFinite(parsedMaxResults) && parsedMaxResults > 0
+            ? { maxResults: parsedMaxResults }
+            : {}
+
         if (operation === 'latex_search_packages') {
           return {
             query: packageQuery,
-            ...(maxResults ? { maxResults: Number(maxResults) } : {}),
+            ...maxResultsParam,
           }
         }
 
@@ -164,7 +170,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         if (operation === 'latex_list_fonts') {
           return {
             ...(typeof fontQuery === 'string' && fontQuery.trim() ? { query: fontQuery } : {}),
-            ...(maxResults ? { maxResults: Number(maxResults) } : {}),
+            ...maxResultsParam,
           }
         }
 

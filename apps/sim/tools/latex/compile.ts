@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { LatexCompileParams, LatexCompileResponse } from '@/tools/latex/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -5,7 +6,7 @@ export const latexCompileTool: ToolConfig<LatexCompileParams, LatexCompileRespon
   id: 'latex_compile',
   name: 'LaTeX Compile',
   description:
-    'Compile a LaTeX document into a PDF. Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.',
+    'Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.ytotech.com). Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.',
   version: '1.0.0',
 
   params: {
@@ -70,7 +71,7 @@ export const latexCompileTool: ToolConfig<LatexCompileParams, LatexCompileRespon
   transformResponse: async (response: Response) => {
     const data = (await response.json()) as {
       error?: string
-      pdfFile?: unknown
+      pdfFile?: UserFile
       pdfUrl?: string
       fileName?: string
       compiler?: string

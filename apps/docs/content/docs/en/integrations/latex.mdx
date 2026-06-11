@@ -21,13 +21,15 @@ With LaTeX, you can:
 - **Include supporting files**: Add images, included `.tex` files, bibliographies, and custom classes or styles to the build
 - **Automate document production**: Generate reports, invoices, certificates, and papers from templates
 
-In Sim, the LaTeX integration enables your agents to compile LaTeX source into PDF files as part of any workflow — no OAuth or API key required. Agents can draft documents in LaTeX, attach supporting resources such as images or BibTeX bibliographies, and produce a finished PDF that downstream blocks can email, upload, or store. This makes it easy to build agents that generate reports, typeset research digests, or produce templated documents like invoices and certificates.
+In Sim, the LaTeX integration enables your agents to compile LaTeX source into PDF files as part of any workflow — no OAuth or API key required. Agents can draft documents in LaTeX, attach supporting resources such as images or BibTeX bibliographies, and produce a finished PDF that downstream blocks can email, upload, or store. Agents can also search the available TeX Live packages and system fonts to pick the right tools for a document. This makes it easy to build agents that generate reports, typeset research digests, or produce templated documents like invoices and certificates.
+
+Note: compilation runs on the public [LaTeX-on-HTTP](https://github.com/YtoTech/latex-on-http) service at latex.ytotech.com, so the document source and any attached resources are sent to that third-party service. Avoid compiling documents whose contents must not leave your environment.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key.
+Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key. Compilation runs on the public LaTeX-on-HTTP service (latex.ytotech.com), so document source and resources are sent to that third-party service.
 
 
 
@@ -35,7 +37,7 @@ Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with p
 
 ### `latex_compile`
 
-Compile a LaTeX document into a PDF. Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.
+Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.ytotech.com). Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.
 
 #### Input
 
@@ -64,7 +66,7 @@ Search the TeX Live packages available to the LaTeX compiler by name or descript
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | Search terms matched against package names and descriptions |
-| `maxResults` | number | No | Maximum number of packages to return \(default: $\{DEFAULT_MAX_RESULTS\}, max: $\{MAX_RESULTS_LIMIT\}\) |
+| `maxResults` | number | No | Maximum number of packages to return \(default: 25, max: 100\) |
 
 #### Output
 
@@ -112,7 +114,7 @@ List the system fonts available to the LaTeX compiler, optionally filtered by na
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | No | Filter matched against font family and full font name, e.g. "Noto Serif" |
-| `maxResults` | number | No | Maximum number of fonts to return \(default: $\{DEFAULT_MAX_RESULTS\}, max: $\{MAX_RESULTS_LIMIT\}\) |
+| `maxResults` | number | No | Maximum number of fonts to return \(default: 50, max: 200\) |
 
 #### Output
 

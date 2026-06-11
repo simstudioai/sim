@@ -29,7 +29,7 @@ export const latexSearchPackagesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: `Maximum number of packages to return (default: ${DEFAULT_MAX_RESULTS}, max: ${MAX_RESULTS_LIMIT})`,
+      description: 'Maximum number of packages to return (default: 25, max: 100)',
     },
   },
 
@@ -52,18 +52,25 @@ export const latexSearchPackagesTool: ToolConfig<
     }
 
     const query = (params?.query ?? '').trim().toLowerCase()
-    const matches = (data.packages ?? []).filter((pkg) => {
-      if (!query) return true
-      return (
+    if (!query) {
+      return {
+        success: false,
+        error: 'Search query cannot be empty',
+        output: { packages: [], totalMatches: 0 },
+      }
+    }
+
+    const matches = (data.packages ?? []).filter(
+      (pkg) =>
         (pkg.name ?? '').toLowerCase().includes(query) ||
         (pkg.shortdesc ?? '').toLowerCase().includes(query)
-      )
-    })
-
-    const maxResults = Math.min(
-      Math.max(Math.trunc(params?.maxResults ?? DEFAULT_MAX_RESULTS), 1),
-      MAX_RESULTS_LIMIT
     )
+
+    const requested = Math.trunc(Number(params?.maxResults))
+    const maxResults =
+      Number.isFinite(requested) && requested > 0
+        ? Math.min(requested, MAX_RESULTS_LIMIT)
+        : DEFAULT_MAX_RESULTS
     const packages: LatexPackageSummary[] = matches.slice(0, maxResults).map((pkg) => ({
       name: pkg.name ?? '',
       shortDescription: pkg.shortdesc ?? null,

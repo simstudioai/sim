@@ -19,7 +19,11 @@ const latexResourceSchema = z
     path: z
       .string()
       .min(1, 'resource path cannot be empty')
-      .max(512, 'resource path must be at most 512 characters'),
+      .max(512, 'resource path must be at most 512 characters')
+      .refine(
+        (path) => !path.startsWith('/') && path.split(/[/\\]/).every((segment) => segment !== '..'),
+        'resource path must be relative and must not contain ".." segments'
+      ),
     content: z
       .string()
       .min(1, 'resource content cannot be empty')
@@ -34,6 +38,10 @@ const latexResourceSchema = z
       .string()
       .url('resource url must be a valid URL')
       .max(2048, 'resource url must be at most 2048 characters')
+      .refine(
+        (url) => url.startsWith('https://') || url.startsWith('http://'),
+        'resource url must use http or https'
+      )
       .optional(),
   })
   .superRefine((resource, ctx) => {

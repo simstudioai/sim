@@ -82,7 +82,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         signal: AbortSignal.timeout(COMPILE_TIMEOUT_MS),
       })
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'TimeoutError') {
+      // The timeout signal is the only abort source on this fetch, so an
+      // AbortError here is a timeout regardless of which name undici uses.
+      if (
+        error instanceof DOMException &&
+        (error.name === 'TimeoutError' || error.name === 'AbortError')
+      ) {
         logger.error(`[${requestId}] LaTeX compile service timed out`, {
           timeoutMs: COMPILE_TIMEOUT_MS,
         })

@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export type LatexCompiler = 'pdflatex' | 'xelatex' | 'lualatex' | 'platex' | 'uplatex' | 'context'
@@ -21,9 +22,19 @@ export interface LatexCompileParams {
   resources?: LatexResource[]
 }
 
+/**
+ * Reference to the compiled PDF when no execution-file context is available;
+ * with execution context the output is a full {@link UserFile}.
+ */
+export interface LatexPdfReference {
+  name: string
+  url: string
+  mimeType: string
+}
+
 export interface LatexCompileResponse extends ToolResponse {
   output: {
-    pdf: unknown
+    pdf: UserFile | LatexPdfReference | ''
     pdfUrl: string
     fileName: string
     compiler: string
