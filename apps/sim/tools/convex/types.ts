@@ -35,7 +35,7 @@ export interface ConvexListTablesResponse extends ToolResponse {
 export interface ConvexListDocumentsParams extends ConvexBaseParams {
   tableName?: string
   snapshot?: string
-  cursor?: string
+  pageCursor?: string
 }
 
 export interface ConvexListDocumentsResponse extends ToolResponse {
@@ -43,7 +43,7 @@ export interface ConvexListDocumentsResponse extends ToolResponse {
     documents: unknown[]
     hasMore: boolean
     snapshot: string | null
-    cursor: string | null
+    pageCursor: string | null
   }
 }
 
@@ -97,6 +97,7 @@ export interface ConvexResponse extends ToolResponse {
     documents?: unknown[]
     hasMore?: boolean
     snapshot?: string | null
+    pageCursor?: string | null
     cursor?: string | null
   }
 }

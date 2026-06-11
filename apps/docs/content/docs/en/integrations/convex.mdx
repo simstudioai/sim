@@ -140,7 +140,7 @@ List all tables in a Convex deployment along with their JSON schemas
 
 ### `convex_list_documents`
 
-List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and cursor back in to fetch the next page.
+List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page.
 
 #### Input
 
@@ -150,7 +150,7 @@ List documents from a Convex table via a paginated snapshot. Pass the returned s
 | `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
 | `tableName` | string | No | Table to list documents from. Omit to list documents from all tables. |
 | `snapshot` | string | No | Snapshot timestamp from a previous page. Omit on the first request to start a new snapshot. |
-| `cursor` | string | No | Pagination cursor from a previous page. Omit on the first request. |
+| `pageCursor` | string | No | Page cursor from a previous page of the same snapshot. Omit on the first request. |
 
 #### Output
 
@@ -159,7 +159,7 @@ List documents from a Convex table via a paginated snapshot. Pass the returned s
 | `documents` | array | Documents in this page of the snapshot |
 | `hasMore` | boolean | Whether more pages remain in the snapshot |
 | `snapshot` | string | Snapshot timestamp to pass back in when fetching the next page |
-| `cursor` | string | Pagination cursor to pass back in when fetching the next page |
+| `pageCursor` | string | Page cursor to pass back in when fetching the next page |
 
 ### `convex_document_deltas`
 

@@ -3228,7 +3228,7 @@
       },
       {
         "name": "List Documents",
-        "description": "List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and cursor back in to fetch the next page."
+        "description": "List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page."
       },
       {
         "name": "Document Deltas",

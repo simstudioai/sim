@@ -144,15 +144,6 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             throw new Error(`Invalid Convex operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { pageCursor, ...rest } = params
-
-        if (params.operation === 'list_documents') {
-          rest.cursor = pageCursor
-        }
-
-        return rest
-      },
     },
   },
   inputs: {
@@ -164,7 +155,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     tableName: { type: 'string', description: 'Table to read from (empty for all tables)' },
     snapshot: { type: 'string', description: 'Snapshot timestamp for List Documents pagination' },
     cursor: { type: 'string', description: 'Timestamp cursor for Document Deltas' },
-    pageCursor: { type: 'string', description: 'Pagination cursor for List Documents' },
+    pageCursor: { type: 'string', description: 'Page cursor for List Documents pagination' },
   },
   outputs: {
     value: {
@@ -193,11 +184,15 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     },
     snapshot: {
       type: 'string',
-      description: 'Snapshot timestamp to pass back in for the next page',
+      description: 'Snapshot timestamp to pass back in for the next List Documents page',
+    },
+    pageCursor: {
+      type: 'string',
+      description: 'Page cursor to pass back in for the next List Documents page',
     },
     cursor: {
       type: 'string',
-      description: 'Cursor to pass back in for the next page',
+      description: 'Timestamp cursor to pass back in for the next Document Deltas page',
     },
   },
 }
@@ -289,7 +284,7 @@ export const ConvexBlockMeta = {
       description:
         'Page through a full Convex table snapshot with List Documents until hasMore is false.',
       content:
-        '# Export a Convex Table\n\nRead every document in a table using snapshot pagination so the export is consistent.\n\n## Steps\n1. Use the List Documents operation with the deployment URL, deploy key, and the table name (leave empty to export all tables).\n2. On the first call leave Snapshot and Cursor empty; the response pins a snapshot timestamp.\n3. While hasMore is true, call List Documents again passing back the returned snapshot and cursor values.\n4. Collect the documents arrays from each page into your destination.\n\n## Output\nA complete, point-in-time set of documents for the table, each including _id and _creationTime.',
+        '# Export a Convex Table\n\nRead every document in a table using snapshot pagination so the export is consistent.\n\n## Steps\n1. Use the List Documents operation with the deployment URL, deploy key, and the table name (leave empty to export all tables).\n2. On the first call leave Snapshot and Cursor empty; the response pins a snapshot timestamp.\n3. While hasMore is true, call List Documents again passing back the returned snapshot and pageCursor values.\n4. Collect the documents arrays from each page into your destination.\n\n## Output\nA complete, point-in-time set of documents for the table, each including _id and _creationTime.',
     },
     {
       name: 'sync-convex-changes',

@@ -11,7 +11,7 @@ export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexList
     id: 'convex_list_documents',
     name: 'Convex List Documents',
     description:
-      'List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and cursor back in to fetch the next page.',
+      'List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page.',
     version: '1.0.0',
 
     params: {
@@ -40,11 +40,12 @@ export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexList
         description:
           'Snapshot timestamp from a previous page. Omit on the first request to start a new snapshot.',
       },
-      cursor: {
+      pageCursor: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Pagination cursor from a previous page. Omit on the first request.',
+        description:
+          'Page cursor from a previous page of the same snapshot. Omit on the first request.',
       },
     },
 
@@ -54,8 +55,8 @@ export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexList
         if (params.tableName?.trim()) query.set('tableName', params.tableName.trim())
         const snapshot = String(params.snapshot ?? '').trim()
         if (snapshot) query.set('snapshot', snapshot)
-        const cursor = String(params.cursor ?? '').trim()
-        if (cursor) query.set('cursor', cursor)
+        const pageCursor = String(params.pageCursor ?? '').trim()
+        if (pageCursor) query.set('cursor', pageCursor)
         return convexApiUrl(params.deploymentUrl, `/api/list_snapshot?${query.toString()}`)
       },
       method: 'GET',
@@ -72,7 +73,8 @@ export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexList
           hasMore: data.hasMore ?? false,
           snapshot:
             data.snapshot !== undefined && data.snapshot !== null ? String(data.snapshot) : null,
-          cursor: data.cursor !== undefined && data.cursor !== null ? String(data.cursor) : null,
+          pageCursor:
+            data.cursor !== undefined && data.cursor !== null ? String(data.cursor) : null,
         },
       }
     },
@@ -92,9 +94,9 @@ export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexList
         description: 'Snapshot timestamp to pass back in when fetching the next page',
         optional: true,
       },
-      cursor: {
+      pageCursor: {
         type: 'string',
-        description: 'Pagination cursor to pass back in when fetching the next page',
+        description: 'Page cursor to pass back in when fetching the next page',
         optional: true,
       },
     },
