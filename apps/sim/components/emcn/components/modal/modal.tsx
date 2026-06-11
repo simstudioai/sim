@@ -129,6 +129,10 @@ export interface ModalContentProps
    * - lg: max 600px (content-heavy modals)
    * - xl: max 800px (complex editors)
    * - full: max 1200px (dashboards, large content)
+   *
+   * Sizes up to `xl` center within the content area (offset for the sidebar,
+   * and the panel on workflow pages). `full` modals span most of the viewport,
+   * so they center against the full viewport instead.
    * @default 'md'
    */
   size?: ModalSize
@@ -184,11 +188,15 @@ const ModalContent = React.forwardRef<
         <ModalOverlay />
         <div
           className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
-          style={{
-            paddingLeft: isWorkflowPage
-              ? 'calc(var(--sidebar-width) - var(--panel-width))'
-              : 'var(--sidebar-width)',
-          }}
+          style={
+            size === 'full'
+              ? undefined
+              : {
+                  paddingLeft: isWorkflowPage
+                    ? 'calc(var(--sidebar-width) - var(--panel-width))'
+                    : 'var(--sidebar-width)',
+                }
+          }
         >
           <DialogPrimitive.Content
             ref={ref}
