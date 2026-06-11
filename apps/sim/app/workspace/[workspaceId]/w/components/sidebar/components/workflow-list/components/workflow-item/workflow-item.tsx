@@ -4,8 +4,8 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { chipVariants } from '@/components/emcn'
-import { Lock, MoreHorizontal } from '@/components/emcn/icons'
+import { chipContentIconClass, chipVariants } from '@/components/emcn'
+import { Lock, MoreHorizontal, Workflow } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -408,6 +408,9 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
         onClick={handleWorkflowSelect}
         onContextMenu={handleContextMenu}
       >
+        {/* Same Workflow glyph as the resource tabs — chipContentIconClass
+            keeps the icon on the canonical chip rhythm like the nav items. */}
+        <Workflow className={chipContentIconClass} aria-hidden='true' />
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 items-center gap-2'>
             {isEditing ? (
