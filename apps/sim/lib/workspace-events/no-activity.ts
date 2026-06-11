@@ -1,4 +1,4 @@
-import { dbReplica } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { webhook, workflow, workflowDeploymentVersion, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
@@ -120,7 +120,7 @@ async function hasRecentActivity(
 ): Promise<boolean> {
   const windowStart = new Date(Date.now() - config.inactivityHours * 60 * 60 * 1000)
 
-  const recentLogs = await dbReplica
+  const recentLogs = await db
     .select({ id: workflowExecutionLogs.id })
     .from(workflowExecutionLogs)
     .where(
