@@ -44,7 +44,7 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
   description: 'Serverless Redis with Upstash',
   longDescription:
     'Connect to Upstash Redis to perform key-value, hash, list, and utility operations via the REST API.',
-  docsLink: 'https://docs.sim.ai/tools/upstash',
+  docsLink: 'https://docs.sim.ai/integrations/upstash',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#181C1E',

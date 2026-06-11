@@ -14,7 +14,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
   icon: Mem0Icon,
   category: 'tools',
   integrationType: IntegrationType.AI,
-  docsLink: 'https://docs.sim.ai/tools/mem0',
+  docsLink: 'https://docs.sim.ai/integrations/mem0',
   subBlocks: [
     {
       id: 'operation',

@@ -5,6 +5,7 @@ import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 const logger = createLogger('V1Middleware')
@@ -152,11 +153,19 @@ export function createRateLimitResponse(result: RateLimitResult): NextResponse {
   )
 }
 
-/** Verify that a workspace-scoped API key is only used for its own workspace. */
-export function checkWorkspaceScope(
+/**
+ * Verify that the API key is allowed to access the requested workspace.
+ *
+ * Enforces two policies:
+ * - A workspace-scoped key may only target its own workspace.
+ * - A personal key is rejected when the workspace has disabled personal API
+ *   keys (`allowPersonalApiKeys = false`), matching the workflow-execution
+ *   surface in `app/api/workflows/middleware.ts`.
+ */
+export async function checkWorkspaceScope(
   rateLimit: RateLimitResult,
   requestedWorkspaceId: string
-): NextResponse | null {
+): Promise<NextResponse | null> {
   if (
     rateLimit.keyType === 'workspace' &&
     rateLimit.workspaceId &&
@@ -167,6 +176,17 @@ export function checkWorkspaceScope(
       { status: 403 }
     )
   }
+
+  if (rateLimit.keyType === 'personal') {
+    const settings = await getWorkspaceBillingSettings(requestedWorkspaceId)
+    if (!settings?.allowPersonalApiKeys) {
+      return NextResponse.json(
+        { error: 'Personal API keys are not allowed for this workspace' },
+        { status: 403 }
+      )
+    }
+  }
+
   return null
 }
 
@@ -180,7 +200,7 @@ export async function validateWorkspaceAccess(
   workspaceId: string,
   level: 'read' | 'write' = 'read'
 ): Promise<NextResponse | null> {
-  const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+  const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
   if (scopeError) return scopeError
 
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)

@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { and, asc, inArray, isNull, sql } from 'drizzle-orm'
 import {
@@ -6,6 +6,7 @@ import {
   encodeTimeCursor,
   timeCursorOrderBy,
   timeCursorPredicate,
+  timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
 import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
@@ -55,17 +56,23 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(copilotChats.createdAt, copilotChats.id, cursor)
 
-    const metaRows = await db
+    const metaRows = await dbReplica
       .select(chatColumns)
       .from(copilotChats)
-      .where(and(inArray(copilotChats.workspaceId, workspaceIds), cursorClause))
+      .where(
+        and(
+          inArray(copilotChats.workspaceId, workspaceIds),
+          timeCursorStabilityBound(copilotChats.createdAt),
+          cursorClause
+        )
+      )
       .orderBy(...timeCursorOrderBy(copilotChats.createdAt, copilotChats.id))
       .limit(input.chunkSize)
 
     if (metaRows.length === 0) return
 
     const chatIds = metaRows.map((r) => r.id)
-    const messageRows = await db
+    const messageRows = await dbReplica
       .select({ chatId: copilotMessages.chatId, content: copilotMessages.content })
       .from(copilotMessages)
       .where(and(inArray(copilotMessages.chatId, chatIds), isNull(copilotMessages.deletedAt)))

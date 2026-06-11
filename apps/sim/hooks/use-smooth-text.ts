@@ -1,20 +1,51 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
- * Per-frame reveal speed is proportional to how far behind the display is, so a
- * large burst drains quickly while a trickle reveals gently. `target / DIVISOR`
- * gives an ease-out feel; the clamps keep it from stalling or jumping.
+ * Paced reveal of a growing string, ported from opencode's `createPacedValue`
+ * (`packages/ui/src/components/message-part.tsx`). Instead of revealing a fixed
+ * number of characters per animation frame, it advances on a steady ~24ms timer
+ * in small tiered steps that SNAP to the next word/punctuation boundary — so
+ * text appears word-by-word at a calm, even cadence regardless of how bursty the
+ * upstream model deltas are. The boundary snapping is what keeps it from reading
+ * as "blocky": a reveal never stops mid-word.
  */
-const REVEAL_DIVISOR = 6
-const MIN_STEP = 1
-const MAX_STEP = 400
+const PACE_MS = 24
+const SNAP = /[\s.,!?;:)\]]/
 
 /**
- * Content already longer than this at mount is assumed to be an in-progress
- * resume (or restored history), so it is shown immediately rather than replayed
- * from the first character.
+ * Characters to advance per tick as a function of how far the reveal is behind.
+ * Small backlogs trickle (2–8 chars); large backlogs accelerate but stay capped
+ * so a burst is spread over several ticks rather than dumped at once.
  */
-const RESUME_SKIP_THRESHOLD = 60
+function step(remaining: number): number {
+  if (remaining <= 12) return 2
+  if (remaining <= 48) return 4
+  if (remaining <= 96) return 8
+  return Math.min(24, Math.ceil(remaining / 8))
+}
+
+/**
+ * Advance from `start` by `step(...)`, then extend up to 8 more characters to
+ * land just past the next word/punctuation boundary so the reveal lands on a
+ * whole word rather than mid-token.
+ */
+function nextIndex(text: string, start: number): number {
+  const end = Math.min(text.length, start + step(text.length - start))
+  const max = Math.min(text.length, end + 8)
+  for (let i = end; i < max; i++) {
+    if (SNAP.test(text[i] ?? '')) return i + 1
+  }
+  return end
+}
+
+/**
+ * Content already longer than this when streaming begins is assumed to be
+ * pre-existing (an in-progress resume, restored history, or an in-place edit
+ * of an existing document), so it is shown immediately rather than replayed
+ * from the first character. Consumers gating reveal animations should use the
+ * same threshold so pacing and animation agree on what counts as "new".
+ */
+export const RESUME_SKIP_THRESHOLD = 60
 
 interface SmoothTextOptions {
   /**
@@ -29,13 +60,25 @@ interface SmoothTextOptions {
 }
 
 /**
- * Paces a growing string so it reveals at a steady cadence regardless of how
- * bursty the upstream stream is — the client-side analogue of the AI SDK's
- * `smoothStream`. Returns the portion of `content` that should be displayed now.
+ * Paces a growing string so it reveals word-by-word at a steady cadence
+ * regardless of how bursty the upstream stream is — a React port of opencode's
+ * paced text rendering. Returns the portion of `content` that should be
+ * displayed now.
  *
- * While `isStreaming` is false the full string is returned unchanged (history
- * and completed turns never animate). When streaming ends mid-reveal the
- * remaining tail is shown immediately so nothing is left hidden.
+ * Content that is already complete at mount (history, or a resume past
+ * {@link RESUME_SKIP_THRESHOLD}) is returned in full and never animates. When a
+ * live stream ends mid-reveal the remaining tail keeps draining at the paced
+ * cadence rather than snapping — so the reveal stays smooth right to the end and
+ * the caller can hold its streaming render until `useSmoothText` reports the
+ * full string, avoiding a flash on the streaming→static handoff.
+ *
+ * @remarks
+ * The reveal loop keys on `hasBacklog` rather than `content` so a new chunk on
+ * every render does not re-subscribe the timer (and trip React's
+ * max-update-depth guard); the running tick reads the latest value from a ref.
+ * If upstream sanitization rewrites earlier text and shrinks the string, the
+ * cursor is pulled back to the new end so regrowth stays paced instead of
+ * jumping past it.
  */
 export function useSmoothText(
   content: string,
@@ -49,15 +92,10 @@ export function useSmoothText(
   )
 
   const contentRef = useRef(content)
-  const streamingRef = useRef(isStreaming)
   const revealedRef = useRef(revealed)
-  const frameRef = useRef<number | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevContentRef = useRef(content)
 
-  // A non-append rewrite (e.g. a patch replacing earlier text) must be shown in
-  // full at once — re-revealing a prefix of rewritten content would look like
-  // the document is retyping itself. Adjust during render so the slice below
-  // never flashes a stale prefix.
   let effectiveRevealed = revealed
   if (
     snapOnNonAppend &&
@@ -72,72 +110,42 @@ export function useSmoothText(
   prevContentRef.current = content
 
   contentRef.current = content
-  streamingRef.current = isStreaming
-
-  // Key the reveal loop to streaming + remaining backlog, NOT to `content`:
-  // `content` changes on every streamed chunk, and re-subscribing an rAF + setState
-  // loop on each change is the "a dependency changes on every render" pattern that
-  // trips React's max-update-depth guard. The running tick reads the latest content
-  // from `contentRef`, so new chunks are absorbed without per-chunk teardown;
-  // `hasBacklog` only flips when the reveal falls behind or catches up.
-  if (!isStreaming && effectiveRevealed !== content.length) {
-    effectiveRevealed = content.length
-    revealedRef.current = content.length
-  }
 
   const hasBacklog = effectiveRevealed < content.length
 
   useEffect(() => {
-    if (!isStreaming) {
-      revealedRef.current = contentRef.current.length
-      setRevealed(contentRef.current.length)
-      return
-    }
+    const run = () => {
+      timeoutRef.current = null
+      const text = contentRef.current
+      const target = text.length
 
-    const tick = () => {
-      const target = contentRef.current.length
-      // Upstream sanitization can rewrite earlier text and shrink the string;
-      // pull the cursor back to the new end so regrowth stays paced rather than
-      // jumping past it.
       if (revealedRef.current > target) {
         revealedRef.current = target
         setRevealed(target)
       }
       const current = revealedRef.current
+      if (current >= target) return
 
-      if (!streamingRef.current) {
-        revealedRef.current = target
-        setRevealed(target)
-        frameRef.current = null
-        return
-      }
-      if (current >= target) {
-        frameRef.current = null
-        return
-      }
-
-      const backlog = target - current
-      const step = Math.min(MAX_STEP, Math.max(MIN_STEP, Math.ceil(backlog / REVEAL_DIVISOR)))
-      const next = current + step
+      const next = nextIndex(text, current)
       revealedRef.current = next
       setRevealed(next)
-      frameRef.current = window.requestAnimationFrame(tick)
+      if (next < target) {
+        timeoutRef.current = setTimeout(run, PACE_MS)
+      }
     }
 
-    if (hasBacklog && frameRef.current === null) {
-      frameRef.current = window.requestAnimationFrame(tick)
+    if (hasBacklog && timeoutRef.current === null) {
+      timeoutRef.current = setTimeout(run, PACE_MS)
     }
 
     return () => {
-      if (frameRef.current !== null) {
-        window.cancelAnimationFrame(frameRef.current)
-        frameRef.current = null
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current)
+        timeoutRef.current = null
       }
     }
-  }, [isStreaming, hasBacklog])
+  }, [hasBacklog])
 
-  // Content can shrink when upstream sanitization rewrites earlier text; never
-  // hand back a slice index past the current end.
   if (effectiveRevealed >= content.length) return content
   return content.slice(0, effectiveRevealed)
 }

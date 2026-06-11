@@ -10,7 +10,7 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.',
-  docsLink: 'https://docs.sim.ai/tools/databricks',
+  docsLink: 'https://docs.sim.ai/integrations/databricks',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#F9F7F4',

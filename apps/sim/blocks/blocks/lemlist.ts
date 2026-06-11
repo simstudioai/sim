@@ -10,7 +10,7 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.',
-  docsLink: 'https://docs.sim.ai/tools/lemlist',
+  docsLink: 'https://docs.sim.ai/integrations/lemlist',
   category: 'tools',
   integrationType: IntegrationType.Email,
   bgColor: '#316BFF',

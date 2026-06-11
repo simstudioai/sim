@@ -10,7 +10,7 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
   description: 'Manage records, notes, tasks, lists, comments, and more in Attio CRM',
   longDescription:
     'Connect to Attio to manage CRM records (people, companies, custom objects), notes, tasks, lists, list entries, comments, workspace members, and webhooks.',
-  docsLink: 'https://docs.sim.ai/tools/attio',
+  docsLink: 'https://docs.sim.ai/integrations/attio',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#1D1E20',

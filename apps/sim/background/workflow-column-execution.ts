@@ -511,6 +511,7 @@ async function runWorkflowAndWriteTerminal(
         triggerType: 'workflow',
         checkDeployment: false,
         checkRateLimit: false,
+        skipConcurrencyReservation: true,
         logPreprocessingErrors: false,
       })
       if (!preprocess.success) {

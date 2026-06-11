@@ -1,5 +1,6 @@
 import type { AgiloftDeleteRecordParams, AgiloftDeleteResponse } from '@/tools/agiloft/types'
-import { buildDeleteRecordUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildDeleteRecordUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftDeleteRecordTool: ToolConfig<AgiloftDeleteRecordParams, AgiloftDeleteResponse> =

@@ -1,0 +1,32 @@
+---
+title: Table
+description: The Table trigger runs a workflow when a row is inserted or updated in a Sim table.
+pageType: reference
+---
+
+import { BlockPreview } from '@/components/workflow-preview'
+
+The **Table trigger** runs a workflow when a row is inserted or updated in a [Sim table](/tables). Use it to react to data changes — enrich a row when it's added, or send a follow-up when a status column flips.
+
+<BlockPreview type="table" />
+
+## Configuration
+
+- **Table** — the table to watch.
+- **Event type** — what to fire on: a row insert, a row update, or either.
+- **Watch columns** — fire only when these columns change. Leave empty to fire on any update.
+- **Include headers** — return each row as a key-value object keyed by column name.
+
+## Outputs
+
+| Output | What it is |
+| --- | --- |
+| `<table.row>` | The row mapped to column names (when Include headers is on) |
+| `<table.rawRow>` | The raw row object |
+| `<table.previousRow>` | The row before the update (`null` for inserts) |
+| `<table.changedColumns>` | The columns that changed (empty for inserts) |
+| `<table.rowId>` | The row's unique id |
+| `<table.headers>` | The table's column names |
+| `<table.tableId>` | The table id |
+| `<table.tableName>` | The table name |
+| `<table.timestamp>` | The event time, in ISO format |

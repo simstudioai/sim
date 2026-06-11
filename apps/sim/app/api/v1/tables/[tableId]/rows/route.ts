@@ -149,7 +149,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
 
     const { tableId } = parsed.data.params
     const validated = parsed.data.query
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'read')
@@ -229,14 +229,14 @@ export const POST = withRouteHandler(
       const { tableId } = parsed.data.params
       if ('rows' in parsed.data.body) {
         const batchValidated = parsed.data.body
-        const scopeError = checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
+        const scopeError = await checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
         if (scopeError) return scopeError
         return handleBatchInsert(requestId, tableId, batchValidated, userId)
       }
 
       const validated = parsed.data.body
 
-      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return scopeError
 
       const accessResult = await checkAccess(tableId, userId, 'write')
@@ -321,7 +321,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'write')
@@ -416,7 +416,7 @@ export const DELETE = withRouteHandler(
       const { tableId } = parsed.data.params
       const validated = parsed.data.body
 
-      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return scopeError
 
       const accessResult = await checkAccess(tableId, userId, 'write')

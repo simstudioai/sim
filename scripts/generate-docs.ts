@@ -21,7 +21,7 @@ const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 
 const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
-const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/tools')
+const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/integrations')
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
 const INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/lib/integrations')
@@ -30,13 +30,38 @@ const LANDING_INTEGRATIONS_DATA_PATH = path.join(
   'apps/sim/app/(landing)/integrations/data'
 )
 const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
-const TRIGGER_DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/triggers')
+// Integration triggers are merged into the same per-service page as the service's
+// actions (one block per integration: actions + an optional Trigger).
+const TRIGGER_DOCS_OUTPUT_PATH = DOCS_OUTPUT_PATH
+
+/** Hand-written integration pages in DOCS_OUTPUT_PATH that the generator must never clobber. */
+const HANDWRITTEN_INTEGRATION_DOCS = new Set([
+  'index',
+  'google-service-account',
+  'atlassian-service-account',
+  'hubspot-setup',
+])
+
+/**
+ * Native Sim resource blocks (category 'blocks') that still get a generated
+ * integration page. The writer's filter and the stale-doc cleanup must both
+ * honor this set, or cleanup deletes what the writer emits (losing manual content).
+ */
+const NATIVE_RESOURCE_BLOCK_TYPES = new Set(['memory', 'knowledge', 'table', 'enrichment', 'logs'])
 
 /** Trigger doc pages that are hand-written and must never be overwritten. */
-const HANDWRITTEN_TRIGGER_DOCS = new Set(['index', 'start', 'schedule', 'webhook', 'rss'])
+const HANDWRITTEN_TRIGGER_DOCS = new Set([
+  'index',
+  'start',
+  'schedule',
+  'webhook',
+  'rss',
+  'table',
+  'sim',
+])
 
 /** Providers whose docs are already covered by hand-written pages. */
-const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss'])
+const SKIP_TRIGGER_PROVIDERS = new Set(['generic', 'rss', 'table', 'sim'])
 
 /**
  * Maps trigger provider names (from TriggerConfig.provider) to their
@@ -48,6 +73,7 @@ const PROVIDER_TO_BLOCK_TYPE: Record<string, string> = {
   'google-calendar': 'google_calendar',
   'google-drive': 'google_drive',
   'google-sheets': 'google_sheets',
+  jsm: 'jira_service_management',
 }
 
 /** Human-readable display names for trigger providers. */
@@ -786,7 +812,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
         const triggers: TriggerInfo[] = triggerIds
           .map((id) => triggerRegistry.get(id))
           .filter((t): t is TriggerInfo => t !== undefined)
-        const docsUrl = (config as any).docsLink || `https://docs.sim.ai/tools/${baseType}`
+        const docsUrl = (config as any).docsLink || `https://docs.sim.ai/integrations/${baseType}`
 
         const slug = config.name
           .toLowerCase()
@@ -980,7 +1006,7 @@ function extractBlockConfigFromContent(
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
-      `https://docs.sim.ai/tools/${stripVersionSuffix(blockType)}`
+      `https://docs.sim.ai/integrations/${stripVersionSuffix(blockType)}`
 
     const integrationType =
       extractEnumPropertyFromContent(blockContent, 'integrationType') ||
@@ -1041,7 +1067,7 @@ function isIntegrationBlock(config: { category?: string; hideFromToolbar?: boole
  * generators, vision, and STT/TTS — is excluded from the integrations icon
  * map, matching {@link isIntegrationBlock}.
  */
-const ICON_MAP_BLOCK_CATEGORY_ALLOWLIST = new Set(['memory', 'knowledge'])
+const ICON_MAP_BLOCK_CATEGORY_ALLOWLIST = new Set(['memory', 'knowledge', 'enrichment'])
 
 /**
  * Block types that never belong in the integrations icon map regardless of
@@ -2544,20 +2570,17 @@ function mergeWithManualContent(
     }
 
     const insertionPoint = insertionPoints[sectionName]
+    const wrapped = `{/* MANUAL-CONTENT-START:${sectionName} */}\n${content}\n{/* MANUAL-CONTENT-END */}`
 
-    if (insertionPoint) {
-      const match = mergedContent.match(insertionPoint.regex)
-
-      if (match && match.index !== undefined) {
-        const insertPosition = match.index + match[0].length
-        mergedContent = `${mergedContent.slice(0, insertPosition)}\n\n{/* MANUAL-CONTENT-START:${sectionName} */}\n${content}\n{/* MANUAL-CONTENT-END */}\n${mergedContent.slice(insertPosition)}`
-      } else {
-        console.log(
-          `Could not find insertion point for ${sectionName}, regex pattern: ${insertionPoint.regex}`
-        )
-      }
+    const match = insertionPoint ? mergedContent.match(insertionPoint.regex) : null
+    if (match && match.index !== undefined) {
+      const insertPosition = match.index + match[0].length
+      mergedContent = `${mergedContent.slice(0, insertPosition)}\n\n${wrapped}\n${mergedContent.slice(insertPosition)}`
     } else {
-      console.log(`No insertion point defined for section ${sectionName}`)
+      // Never drop manual content: when the anchor is missing (e.g. a `notes`
+      // section with no generated "## Notes" heading), append at the end.
+      console.log(`No insertion anchor for manual section "${sectionName}" — appending at end`)
+      mergedContent = `${mergedContent.replace(/\s*$/, '')}\n\n${wrapped}\n`
     }
   })
 
@@ -2587,9 +2610,29 @@ async function generateBlockDoc(blockPath: string) {
         continue
       }
 
-      // Canonical integrations filter: docs are written only for third-party tool blocks
-      // visible in the toolbar. Source of truth: `isIntegrationBlock`.
-      if (!isIntegrationBlock(blockConfig)) continue
+      if (
+        blockConfig.type.includes('_trigger') ||
+        blockConfig.type.includes('_webhook') ||
+        blockConfig.type.includes('rss')
+      ) {
+        console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
+        continue
+      }
+
+      if (
+        (blockConfig.category === 'blocks' &&
+          !NATIVE_RESOURCE_BLOCK_TYPES.has(stripVersionSuffix(blockConfig.type))) ||
+        blockConfig.type === 'sim_workspace_event' ||
+        blockConfig.type === 'evaluator' ||
+        blockConfig.type === 'number' ||
+        blockConfig.type === 'webhook' ||
+        blockConfig.type === 'schedule' ||
+        blockConfig.type === 'mcp' ||
+        blockConfig.type === 'generic_webhook' ||
+        blockConfig.type === 'rss'
+      ) {
+        continue
+      }
 
       // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
       const displayType = stripVersionSuffix(blockConfig.type)
@@ -2699,7 +2742,7 @@ async function generateMarkdownForBlock(
 
   let toolsSection = ''
   if (tools.access?.length) {
-    toolsSection = '## Tools\n\n'
+    toolsSection = '## Actions\n\n'
 
     for (const tool of tools.access) {
       // Strip version suffix from tool name for display
@@ -2832,8 +2875,17 @@ async function getCanonicalToolDocNames(): Promise<Set<string>> {
     const configs = extractAllBlockConfigs(fileContent)
 
     for (const config of configs) {
-      if (!isIntegrationBlock(config)) continue
-      validToolDocs.add(stripVersionSuffix(config.type))
+      // Match the writer filter: integration blocks, the documented
+      // native-resource blocks (category 'blocks'), and trigger-only service
+      // blocks (category 'triggers') whose pages the trigger pass writes.
+      const stripped = config.type ? stripVersionSuffix(config.type) : ''
+      const isDocumentedResource = NATIVE_RESOURCE_BLOCK_TYPES.has(stripped)
+      const isTriggerService =
+        config.category === 'triggers' &&
+        !config.hideFromToolbar &&
+        stripped !== 'sim_workspace_event'
+      if (!isIntegrationBlock(config) && !isDocumentedResource && !isTriggerService) continue
+      validToolDocs.add(stripped)
     }
   }
 
@@ -2857,7 +2909,7 @@ function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
 
   for (const docFile of existingDocs) {
     const blockType = path.basename(docFile, '.mdx')
-    if (blockType === 'index') continue
+    if (HANDWRITTEN_INTEGRATION_DOCS.has(blockType)) continue
     if (validToolDocs.has(blockType)) continue
 
     const docPath = path.join(DOCS_OUTPUT_PATH, docFile)
@@ -3474,24 +3526,22 @@ function toSemanticType(uiType: string): string {
  * Generate MDX content for a single trigger provider page.
  * Matches the structure of tool docs: ## Triggers, ### `trigger_id`, #### Configuration / Output.
  */
-function generateTriggerProviderDoc(
-  provider: string,
-  triggers: TriggerFullInfo[],
-  blockType: string,
-  providerColor: string
-): string {
-  const providerName = formatTriggerProviderName(provider)
-  const count = triggers.length
+/**
+ * Build the "## Triggers" section for an integration page. A trigger is a block
+ * that starts a workflow, so this is appended to the service's actions page (or
+ * used as the body of a trigger-only service page).
+ */
+function buildTriggersSection(triggers: TriggerFullInfo[]): string {
   const allPolling = triggers.every((t) => t.polling)
   const mixedTypes = triggers.some((t) => t.polling) && triggers.some((t) => !t.polling)
 
   let typeNote = ''
   if (allPolling) {
     typeNote =
-      '\nAll triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.\n'
+      '\nThese run on a schedule \\(**polling-based**\\) — they check for new data rather than receiving push notifications.\n'
   } else if (mixedTypes) {
     typeNote =
-      '\nSome triggers below are **polling-based** \\(checked on a schedule\\) while others are push-based webhooks.\n'
+      '\nSome of these are **polling-based** \\(checked on a schedule\\) while others are push-based webhooks.\n'
   }
 
   let triggersSection = ''
@@ -3534,9 +3584,24 @@ function generateTriggerProviderDoc(
     triggersSection += separator
   }
 
+  return `## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+${typeNote}
+${triggersSection}`
+}
+
+/** Standalone page for a trigger-only service (no actions block). */
+function generateTriggerProviderDoc(
+  provider: string,
+  triggers: TriggerFullInfo[],
+  blockType: string,
+  providerColor: string
+): string {
+  const providerName = formatTriggerProviderName(provider)
   return `---
 title: ${providerName}
-description: Available ${providerName} triggers for automating workflows
+description: ${providerName} triggers for automating workflows
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -3546,35 +3611,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="${providerColor}"
 />
 
-${providerName} provides ${count} trigger${count === 1 ? '' : 's'} for automating workflows based on events.
-${typeNote}
-## Triggers
-
-${triggersSection}`
-}
-
-/**
- * Update triggers/meta.json, preserving hand-written entries and appending
- * generated provider pages sorted alphabetically.
- */
-function updateTriggerMetaJson(generatedProviders: string[]): void {
-  const metaJsonPath = path.join(TRIGGER_DOCS_OUTPUT_PATH, 'meta.json')
-
-  let existingPages: string[] = []
-  if (fs.existsSync(metaJsonPath)) {
-    try {
-      existingPages = JSON.parse(fs.readFileSync(metaJsonPath, 'utf-8')).pages ?? []
-    } catch {
-      existingPages = []
-    }
-  }
-
-  const handWritten = existingPages.filter((p) => HANDWRITTEN_TRIGGER_DOCS.has(p))
-  const sortedGenerated = [...generatedProviders].sort()
-  const pages = [...handWritten, ...sortedGenerated]
-
-  fs.writeFileSync(metaJsonPath, `${JSON.stringify({ pages }, null, 2)}\n`)
-  console.log(`✓ Updated trigger meta.json with ${pages.length} entries`)
+${buildTriggersSection(triggers)}`
 }
 
 /**
@@ -3623,51 +3660,50 @@ async function generateAllTriggerDocs(): Promise<void> {
         continue
       }
 
-      const outputFilePath = path.join(TRIGGER_DOCS_OUTPUT_PATH, `${provider}.mdx`)
+      // The trigger lives on the same per-service integration page as the
+      // service's actions (provider ≠ block type for a few services).
+      const blockType = PROVIDER_TO_BLOCK_TYPE[provider] ?? provider
+      const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${blockType}.mdx`)
+      const baseName = path.basename(outputFilePath, '.mdx')
 
-      // Never overwrite hand-written docs
-      if (fs.existsSync(outputFilePath)) {
-        const baseName = path.basename(outputFilePath, '.mdx')
-        if (HANDWRITTEN_TRIGGER_DOCS.has(baseName)) {
-          console.log(`Skipping ${provider} — hand-written doc exists`)
-          continue
-        }
+      if (HANDWRITTEN_INTEGRATION_DOCS.has(baseName) || HANDWRITTEN_TRIGGER_DOCS.has(baseName)) {
+        console.log(`Skipping ${provider} — hand-written page`)
+        continue
       }
 
-      // Resolve the block type to use for BlockInfoCard (handles provider ≠ block type)
-      const blockType = PROVIDER_TO_BLOCK_TYPE[provider] ?? provider
-      const providerColor = colorMap.get(blockType) ?? '#6B7280'
-
-      const existingContent = fs.existsSync(outputFilePath)
+      const existing = fs.existsSync(outputFilePath)
         ? fs.readFileSync(outputFilePath, 'utf-8')
         : null
 
-      // Only preserve manual sections that have actual user-authored content.
-      // Empty markers (left from a prior generation) are silently discarded so
-      // they don't accumulate on each subsequent run.
-      const rawSections = existingContent ? extractManualContent(existingContent) : {}
-      const manualSections = Object.fromEntries(
-        Object.entries(rawSections).filter(([, v]) => v.length > 0)
-      )
+      if (existing?.includes('\n## Actions')) {
+        // Actions page generated this run by the block pass — append the Triggers section.
+        if (!existing.includes('\n## Triggers')) {
+          fs.appendFileSync(outputFilePath, `\n${buildTriggersSection(triggers)}`)
+        }
+      } else {
+        // Trigger-only service (no actions block) — (re)write the standalone page,
+        // preserving manual content from the previous run. Cleanup spares these
+        // pages (category 'triggers' blocks are in the canonical set).
+        const providerColor = colorMap.get(blockType) ?? '#6B7280'
+        const markdown = generateTriggerProviderDoc(provider, triggers, blockType, providerColor)
+        const rawSections = existing ? extractManualContent(existing) : {}
+        const manualSections = Object.fromEntries(
+          Object.entries(rawSections).filter(([, v]) => v.length > 0)
+        )
+        const finalContent =
+          Object.keys(manualSections).length > 0
+            ? mergeWithManualContent(markdown, existing, manualSections)
+            : markdown
+        fs.writeFileSync(outputFilePath, finalContent)
+      }
 
-      const markdown = generateTriggerProviderDoc(provider, triggers, blockType, providerColor)
-
-      const finalContent =
-        Object.keys(manualSections).length > 0
-          ? mergeWithManualContent(markdown, existingContent, manualSections)
-          : markdown
-
-      fs.writeFileSync(outputFilePath, finalContent)
-      generatedProviders.push(provider)
+      generatedProviders.push(blockType)
       console.log(
-        `✓ Generated trigger docs for ${formatTriggerProviderName(provider)} (${triggers.length} trigger${triggers.length === 1 ? '' : 's'})`
+        `✓ Triggers for ${formatTriggerProviderName(provider)} (${triggers.length} trigger${triggers.length === 1 ? '' : 's'})`
       )
     }
 
-    updateTriggerMetaJson(generatedProviders)
-    console.log(
-      `✓ Trigger documentation generation complete: ${generatedProviders.length} provider pages`
-    )
+    console.log(`✓ Trigger sections merged into ${generatedProviders.length} integration pages`)
   } catch (error) {
     console.error('Error generating trigger documentation:', error)
   }
@@ -3698,10 +3734,11 @@ async function generateAllBlockDocs() {
       await generateBlockDoc(blockFile)
     }
 
-    updateMetaJson()
-
-    // Generate trigger provider documentation
+    // Merge trigger sections into the per-service pages (and write trigger-only pages)
     await generateAllTriggerDocs()
+
+    // Write the integrations meta after both passes so trigger-only pages are included
+    updateMetaJson()
 
     return true
   } catch (error) {

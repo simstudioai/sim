@@ -10,7 +10,7 @@ export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrates ZoomInfo into the workflow. Search companies and contacts, enrich firmographic and contact data, find intent signals, and pull news — all using the ZoomInfo GTM API.',
-  docsLink: 'https://docs.sim.ai/tools/zoominfo',
+  docsLink: 'https://docs.sim.ai/integrations/zoominfo',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#EA1B15',

@@ -1,0 +1,108 @@
+---
+title: Alerts
+description: Get notified when a workflow fails, slows down, costs too much, or goes quiet.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+An **alert** tells you when your workflows behave in a way you want to know about: repeated failures, a slow run, an expensive run, or no activity at all. You set up an alert once on a workspace, choose the condition that triggers it, and pick how you want to be told.
+
+## Alert rules
+
+An **alert rule** is the condition that fires the alert. Each alert has one rule, configured with its own thresholds.
+
+| Rule | Fires when | Key settings |
+| --- | --- | --- |
+| **Consecutive failures** | the last N runs all errored | count (1 to 100, default 3) |
+| **Failure rate** | the error rate over a window crosses a threshold | percent (1 to 100), window hours (1 to 168) |
+| **Error count** | the number of errors in a window crosses a threshold | count (1 to 1000), window hours |
+| **Latency threshold** | a run takes longer than a fixed time | duration in ms (1s to 1h, default 30s) |
+| **Latency spike** | a run is much slower than the recent average | percent slower (10 to 1000), window hours |
+| **Cost threshold** | a single run costs more than a set amount | dollars (0.01 to 1000, default $1) |
+| **No activity** | no runs happen within a window | hours (1 to 168, default 24) |
+
+The rate-based rules (failure rate, latency spike) need at least 5 runs in the window before they evaluate. No-activity is checked by a background poll rather than on each run. After an alert fires, that alert stays quiet for **1 hour** so a single problem doesn't flood you.
+
+You can scope a rule to all workflows or specific ones, and filter by level (info or error) and by trigger type.
+
+## Delivery channels
+
+An alert can reach you three ways:
+
+- **Webhook** posts a signed JSON payload to a URL you provide.
+- **Email** sends to a list of recipients, up to 10.
+- **Slack** posts to a channel through a connected Slack account.
+
+## Webhook payload
+
+A webhook alert is an HTTP POST with a JSON body:
+
+```json
+{
+  "id": "evt_...",
+  "type": "workflow.execution.completed",
+  "timestamp": 1719907200000,
+  "data": {
+    "workflowId": "wf_...",
+    "workflowName": "Lead scorer",
+    "executionId": "exec_...",
+    "status": "error",
+    "level": "error",
+    "trigger": "api",
+    "startedAt": "2026-06-01T12:00:00.000Z",
+    "endedAt": "2026-06-01T12:00:01.200Z",
+    "totalDurationMs": 1200,
+    "cost": { "total": 0.0042 }
+  }
+}
+```
+
+You can also include the run's `finalOutput`, its `traceSpans` (webhook only), rate-limit status, and usage data by turning those options on for the alert.
+
+## Verifying a webhook
+
+Each delivery is signed so you can confirm it came from Sim. The signature is in the `sim-signature` header:
+
+```
+sim-signature: t=1719907200000,v1=<hex>
+```
+
+To verify, compute an HMAC-SHA256 over `{t}.{raw_body}` using your webhook secret, and compare the result to `v1`:
+
+```javascript
+import { createHmac } from 'node:crypto'
+
+function verify(rawBody, signatureHeader, secret) {
+  const parts = Object.fromEntries(signatureHeader.split(',').map((p) => p.split('=')))
+  const expected = createHmac('sha256', secret).update(`${parts.t}.${rawBody}`).digest('hex')
+  return expected === parts.v1
+}
+```
+
+Sim also sends `sim-event`, `sim-timestamp`, and an `Idempotency-Key` header on each delivery, so a receiver can dedupe retries.
+
+## Retries
+
+If your endpoint does not return a 2xx, Sim retries up to 5 times with increasing delays of 5s, 15s, 60s, 3m, then 10m, each with a little jitter. After the fifth failure the delivery is marked failed.
+
+## Setting up an alert
+
+Configure alerts in your workspace notification settings, or through the workspace notifications API:
+
+- `GET /api/workspaces/{id}/notifications` lists alerts.
+- `POST /api/workspaces/{id}/notifications` creates one.
+- `PUT /api/workspaces/{id}/notifications/{notificationId}` updates one.
+- `DELETE /api/workspaces/{id}/notifications/{notificationId}` removes one.
+- `POST /api/workspaces/{id}/notifications/{notificationId}/test` sends a test.
+
+Creating or changing an alert needs Write or Admin access to the workspace. A workspace can have up to 10 alerts of each channel type.
+
+## Next
+
+<Cards>
+  <Card title="Logs & debugging" href="/logs-debugging" description="Read a run's trace to find what went wrong." />
+  <Card title="Logging" href="/logs-debugging/logging" description="The Logs page: columns, filters, and the run sidebar." />
+  <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution, status, and where failures surface." />
+</Cards>

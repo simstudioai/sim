@@ -1,133 +1,58 @@
 ---
 title: Overview
-description: Upload, process, and search through your documents with intelligent vector search and chunking
+description: A store of documents your agents can search by meaning.
+pageType: concept
 ---
 
 import { Video } from '@/components/ui/video'
-import { Image } from '@/components/ui/image'
+import { Card, Cards } from 'fumadocs-ui/components/card'
 import { FAQ } from '@/components/ui/faq'
 
-The knowledgebase allows you to upload, process, and search through your documents with intelligent vector search and chunking. Documents of various types are automatically processed, embedded, and made searchable. Your documents are intelligently chunked, and you can view, edit, and search through them using natural language queries.
+A **knowledge base** is a store of documents your agents can search by meaning. You upload files, Sim splits them into chunks and indexes them, and a [Knowledge block](/knowledgebase/using-in-workflows) retrieves the chunks most relevant to a query. This is how an agent answers from your own content instead of the model's general training.
 
-## Upload and Processing
-
-Simply upload your documents to get started. Sim automatically processes them in the background, extracting text, creating embeddings, and breaking them into searchable chunks.
-
-<div className="mx-auto w-full overflow-hidden rounded-lg">
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
   <Video src="knowledgebase-1.mp4" width={700} height={450} />
 </div>
 
-The system handles the entire processing pipeline for you:
+## How a document becomes searchable
 
-1. **Text Extraction**: Content is extracted from your documents using specialized parsers for each file type
-2. **Intelligent Chunking**: Documents are broken into meaningful chunks with configurable size and overlap
-3. **Embedding Generation**: Vector embeddings are created for semantic search capabilities
-4. **Processing Status**: Track the progress as your documents are processed
+When you upload a document, Sim processes it in the background:
 
-## Supported File Types
+1. **Extract** the text, with a parser for each file type and OCR for scanned PDFs.
+2. **Chunk** it into passages, with a size and overlap you can tune.
+3. **Embed** each chunk as a vector so it can be matched by meaning, not just keywords.
 
-Sim supports PDF, Word (DOC/DOCX), plain text (TXT), Markdown (MD), HTML, HTM, Excel (XLS/XLSX), PowerPoint (PPT/PPTX), CSV, JSON, and YAML/YML files. Files can be up to 100MB each, with optimal performance for files under 50MB. You can upload multiple documents simultaneously, and PDF files include OCR processing for scanned documents.
+A document is searchable once its status reads `completed`. Open any document to view, edit, merge, or split its chunks.
 
-## Viewing and Editing Chunks
+## What you can upload
 
-Once your documents are processed, you can view and edit the individual chunks. This gives you full control over how your content is organized and searched.
+Sim accepts PDF, Word, text, Markdown, HTML, Excel, PowerPoint, CSV, JSON, and YAML files, up to 100 MB each (best under 50 MB). Scanned PDFs work too: with Azure or [Mistral OCR](https://docs.mistral.ai/ocr/) configured, Sim extracts text from image-based pages.
 
-<Image src="/static/knowledgebase/knowledgebase.png" alt="Document chunks view showing processed content" width={800} height={500} />
+## Shaping what a search returns
 
-### Chunk Configuration
+Two things control retrieval quality, and each has its own page:
 
-When creating a knowledge base, you can configure how documents are split into chunks:
+- **Chunking** decides how a document is split. Smaller chunks are more precise; larger ones keep more context. See [chunking strategies](/knowledgebase/chunking-strategies).
+- **Tags** label documents so a search can filter to a subset. See [tags and filtering](/knowledgebase/tags).
 
-| Setting | Unit | Default | Range | Description |
-|---------|------|---------|-------|-------------|
-| **Max Chunk Size** | tokens | 1,024 | 100-4,000 | Maximum size of each chunk (1 token ≈ 4 characters) |
-| **Min Chunk Size** | characters | 100 | 100-2,000 | Minimum chunk size to avoid tiny fragments |
-| **Overlap** | tokens | 200 | 0-500 | Context overlap between consecutive chunks |
+To keep a base in sync with an outside source like Google Drive, use a [connector](/knowledgebase/connectors).
 
-You can also pick a chunking strategy (Auto, Text, Recursive, Sentence, Token, or Regex) to control where splits happen. See [Chunking Strategies](/docs/knowledgebase/chunking-strategies) for a breakdown of when to use each.
+## Next
 
-- **Hierarchical splitting**: Respects document structure (sections, paragraphs, sentences)
-
-### Editing Capabilities
-- **Edit chunk content**: Modify the text content of individual chunks
-- **Adjust chunk boundaries**: Merge or split chunks as needed
-- **Add metadata**: Enhance chunks with additional context
-- **Bulk operations**: Manage multiple chunks efficiently
-
-## Advanced PDF Processing
-
-For PDF documents, Sim offers enhanced processing capabilities:
-
-### OCR Support
-When configured with Azure or [Mistral OCR](https://docs.mistral.ai/ocr/):
-- **Scanned document processing**: Extract text from image-based PDFs
-- **Mixed content handling**: Process PDFs with both text and images
-- **High accuracy**: Advanced AI models ensure accurate text extraction
-
-## Using The Knowledge Block in Workflows
-
-Once your documents are processed, you can use them in your AI workflows through the Knowledge block. This enables Retrieval-Augmented Generation (RAG), allowing your AI agents to access and reason over your document content to provide more accurate, contextual responses.
-
-<Image src="/static/knowledgebase/knowledgebase-2.png" alt="Using Knowledge Block in Workflows" width={800} height={500} />
-
-### Knowledge Block Features
-- **Semantic search**: Find relevant content using natural language queries
-- **Context integration**: Automatically include relevant chunks in agent prompts
-- **Dynamic retrieval**: Search happens in real-time during workflow execution
-- **Relevance scoring**: Results ranked by semantic similarity
-
-### Integration Options
-- **System prompts**: Provide context to your AI agents
-- **Dynamic context**: Search and include relevant information during conversations
-- **Multi-document search**: Query across your entire knowledgebase
-- **Filtered search**: Combine with tags for precise content retrieval
-
-## Vector Search Technology
-
-Sim uses vector search powered by [pgvector](https://github.com/pgvector/pgvector) to understand the meaning and context of your content:
-
-### Semantic Understanding
-- **Contextual search**: Finds relevant content even when exact keywords don't match
-- **Concept-based retrieval**: Understands relationships between ideas
-- **Multi-language support**: Works across different languages
-- **Synonym recognition**: Finds related terms and concepts
-
-### Search Capabilities
-- **Natural language queries**: Ask questions in plain English
-- **Similarity search**: Find conceptually similar content
-- **Hybrid search**: Combines vector and traditional keyword search
-- **Configurable results**: Control the number and relevance threshold of results
-
-## Document Management
-
-### Organization Features
-- **Bulk upload**: Upload multiple files at once via the asynchronous API
-- **Processing status**: Real-time updates on document processing
-- **Search and filter**: Find documents quickly in large collections
-- **Metadata tracking**: Automatic capture of file information and processing details
-
-### Security and Privacy
-- **Secure storage**: Documents stored with enterprise-grade security
-- **Access control**: Workspace-based permissions
-- **Processing isolation**: Each workspace has isolated document processing
-- **Data retention**: Configure document retention policies
-
-## Getting Started
-
-1. **Navigate to your knowledgebase**: Access from your workspace sidebar
-2. **Upload documents**: Drag and drop or select files to upload
-3. **Monitor processing**: Watch as documents are processed and chunked
-4. **Explore chunks**: View and edit the processed content
-5. **Add to workflows**: Use the Knowledge block to integrate with your AI agents
-
-The knowledgebase transforms your static documents into an intelligent, searchable resource that your AI workflows can leverage for more informed and contextual responses.
+<Cards>
+  <Card title="Using a knowledge base in a workflow" href="/knowledgebase/using-in-workflows" description="The Knowledge block: search, tags, reranking, and reading the results." />
+  <Card title="Chunking strategies" href="/knowledgebase/chunking-strategies" description="How chunk size and boundaries shape retrieval." />
+  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Label documents and narrow a search." />
+  <Card title="Connectors" href="/knowledgebase/connectors" description="Sync documents from an external source." />
+  <Card title="Debugging retrieval" href="/knowledgebase/debugging-retrieval" description="Diagnose why a search returns the wrong chunks." />
+</Cards>
 
 <FAQ items={[
-  { question: "What file types are supported?", answer: "PDF, Word (DOC/DOCX), plain text (TXT), Markdown (MD), HTML, HTM, Excel (XLS/XLSX), PowerPoint (PPT/PPTX), CSV, JSON, and YAML/YML files." },
-  { question: "Is there a file size limit?", answer: "Files can be up to 100 MB each, with optimal performance for files under 50 MB." },
-  { question: "Can I edit chunks after processing?", answer: "Yes. You can view, edit, merge, split, and add metadata to individual chunks after documents are processed." },
-  { question: "How does semantic search work?", answer: "Documents are embedded as vectors using AI models. When you search, your query is also embedded and compared against document vectors to find conceptually similar content — even without exact keyword matches." },
-  { question: "Does it support scanned PDFs?", answer: "Yes. When configured with Azure or Mistral OCR, Sim can extract text from image-based and scanned PDF documents." },
-  { question: "Can I search across multiple knowledge bases?", answer: "Each Knowledge block targets a specific knowledge base. You can use multiple Knowledge blocks in a workflow to search across different knowledge bases." },
-  { question: "How do I control chunk size?", answer: "When creating a knowledge base, you can configure max chunk size (100-4,000 tokens), min chunk size (100-2,000 characters), and overlap (0-500 tokens)." },
+  { question: "What file types are supported?", answer: "PDF, Word (DOC/DOCX), plain text (TXT), Markdown (MD), HTML, Excel (XLS/XLSX), PowerPoint (PPT/PPTX), CSV, JSON, and YAML files." },
+  { question: "Is there a file size limit?", answer: "Files can be up to 100 MB each, with best performance under 50 MB." },
+  { question: "Can I edit chunks after processing?", answer: "Yes. You can view, edit, merge, split, and add metadata to individual chunks once a document is processed." },
+  { question: "How does semantic search work?", answer: "Documents are embedded as vectors. When you search, your query is embedded too and compared against the document vectors to find conceptually similar content, even when the exact keywords don't match." },
+  { question: "Does it support scanned PDFs?", answer: "Yes. With Azure or Mistral OCR configured, Sim extracts text from image-based and scanned PDF pages." },
+  { question: "Can I search across multiple knowledge bases?", answer: "Each Knowledge block searches one knowledge base. Use multiple Knowledge blocks in a workflow to search across several." },
+  { question: "How do I control chunk size?", answer: "When you create a knowledge base, you can set the max chunk size (100 to 4,000 tokens), min chunk size (100 to 2,000 characters), and overlap (0 to 500 tokens). See chunking strategies for details." },
 ]} />

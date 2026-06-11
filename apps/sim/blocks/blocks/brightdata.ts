@@ -10,7 +10,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Bright Data into the workflow. Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.',
-  docsLink: 'https://docs.sim.ai/tools/brightdata',
+  docsLink: 'https://docs.sim.ai/integrations/brightdata',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',

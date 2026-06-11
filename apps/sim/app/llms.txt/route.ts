@@ -20,8 +20,8 @@ Sim lets teams create agents visually with the workflow builder, conversationall
 ## Documentation
 
 - [Documentation](https://docs.sim.ai): Product guides and technical reference
-- [Quickstart](https://docs.sim.ai/quickstart): Fastest path to getting started
-- [API Reference](https://docs.sim.ai/api): API documentation
+- [Quickstart](https://docs.sim.ai/getting-started): Fastest path to getting started
+- [API Reference](https://docs.sim.ai/api-reference): API documentation
 
 ## Key Concepts
 

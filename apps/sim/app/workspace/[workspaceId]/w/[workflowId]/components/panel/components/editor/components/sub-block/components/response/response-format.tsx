@@ -1,5 +1,4 @@
 import { ResponseFormat as SharedResponseFormat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/starter/input-format'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface ResponseFormatProps {
   blockId: string
@@ -8,7 +7,6 @@ interface ResponseFormatProps {
   previewValue?: any
   disabled?: boolean
   config?: any
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function ResponseFormat({
@@ -18,7 +16,6 @@ export function ResponseFormat({
   previewValue,
   disabled = false,
   config,
-  activeSearchTarget,
 }: ResponseFormatProps) {
   return (
     <SharedResponseFormat
@@ -28,7 +25,6 @@ export function ResponseFormat({
       previewValue={previewValue}
       disabled={disabled}
       config={config}
-      activeSearchTarget={activeSearchTarget}
     />
   )
 }

@@ -14,8 +14,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 const logger = createLogger('Table')
 
@@ -26,7 +26,6 @@ interface TableProps {
   isPreview?: boolean
   previewValue?: WorkflowTableRow[] | null
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 interface WorkflowTableRow {
@@ -49,7 +48,6 @@ interface TableCellProps {
   overlayRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
   accessiblePrefixes: ReturnType<typeof useAccessibleReferencePrefixes>
   workspaceId: string
-  activeSearchTarget?: ActiveSearchTarget | null
   subBlockId: string
 }
 
@@ -68,9 +66,9 @@ function TableCell({
   overlayRefs,
   accessiblePrefixes,
   workspaceId,
-  activeSearchTarget,
   subBlockId,
 }: TableCellProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   // Defensive programming: ensure row.cells exists and has the expected structure
   const hasValidCells = row.cells && typeof row.cells === 'object'
   if (!hasValidCells) logger.warn('Table row has malformed cells data:', row)
@@ -217,8 +215,8 @@ export function Table({
   isPreview = false,
   previewValue,
   disabled = false,
-  activeSearchTarget,
 }: TableProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [storeValue, setStoreValue] = useSubBlockValue<WorkflowTableRow[]>(blockId, subBlockId)
@@ -399,7 +397,6 @@ export function Table({
                     overlayRefs={overlayRefs}
                     accessiblePrefixes={accessiblePrefixes}
                     workspaceId={workspaceId}
-                    activeSearchTarget={activeSearchTarget}
                     subBlockId={subBlockId}
                   />
                 ))}

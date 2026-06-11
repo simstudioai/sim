@@ -17,7 +17,7 @@ export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Extend AI into the workflow. Parse and extract structured content from documents including PDFs, images, and Office files.',
-  docsLink: 'https://docs.sim.ai/tools/extend',
+  docsLink: 'https://docs.sim.ai/integrations/extend',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#000000',

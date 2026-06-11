@@ -62,23 +62,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     try {
       const key = extractStorageKeyFromPath(filePath)
 
-      const storageContext: StorageContext = context || inferContextFromKey(key)
+      // Derive context from the trusted key prefix, never the client-supplied value; a supplied context must agree with the key.
+      const storageContext: StorageContext = inferContextFromKey(key)
+      if (context && context !== storageContext) {
+        logger.warn('File delete context mismatch', { key, context, inferred: storageContext })
+        throw new InvalidRequestError(`Provided context "${context}" does not match the file key`)
+      }
 
-      // Deletes require write/admin on the owning workspace (owner-scoped files
-      // like copilot/regular uploads still authorize by ownership). KB deletes
-      // are binding-only and never use the transitional read fallback that file
-      // serving allows.
+      // Deletes require write/admin on the owning workspace; KB deletes are binding-only with no read fallback.
       const hasAccess =
         storageContext === 'knowledge-base'
           ? await verifyKBFileWriteAccess(key, userId)
-          : await verifyFileAccess(
-              key,
-              userId,
-              undefined, // customConfig
-              storageContext, // context
-              !hasCloudStorage(), // isLocal
-              { requireWrite: true }
-            )
+          : await verifyFileAccess(key, userId, undefined, storageContext, !hasCloudStorage(), {
+              requireWrite: true,
+            })
 
       if (!hasAccess) {
         logger.warn('Unauthorized file delete attempt', { userId, key, context: storageContext })

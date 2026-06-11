@@ -325,7 +325,13 @@ export const PUT = withRouteHandler(
 
       if (!result.success || !result.workflow) {
         const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'conflict' ? 409 : 500
+          result.errorCode === 'not_found'
+            ? 404
+            : result.errorCode === 'conflict'
+              ? 409
+              : result.errorCode === 'validation'
+                ? 400
+                : 500
         return NextResponse.json({ error: result.error }, { status })
       }
 

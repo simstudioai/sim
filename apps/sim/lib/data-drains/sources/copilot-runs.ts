@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { copilotRuns } from '@sim/db/schema'
 import { and, inArray, isNotNull } from 'drizzle-orm'
 import {
@@ -6,6 +6,7 @@ import {
   encodeTimeCursor,
   timeCursorOrderBy,
   timeCursorPredicate,
+  timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
 import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
@@ -24,13 +25,14 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotRunRow[]> {
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(copilotRuns.completedAt, copilotRuns.id, cursor)
 
-    const rows = await db
+    const rows = await dbReplica
       .select()
       .from(copilotRuns)
       .where(
         and(
           inArray(copilotRuns.workspaceId, workspaceIds),
           isNotNull(copilotRuns.completedAt),
+          timeCursorStabilityBound(copilotRuns.completedAt),
           cursorClause
         )
       )

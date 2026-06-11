@@ -1,0 +1,123 @@
+---
+title: Parallel AI
+description: Web research with Parallel AI
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="parallel_ai"
+  color="#1D1C1A"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Parallel AI](https://parallel.ai/) is an advanced web search and content extraction platform designed to deliver comprehensive, high-quality results for any query. By leveraging intelligent processing and large-scale data extraction, Parallel AI enables users and agents to access, analyze, and synthesize information from across the web with speed and accuracy.
+
+With Parallel AI, you can:
+
+- **Search the web intelligently**: Retrieve relevant, up-to-date information from a wide range of sources  
+- **Extract and summarize content**: Get concise, meaningful excerpts from web pages and documents  
+- **Customize search objectives**: Tailor queries to specific needs or questions for targeted results  
+- **Process results at scale**: Handle large volumes of search results with advanced processing options  
+- **Integrate with workflows**: Use Parallel AI within Sim to automate research, content gathering, and knowledge extraction  
+- **Control output granularity**: Specify the number of results and the amount of content per result  
+- **Secure API access**: Protect your searches and data with API key authentication
+
+In Sim, the Parallel AI integration empowers your agents to perform web searches and extract content programmatically. This enables powerful automation scenarios such as real-time research, competitive analysis, content monitoring, and knowledge base creation. By connecting Sim with Parallel AI, you unlock the ability for agents to gather, process, and utilize web data as part of your automated workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.
+
+
+
+## Actions
+
+### `parallel_search`
+
+Search the web using Parallel AI. Provides comprehensive search results with intelligent processing and content extraction.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `objective` | string | Yes | The search objective or question to answer |
+| `search_queries` | string | No | Comma-separated list of search queries to execute |
+| `mode` | string | No | Search mode: one-shot, agentic, or fast \(default: one-shot\) |
+| `max_results` | number | No | Maximum number of results to return \(default: 10\) |
+| `max_chars_per_result` | number | No | Maximum characters per result excerpt \(minimum: 1000\) |
+| `include_domains` | string | No | Comma-separated list of domains to restrict search results to |
+| `exclude_domains` | string | No | Comma-separated list of domains to exclude from search results |
+| `apiKey` | string | Yes | Parallel AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `search_id` | string | Unique identifier for this search request |
+| `results` | array | Search results with excerpts from relevant pages |
+|   ↳ `url` | string | The URL of the search result |
+|   ↳ `title` | string | The title of the search result |
+|   ↳ `publish_date` | string | Publication date of the page \(YYYY-MM-DD\) |
+|   ↳ `excerpts` | array | LLM-optimized excerpts from the page |
+
+### `parallel_extract`
+
+Extract targeted information from specific URLs using Parallel AI. Processes provided URLs to pull relevant content based on your objective.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Yes | Comma-separated list of URLs to extract information from |
+| `objective` | string | No | What information to extract from the provided URLs |
+| `excerpts` | boolean | No | Include relevant excerpts from the content \(default: true\) |
+| `full_content` | boolean | No | Include full page content as markdown \(default: false\) |
+| `apiKey` | string | Yes | Parallel AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `extract_id` | string | Unique identifier for this extraction request |
+| `results` | array | Extracted information from the provided URLs |
+|   ↳ `url` | string | The source URL |
+|   ↳ `title` | string | The title of the page |
+|   ↳ `publish_date` | string | Publication date \(YYYY-MM-DD\) |
+|   ↳ `excerpts` | array | Relevant text excerpts in markdown |
+|   ↳ `full_content` | string | Full page content as markdown |
+
+### `parallel_deep_research`
+
+Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 45 minutes to complete.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Research query or question \(up to 15,000 characters\) |
+| `processor` | string | No | Processing tier: pro, ultra, pro-fast, ultra-fast \(default: pro\) |
+| `include_domains` | string | No | Comma-separated list of domains to restrict research to \(source policy\) |
+| `exclude_domains` | string | No | Comma-separated list of domains to exclude from research \(source policy\) |
+| `apiKey` | string | Yes | Parallel AI API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Task status \(completed, failed, running\) |
+| `run_id` | string | Unique ID for this research task |
+| `message` | string | Status message |
+| `content` | object | Research results \(structured based on output_schema\) |
+| `basis` | array | Citations and sources with reasoning and confidence levels |
+|   ↳ `field` | string | Output field dot-notation path |
+|   ↳ `reasoning` | string | Explanation for the result |
+|   ↳ `citations` | array | Array of sources |
+|     ↳ `url` | string | Source URL |
+|     ↳ `title` | string | Source title |
+|     ↳ `excerpts` | array | Relevant excerpts from the source |
+|   ↳ `confidence` | string | Confidence level \(high, medium\) |
+
+

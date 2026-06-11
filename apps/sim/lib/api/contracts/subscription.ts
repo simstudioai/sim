@@ -21,13 +21,15 @@ export const billingUpdateCostBodySchema = z.object({
     .default('copilot'),
   idempotencyKey: z.string().min(1).optional(),
   /**
-   * Originating workspace. Stamped onto `usage_log.workspaceId` so mothership/
-   * copilot cost is attributable to org-owned workspaces (per-member usage).
-   * Required: the Go mothership always resolves a workspace for a billed request,
-   * so a missing value is a bug to surface (fail loud) rather than silently drop
-   * the cost from the per-member meter.
+   * Originating workspace, used for org-workspace cost attribution on hosted
+   * Sim. Best-effort by design: self-hosted and headless clients bill through
+   * this endpoint with workspace IDs that exist only in their own deployment
+   * (or with none at all — the Go client omits the field when empty), so the
+   * value is optional and the route only stamps it onto the ledger when it
+   * resolves to a workspace in this deployment. Billing is keyed on the
+   * user's billing entity and must never fail over attribution metadata.
    */
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).optional(),
 })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 

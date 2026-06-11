@@ -16,12 +16,12 @@ export function SearchTrigger() {
     <button
       type='button'
       data-search-trigger
-      className='flex h-8 w-[360px] cursor-pointer items-center gap-2 rounded-lg border border-border/50 bg-fd-muted/50 px-3 text-[13px] text-fd-muted-foreground transition-colors hover:bg-fd-muted'
+      className='flex h-[30px] w-[360px] cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-season text-[var(--text-muted)] text-sm transition-colors hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
       onClick={openSearchDialog}
     >
-      <Search className='size-3.5' />
+      <Search className='size-[14px] text-[var(--text-icon)]' />
       <span>Search&hellip;</span>
-      <kbd className='ml-auto flex items-center font-medium'>
+      <kbd className='ml-auto flex items-center'>
         <span className='text-[15px]'>⌘</span>
         <span className='text-[12px]'>K</span>
       </kbd>

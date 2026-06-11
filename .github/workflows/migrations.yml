@@ -2,7 +2,21 @@ name: Database Migrations
 
 on:
   workflow_call:
+    inputs:
+      environment:
+        description: Target environment (production, staging, or dev)
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+          - dev
 
 permissions:
   contents: read
@@ -35,13 +49,26 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # The expression maps the explicit environment input to exactly one repo
+      # secret, so the job never holds another environment's database URL. An
+      # unknown environment resolves to empty and the guard below fails the job.
+      # MIGRATION_DATABASE_URL is the optional direct (non-pooled) DSN preferred
+      # by migrate.ts; when the secret is unset it resolves to empty and the
+      # script falls back to DATABASE_URL.
       - name: Apply database schema changes
         working-directory: ./packages/db
         env:
-          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || github.ref == 'refs/heads/dev' && secrets.DEV_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
+          DATABASE_URL: ${{ inputs.environment == 'production' && secrets.DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || inputs.environment == 'dev' && secrets.DEV_DATABASE_URL || '' }}
+          MIGRATION_DATABASE_URL: ${{ inputs.environment == 'production' && secrets.MIGRATION_DATABASE_URL || inputs.environment == 'staging' && secrets.STAGING_MIGRATION_DATABASE_URL || '' }}
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
-          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            echo "Dev environment detected — pushing schema with drizzle-kit (db:push)"
+          if [ -z "$DATABASE_URL" ]; then
+            echo "ERROR: no database URL secret resolved for environment '${ENVIRONMENT}'" >&2
+            exit 1
+          fi
+
+          if [ "${ENVIRONMENT}" = "dev" ]; then
+            echo "Dev environment — pushing schema directly (db:push)"
             bun run db:push --force
           else
             echo "Applying versioned migrations (db:migrate)"

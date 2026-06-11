@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import {
   jobExecutionLogs,
   pausedExecutions,
@@ -186,7 +186,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
     levelList.length > 0 && !levelList.some((l) => l === 'error' || l === 'info')
   const includeJobLogs = !hasWorkflowSpecificFilters && !triggersExcludeJobs && !levelExcludesJobs
 
-  const workflowQuery = db
+  const workflowQuery = dbReplica
     .select({
       id: workflowExecutionLogs.id,
       workflowId: workflowExecutionLogs.workflowId,
@@ -313,7 +313,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
   }
 
   const jobQuery = includeJobLogs
-    ? db
+    ? dbReplica
         .select({
           id: jobExecutionLogs.id,
           executionId: jobExecutionLogs.executionId,

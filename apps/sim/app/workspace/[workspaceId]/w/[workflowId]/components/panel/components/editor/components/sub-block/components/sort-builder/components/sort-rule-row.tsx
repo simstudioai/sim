@@ -5,7 +5,7 @@ import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { SortRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 
 interface SortRuleRowProps {
   rule: SortRule
@@ -15,7 +15,6 @@ interface SortRuleRowProps {
   isReadOnly: boolean
   blockId: string
   subBlockId: string
-  activeSearchTarget?: ActiveSearchTarget | null
   onAdd: () => void
   onRemove: (id: string) => void
   onUpdate: (id: string, field: keyof SortRule, value: string) => void
@@ -30,12 +29,12 @@ export function SortRuleRow({
   isReadOnly,
   blockId,
   subBlockId,
-  activeSearchTarget,
   onAdd,
   onRemove,
   onUpdate,
   onToggleCollapse,
 }: SortRuleRowProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const getDirectionLabel = (value: string) => {
     const option = directionOptions.find((dir) => dir.value === value)
     return option?.label || value

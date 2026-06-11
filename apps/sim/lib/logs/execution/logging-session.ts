@@ -3,6 +3,7 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
@@ -266,6 +267,18 @@ export class LoggingSession {
       level: params.level,
       status: params.status,
     })
+
+    // Release the admission reservation from preprocessing. Skipped on pause: a
+    // paused execution keeps its slot until it terminates (or the TTL expires).
+    if (params.finalizationPath !== 'paused') {
+      try {
+        await releaseExecutionSlot(this.executionId)
+      } catch (error) {
+        logger.warn(`Failed to release admission reservation for ${this.executionId}:`, {
+          error: toError(error).message,
+        })
+      }
+    }
   }
 
   async onBlockComplete(

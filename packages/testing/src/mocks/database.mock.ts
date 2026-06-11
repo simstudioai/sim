@@ -42,6 +42,10 @@ export function createMockSqlOperators() {
     lt: vi.fn((a, b) => ({ type: 'lt', left: a, right: b })),
     lte: vi.fn((a, b) => ({ type: 'lte', left: a, right: b })),
     count: vi.fn((column) => ({ type: 'count', column })),
+    avg: vi.fn((column) => ({ type: 'avg', column })),
+    sum: vi.fn((column) => ({ type: 'sum', column })),
+    min: vi.fn((column) => ({ type: 'min', column })),
+    max: vi.fn((column) => ({ type: 'max', column })),
     and: vi.fn((...conditions) => ({ type: 'and', conditions })),
     or: vi.fn((...conditions) => ({ type: 'or', conditions })),
     not: vi.fn((condition) => ({ type: 'not', condition })),
@@ -231,17 +235,21 @@ export function resetDbChainMock(): void {
  * vi.mock('@sim/db', () => dbChainMock)
  * ```
  */
+const dbChainInstance = {
+  select,
+  selectDistinct,
+  selectDistinctOn,
+  insert,
+  update,
+  delete: del,
+  execute,
+  transaction,
+}
+
 export const dbChainMock = {
-  db: {
-    select,
-    selectDistinct,
-    selectDistinctOn,
-    insert,
-    update,
-    delete: del,
-    execute,
-    transaction,
-  },
+  db: dbChainInstance,
+  /** Same instance as `db` so per-test chain overrides cover both clients. */
+  dbReplica: dbChainInstance,
 }
 
 /**
@@ -305,8 +313,12 @@ export function createMockDb() {
  * vi.mock('@sim/db', () => databaseMock)
  * ```
  */
+const mockDbInstance = createMockDb()
+
 export const databaseMock = {
-  db: createMockDb(),
+  db: mockDbInstance,
+  /** Same instance as `db` so per-test overrides cover both clients. */
+  dbReplica: mockDbInstance,
   sql: createMockSql(),
   ...createMockSqlOperators(),
 }

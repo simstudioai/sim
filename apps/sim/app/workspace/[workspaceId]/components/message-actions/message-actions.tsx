@@ -17,6 +17,7 @@ import {
   toast,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
@@ -49,7 +50,6 @@ const BUTTON_CLASS =
 
 interface MessageActionsProps {
   content: string
-  chatId?: string
   userQuery?: string
   requestId?: string
   messageId?: string
@@ -57,13 +57,13 @@ interface MessageActionsProps {
 
 export const MessageActions = memo(function MessageActions({
   content,
-  chatId,
   userQuery,
   requestId,
   messageId,
 }: MessageActionsProps) {
   const router = useRouter()
   const params = useParams<{ workspaceId: string }>()
+  const { chatId } = useChatSurface()
   const [copied, setCopied] = useState(false)
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)

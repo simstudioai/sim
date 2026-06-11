@@ -1,0 +1,106 @@
+---
+title: Variables
+description: Define reusable workflow variables referenced with angle brackets and environment variables referenced with double curly braces.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+A **variable** is a value you set yourself and reuse across a workflow. Sim has two kinds. **Workflow variables** hold data during a run, like a counter or a config object, and you reference them with `<variable.name>`. **Environment variables** hold secrets and configuration, like API keys, and you reference them with `{{KEY}}`.
+
+## One syntax, named sources
+
+Everything in angle brackets is the same mechanism: `<name.path>` reads a value by name at run time. The first segment says where the value comes from. **`variable` is literal** — every workflow variable is read through it. A [connection tag](/workflows/connections) starts with the block's own name instead, and inside a container, `loop` and `parallel` are reserved for its context. `{{KEY}}` is the one different syntax, for environment variables.
+
+| Syntax | Reads | Example |
+|--------|-------|---------|
+| `<loop.index>`, `<parallel.index>` | The current [Loop](/workflows/blocks/loop) iteration or [Parallel](/workflows/blocks/parallel) instance, inside that container | `<loop.currentItem>` |
+| `<variable.name>` | A workflow variable | `<variable.counter>` |
+| `{{KEY}}` | An environment variable | `{{OPENAI_API_KEY}}` |
+| `<blockname.field>` | A block's output — a connection tag, not a variable | `<agent.content>` |
+
+The table is in resolution order: when an angle-bracket reference could match more than one source — say a block named `variable` — loop and parallel context win, then workflow variables, then block outputs. (`{{KEY}}` can't collide; it's a different syntax.) If nothing matches, the raw reference is left in place unsubstituted, which usually breaks the block that reads it — so give variables and blocks distinct names.
+
+Type `<` in any block text field to open the picker and browse everything you can reference.
+
+## Workflow variables
+
+Workflow variables are a global store any block can read or update during a run. Open the panel with **⋯ → Variables** in the top-right of the editor. Each variable has a **name**, a **type**, and a **value**.
+
+Reference one anywhere a field accepts input. For an object or array variable, use dot notation to reach a nested value, like `<variable.config.timeout>`. Name matching ignores case and spaces, so a variable named `My Counter` resolves from `<variable.mycounter>` — but a name can't contain a period: everything after the first dot is read as a path into the value, so `<variable.config.timeout>` always means the `timeout` field of `config`, never a variable named `config.timeout`. Consistent names like `camelCase` are the clearest.
+
+### Types
+
+<Tabs items={['Plain', 'Number', 'Boolean', 'Object', 'Array']}>
+  <Tab>
+    ```
+    "Hello, World!"
+    ```
+    Text, for messages, names, and other strings.
+  </Tab>
+  <Tab>
+    ```
+    42
+    ```
+    A numeric value for calculations or comparisons.
+  </Tab>
+  <Tab>
+    ```
+    true
+    ```
+    A `true`/`false` flag.
+  </Tab>
+  <Tab>
+    ```json
+    { "name": "John", "age": 30 }
+    ```
+    Structured data with named fields, reached with dot notation.
+  </Tab>
+  <Tab>
+    ```json
+    [1, 2, 3, "four", "five"]
+    ```
+    An ordered list of values.
+  </Tab>
+</Tabs>
+
+### Scope
+
+Workflow variables are global: every block in the workflow can read and modify them. Use the [Variables block](/workflows/blocks/variables) to update a value mid-run.
+
+Each run starts fresh from the values defined in the panel. A change made during a run is visible to later blocks in that same run, but it never alters the saved initial value for future runs.
+
+## Environment variables
+
+Environment variables store sensitive values like API keys, tokens, and configuration that should never appear in logs or on the canvas. Create them under **Settings → Secrets** by adding a key-value pair.
+
+Reference them with double curly braces in any block field, including Agent system prompts and Function block code. The value is substituted before the block runs, and API keys are redacted in logs.
+
+```
+{{API_KEY}}
+```
+
+<Callout type="info">
+  Environment variable names must start with a letter or underscore and contain only letters, numbers, and underscores, like `MY_API_KEY`.
+</Callout>
+
+### Personal vs. workspace
+
+| Scope | Visible to | Use for |
+|-------|-----------|---------|
+| **Workspace** | All workspace members, including external members | Shared API keys, team configuration |
+| **Personal** | Only you | Your personal tokens, dev credentials |
+
+When a workspace and a personal variable share a key, the workspace value wins.
+
+Use an environment variable for a raw API key or config value. When a service needs OAuth or managed token refresh (Slack, GitHub, Google), use a [credential](/platform/credentials) instead, selected from a dropdown in the block's config.
+
+## Next
+
+<Cards>
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="Block outputs and connection tags." />
+  <Card title="Variables block" href="/workflows/blocks/variables" description="Update a variable mid-run." />
+  <Card title="Secrets" href="/platform/credentials" description="Manage environment variables and credentials." />
+</Cards>
