@@ -4228,7 +4228,7 @@ const WorkflowContent = React.memo(
             {!embedded && (
               <div className='absolute top-[7px] left-[7px] z-10 flex items-center gap-1'>
                 <SidebarToggle />
-                <ChatSwitcher />
+                <ChatSwitcher iconOnly />
               </div>
             )}
           </div>

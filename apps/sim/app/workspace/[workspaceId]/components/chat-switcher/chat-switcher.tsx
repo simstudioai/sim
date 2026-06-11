@@ -7,6 +7,7 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  Tooltip,
 } from '@/components/emcn'
 import { ChevronDown, MessageCircle } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -28,6 +29,11 @@ interface ChatSwitcherProps {
    */
   isNewChat?: boolean
   /**
+   * Compact icon-only chip for non-chat pages, where the page title owns the
+   * bar — a chat name beside it would read as a breadcrumb segment.
+   */
+  iconOnly?: boolean
+  /**
    * Called with the picked chat id before navigation. The chat view uses this
    * to reopen a hidden chat pane (including re-picking the current chat).
    */
@@ -39,7 +45,12 @@ interface ChatSwitcherProps {
  * top-left of every page's title bar. Clicking it opens the workspace's chat
  * list inline; selecting a chat navigates to it from anywhere.
  */
-export function ChatSwitcher({ chatId, isNewChat = false, onSelectChat }: ChatSwitcherProps) {
+export function ChatSwitcher({
+  chatId,
+  isNewChat = false,
+  iconOnly = false,
+  onSelectChat,
+}: ChatSwitcherProps) {
   const isHidden = useSidebarToggleHidden()
   const { workspaceId } = useParams<{ workspaceId?: string }>()
   const router = useRouter()
@@ -70,25 +81,54 @@ export function ChatSwitcher({ chatId, isNewChat = false, onSelectChat }: ChatSw
     router.push(`/workspace/${workspaceId}/chat/${selectedChatId}`)
   }
 
+  const trigger = iconOnly ? (
+    <button
+      type='button'
+      aria-label='All Chats'
+      onClick={() => setOpen((prev) => !prev)}
+      className={cn(
+        'flex h-[30px] flex-shrink-0 items-center gap-1 rounded-lg px-1.5 transition-colors',
+        'hover-hover:bg-[var(--surface-active)]',
+        open && 'bg-[var(--surface-active)]'
+      )}
+    >
+      <MessageCircle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+    </button>
+  ) : (
+    <button
+      type='button'
+      aria-label='Switch chat'
+      onClick={() => setOpen((prev) => !prev)}
+      className={cn(
+        'flex h-[30px] min-w-0 items-center gap-1.5 rounded-lg px-2 transition-colors',
+        'hover-hover:bg-[var(--surface-active)]',
+        open && 'bg-[var(--surface-active)]'
+      )}
+    >
+      <MessageCircle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+        {title}
+      </span>
+      <ChevronDown className='ml-0.5 h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+    </button>
+  )
+
   return (
     <Popover size='md' open={open} onOpenChange={setOpen}>
       <PopoverAnchor asChild>
-        <button
-          type='button'
-          aria-label='Switch chat'
-          onClick={() => setOpen((prev) => !prev)}
-          className={cn(
-            'flex h-[30px] min-w-0 items-center gap-1.5 rounded-lg px-2 transition-colors',
-            'hover-hover:bg-[var(--surface-active)]',
-            open && 'bg-[var(--surface-active)]'
-          )}
-        >
-          <MessageCircle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-            {title}
+        {iconOnly ? (
+          <span className='flex flex-shrink-0'>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>{trigger}</Tooltip.Trigger>
+              <Tooltip.Content side='bottom'>
+                <p>All Chats</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
           </span>
-          <ChevronDown className='ml-0.5 h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
-        </button>
+        ) : (
+          trigger
+        )}
       </PopoverAnchor>
       {/* Mirrors the sidebar flyout's anchor rhythm: the chip sits at y 7..37 in
           the 44px bar, so offset 13 lands the panel 6px below the bar, and the

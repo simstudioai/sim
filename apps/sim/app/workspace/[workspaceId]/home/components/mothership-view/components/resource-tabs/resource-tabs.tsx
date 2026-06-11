@@ -5,19 +5,27 @@ import {
   type ReactNode,
   type SetStateAction,
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import { Button, chipVariants, Tooltip } from '@/components/emcn'
-import { Columns3, Eye, Pencil, X } from '@/components/emcn/icons'
+import {
+  Button,
+  chipVariants,
+  POPOVER_ANIMATION_CLASSES,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  Tooltip,
+} from '@/components/emcn'
+import { ChevronDown, Columns3, Eye, Pencil, X } from '@/components/emcn/icons'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import { ResourcePanelToggle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-panel-toggle'
+import { ResourceSwitcherList } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-switcher-list'
 import {
   RESOURCE_TAB_GAP_CLASS,
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -33,8 +41,8 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
-const EDGE_ZONE = 40
-const SCROLL_SPEED = 8
+/** Inactive tabs shown inline before the rest collapse into the +N chip. */
+const MAX_INLINE_INACTIVE_TABS = 5
 
 const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
 
@@ -63,10 +71,10 @@ function findNearestId(
  * snapshotted it.
  */
 function buildMultiDragImage(
-  scrollNode: HTMLElement | null,
+  stripNode: HTMLElement | null,
   selected: MothershipResource[]
 ): HTMLElement | null {
-  if (!scrollNode || selected.length === 0) return null
+  if (!stripNode || selected.length === 0) return null
   const container = document.createElement('div')
   Object.assign(container.style, {
     position: 'fixed',
@@ -80,7 +88,7 @@ function buildMultiDragImage(
   } satisfies Partial<CSSStyleDeclaration>)
   let appendedAny = false
   for (const r of selected) {
-    const original = scrollNode.querySelector<HTMLElement>(
+    const original = stripNode.querySelector<HTMLElement>(
       `[data-resource-tab-id="${CSS.escape(r.id)}"]`
     )
     if (!original) continue
@@ -131,14 +139,13 @@ function useResourceNameLookup(workspaceId: string): Map<string, string> {
 interface ResourceTabItemProps {
   resource: MothershipResource
   idx: number
-  isActive: boolean
   isHovered: boolean
   isDragging: boolean
   isSelected: boolean
   showGapBefore: boolean
   showGapAfter: boolean
   displayName: string
-  /** Provenance dot — the active chat surfaced/touched this artifact. */
+  /** The artifact changed while this tab wasn't focused. */
   showDot: boolean
   onDragStart: (e: React.DragEvent, idx: number) => void
   onDragOver: (e: React.DragEvent, idx: number) => void
@@ -149,10 +156,14 @@ interface ResourceTabItemProps {
   onRemove: (e: React.SyntheticEvent, resource: MothershipResource) => void
 }
 
+/**
+ * A compressed, inactive tab: icon-first with a truncating label so the strip
+ * squeezes browser-style instead of scroll-clipping. The active resource never
+ * renders here — it gets the spotlight title chip.
+ */
 const ResourceTabItem = memo(function ResourceTabItem({
   resource,
   idx,
-  isActive,
   isHovered,
   isDragging,
   isSelected,
@@ -170,7 +181,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
 }: ResourceTabItemProps) {
   const config = getResourceConfig(resource.type)
   return (
-    <div className='relative flex shrink-0 items-center'>
+    <div className='relative flex min-w-0 shrink items-center'>
       {showGapBefore && (
         <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
       )}
@@ -192,21 +203,21 @@ const ResourceTabItem = memo(function ResourceTabItem({
         onMouseEnter={() => setHoveredTabId(resource.id)}
         onMouseLeave={() => setHoveredTabId(null)}
         className={cn(
-          chipVariants({ variant: 'ghost', active: isActive, flush: true }),
-          'relative shrink-0 pr-[24px] text-[var(--text-body)]',
-          isSelected && !isActive && 'bg-[var(--surface-active)]',
+          chipVariants({ variant: 'ghost', flush: true }),
+          'relative min-w-[36px] max-w-[124px] shrink pr-[20px] text-[var(--text-body)]',
+          isSelected && 'bg-[var(--surface-active)]',
           isDragging && 'opacity-30'
         )}
       >
         {config.renderTabIcon(resource, 'size-[16px] shrink-0')}
-        <span className='truncate'>{displayName}</span>
-        {showDot && !(isHovered || isActive) && (
+        <span className='min-w-0 truncate'>{displayName}</span>
+        {showDot && !isHovered && (
           <span
             aria-hidden='true'
-            className='-translate-y-1/2 absolute top-1/2 right-[10px] size-[5px] rounded-full bg-[var(--brand-accent)]'
+            className='-translate-y-1/2 absolute top-1/2 right-[8px] size-[5px] rounded-full bg-[var(--brand-accent)]'
           />
         )}
-        {(isHovered || isActive) && (
+        {isHovered && (
           <span
             role='button'
             tabIndex={-1}
@@ -214,7 +225,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
             onKeyDown={(e) => {
               if (e.key === 'Enter') onRemove(e, resource)
             }}
-            className='-translate-y-1/2 absolute top-1/2 right-[5px] flex items-center justify-center rounded-sm p-[2px] hover-hover:bg-[var(--surface-6)]'
+            className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[2px] hover-hover:bg-[var(--surface-6)]'
             aria-label={`Close ${displayName}`}
           >
             <X strokeWidth={2.5} className='size-[10px] text-[var(--text-icon)]' />
@@ -246,10 +257,15 @@ interface ResourceTabsProps {
    */
   leading?: ReactNode
   /**
-   * `type:id` keys of the artifacts the active chat has surfaced — matching
-   * tabs render a provenance dot.
+   * `type:id` keys of the artifacts the active chat has surfaced — used to
+   * group the switcher dropdown by provenance.
    */
   chatArtifactKeys?: ReadonlySet<string>
+  /**
+   * `type:id` keys of tabs whose artifact changed while unfocused — these
+   * carry the update dot.
+   */
+  updatedTabKeys?: ReadonlySet<string>
 }
 
 export function ResourceTabs({
@@ -266,53 +282,18 @@ export function ResourceTabs({
   actions,
   leading,
   chatArtifactKeys,
+  updatedTabKeys,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
-  const scrollNodeRef = useRef<HTMLDivElement>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const node = scrollNodeRef.current
-    if (!node) return
-    const handler = (e: WheelEvent) => {
-      // Follow the dominant axis: trackpad horizontal swipes carry a small
-      // deltaY, so keying off deltaY alone hijacked (and killed) native
-      // horizontal panning. Vertical wheels still translate to horizontal.
-      const dominant = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
-      if (dominant === 0) return
-      node.scrollLeft += dominant
-      e.preventDefault()
-    }
-    node.addEventListener('wheel', handler, { passive: false })
-    return () => node.removeEventListener('wheel', handler)
-  }, [])
-
-  useEffect(() => {
-    const node = scrollNodeRef.current
-    if (!node || !activeId) return
-    const tab = node.querySelector<HTMLElement>(`[data-resource-tab-id="${CSS.escape(activeId)}"]`)
-    if (!tab) return
-    // Use bounding rects because the tab's offsetParent is a `position: relative`
-    // wrapper, so `offsetLeft` is relative to that wrapper rather than `node`.
-    const tabRect = tab.getBoundingClientRect()
-    const nodeRect = node.getBoundingClientRect()
-    const tabLeft = tabRect.left - nodeRect.left + node.scrollLeft
-    const tabRight = tabLeft + tabRect.width
-    const viewLeft = node.scrollLeft
-    const viewRight = viewLeft + node.clientWidth
-    if (tabLeft < viewLeft) {
-      node.scrollTo({ left: tabLeft, behavior: 'smooth' })
-    } else if (tabRight > viewRight) {
-      node.scrollTo({ left: tabRight - node.clientWidth, behavior: 'smooth' })
-    }
-  }, [activeId])
-
+  const [switcherOpen, setSwitcherOpen] = useState(false)
   const [hoveredTabId, setHoveredTabId] = useState<string | null>(null)
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
   const [dropGapIdx, setDropGapIdx] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const dragStartIdx = useRef<number | null>(null)
-  const autoScrollRaf = useRef<number | null>(null)
   const anchorIdRef = useRef<string | null>(null)
   const prevChatIdRef = useRef(chatId)
 
@@ -323,6 +304,40 @@ export function ResourceTabs({
     setSelectedIds(new Set())
     anchorIdRef.current = null
   }
+
+  // Spotlight layout: the active resource renders as the title chip; the rest
+  // compress inline up to a cap, with the tail collapsing into the +N chip.
+  const activeResource = useMemo(
+    () => resources.find((r) => r.id === activeId) ?? resources[0] ?? null,
+    [resources, activeId]
+  )
+  const inactiveTabs = useMemo(
+    () => resources.filter((r) => r !== activeResource),
+    [resources, activeResource]
+  )
+  const inlineTabs = inactiveTabs.slice(0, MAX_INLINE_INACTIVE_TABS)
+  const overflowTabs = inactiveTabs.slice(MAX_INLINE_INACTIVE_TABS)
+
+  const resolveName = useCallback(
+    (resource: MothershipResource) =>
+      nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title,
+    [nameLookup]
+  )
+
+  const switcherItems = useMemo(
+    () =>
+      resources.map((resource) => {
+        const key = `${resource.type}:${resource.id}`
+        return {
+          resource,
+          name: resolveName(resource),
+          isActive: resource === activeResource,
+          isChatArtifact: chatArtifactKeys?.has(key) ?? false,
+          isUpdated: updatedTabKeys?.has(key) ?? false,
+        }
+      }),
+    [resources, activeResource, resolveName, chatArtifactKeys, updatedTabKeys]
+  )
 
   const existingKeys = useMemo(
     () => new Set(resources.map((r) => `${r.type}:${r.id}`)),
@@ -336,21 +351,35 @@ export function ResourceTabs({
     [onAddResource]
   )
 
+  const handleSwitcherSelect = useCallback(
+    (id: string) => {
+      setSwitcherOpen(false)
+      onSelect(id)
+    },
+    [onSelect]
+  )
+
+  const handleSwitcherClose = useCallback(
+    (resource: MothershipResource) => {
+      onRemoveResource(resource.type, resource.id)
+    },
+    [onRemoveResource]
+  )
+
   const handleTabClick = useCallback(
     (e: React.MouseEvent, idx: number) => {
-      const resource = resources[idx]
+      const resource = inactiveTabs[idx]
       if (!resource) return
 
-      // Shift+click: contiguous range from anchor
+      // Shift+click: contiguous range from anchor (within the inactive strip)
       if (e.shiftKey) {
-        // Fall back to activeId when no explicit anchor exists (e.g. tab opened via sidebar)
-        const anchorId = anchorIdRef.current ?? activeId
-        const anchorIdx = anchorId ? resources.findIndex((r) => r.id === anchorId) : -1
+        const anchorId = anchorIdRef.current
+        const anchorIdx = anchorId ? inactiveTabs.findIndex((r) => r.id === anchorId) : -1
         if (anchorIdx !== -1) {
           const start = Math.min(anchorIdx, idx)
           const end = Math.max(anchorIdx, idx)
           const next = new Set<string>()
-          for (let i = start; i <= end; i++) next.add(resources[i].id)
+          for (let i = start; i <= end; i++) next.add(inactiveTabs[i].id)
           setSelectedIds(next)
           onSelect(resource.id)
           return
@@ -364,10 +393,9 @@ export function ResourceTabs({
           const next = new Set(selectedIds)
           next.delete(resource.id)
           setSelectedIds(next)
-          // Only switch active if we just deselected the currently-active tab
           if (activeId === resource.id) {
             const fallback =
-              findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
+              findNearestId(inactiveTabs, idx, next) ?? findNearestId(inactiveTabs, idx, null)
             if (fallback) onSelect(fallback)
           }
         } else {
@@ -383,7 +411,7 @@ export function ResourceTabs({
       setSelectedIds(new Set([resource.id]))
       onSelect(resource.id)
     },
-    [resources, onSelect, selectedIds, activeId]
+    [inactiveTabs, onSelect, selectedIds, activeId]
   )
 
   const handleRemove = useCallback(
@@ -410,16 +438,32 @@ export function ResourceTabs({
     [onRemoveResource, resources, selectedIds]
   )
 
+  const handleActiveDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (!activeResource) return
+      e.dataTransfer.effectAllowed = 'copy'
+      e.dataTransfer.setData(
+        SIM_RESOURCE_DRAG_TYPE,
+        JSON.stringify({
+          type: activeResource.type,
+          id: activeResource.id,
+          title: activeResource.title,
+        })
+      )
+    },
+    [activeResource]
+  )
+
   const handleDragStart = useCallback(
     (e: React.DragEvent, idx: number) => {
-      const resource = resources[idx]
+      const resource = inactiveTabs[idx]
       if (!resource) return
-      const selected = resources.filter((r) => selectedIds.has(r.id))
+      const selected = inactiveTabs.filter((r) => selectedIds.has(r.id))
       const isMultiDrag = selected.length > 1 && selectedIds.has(resource.id)
       if (isMultiDrag) {
         e.dataTransfer.effectAllowed = 'copy'
         e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(selected))
-        const dragImage = buildMultiDragImage(scrollNodeRef.current, selected)
+        const dragImage = buildMultiDragImage(stripRef.current, selected)
         if (dragImage) {
           e.dataTransfer.setDragImage(dragImage, 16, 16)
           setTimeout(() => dragImage.remove(), 0)
@@ -438,95 +482,52 @@ export function ResourceTabs({
         JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
       )
     },
-    [resources, selectedIds]
+    [inactiveTabs, selectedIds]
   )
 
-  const stopAutoScroll = useCallback(() => {
-    if (autoScrollRaf.current) {
-      cancelAnimationFrame(autoScrollRaf.current)
-      autoScrollRaf.current = null
-    }
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const rect = e.currentTarget.getBoundingClientRect()
+    const midpoint = rect.left + rect.width / 2
+    const gap = e.clientX < midpoint ? idx : idx + 1
+    setDropGapIdx(gap)
   }, [])
-
-  const startEdgeScroll = useCallback(
-    (clientX: number) => {
-      const container = scrollNodeRef.current
-      if (!container) return
-      const cRect = container.getBoundingClientRect()
-      if (autoScrollRaf.current) cancelAnimationFrame(autoScrollRaf.current)
-      if (clientX < cRect.left + EDGE_ZONE) {
-        const tick = () => {
-          container.scrollLeft -= SCROLL_SPEED
-          autoScrollRaf.current = requestAnimationFrame(tick)
-        }
-        autoScrollRaf.current = requestAnimationFrame(tick)
-      } else if (clientX > cRect.right - EDGE_ZONE) {
-        const tick = () => {
-          container.scrollLeft += SCROLL_SPEED
-          autoScrollRaf.current = requestAnimationFrame(tick)
-        }
-        autoScrollRaf.current = requestAnimationFrame(tick)
-      } else {
-        stopAutoScroll()
-      }
-    },
-    [stopAutoScroll]
-  )
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent, idx: number) => {
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-      const rect = e.currentTarget.getBoundingClientRect()
-      const midpoint = rect.left + rect.width / 2
-      const gap = e.clientX < midpoint ? idx : idx + 1
-      setDropGapIdx(gap)
-      startEdgeScroll(e.clientX)
-    },
-    [startEdgeScroll]
-  )
 
   const handleDragLeave = useCallback(() => {
     setDropGapIdx(null)
-    stopAutoScroll()
-  }, [stopAutoScroll])
+  }, [])
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
-      stopAutoScroll()
       const fromIdx = dragStartIdx.current
       const gapIdx = dropGapIdx
-      if (fromIdx === null || gapIdx === null) {
-        setDraggedIdx(null)
-        setDropGapIdx(null)
-        dragStartIdx.current = null
-        return
-      }
-      const insertAt = gapIdx > fromIdx ? gapIdx - 1 : gapIdx
-      if (insertAt === fromIdx) {
-        setDraggedIdx(null)
-        setDropGapIdx(null)
-        dragStartIdx.current = null
-        return
-      }
-      const reordered = [...resources]
-      const [moved] = reordered.splice(fromIdx, 1)
-      reordered.splice(insertAt, 0, moved)
-      onReorderResources(reordered)
       setDraggedIdx(null)
       setDropGapIdx(null)
       dragStartIdx.current = null
+      if (fromIdx === null || gapIdx === null) return
+      const insertAt = gapIdx > fromIdx ? gapIdx - 1 : gapIdx
+      if (insertAt === fromIdx) return
+      const reorderedInline = [...inlineTabs]
+      const [moved] = reorderedInline.splice(fromIdx, 1)
+      reorderedInline.splice(insertAt, 0, moved)
+      // The strip's visual order is [active, inline..., overflow...] — persist
+      // exactly that so the view and store never disagree.
+      onReorderResources([
+        ...(activeResource ? [activeResource] : []),
+        ...reorderedInline,
+        ...overflowTabs,
+      ])
     },
-    [resources, onReorderResources, dropGapIdx, stopAutoScroll]
+    [inlineTabs, overflowTabs, activeResource, onReorderResources, dropGapIdx]
   )
 
   const handleDragEnd = useCallback(() => {
-    stopAutoScroll()
     setDraggedIdx(null)
     setDropGapIdx(null)
     dragStartIdx.current = null
-  }, [stopAutoScroll])
+  }, [])
 
   return (
     <div
@@ -536,69 +537,107 @@ export function ResourceTabs({
       )}
     >
       {leading}
-      {/* Without leading controls, the tab strip starts at the bar's left edge —
-          pull it out 9px so the first tab pill sits 7px from the edge, matching
+      {/* Without leading controls, the strip starts at the bar's left edge —
+          pull it out 9px so the title chip sits 7px from the edge, matching
           the edge icon buttons' equal-distance rhythm. */}
       <div
+        ref={stripRef}
         className={cn(
           'flex min-w-0 flex-1 items-center',
           RESOURCE_TAB_GAP_CLASS,
           !leading && '-ml-[9px]'
         )}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
       >
-        <div
-          ref={scrollNodeRef}
-          className={cn(
-            'flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-            RESOURCE_TAB_GAP_CLASS
-          )}
-          onDragOver={(e) => {
-            e.preventDefault()
-            startEdgeScroll(e.clientX)
-          }}
-          onDrop={handleDrop}
-        >
-          {resources.map((resource, idx) => {
-            const displayName = nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title
-            const isActive = activeId === resource.id
-            const isHovered = hoveredTabId === resource.id
-            const isDragging = draggedIdx === idx
-            const isSelected = selectedIds.has(resource.id) && selectedIds.size > 1
-            const showGapBefore =
+        {activeResource && (
+          <Popover size='md' open={switcherOpen} onOpenChange={setSwitcherOpen}>
+            <PopoverAnchor asChild>
+              <button
+                type='button'
+                draggable
+                data-resource-tab-id={activeResource.id}
+                onDragStart={handleActiveDragStart}
+                onClick={() => setSwitcherOpen((prev) => !prev)}
+                aria-label='Switch resource'
+                className={cn(
+                  chipVariants({ variant: 'ghost', active: true, flush: true }),
+                  'min-w-0 shrink-0 text-[var(--text-body)]'
+                )}
+              >
+                {getResourceConfig(activeResource.type).renderTabIcon(
+                  activeResource,
+                  'size-[16px] shrink-0'
+                )}
+                <span className='max-w-[220px] truncate font-medium text-[var(--text-primary)]'>
+                  {resolveName(activeResource)}
+                </span>
+                <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+              </button>
+            </PopoverAnchor>
+            {/* Anchored 6px below the 44px bar, matching the chat switcher. */}
+            <PopoverContent
+              side='bottom'
+              align='start'
+              sideOffset={13}
+              minWidth={240}
+              maxWidth={320}
+              border
+              className={cn(POPOVER_ANIMATION_CLASSES, 'bg-[var(--bg)] p-0 dark:bg-[var(--bg)]')}
+            >
+              <ResourceSwitcherList
+                items={switcherItems}
+                onSelect={handleSwitcherSelect}
+                onClose={handleSwitcherClose}
+              />
+            </PopoverContent>
+          </Popover>
+        )}
+        {inlineTabs.map((resource, idx) => (
+          <ResourceTabItem
+            key={resource.id}
+            resource={resource}
+            idx={idx}
+            isHovered={hoveredTabId === resource.id}
+            isDragging={draggedIdx === idx}
+            isSelected={selectedIds.has(resource.id) && selectedIds.size > 1}
+            showGapBefore={
               dropGapIdx === idx &&
               draggedIdx !== null &&
               draggedIdx !== idx &&
               draggedIdx !== idx - 1
-            const showGapAfter =
-              idx === resources.length - 1 &&
-              dropGapIdx === resources.length &&
+            }
+            showGapAfter={
+              idx === inlineTabs.length - 1 &&
+              dropGapIdx === inlineTabs.length &&
               draggedIdx !== null &&
               draggedIdx !== idx
-
-            return (
-              <ResourceTabItem
-                key={resource.id}
-                resource={resource}
-                idx={idx}
-                isActive={isActive}
-                isHovered={isHovered}
-                isDragging={isDragging}
-                isSelected={isSelected}
-                showGapBefore={showGapBefore}
-                showGapAfter={showGapAfter}
-                displayName={displayName}
-                showDot={chatArtifactKeys?.has(`${resource.type}:${resource.id}`) ?? false}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDragEnd={handleDragEnd}
-                onTabClick={handleTabClick}
-                setHoveredTabId={setHoveredTabId}
-                onRemove={handleRemove}
-              />
-            )
-          })}
-        </div>
+            }
+            displayName={resolveName(resource)}
+            showDot={updatedTabKeys?.has(`${resource.type}:${resource.id}`) ?? false}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDragEnd={handleDragEnd}
+            onTabClick={handleTabClick}
+            setHoveredTabId={setHoveredTabId}
+            onRemove={handleRemove}
+          />
+        ))}
+        {overflowTabs.length > 0 && (
+          <button
+            type='button'
+            onClick={() => setSwitcherOpen(true)}
+            aria-label={`${overflowTabs.length} more tabs`}
+            className={cn(
+              chipVariants({ variant: 'ghost', flush: true }),
+              'shrink-0 text-[var(--text-muted)]'
+            )}
+          >
+            +{overflowTabs.length}
+            <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+          </button>
+        )}
         {chatId && (
           <AddResourceDropdown
             workspaceId={workspaceId}
