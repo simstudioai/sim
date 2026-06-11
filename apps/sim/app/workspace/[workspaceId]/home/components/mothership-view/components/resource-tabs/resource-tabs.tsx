@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type SetStateAction,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -41,8 +42,18 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
-/** Inactive tabs shown inline before the rest collapse into the +N chip. */
-const MAX_INLINE_INACTIVE_TABS = 5
+/**
+ * Width budget for one compressed inactive tab (icon + a few readable chars).
+ * Tabs flex between their min/max around this estimate; capacity planning uses
+ * it to decide how many fit before the tail collapses into the +N chip.
+ */
+const TAB_SLOT_WIDTH = 84
+/** Reserved width for the +N overflow chip when it renders. */
+const OVERFLOW_CHIP_WIDTH = 56
+/** Reserved width for the add-resource (+) button. */
+const ADD_BUTTON_WIDTH = 30
+/** Gap between strip items (gap-1.5). */
+const STRIP_GAP = 6
 
 const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
 
@@ -286,7 +297,16 @@ export function ResourceTabs({
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
-  const stripRef = useRef<HTMLDivElement>(null)
+  // Callback ref held in state so the capacity effect re-runs exactly when
+  // the strip node attaches — a plain ref can be null on the effect's first
+  // pass (hydration/transition commits), which would leave no observer behind
+  // and freeze capacity at zero.
+  const stripRef = useRef<HTMLDivElement | null>(null)
+  const [stripNode, setStripNode] = useState<HTMLDivElement | null>(null)
+  const attachStrip = useCallback((node: HTMLDivElement | null) => {
+    stripRef.current = node
+    setStripNode(node)
+  }, [])
 
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const [hoveredTabId, setHoveredTabId] = useState<string | null>(null)
@@ -306,7 +326,8 @@ export function ResourceTabs({
   }
 
   // Spotlight layout: the active resource renders as the title chip; the rest
-  // compress inline up to a cap, with the tail collapsing into the +N chip.
+  // compress inline as long as they genuinely fit, with only the true
+  // remainder collapsing into the +N chip.
   const activeResource = useMemo(
     () => resources.find((r) => r.id === activeId) ?? resources[0] ?? null,
     [resources, activeId]
@@ -315,8 +336,50 @@ export function ResourceTabs({
     () => resources.filter((r) => r !== activeResource),
     [resources, activeResource]
   )
-  const inlineTabs = inactiveTabs.slice(0, MAX_INLINE_INACTIVE_TABS)
-  const overflowTabs = inactiveTabs.slice(MAX_INLINE_INACTIVE_TABS)
+
+  // Width-aware capacity: measure the strip and the (name-dependent) title
+  // chip, then fit whole tab slots into what's left. The inline tab renders
+  // don't affect either measured node, so there's no layout feedback loop.
+  const activeChipRef = useRef<HTMLButtonElement>(null)
+  // Permissive until the first trustworthy measurement: all tabs inline (the
+  // panel's overflow-hidden clips any excess during the expand animation).
+  const [inlineCapacity, setInlineCapacity] = useState(Number.MAX_SAFE_INTEGER)
+  const inactiveCount = inactiveTabs.length
+  useEffect(() => {
+    if (!stripNode) return
+    const compute = () => {
+      // Zero width means the strip isn't laid out yet (panel collapsed or
+      // mid-animation) — keep the previous capacity rather than trusting it.
+      if (stripNode.clientWidth === 0) return
+      const activeWidth = activeChipRef.current ? activeChipRef.current.offsetWidth + STRIP_GAP : 0
+      const addWidth = chatId ? ADD_BUTTON_WIDTH + STRIP_GAP : 0
+      const available = stripNode.clientWidth - activeWidth - addWidth
+      const fitsAll = Math.floor((available + STRIP_GAP) / (TAB_SLOT_WIDTH + STRIP_GAP))
+      if (fitsAll >= inactiveCount) {
+        setInlineCapacity(inactiveCount)
+        return
+      }
+      const withOverflowChip = available - (OVERFLOW_CHIP_WIDTH + STRIP_GAP)
+      setInlineCapacity(
+        Math.max(0, Math.floor((withOverflowChip + STRIP_GAP) / (TAB_SLOT_WIDTH + STRIP_GAP)))
+      )
+    }
+    compute()
+    // The strip resizes with every panel/sidebar/window change, so observing
+    // it covers all reflow sources; the window listener is a fallback for the
+    // first paint after the expand animation.
+    const observer = new ResizeObserver(compute)
+    observer.observe(stripNode)
+    if (activeChipRef.current) observer.observe(activeChipRef.current)
+    window.addEventListener('resize', compute)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', compute)
+    }
+  }, [stripNode, inactiveCount, chatId, activeResource])
+
+  const inlineTabs = inactiveTabs.slice(0, inlineCapacity)
+  const overflowTabs = inactiveTabs.slice(inlineCapacity)
 
   const resolveName = useCallback(
     (resource: MothershipResource) =>
@@ -541,7 +604,7 @@ export function ResourceTabs({
           pull it out 9px so the title chip sits 7px from the edge, matching
           the edge icon buttons' equal-distance rhythm. */}
       <div
-        ref={stripRef}
+        ref={attachStrip}
         className={cn(
           'flex min-w-0 flex-1 items-center',
           RESOURCE_TAB_GAP_CLASS,
@@ -554,6 +617,7 @@ export function ResourceTabs({
           <Popover size='md' open={switcherOpen} onOpenChange={setSwitcherOpen}>
             <PopoverAnchor asChild>
               <button
+                ref={activeChipRef}
                 type='button'
                 draggable
                 data-resource-tab-id={activeResource.id}
