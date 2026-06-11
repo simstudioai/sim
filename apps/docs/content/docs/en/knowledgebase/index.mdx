@@ -42,10 +42,26 @@ To keep a base in sync with an outside source like Google Drive, use a [connecto
 
 You can also build and query a knowledge base by asking Sim in [Chat](/chat): create one, add documents to it, and ask questions against its content in plain language.
 
-<TryInChat prompts={[
-  "Create a knowledge base from these PDFs (attach the files)",
-  "Add the pricing docs folder to the support knowledge base",
-  "What does our refund policy say about annual plans?",
+<TryInChat title="Try in Chat — creating" prompts={[
+  "Set up a knowledge base for our support team — call it 'Support KB'",
+  "Create a knowledge base from our sales playbook and attach it to the outbound agent workflow",
+]} />
+
+<TryInChat title="Try in Chat — adding documents" prompts={[
+  "Add this PDF to the Product Docs knowledge base (attach the file)",
+  "Fetch the page at [URL] and add it to the competitive intelligence knowledge base",
+  "Add these three uploaded case studies to the customer success knowledge base",
+]} />
+
+<TryInChat title="Try in Chat — querying" prompts={[
+  "What does the Product Docs knowledge base say about our refund policy?",
+  "Search the Support KB for anything related to SSO setup errors",
+  "Find everything in the competitive intelligence knowledge base about [competitor]'s pricing",
+]} />
+
+<TryInChat title="Try in Chat — managing" prompts={[
+  "How many documents are in the Support KB?",
+  "Remove the outdated pricing doc from the Product Docs knowledge base",
 ]} />
 
 Sim runs the same indexing and search described on this page, so anything it creates is immediately usable from the [Knowledge block](/knowledgebase/using-in-workflows) in a workflow.

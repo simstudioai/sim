@@ -23,10 +23,33 @@ Use a file when the document or media itself is what matters. Use a [table](/tab
 
 You can also work with files by asking Sim in [Chat](/chat): upload a document and ask questions about it, create or edit one, or generate a new document, presentation, or image from a description.
 
-<TryInChat prompts={[
-  "Turn these notes into a one-page brief (attach the file)",
-  "Generate a slide deck summarizing Q2 pipeline from the deals table",
+<TryInChat title="Try in Chat — documents" prompts={[
+  "Write a technical spec for the new auth system as a markdown file",
+  "Draft a postmortem for the outage last Tuesday and save it as a markdown file",
+  "Create a CSV of our test accounts with columns for name, email, and plan tier",
+]} />
+
+<TryInChat title="Try in Chat — editing" prompts={[
   "Edit proposal.md — make the pricing section match the new tiers",
+  "Add a section on error handling to this spec",
+  "Rewrite the introduction of this report to be more concise",
+]} />
+
+<TryInChat title="Try in Chat — presentations" prompts={[
+  "Create a pitch deck for Q3 review — 8 slides covering growth, retention, and roadmap",
+  "Turn this research report into a 10-slide presentation",
+  "Build a battle card deck for our top 3 competitors — one slide each covering positioning, pricing, and how we win",
+]} />
+
+<TryInChat title="Try in Chat — images" prompts={[
+  "Generate a banner image for the new feature announcement — dark background, clean typography",
+  "Create a diagram showing the data flow through our webhook pipeline",
+  "Make a social card for the blog post with the title and author name",
+]} />
+
+<TryInChat title="Try in Chat — charts" prompts={[
+  "Plot the workflow run counts from the metrics table as a bar chart grouped by week",
+  "Generate a pie chart showing the distribution of lead sources from the leads table",
 ]} />
 
 Files Sim creates land in your workspace [Files](/files), the same as an upload, ready for workflows or download.

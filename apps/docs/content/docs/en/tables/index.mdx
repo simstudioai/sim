@@ -41,14 +41,31 @@ A [Table block](/tables/using-in-workflows) reads and writes rows from inside a 
 
 Everything on this page can be done by asking Sim in [Chat](/chat): create a table from a description or a CSV, query it in plain language, add or update rows, and export results.
 
-<TryInChat prompts={[
+<TryInChat title="Try in Chat — creating" prompts={[
   "Create a leads table with columns for name, email, company, status, and created date",
+  "Create a table that matches the structure of this CSV (attach the file)",
+  "Set up an enrichment results table to store output from the lead enrichment workflow: email, company, title, LinkedIn URL, fit score",
+]} />
+
+<TryInChat title="Try in Chat — querying" prompts={[
   "How many rows in the leads table have status 'qualified'?",
+  "Show me all records from the past 7 days where score is above 0.8",
+  "Are there any duplicate emails in the contacts table?",
+  "What's the conversion rate from 'contacted' to 'meeting booked' in the pipeline table this month?",
+]} />
+
+<TryInChat title="Try in Chat — updating" prompts={[
+  "Add a row to the leads table: Acme Corp, jane@acme.com, status pending",
   "Mark all rows in the queue table as processed where created_at is before today",
+  "Update the price column for all rows where tier is 'pro' to 49",
+]} />
+
+<TryInChat title="Try in Chat — exporting" prompts={[
+  "Export the leads table to a CSV",
   "Export all rows where status is 'closed' and save as a file",
 ]} />
 
-Sim translates the request into the same operations described above; tables it creates are immediately available to the [Table block](/integrations/table) in any workflow.
+Sim translates each request into the same operations described above, and can query across tables — describe the relationship and what you want. Tables it creates are immediately available to the [Table block](/integrations/table) in any workflow.
 
 ## Next
 
