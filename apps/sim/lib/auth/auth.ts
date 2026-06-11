@@ -30,7 +30,7 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
-import { getAccessControlConfig, isEmailInDenylist } from '@/lib/auth/access-control'
+import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import {
@@ -224,8 +224,8 @@ export const auth = betterAuth({
       create: {
         before: async (user) => {
           const accessControl = await getAccessControlConfig()
-          if (isEmailInDenylist(user.email, accessControl.blockedSignupDomains)) {
-            throw new Error('Sign-ups from this email domain are not allowed.')
+          if (isEmailBlockedByAccessControl(user.email, accessControl)) {
+            throw new Error('Sign-ups from this email are not allowed.')
           }
           return { data: user }
         },
@@ -582,18 +582,21 @@ export const auth = betterAuth({
     session: {
       create: {
         before: async (session) => {
-          // Blocked-domain accounts must not establish sessions, regardless of
+          // Blocked emails/domains must not establish sessions, regardless of
           // provider (email/password, OAuth, SSO). Deliberately outside the
           // try below — a thrown APIError must propagate, not be swallowed.
           const accessControl = await getAccessControlConfig()
-          if (accessControl.blockedSignupDomains.length > 0) {
+          if (
+            accessControl.blockedSignupDomains.length > 0 ||
+            accessControl.blockedEmails.length > 0
+          ) {
             const [sessionUser] = await db
               .select({ email: schema.user.email })
               .from(schema.user)
               .where(eq(schema.user.id, session.userId))
               .limit(1)
-            if (isEmailInDenylist(sessionUser?.email, accessControl.blockedSignupDomains)) {
-              logger.warn('Blocking session creation for blocked-domain account', {
+            if (isEmailBlockedByAccessControl(sessionUser?.email, accessControl)) {
+              logger.warn('Blocking session creation for blocked account', {
                 userId: session.userId,
               })
               throw new APIError('FORBIDDEN', {
@@ -836,12 +839,12 @@ export const auth = betterAuth({
           }
         }
 
-        // Blocked domains gate both signup and sign-in. OAuth/SSO sign-ins have
-        // no email in the body here; the session.create.before hook covers them.
-        if (isEmailInDenylist(requestEmail, accessControl.blockedSignupDomains)) {
+        // Blocked emails/domains gate both signup and sign-in. OAuth/SSO sign-ins
+        // have no email in the body here; the session.create.before hook covers them.
+        if (isEmailBlockedByAccessControl(requestEmail, accessControl)) {
           throw new APIError('FORBIDDEN', {
             message: isSignUp
-              ? 'Sign-ups from this email domain are not allowed.'
+              ? 'Sign-ups from this email are not allowed.'
               : 'Access restricted. Please contact your administrator.',
           })
         }

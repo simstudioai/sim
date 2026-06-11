@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockWhere, envRef } = vi.hoisted(() => ({
   mockWhere: vi.fn(),
-  envRef: { BLOCKED_SIGNUP_DOMAINS: undefined as string | undefined },
+  envRef: {
+    BLOCKED_SIGNUP_DOMAINS: undefined as string | undefined,
+    BLOCKED_EMAILS: undefined as string | undefined,
+  },
 }))
 
 vi.mock('@sim/db', () => ({
@@ -46,12 +49,18 @@ describe('isEmailBlocked', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     envRef.BLOCKED_SIGNUP_DOMAINS = 'bad.com'
+    envRef.BLOCKED_EMAILS = 'spam@evil.com'
     mockWhere.mockResolvedValue([])
   })
 
   it('returns true for blocked domains and subdomains without querying users', async () => {
     expect(await isEmailBlocked('a@bad.com')).toBe(true)
     expect(await isEmailBlocked('a@mail.bad.com')).toBe(true)
+    expect(mockWhere).not.toHaveBeenCalled()
+  })
+
+  it('returns true for individually blocked emails without querying users', async () => {
+    expect(await isEmailBlocked('spam@evil.com')).toBe(true)
     expect(mockWhere).not.toHaveBeenCalled()
   })
 
@@ -71,6 +80,7 @@ describe('getActivelyBannedUserIds', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     envRef.BLOCKED_SIGNUP_DOMAINS = undefined
+    envRef.BLOCKED_EMAILS = undefined
     mockWhere.mockResolvedValue([])
   })
 
@@ -93,6 +103,15 @@ describe('getActivelyBannedUserIds', () => {
       { id: 'u1', email: 'a@ok.com', banned: true, banExpires: new Date(Date.now() - 1000) },
     ])
     expect(await getActivelyBannedUserIds(['u1'])).toEqual([])
+  })
+
+  it('returns ids whose email is individually blocked', async () => {
+    envRef.BLOCKED_EMAILS = 'spam@evil.com'
+    mockWhere.mockResolvedValue([
+      { id: 'u1', email: 'spam@evil.com', banned: false, banExpires: null },
+      { id: 'u2', email: 'ok@evil.com', banned: false, banExpires: null },
+    ])
+    expect(await getActivelyBannedUserIds(['u1', 'u2'])).toEqual(['u1'])
   })
 
   it('returns ids whose email domain is in the blocked-domains list, including subdomains', async () => {
