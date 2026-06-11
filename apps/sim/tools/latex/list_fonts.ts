@@ -36,11 +36,20 @@ export const latexListFontsTool: ToolConfig<LatexListFontsParams, LatexListFonts
 
   transformResponse: async (response: Response, params?: LatexListFontsParams) => {
     const data = (await response.json()) as {
+      error?: string
       fonts?: Array<{
         family?: string
         name?: string
         styles?: string[]
       }>
+    }
+
+    if (!response.ok || data.error) {
+      return {
+        success: false,
+        error: data.error || `LaTeX font listing failed (${response.status})`,
+        output: { fonts: [], totalMatches: 0 },
+      }
     }
 
     const query = (params?.query ?? '').trim().toLowerCase()

@@ -43,12 +43,21 @@ export const latexSearchPackagesTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: LatexSearchPackagesParams) => {
     const data = (await response.json()) as {
+      error?: string
       packages?: Array<{
         name?: string
         shortdesc?: string
         installed?: boolean
         url_ctan?: string
       }>
+    }
+
+    if (!response.ok || data.error) {
+      return {
+        success: false,
+        error: data.error || `LaTeX package search failed (${response.status})`,
+        output: { packages: [], totalMatches: 0 },
+      }
     }
 
     const query = (params?.query ?? '').trim().toLowerCase()

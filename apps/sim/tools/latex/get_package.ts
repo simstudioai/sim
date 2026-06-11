@@ -27,6 +27,7 @@ export const latexGetPackageTool: ToolConfig<LatexGetPackageParams, LatexGetPack
 
   transformResponse: async (response: Response) => {
     const data = (await response.json()) as {
+      error?: string
       package?: {
         package?: string
         installed?: boolean
@@ -42,10 +43,12 @@ export const latexGetPackageTool: ToolConfig<LatexGetPackageParams, LatexGetPack
     }
 
     const pkg = data.package
-    if (!pkg?.package) {
+    if (!response.ok || data.error || !pkg?.package) {
       return {
         success: false,
-        error: 'Package not found',
+        error:
+          data.error ||
+          (response.ok ? 'Package not found' : `LaTeX package lookup failed (${response.status})`),
         output: {
           package: {
             name: '',
