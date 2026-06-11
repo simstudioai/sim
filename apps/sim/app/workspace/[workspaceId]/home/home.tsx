@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
+import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -25,6 +26,7 @@ import {
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import { useMothershipTabsStore } from '@/stores/mothership-tabs/store'
 import type { ChatContext } from '@/stores/panel'
 import {
   ChatHistory,
@@ -144,6 +146,16 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
 
   const reopenChatPane = useCallback(() => setIsChatCollapsed(false), [])
 
+  // The tab strip is user-owned per workspace (browser-tab semantics): chats
+  // merge their artifacts in additively; only the user closes/reorders tabs.
+  const workspaceTabs = useMothershipTabsStore((s) => s.byWorkspace[workspaceId])
+  const openTabs = useMothershipTabsStore((s) => s.openTabs)
+  const closeTab = useMothershipTabsStore((s) => s.closeTab)
+  const reorderTabs = useMothershipTabsStore((s) => s.reorderTabs)
+  const setActiveTab = useMothershipTabsStore((s) => s.setActiveTab)
+  const storeTabs = workspaceTabs?.tabs
+  const storeActiveTabId = workspaceTabs?.activeTabId ?? null
+
   function handleResourceEvent() {
     if (isResourceCollapsedRef.current) {
       setIsResourceCollapsed(false)
@@ -159,11 +171,8 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     resolvedChatId,
     adoptResolvedChatId,
     resources,
-    activeResourceId,
-    setActiveResourceId,
     addResource,
     removeResource,
-    reorderResources,
     messageQueue,
     removeFromQueue,
     sendNow,
@@ -191,16 +200,66 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     })
   )
 
+  // The panel renders the workspace tab strip plus the active chat's ephemeral
+  // resources (in-flight streaming previews stay chat-scoped, never persisted).
+  const ephemeralResources = useMemo(() => resources.filter(isEphemeralResource), [resources])
+  const panelTabs = useMemo(
+    () => [...(storeTabs ?? []), ...ephemeralResources],
+    [storeTabs, ephemeralResources]
+  )
+  const chatArtifactKeys = useMemo(
+    () => new Set(resources.filter((r) => !isEphemeralResource(r)).map((r) => `${r.type}:${r.id}`)),
+    [resources]
+  )
+
+  // Merge the active chat's artifacts into the strip. Tracking merged keys per
+  // chat means a tab the user closed mid-chat isn't resurrected by the next
+  // render, while re-entering the chat later re-opens its artifacts. The last
+  // fresh artifact gets focus (on switch that's the chat's most recent one; on
+  // a live stream it's the resource the agent just touched).
+  const mergedChatKeyRef = useRef<string | null>(null)
+  const mergedKeysRef = useRef<Set<string>>(new Set())
+  const initialResourceIdRef = useRef(initialResourceId)
+  useEffect(() => {
+    const chatKey = resolvedChatId ?? chatId ?? 'new'
+    if (mergedChatKeyRef.current !== chatKey) {
+      mergedChatKeyRef.current = chatKey
+      mergedKeysRef.current = new Set()
+    }
+    const fresh = resources.filter(
+      (r) => !isEphemeralResource(r) && !mergedKeysRef.current.has(`${r.type}:${r.id}`)
+    )
+    if (fresh.length === 0) return
+    for (const r of fresh) mergedKeysRef.current.add(`${r.type}:${r.id}`)
+    const urlFocus = initialResourceIdRef.current
+    initialResourceIdRef.current = null
+    const focusId =
+      urlFocus && fresh.some((r) => r.id === urlFocus) ? urlFocus : fresh[fresh.length - 1].id
+    openTabs(workspaceId, fresh, { focusId })
+  }, [resources, resolvedChatId, chatId, workspaceId, openTabs])
+
+  // Focus newly-appearing ephemeral resources (e.g. a streaming file preview),
+  // mirroring how the chat focuses artifacts it touches.
+  const prevEphemeralKeysRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const keys = new Set(ephemeralResources.map((r) => `${r.type}:${r.id}`))
+    const fresh = ephemeralResources.find(
+      (r) => !prevEphemeralKeysRef.current.has(`${r.type}:${r.id}`)
+    )
+    prevEphemeralKeysRef.current = keys
+    if (fresh) setActiveTab(workspaceId, fresh.id)
+  }, [ephemeralResources, setActiveTab, workspaceId])
+
   useEffect(() => {
     const url = new URL(window.location.href)
-    if (activeResourceId) {
-      url.searchParams.set('resource', activeResourceId)
+    if (storeActiveTabId) {
+      url.searchParams.set('resource', storeActiveTabId)
     } else {
       url.searchParams.delete('resource')
     }
     url.hash = ''
     window.history.replaceState(null, '', url.toString())
-  }, [activeResourceId])
+  }, [storeActiveTabId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -220,18 +279,18 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   }, [isSending, resolvedChatId, markRead])
 
   useEffect(() => {
-    if (!(resources.length > 0 && isResourceCollapsedRef.current)) return
+    if (!(panelTabs.length > 0 && isResourceCollapsedRef.current)) return
     setIsResourceCollapsed(false)
     setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
     return () => cancelAnimationFrame(id)
-  }, [resources])
+  }, [panelTabs])
 
   useEffect(() => {
-    if (resources.length === 0 && !isResourceCollapsedRef.current) {
+    if (panelTabs.length === 0 && !isResourceCollapsedRef.current) {
       collapseResource()
     }
-  }, [resources, collapseResource])
+  }, [panelTabs, collapseResource])
 
   function handleStopGeneration() {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
@@ -309,26 +368,35 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     }
   }
 
+  /**
+   * Manually attaching a resource opens its tab (session) AND records it on
+   * the chat (provenance + agent context) via {@link addResource}, which keeps
+   * the existing persistence machinery.
+   */
+  function openResourceTab(resource: MothershipResource) {
+    openTabs(workspaceId, [resource], { focusId: resource.id })
+    addResource(resource)
+    handleResourceEvent()
+  }
+
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (resolved) {
-      addResource({ ...resolved, title: context.label })
-      handleResourceEvent()
+      openResourceTab({ ...resolved, title: context.label })
     }
   }
 
   function handleInitialContextRemove(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (!resolved) return
+    // Symmetric un-attach: the chip was just added by the same flow, so this
+    // also detaches it from the chat rather than only closing the tab.
+    closeTab(workspaceId, resolved.type, resolved.id)
     removeResource(resolved.type, resolved.id)
   }
 
   function handleWorkspaceResourceSelect(resource: MothershipResource) {
-    const wasAdded = addResource(resource)
-    if (!wasAdded) {
-      setActiveResourceId(resource.id)
-    }
-    handleResourceEvent()
+    openResourceTab(resource)
   }
 
   // `resolvedChatId` is the chat actually in view — the prop on direct nav, or
@@ -341,15 +409,15 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   const showChatSkeleton = Boolean(activeChatId) && !hasMessages && isActiveChatHistoryPending
   const showChatView = hasMessages || showChatSkeleton || Boolean(resolvedChatId)
   const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
-  const canCloseChat = resources.length > 0 && !isResourceCollapsed
+  const canCloseChat = panelTabs.length > 0 && !isResourceCollapsed
 
   // The chat pane can only hide while the resource panel is visible; restore it
-  // when the panel collapses or the last resource closes so the view never blanks.
+  // when the panel collapses or the last tab closes so the view never blanks.
   useEffect(() => {
-    if (isChatCollapsed && (resources.length === 0 || isResourceCollapsed)) {
+    if (isChatCollapsed && (panelTabs.length === 0 || isResourceCollapsed)) {
       setIsChatCollapsed(false)
     }
-  }, [isChatCollapsed, resources, isResourceCollapsed])
+  }, [isChatCollapsed, panelTabs, isResourceCollapsed])
 
   // Opening a different chat from anywhere (title-bar dropdown, search, deep
   // link) is an explicit "open this chat" — always show its conversation pane.
@@ -424,7 +492,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
               draftScopeKey={draftScopeKey}
               animateInput={isInputEntering}
               onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
-              initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
+              initialScrollBlocked={panelTabs.length > 0 && isResourceCollapsed}
               onCloseChat={canCloseChat ? closeChatPane : undefined}
             />
           </div>
@@ -447,12 +515,13 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           ref={mothershipRef}
           workspaceId={workspaceId}
           chatId={resolvedChatId}
-          resources={resources}
-          activeResourceId={activeResourceId}
-          onSelectResource={setActiveResourceId}
-          onAddResource={addResource}
-          onRemoveResource={removeResource}
-          onReorderResources={reorderResources}
+          resources={panelTabs}
+          activeResourceId={storeActiveTabId}
+          chatArtifactKeys={chatArtifactKeys}
+          onSelectResource={(id) => setActiveTab(workspaceId, id)}
+          onAddResource={openResourceTab}
+          onRemoveResource={(type, id) => closeTab(workspaceId, type, id)}
+          onReorderResources={(tabs) => reorderTabs(workspaceId, tabs)}
           isCollapsed={isResourceCollapsed}
           previewSession={previewSession}
           genericResourceData={genericResourceData ?? undefined}

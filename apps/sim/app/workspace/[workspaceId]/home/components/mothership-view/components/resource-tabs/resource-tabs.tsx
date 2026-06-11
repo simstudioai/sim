@@ -13,7 +13,6 @@ import {
 import { Button, chipVariants, Tooltip } from '@/components/emcn'
 import { Columns3, Eye, Pencil, X } from '@/components/emcn/icons'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -30,11 +29,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import {
-  useAddChatResource,
-  useRemoveChatResource,
-  useReorderChatResources,
-} from '@/hooks/queries/mothership-chats'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -144,7 +138,8 @@ interface ResourceTabItemProps {
   showGapBefore: boolean
   showGapAfter: boolean
   displayName: string
-  chatId?: string
+  /** Provenance dot — the active chat surfaced/touched this artifact. */
+  showDot: boolean
   onDragStart: (e: React.DragEvent, idx: number) => void
   onDragOver: (e: React.DragEvent, idx: number) => void
   onDragLeave: () => void
@@ -164,7 +159,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
   showGapBefore,
   showGapAfter,
   displayName,
-  chatId,
+  showDot,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -190,7 +185,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
         onMouseDown={(e) => {
           if (e.button === 1) {
             e.preventDefault()
-            if (chatId) onRemove(e, resource)
+            onRemove(e, resource)
           }
         }}
         onClick={(e) => onTabClick(e, idx)}
@@ -205,7 +200,13 @@ const ResourceTabItem = memo(function ResourceTabItem({
       >
         {config.renderTabIcon(resource, 'size-[16px] shrink-0')}
         <span className='truncate'>{displayName}</span>
-        {(isHovered || isActive) && chatId && (
+        {showDot && !(isHovered || isActive) && (
+          <span
+            aria-hidden='true'
+            className='-translate-y-1/2 absolute top-1/2 right-[10px] size-[5px] rounded-full bg-[var(--brand-accent)]'
+          />
+        )}
+        {(isHovered || isActive) && (
           <span
             role='button'
             tabIndex={-1}
@@ -244,6 +245,11 @@ interface ResourceTabsProps {
    * compact chat switcher while the chat pane is hidden).
    */
   leading?: ReactNode
+  /**
+   * `type:id` keys of the artifacts the active chat has surfaced — matching
+   * tabs render a provenance dot.
+   */
+  chatArtifactKeys?: ReadonlySet<string>
 }
 
 export function ResourceTabs({
@@ -259,6 +265,7 @@ export function ResourceTabs({
   onCyclePreviewMode,
   actions,
   leading,
+  chatArtifactKeys,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
@@ -297,10 +304,6 @@ export function ResourceTabs({
     }
   }, [activeId])
 
-  const addResource = useAddChatResource(chatId)
-  const removeResource = useRemoveChatResource(chatId)
-  const reorderResources = useReorderChatResources(chatId)
-
   const [hoveredTabId, setHoveredTabId] = useState<string | null>(null)
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
   const [dropGapIdx, setDropGapIdx] = useState<number | null>(null)
@@ -325,12 +328,9 @@ export function ResourceTabs({
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
-      if (!chatId) return
-      addResource.mutate({ chatId, resource })
       onAddResource(resource)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onAddResource]
+    [onAddResource]
   )
 
   const handleTabClick = useCallback(
@@ -386,10 +386,10 @@ export function ResourceTabs({
   const handleRemove = useCallback(
     (e: React.SyntheticEvent, resource: MothershipResource) => {
       e.stopPropagation()
-      if (!chatId) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
-      // Update parent state immediately for all targets
+      // Closing tabs is a session action — it never detaches the artifact from
+      // the chat that surfaced it.
       for (const r of targets) {
         onRemoveResource(r.type, r.id)
       }
@@ -403,13 +403,8 @@ export function ResourceTabs({
       if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
         anchorIdRef.current = null
       }
-      for (const r of targets) {
-        if (isEphemeralResource(r)) continue
-        removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
-      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onRemoveResource, resources, selectedIds]
+    [onRemoveResource, resources, selectedIds]
   )
 
   const handleDragStart = useCallback(
@@ -516,18 +511,11 @@ export function ResourceTabs({
       const [moved] = reordered.splice(fromIdx, 1)
       reordered.splice(insertAt, 0, moved)
       onReorderResources(reordered)
-      if (chatId) {
-        const persistable = reordered.filter((r) => !isEphemeralResource(r))
-        if (persistable.length > 0) {
-          reorderResources.mutate({ chatId, resources: persistable })
-        }
-      }
       setDraggedIdx(null)
       setDropGapIdx(null)
       dragStartIdx.current = null
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, resources, onReorderResources, dropGapIdx, stopAutoScroll]
+    [resources, onReorderResources, dropGapIdx, stopAutoScroll]
   )
 
   const handleDragEnd = useCallback(() => {
@@ -596,7 +584,7 @@ export function ResourceTabs({
                 showGapBefore={showGapBefore}
                 showGapAfter={showGapAfter}
                 displayName={displayName}
-                chatId={chatId}
+                showDot={chatArtifactKeys?.has(`${resource.type}:${resource.id}`) ?? false}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}

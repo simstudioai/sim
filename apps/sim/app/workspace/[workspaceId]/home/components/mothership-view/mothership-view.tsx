@@ -55,6 +55,11 @@ interface MothershipViewProps {
   genericResourceData?: GenericResourceData
   /** Controls rendered before the tab strip (see {@link ResourceTabs}). */
   tabsLeading?: ReactNode
+  /**
+   * `type:id` keys of the artifacts the active chat has surfaced — tabs in
+   * this set carry a provenance dot in the strip.
+   */
+  chatArtifactKeys?: ReadonlySet<string>
 }
 
 export const MothershipView = memo(
@@ -73,6 +78,7 @@ export const MothershipView = memo(
       previewSession,
       genericResourceData,
       tabsLeading,
+      chatArtifactKeys,
     }: MothershipViewProps,
     ref
   ) {
@@ -112,6 +118,7 @@ export const MothershipView = memo(
             workspaceId={workspaceId}
             chatId={chatId}
             leading={tabsLeading}
+            chatArtifactKeys={chatArtifactKeys}
             resources={resources}
             activeId={active?.id ?? null}
             onSelect={onSelectResource}
