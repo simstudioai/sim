@@ -2239,7 +2239,7 @@
   {
     "type": "calcom",
     "slug": "cal-com",
-    "name": "Cal Com",
+    "name": "Cal.com",
     "description": "Manage Cal.com bookings, event types, schedules, and availability",
     "longDescription": "Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.",
     "bgColor": "#292929",
@@ -14807,6 +14807,201 @@
     "category": "tools",
     "integrationType": "productivity",
     "tags": ["project-management", "ticketing"]
+  },
+  {
+    "type": "trigger_dev",
+    "slug": "trigger-dev",
+    "name": "Trigger.dev",
+    "description": "Trigger tasks and manage runs and schedules",
+    "longDescription": "Integrate Trigger.dev into the workflow. Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.",
+    "bgColor": "#000000",
+    "iconName": "TriggerDevIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/trigger_dev",
+    "operations": [
+      {
+        "name": "Trigger Task",
+        "description": "Trigger a Trigger.dev task by its identifier with an optional JSON payload. Returns the ID of the created run."
+      },
+      {
+        "name": "Batch Trigger Task",
+        "description": "Batch trigger a Trigger.dev task with up to 1,000 payloads. All items in the batch run the same task. Returns the batch ID and the created run IDs."
+      },
+      {
+        "name": "Get Batch",
+        "description": "Retrieve a Trigger.dev batch by its ID, including its status, run IDs, and success and failure counts."
+      },
+      {
+        "name": "Get Batch Results",
+        "description": "Retrieve the execution results of every run in a Trigger.dev batch, including outputs and error details."
+      },
+      {
+        "name": "Get Run",
+        "description": "Retrieve a Trigger.dev run by its ID, including status, payload, output, attempts, and timing details."
+      },
+      {
+        "name": "Get Run Result",
+        "description": "Retrieve the result of a Trigger.dev run: whether it succeeded, its output, and error details. Lighter than Get Run when only the outcome is needed."
+      },
+      {
+        "name": "Get Run Events",
+        "description": "Retrieve the log and span events of a Trigger.dev run, including messages, levels, durations, and error events."
+      },
+      {
+        "name": "Get Run Trace",
+        "description": "Retrieve the OpenTelemetry trace of a Trigger.dev run as a tree of spans with timing, errors, and nested children."
+      },
+      {
+        "name": "List Runs",
+        "description": "List Trigger.dev runs in the environment of the API key, with optional filters for status, task, version, tags, schedule, and creation time."
+      },
+      {
+        "name": "Cancel Run",
+        "description": "Cancel an in-progress Trigger.dev run. Has no effect if the run is already completed."
+      },
+      {
+        "name": "Replay Run",
+        "description": "Replay a Trigger.dev run, creating a new run with the same payload and options as the original."
+      },
+      {
+        "name": "Reschedule Run",
+        "description": "Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run is in the DELAYED state."
+      },
+      {
+        "name": "Add Run Tags",
+        "description": "Add tags to an existing Trigger.dev run. Runs can have up to 10 tags."
+      },
+      {
+        "name": "Update Run Metadata",
+        "description": "Replace the metadata of a Trigger.dev run with a new JSON object."
+      },
+      {
+        "name": "Create Schedule",
+        "description": "Create an imperative cron schedule that triggers a Trigger.dev task on a recurring basis."
+      },
+      {
+        "name": "Get Schedule",
+        "description": "Retrieve a Trigger.dev schedule by its ID."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List Trigger.dev schedules in the project, with page-based pagination."
+      },
+      {
+        "name": "Update Schedule",
+        "description": "Update an imperative Trigger.dev schedule by its ID, replacing its task, cron expression, timezone, and external ID."
+      },
+      {
+        "name": "Delete Schedule",
+        "description": "Delete an imperative Trigger.dev schedule by its ID."
+      },
+      {
+        "name": "Activate Schedule",
+        "description": "Activate an imperative Trigger.dev schedule so it resumes triggering its task."
+      },
+      {
+        "name": "Deactivate Schedule",
+        "description": "Deactivate an imperative Trigger.dev schedule so it stops triggering its task."
+      },
+      {
+        "name": "List Env Vars",
+        "description": "List the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully."
+      },
+      {
+        "name": "Create Env Var",
+        "description": "Create an environment variable in a Trigger.dev project environment."
+      },
+      {
+        "name": "Get Env Var",
+        "description": "Retrieve an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history."
+      },
+      {
+        "name": "Update Env Var",
+        "description": "Update the value of an environment variable in a Trigger.dev project environment."
+      },
+      {
+        "name": "Delete Env Var",
+        "description": "Delete an environment variable from a Trigger.dev project environment."
+      },
+      {
+        "name": "Import Env Vars",
+        "description": "Upload multiple environment variables to a Trigger.dev project environment in one request."
+      },
+      {
+        "name": "Get Queue",
+        "description": "Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, including its running and queued counts."
+      },
+      {
+        "name": "List Queues",
+        "description": "List the queues in the environment of the API key, including running and queued counts, with page-based pagination."
+      },
+      {
+        "name": "Pause Queue",
+        "description": "Pause a Trigger.dev queue so no new runs start. Runs that are currently executing continue to completion."
+      },
+      {
+        "name": "Resume Queue",
+        "description": "Resume a paused Trigger.dev queue so new runs can start again."
+      },
+      {
+        "name": "Override Queue Concurrency",
+        "description": "Override the concurrency limit of a Trigger.dev queue with a new value."
+      },
+      {
+        "name": "Reset Queue Concurrency",
+        "description": "Reset the concurrency limit of a Trigger.dev queue back to its base value, removing any override."
+      },
+      {
+        "name": "List Deployments",
+        "description": "List Trigger.dev deployments in the environment of the API key, with optional status and creation-time filters."
+      },
+      {
+        "name": "Get Deployment",
+        "description": "Retrieve a Trigger.dev deployment by its ID, including its status, version, and registered tasks."
+      },
+      {
+        "name": "Get Latest Deployment",
+        "description": "Retrieve the latest Trigger.dev deployment in the environment of the API key."
+      },
+      {
+        "name": "Promote Deployment",
+        "description": "Promote a Trigger.dev deployment version so new runs execute on it (e.g., to roll back to a previous version)."
+      },
+      {
+        "name": "Execute Query",
+        "description": "Execute a TRQL (SQL-like) query against Trigger.dev run data for reporting and analytics."
+      },
+      {
+        "name": "Get Query Schema",
+        "description": "Retrieve the TRQL query schema: the tables and columns available for Execute Query, with types and allowed values."
+      },
+      {
+        "name": "Create Waitpoint Token",
+        "description": "Create a Trigger.dev waitpoint token that a task can wait on until it is completed from outside (e.g., a human approval)."
+      },
+      {
+        "name": "Complete Waitpoint Token",
+        "description": "Complete a Trigger.dev waitpoint token, resuming any task waiting on it and passing it optional JSON data."
+      },
+      {
+        "name": "Get Waitpoint Token",
+        "description": "Retrieve a Trigger.dev waitpoint token by its ID, including its status, timeout, and completion data."
+      },
+      {
+        "name": "List Waitpoint Tokens",
+        "description": "List Trigger.dev waitpoint tokens in the environment of the API key, with optional status, tag, and creation-time filters."
+      },
+      {
+        "name": "List Timezones",
+        "description": "List the IANA timezones supported by Trigger.dev schedules, for use as the timezone of a cron schedule."
+      }
+    ],
+    "operationCount": 44,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["automation", "ci-cd", "monitoring"]
   },
   {
     "type": "twilio_sms",

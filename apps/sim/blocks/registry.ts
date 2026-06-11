@@ -278,6 +278,7 @@ import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TinybirdBlock, TinybirdBlockMeta } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock, TrelloBlockMeta } from '@/blocks/blocks/trello'
+import { TriggerDevBlock, TriggerDevBlockMeta } from '@/blocks/blocks/trigger_dev'
 import { TtsBlock } from '@/blocks/blocks/tts'
 import { TwilioSMSBlock, TwilioSMSBlockMeta } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock, TwilioVoiceBlockMeta } from '@/blocks/blocks/twilio_voice'
@@ -571,6 +572,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   tinybird: TinybirdBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
+  trigger_dev: TriggerDevBlock,
   tts: TtsBlock,
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
@@ -811,6 +813,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   textract: TextractBlockMeta,
   tinybird: TinybirdBlockMeta,
   trello: TrelloBlockMeta,
+  trigger_dev: TriggerDevBlockMeta,
   twilio_sms: TwilioSMSBlockMeta,
   twilio_voice: TwilioVoiceBlockMeta,
   typeform: TypeformBlockMeta,

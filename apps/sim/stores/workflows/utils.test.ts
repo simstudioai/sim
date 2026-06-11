@@ -35,10 +35,15 @@ describe('normalizeName', () => {
     expect(normalizeName('already_normalized')).toBe('already_normalized')
   })
 
-  it.concurrent('should preserve non-space special characters', () => {
+  it.concurrent('should preserve non-space special characters except dots', () => {
     expect(normalizeName('my-variable')).toBe('my-variable')
     expect(normalizeName('my_variable')).toBe('my_variable')
-    expect(normalizeName('my.variable')).toBe('my.variable')
+  })
+
+  it.concurrent('should strip dots since they conflict with the reference path delimiter', () => {
+    expect(normalizeName('my.variable')).toBe('myvariable')
+    expect(normalizeName('Trigger.dev 1')).toBe('triggerdev1')
+    expect(normalizeName('Hunter.io 2')).toBe('hunterio2')
   })
 
   it.concurrent('should handle tabs and newlines as whitespace', () => {
