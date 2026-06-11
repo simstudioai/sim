@@ -1,4 +1,3 @@
-import { dbReplica } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -6,7 +5,6 @@ import { usageLimitsRequestSchema } from '@/lib/api/contracts/usage-limits'
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { getEffectiveCurrentPeriodCost } from '@/lib/billing/core/usage'
 import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -42,14 +40,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ),
     ])
 
-    const [usageCheck, effectiveCost, storageUsage, storageLimit] = await Promise.all([
+    const [usageCheck, storageUsage, storageLimit] = await Promise.all([
       checkServerSideUsageLimits(authenticatedUserId),
-      getEffectiveCurrentPeriodCost(authenticatedUserId, dbReplica),
       getUserStorageUsage(authenticatedUserId),
       getUserStorageLimit(authenticatedUserId),
     ])
 
-    const currentPeriodCost = effectiveCost
+    // Same computation as `limit` (one source, one tier) — the pair can never
+    // disagree under replication lag or mixed baseline/ledger tiers.
+    const currentPeriodCost = usageCheck.currentUsage
 
     return NextResponse.json({
       success: true,
