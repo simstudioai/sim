@@ -25,6 +25,7 @@ import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('InboxExecutor')
 
@@ -96,20 +97,25 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     // Blocked senders and banned accounts must not drive the agent; the sender
     // email is checked directly (domain list + the sender's own account ban)
-    // because non-members resolve to the workspace owner. Fails closed on
-    // lookup errors. No email response in any of these paths — never mail a
-    // suspended account.
+    // because non-members resolve to the workspace owner, and the workspace
+    // billed account is checked to match preprocessExecution's gate. Fails
+    // closed on lookup errors. No email response in any of these paths —
+    // never mail a suspended account.
     let blockReason: string | null = null
     try {
-      const [senderBlocked, [bannedUserId]] = await Promise.all([
+      const [senderBlocked, billedAccountUserId] = await Promise.all([
         isEmailBlocked(inboxTask.fromEmail),
-        getActivelyBannedUserIds([userId]),
+        getWorkspaceBilledAccountUserId(ws.id),
       ])
-      if (senderBlocked || bannedUserId) {
-        logger.warn('Blocking inbox task: sender or resolved user is banned', {
+      const bannedUserIds = await getActivelyBannedUserIds(
+        billedAccountUserId ? [userId, billedAccountUserId] : [userId]
+      )
+      if (senderBlocked || bannedUserIds.length > 0) {
+        logger.warn('Blocking inbox task: sender, resolved user, or billed account is banned', {
           taskId,
           userId,
           senderBlocked,
+          bannedUserIds,
         })
         blockReason = 'User account is suspended'
       }
