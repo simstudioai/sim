@@ -83,6 +83,13 @@ export function checkRolePermission(
   return { allowed: true }
 }
 
+/**
+ * Verifies a user's access to a workflow via workspace permissions.
+ *
+ * Returns `hasAccess: false` only for genuine denials (workflow missing/archived
+ * or no workspace permission). Transient failures (DB errors) are rethrown so the
+ * caller can report them as retryable instead of a permanent access denial.
+ */
 export async function verifyWorkflowAccess(
   userId: string,
   workflowId: string
@@ -129,6 +136,6 @@ export async function verifyWorkflowAccess(
       `Error verifying workflow access for user ${userId}, workflow ${workflowId}:`,
       error
     )
-    return { hasAccess: false }
+    throw error
   }
 }
