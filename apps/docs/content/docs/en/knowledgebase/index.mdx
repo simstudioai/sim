@@ -7,6 +7,7 @@ pageType: concept
 import { Video } from '@/components/ui/video'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { FAQ } from '@/components/ui/faq'
+import { TryInChat } from '@/components/ui/try-in-chat'
 
 A **knowledge base** is a store of documents your agents can search by meaning. You upload files, Sim splits them into chunks and indexes them, and a [Knowledge block](/knowledgebase/using-in-workflows) retrieves the chunks most relevant to a query. This is how an agent answers from your own content instead of the model's general training.
 
@@ -41,9 +42,11 @@ To keep a base in sync with an outside source like Google Drive, use a [connecto
 
 You can also build and query a knowledge base by asking Sim in [Chat](/chat): create one, add documents to it, and ask questions against its content in plain language.
 
-- "Create a knowledge base from these PDFs" *(attach files)*
-- "Add the pricing docs folder to the support knowledge base"
-- "What does our refund policy say about annual plans?"
+<TryInChat prompts={[
+  "Create a knowledge base from these PDFs (attach the files)",
+  "Add the pricing docs folder to the support knowledge base",
+  "What does our refund policy say about annual plans?",
+]} />
 
 Sim runs the same indexing and search described on this page, so anything it creates is immediately usable from the [Knowledge block](/knowledgebase/using-in-workflows) in a workflow.
 

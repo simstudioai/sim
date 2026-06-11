@@ -28,7 +28,7 @@ Build a people research agent in 10 minutes. It takes a name through a chat inte
 
     Drag an **Agent block** onto the canvas and configure its **Messages**:
     - **System**: "You are a people research agent. When given a person's name, use your search tools to find their location, profession, educational background, and other relevant details."
-    - **User**: insert `<start.input>` so the agent reads whatever the chat receives.
+    - **User**: insert `<start.input>` — a reference to the Start block's input, in the `<blockName.field>` syntax used everywhere in Sim — so the agent reads whatever the chat receives.
 
     Leave the **Model** on the default (`claude-sonnet-4-6`), or pick any other.
 
@@ -46,7 +46,7 @@ Build a people research agent in 10 minutes. It takes a name through a chat inte
   </Step>
 
   <Step title="Test it">
-    Open the **Chat panel**, select `agent1.content` as the output to display, and send: *"John is a software engineer from San Francisco who studied Computer Science at Stanford University."*
+    Open the editor's **Chat panel**, select `agent1.content` as the output to display, and send: *"John is a software engineer from San Francisco who studied Computer Science at Stanford University."*
 
     The agent searches, then returns what it found.
 

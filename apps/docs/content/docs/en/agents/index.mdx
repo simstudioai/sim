@@ -51,7 +51,7 @@ To let an agent answer from your own content, connect a [knowledge base](/knowle
 
 ### Remember across runs: memory
 
-To let an agent reuse information from one run to the next, give it [memory](/integrations/memory), which stores and recalls values keyed to a conversation. Without it, each run starts fresh; with it, an agent in a chat carries what was said earlier into later messages.
+To let an agent reuse information from one run to the next, give it [memory](/integrations/memory), which stores and recalls values keyed to a conversation. Without it, each run starts fresh; with it, an agent [deployed as a chat](/workflows/deployment/chat) carries what was said earlier into later messages.
 
 ### Return a usable result: structured output
 
@@ -59,7 +59,7 @@ To make an agent's result something later blocks can act on, give it a **structu
 
 ## Choosing what to use
 
-Start with one Agent block and a prompt, then add only what the task needs: a tool when the agent should act, a skill when it needs written guidance, a knowledge base when it should answer from your documents, memory when it should remember, and a structured output when a later block has to read its result.
+Start with one Agent block and a prompt, then add only what the task needs: a tool when the agent should act, a skill when it needs written guidance, a knowledge base when it should answer from your documents, memory when it should remember, and a structured output when a later block has to read its result. An agent ships like any workflow — [deploy it](/workflows/deployment) as an API, a chat, or an MCP server.
 
 <Card title="Choosing what to use" href="/agents/choosing" description="A side-by-side guide to tools, skills, knowledge, and the rest, with one worked example." />
 

@@ -68,7 +68,7 @@ Two larger families do more specific jobs:
 
 ## How a workflow starts [#triggers]
 
-A trigger decides what starts the run and what input it receives. **Native triggers** need no connected account: [Start](/workflows/triggers/start) (manual, API, or chat), [Schedule](/workflows/triggers/schedule) (a timer), [Webhook](/workflows/triggers/webhook) (any inbound HTTP request), [RSS](/workflows/triggers/rss) (a new feed item), and [Table](/workflows/triggers/table) (a row change in a Sim table). **Integration triggers** fire on an event in a connected service — a GitHub push, a new email — and hand it to the workflow.
+A trigger decides what starts the run and what input it receives. **Native triggers** need no connected account: [Start](/workflows/triggers/start) (manual runs, API calls, and deployed chats), [Schedule](/workflows/triggers/schedule) (a timer), [Webhook](/workflows/triggers/webhook) (any inbound HTTP request), [RSS](/workflows/triggers/rss) (a new feed item), and [Table](/workflows/triggers/table) (a row change in a Sim table). **Integration triggers** fire on an event in a connected service — a GitHub push, a new email — and hand it to the workflow.
 
 <Callout type="info">
 Every trigger runs the active [deployment](/workflows/deployment), so redeploy after changing a workflow for it to pick up the new version.

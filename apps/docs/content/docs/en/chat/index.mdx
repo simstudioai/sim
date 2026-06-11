@@ -7,12 +7,13 @@ pageType: concept
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
+import { TryInChat } from '@/components/ui/try-in-chat'
 
 <Video src="mothership/create-workflow.mp4" width={700} height={450} />
 
 **Chat** is where you work with Sim directly. Describe what you want — build a workflow, run research, generate a presentation, query a table, schedule a recurring job, send a Slack message — and Sim does it. It knows your entire workspace and takes action directly.
 
-Everything Sim builds is a normal workspace resource: a workflow you can open in the builder, a table you can edit, a file you can download. Chat is the fastest way to create and change things; the rest of the docs cover what those things are and how to work them by hand. (Agents *you* build and deploy are a different topic — see [Agents](/agents).)
+Everything Sim builds is a normal workspace resource: a workflow you can open in the builder, a table you can edit, a file you can download. Chat is the fastest way to create and change things; the rest of the docs cover what those things are and how to work them by hand. Two nearby terms mean something else: an **agent** is a workflow *you* build that reasons and acts (see [Agents](/agents)), and a **[chat deployment](/workflows/deployment/chat)** publishes one of your workflows as a chat for outside users.
 
 ## What you can ask for
 
@@ -29,18 +30,22 @@ Everything Sim builds is a normal workspace resource: a workflow you can open in
 
 Sim receives a snapshot of your entire workspace with every message — all workflows, tables, knowledge bases, files, credentials, jobs, and integrations. That's why you can refer to things by name without specifying IDs or paths:
 
-- "Run the invoice workflow"
-- "Add a row to the leads table"
-- "Deploy the summarizer as a chat"
+<TryInChat prompts={[
+  "Run the invoice workflow",
+  "Add a row to the leads table",
+  "Deploy the summarizer as a chat",
+]} />
 
 No configuration, no context-setting. Just describe what you want:
 
-- "Build a lead enrichment workflow that scores inbound signups and writes the results to the leads table"
-- "Research our top 5 competitors and save a battle card for each one"
-- "Schedule a daily job that checks for new high-fit prospects and posts them to #outbound in Slack"
-- "Create a workflow that takes a contract PDF, extracts the key terms, and emails a summary to legal"
+<TryInChat prompts={[
+  "Build a lead enrichment workflow that scores inbound signups and writes the results to the leads table",
+  "Research our top 5 competitors and save a battle card for each one",
+  "Schedule a daily job that checks for new high-fit prospects and posts them to #outbound in Slack",
+  "Create a workflow that takes a contract PDF, extracts the key terms, and emails a summary to legal",
+]} />
 
-For complex tasks, Sim delegates to specialized subagents automatically. You'll see them appear as collapsible sections in the chat while they work — building, researching, writing files, executing actions.
+For complex tasks, Sim delegates to specialized subagents automatically — internal helpers, not the agents you build. You'll see them appear as collapsible sections in the chat while they work — building, researching, writing files, executing actions.
 
 {/* TODO: Screenshot of Chat showing a subagent section expanded mid-task — e.g., the Build or Research subagent actively working, with its collapsible header and steps visible in the thread. */}
 
@@ -50,15 +55,19 @@ Ask Sim to research anything and it figures out the best approach — searching 
 
 <Video src="mothership/research-agent.mp4" width={700} height={450} />
 
-- "What did Salesforce, HubSpot, and Gong each ship in the past 30 days? Summarize the key product updates."
-- "What's Acme Corp's tech stack, recent hires, and open engineering roles?"
-- "What are the current rate limits on the Anthropic API?"
-- "Read [URL] and tell me what changed in this release"
+<TryInChat prompts={[
+  "What did Salesforce, HubSpot, and Gong each ship in the past 30 days? Summarize the key product updates.",
+  "What's Acme Corp's tech stack, recent hires, and open engineering roles?",
+  "What are the current rate limits on the Anthropic API?",
+  "Read [URL] and tell me what changed in this release",
+]} />
 
 Sim answers directly in the chat. When you need a structured, saved document instead, ask for a report: Sim searches, reads, and cross-references sources until it has enough, then saves the result as a [file](/files) in your workspace and opens it in the resource panel.
 
-- "Research the top 10 AI SDR tools — pricing, features, positioning, and what customers say. Save as a competitive analysis."
-- "Build a battle card for [competitor] — their positioning, pricing, strengths, weaknesses, and how we win against them."
+<TryInChat prompts={[
+  "Research the top 10 AI SDR tools — pricing, features, positioning, and what customers say. Save as a competitive analysis.",
+  "Build a battle card for [competitor] — their positioning, pricing, strengths, weaknesses, and how we win against them.",
+]} />
 
 ## Adding context
 

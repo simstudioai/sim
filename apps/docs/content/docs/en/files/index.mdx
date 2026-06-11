@@ -5,6 +5,7 @@ pageType: concept
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
+import { TryInChat } from '@/components/ui/try-in-chat'
 
 A **file** is a document, image, spreadsheet, or PDF in your workspace. Files are how documents and media move into and out of your agents. Your team uploads them, you create them in the editor, or a workflow produces them, and they all live in one store shared across the workspace.
 
@@ -22,9 +23,11 @@ Use a file when the document or media itself is what matters. Use a [table](/tab
 
 You can also work with files by asking Sim in [Chat](/chat): upload a document and ask questions about it, create or edit one, or generate a new document, presentation, or image from a description.
 
-- "Turn these notes into a one-page brief" *(attach file)*
-- "Generate a slide deck summarizing Q2 pipeline from the deals table"
-- "Edit proposal.md — make the pricing section match the new tiers"
+<TryInChat prompts={[
+  "Turn these notes into a one-page brief (attach the file)",
+  "Generate a slide deck summarizing Q2 pipeline from the deals table",
+  "Edit proposal.md — make the pricing section match the new tiers",
+]} />
 
 Files Sim creates land in your workspace [Files](/files), the same as an upload, ready for workflows or download.
 
