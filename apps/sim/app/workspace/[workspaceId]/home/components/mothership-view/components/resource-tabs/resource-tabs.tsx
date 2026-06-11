@@ -43,11 +43,10 @@ import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 /**
- * Width budget for one compressed inactive tab (icon + a few readable chars).
- * Tabs flex between their min/max around this estimate; capacity planning uses
- * it to decide how many fit before the tail collapses into the +N chip.
+ * Hard ceiling on a single tab's width — guards against pathological names.
+ * Matches the inline tabs' max-w so measurement and render agree.
  */
-const TAB_SLOT_WIDTH = 84
+const TAB_MAX_WIDTH = 240
 /** Reserved width for the +N overflow chip when it renders. */
 const OVERFLOW_CHIP_WIDTH = 56
 /** Reserved width for the add-resource (+) button. */
@@ -168,9 +167,10 @@ interface ResourceTabItemProps {
 }
 
 /**
- * A compressed, inactive tab: icon-first with a truncating label so the strip
- * squeezes browser-style instead of scroll-clipping. The active resource never
- * renders here — it gets the spotlight title chip.
+ * An inactive tab at its natural width — labels never truncate (beyond the
+ * pathological-name ceiling); tabs that don't fit whole collapse into the +N
+ * dropdown instead. The active resource never renders here — it gets the
+ * spotlight title chip.
  */
 const ResourceTabItem = memo(function ResourceTabItem({
   resource,
@@ -215,7 +215,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
         onMouseLeave={() => setHoveredTabId(null)}
         className={cn(
           chipVariants({ variant: 'ghost', flush: true }),
-          'relative min-w-[36px] max-w-[124px] shrink pr-[20px] text-[var(--text-body)]',
+          'relative max-w-[240px] shrink-0 pr-[20px] text-[var(--text-body)]',
           isSelected && 'bg-[var(--surface-active)]',
           isDragging && 'opacity-30'
         )}
@@ -341,28 +341,44 @@ export function ResourceTabs({
   // chip, then fit whole tab slots into what's left. The inline tab renders
   // don't affect either measured node, so there's no layout feedback loop.
   const activeChipRef = useRef<HTMLButtonElement>(null)
+  const measureRef = useRef<HTMLDivElement>(null)
   // Permissive until the first trustworthy measurement: all tabs inline (the
   // panel's overflow-hidden clips any excess during the expand animation).
   const [inlineCapacity, setInlineCapacity] = useState(Number.MAX_SAFE_INTEGER)
   const inactiveCount = inactiveTabs.length
+  // Names participate in fitting (tabs render at natural width), so capacity
+  // must recompute when any label changes — not just when counts do.
+  const namesKey = inactiveTabs.map((r) => nameLookup.get(`${r.type}:${r.id}`) ?? r.title).join(' ')
   useEffect(() => {
     if (!stripNode) return
     const compute = () => {
       // Zero width means the strip isn't laid out yet (panel collapsed or
       // mid-animation) — keep the previous capacity rather than trusting it.
       if (stripNode.clientWidth === 0) return
+      const measureNode = measureRef.current
+      if (!measureNode) return
+      // Natural (untruncated) width of every inactive tab, from the hidden
+      // measuring row — tabs are never squeezed, they fit whole or overflow.
+      const tabWidths = Array.from(measureNode.children).map((child) =>
+        Math.min((child as HTMLElement).offsetWidth, TAB_MAX_WIDTH)
+      )
       const activeWidth = activeChipRef.current ? activeChipRef.current.offsetWidth + STRIP_GAP : 0
       const addWidth = chatId ? ADD_BUTTON_WIDTH + STRIP_GAP : 0
       const available = stripNode.clientWidth - activeWidth - addWidth
-      const fitsAll = Math.floor((available + STRIP_GAP) / (TAB_SLOT_WIDTH + STRIP_GAP))
-      if (fitsAll >= inactiveCount) {
+      const totalAll = tabWidths.reduce((sum, w) => sum + w + STRIP_GAP, 0)
+      if (totalAll <= available + STRIP_GAP) {
         setInlineCapacity(inactiveCount)
         return
       }
-      const withOverflowChip = available - (OVERFLOW_CHIP_WIDTH + STRIP_GAP)
-      setInlineCapacity(
-        Math.max(0, Math.floor((withOverflowChip + STRIP_GAP) / (TAB_SLOT_WIDTH + STRIP_GAP)))
-      )
+      const availableWithChip = available - (OVERFLOW_CHIP_WIDTH + STRIP_GAP)
+      let used = 0
+      let fit = 0
+      for (const width of tabWidths) {
+        if (used + width > availableWithChip) break
+        used += width + STRIP_GAP
+        fit += 1
+      }
+      setInlineCapacity(fit)
     }
     compute()
     // The strip resizes with every panel/sidebar/window change, so observing
@@ -376,7 +392,7 @@ export function ResourceTabs({
       observer.disconnect()
       window.removeEventListener('resize', compute)
     }
-  }, [stripNode, inactiveCount, chatId, activeResource])
+  }, [stripNode, inactiveCount, chatId, activeResource, namesKey])
 
   const inlineTabs = inactiveTabs.slice(0, inlineCapacity)
   const overflowTabs = inactiveTabs.slice(inlineCapacity)
@@ -608,13 +624,36 @@ export function ResourceTabs({
       <div
         ref={attachStrip}
         className={cn(
-          'flex min-w-0 flex-1 items-center',
+          'relative flex min-w-0 flex-1 items-center',
           RESOURCE_TAB_GAP_CLASS,
           !leading && '-ml-[9px]'
         )}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
+        {/* Hidden measuring row: every inactive tab at natural width, so the
+            capacity pass fits whole tabs instead of guessing slot sizes. */}
+        <div
+          ref={measureRef}
+          aria-hidden='true'
+          className={cn(
+            'pointer-events-none invisible absolute top-0 left-0 flex items-center',
+            RESOURCE_TAB_GAP_CLASS
+          )}
+        >
+          {inactiveTabs.map((resource) => (
+            <span
+              key={resource.id}
+              className={cn(
+                chipVariants({ variant: 'ghost', flush: true }),
+                'whitespace-nowrap pr-[20px] text-[var(--text-body)]'
+              )}
+            >
+              {getResourceConfig(resource.type).renderTabIcon(resource, 'size-[16px] shrink-0')}
+              <span>{resolveName(resource)}</span>
+            </span>
+          ))}
+        </div>
         {activeResource && (
           /* The title chip is just the active tab — the inline tabs are the
              switcher, so it carries no dropdown of its own. */
