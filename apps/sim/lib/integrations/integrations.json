@@ -2239,7 +2239,7 @@
   {
     "type": "calcom",
     "slug": "cal-com",
-    "name": "Cal Com",
+    "name": "Cal.com",
     "description": "Manage Cal.com bookings, event types, schedules, and availability",
     "longDescription": "Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.",
     "bgColor": "#292929",
@@ -8240,6 +8240,41 @@
     "tags": ["monitoring", "llm"]
   },
   {
+    "type": "latex",
+    "slug": "latex",
+    "name": "LaTeX",
+    "description": "Compile LaTeX documents into PDFs",
+    "longDescription": "Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key. Compilation runs on the public LaTeX-on-HTTP service (latex.ytotech.com), so document source and resources are sent to that third-party service.",
+    "bgColor": "#FFFFFF",
+    "iconName": "LatexIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/latex",
+    "operations": [
+      {
+        "name": "Compile Document",
+        "description": "Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.ytotech.com). Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies."
+      },
+      {
+        "name": "Search Packages",
+        "description": "Search the TeX Live packages available to the LaTeX compiler by name or description, e.g. to check which packages can be used in a document."
+      },
+      {
+        "name": "Get Package Details",
+        "description": "Get details about a specific TeX Live package available to the LaTeX compiler, including whether it is installed, its description, license, and related packages."
+      },
+      {
+        "name": "List Fonts",
+        "description": "List the system fonts available to the LaTeX compiler, optionally filtered by name, e.g. to pick a font for xelatex or lualatex documents using fontspec."
+      }
+    ],
+    "operationCount": 4,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "documents",
+    "tags": ["document-processing"]
+  },
+  {
     "type": "launchdarkly",
     "slug": "launchdarkly",
     "name": "LaunchDarkly",
@@ -10628,6 +10663,129 @@
     "category": "tools",
     "integrationType": "ai",
     "tags": ["llm", "web-scraping", "agentic"]
+  },
+  {
+    "type": "persona",
+    "slug": "persona",
+    "name": "Persona",
+    "description": "Verify identities with Persona",
+    "longDescription": "Integrate Persona identity verification into the workflow. Manage the full inquiry lifecycle (create, update, approve, decline, review, resume, expire, redact), generate one-time verification links and PDF summaries, manage accounts including CSV bulk import, run watchlist and adverse media reports, review cases, retrieve verifications and documents, and discover inquiry templates.",
+    "bgColor": "#FFFFFF",
+    "iconName": "PersonaIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/persona",
+    "operations": [
+      {
+        "name": "Create Inquiry",
+        "description": "Create a new identity verification inquiry from an inquiry template. Returns the created inquiry, which can then be completed by the individual via a one-time link."
+      },
+      {
+        "name": "Get Inquiry",
+        "description": "Retrieve a single identity verification inquiry by ID, including its status, collected fields, and decision timestamps."
+      },
+      {
+        "name": "List Inquiries",
+        "description": "List identity verification inquiries, optionally filtered by status, account ID, reference ID, or creation date range. Results are cursor-paginated."
+      },
+      {
+        "name": "Update Inquiry",
+        "description": "Update an inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed."
+      },
+      {
+        "name": "Approve Inquiry",
+        "description": "Approve an identity verification inquiry. Approving prevents further progress on the inquiry and triggers any associated workflows and webhooks."
+      },
+      {
+        "name": "Decline Inquiry",
+        "description": "Decline an identity verification inquiry. Declining prevents further progress on the inquiry and triggers any associated workflows and webhooks."
+      },
+      {
+        "name": "Mark Inquiry for Review",
+        "description": "Mark an identity verification inquiry for manual review, moving it to the needs_review status."
+      },
+      {
+        "name": "Resume Inquiry",
+        "description": "Resume a pending or expired inquiry, creating a new session so the individual can continue verification. Returns a session token."
+      },
+      {
+        "name": "Expire Inquiry",
+        "description": "Expire an in-progress inquiry, invalidating its sessions and one-time links so the individual can no longer continue it."
+      },
+      {
+        "name": "Generate Inquiry Link",
+        "description": "Generate a one-time link for an inquiry that the individual can open to complete their identity verification."
+      },
+      {
+        "name": "Print Inquiry PDF",
+        "description": "Download a PDF summary of an inquiry, including its collected information and verification results."
+      },
+      {
+        "name": "Redact Inquiry",
+        "description": "Permanently delete all personally identifiable information collected by an inquiry, for example to honor a data deletion request. This cannot be undone."
+      },
+      {
+        "name": "Create Account",
+        "description": "Create an account that represents an individual in Persona. Accounts consolidate inquiries, verifications, and reports for the same person."
+      },
+      {
+        "name": "Get Account",
+        "description": "Retrieve a single account by ID, including its reference ID, fields, tags, and status."
+      },
+      {
+        "name": "List Accounts",
+        "description": "List accounts in your Persona organization, optionally filtered by reference ID. Results are cursor-paginated."
+      },
+      {
+        "name": "Update Account",
+        "description": "Update an account’s reference ID, country code, fields, or tags. Only the provided values are changed."
+      },
+      {
+        "name": "Import Accounts (CSV)",
+        "description": "Bulk-import accounts into Persona from a CSV file. Returns an importer whose status can be polled until processing completes."
+      },
+      {
+        "name": "Redact Account",
+        "description": "Permanently delete all personally identifiable information stored on an account, for example to honor a data deletion request. This cannot be undone."
+      },
+      {
+        "name": "List Cases",
+        "description": "List manual review cases, optionally filtered by status, account ID, or reference ID. Results are cursor-paginated."
+      },
+      {
+        "name": "Get Case",
+        "description": "Retrieve a single manual review case by ID, including its status, resolution, and assignee."
+      },
+      {
+        "name": "Create Report",
+        "description": "Run a screening report (watchlist, adverse media, or politically exposed person) against an individual by name or search term."
+      },
+      {
+        "name": "Get Report",
+        "description": "Retrieve a single screening report by ID, including its status, match results, and full type-specific attributes."
+      },
+      {
+        "name": "List Reports",
+        "description": "List screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated."
+      },
+      {
+        "name": "Get Verification",
+        "description": "Retrieve a single verification by ID (government ID, selfie, document, database, and more), including its status and the checks that ran."
+      },
+      {
+        "name": "Get Document",
+        "description": "Retrieve a single document by ID (government ID, generic document, and more), including its processing status and uploaded files."
+      },
+      {
+        "name": "List Inquiry Templates",
+        "description": "List the inquiry templates in your Persona organization, to discover template IDs for creating inquiries. Results are cursor-paginated."
+      }
+    ],
+    "operationCount": 26,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "security",
+    "tags": ["identity"]
   },
   {
     "type": "pinecone",
@@ -14600,6 +14758,105 @@
     "tags": ["messaging", "webhooks", "automation"]
   },
   {
+    "type": "temporal",
+    "slug": "temporal",
+    "name": "Temporal",
+    "description": "Start, signal, query, and manage Temporal workflow executions",
+    "longDescription": "Connect to a Temporal cluster over the server's HTTP API to start workflow executions, send signals, run queries against workflow state, describe and list executions, fetch event histories, and cancel or terminate running workflows. API key only required for servers with authentication enabled.",
+    "bgColor": "#141414",
+    "iconName": "TemporalIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/temporal",
+    "operations": [
+      {
+        "name": "Start Workflow",
+        "description": "Start a new workflow execution on a Temporal cluster."
+      },
+      {
+        "name": "Signal Workflow",
+        "description": "Send a signal to a running Temporal workflow execution."
+      },
+      {
+        "name": "Signal With Start",
+        "description": "Atomically signal a Temporal workflow, starting it first if it is not already running, so the signal is never lost."
+      },
+      {
+        "name": "Query Workflow",
+        "description": "Run a synchronous query against the state of a Temporal workflow execution and return the result."
+      },
+      {
+        "name": "Update Workflow",
+        "description": "Invoke an update handler on a running Temporal workflow and wait for its result. Unlike a signal, an update is validated by the workflow and returns a response."
+      },
+      {
+        "name": "Describe Workflow",
+        "description": "Get the current state of a Temporal workflow execution, including status, timing, memo, search attributes, and pending activities."
+      },
+      {
+        "name": "List Workflows",
+        "description": "List workflow executions in a Temporal namespace, optionally filtered with a visibility query."
+      },
+      {
+        "name": "Count Workflows",
+        "description": "Count workflow executions in a Temporal namespace matching a visibility query, with optional GROUP BY aggregation."
+      },
+      {
+        "name": "Get Workflow History",
+        "description": "Fetch the event history of a Temporal workflow execution, optionally filtered to just the close event."
+      },
+      {
+        "name": "Cancel Workflow",
+        "description": "Request cooperative cancellation of a running Temporal workflow execution. The workflow decides how to respond to the request."
+      },
+      {
+        "name": "Terminate Workflow",
+        "description": "Forcefully terminate a Temporal workflow execution immediately, without giving the workflow a chance to react."
+      },
+      {
+        "name": "Reset Workflow",
+        "description": "Reset a Temporal workflow execution to a past workflow task, terminating the current run and replaying from the reset point in a new run."
+      },
+      {
+        "name": "Describe Task Queue",
+        "description": "List the workers currently polling a Temporal task queue, to check whether a workflow or activity has live workers."
+      },
+      {
+        "name": "Create Schedule",
+        "description": "Create a Temporal schedule that starts a workflow on a cron or interval cadence."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List schedules in a Temporal namespace."
+      },
+      {
+        "name": "Describe Schedule",
+        "description": "Get the configuration and current state of a Temporal schedule, including its spec, recent actions, and upcoming run times."
+      },
+      {
+        "name": "Pause Schedule",
+        "description": "Pause a Temporal schedule so it stops taking actions until unpaused."
+      },
+      {
+        "name": "Unpause Schedule",
+        "description": "Unpause a Temporal schedule so it resumes taking actions."
+      },
+      {
+        "name": "Trigger Schedule",
+        "description": "Trigger an immediate action of a Temporal schedule, outside its normal spec."
+      },
+      {
+        "name": "Delete Schedule",
+        "description": "Delete a Temporal schedule. Workflows already started by the schedule keep running."
+      }
+    ],
+    "operationCount": 20,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["automation"]
+  },
+  {
     "type": "tinybird",
     "slug": "tinybird",
     "name": "Tinybird",
@@ -14684,6 +14941,201 @@
     "category": "tools",
     "integrationType": "productivity",
     "tags": ["project-management", "ticketing"]
+  },
+  {
+    "type": "trigger_dev",
+    "slug": "trigger-dev",
+    "name": "Trigger.dev",
+    "description": "Trigger tasks and manage runs and schedules",
+    "longDescription": "Integrate Trigger.dev into the workflow. Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.",
+    "bgColor": "#000000",
+    "iconName": "TriggerDevIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/trigger_dev",
+    "operations": [
+      {
+        "name": "Trigger Task",
+        "description": "Trigger a Trigger.dev task by its identifier with an optional JSON payload. Returns the ID of the created run."
+      },
+      {
+        "name": "Batch Trigger Task",
+        "description": "Batch trigger a Trigger.dev task with up to 1,000 payloads. All items in the batch run the same task. Returns the batch ID and the created run IDs."
+      },
+      {
+        "name": "Get Batch",
+        "description": "Retrieve a Trigger.dev batch by its ID, including its status, run IDs, and success and failure counts."
+      },
+      {
+        "name": "Get Batch Results",
+        "description": "Retrieve the execution results of every run in a Trigger.dev batch, including outputs and error details."
+      },
+      {
+        "name": "Get Run",
+        "description": "Retrieve a Trigger.dev run by its ID, including status, payload, output, attempts, and timing details."
+      },
+      {
+        "name": "Get Run Result",
+        "description": "Retrieve the result of a Trigger.dev run: whether it succeeded, its output, and error details. Lighter than Get Run when only the outcome is needed."
+      },
+      {
+        "name": "Get Run Events",
+        "description": "Retrieve the log and span events of a Trigger.dev run, including messages, levels, durations, and error events."
+      },
+      {
+        "name": "Get Run Trace",
+        "description": "Retrieve the OpenTelemetry trace of a Trigger.dev run as a tree of spans with timing, errors, and nested children."
+      },
+      {
+        "name": "List Runs",
+        "description": "List Trigger.dev runs in the environment of the API key, with optional filters for status, task, version, tags, schedule, and creation time."
+      },
+      {
+        "name": "Cancel Run",
+        "description": "Cancel an in-progress Trigger.dev run. Has no effect if the run is already completed."
+      },
+      {
+        "name": "Replay Run",
+        "description": "Replay a Trigger.dev run, creating a new run with the same payload and options as the original."
+      },
+      {
+        "name": "Reschedule Run",
+        "description": "Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run is in the DELAYED state."
+      },
+      {
+        "name": "Add Run Tags",
+        "description": "Add tags to an existing Trigger.dev run. Runs can have up to 10 tags."
+      },
+      {
+        "name": "Update Run Metadata",
+        "description": "Replace the metadata of a Trigger.dev run with a new JSON object."
+      },
+      {
+        "name": "Create Schedule",
+        "description": "Create an imperative cron schedule that triggers a Trigger.dev task on a recurring basis."
+      },
+      {
+        "name": "Get Schedule",
+        "description": "Retrieve a Trigger.dev schedule by its ID."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List Trigger.dev schedules in the project, with page-based pagination."
+      },
+      {
+        "name": "Update Schedule",
+        "description": "Update an imperative Trigger.dev schedule by its ID, replacing its task, cron expression, timezone, and external ID."
+      },
+      {
+        "name": "Delete Schedule",
+        "description": "Delete an imperative Trigger.dev schedule by its ID."
+      },
+      {
+        "name": "Activate Schedule",
+        "description": "Activate an imperative Trigger.dev schedule so it resumes triggering its task."
+      },
+      {
+        "name": "Deactivate Schedule",
+        "description": "Deactivate an imperative Trigger.dev schedule so it stops triggering its task."
+      },
+      {
+        "name": "List Env Vars",
+        "description": "List the environment variables of a Trigger.dev project environment. Values are returned in plaintext and will appear in workflow outputs and run history — scope this operation carefully."
+      },
+      {
+        "name": "Create Env Var",
+        "description": "Create an environment variable in a Trigger.dev project environment."
+      },
+      {
+        "name": "Get Env Var",
+        "description": "Retrieve an environment variable from a Trigger.dev project environment. The value is returned in plaintext and will appear in workflow outputs and run history."
+      },
+      {
+        "name": "Update Env Var",
+        "description": "Update the value of an environment variable in a Trigger.dev project environment."
+      },
+      {
+        "name": "Delete Env Var",
+        "description": "Delete an environment variable from a Trigger.dev project environment."
+      },
+      {
+        "name": "Import Env Vars",
+        "description": "Upload multiple environment variables to a Trigger.dev project environment in one request."
+      },
+      {
+        "name": "Get Queue",
+        "description": "Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, including its running and queued counts."
+      },
+      {
+        "name": "List Queues",
+        "description": "List the queues in the environment of the API key, including running and queued counts, with page-based pagination."
+      },
+      {
+        "name": "Pause Queue",
+        "description": "Pause a Trigger.dev queue so no new runs start. Runs that are currently executing continue to completion."
+      },
+      {
+        "name": "Resume Queue",
+        "description": "Resume a paused Trigger.dev queue so new runs can start again."
+      },
+      {
+        "name": "Override Queue Concurrency",
+        "description": "Override the concurrency limit of a Trigger.dev queue with a new value."
+      },
+      {
+        "name": "Reset Queue Concurrency",
+        "description": "Reset the concurrency limit of a Trigger.dev queue back to its base value, removing any override."
+      },
+      {
+        "name": "List Deployments",
+        "description": "List Trigger.dev deployments in the environment of the API key, with optional status and creation-time filters."
+      },
+      {
+        "name": "Get Deployment",
+        "description": "Retrieve a Trigger.dev deployment by its ID, including its status, version, and registered tasks."
+      },
+      {
+        "name": "Get Latest Deployment",
+        "description": "Retrieve the latest Trigger.dev deployment in the environment of the API key."
+      },
+      {
+        "name": "Promote Deployment",
+        "description": "Promote a Trigger.dev deployment version so new runs execute on it (e.g., to roll back to a previous version)."
+      },
+      {
+        "name": "Execute Query",
+        "description": "Execute a TRQL (SQL-like) query against Trigger.dev run data for reporting and analytics."
+      },
+      {
+        "name": "Get Query Schema",
+        "description": "Retrieve the TRQL query schema: the tables and columns available for Execute Query, with types and allowed values."
+      },
+      {
+        "name": "Create Waitpoint Token",
+        "description": "Create a Trigger.dev waitpoint token that a task can wait on until it is completed from outside (e.g., a human approval)."
+      },
+      {
+        "name": "Complete Waitpoint Token",
+        "description": "Complete a Trigger.dev waitpoint token, resuming any task waiting on it and passing it optional JSON data."
+      },
+      {
+        "name": "Get Waitpoint Token",
+        "description": "Retrieve a Trigger.dev waitpoint token by its ID, including its status, timeout, and completion data."
+      },
+      {
+        "name": "List Waitpoint Tokens",
+        "description": "List Trigger.dev waitpoint tokens in the environment of the API key, with optional status, tag, and creation-time filters."
+      },
+      {
+        "name": "List Timezones",
+        "description": "List the IANA timezones supported by Trigger.dev schedules, for use as the timezone of a cron schedule."
+      }
+    ],
+    "operationCount": 44,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["automation", "ci-cd", "monitoring"]
   },
   {
     "type": "twilio_sms",

@@ -7,6 +7,7 @@ import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/emcn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
+import { normalizeName } from '@/executor/constants'
 
 const logger = createLogger('FieldItem')
 
@@ -44,7 +45,7 @@ export function FieldItem({
 }: FieldItemProps) {
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
-      const normalizedBlockName = connection.name.replace(/\s+/g, '').toLowerCase()
+      const normalizedBlockName = normalizeName(connection.name)
       const fullTag = `${normalizedBlockName}.${path}`
 
       e.dataTransfer.setData(

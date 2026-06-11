@@ -9,6 +9,7 @@ import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import type { HydrationState, WorkflowRegistry } from '@/stores/workflows/registry/types'
@@ -56,6 +57,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         logger.info(`Switching to workspace: ${workspaceId}`)
 
         resetWorkflowStores()
+        // Workflow stores are fully reset and reloaded from the server in the new
+        // workspace, so a previously tripped offline mode must not carry over.
+        useOperationQueueStore.getState().clearError()
         void invalidateWorkflowLists(getQueryClient(), workspaceId)
 
         set({

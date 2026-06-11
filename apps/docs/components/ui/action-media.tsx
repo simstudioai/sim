@@ -26,7 +26,7 @@ export function ActionImage({ src, alt, enableLightbox = true }: ActionImageProp
       src={src}
       alt={alt}
       className={cn(
-        'inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700',
+        'inline-block w-full max-w-[200px] rounded-lg border border-[var(--border-1)]',
         enableLightbox && 'transition-opacity group-hover:opacity-90'
       )}
     />
@@ -79,7 +79,7 @@ export function ActionVideo({ src, alt, enableLightbox = true }: ActionVideoProp
       muted
       playsInline
       className={cn(
-        'inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700',
+        'inline-block w-full max-w-[200px] rounded-lg border border-[var(--border-1)]',
         enableLightbox && 'transition-opacity group-hover:opacity-90'
       )}
     />

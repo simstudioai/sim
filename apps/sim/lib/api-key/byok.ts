@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -19,6 +19,25 @@ export interface BYOKKeyResult {
   isBYOK: true
 }
 
+const rotationCounters = new Map<string, number>()
+
+/**
+ * Advances the per-process round-robin cursor for a rotation pool and returns
+ * the next index. Counters are per server instance, which keeps rotation free
+ * of database writes; aggregate load still spreads evenly across keys.
+ */
+function nextRotationIndex(poolKey: string, poolSize: number): number {
+  const cursor = (rotationCounters.get(poolKey) ?? -1) + 1
+  rotationCounters.set(poolKey, cursor)
+  return cursor % poolSize
+}
+
+/**
+ * Resolves a workspace BYOK key for a provider. When the workspace has
+ * multiple keys stored for the provider, requests round-robin across them in
+ * creation order. A key that fails to decrypt is skipped in favor of the next
+ * one in the pool.
+ */
 export async function getBYOKKey(
   workspaceId: string | undefined | null,
   providerId: BYOKProviderId
@@ -33,8 +52,8 @@ export async function getBYOKKey(
       return null
     }
 
-    const result = await db
-      .select({ encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
+    const keys = await db
+      .select({ id: workspaceBYOKKeys.id, encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
       .from(workspaceBYOKKeys)
       .where(
         and(
@@ -42,14 +61,29 @@ export async function getBYOKKey(
           eq(workspaceBYOKKeys.providerId, providerId)
         )
       )
-      .limit(1)
+      .orderBy(asc(workspaceBYOKKeys.createdAt), asc(workspaceBYOKKeys.id))
 
-    if (!result.length) {
+    if (!keys.length) {
       return null
     }
 
-    const { decrypted } = await decryptSecret(result[0].encryptedApiKey)
-    return { apiKey: decrypted, isBYOK: true }
+    const startIndex = nextRotationIndex(`${workspaceId}:${providerId}`, keys.length)
+    for (let offset = 0; offset < keys.length; offset++) {
+      const key = keys[(startIndex + offset) % keys.length]
+      try {
+        const { decrypted } = await decryptSecret(key.encryptedApiKey)
+        return { apiKey: decrypted, isBYOK: true }
+      } catch (error) {
+        logger.error('Failed to decrypt BYOK key, skipping', {
+          workspaceId,
+          providerId,
+          keyId: key.id,
+          error,
+        })
+      }
+    }
+
+    return null
   } catch (error) {
     logger.error('Failed to get BYOK key', { workspaceId, providerId, error })
     return null

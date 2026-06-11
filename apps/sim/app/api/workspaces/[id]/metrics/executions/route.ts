@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { pausedExecutions, permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, isNotNull, isNull, lte, or, type SQL, sql } from 'drizzle-orm'
@@ -60,7 +60,7 @@ export const GET = withRouteHandler(
         wfWhere.push(inArray(workflow.id, wfList))
       }
 
-      const workflows = await db
+      const workflows = await dbReplica
         .select({ id: workflow.id, name: workflow.name })
         .from(workflow)
         .where(and(...wfWhere))
@@ -124,7 +124,7 @@ export const GET = withRouteHandler(
       }
 
       if (isAllTime) {
-        const boundsQuery = db
+        const boundsQuery = dbReplica
           .select({
             minDate: sql<Date>`MIN(${workflowExecutionLogs.startedAt})`,
             maxDate: sql<Date>`MAX(${workflowExecutionLogs.startedAt})`,
@@ -168,7 +168,7 @@ export const GET = withRouteHandler(
         lte(workflowExecutionLogs.startedAt, end),
       ]
 
-      const logs = await db
+      const logs = await dbReplica
         .select({
           workflowId: workflowExecutionLogs.workflowId,
           level: workflowExecutionLogs.level,

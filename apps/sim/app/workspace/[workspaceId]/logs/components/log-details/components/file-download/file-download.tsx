@@ -1,9 +1,8 @@
 'use client'
 
-import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
-import { Button, Loader } from '@/components/emcn'
+import { Button } from '@/components/emcn'
 import { Download } from '@/components/emcn/icons'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
@@ -41,14 +40,9 @@ function formatFileSize(bytes: number): string {
 }
 
 function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps) {
-  const [isDownloading, setIsDownloading] = useState(false)
   const router = useRouter()
 
   const handleDownload = () => {
-    if (isDownloading) return
-
-    setIsDownloading(true)
-
     try {
       logger.info(`Initiating download for file: ${file.name}`)
 
@@ -91,8 +85,6 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
       }
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-    } finally {
-      setIsDownloading(false)
     }
   }
 
@@ -113,14 +105,9 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
           variant='ghost'
           className='!h-[20px] !px-1.5 !py-0 text-xs'
           onClick={handleDownload}
-          disabled={isDownloading}
         >
-          {isDownloading ? (
-            <Loader className='mr-1 size-[10px]' animate />
-          ) : (
-            <Download className='mr-1 size-[10px]' />
-          )}
-          {isDownloading ? 'Opening...' : 'Download'}
+          <Download className='mr-1 size-[10px]' />
+          Download
         </Button>
       </div>
     </div>
@@ -148,84 +135,3 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
     </div>
   )
 }
-
-export function FileDownload({
-  file,
-  isExecutionFile = false,
-  className,
-  workspaceId,
-}: {
-  file: FileData
-  isExecutionFile?: boolean
-  className?: string
-  workspaceId?: string
-}) {
-  const [isDownloading, setIsDownloading] = useState(false)
-  const router = useRouter()
-
-  const handleDownload = () => {
-    if (isDownloading) return
-
-    setIsDownloading(true)
-
-    try {
-      logger.info(`Initiating download for file: ${file.name}`)
-
-      if (file.key.startsWith('url/')) {
-        if (file.url) {
-          window.open(file.url, '_blank')
-          logger.info(`Opened URL-type file directly: ${file.url}`)
-          return
-        }
-        throw new Error('URL is required for URL-type files')
-      }
-
-      let resolvedWorkspaceId = workspaceId
-      if (!resolvedWorkspaceId && isExecutionFile) {
-        resolvedWorkspaceId = extractWorkspaceIdFromExecutionKey(file.key) || undefined
-      } else if (!resolvedWorkspaceId) {
-        const segments = file.key.split('/')
-        if (segments.length >= 2 && /^[a-f0-9-]{36}$/.test(segments[0])) {
-          resolvedWorkspaceId = segments[0]
-        }
-      }
-
-      if (isExecutionFile) {
-        const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=execution`
-        window.open(serveUrl, '_blank')
-        logger.info(`Opened execution file serve URL: ${serveUrl}`)
-      } else {
-        const viewerUrl = resolvedWorkspaceId ? getViewerUrl(file.key, resolvedWorkspaceId) : null
-
-        if (viewerUrl) {
-          router.push(viewerUrl)
-          logger.info(`Navigated to viewer URL: ${viewerUrl}`)
-        } else {
-          logger.warn(
-            `Could not construct viewer URL for file: ${file.name}, falling back to serve URL`
-          )
-          const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
-          window.open(serveUrl, '_blank')
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to download file ${file.name}:`, error)
-    } finally {
-      setIsDownloading(false)
-    }
-  }
-
-  return (
-    <Button
-      variant='ghost'
-      className={`h-7 px-2 text-xs ${className}`}
-      onClick={handleDownload}
-      disabled={isDownloading}
-    >
-      {isDownloading ? <Loader className='size-3' animate /> : <Download className='size-[14px]' />}
-      {isDownloading ? 'Downloading...' : 'Download'}
-    </Button>
-  )
-}
-
-export default FileCards

@@ -30,6 +30,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
+  isTriggerModeSubBlock,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -539,14 +540,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
       if (effectiveTrigger) {
         const isValidTriggerSubblock = isPureTriggerBlock
-          ? block.mode === 'trigger' || !block.mode
-          : block.mode === 'trigger'
+          ? isTriggerModeSubBlock(block) || !block.mode
+          : isTriggerModeSubBlock(block)
 
         if (!isValidTriggerSubblock) {
           return false
         }
       } else {
-        if (block.mode === 'trigger') {
+        if (isTriggerModeSubBlock(block)) {
           return false
         }
       }
