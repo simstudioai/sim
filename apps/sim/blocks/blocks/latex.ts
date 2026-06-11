@@ -1,14 +1,14 @@
 import { LatexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { LatexCompileResponse } from '@/tools/latex/types'
+import type { LatexResponse } from '@/tools/latex/types'
 
-export const LatexBlock: BlockConfig<LatexCompileResponse> = {
+export const LatexBlock: BlockConfig<LatexResponse> = {
   type: 'latex',
   name: 'LaTeX',
   description: 'Compile LaTeX documents into PDFs',
   longDescription:
-    'Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Does not require OAuth or an API key.',
+    'Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key.',
   docsLink: 'https://docs.sim.ai/integrations/latex',
   category: 'tools',
   integrationType: IntegrationType.Documents,
@@ -16,12 +16,26 @@ export const LatexBlock: BlockConfig<LatexCompileResponse> = {
   icon: LatexIcon,
   subBlocks: [
     {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Compile Document', id: 'latex_compile' },
+        { label: 'Search Packages', id: 'latex_search_packages' },
+        { label: 'Get Package Details', id: 'latex_get_package' },
+        { label: 'List Fonts', id: 'latex_list_fonts' },
+      ],
+      value: () => 'latex_compile',
+    },
+    // Compile Document operation inputs
+    {
       id: 'content',
       title: 'LaTeX Source',
       type: 'long-input',
       placeholder:
         '\\documentclass{article}\n\\begin{document}\nHello, world! $E = mc^2$\n\\end{document}',
       rows: 10,
+      condition: { field: 'operation', value: 'latex_compile' },
       required: true,
     },
     {
@@ -37,6 +51,7 @@ export const LatexBlock: BlockConfig<LatexCompileResponse> = {
         { label: 'ConTeXt', id: 'context' },
       ],
       value: () => 'pdflatex',
+      condition: { field: 'operation', value: 'latex_compile' },
     },
     {
       id: 'resources',
@@ -45,6 +60,7 @@ export const LatexBlock: BlockConfig<LatexCompileResponse> = {
       language: 'json',
       mode: 'advanced',
       placeholder: '[{"path": "refs.bib", "content": "..."}]',
+      condition: { field: 'operation', value: 'latex_compile' },
       wandConfig: {
         enabled: true,
         prompt: `Generate a JSON array of supporting files for a LaTeX compilation based on the user's description. Each entry must have a "path" (relative file path the LaTeX source references) plus exactly one of:
@@ -66,14 +82,91 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       type: 'short-input',
       mode: 'advanced',
       placeholder: 'document.pdf',
+      condition: { field: 'operation', value: 'latex_compile' },
+    },
+    // Search Packages operation inputs
+    {
+      id: 'packageQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Search package names and descriptions (e.g. "chemistry", "tikz")...',
+      condition: { field: 'operation', value: 'latex_search_packages' },
+      required: true,
+    },
+    // Get Package Details operation inputs
+    {
+      id: 'packageName',
+      title: 'Package Name',
+      type: 'short-input',
+      placeholder: 'Exact package name (e.g. amsmath, tikz, biblatex)',
+      condition: { field: 'operation', value: 'latex_get_package' },
+      required: true,
+    },
+    // List Fonts operation inputs
+    {
+      id: 'fontQuery',
+      title: 'Font Filter',
+      type: 'short-input',
+      placeholder: 'Filter by font family or name (e.g. "Noto Serif")...',
+      condition: { field: 'operation', value: 'latex_list_fonts' },
+    },
+    {
+      id: 'maxResults',
+      title: 'Max Results',
+      type: 'short-input',
+      mode: 'advanced',
+      placeholder: '25',
+      condition: {
+        field: 'operation',
+        value: ['latex_search_packages', 'latex_list_fonts'],
+      },
     },
   ],
   tools: {
-    access: ['latex_compile'],
+    access: ['latex_compile', 'latex_search_packages', 'latex_get_package', 'latex_list_fonts'],
     config: {
-      tool: () => 'latex_compile',
+      tool: (params) => {
+        switch (params.operation) {
+          case 'latex_search_packages':
+            return 'latex_search_packages'
+          case 'latex_get_package':
+            return 'latex_get_package'
+          case 'latex_list_fonts':
+            return 'latex_list_fonts'
+          default:
+            return 'latex_compile'
+        }
+      },
       params: (params) => {
-        const { compiler, fileName, resources, ...rest } = params
+        const {
+          operation,
+          compiler,
+          fileName,
+          resources,
+          packageQuery,
+          packageName,
+          fontQuery,
+          maxResults,
+          ...rest
+        } = params
+
+        if (operation === 'latex_search_packages') {
+          return {
+            query: packageQuery,
+            ...(maxResults ? { maxResults: Number(maxResults) } : {}),
+          }
+        }
+
+        if (operation === 'latex_get_package') {
+          return { name: packageName }
+        }
+
+        if (operation === 'latex_list_fonts') {
+          return {
+            ...(typeof fontQuery === 'string' && fontQuery.trim() ? { query: fontQuery } : {}),
+            ...(maxResults ? { maxResults: Number(maxResults) } : {}),
+          }
+        }
 
         let parsedResources: unknown
         if (typeof resources === 'string' && resources.trim()) {
@@ -96,16 +189,41 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     },
   },
   inputs: {
+    operation: { type: 'string', description: 'Operation to perform' },
+    // Compile Document operation
     content: { type: 'string', description: 'LaTeX source of the main document' },
     compiler: { type: 'string', description: 'LaTeX compiler to use' },
     resources: { type: 'json', description: 'Supporting files for the compilation' },
     fileName: { type: 'string', description: 'Name for the generated PDF file' },
+    // Search Packages operation
+    packageQuery: { type: 'string', description: 'Package search terms' },
+    // Get Package Details operation
+    packageName: { type: 'string', description: 'Exact TeX Live package name' },
+    // List Fonts operation
+    fontQuery: { type: 'string', description: 'Font family or name filter' },
+    maxResults: { type: 'number', description: 'Maximum results to return' },
   },
   outputs: {
+    // Compile Document output
     pdf: { type: 'file', description: 'Compiled PDF file' },
     pdfUrl: { type: 'string', description: 'URL of the compiled PDF' },
     fileName: { type: 'string', description: 'Name of the compiled PDF file' },
     compiler: { type: 'string', description: 'LaTeX compiler used for the build' },
+    // Search Packages output
+    packages: {
+      type: 'json',
+      description: 'Matching TeX Live packages [{name, shortDescription, installed, ctanUrl}]',
+    },
+    // Get Package Details output
+    package: {
+      type: 'json',
+      description:
+        'Package details (name, installed, shortDescription, longDescription, category, license, topics, relatedPackages, homepage, ctanUrl)',
+    },
+    // List Fonts output
+    fonts: { type: 'json', description: 'Available fonts [{family, name, styles}]' },
+    // Shared search/list output
+    totalMatches: { type: 'number', description: 'Total matches found before truncation' },
   },
 }
 
@@ -225,7 +343,7 @@ export const LatexBlockMeta = {
       description:
         'Diagnose failed LaTeX builds from the compiler error output and iterate until the document compiles. Use when a compilation returns errors instead of a PDF.',
       content:
-        '# Fix Compilation Errors\n\nGet a failing LaTeX document to build.\n\n## Steps\n1. Read the TeX error lines from the failed compile (lines starting with !), which name the problem and its location.\n2. Apply the targeted fix: missing packages, unescaped special characters, unmatched braces or environments, or commands needing a different compiler (e.g. fontspec requires xelatex or lualatex).\n3. Recompile and repeat until the build succeeds.\n4. Keep edits minimal — fix the errors without rewriting the document.\n\n## Output\nThe compiled PDF and a short list of the fixes that were applied.',
+        '# Fix Compilation Errors\n\nGet a failing LaTeX document to build.\n\n## Steps\n1. Read the TeX error lines from the failed compile (lines starting with !), which name the problem and its location.\n2. Apply the targeted fix: missing packages (verify availability with Get Package Details or Search Packages), unescaped special characters, unmatched braces or environments, or commands needing a different compiler (e.g. fontspec requires xelatex or lualatex — confirm the font exists with List Fonts).\n3. Recompile and repeat until the build succeeds.\n4. Keep edits minimal — fix the errors without rewriting the document.\n\n## Output\nThe compiled PDF and a short list of the fixes that were applied.',
     },
   ],
 } as const satisfies BlockMeta

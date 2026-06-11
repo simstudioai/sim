@@ -1,0 +1,92 @@
+import type { LatexFont, LatexListFontsParams, LatexListFontsResponse } from '@/tools/latex/types'
+import type { ToolConfig } from '@/tools/types'
+
+const DEFAULT_MAX_RESULTS = 50
+const MAX_RESULTS_LIMIT = 200
+
+export const latexListFontsTool: ToolConfig<LatexListFontsParams, LatexListFontsResponse> = {
+  id: 'latex_list_fonts',
+  name: 'LaTeX List Fonts',
+  description:
+    'List the system fonts available to the LaTeX compiler, optionally filtered by name, e.g. to pick a font for xelatex or lualatex documents using fontspec.',
+  version: '1.0.0',
+
+  params: {
+    query: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter matched against font family and full font name, e.g. "Noto Serif"',
+    },
+    maxResults: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `Maximum number of fonts to return (default: ${DEFAULT_MAX_RESULTS}, max: ${MAX_RESULTS_LIMIT})`,
+    },
+  },
+
+  request: {
+    url: 'https://latex.ytotech.com/fonts',
+    method: 'GET',
+    headers: () => ({
+      Accept: 'application/json',
+    }),
+  },
+
+  transformResponse: async (response: Response, params?: LatexListFontsParams) => {
+    const data = (await response.json()) as {
+      fonts?: Array<{
+        family?: string
+        name?: string
+        styles?: string[]
+      }>
+    }
+
+    const query = (params?.query ?? '').trim().toLowerCase()
+    const matches = (data.fonts ?? []).filter((font) => {
+      if (!query) return true
+      return (
+        (font.family ?? '').toLowerCase().includes(query) ||
+        (font.name ?? '').toLowerCase().includes(query)
+      )
+    })
+
+    const maxResults = Math.min(
+      Math.max(Math.trunc(params?.maxResults ?? DEFAULT_MAX_RESULTS), 1),
+      MAX_RESULTS_LIMIT
+    )
+    const fonts: LatexFont[] = matches.slice(0, maxResults).map((font) => ({
+      family: font.family ?? '',
+      name: font.name ?? '',
+      styles: font.styles ?? [],
+    }))
+
+    return {
+      success: true,
+      output: {
+        fonts,
+        totalMatches: matches.length,
+      },
+    }
+  },
+
+  outputs: {
+    fonts: {
+      type: 'array',
+      description: 'Fonts available to the LaTeX compiler',
+      items: {
+        type: 'object',
+        properties: {
+          family: { type: 'string', description: 'Font family name' },
+          name: { type: 'string', description: 'Full font name' },
+          styles: { type: 'array', description: 'Available styles, e.g. Bold or Italic' },
+        },
+      },
+    },
+    totalMatches: {
+      type: 'number',
+      description: 'Total number of fonts matching the filter, before truncation',
+    },
+  },
+}

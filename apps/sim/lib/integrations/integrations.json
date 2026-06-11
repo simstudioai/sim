@@ -8244,12 +8244,29 @@
     "slug": "latex",
     "name": "LaTeX",
     "description": "Compile LaTeX documents into PDFs",
-    "longDescription": "Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Does not require OAuth or an API key.",
+    "longDescription": "Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Can also look up the TeX Live packages and system fonts available to the compiler. Does not require OAuth or an API key.",
     "bgColor": "#FFFFFF",
     "iconName": "LatexIcon",
     "docsUrl": "https://docs.sim.ai/integrations/latex",
-    "operations": [],
-    "operationCount": 0,
+    "operations": [
+      {
+        "name": "Compile Document",
+        "description": "Compile a LaTeX document into a PDF. Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies."
+      },
+      {
+        "name": "Search Packages",
+        "description": "Search the TeX Live packages available to the LaTeX compiler by name or description, e.g. to check which packages can be used in a document."
+      },
+      {
+        "name": "Get Package Details",
+        "description": "Get details about a specific TeX Live package available to the LaTeX compiler, including whether it is installed, its description, license, and related packages."
+      },
+      {
+        "name": "List Fonts",
+        "description": "List the system fonts available to the LaTeX compiler, optionally filtered by name, e.g. to pick a font for xelatex or lualatex documents using fontspec."
+      }
+    ],
+    "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",

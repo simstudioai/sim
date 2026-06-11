@@ -29,3 +29,67 @@ export interface LatexCompileResponse extends ToolResponse {
     compiler: string
   }
 }
+
+export interface LatexSearchPackagesParams {
+  query: string
+  maxResults?: number
+}
+
+export interface LatexPackageSummary {
+  name: string
+  shortDescription: string | null
+  installed: boolean
+  ctanUrl: string | null
+}
+
+export interface LatexSearchPackagesResponse extends ToolResponse {
+  output: {
+    packages: LatexPackageSummary[]
+    totalMatches: number
+  }
+}
+
+export interface LatexGetPackageParams {
+  name: string
+}
+
+export interface LatexGetPackageResponse extends ToolResponse {
+  output: {
+    package: {
+      name: string
+      installed: boolean
+      shortDescription: string | null
+      longDescription: string | null
+      category: string | null
+      license: string | null
+      topics: string[]
+      relatedPackages: string[]
+      homepage: string | null
+      ctanUrl: string | null
+    }
+  }
+}
+
+export interface LatexListFontsParams {
+  query?: string
+  maxResults?: number
+}
+
+export interface LatexFont {
+  family: string
+  name: string
+  styles: string[]
+}
+
+export interface LatexListFontsResponse extends ToolResponse {
+  output: {
+    fonts: LatexFont[]
+    totalMatches: number
+  }
+}
+
+export type LatexResponse =
+  | LatexCompileResponse
+  | LatexSearchPackagesResponse
+  | LatexGetPackageResponse
+  | LatexListFontsResponse
