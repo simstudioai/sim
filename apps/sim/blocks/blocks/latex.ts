@@ -164,7 +164,11 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'latex_get_package') {
-          return { name: packageName }
+          const effectivePackageName = typeof packageName === 'string' ? packageName.trim() : ''
+          if (!effectivePackageName) {
+            throw new Error('Package name is required.')
+          }
+          return { name: effectivePackageName }
         }
 
         if (operation === 'latex_list_fonts') {
