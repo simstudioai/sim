@@ -628,7 +628,11 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
                    the toggle and switcher never shift when the pane closes. */
                 <div className='flex flex-shrink-0 items-center gap-1'>
                   <SidebarToggle className='-ml-[9px]' />
-                  <ChatSwitcher chatId={activeChatId} onSelectChat={reopenChatPane} />
+                  <ChatSwitcher
+                    chatId={activeChatId}
+                    onSelectChat={reopenChatPane}
+                    isWorking={isSending || isReconnecting}
+                  />
                 </div>
               ) : undefined
             }

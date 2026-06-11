@@ -308,7 +308,9 @@ export function MothershipChat({
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div className={cn('flex h-full min-h-0 flex-col', className)}>
-        {layout === 'mothership-view' && <ChatTitleBar chatId={chatId} onClose={onCloseChat} />}
+        {layout === 'mothership-view' && (
+          <ChatTitleBar chatId={chatId} onClose={onCloseChat} isWorking={isStreamActive} />
+        )}
         <div className='relative flex min-h-0 flex-1 flex-col'>
           <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>
             {isLoading && !hasMessages ? (

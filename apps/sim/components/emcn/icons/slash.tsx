@@ -6,7 +6,8 @@ interface IconProps extends SVGProps<SVGSVGElement> {
 }
 
 /**
- * Slash icon (Hugeicons stroke-rounded: MinusSignIcon)
+ * Slash icon — a 45° stroke leaning bottom-left to top-right, matching the
+ * mirrored Paperclip's angle so the two read as an intentional pair
  * @param props - SVG properties including className, size, fill, etc.
  */
 export function Slash({ size = 24, width, height, ...props }: IconProps) {
@@ -21,7 +22,7 @@ export function Slash({ size = 24, width, height, ...props }: IconProps) {
       {...props}
     >
       <path
-        d='M20 12L4 12'
+        d='M18 6L6 18'
         stroke='currentColor'
         strokeLinecap='round'
         strokeLinejoin='round'

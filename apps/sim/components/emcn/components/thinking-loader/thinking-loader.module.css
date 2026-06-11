@@ -1,0 +1,267 @@
+/**
+ * ThinkingLoader gooey animation
+ *
+ * Metaball technique on the SVG alpha channel: ink shapes are blurred with
+ * feGaussianBlur, then feColorMatrix crushes the soft alpha back to hard
+ * edges. Unlike the CSS blur+contrast trick this needs no solid backdrop and
+ * no blend mode, so the loader composites cleanly on any background.
+ *
+ * Every variant is authored in the shared 100x100 viewBox. All stages stack
+ * inside one filtered group; because the alpha crush happens after the
+ * stages composite, crossfading two stages reads as one pattern melting
+ * into the next, which is what drives the cycling morph.
+ *
+ * Ink color rides on currentColor: near-black on light surfaces, off-white
+ * in dark mode.
+ */
+
+.frame {
+  color: #4f4f4f;
+  flex: none;
+}
+
+:global(.dark) .frame {
+  color: #d6d6d6;
+}
+
+.labelRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Claude-style shimmer: the text paints from a gradient with a light band
+   that sweeps across the glyphs via background-clip. */
+.label {
+  font-size: 14px;
+  /* season is a variable font (300–800): 450 is a true intermediate weight,
+     present without the heaviness 500 shows on light surfaces. */
+  font-weight: 450;
+  background-image: linear-gradient(90deg, #4a4a4a 40%, #b0b0b0 50%, #4a4a4a 60%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: label-shimmer 2.2s linear infinite;
+}
+
+:global(.dark) .label {
+  background-image: linear-gradient(90deg, #b9b9b9 40%, #f8f8f8 50%, #b9b9b9 60%);
+}
+
+@keyframes label-shimmer {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.stage {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.stageActive {
+  opacity: 1;
+}
+
+/* metaballs — two circles drift apart and melt back together */
+.metaballsA {
+  animation: metaballs-a 1s infinite alternate;
+}
+.metaballsB {
+  animation: metaballs-b 1s infinite alternate;
+}
+@keyframes metaballs-a {
+  90%,
+  100% {
+    transform: translateX(30px);
+  }
+}
+@keyframes metaballs-b {
+  90%,
+  100% {
+    transform: translateX(-30px);
+  }
+}
+
+/* orbit — two blobs chase each other around a square track */
+.orbitA,
+.orbitB {
+  animation: orbit 2s infinite;
+}
+.orbitB {
+  animation-delay: -1s;
+}
+@keyframes orbit {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(40px, 0);
+  }
+  50% {
+    transform: translate(40px, 40px);
+  }
+  75% {
+    transform: translate(0, 40px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* relay — a ball stretches between two goal posts */
+.relayBall {
+  animation: relay 1s infinite;
+}
+@keyframes relay {
+  90%,
+  100% {
+    transform: translateX(60px);
+  }
+}
+
+/* corners — four dots rotate around a center square */
+.cornersA {
+  animation: corners-a 0.8s infinite;
+}
+.cornersB {
+  animation: corners-b 0.8s infinite;
+}
+.cornersC {
+  animation: corners-c 0.8s infinite;
+}
+.cornersD {
+  animation: corners-d 0.8s infinite;
+}
+@keyframes corners-a {
+  100% {
+    transform: translate(50px, 0);
+  }
+}
+@keyframes corners-b {
+  100% {
+    transform: translate(0, 50px);
+  }
+}
+@keyframes corners-c {
+  100% {
+    transform: translate(-50px, 0);
+  }
+}
+@keyframes corners-d {
+  100% {
+    transform: translate(0, -50px);
+  }
+}
+
+/* burst — four dots repeatedly fling out of a center cross */
+.burstUp {
+  animation: burst-up 0.8s infinite;
+}
+.burstDown {
+  animation: burst-down 0.8s infinite;
+}
+.burstLeft {
+  animation: burst-left 0.8s infinite;
+}
+.burstRight {
+  animation: burst-right 0.8s infinite;
+}
+@keyframes burst-up {
+  100% {
+    transform: translateY(-50px);
+  }
+}
+@keyframes burst-down {
+  100% {
+    transform: translateY(50px);
+  }
+}
+@keyframes burst-left {
+  100% {
+    transform: translateX(-50px);
+  }
+}
+@keyframes burst-right {
+  100% {
+    transform: translateX(50px);
+  }
+}
+
+/* compass — one dot tours the four cardinal points */
+.compassMover {
+  animation: compass 2s infinite;
+}
+@keyframes compass {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(25px, 25px);
+  }
+  50% {
+    transform: translate(0, 50px);
+  }
+  75% {
+    transform: translate(-25px, 25px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* squeeze — two bars pinch together inside the ring arcs */
+.squeezeBarL {
+  animation: squeeze-l 0.6s infinite alternate;
+}
+.squeezeBarR {
+  animation: squeeze-r 0.6s infinite alternate;
+}
+@keyframes squeeze-l {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(10px);
+  }
+}
+@keyframes squeeze-r {
+  0%,
+  30% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-10px);
+  }
+}
+
+/* maze — a dot traces the channel between two L-shaped walls */
+.mazeDot {
+  animation: maze 2s infinite;
+}
+@keyframes maze {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(45px, 0);
+  }
+  50% {
+    transform: translate(45px, 45px);
+  }
+  75% {
+    transform: translate(0, 45px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame *,
+  .label {
+    animation: none;
+  }
+}

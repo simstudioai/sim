@@ -75,6 +75,7 @@ import {
   TagInput,
   type TagItem,
   Textarea,
+  ThinkingLoader,
   TimePicker,
   ToastProvider,
   Tooltip,
@@ -1005,6 +1006,39 @@ export default function PlaygroundPage() {
                   />
                 </div>
               </VariantRow>
+            </Section>
+
+            {/* ThinkingLoader */}
+            <Section title='ThinkingLoader'>
+              <VariantRow label='cycle (default)'>
+                <div className='flex items-center gap-6'>
+                  <ThinkingLoader />
+                  <ThinkingLoader size={28} />
+                  <ThinkingLoader size={40} />
+                  <ThinkingLoader label='Thinking…' />
+                </div>
+              </VariantRow>
+              {(
+                [
+                  'metaballs',
+                  'orbit',
+                  'relay',
+                  'corners',
+                  'burst',
+                  'compass',
+                  'squeeze',
+                  'maze',
+                ] as const
+              ).map((variant) => (
+                <VariantRow key={variant} label={variant}>
+                  <div className='flex items-center gap-6'>
+                    <ThinkingLoader variant={variant} />
+                    <ThinkingLoader variant={variant} size={28} />
+                    <ThinkingLoader variant={variant} size={40} />
+                    <ThinkingLoader variant={variant} label='Thinking…' />
+                  </div>
+                </VariantRow>
+              ))}
             </Section>
 
             {/* Icons */}

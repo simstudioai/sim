@@ -15,6 +15,8 @@ interface ChatTitleBarProps {
   onSelectChat?: (chatId: string) => void
   /** Renders a close (×) control at the bar's right edge that hides the chat pane. */
   onClose?: () => void
+  /** The chat is generating a response — the switcher's recents icon becomes a spinner. */
+  isWorking?: boolean
 }
 
 /**
@@ -23,7 +25,7 @@ interface ChatTitleBarProps {
  * straight between chats without returning to the new-chat view. Selecting a
  * chat navigates to it.
  */
-export function ChatTitleBar({ chatId, onSelectChat, onClose }: ChatTitleBarProps) {
+export function ChatTitleBar({ chatId, onSelectChat, onClose, isWorking }: ChatTitleBarProps) {
   return (
     <div className='flex h-[44px] flex-shrink-0 items-center gap-1 border-[var(--border)] border-b px-4'>
       {/* Edge controls pull out by 9px so their 30px hover pills sit 7px from
@@ -31,7 +33,12 @@ export function ChatTitleBar({ chatId, onSelectChat, onClose }: ChatTitleBarProp
       <SidebarToggle className='-ml-[9px]' />
       {/* The title bar only renders on chat surfaces, so no chat id means the
           new-chat empty state — never fall back to the most recent chat. */}
-      <ChatSwitcher chatId={chatId} isNewChat={!chatId} onSelectChat={onSelectChat} />
+      <ChatSwitcher
+        chatId={chatId}
+        isNewChat={!chatId}
+        onSelectChat={onSelectChat}
+        isWorking={isWorking}
+      />
       {onClose && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>

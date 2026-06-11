@@ -7,6 +7,7 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  ThinkingLoader,
   Tooltip,
 } from '@/components/emcn'
 import { BubbleChatDelay, ChevronDown } from '@/components/emcn/icons'
@@ -64,6 +65,12 @@ interface ChatSwitcherProps {
    * to reopen a hidden chat pane (including re-picking the current chat).
    */
   onSelectChat?: (chatId: string) => void
+  /**
+   * The chat is generating a response — the recents icon becomes a spinner so
+   * the title bar signals work in progress even when the messages are off
+   * screen (collapsed pane, scrolled away).
+   */
+  isWorking?: boolean
 }
 
 /**
@@ -76,6 +83,7 @@ export function ChatSwitcher({
   isNewChat = false,
   iconOnly = false,
   onSelectChat,
+  isWorking = false,
 }: ChatSwitcherProps) {
   const isHidden = useSidebarToggleHidden()
   const { workspaceId } = useParams<{ workspaceId?: string }>()
@@ -117,6 +125,12 @@ export function ChatSwitcher({
     router.push(`/workspace/${workspaceId}/chat/${selectedChatId}`)
   }
 
+  const chipIcon = isWorking ? (
+    <ThinkingLoader size={18} className='flex-shrink-0' />
+  ) : (
+    <BubbleChatDelay className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+  )
+
   const trigger = iconOnly ? (
     <button
       type='button'
@@ -128,7 +142,7 @@ export function ChatSwitcher({
         open && 'bg-[var(--surface-active)]'
       )}
     >
-      <BubbleChatDelay className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      {chipIcon}
       <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
     </button>
   ) : (
@@ -142,7 +156,7 @@ export function ChatSwitcher({
         open && 'bg-[var(--surface-active)]'
       )}
     >
-      <BubbleChatDelay className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      {chipIcon}
       <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
         {title}
       </span>
