@@ -122,7 +122,7 @@ export async function performFullDeploy(
     workflowName: workflowName || workflowRecord.name || undefined,
     description: params.versionDescription,
     name: params.versionName,
-    validateWorkflowState: async (workflowState) => {
+    validateWorkflowState: async (workflowState, executor) => {
       const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
       if (!scheduleValidation.isValid) {
         return {
@@ -131,7 +131,10 @@ export async function performFullDeploy(
           errorCode: 'validation',
         }
       }
-      const triggerValidation = await validateTriggerWebhookConfigForDeploy(workflowState.blocks)
+      const triggerValidation = await validateTriggerWebhookConfigForDeploy(
+        workflowState.blocks,
+        executor
+      )
       if (!triggerValidation.success) {
         return {
           success: false,

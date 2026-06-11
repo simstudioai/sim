@@ -1111,6 +1111,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
         return 0
       }
 
+      // Resolved before the advisory-locked transaction below: resolving inside
+      // it would run the subscription lookups on the global pool while the tx
+      // already holds a pooled connection (see recordCumulativeUsage).
+      const resolvedBillingContext =
+        billingContext ?? deriveBillingContext(userId, await getHighestPrioritySubscription(userId))
+
       // Build the run's *cumulative* target ledger lines from the cost summary.
       // The usage_log is then reconciled to these targets: at each completion
       // boundary (pause or terminal) we record only the increment versus what
@@ -1262,7 +1268,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
               workflowId,
               executionId,
               tx,
-              ...(billingContext ?? {}),
+              billingEntity: resolvedBillingContext.billingEntity,
+              billingPeriod: resolvedBillingContext.billingPeriod,
             })
             recordedIncrement = entries.reduce((acc, e) => acc + e.cost, 0)
 
@@ -1291,7 +1298,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
             entries,
             workspaceId: workflowRecord.workspaceId ?? undefined,
             workflowId,
-            ...(billingContext ?? {}),
+            billingEntity: resolvedBillingContext.billingEntity,
+            billingPeriod: resolvedBillingContext.billingPeriod,
           })
           recordedIncrement = entries.reduce((acc, e) => acc + e.cost, 0)
         }

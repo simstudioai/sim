@@ -185,16 +185,24 @@ export const DELETE = withRouteHandler(
 
       const requestId = generateId().slice(0, 8)
 
-      // Use transaction to ensure member deletion + webhook sync are atomic
-      await db.transaction(async (tx) => {
-        await tx.delete(credentialSetMember).where(eq(credentialSetMember.id, memberId))
+      await db.delete(credentialSetMember).where(eq(credentialSetMember.id, memberId))
 
-        const syncResult = await syncAllWebhooksForCredentialSet(id, requestId, tx)
+      // Runs after the deletion commits: the sync performs external HTTP
+      // (OAuth refresh, provider unsubscribe) and must not hold a pooled
+      // connection. A sync failure must not fail the committed mutation —
+      // it self-heals on the next membership change/deploy.
+      try {
+        const syncResult = await syncAllWebhooksForCredentialSet(id, requestId)
         logger.info('Synced webhooks after member removed', {
           credentialSetId: id,
           ...syncResult,
         })
-      })
+      } catch (syncError) {
+        logger.error('Webhook sync failed after member removal', {
+          credentialSetId: id,
+          error: syncError,
+        })
+      }
 
       logger.info('Removed member from credential set', {
         credentialSetId: id,

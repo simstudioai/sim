@@ -405,12 +405,17 @@ export function validateUniqueConstraints(
  * Checks unique constraints using targeted database queries.
  * Only queries for specific conflicting values instead of loading all rows.
  * This reduces memory usage from O(n) to O(1) where n is the number of rows.
+ *
+ * Pass a transaction as `executor` when running inside an open tx so the
+ * lookup runs on the transaction's connection and observes its uncommitted
+ * writes; otherwise the default `db` connection only observes committed state.
  */
 export async function checkUniqueConstraintsDb(
   tableId: string,
   data: RowData,
   schema: TableSchema,
-  excludeRowId?: string
+  excludeRowId?: string,
+  executor: UniqueCheckExecutor = db
 ): Promise<ValidationResult> {
   const errors: string[] = []
   const uniqueColumns = getUniqueColumns(schema)
@@ -459,7 +464,7 @@ export async function checkUniqueConstraintsDb(
       ? and(baseCondition, sql`${userTableRows.id} != ${excludeRowId}`)
       : baseCondition
 
-    const conflictingRow = await db
+    const conflictingRow = await executor
       .select({ id: userTableRows.id, position: userTableRows.position })
       .from(userTableRows)
       .where(whereClause)
