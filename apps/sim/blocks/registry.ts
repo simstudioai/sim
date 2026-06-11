@@ -230,6 +230,7 @@ import { RDSBlock, RDSBlockMeta } from '@/blocks/blocks/rds'
 import { RedditBlock, RedditBlockMeta } from '@/blocks/blocks/reddit'
 import { RedisBlock, RedisBlockMeta } from '@/blocks/blocks/redis'
 import { ReductoBlock, ReductoBlockMeta, ReductoV2Block } from '@/blocks/blocks/reducto'
+import { ResembleBlock } from '@/blocks/blocks/resemble'
 import { ResendBlock, ResendBlockMeta } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RevenueCatBlock, RevenueCatBlockMeta } from '@/blocks/blocks/revenuecat'
@@ -536,6 +537,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sentry: SentryBlock,
+  resemble: ResembleBlock,
   serper: SerperBlock,
   servicenow: ServiceNowBlock,
   ses: SESBlock,

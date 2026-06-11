@@ -2436,6 +2436,12 @@ import {
 } from '@/tools/redis'
 import { reductoParserTool, reductoParserV2Tool } from '@/tools/reducto'
 import {
+  detectTool as resembleDetectTool,
+  intelligenceTool as resembleIntelligenceTool,
+  watermarkApplyTool as resembleWatermarkApplyTool,
+  watermarkDetectTool as resembleWatermarkDetectTool,
+} from '@/tools/resemble'
+import {
   resendCreateContactTool,
   resendDeleteContactTool,
   resendGetContactTool,
@@ -4020,6 +4026,10 @@ export const tools: Record<string, ToolConfig> = {
   github_repo_info_v2: githubRepoInfoV2Tool,
   github_latest_commit: githubLatestCommitTool,
   github_latest_commit_v2: githubLatestCommitV2Tool,
+  resemble_detect: resembleDetectTool,
+  resemble_intelligence: resembleIntelligenceTool,
+  resemble_watermark_detect: resembleWatermarkDetectTool,
+  resemble_watermark_apply: resembleWatermarkApplyTool,
   serper_search: serperSearchTool,
   similarweb_website_overview: similarwebWebsiteOverviewTool,
   similarweb_traffic_visits: similarwebTrafficVisitsTool,
