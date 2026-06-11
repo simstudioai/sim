@@ -66,6 +66,16 @@ if (!url) {
 }
 
 /**
+ * The backend-pid session guard below is only sound on a DIRECT connection:
+ * through a transaction-pooling PgBouncer, consecutive statements can
+ * legitimately run on different server backends, so a pid change does not mean
+ * the session was lost and the guard would false-positive on every run.
+ * MIGRATION_DATABASE_URL is by contract the direct DSN; when falling back to
+ * DATABASE_URL (which may be pooled), the guard is skipped.
+ */
+const hasDirectMigrationUrl = Boolean(process.env.MIGRATION_DATABASE_URL)
+
+/**
  * `max_lifetime: null` is load-bearing: postgres-js defaults to recycling the
  * connection after a randomized 30–60 minutes, and a transparent reconnect
  * silently drops the session advisory lock and session `SET`s. The migration
@@ -178,12 +188,14 @@ async function acquireMigrationLock(): Promise<void> {
  */
 async function runMigrationsWithRetry(): Promise<void> {
   for (let attempt = 1; ; attempt++) {
-    const [{ pid }] = await client`SELECT pg_backend_pid() AS pid`
-    if (pid !== lockSessionPid) {
-      throw new Error(
-        `Database session changed mid-run (backend pid ${lockSessionPid} -> ${pid}); ` +
-          'the migration advisory lock was lost. Aborting so a fresh runner can retry safely.'
-      )
+    if (hasDirectMigrationUrl) {
+      const [{ pid }] = await client`SELECT pg_backend_pid() AS pid`
+      if (pid !== lockSessionPid) {
+        throw new Error(
+          `Database session changed mid-run (backend pid ${lockSessionPid} -> ${pid}); ` +
+            'the migration advisory lock was lost. Aborting so a fresh runner can retry safely.'
+        )
+      }
     }
     await client.unsafe('SET statement_timeout = 0')
     await client.unsafe(`SET lock_timeout = '${DDL_LOCK_TIMEOUT}'`)
