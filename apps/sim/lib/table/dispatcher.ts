@@ -750,10 +750,13 @@ export async function markDispatchCancelled(dispatchId: string): Promise<void> {
  *  events — without those the client's overlay would hang on "queued" until
  *  the next refresh. Pass `scopeFilter` to cancel only dispatches whose scope
  *  is that exact filter (a filtered "select all" Stop must not halt
- *  whole-table or differently-filtered runs). */
+ *  whole-table or differently-filtered runs). Pass `spareExcludedRowIds`
+ *  (select-all-minus-deselections Stop) to spare row-scoped dispatches whose
+ *  rows are ALL deselected — that work wasn't in the stopped selection. */
 export async function markActiveDispatchesCancelled(
   tableId: string,
-  scopeFilter?: Filter
+  scopeFilter?: Filter,
+  spareExcludedRowIds?: string[]
 ): Promise<DispatchRow[]> {
   const cancelled = await db
     .update(tableRunDispatches)
@@ -764,6 +767,15 @@ export async function markActiveDispatchesCancelled(
         inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
         scopeFilter
           ? sql`${tableRunDispatches.scope}->'filter' = ${JSON.stringify(scopeFilter)}::jsonb`
+          : undefined,
+        // coalesce(false): table-wide dispatches have no scope.rowIds (NULL <@ x
+        // is NULL) and must still cancel.
+        spareExcludedRowIds && spareExcludedRowIds.length > 0
+          ? sql`NOT coalesce(
+              ${tableRunDispatches.scope}->'rowIds' <@ ${JSON.stringify(spareExcludedRowIds)}::jsonb
+                AND jsonb_array_length(${tableRunDispatches.scope}->'rowIds') > 0,
+              false
+            )`
           : undefined
       )
     )

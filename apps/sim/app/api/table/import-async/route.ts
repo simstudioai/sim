@@ -122,9 +122,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     } catch (error) {
       // A failed dispatch must not leave a ghost `running` job holding the
-      // table's one-write-job slot until the stale-job janitor fires.
-      const { releaseJobClaim } = await import('@/lib/table/service')
+      // table's one-write-job slot — nor, in create mode, the placeholder
+      // table itself: the user never saw it, so archive it back out of the
+      // workspace (no hard-delete surface exists; archived is invisible).
+      const { releaseJobClaim, deleteTable } = await import('@/lib/table/service')
       await releaseJobClaim(table.id, importId).catch(() => {})
+      await deleteTable(table.id, requestId).catch(() => {})
       throw error
     }
   } else {

@@ -384,7 +384,7 @@ export async function cancelWorkflowGroupRuns(
   // (its own run); whole-table or differently-scoped dispatches keep running —
   // their cells cancelled below are skipped via `cancelledAt > requestedAt`.
   if (!rowId) {
-    await markActiveDispatchesCancelled(tableId, options?.filter)
+    await markActiveDispatchesCancelled(tableId, options?.filter, options?.excludeRowIds)
   }
 
   const allGroups = table.schema.workflowGroups ?? []
