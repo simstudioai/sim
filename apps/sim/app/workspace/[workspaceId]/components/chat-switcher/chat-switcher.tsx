@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
   POPOVER_ANIMATION_CLASSES,
   Popover,
@@ -10,12 +10,38 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { ChevronDown, MessageCircle } from '@/components/emcn/icons'
+import {
+  isMothershipPageId,
+  MOTHERSHIP_PAGES,
+  type MothershipResource,
+} from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import { useSidebarToggleHidden } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 import { ChatHistoryList } from '@/app/workspace/[workspaceId]/home/components/chat-history/chat-history-list'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
+import { useMothershipTabsStore } from '@/stores/mothership-tabs/store'
 
 const FALLBACK_TITLE = 'New chat'
+
+/**
+ * Resolves the resource the current page represents, so opening a chat keeps
+ * that page on screen as the focused panel tab instead of teleporting away.
+ * Titles are placeholders — the tab strip resolves live names from queries.
+ */
+function derivePageResource(pathname: string, workspaceId: string): MothershipResource | null {
+  const prefix = `/workspace/${workspaceId}/`
+  if (!pathname.startsWith(prefix)) return null
+  const [segment, detail] = pathname.slice(prefix.length).split('/')
+  if (segment === 'w' && detail) return { type: 'workflow', id: detail, title: 'Workflow' }
+  if (segment === 'tables' && detail) return { type: 'table', id: detail, title: 'Table' }
+  if (segment === 'knowledge' && detail) {
+    return { type: 'knowledgebase', id: detail, title: 'Knowledge Base' }
+  }
+  if (isMothershipPageId(segment)) {
+    return { type: 'page', id: segment, title: MOTHERSHIP_PAGES[segment] }
+  }
+  return null
+}
 
 interface ChatSwitcherProps {
   /**
@@ -54,6 +80,8 @@ export function ChatSwitcher({
   const isHidden = useSidebarToggleHidden()
   const { workspaceId } = useParams<{ workspaceId?: string }>()
   const router = useRouter()
+  const pathname = usePathname()
+  const openTabs = useMothershipTabsStore((state) => state.openTabs)
   const { data: tasks = [] } = useMothershipChats(workspaceId)
   const [open, setOpen] = useState(false)
 
@@ -78,6 +106,14 @@ export function ChatSwitcher({
     setOpen(false)
     onSelectChat?.(selectedChatId)
     if (selectedChatId === chatId) return
+    // Opening a chat never takes away what you're looking at: the current
+    // page becomes the focused panel tab, and the chat slides in beside it.
+    const pageResource = derivePageResource(pathname, workspaceId)
+    if (pageResource) {
+      openTabs(workspaceId, [pageResource], { focusId: pageResource.id })
+      router.push(`/workspace/${workspaceId}/chat/${selectedChatId}?resource=${pageResource.id}`)
+      return
+    }
     router.push(`/workspace/${workspaceId}/chat/${selectedChatId}`)
   }
 

@@ -233,9 +233,15 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     for (const r of fresh) mergedKeysRef.current.add(`${r.type}:${r.id}`)
     const urlFocus = initialResourceIdRef.current
     initialResourceIdRef.current = null
-    const focusId =
-      urlFocus && fresh.some((r) => r.id === urlFocus) ? urlFocus : fresh[fresh.length - 1].id
-    openTabs(workspaceId, fresh, { focusId })
+    // A URL-pinned resource wins outright: if it's one of this chat's fresh
+    // artifacts, focus it; otherwise it's already focused in the strip (the
+    // page the user opened the chat from), so the merge must not steal focus.
+    const focusId = urlFocus
+      ? fresh.some((r) => r.id === urlFocus)
+        ? urlFocus
+        : undefined
+      : fresh[fresh.length - 1].id
+    openTabs(workspaceId, fresh, focusId ? { focusId } : undefined)
   }, [resources, resolvedChatId, chatId, workspaceId, openTabs])
 
   const handleSelectTab = useCallback(
