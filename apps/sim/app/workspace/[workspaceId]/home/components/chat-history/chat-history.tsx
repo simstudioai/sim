@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Expandable, ExpandableContent } from '@/components/emcn'
-import { Clock } from '@/components/emcn/icons'
+import { BubbleChatDelay } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { ChatHistoryList } from '@/app/workspace/[workspaceId]/home/components/chat-history/chat-history-list'
 
@@ -19,7 +19,7 @@ interface ChatHistoryProps {
 /**
  * A launcher into the workspace's prior Mothership chats, docked into the grey
  * shelf beneath the home input (Codex tray pattern). Collapsed, it's a compact
- * "All Chats" chip; opening animates a searchable, recency-grouped list open
+ * "Recents" chip; opening animates a searchable, recency-grouped list open
  * INSIDE the grey tray — the shelf grows downward while the centered input
  * rides upward, in lockstep (300ms ease). Lives on the new-chat home view so a
  * chat can be resumed without the (collapsible) sidebar.
@@ -64,15 +64,15 @@ export function ChatHistory({ onSelectChat }: ChatHistoryProps) {
           type='button'
           onClick={() => setOpen((prev) => !prev)}
           aria-expanded={open}
-          aria-label='All chats'
+          aria-label='Recents'
           className={cn(
             'flex items-center gap-1.5 rounded-[8px] px-2 py-1 transition-colors',
             'hover-hover:bg-[var(--surface-active)]',
             open && 'bg-[var(--surface-active)]'
           )}
         >
-          <Clock className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          <span className='text-[var(--text-body)] text-sm'>All Chats</span>
+          <BubbleChatDelay className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          <span className='text-[var(--text-body)] text-sm'>Recents</span>
         </button>
       </div>
 

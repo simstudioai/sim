@@ -120,7 +120,7 @@ export function ChatSwitcher({
   const trigger = iconOnly ? (
     <button
       type='button'
-      aria-label='All Chats'
+      aria-label='Recents'
       onClick={() => setOpen((prev) => !prev)}
       className={cn(
         'flex h-[30px] flex-shrink-0 items-center gap-1 rounded-lg px-1.5 transition-colors',
@@ -158,7 +158,7 @@ export function ChatSwitcher({
             <Tooltip.Root>
               <Tooltip.Trigger asChild>{trigger}</Tooltip.Trigger>
               <Tooltip.Content side='bottom'>
-                <p>All Chats</p>
+                <p>Recents</p>
               </Tooltip.Content>
             </Tooltip.Root>
           </span>
