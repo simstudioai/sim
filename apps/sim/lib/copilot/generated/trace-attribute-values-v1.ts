@@ -27,7 +27,6 @@ export type AbortRedisResultKey = keyof typeof AbortRedisResult
 export type AbortRedisResultValue = (typeof AbortRedisResult)[AbortRedisResultKey]
 
 export const AuthKeyMatch = {
-  Enterprise: 'enterprise',
   None: 'none',
   User: 'user',
 } as const

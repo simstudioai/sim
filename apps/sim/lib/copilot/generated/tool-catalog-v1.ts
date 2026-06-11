@@ -1245,7 +1245,16 @@ export const File: ToolCatalogEntry = {
   name: 'file',
   route: 'subagent',
   mode: 'async',
-  parameters: { type: 'object' },
+  parameters: {
+    properties: {
+      prompt: {
+        description:
+          "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
   subagentId: 'file',
   internal: true,
 }
@@ -2716,7 +2725,16 @@ export const Media: ToolCatalogEntry = {
   name: 'media',
   route: 'subagent',
   mode: 'async',
-  parameters: { type: 'object' },
+  parameters: {
+    properties: {
+      prompt: {
+        description:
+          "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
   subagentId: 'media',
   internal: true,
 }
@@ -4176,7 +4194,16 @@ export const Workflow: ToolCatalogEntry = {
   name: 'workflow',
   route: 'subagent',
   mode: 'async',
-  parameters: { type: 'object' },
+  parameters: {
+    properties: {
+      prompt: {
+        description:
+          "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
   subagentId: 'workflow',
   internal: true,
 }
