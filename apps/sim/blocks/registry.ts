@@ -214,6 +214,7 @@ import { PagerDutyBlock, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty'
 import { ParallelBlock, ParallelBlockMeta } from '@/blocks/blocks/parallel'
 import { PeopleDataLabsBlock, PeopleDataLabsBlockMeta } from '@/blocks/blocks/peopledatalabs'
 import { PerplexityBlock, PerplexityBlockMeta } from '@/blocks/blocks/perplexity'
+import { PersonaBlock, PersonaBlockMeta } from '@/blocks/blocks/persona'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
@@ -500,6 +501,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   parallel_ai: ParallelBlock,
   peopledatalabs: PeopleDataLabsBlock,
   perplexity: PerplexityBlock,
+  persona: PersonaBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   polymarket: PolymarketBlock,
@@ -760,6 +762,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   parallel_ai: ParallelBlockMeta,
   peopledatalabs: PeopleDataLabsBlockMeta,
   perplexity: PerplexityBlockMeta,
+  persona: PersonaBlockMeta,
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   polymarket: PolymarketBlockMeta,
