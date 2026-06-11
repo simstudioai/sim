@@ -149,6 +149,7 @@ function useResourceNameLookup(workspaceId: string): Map<string, string> {
 interface ResourceTabItemProps {
   resource: MothershipResource
   idx: number
+  isActive: boolean
   isHovered: boolean
   isDragging: boolean
   isSelected: boolean
@@ -165,14 +166,14 @@ interface ResourceTabItemProps {
 }
 
 /**
- * An inactive tab at its natural width — labels never truncate (beyond the
+ * A tab at its natural width — labels never truncate (beyond the
  * pathological-name ceiling); tabs that don't fit whole collapse into the +N
- * dropdown instead. The active resource never renders here — it gets the
- * spotlight title chip.
+ * dropdown instead. The active tab is highlighted in place, never moved.
  */
 const ResourceTabItem = memo(function ResourceTabItem({
   resource,
   idx,
+  isActive,
   isHovered,
   isDragging,
   isSelected,
@@ -211,9 +212,9 @@ const ResourceTabItem = memo(function ResourceTabItem({
         onMouseEnter={() => setHoveredTabId(resource.id)}
         onMouseLeave={() => setHoveredTabId(null)}
         className={cn(
-          chipVariants({ variant: 'ghost', flush: true }),
+          chipVariants({ variant: 'ghost', active: isActive, flush: true }),
           'relative max-w-[240px] shrink-0 pr-[20px] text-[var(--text-body)]',
-          isSelected && 'bg-[var(--surface-active)]',
+          isSelected && !isActive && 'bg-[var(--surface-active)]',
           isDragging && 'opacity-30'
         )}
       >
@@ -310,62 +311,75 @@ export function ResourceTabs({
     anchorIdRef.current = null
   }
 
-  // Spotlight layout: the active resource renders as the title chip; the rest
-  // compress inline as long as they genuinely fit, with only the true
-  // remainder collapsing into the +N chip.
+  // Tabs render in strip order and the active one is highlighted in place —
+  // selecting never repositions a visible tab. Only a tab surfacing from the
+  // +N dropdown joins the row (at the end), since it has no inline position.
   const activeResource = useMemo(
     () => resources.find((r) => r.id === activeId) ?? resources[0] ?? null,
     [resources, activeId]
   )
-  const inactiveTabs = useMemo(
-    () => resources.filter((r) => r !== activeResource),
-    [resources, activeResource]
-  )
 
-  // Width-aware capacity: measure the strip and the (name-dependent) title
-  // chip, then fit whole tab slots into what's left. The inline tab renders
-  // don't affect either measured node, so there's no layout feedback loop.
-  const activeChipRef = useRef<HTMLButtonElement>(null)
+  // Width-aware capacity: a hidden measuring row holds every tab at natural
+  // width; whole tabs are fitted in order. The inline renders don't affect the
+  // measured nodes, so there's no layout feedback loop.
   const measureRef = useRef<HTMLDivElement>(null)
   // Permissive until the first trustworthy measurement: all tabs inline (the
   // panel's overflow-hidden clips any excess during the expand animation).
-  const [inlineCapacity, setInlineCapacity] = useState(Number.MAX_SAFE_INTEGER)
-  const inactiveCount = inactiveTabs.length
+  const [stripLayout, setStripLayout] = useState({
+    prefix: Number.MAX_SAFE_INTEGER,
+    appendActive: false,
+  })
+  const resourceCount = resources.length
+  const activeIdx = activeResource ? resources.indexOf(activeResource) : -1
   // Names participate in fitting (tabs render at natural width), so capacity
   // must recompute when any label changes — not just when counts do.
-  const namesKey = inactiveTabs
+  const namesKey = resources
     .map((r) => nameLookup.get(`${r.type}:${r.id}`) ?? r.title)
     .join('\u0000')
   useEffect(() => {
     if (!stripNode) return
     const compute = () => {
       // Zero width means the strip isn't laid out yet (panel collapsed or
-      // mid-animation) — keep the previous capacity rather than trusting it.
+      // mid-animation) — keep the previous layout rather than trusting it.
       if (stripNode.clientWidth === 0) return
       const measureNode = measureRef.current
       if (!measureNode) return
-      // Natural (untruncated) width of every inactive tab, from the hidden
-      // measuring row — tabs are never squeezed, they fit whole or overflow.
       const tabWidths = Array.from(measureNode.children).map((child) =>
         Math.min((child as HTMLElement).offsetWidth, TAB_MAX_WIDTH)
       )
-      const activeWidth = activeChipRef.current ? activeChipRef.current.offsetWidth + STRIP_GAP : 0
       const addWidth = chatId ? ADD_BUTTON_WIDTH + STRIP_GAP : 0
-      const available = stripNode.clientWidth - activeWidth - addWidth
+      const available = stripNode.clientWidth - addWidth
+      const apply = (next: { prefix: number; appendActive: boolean }) =>
+        setStripLayout((prev) =>
+          prev.prefix === next.prefix && prev.appendActive === next.appendActive ? prev : next
+        )
       const totalAll = tabWidths.reduce((sum, w) => sum + w + STRIP_GAP, 0)
       if (totalAll <= available + STRIP_GAP) {
-        setInlineCapacity(inactiveCount)
+        apply({ prefix: resourceCount, appendActive: false })
         return
       }
-      const availableWithChip = available - (OVERFLOW_CHIP_WIDTH + STRIP_GAP)
-      let used = 0
-      let fit = 0
-      for (const width of tabWidths) {
-        if (used + width > availableWithChip) break
-        used += width + STRIP_GAP
-        fit += 1
+      const fitPrefix = (budget: number) => {
+        let used = 0
+        let fit = 0
+        for (const width of tabWidths) {
+          if (used + width > budget) break
+          used += width + STRIP_GAP
+          fit += 1
+        }
+        return fit
       }
-      setInlineCapacity(fit)
+      const budget = available - (OVERFLOW_CHIP_WIDTH + STRIP_GAP)
+      const prefix = fitPrefix(budget)
+      // The active tab must stay visible: when it lands beyond the fit, append
+      // it after the prefix, reserving its width.
+      if (activeIdx >= prefix && activeIdx >= 0) {
+        apply({
+          prefix: fitPrefix(budget - (tabWidths[activeIdx] + STRIP_GAP)),
+          appendActive: true,
+        })
+        return
+      }
+      apply({ prefix, appendActive: false })
     }
     compute()
     // The strip resizes with every panel/sidebar/window change, so observing
@@ -373,16 +387,19 @@ export function ResourceTabs({
     // first paint after the expand animation.
     const observer = new ResizeObserver(compute)
     observer.observe(stripNode)
-    if (activeChipRef.current) observer.observe(activeChipRef.current)
     window.addEventListener('resize', compute)
     return () => {
       observer.disconnect()
       window.removeEventListener('resize', compute)
     }
-  }, [stripNode, inactiveCount, chatId, activeResource, namesKey])
+  }, [stripNode, resourceCount, chatId, activeIdx, namesKey])
 
-  const inlineTabs = inactiveTabs.slice(0, inlineCapacity)
-  const overflowTabs = inactiveTabs.slice(inlineCapacity)
+  const prefixTabs = resources.slice(0, Math.min(stripLayout.prefix, resources.length))
+  const inlineTabs =
+    stripLayout.appendActive && activeResource && !prefixTabs.includes(activeResource)
+      ? [...prefixTabs, activeResource]
+      : prefixTabs
+  const overflowTabs = resources.filter((r) => !inlineTabs.includes(r))
 
   const resolveName = useCallback(
     (resource: MothershipResource) =>
@@ -435,18 +452,18 @@ export function ResourceTabs({
 
   const handleTabClick = useCallback(
     (e: React.MouseEvent, idx: number) => {
-      const resource = inactiveTabs[idx]
+      const resource = inlineTabs[idx]
       if (!resource) return
 
-      // Shift+click: contiguous range from anchor (within the inactive strip)
+      // Shift+click: contiguous range from anchor (within the visible strip)
       if (e.shiftKey) {
         const anchorId = anchorIdRef.current
-        const anchorIdx = anchorId ? inactiveTabs.findIndex((r) => r.id === anchorId) : -1
+        const anchorIdx = anchorId ? inlineTabs.findIndex((r) => r.id === anchorId) : -1
         if (anchorIdx !== -1) {
           const start = Math.min(anchorIdx, idx)
           const end = Math.max(anchorIdx, idx)
           const next = new Set<string>()
-          for (let i = start; i <= end; i++) next.add(inactiveTabs[i].id)
+          for (let i = start; i <= end; i++) next.add(inlineTabs[i].id)
           setSelectedIds(next)
           onSelect(resource.id)
           return
@@ -462,7 +479,7 @@ export function ResourceTabs({
           setSelectedIds(next)
           if (activeId === resource.id) {
             const fallback =
-              findNearestId(inactiveTabs, idx, next) ?? findNearestId(inactiveTabs, idx, null)
+              findNearestId(inlineTabs, idx, next) ?? findNearestId(inlineTabs, idx, null)
             if (fallback) onSelect(fallback)
           }
         } else {
@@ -478,7 +495,7 @@ export function ResourceTabs({
       setSelectedIds(new Set([resource.id]))
       onSelect(resource.id)
     },
-    [inactiveTabs, onSelect, selectedIds, activeId]
+    [inlineTabs, onSelect, selectedIds, activeId]
   )
 
   const handleRemove = useCallback(
@@ -505,27 +522,11 @@ export function ResourceTabs({
     [onRemoveResource, resources, selectedIds]
   )
 
-  const handleActiveDragStart = useCallback(
-    (e: React.DragEvent) => {
-      if (!activeResource) return
-      e.dataTransfer.effectAllowed = 'copy'
-      e.dataTransfer.setData(
-        SIM_RESOURCE_DRAG_TYPE,
-        JSON.stringify({
-          type: activeResource.type,
-          id: activeResource.id,
-          title: activeResource.title,
-        })
-      )
-    },
-    [activeResource]
-  )
-
   const handleDragStart = useCallback(
     (e: React.DragEvent, idx: number) => {
-      const resource = inactiveTabs[idx]
+      const resource = inlineTabs[idx]
       if (!resource) return
-      const selected = inactiveTabs.filter((r) => selectedIds.has(r.id))
+      const selected = inlineTabs.filter((r) => selectedIds.has(r.id))
       const isMultiDrag = selected.length > 1 && selectedIds.has(resource.id)
       if (isMultiDrag) {
         e.dataTransfer.effectAllowed = 'copy'
@@ -549,7 +550,7 @@ export function ResourceTabs({
         JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
       )
     },
-    [inactiveTabs, selectedIds]
+    [inlineTabs, selectedIds]
   )
 
   const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
@@ -579,15 +580,11 @@ export function ResourceTabs({
       const reorderedInline = [...inlineTabs]
       const [moved] = reorderedInline.splice(fromIdx, 1)
       reorderedInline.splice(insertAt, 0, moved)
-      // The strip's visual order is [active, inline..., overflow...] — persist
-      // exactly that so the view and store never disagree.
-      onReorderResources([
-        ...(activeResource ? [activeResource] : []),
-        ...reorderedInline,
-        ...overflowTabs,
-      ])
+      // The strip's visual order is [inline..., overflow...] — persist exactly
+      // that so the view and store never disagree.
+      onReorderResources([...reorderedInline, ...overflowTabs])
     },
-    [inlineTabs, overflowTabs, activeResource, onReorderResources, dropGapIdx]
+    [inlineTabs, overflowTabs, onReorderResources, dropGapIdx]
   )
 
   const handleDragEnd = useCallback(() => {
@@ -605,7 +602,7 @@ export function ResourceTabs({
     >
       {leading}
       {/* Without leading controls, the strip starts at the bar's left edge —
-          pull it out 9px so the title chip sits 7px from the edge, matching
+          pull it out 9px so the first tab sits 7px from the edge, matching
           the edge icon buttons' equal-distance rhythm. */}
       <div
         ref={attachStrip}
@@ -617,8 +614,8 @@ export function ResourceTabs({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        {/* Hidden measuring row: every inactive tab at natural width, so the
-            capacity pass fits whole tabs instead of guessing slot sizes. */}
+        {/* Hidden measuring row: every tab at natural width, so the capacity
+            pass fits whole tabs instead of guessing slot sizes. */}
         <div
           ref={measureRef}
           aria-hidden='true'
@@ -627,7 +624,7 @@ export function ResourceTabs({
             RESOURCE_TAB_GAP_CLASS
           )}
         >
-          {inactiveTabs.map((resource) => (
+          {resources.map((resource) => (
             <span
               key={resource.id}
               className={cn(
@@ -640,34 +637,12 @@ export function ResourceTabs({
             </span>
           ))}
         </div>
-        {activeResource && (
-          /* The title chip is just the active tab — the inline tabs are the
-             switcher, so it carries no dropdown of its own. */
-          <button
-            ref={activeChipRef}
-            type='button'
-            draggable
-            data-resource-tab-id={activeResource.id}
-            onDragStart={handleActiveDragStart}
-            className={cn(
-              chipVariants({ variant: 'ghost', active: true, flush: true }),
-              'min-w-0 shrink-0 cursor-default text-[var(--text-body)]'
-            )}
-          >
-            {getResourceConfig(activeResource.type).renderTabIcon(
-              activeResource,
-              'size-[16px] shrink-0'
-            )}
-            <span className='max-w-[220px] truncate font-medium text-[var(--text-primary)]'>
-              {resolveName(activeResource)}
-            </span>
-          </button>
-        )}
         {inlineTabs.map((resource, idx) => (
           <ResourceTabItem
             key={resource.id}
             resource={resource}
             idx={idx}
+            isActive={resource === activeResource}
             isHovered={hoveredTabId === resource.id}
             isDragging={draggedIdx === idx}
             isSelected={selectedIds.has(resource.id) && selectedIds.size > 1}
