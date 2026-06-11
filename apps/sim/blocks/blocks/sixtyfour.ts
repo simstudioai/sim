@@ -7,7 +7,7 @@ export const SixtyfourBlock: BlockConfig = {
   description: 'Enrich leads and companies with AI-powered research',
   longDescription:
     'Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.',
-  docsLink: 'https://docs.sim.ai/tools/sixtyfour',
+  docsLink: 'https://docs.sim.ai/integrations/sixtyfour',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#000000',

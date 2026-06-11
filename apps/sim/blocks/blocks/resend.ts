@@ -9,7 +9,7 @@ export const ResendBlock: BlockConfig = {
   description: 'Send emails and manage contacts with Resend.',
   longDescription:
     'Integrate Resend into your workflow. Send emails, retrieve email status, manage contacts, and view domains. Requires API Key.',
-  docsLink: 'https://docs.sim.ai/tools/resend',
+  docsLink: 'https://docs.sim.ai/integrations/resend',
   category: 'tools',
   integrationType: IntegrationType.Email,
   bgColor: '#181C1E',

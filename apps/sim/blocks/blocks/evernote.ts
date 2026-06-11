@@ -8,7 +8,7 @@ export const EvernoteBlock: BlockConfig = {
   description: 'Manage notes, notebooks, and tags in Evernote',
   longDescription:
     'Integrate with Evernote to manage notes, notebooks, and tags. Create, read, update, copy, search, and delete notes. Create and list notebooks and tags.',
-  docsLink: 'https://docs.sim.ai/tools/evernote',
+  docsLink: 'https://docs.sim.ai/integrations/evernote',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',

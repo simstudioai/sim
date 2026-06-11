@@ -11,7 +11,7 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse | DynamoDBIntrospectRes
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.',
-  docsLink: 'https://docs.sim.ai/tools/dynamodb',
+  docsLink: 'https://docs.sim.ai/integrations/dynamodb',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',

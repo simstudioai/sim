@@ -1,0 +1,66 @@
+---
+title: How workflows run
+description: How Sim orders the blocks, runs independent ones in parallel, and follows branches.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+When you run a workflow, Sim works out the order from the [connections](/workflows/connections): a block runs as soon as the blocks it depends on have finished.
+
+## Blocks run as soon as they can
+
+Multiple blocks in a workflow can be executing at the same time. A block starts the moment its dependencies finish, and it waits on nothing else.
+
+<Image src="/static/execution/concurrency.png" alt="Two agent blocks running after the Start trigger" width={800} height={500} />
+
+Here the Customer Support and Deep Researcher agents each depend only on Start, so neither waits for the other.
+
+## A block waits for all its inputs
+
+When several blocks feed into one, that block waits for every feeder that is going to run, then runs once with each of their outputs available to read. A feeder on a branch that wasn't taken doesn't hold it up. You don't merge the outputs yourself.
+
+<Image src="/static/execution/combination.png" alt="A Function block running after two agent blocks complete" width={800} height={500} />
+
+The Function block here runs after both agents complete, with both of their outputs ready.
+
+## Branches follow one path
+
+A workflow can split. A [Condition](/workflows/blocks/condition) block branches on an explicit rule; a [Router](/workflows/blocks/router) block lets a model choose the path. Only the branch that is taken runs. A block on a branch that didn't run produces no output, which is why a [connection tag](/workflows/connections) pointing at it comes back empty.
+
+<Image src="/static/execution/routing.png" alt="A workflow branching by condition and by router" width={800} height={500} />
+
+To repeat work, a [Loop](/workflows/blocks/loop) block runs its inner blocks over a list, a count, or while a condition holds, and a [Parallel](/workflows/blocks/parallel) block runs them for several items at once.
+
+<Callout type="info">
+A workflow can call other workflows, through a Workflow block, an MCP tool, or an API block. Sim tracks the call chain and stops a run that exceeds 25 hops, so workflows that call each other can't loop forever.
+</Callout>
+
+## When a block fails
+
+A block that errors fails the run: blocks already running finish, and nothing new starts. To handle the failure instead, connect the block's **error port** — the run follows the [error path](/workflows/connections) and continues.
+
+<Image src="/static/execution/error-path.png" alt="A Function block whose error port routes to a handler block, with the normal path continuing to a success block" width={800} height={319} />
+
+Here `throwError` fails, so the run leaves through its red error port to `handleError`; `handleSuccess` on the normal path never runs.
+
+{/* Why this section exists: run timeouts are the only hard-error class provable at scale in platform logs (2,415 five-minute timeouts in 14 days, 2026-06). Limits verified in lib/core/execution-limits/types.ts; env-overridable. */}
+
+## How long a run can take
+
+A synchronous run is capped at **5 minutes on the free plan** and **50 minutes on paid plans**; an async run gets **90 minutes**. A run that hits the ceiling fails with "Execution timed out." The usual causes are a loop over a large list or a slow agent or API call — split the work, or run it async. Self-hosted deployments can configure these limits.
+
+## Watching a run
+
+While a workflow runs, the editor shows each block's state live: queued, running, done, or errored. Every run is recorded, so you can open the [logs](/logs-debugging) to see what each block received and returned after it finishes.
+
+## Next
+
+<Cards>
+  <Card title="Blocks" href="/workflows#blocks" description="The catalog of block types." />
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="How a block reads an earlier block's output." />
+  <Card title="Triggers" href="/workflows#triggers" description="The ways a workflow can start." />
+  <Card title="Logs & debugging" href="/logs-debugging" description="Inspect and debug a run." />
+</Cards>

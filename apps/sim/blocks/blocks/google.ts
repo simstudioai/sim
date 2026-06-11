@@ -9,7 +9,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   description: 'Search the web',
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate Google Search into the workflow. Can search the web.',
-  docsLink: 'https://docs.sim.ai/tools/google_search',
+  docsLink: 'https://docs.sim.ai/integrations/google_search',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',

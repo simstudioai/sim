@@ -1,0 +1,73 @@
+---
+title: Overview
+description: An agent is a workflow that reasons and acts, built around Agent blocks and the features you give them.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, BUILD_AGENT_WORKFLOW } from '@/components/workflow-preview'
+
+An **agent** is a [workflow](/workflows) that reasons and acts on its own. It reads an input, decides what to do, and carries it out, calling tools and using your data along the way. You build a custom agent in Sim by composing a workflow whose thinking runs through one or more [Agent blocks](/workflows/blocks/agent).
+
+An **Agent block** is the reasoning step inside that workflow: a model reads the values available to it, decides, and returns a result that later blocks read by reference. A simple agent is a single Agent block; a larger one wires several together with other blocks. The Agent block is where the model thinks; the rest of the workflow is what it acts on and through.
+
+<WorkflowPreview workflow={BUILD_AGENT_WORKFLOW} height={200} highlightBlock="agent" />
+
+The example throughout is an agent that scores inbound sales leads.
+
+## The Agent block
+
+You set up the reasoning step by giving the Agent block a **model** and a **prompt**. The model is the LLM that powers it; you pick one from the available providers, and the default is `claude-sonnet-4-6`. The prompt is a system message that defines who the agent is and how it should behave, plus a user message that carries the input, usually a reference like `<start.input>`.
+
+When it runs, the Agent block reasons, calls any tools it needs, and stores its result under its own name. By default that result is free text in `content`, read by a later block as `<agent.content>`, alongside run details like the model used, token counts, tool calls, and cost. Every setting and output field is in the [Agent block reference](/workflows/blocks/agent).
+
+## What you give an agent
+
+On its own, an Agent block can only reason and write text. You extend it so it can act, follow your rules, use your data, remember, and return results other blocks can rely on. Each feature maps to something you'd want an agent to do.
+
+### Take an action: tools
+
+To let an agent do something in the world, give it **tools**. A tool is an action the agent can call, like sending an email, searching the web, updating a CRM record, or running another workflow. You attach tools to the Agent block, and the agent decides which to call for the task in front of it. In the lead scorer, the agent has a search tool to gather context on a thin profile and an email tool to reach out to a strong lead.
+
+Tools come from a few places:
+
+- **[Integrations](/integrations)** are the catalog of external services: Gmail, Slack, Airtable, Linear, and hundreds more.
+- **[Custom tools](/agents/custom-tools)** are tools you define once with a schema and a snippet of code, then reuse.
+- **[MCP tools](/agents/mcp)** come from an external provider you connect through the Model Context Protocol.
+- **[Workflow-as-tool](/workflows)** makes another workflow callable, so the agent runs a whole procedure as one step.
+
+<Callout type="info">
+The same integration can run two ways. As a [block](/workflows#blocks) it runs because the path reached it. As an agent tool it runs because the agent chose it. Per-tool usage controls (force a tool, or disable one) are in the [Agent block reference](/workflows/blocks/agent).
+</Callout>
+
+### Follow a procedure: skills
+
+To give an agent instructions it can follow, write a [skill](/agents/skills). A skill is a reusable playbook with a short name and description the agent always sees, plus a longer body it loads only when the skill applies. In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqualifiers, and the agent reads the full rubric only when a lead is ambiguous. A tool is an action the agent takes; a skill is guidance it reads.
+
+### Use your documents: knowledge
+
+To let an agent answer from your own content, connect a [knowledge base](/knowledgebase). The agent searches it and grounds its answers in what it finds, instead of relying only on the model's general training. Give the lead scorer a knowledge base of past deals and it can compare a new lead against ones you've closed before.
+
+### Remember across runs: memory
+
+To let an agent reuse information from one run to the next, give it [memory](/integrations/memory), which stores and recalls values keyed to a conversation. Without it, each run starts fresh; with it, an agent in a chat carries what was said earlier into later messages.
+
+### Return a usable result: structured output
+
+To make an agent's result something later blocks can act on, give it a **structured output**: a typed object you define instead of free text. In the lead scorer, the agent returns `{ score, tier, reason }`, and a later [Condition](/workflows/blocks/condition) block reads `<agent.tier>` to branch. See [how blocks pass data](/workflows/data-flow) for reading fields.
+
+## Choosing what to use
+
+Start with one Agent block and a prompt, then add only what the task needs: a tool when the agent should act, a skill when it needs written guidance, a knowledge base when it should answer from your documents, memory when it should remember, and a structured output when a later block has to read its result.
+
+<Card title="Choosing what to use" href="/agents/choosing" description="A side-by-side guide to tools, skills, knowledge, and the rest, with one worked example." />
+
+## Next
+
+<Cards>
+  <Card title="Agent block reference" href="/workflows/blocks/agent" description="Every model, setting, and output field of the Agent block." />
+  <Card title="Choosing what to use" href="/agents/choosing" description="Pick the right feature for each task." />
+  <Card title="Custom tools" href="/agents/custom-tools" description="Define a reusable tool with a schema and code." />
+  <Card title="Using MCP tools" href="/agents/mcp" description="Connect an external MCP server to your agents." />
+</Cards>

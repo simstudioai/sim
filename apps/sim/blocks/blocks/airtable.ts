@@ -12,7 +12,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.',
-  docsLink: 'https://docs.sim.ai/tools/airtable',
+  docsLink: 'https://docs.sim.ai/integrations/airtable',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',

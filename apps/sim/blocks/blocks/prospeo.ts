@@ -9,7 +9,7 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.',
-  docsLink: 'https://docs.sim.ai/tools/prospeo',
+  docsLink: 'https://docs.sim.ai/integrations/prospeo',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FF1A26',

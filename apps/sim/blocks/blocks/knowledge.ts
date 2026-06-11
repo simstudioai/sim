@@ -20,7 +20,7 @@ export const KnowledgeBlock: BlockConfig = {
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
   category: 'blocks',
-  docsLink: 'https://docs.sim.ai/blocks/knowledge',
+  docsLink: 'https://docs.sim.ai/integrations/knowledge',
   subBlocks: [
     {
       id: 'operation',

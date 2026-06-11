@@ -1,0 +1,88 @@
+---
+title: Router
+description: The Router block uses a model to pick one of several paths based on the content it reads.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  ROUTER_CLASSIFY_WORKFLOW,
+  ROUTER_LEAD_WORKFLOW,
+  ROUTER_TRIAGE_WORKFLOW,
+} from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Router block** uses a model to choose one of several paths based on the content it reads. Each route you define adds its own output port, and the model picks the route whose description best fits. Use it when the decision needs to understand intent or unstructured text. When the decision is a plain rule, use a [Condition](/workflows/blocks/condition) instead.
+
+<BlockPreview type="router" />
+
+<Callout type="info">
+**Router vs Condition.** A Router reads context with a model and picks a route by meaning, so it suits intent-based routing ("send this ticket to the right team") and varying text. A Condition evaluates boolean expressions with no model, so it suits structured data and exact rules. The Router costs tokens per run; the Condition is free and faster.
+</Callout>
+
+## Configuration
+
+### Context
+
+The text the Router analyzes to decide. Usually an earlier output, like `<start.input>` or `<agent.content>`.
+
+### Routes
+
+Each route is a **title** and a **description** of when to choose it ("Route here for pricing and purchasing questions"). Every route adds a separate output port on the block; connect each to the path for that route. The model reads the context and selects the route whose description fits best.
+
+### Model
+
+The model that makes the decision, defaulting to `claude-sonnet-4-6`. Stronger reasoning models route more accurately; a faster, cheaper model is fine when the routes are clearly distinct. Type or pick any supported model, or a local one through Ollama or VLLM. On hosted Sim the API key is supplied for you.
+
+## Outputs
+
+| Output | What it is |
+| --- | --- |
+| `<router.selectedRoute>` | The id of the route the model chose |
+| `<router.reasoning>` | A short explanation of why it chose that route |
+| `<router.context>` | The context that was analyzed |
+| `<router.model>` | The model that decided |
+| `<router.tokens>` | Token usage |
+| `<router.cost>` | Estimated cost of the call |
+| `<router.selectedPath>` | The destination block the workflow routed to |
+
+<Callout type="warn">
+When no route fits the context, the Router returns `NO_MATCH` and takes the [error path](/workflows/connections) rather than guessing. Connect the error path for a fallback.
+</Callout>
+
+## Examples
+
+### Triage a support ticket
+
+<WorkflowPreview workflow={ROUTER_TRIAGE_WORKFLOW} />
+
+The Router reads `<start.input>`, picks the route whose description matches, and runs only that path.
+
+### Classify feedback
+
+<WorkflowPreview workflow={ROUTER_CLASSIFY_WORKFLOW} />
+
+The Router sorts incoming feedback into product feedback or a bug report, each handled by its own child [Workflow](/workflows/blocks/workflow) block.
+
+### Qualify a lead
+
+<WorkflowPreview workflow={ROUTER_LEAD_WORKFLOW} />
+
+The Router sends enterprise leads to a sales agent and everyone else into a self-serve onboarding workflow.
+
+## Best Practices
+
+- **Write clear, specific route descriptions.** The description is what the model matches on, so make the criteria explicit.
+- **Keep routes mutually exclusive.** Overlapping descriptions make the choice ambiguous and the routing less reliable.
+- **Connect the error path.** Handle `NO_MATCH` instead of letting the run fail silently.
+- **Reach for Condition when you can.** If the decision is a boolean check on structured data, the [Condition](/workflows/blocks/condition) block is free, faster, and deterministic.
+
+<FAQ items={[
+  { question: "How does the Router decide which route to take?", answer: "It sends your context and every route description to a model, which selects the route whose description best matches. The model is prompted to prefer choosing a route over returning nothing, and only returns NO_MATCH when the context is unrelated to every route." },
+  { question: "What happens when the Router cannot match any route?", answer: "The model returns NO_MATCH and the Router directs execution to the error path. Connect an error handler there for graceful fallback rather than letting the workflow fail silently." },
+  { question: "Does the Router cost money to run?", answer: "Yes. It makes a model call for every routing decision, which consumes tokens. Monitor it with <router.tokens> and <router.cost>. If your routing can be expressed as boolean conditions, use the Condition block instead — it is free and faster." },
+  { question: "Can I see why the Router chose a particular route?", answer: "Yes. The reasoning output (<router.reasoning>) contains a brief explanation of why the selected route was chosen, which is useful for debugging routing decisions." },
+  { question: "How many routes can I define?", answer: "There is no hard limit, and each route adds its own output port. Keep in mind that more routes with overlapping descriptions are harder for the model to distinguish, so aim for clear, mutually exclusive routes." },
+]} />

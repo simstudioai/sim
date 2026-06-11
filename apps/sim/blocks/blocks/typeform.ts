@@ -11,7 +11,7 @@ export const TypeformBlock: BlockConfig<TypeformResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Typeform into the workflow. Can retrieve responses, download files, and get form insights. Can be used in trigger mode to trigger a workflow when a form is submitted. Requires API Key.',
-  docsLink: 'https://docs.sim.ai/tools/typeform',
+  docsLink: 'https://docs.sim.ai/integrations/typeform',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#262627', // Typeform brand color
